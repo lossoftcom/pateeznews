@@ -23,23 +23,47 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 // Create client only if URL is valid to prevent crash during initialization
 export const supabase = (SUPABASE_URL && SUPABASE_URL.startsWith('http'))
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY || '')
-  : {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: () => Promise.resolve({ data: null, error: { message: 'Keys missing' } }),
-          single: () => Promise.resolve({ data: null, error: { message: 'Keys missing' } }),
-          order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
-          in: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
-        }),
-        order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
-        single: () => Promise.resolve({ data: null, error: { message: 'Keys missing' } }),
-        maybeSingle: () => Promise.resolve({ data: null, error: { message: 'Keys missing' } }),
-        in: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
-      }),
-    }),
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
-    }
-  } as any; 
+  : (() => {
+    const mockQuery = () => ({
+      select: mockQuery,
+      eq: mockQuery,
+      neq: mockQuery,
+      gt: mockQuery,
+      lt: mockQuery,
+      gte: mockQuery,
+      lte: mockQuery,
+      like: mockQuery,
+      ilike: mockQuery,
+      is: mockQuery,
+      in: mockQuery,
+      contains: mockQuery,
+      containedBy: mockQuery,
+      rangeGt: mockQuery,
+      rangeGte: mockQuery,
+      rangeLt: mockQuery,
+      rangeLte: mockQuery,
+      rangeAdjacent: mockQuery,
+      overlaps: mockQuery,
+      textSearch: mockQuery,
+      match: mockQuery,
+      not: mockQuery,
+      or: mockQuery,
+      filter: mockQuery,
+      order: mockQuery,
+      limit: mockQuery,
+      range: mockQuery,
+      abortSignal: mockQuery,
+      maybeSingle: () => Promise.resolve({ data: null, error: { message: 'Keys missing' } }),
+      single: () => Promise.resolve({ data: null, error: { message: 'Keys missing' } }),
+      then: (cb: any) => Promise.resolve({ data: [], error: null }).then(cb),
+    });
+
+    return {
+      from: mockQuery,
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
+      }
+    } as any;
+  })();
