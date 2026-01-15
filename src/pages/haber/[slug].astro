@@ -1,0 +1,216 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import NewsDetailPage from '@/components/NewsDetailPage';
+import { dataService } from '@/services/dataService';
+import { loadLocaleData } from '@/lib/locales';
+import { slugify } from '@/utils/helpers';
+import { resolveLangCode } from '@/utils/lang';
+import { getImage } from 'astro:assets';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+const cookies = Astro.request.headers.get('cookie') || '';
+const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];
+const activeCatCookieValue = cookies.match(/pateez_active_cat=([^;]+)/)?.[1];
+const activeCatCookie = activeCatCookieValue ? decodeURIComponent(activeCatCookieValue) : null;
+const acceptLanguageHeader = Astro.request.headers.get('accept-language');
+const urlLang = Astro.url.searchParams.get('lang');
+
+const seoAlternates = await dataService.getSeoAlternates();
+const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
+const lang = resolveLangCode({
+  urlLang,
+  cookieLang,
+  acceptLanguageHeader,
+  supported: seoAlternates.map((entry) => ({ code: entry.code, isDefault: entry.isDefault })),
+  fallback: defaultLangCode,
+});
+
+const langMeta = seoAlternates.find((entry) => entry.code === lang);
+
+const [initialTranslations, siteSettings, navigationItems, newsItem, newsItems] = await Promise.all([
+  loadLocaleData(lang),
+  dataService.getSiteSettings(lang),
+  dataService.getNavigationItems(lang),
+  dataService.getNewsBySlug(slug as string),
+  dataService.getNewsItems(lang)
+]);
+
+const initialLang = {
+  code: lang,
+  name: langMeta?.name || lang.toUpperCase(),
+  direction: langMeta?.direction || 'ltr',
+  status: 'active',
+  flag_code: langMeta?.flagCode || lang,
+  is_default: langMeta?.isDefault || lang === defaultLangCode
+};
+
+if (!newsItem) {
+  return Astro.redirect('/404');
+}
+
+const THUMB_WIDTHS = [320, 480, 640, 840, 1280];
+const COVER_WIDTHS = [640, 960, 1280, 1600];
+const IMAGE_SIZES = '(max-width: 840px) 100vw, 840px';
+
+const buildOptimizedImage = async (src: string, widths: number[]) => {
+  const raw = String(src || '').trim();
+  if (!raw || raw.startsWith('data:')) return null;
+  try {
+    const result = await getImage({ src: raw, widths, format: 'webp', quality: 'mid' });
+    return { src: result.src, srcSet: result.srcSet.attribute, sizes: IMAGE_SIZES };
+  } catch {
+    return null;
+  }
+};
+
+const resolvedThumbnailSrc = String(newsItem.thumbnail || '').trim();
+const resolvedCoverSrc = String((newsItem as any)?.coverThumbnail || resolvedThumbnailSrc).trim();
+
+const optimizedThumbnail = resolvedThumbnailSrc ? await buildOptimizedImage(resolvedThumbnailSrc, THUMB_WIDTHS) : null;
+const optimizedCoverThumbnail = resolvedCoverSrc
+  ? (resolvedCoverSrc === resolvedThumbnailSrc
+    ? optimizedThumbnail
+    : await buildOptimizedImage(resolvedCoverSrc, COVER_WIDTHS))
+  : null;
+
+const newsItemWithOptimized = {
+  ...newsItem,
+  optimizedThumbnail: optimizedThumbnail || undefined,
+  optimizedCoverThumbnail: optimizedCoverThumbnail || undefined,
+};
+
+const title = newsItem.seoTitle || `${newsItem.title} | ${siteSettings?.site_name || 'Pateez'}`;
+const description = newsItem.seoDescription || newsItem.summary;
+const ogImage = newsItem.thumbnail || newsItem.mediaUrl || siteSettings?.og_image_url || "";
+
+const canonicalBase = (siteSettings?.canonical_url || Astro.url.origin).trim();
+const canonicalPathSegment = encodeURIComponent(newsItem.slug || slug || newsItem.id);
+const canonicalUrl = new URL(`/haber/${canonicalPathSegment}`, canonicalBase).toString();
+
+const toAbsoluteUrl = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) return raw;
+  try {
+    return new URL(raw, canonicalBase).toString();
+  } catch {
+    return raw;
+  }
+};
+
+const stripHtml = (html: string) => (html || '').replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
+
+const toIso = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  if (!raw) return undefined;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString();
+};
+
+const orgName = (siteSettings?.organization_legal_name || siteSettings?.site_name || 'Pateez').trim();
+const orgLogo = toAbsoluteUrl(siteSettings?.logo_url || siteSettings?.favicon_url);
+const articleLd = {
+  "@context": "https://schema.org",
+  "@type": (newsItem.schemaType || 'NewsArticle'),
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": canonicalUrl,
+  },
+  headline: stripHtml(newsItem.seoTitle || newsItem.title),
+  description: stripHtml(newsItem.seoDescription || newsItem.summary),
+  ...(toAbsoluteUrl(ogImage) ? { image: [toAbsoluteUrl(ogImage)] } : {}),
+  ...(toIso(newsItem.timestamp) ? { datePublished: toIso(newsItem.timestamp) } : {}),
+  ...(newsItem.category ? { articleSection: stripHtml(newsItem.category) } : {}),
+  ...(newsItem.keywords ? { keywords: stripHtml(newsItem.keywords) } : {}),
+  author: {
+    "@type": "Person",
+    name: stripHtml(newsItem.author || newsItem.source || orgName),
+  },
+  publisher: {
+    "@type": "Organization",
+    name: orgName,
+    ...(orgLogo ? { logo: { "@type": "ImageObject", url: orgLogo } } : {}),
+  },
+  ...(newsItem.factChecked ? {
+    reviewedBy: {
+      "@type": "Organization",
+      name: orgName,
+    },
+  } : {}),
+  inLanguage: lang,
+  isAccessibleForFree: true,
+};
+
+const categoryLabel = String(newsItem.category || '').trim();
+const categorySlug = categoryLabel ? slugify(categoryLabel) : '';
+const breadcrumbItems = [
+  {
+    "@type": "ListItem",
+    position: 1,
+    name: siteSettings?.site_name || orgName || "Home",
+    item: new URL('/', canonicalBase).toString(),
+  },
+  ...(categorySlug ? [{
+    "@type": "ListItem",
+    position: 2,
+    name: stripHtml(categoryLabel),
+    item: new URL(`/kategori/${encodeURIComponent(categorySlug)}`, canonicalBase).toString(),
+  }] : []),
+  {
+    "@type": "ListItem",
+    position: categorySlug ? 3 : 2,
+    name: stripHtml(newsItem.seoTitle || newsItem.title),
+    item: canonicalUrl,
+  },
+];
+
+const breadcrumbLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: breadcrumbItems,
+};
+
+const faqItems = Array.isArray(newsItem.faqData) ? newsItem.faqData.filter((f) => f?.q && f?.a) : [];
+const faqLd = faqItems.length > 0 ? {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((f) => ({
+    "@type": "Question",
+    name: stripHtml(String(f.q)),
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: stripHtml(String(f.a)),
+    },
+  })),
+} : null;
+---
+
+<Layout 
+  title={title} 
+  description={description} 
+  keywords={newsItem.keywords}
+  ogType="article"
+  ogImage={ogImage}
+  canonical={canonicalUrl}
+  jsonLd={faqLd ? [articleLd, breadcrumbLd, faqLd] : [articleLd, breadcrumbLd]}
+  favicon={siteSettings?.favicon_url}
+  lang={lang}
+  dir={initialLang.direction}
+  siteSettings={siteSettings}
+  navigationItems={navigationItems}
+  initialTranslations={initialTranslations}
+  initialLang={initialLang}
+>
+  <NewsDetailPage 
+    client:idle 
+    initialLang={initialLang} 
+    initialTranslations={initialTranslations}
+    siteSettings={siteSettings}
+    navigationItems={navigationItems}
+    newsItem={newsItemWithOptimized as any}
+    newsItems={newsItems}
+  />
+</Layout>

@@ -1,0 +1,181 @@
+import React, { useState } from 'react';
+import ReactQuill from 'react-quill-new';
+import { useLanguage } from '@/context/LanguageContext';
+import { QUILL_MODULES, QUILL_FORMATS, type PostItem } from './PostTextItem';
+
+interface PostQuoteItemProps {
+    item: PostItem;
+    index: number;
+    totalItems: number;
+    showBlockNumbers: boolean;
+    onUpdate: (id: string, field: keyof PostItem, value: any) => void;
+    onRemove: (id: string) => void;
+    isDeletable?: boolean;
+    onMoveUp?: (index: number) => void;
+    onMoveDown?: (index: number) => void;
+}
+
+const PostQuoteItem: React.FC<PostQuoteItemProps> = ({
+    item,
+    index,
+    totalItems,
+    showBlockNumbers,
+    onUpdate,
+    onRemove,
+    isDeletable = true,
+    onMoveUp,
+    onMoveDown
+}) => {
+    const { t } = useLanguage();
+    const [showSource, setShowSource] = useState(false);
+
+    return (
+        <div className="group bg-white rounded-[3px] border border-palette-tan/20 shadow-md flex overflow-hidden animate-in slide-in-from-left duration-300 admin-font">
+            {/* SIDEBAR ACTIONS */}
+            <div className="w-12 shrink-0 bg-palette-beige/5 border-r border-palette-tan/10 flex flex-col items-center py-6 justify-between transition-colors group-hover:bg-palette-beige/10">
+                <div className="flex flex-col gap-2">
+                    {totalItems > 1 && (
+                        <>
+                            {index > 0 ? (
+                                <button
+                                    onClick={() => onMoveUp?.(index)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-[3px] text-palette-tan/40 hover:text-palette-maroon hover:bg-white hover:shadow-sm transition-all active:scale-90"
+                                >
+                                    <span className="material-symbols-rounded rotate-180" style={{ fontSize: '20px' }}>expand_more</span>
+                                </button>
+                            ) : <div className="w-8 h-8" />}
+
+                            {index < totalItems - 1 ? (
+                                <button
+                                    onClick={() => onMoveDown?.(index)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-[3px] text-palette-tan/40 hover:text-palette-maroon hover:bg-white hover:shadow-sm transition-all active:scale-90"
+                                >
+                                    <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>expand_more</span>
+                                </button>
+                            ) : <div className="w-8 h-8" />}
+                        </>
+                    )}
+                </div>
+
+                <button
+                    onClick={() => isDeletable && onRemove(item.id)}
+                    disabled={!isDeletable}
+                    className={`w-8 h-8 flex items-center justify-center rounded-[3px] transition-all ${isDeletable
+                        ? "text-palette-tan/30 hover:text-white hover:bg-palette-red hover:shadow-md active:scale-90"
+                        : "text-palette-tan/10 cursor-not-allowed"
+                        }`}
+                >
+                    <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>delete</span>
+                </button>
+            </div>
+
+            {/* MAIN CONTENT AREA */}
+            <div className="flex-1 p-5 space-y-4 relative overflow-hidden">
+                {/* DECORATIVE QUOTE ICON IN BACKGROUND */}
+                <div className="absolute top-10 right-4 opacity-[0.03] pointer-events-none">
+                    <span className="material-symbols-rounded" style={{ fontSize: '120px' }}>format_quote</span>
+                </div>
+
+                {/* BLOCK HEADER */}
+                <div className="flex items-center justify-between border-b border-palette-tan/15 pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-palette-maroon/5 rounded-[3px] text-palette-maroon border border-palette-maroon/10 shadow-sm flex items-center justify-center">
+                            <span className="material-symbols-rounded" style={{ fontSize: '20px', fontVariationSettings: '"FILL" 1' }}>format_quote</span>
+                        </div>
+	                        <div>
+	                            <h3 className="text-base font-black text-palette-maroon leading-tight">{t('admin.post.quote_block_title')}</h3>
+	                            <p className="text-[11px] font-bold text-palette-tan/50 tracking-wide uppercase">{t('admin.post.quote_block_desc')}</p>
+	                        </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={item.showOnHomepage || false}
+                            onChange={(e) => onUpdate(item.id, 'showOnHomepage', e.target.checked)}
+                            className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-palette-tan/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-palette-maroon"></div>
+                        <span className="ml-2 text-[11px] font-bold text-palette-tan uppercase tracking-wider">{t('admin.post.show_on_homepage')}</span>
+                    </label>
+                </div>
+
+	                    <div className="space-y-4 relative z-10">
+	                        {/* OPTIONAL TITLE/AUTHOR */}
+	                        <div className="space-y-1.5">
+	                            <label className="text-[13px] font-black text-palette-tan ml-1 uppercase tracking-wider">{t('admin.post.quote_author_label')}</label>
+	                            <div className="flex items-center gap-3">
+                            {showBlockNumbers && (
+                                <div className="w-9 h-9 shrink-0 rounded-[3px] bg-palette-maroon text-white flex items-center justify-center text-base font-black shadow-md shadow-palette-maroon/10">
+                                    {item.orderNumber || (index + 1)}
+                                </div>
+                            )}
+	                            <input
+	                                type="text"
+	                                value={item.title}
+	                                onChange={(e) => onUpdate(item.id, 'title', e.target.value)}
+	                                className="w-full h-10 bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] px-4 text-base font-bold text-palette-maroon outline-none focus:border-palette-red transition-all shadow-inner"
+	                                placeholder={t('admin.post.quote_author_placeholder')}
+	                            />
+	                        </div>
+	                    </div>
+
+	                    {/* RICH-TEXT EDITOR FOR QUOTE CONTENT */}
+	                    <div className="space-y-2 group/editor">
+	                        <div className="flex items-center justify-between px-1">
+	                            <label className="text-[13px] font-black text-palette-tan uppercase tracking-wider">{t('admin.post.quote_content_label')}</label>
+	                            <div className="flex items-center gap-2 text-palette-tan/30 group-focus-within/editor:text-palette-red/40 transition-colors">
+                                <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>auto_awesome</span>
+                                <span className="text-[11px] font-bold">{t('admin.post.ai_support')}</span>
+                            </div>
+                        </div>
+                        <div className="quill-modern-wrapper border border-palette-tan/20 rounded-[3px] overflow-hidden focus-within:border-palette-red/40 transition-all shadow-sm bg-white min-h-[150px]">
+                            {(() => {
+                                const Quill: any = ReactQuill;
+                                return (
+	                                    <Quill
+                                        theme="snow"
+                                        value={item.description}
+                                        onChange={(content: string) => onUpdate(item.id, 'description', content)}
+                                        modules={QUILL_MODULES}
+                                        formats={QUILL_FORMATS}
+	                                        placeholder={t('admin.post.quote_content_placeholder')}
+	                                        className="modern-quill-editor h-full italic-editor"
+	                                    />
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+	                    {/* EXTRA SETTINGS */}
+	                    <div className="pt-1">
+                        <button
+                            type="button"
+                            onClick={() => setShowSource(!showSource)}
+                            className="text-[11px] font-black text-palette-tan/50 hover:text-palette-maroon transition-colors flex items-center gap-1.5 uppercase tracking-[0.15em] p-1 rounded hover:bg-palette-beige/20"
+	                        >
+	                            <span className={`material-symbols-rounded transition-transform duration-300 ${showSource ? 'rotate-180' : ''}`} style={{ fontSize: '18px' }}>expand_more</span>
+	                            {t('admin.post.extra_settings_alt')}
+	                        </button>
+	                    </div>
+
+	                    {showSource && (
+	                        <div className="pt-2 animate-in slide-in-from-top-2 duration-300">
+	                            <div className="space-y-2">
+	                                <label className="text-[13px] font-black text-palette-tan ml-1 flex items-center gap-2 uppercase tracking-wider">{t('admin.post.quote_source_link_label')}</label>
+	                                <input
+	                                    type="text"
+	                                    value={item.source || ''}
+	                                    onChange={(e) => onUpdate(item.id, 'source', e.target.value)}
+	                                    className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] px-4 py-3 text-sm font-bold text-palette-maroon outline-none focus:border-palette-red transition-all"
+	                                    placeholder={t('admin.post.quote_source_link_placeholder')}
+	                                />
+	                            </div>
+	                        </div>
+	                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default PostQuoteItem;

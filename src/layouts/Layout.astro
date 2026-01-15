@@ -1,0 +1,339 @@
+---
+import '@/styles/index.css';
+import { ViewTransitions } from 'astro:transitions';
+import type { NavigationItem, SiteSettings } from '@/types';
+import { dataService } from '@/services/dataService';
+
+interface Props {
+	title?: string;
+	description?: string;
+	keywords?: string;
+	ogType?: string;
+	ogImage?: string;
+	canonical?: string;
+	jsonLd?: unknown | unknown[];
+  lang?: string;
+  dir?: string;
+  favicon?: string;
+	siteSettings?: SiteSettings | null;
+	navigationItems?: NavigationItem[];
+	initialTranslations?: Record<string, string>;
+	initialLang?: any;
+}
+
+const { 
+  title = "", 
+  description = "", 
+  keywords = "", 
+  ogType = "",
+  ogImage = "", 
+  canonical = "",
+  jsonLd,
+  lang = "tr",
+  dir = "ltr",
+  favicon = "",
+  siteSettings,
+  navigationItems = [],
+  initialTranslations = {},
+  initialLang = { code: 'tr', name: 'Türkçe', direction: 'ltr', status: 'active', flag_code: 'tr', is_default: true }
+} = Astro.props;
+
+const defaultFavicon = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📰</text></svg>";
+
+import GlobalNavigation from '@/components/GlobalNavigation';
+
+const pathname = Astro.url.pathname;
+const normalizedPathname = pathname.replace(/\/$/, '');
+const isAdminRoute = normalizedPathname.startsWith('/admin');
+const isPrivateRoute = normalizedPathname === '/profil' || normalizedPathname === '/profil-duzenle';
+const shouldNoIndex = isAdminRoute || isPrivateRoute;
+
+const normalizeBase = (value: string) => String(value || '').trim().replace(/\/$/, '');
+const canonicalBase = normalizeBase(siteSettings?.canonical_url || '');
+const baseForUrls = canonicalBase || Astro.url.origin;
+
+const seoAlternates = await dataService.getSeoAlternates();
+const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
+const alternateBases = seoAlternates.map((entry) => normalizeBase(entry.canonicalUrl) || baseForUrls);
+const shouldUseLangParam = new Set(alternateBases).size <= 1;
+
+const resolvedCanonicalUrl = (() => {
+	const initial = canonical || new URL(pathname, baseForUrls).toString();
+	const url = new URL(initial);
+	if (shouldUseLangParam && lang && lang !== defaultLangCode) {
+		url.searchParams.set('lang', lang);
+	} else {
+		url.searchParams.delete('lang');
+	}
+	return url.toString();
+})();
+
+const hreflangLinks = seoAlternates
+	.map((entry) => {
+		const base = normalizeBase(entry.canonicalUrl) || baseForUrls;
+		const url = new URL(pathname, base);
+		if (shouldUseLangParam && entry.code && entry.code !== defaultLangCode) {
+			url.searchParams.set('lang', entry.code);
+		} else {
+			url.searchParams.delete('lang');
+		}
+		return { code: entry.code, href: url.toString(), isDefault: entry.isDefault };
+	})
+	.filter((entry) => !!entry.code);
+
+const xDefaultHref = hreflangLinks.find((entry) => entry.isDefault)?.href || new URL(pathname, baseForUrls).toString();
+
+const resolvedTitle = title || siteSettings?.site_name || "Pateez News";
+const resolvedDescription = description || siteSettings?.meta_description || "";
+const resolvedKeywords = keywords || siteSettings?.meta_keywords || "";
+const resolvedOgType = ogType || "website";
+
+const toAbsoluteUrl = (value: string | null | undefined) => {
+	const raw = String(value || '').trim();
+	if (!raw) return '';
+	if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) return raw;
+	try {
+		return new URL(raw, canonicalBase || Astro.url).toString();
+	} catch {
+		return raw;
+	}
+};
+
+const resolvedOgImage = toAbsoluteUrl(ogImage || siteSettings?.og_image_url);
+const resolvedFavicon = favicon || siteSettings?.favicon_url || defaultFavicon;
+const themeColor = '#fcfcfb';
+
+const twitterHandleRaw = String(siteSettings?.twitter_username || '').trim();
+const twitterSite = twitterHandleRaw
+	? (twitterHandleRaw.startsWith('@') ? twitterHandleRaw : `@${twitterHandleRaw}`)
+	: '';
+
+const ogLocale = (() => {
+	switch (lang) {
+		case 'tr': return 'tr_TR';
+		case 'en': return 'en_US';
+		case 'ar': return 'ar_AR';
+		default: return lang;
+	}
+})();
+
+const safeJsonLd = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u003c');
+
+const orgName = (siteSettings?.organization_legal_name || siteSettings?.site_name || '').trim();
+const orgUrl = baseForUrls;
+const orgLogo = toAbsoluteUrl(siteSettings?.logo_url || siteSettings?.favicon_url);
+const organizationLd = orgName ? {
+	"@context": "https://schema.org",
+	"@type": "Organization",
+	name: orgName,
+	url: orgUrl,
+	...(orgLogo ? { logo: orgLogo } : {}),
+	...(siteSettings?.organization_phone ? { telephone: siteSettings.organization_phone } : {}),
+	...(siteSettings?.organization_address ? {
+		address: {
+			"@type": "PostalAddress",
+			streetAddress: siteSettings.organization_address,
+		}
+	} : {}),
+} : null;
+
+const websiteLd = (siteSettings?.site_name || orgName) ? {
+	"@context": "https://schema.org",
+	"@type": "WebSite",
+	name: siteSettings?.site_name || orgName,
+	url: orgUrl,
+	inLanguage: lang,
+} : null;
+
+const googleVerificationRaw = String(siteSettings?.google_search_console_code || '').trim();
+const bingVerificationRaw = String(siteSettings?.bing_verification_code || '').trim();
+const headerCustomCodes = String(siteSettings?.header_custom_codes || '').trim();
+const footerCustomCodes = String(siteSettings?.footer_custom_codes || '').trim();
+
+const preconnectOrigins = (() => {
+	const origins = new Set<string>();
+	const addOrigin = (value: string | null | undefined) => {
+		const raw = String(value || '').trim();
+		if (!raw || raw.startsWith('data:')) return;
+		try {
+			const url = new URL(raw, canonicalBase || Astro.url);
+			if (url.origin) origins.add(url.origin);
+		} catch {
+			// ignore
+		}
+	};
+
+	addOrigin(import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL);
+	addOrigin(resolvedOgImage);
+	addOrigin(resolvedFavicon);
+	addOrigin(orgLogo);
+	addOrigin(siteSettings?.logo_url);
+	addOrigin(siteSettings?.footer_logo_url);
+	addOrigin(siteSettings?.dark_logo_url);
+	addOrigin(siteSettings?.email_logo_url);
+	if (siteSettings?.google_analytics_id) origins.add('https://www.googletagmanager.com');
+
+	return Array.from(origins).filter((origin) => origin && origin !== Astro.url.origin);
+})();
+
+const buildLangAwareAssetHref = (pathname: string) => {
+	const url = new URL(pathname, Astro.url.origin);
+	if (shouldUseLangParam && lang && lang !== defaultLangCode) {
+		url.searchParams.set('lang', lang);
+	} else {
+		url.searchParams.delete('lang');
+	}
+	return `${url.pathname}${url.search}`;
+};
+
+const manifestHref = buildLangAwareAssetHref('/manifest.webmanifest');
+const rssHref = buildLangAwareAssetHref('/rss.xml');
+const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
+---
+
+<!DOCTYPE html>
+<html lang={lang} dir={dir} class="scroll-smooth">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<meta name="theme-color" content={themeColor} />
+		<link rel="icon" href={resolvedFavicon}>
+		<link rel="apple-touch-icon" href={orgLogo || resolvedFavicon} />
+		<link rel="manifest" href={manifestHref} />
+		<meta name="generator" content={Astro.generator} />
+		<ViewTransitions />
+
+		{preconnectOrigins.map((origin) => (
+			<>
+				<link rel="preconnect" href={origin} crossorigin />
+				<link rel="dns-prefetch" href={origin} />
+			</>
+		))}
+		
+		<title>{resolvedTitle}</title>
+		<meta name="description" content={resolvedDescription} />
+		<meta name="keywords" content={resolvedKeywords} />
+		<meta
+			name="robots"
+			content={shouldNoIndex
+				? "noindex,nofollow"
+				: "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+			}
+		/>
+		<meta property="og:site_name" content={siteSettings?.site_name || resolvedTitle} />
+		<meta property="og:locale" content={ogLocale} />
+		{siteSettings?.fb_app_id && <meta property="fb:app_id" content={siteSettings.fb_app_id} />}
+		{twitterSite && <meta name="twitter:site" content={twitterSite} />}
+
+		{hreflangLinks.map((entry) => (
+			<link rel="alternate" hreflang={entry.code} href={entry.href} />
+		))}
+		{!shouldNoIndex && (
+			<link rel="alternate" hreflang="x-default" href={xDefaultHref} />
+		)}
+
+		<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+		{isAdminRoute && (
+			<link rel="preload" href="/fonts/roboto-latin.woff2" as="font" type="font/woff2" crossorigin />
+		)}
+		<link rel="preload" href="/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
+
+		<style is:global>
+			body {
+				font-family: 'Inter', system-ui, -apple-system, sans-serif;
+				background-color: #fcfcfb;
+				color: #182540;
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+				margin: 0;
+			}
+			.material-symbols-rounded {
+				font-family: 'Material Symbols Rounded' !important;
+				font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+				font-size: 24px;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				line-height: 1;
+				width: 24px;
+				height: 24px;
+				text-transform: none !important;
+				letter-spacing: normal !important;
+				white-space: nowrap !important;
+				word-wrap: normal !important;
+				direction: ltr !important;
+				-webkit-font-smoothing: antialiased !important;
+				-moz-osx-font-smoothing: grayscale !important;
+				text-rendering: optimizeLegibility !important;
+			}
+		</style>
+
+		<!-- Open Graph / Facebook -->
+		<meta property="og:type" content={resolvedOgType} />
+		<meta property="og:url" content={resolvedCanonicalUrl} />
+		<meta property="og:title" content={resolvedTitle} />
+		<meta property="og:description" content={resolvedDescription} />
+		<meta property="og:image" content={resolvedOgImage} />
+
+		<!-- Twitter -->
+		<meta property="twitter:card" content="summary_large_image" />
+		<meta property="twitter:url" content={resolvedCanonicalUrl} />
+		<meta property="twitter:title" content={resolvedTitle} />
+		<meta property="twitter:description" content={resolvedDescription} />
+		<meta property="twitter:image" content={resolvedOgImage} />
+
+		<link rel="canonical" href={resolvedCanonicalUrl} />
+		<link rel="alternate" type="application/rss+xml" title={rssTitle} href={rssHref} />
+
+		{googleVerificationRaw && (googleVerificationRaw.includes('<')
+			? <Fragment set:html={googleVerificationRaw} />
+			: <meta name="google-site-verification" content={googleVerificationRaw} />
+		)}
+
+		{bingVerificationRaw && (bingVerificationRaw.includes('<')
+			? <Fragment set:html={bingVerificationRaw} />
+			: <meta name="msvalidate.01" content={bingVerificationRaw} />
+		)}
+
+		{siteSettings?.google_analytics_id && (
+			<>
+				<script async src={`https://www.googletagmanager.com/gtag/js?id=${siteSettings.google_analytics_id}`}></script>
+				<script is:inline>{`
+					window.dataLayer = window.dataLayer || [];
+					function gtag(){dataLayer.push(arguments);}
+					gtag('js', new Date());
+					gtag('config', '${siteSettings.google_analytics_id}');
+				`}</script>
+			</>
+		)}
+
+		{headerCustomCodes && <Fragment set:html={headerCustomCodes} />}
+		{organizationLd && (
+			<script type="application/ld+json" set:html={safeJsonLd(organizationLd)}></script>
+		)}
+		{websiteLd && (
+			<script type="application/ld+json" set:html={safeJsonLd(websiteLd)}></script>
+		)}
+		{jsonLd && (
+			Array.isArray(jsonLd)
+				? jsonLd.map((entry) => <script type="application/ld+json" set:html={safeJsonLd(entry)}></script>)
+				: <script type="application/ld+json" set:html={safeJsonLd(jsonLd)}></script>
+		)}
+	</head>
+	<body>
+		<!-- 🚀 PERSISTENT NAVIGATION (ZERO RELOAD) -->
+		{!isAdminRoute && (
+			<div transition:persist="global-nav" class="relative z-[999]">
+				<GlobalNavigation
+					client:load
+					initialLang={initialLang}
+					initialTranslations={initialTranslations}
+					siteSettings={siteSettings}
+					navigationItems={navigationItems}
+				/>
+			</div>
+		)}
+		<slot />
+		{footerCustomCodes && <Fragment set:html={footerCustomCodes} />}
+	</body>
+</html>

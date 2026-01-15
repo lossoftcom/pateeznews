@@ -1,0 +1,60 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import ProfileApp from '@/components/ProfileApp';
+import { dataService } from '@/services/dataService';
+import { loadLocaleData } from '@/lib/locales';
+import { resolveLangCode } from '@/utils/lang';
+
+export const prerender = false;
+
+const cookies = Astro.request.headers.get('cookie') || '';
+const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];
+const acceptLanguageHeader = Astro.request.headers.get('accept-language');
+const urlLang = Astro.url.searchParams.get('lang');
+
+const seoAlternates = await dataService.getSeoAlternates();
+const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
+const lang = resolveLangCode({
+  urlLang,
+  cookieLang,
+  acceptLanguageHeader,
+  supported: seoAlternates.map((entry) => ({ code: entry.code, isDefault: entry.isDefault })),
+  fallback: defaultLangCode,
+});
+const langMeta = seoAlternates.find((entry) => entry.code === lang);
+
+const [initialTranslations, siteSettings, navigationItems] = await Promise.all([
+  loadLocaleData(lang),
+  dataService.getSiteSettings(lang),
+  dataService.getNavigationItems(lang)
+]);
+
+const initialLang = {
+  code: lang,
+  name: langMeta?.name || lang.toUpperCase(),
+  direction: langMeta?.direction || 'ltr',
+  status: 'active',
+  flag_code: langMeta?.flagCode || lang,
+  is_default: langMeta?.isDefault || lang === defaultLangCode
+};
+const title = `Profil | ${siteSettings?.site_name || 'Pateez'}`;
+---
+
+<Layout 
+  title={title} 
+  lang={lang} 
+  dir={initialLang.direction}
+  favicon={siteSettings?.favicon_url}
+  siteSettings={siteSettings}
+  navigationItems={navigationItems}
+  initialTranslations={initialTranslations}
+  initialLang={initialLang}
+>
+  <ProfileApp
+    client:only="react"
+    initialLang={initialLang}
+    initialTranslations={initialTranslations}
+    siteSettings={siteSettings}
+    navigationItems={navigationItems}
+  />
+</Layout>

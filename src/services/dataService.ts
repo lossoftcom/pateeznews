@@ -1,0 +1,331 @@
+import { supabase } from '@/lib/supabase';
+import { NewsType, type NavigationItem, type NewsItem, type SiteSettings } from '@/types';
+
+const normalizeNewsType = (value: unknown): NewsType => {
+    const raw = String(value ?? '').trim();
+    const normalized = raw.replace(/[\s-]+/g, '_').toUpperCase();
+
+    switch (normalized) {
+        case 'ARTICLE':
+        case 'POST':
+        case 'NEWS':
+        case '':
+            return NewsType.STANDARD;
+        case 'VIDEO':
+            return NewsType.VIDEO;
+        case 'AUDIO':
+            return NewsType.AUDIO;
+        case 'GALLERY':
+            return NewsType.GALLERY;
+        case 'EMBED':
+        case 'IFRAME':
+        case 'SOCIAL':
+            return NewsType.EMBED;
+        case 'POLL':
+            return NewsType.POLL;
+        case 'QUIZ':
+            return NewsType.QUIZ;
+        case 'VS':
+            return NewsType.VS;
+        case 'IMAGE':
+            return NewsType.IMAGE;
+        case 'FLIP_CARD':
+        case 'FLIPCARD':
+            return NewsType.FLIP_CARD;
+        case 'BEFORE_AFTER':
+        case 'BEFOREAFTER':
+            return NewsType.BEFORE_AFTER;
+        case 'REVIEW':
+            return NewsType.REVIEW;
+        case 'PARAGRAPH':
+        case 'QUOTE':
+            return NewsType.PARAGRAPH;
+        default:
+            return NewsType.STANDARD;
+    }
+};
+
+// --- INSTANT CACHE ENGINE (2026 LIGHT-SPEED) ---
+const CACHE_TTL = {
+    SETTINGS: 1000 * 60 * 10, // 10 minutes
+    NAV: 1000 * 60 * 5,      // 5 minutes
+    NEWS: 1000 * 30,         // 30 seconds
+    STORIES: 1000 * 60,      // 1 minute
+};
+
+const cache: Record<string, { data: any; expiry: number }> = {};
+const inflight: Record<string, Promise<any> | undefined> = {};
+
+const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) => {
+    const now = Date.now();
+    if (cache[key] && cache[key].expiry > now) {
+        return cache[key].data;
+    }
+    if (inflight[key]) return inflight[key];
+
+    const promise = (async () => {
+        try {
+            const data = await fetcher();
+            cache[key] = { data, expiry: Date.now() + ttl };
+            return data;
+        } finally {
+            delete inflight[key];
+        }
+    })();
+
+    inflight[key] = promise;
+    return promise;
+};
+
+export const dataService = {
+    async getSiteSettings(lang: string): Promise<SiteSettings | null> {
+        return withCache(`settings_${lang}`, CACHE_TTL.SETTINGS, async () => {
+            const { data, error } = await supabase
+                .from('site_settings')
+                .select('*')
+                .eq('language_code', lang)
+                .single();
+
+            if (error) {
+                console.error('Error fetching site settings:', error);
+                return null;
+            }
+            return data;
+        });
+    },
+
+    async getSeoAlternates(): Promise<{ code: string; canonicalUrl: string; isDefault: boolean; name: string; direction: 'ltr' | 'rtl'; flagCode: string }[]> {
+        return withCache('seo_alternates', CACHE_TTL.SETTINGS, async () => {
+            const fallback = [{ code: 'tr', name: 'Türkçe', direction: 'ltr' as const, flagCode: 'tr', isDefault: true }];
+
+            const { data: langs, error: langsError } = await supabase
+                .from('languages')
+                .select('code, is_default, status, name, direction, flag_code')
+                .eq('status', 'active');
+
+            const normalizedLangs = (langsError || !langs || langs.length === 0)
+                ? fallback
+                : (langs as any[])
+                    .map((l) => {
+                        const code = String(l?.code || '').trim();
+                        if (!code) return null;
+                        const name = String(l?.name || '').trim() || code.toUpperCase();
+                        const direction = (String(l?.direction || '').trim() === 'rtl') ? 'rtl' : 'ltr';
+                        const flagCode = String(l?.flag_code || '').trim() || code;
+                        return { code, name, direction, flagCode, isDefault: !!l?.is_default };
+                    })
+                    .filter(Boolean) as { code: string; name: string; direction: 'ltr' | 'rtl'; flagCode: string; isDefault: boolean }[];
+
+            if (normalizedLangs.length > 0 && !normalizedLangs.some((l) => l.isDefault)) {
+                normalizedLangs[0].isDefault = true;
+            }
+
+            const codes = normalizedLangs
+                .map((l) => l.code)
+                .filter((code) => !!code);
+
+            const { data: settings, error: settingsError } = await supabase
+                .from('site_settings')
+                .select('language_code, canonical_url')
+                .in('language_code', codes);
+
+            if (settingsError) {
+                return normalizedLangs.map((l) => ({
+                    ...l,
+                    canonicalUrl: '',
+                }));
+            }
+
+            const canonicalMap = new Map<string, string>();
+            for (const row of (settings || [])) {
+                const code = String((row as any).language_code || '').trim();
+                if (!code) continue;
+                canonicalMap.set(code, String((row as any).canonical_url || '').trim());
+            }
+
+            const result = normalizedLangs.map((l) => ({
+                ...l,
+                canonicalUrl: canonicalMap.get(l.code) || '',
+            }));
+
+            result.sort((a, b) => {
+                if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+                return a.code.localeCompare(b.code);
+            });
+
+            return result;
+        });
+    },
+
+    async getNavigationItems(lang: string): Promise<NavigationItem[]> {
+        return withCache(`nav_${lang}`, CACHE_TTL.NAV, async () => {
+            const { data, error } = await supabase
+                .from('navigation_items')
+                .select('*')
+                .eq('language_code', lang)
+                .eq('is_active', true)
+                .order('order_index', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching navigation items:', error);
+                return [];
+            }
+            return data || [];
+        });
+    },
+
+    async getNewsItems(lang: string, category?: string | string[] | null, limit = 50): Promise<NewsItem[]> {
+        const cacheKey = `news_${lang}_${Array.isArray(category) ? category.join(',') : (category || 'home')}_${limit}`;
+        return withCache(cacheKey, CACHE_TTL.NEWS, async () => {
+            let query = supabase
+                .from('posts')
+                .select(`id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, fact_checked, schema_type, card_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`)
+                .eq('status', 'published')
+                .eq('language_code', lang)
+                .order('is_pinned', { ascending: false })
+                .order('published_at', { ascending: false });
+
+            if (category && category !== 'home') {
+                if (Array.isArray(category)) {
+                    // Filter by multiple categories (case-insensitive via ilike or array in)
+                    // For broad root clicks, we want exact matches for the root or any children slugs provided
+                    query = query.in('category', category);
+                } else {
+                    const catLower = category.toLowerCase();
+                    query = query.or(`category.eq.${category},category.eq.${catLower},category.ilike.%${category}%`);
+                }
+            }
+
+            const { data, error } = await query.limit(limit);
+
+            if (error) {
+                console.error('Error fetching news items:', error);
+                return [];
+            }
+
+            return (data || []).map(post => this.mapPost(post));
+        });
+    },
+
+    async getNewsBySlug(slugOrId: string): Promise<NewsItem | null> {
+        const normalized = String(slugOrId || '').trim();
+        if (!normalized) return null;
+
+        const selectClause = `*, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
+
+        // 1) Try by slug
+        const slugRes = await supabase
+            .from('posts')
+            .select(selectClause)
+            .eq('slug', normalized)
+            .maybeSingle();
+
+        if (slugRes.data) return this.mapPost(slugRes.data);
+
+        // 2) Fallback to numeric id
+        if (/^[0-9]+$/.test(normalized)) {
+            const idRes = await supabase
+                .from('posts')
+                .select(selectClause)
+                .eq('id', normalized)
+                .maybeSingle();
+            if (idRes.data) return this.mapPost(idRes.data);
+        }
+
+        return null;
+    },
+
+    mapPost(post: any): NewsItem {
+        const rawPostType = typeof post?.type === 'string' ? post.type : '';
+        const cardData = (post?.card_data && typeof post.card_data === 'object') ? post.card_data : {};
+        const typeFromCard = (cardData as any)?.type;
+        const resolvedType = normalizeNewsType(typeFromCard ?? rawPostType);
+
+        const itemsRaw = post?.items ?? (cardData as any)?.items;
+        const itemsArray = Array.isArray(itemsRaw) ? itemsRaw : [];
+        const faqFromItems = itemsArray.find((item: any) => item?.type === 'faq' && item?.faqData)?.faqData;
+
+        const baseSource = post?.profiles?.full_name || post?.profiles?.username || 'Pateez';
+        const baseAuthor = post?.profiles?.full_name || post?.profiles?.username || 'Pateez';
+
+        const merged: any = {
+            ...(cardData as any),
+            id: String(post?.id ?? ''),
+            type: resolvedType,
+            postType: rawPostType,
+            title: (cardData as any)?.title ?? post?.title ?? '',
+            summary: (cardData as any)?.summary ?? post?.summary ?? '',
+            content: (cardData as any)?.content ?? post?.content ?? '',
+            category: (cardData as any)?.category ?? post?.category ?? '',
+            source: (cardData as any)?.source ?? baseSource,
+            author: (cardData as any)?.author ?? baseAuthor,
+            timestamp: post?.published_at || post?.created_at,
+            mediaUrl: (cardData as any)?.mediaUrl ?? post?.media_url ?? '',
+            thumbnail: (cardData as any)?.thumbnail ?? post?.thumbnail_url ?? '',
+            thumbnailAlt: post?.thumbnail_alt ?? (cardData as any)?.thumbnailAlt,
+            likes: post?.likes_count ?? (cardData as any)?.likes ?? 0,
+            dislikes: post?.dislikes_count ?? (cardData as any)?.dislikes ?? 0,
+            comments: post?.comments_count ?? (cardData as any)?.comments ?? 0,
+            shares: post?.shares_count ?? (cardData as any)?.shares ?? 0,
+            views: (cardData as any)?.views ?? 0,
+            seoTitle: post?.seo_title ?? (cardData as any)?.seoTitle,
+            seoDescription: post?.seo_description ?? (cardData as any)?.seoDescription,
+            keywords: post?.keywords ?? (cardData as any)?.keywords,
+            slug: post?.slug ?? (cardData as any)?.slug,
+            factChecked: post?.fact_checked ?? (cardData as any)?.factChecked,
+            schemaType: post?.schema_type ?? (cardData as any)?.schemaType,
+            faqData: post?.faq_data ?? (cardData as any)?.faqData ?? faqFromItems,
+            items: itemsRaw,
+            sourceAvatar: post?.profiles?.avatar_url || (cardData as any)?.sourceAvatar || '',
+            isPinned: post?.is_pinned ?? (cardData as any)?.isPinned ?? false,
+            publisherId: post?.publisher_id ?? (cardData as any)?.publisherId,
+        };
+
+        const items = Array.isArray(merged.items) ? merged.items : [];
+        const coverFromItems = items.find((item: any) =>
+            item &&
+            item.type === 'image' &&
+            typeof item.mediaUrl === 'string' &&
+            item.mediaUrl &&
+            (item.showOnHomepage || item.orderNumber === 1)
+        );
+
+        merged.coverThumbnail =
+            (cardData as any)?.coverThumbnail ??
+            coverFromItems?.mediaUrl ??
+            merged.thumbnail;
+
+        if (resolvedType === NewsType.GALLERY && (!merged.mediaList || merged.mediaList.length === 0)) {
+            const slider = items.find((item: any) => item?.type === 'slider' && Array.isArray(item?.mediaUrls));
+            if (slider?.mediaUrls) merged.mediaList = slider.mediaUrls;
+        }
+
+        if (resolvedType === NewsType.VIDEO && !merged.mediaUrl) {
+            const video = items.find((item: any) => item?.type === 'video' && typeof item?.mediaUrl === 'string');
+            if (video?.mediaUrl) merged.mediaUrl = video.mediaUrl;
+        }
+
+        if (resolvedType === NewsType.AUDIO && !merged.mediaUrl) {
+            const audio = items.find((item: any) => item?.type === 'audio' && typeof item?.mediaUrl === 'string');
+            if (audio?.mediaUrl) merged.mediaUrl = audio.mediaUrl;
+        }
+
+        return merged as NewsItem;
+    },
+
+    async getStories(lang: string): Promise<any[]> {
+        return withCache(`stories_${lang}`, CACHE_TTL.STORIES, async () => {
+            const { data, error } = await supabase
+                .from('stories')
+                .select('*')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching stories:', error);
+                return [];
+            }
+            return data || [];
+        });
+    }
+};
