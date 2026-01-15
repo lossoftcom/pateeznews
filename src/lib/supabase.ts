@@ -5,7 +5,12 @@ const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.VITE
 const SUPABASE_ANON_KEY = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn('Supabase URL or Anon Key is missing. Please check your environment variables.');
+  if (typeof window === 'undefined') {
+    console.error('CRITICAL: Supabase environment variables are missing! Vercel deployment will fail SSR.');
+  }
 }
 
-export const supabase = createClient(SUPABASE_URL || '', SUPABASE_ANON_KEY || '');
+// Create client only if URL is valid to prevent crash during initialization
+export const supabase = (SUPABASE_URL && SUPABASE_URL.startsWith('http'))
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY || '')
+  : null as any; 
