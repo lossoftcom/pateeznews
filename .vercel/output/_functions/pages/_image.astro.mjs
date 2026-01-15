@@ -1,7 +1,7 @@
 import { g as getConfiguredImageService, i as imageConfig } from '../chunks/_astro_assets_DfkzboBU.mjs';
 import { i as isRemotePath, a as isRemoteAllowed } from '../chunks/index_D90CXrU3.mjs';
 import * as mime from 'mrmime';
-export { renderers } from '../renderers.mjs';
+export { r as renderers } from '../chunks/_@astro-renderers_8ZcaT4W7.mjs';
 
 const fnv1a52 = (str) => {
   const len = str.length;

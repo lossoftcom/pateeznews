@@ -1,7 +1,7 @@
-import { d as dataService, s as supabase } from '../chunks/dataService_CXfGU90R.mjs';
+import { d as dataService, s as supabase } from '../chunks/dataService_Bp0vcODm.mjs';
 import { s as slugify } from '../chunks/helpers_xme2WEyl.mjs';
 import { r as resolveLangCode } from '../chunks/lang_B1d4Ts2g.mjs';
-export { renderers } from '../renderers.mjs';
+export { r as renderers } from '../chunks/_@astro-renderers_8ZcaT4W7.mjs';
 
 const CACHE_TTL_MS = 1e3 * 60 * 5;
 const cacheByKey = {};

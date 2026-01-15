@@ -1,8 +1,66 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = "https://glrvuonvwmiclusrrjtj.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZ1b252d21pY2x1c3JyanRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwMjMxMjAsImV4cCI6MjA4MjU5OTEyMH0.tDfzQbEH07ANXOMKAS-ob2PFfNpVPjzv1izHZRd3K4g";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const __vite_import_meta_env__ = {"ASSETS_PREFIX": undefined, "BASE_URL": "/", "DEV": false, "MODE": "production", "PROD": true, "PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZ1b252d21pY2x1c3JyanRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwMjMxMjAsImV4cCI6MjA4MjU5OTEyMH0.tDfzQbEH07ANXOMKAS-ob2PFfNpVPjzv1izHZRd3K4g", "PUBLIC_SUPABASE_URL": "https://glrvuonvwmiclusrrjtj.supabase.co", "SITE": undefined, "SSR": true};
+const getEnv = (key) => {
+  if (typeof import.meta !== "undefined" && Object.assign(__vite_import_meta_env__, { _: process.env._ }) && Object.assign(__vite_import_meta_env__, { _: process.env._ })[key]) {
+    return Object.assign(__vite_import_meta_env__, { _: process.env._ })[key];
+  }
+  if (typeof process !== "undefined" && process.env && process.env[key]) {
+    return process.env[key];
+  }
+  return void 0;
+};
+const SUPABASE_URL = getEnv("PUBLIC_SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
+const SUPABASE_ANON_KEY = getEnv("PUBLIC_SUPABASE_ANON_KEY") || getEnv("VITE_SUPABASE_ANON_KEY");
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if (typeof window === "undefined") {
+    console.warn("CRITICAL: Supabase environment variables are missing! Check Vercel Settings.");
+  }
+}
+const supabase = SUPABASE_URL && SUPABASE_URL.startsWith("http") ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY || "") : /* @__PURE__ */ (() => {
+  const mockQuery = () => ({
+    select: mockQuery,
+    eq: mockQuery,
+    neq: mockQuery,
+    gt: mockQuery,
+    lt: mockQuery,
+    gte: mockQuery,
+    lte: mockQuery,
+    like: mockQuery,
+    ilike: mockQuery,
+    is: mockQuery,
+    in: mockQuery,
+    contains: mockQuery,
+    containedBy: mockQuery,
+    rangeGt: mockQuery,
+    rangeGte: mockQuery,
+    rangeLt: mockQuery,
+    rangeLte: mockQuery,
+    rangeAdjacent: mockQuery,
+    overlaps: mockQuery,
+    textSearch: mockQuery,
+    match: mockQuery,
+    not: mockQuery,
+    or: mockQuery,
+    filter: mockQuery,
+    order: mockQuery,
+    limit: mockQuery,
+    range: mockQuery,
+    abortSignal: mockQuery,
+    maybeSingle: () => Promise.resolve({ data: null, error: { message: "Keys missing" } }),
+    single: () => Promise.resolve({ data: null, error: { message: "Keys missing" } }),
+    then: (cb) => Promise.resolve({ data: [], error: null }).then(cb)
+  });
+  return {
+    from: mockQuery,
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {
+      } } } })
+    }
+  };
+})();
 
 var NewsType = /* @__PURE__ */ ((NewsType2) => {
   NewsType2["VIDEO"] = "VIDEO";
