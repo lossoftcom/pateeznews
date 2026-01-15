@@ -38,14 +38,8 @@ export default defineConfig({
         resolve: {
             alias: {
                 '@': fileURLToPath(new URL('./src', import.meta.url)),
-                'react': fileURLToPath(new URL('./node_modules/react', import.meta.url)),
-                'react-dom': fileURLToPath(new URL('./node_modules/react-dom', import.meta.url)),
-                'react/jsx-runtime': fileURLToPath(new URL('./node_modules/react/jsx-runtime', import.meta.url)),
-                'react-is': fileURLToPath(new URL('./node_modules/react-is', import.meta.url)),
-                'scheduler': fileURLToPath(new URL('./node_modules/scheduler', import.meta.url)),
-                'konva': fileURLToPath(new URL('./node_modules/konva', import.meta.url)),
+                // 'konva/lib/Global.js': fileURLToPath(new URL('./src/shims/konva-global.ts', import.meta.url)),
             },
-            dedupe: ['react', 'react-dom', 'styled-components', 'react-is', 'scheduler', 'konva', 'react-konva'],
         },
         build: {
             commonjsOptions: {
@@ -68,8 +62,6 @@ export default defineConfig({
                 '@scaleflex/ui/core/popper',
                 '@scaleflex/icons',
                 'styled-components',
-                'immutable',
-                'prop-types',
             ],
         }
     },
