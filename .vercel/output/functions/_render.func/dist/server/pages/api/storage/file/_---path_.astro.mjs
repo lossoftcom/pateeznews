@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-export { r as renderers } from '../../../../chunks/_@astro-renderers_8ZcaT4W7.mjs';
+export { renderers } from '../../../../renderers.mjs';
 
 const GET = async ({ params }) => {
   const filePath = params.path;

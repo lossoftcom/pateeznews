@@ -1,6 +1,6 @@
 import { d as dataService, s as supabase } from '../chunks/dataService_Bp0vcODm.mjs';
 import { r as resolveLangCode } from '../chunks/lang_B1d4Ts2g.mjs';
-export { r as renderers } from '../chunks/_@astro-renderers_8ZcaT4W7.mjs';
+export { renderers } from '../renderers.mjs';
 
 const CACHE_TTL_MS = 1e3 * 60 * 10;
 const cacheByKey = {};

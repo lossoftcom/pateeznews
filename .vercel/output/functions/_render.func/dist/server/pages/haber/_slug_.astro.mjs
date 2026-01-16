@@ -1,19 +1,20 @@
 /* empty css                                     */
 import { c as createComponent, b as createAstro, r as renderComponent, a as renderTemplate } from '../../chunks/astro/server_CUMT7Dv3.mjs';
 import 'piccolore';
-import { u as useLanguage, a as useToast, j as jsxRuntimeExports, L as LanguageProvider, T as ToastProvider, l as loadLocaleData, $ as $$Layout } from '../../chunks/Layout_DDIagS4a.mjs';
-import { a as reactExports, R as React } from '../../chunks/_@astro-renderers_8ZcaT4W7.mjs';
-export { r as renderers } from '../../chunks/_@astro-renderers_8ZcaT4W7.mjs';
+import { u as useLanguage, a as useToast, L as LanguageProvider, T as ToastProvider, l as loadLocaleData, $ as $$Layout } from '../../chunks/Layout_DwLhRwnK.mjs';
+import { jsxs, jsx } from 'react/jsx-runtime';
+import React, { useState, useEffect } from 'react';
 import { Home, ChevronRight, CheckCircle2, Calendar, Clock, Share2, ArrowLeft, Twitter, Facebook, Linkedin, Link, Heart, Bookmark } from 'lucide-react';
 import { N as NewsType, d as dataService } from '../../chunks/dataService_Bp0vcODm.mjs';
-import { E as EmbedCard, A as AudioCard, V as VideoCard, R as ReviewCard, F as FlipCard, B as BeforeAfterCard, a as VSCard, P as PollCard, G as GalleryCard, b as ParagraphCard, C as CommentSection, c as RightSidebar } from '../../chunks/RightSidebar_QYWtoHTd.mjs';
+import { E as EmbedCard, A as AudioCard, V as VideoCard, R as ReviewCard, F as FlipCard, B as BeforeAfterCard, a as VSCard, P as PollCard, G as GalleryCard, b as ParagraphCard, C as CommentSection, c as RightSidebar } from '../../chunks/RightSidebar_BNxIA2oH.mjs';
 import { s as slugify } from '../../chunks/helpers_xme2WEyl.mjs';
 import { r as resolveLangCode } from '../../chunks/lang_B1d4Ts2g.mjs';
 import { a as getImage } from '../../chunks/_astro_assets_DfkzboBU.mjs';
+export { renderers } from '../../renderers.mjs';
 
 const NewsDetail = ({ data, onBack, navItems, loading }) => {
-  const [scrollProgress, setScrollProgress] = reactExports.useState(0);
-  const [selectedEmojis, setSelectedEmojis] = reactExports.useState([]);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [selectedEmojis, setSelectedEmojis] = useState([]);
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
   const stripHtml = (html) => (html || "").replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ").trim();
@@ -92,7 +93,7 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
     return crumbs;
   };
   const breadcrumbs = getBreadcrumbs();
-  reactExports.useEffect(() => {
+  useEffect(() => {
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = window.scrollY / totalHeight * 100;
@@ -107,7 +108,7 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
     if (postType === "article") {
       const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
       const coverSrc = coverOptimized?.src || coverThumbnail;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsx("div", { className: "rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8", children: /* @__PURE__ */ jsx(
         "img",
         {
           src: coverSrc,
@@ -121,27 +122,27 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
     }
     switch (data.type) {
       case NewsType.REVIEW:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(ReviewCard, { data });
+        return /* @__PURE__ */ jsx(ReviewCard, { data });
       case NewsType.BEFORE_AFTER:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(BeforeAfterCard, { data });
+        return /* @__PURE__ */ jsx(BeforeAfterCard, { data });
       case NewsType.FLIP_CARD:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(FlipCard, { data });
+        return /* @__PURE__ */ jsx(FlipCard, { data });
       case NewsType.EMBED:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmbedCard, { data });
+        return /* @__PURE__ */ jsx(EmbedCard, { data });
       case NewsType.AUDIO:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(AudioCard, { data });
+        return /* @__PURE__ */ jsx(AudioCard, { data });
       case NewsType.VIDEO:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(VideoCard, { data });
+        return /* @__PURE__ */ jsx(VideoCard, { data });
       case NewsType.GALLERY:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(GalleryCard, { data });
+        return /* @__PURE__ */ jsx(GalleryCard, { data });
       case NewsType.POLL:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(PollCard, { data });
+        return /* @__PURE__ */ jsx(PollCard, { data });
       case NewsType.VS:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(VSCard, { data });
+        return /* @__PURE__ */ jsx(VSCard, { data });
       case NewsType.PARAGRAPH:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(ParagraphCard, { data });
+        return /* @__PURE__ */ jsx(ParagraphCard, { data });
       default:
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsx("div", { className: "rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8", children: /* @__PURE__ */ jsx(
           "img",
           {
             src: data.optimizedThumbnail?.src || data.thumbnail,
@@ -162,28 +163,28 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
     return Math.max(1, Math.ceil(words / wordsPerMinute));
   };
   const readingTime = calculateReadingTime();
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed top-0 left-0 w-full h-1 z-[60] bg-gray-100/50 backdrop-blur-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxs("div", { className: "animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip", children: [
+    /* @__PURE__ */ jsx("div", { className: "fixed top-0 left-0 w-full h-1 z-[60] bg-gray-100/50 backdrop-blur-sm", children: /* @__PURE__ */ jsx(
       "div",
       {
         className: "h-full bg-blue-600 transition-all duration-100 shadow-md",
         style: { width: `${scrollProgress}%` }
       }
     ) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 md:px-10 pt-8 pb-6 border-b border-gray-50 bg-gray-50/30 rounded-t-[5px]", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-400 capitalize tracking-widest mb-6", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: onBack, className: "flex items-center gap-1.5 hover:text-blue-600 transition-colors", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Home, { size: 12 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: t("nav.home") })
+    /* @__PURE__ */ jsxs("div", { className: "px-6 md:px-10 pt-8 pb-6 border-b border-gray-50 bg-gray-50/30 rounded-t-[5px]", children: [
+      /* @__PURE__ */ jsxs("nav", { className: "flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-400 capitalize tracking-widest mb-6", children: [
+        /* @__PURE__ */ jsxs("button", { onClick: onBack, className: "flex items-center gap-1.5 hover:text-blue-600 transition-colors", children: [
+          /* @__PURE__ */ jsx(Home, { size: 12 }),
+          /* @__PURE__ */ jsx("span", { children: t("nav.home") })
         ] }),
-        breadcrumbs.map((crumb, idx) => /* @__PURE__ */ jsxRuntimeExports.jsxs(React.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronRight, { size: 10 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hover:text-gray-600 transition-colors cursor-default", children: t(crumb.label).toLowerCase() })
+        breadcrumbs.map((crumb, idx) => /* @__PURE__ */ jsxs(React.Fragment, { children: [
+          /* @__PURE__ */ jsx(ChevronRight, { size: 10 }),
+          /* @__PURE__ */ jsx("span", { className: "hover:text-gray-600 transition-colors cursor-default", children: t(crumb.label).toLowerCase() })
         ] }, idx))
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full mb-10 overflow-hidden max-w-full", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { className: "text-4xl md:text-5xl lg:text-6xl font-[900] text-gray-900 leading-[1.05] tracking-tighter mb-6", children: data.title }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxs("div", { className: "w-full mb-10 overflow-hidden max-w-full", children: [
+        /* @__PURE__ */ jsx("h1", { className: "text-4xl md:text-5xl lg:text-6xl font-[900] text-gray-900 leading-[1.05] tracking-tighter mb-6", children: data.title }),
+        /* @__PURE__ */ jsx(
           "div",
           {
             dangerouslySetInnerHTML: { __html: data.summary },
@@ -191,22 +192,22 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
           }
         )
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between mt-10 pt-6 border-t border-gray-100", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-4", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`, alt: data.author, className: "w-full h-full object-cover" }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-black text-gray-900", children: data.author }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(CheckCircle2, { size: 14, className: "text-blue-500" })
+      /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between mt-10 pt-6 border-t border-gray-100", children: [
+        /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-4", children: [
+          /* @__PURE__ */ jsx("div", { className: "w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm", children: /* @__PURE__ */ jsx("img", { src: data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`, alt: data.author, className: "w-full h-full object-cover" }) }),
+          /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-1.5", children: [
+              /* @__PURE__ */ jsx("span", { className: "text-sm font-black text-gray-900", children: data.author }),
+              /* @__PURE__ */ jsx(CheckCircle2, { size: 14, className: "text-blue-500" })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(Calendar, { size: 12 }),
+            /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-3 text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5", children: [
+              /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-1", children: [
+                /* @__PURE__ */ jsx(Calendar, { size: 12 }),
                 " ",
                 data.timestamp
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(Clock, { size: 12 }),
+              /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-1", children: [
+                /* @__PURE__ */ jsx(Clock, { size: 12 }),
                 " ",
                 readingTime,
                 " ",
@@ -215,46 +216,46 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
             ] })
           ] })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxs(
             "button",
             {
               onClick: handleNativeShare,
               className: "flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-[5px] text-xs font-black transition-all hover:bg-gray-800 shadow-md active:scale-95",
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(Share2, { size: 14 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: t("common.share") })
+                /* @__PURE__ */ jsx(Share2, { size: 14 }),
+                /* @__PURE__ */ jsx("span", { children: t("common.share") })
               ]
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: onBack, className: "p-2.5 bg-white border border-gray-200 text-gray-400 rounded-[5px] hover:text-blue-600 transition-all", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ArrowLeft, { size: 20 }) })
+          /* @__PURE__ */ jsx("button", { onClick: onBack, className: "p-2.5 bg-white border border-gray-200 text-gray-400 rounded-[5px] hover:text-blue-600 transition-all", children: /* @__PURE__ */ jsx(ArrowLeft, { size: 20 }) })
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col md:flex-row relative", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("aside", { className: "hidden md:flex flex-col items-center gap-3 sticky top-24 p-6 border-r border-gray-50 z-10", style: { height: "fit-content", alignSelf: "flex-start" }, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center mb-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-black text-gray-400 uppercase tracking-widest [writing-mode:vertical-lr] rotate-180 mb-2", children: t("card.share") }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-px h-8 bg-gray-100 mb-2" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-black text-blue-600 mb-2", children: data.shares.toLocaleString() })
+    /* @__PURE__ */ jsxs("div", { className: "flex flex-col md:flex-row relative", children: [
+      /* @__PURE__ */ jsxs("aside", { className: "hidden md:flex flex-col items-center gap-3 sticky top-24 p-6 border-r border-gray-50 z-10", style: { height: "fit-content", alignSelf: "flex-start" }, children: [
+        /* @__PURE__ */ jsxs("div", { className: "flex flex-col items-center mb-2", children: [
+          /* @__PURE__ */ jsx("span", { className: "text-[10px] font-black text-gray-400 uppercase tracking-widest [writing-mode:vertical-lr] rotate-180 mb-2", children: t("card.share") }),
+          /* @__PURE__ */ jsx("div", { className: "w-px h-8 bg-gray-100 mb-2" }),
+          /* @__PURE__ */ jsx("span", { className: "text-xs font-black text-blue-600 mb-2", children: data.shares.toLocaleString() })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsx(
           "button",
           {
             onClick: shareToTwitter,
             className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-[#1DA1F2] text-white hover:scale-110 transition-all shadow-sm active:scale-95",
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(Twitter, { size: 18, className: "fill-current" })
+            children: /* @__PURE__ */ jsx(Twitter, { size: 18, className: "fill-current" })
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsx(
           "button",
           {
             onClick: shareToFacebook,
             className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-[#4267B2] text-white hover:scale-110 transition-all shadow-sm active:scale-95",
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(Facebook, { size: 18, className: "fill-current" })
+            children: /* @__PURE__ */ jsx(Facebook, { size: 18, className: "fill-current" })
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsx(
           "button",
           {
             onClick: () => {
@@ -262,35 +263,35 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
               window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
             },
             className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-[#0077B5] text-white hover:scale-110 transition-all shadow-sm active:scale-95",
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(Linkedin, { size: 18, className: "fill-current" })
+            children: /* @__PURE__ */ jsx(Linkedin, { size: 18, className: "fill-current" })
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsx(
           "button",
           {
             onClick: copyLink,
             className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-gray-100 text-gray-500 hover:bg-gray-900 hover:text-white transition-all shadow-sm active:scale-95",
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { size: 18 })
+            children: /* @__PURE__ */ jsx(Link, { size: 18 })
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-px h-6 bg-gray-100 my-1" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm group", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Heart, { size: 18, className: "group-hover:scale-110 transition-transform" }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-black text-rose-500 mt-1", children: data.likes.toLocaleString() })
+        /* @__PURE__ */ jsx("div", { className: "w-px h-6 bg-gray-100 my-1" }),
+        /* @__PURE__ */ jsxs("div", { className: "flex flex-col items-center", children: [
+          /* @__PURE__ */ jsx("button", { className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm group", children: /* @__PURE__ */ jsx(Heart, { size: 18, className: "group-hover:scale-110 transition-transform" }) }),
+          /* @__PURE__ */ jsx("span", { className: "text-[10px] font-black text-rose-500 mt-1", children: data.likes.toLocaleString() })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-gray-50 text-gray-400 hover:bg-blue-500 hover:text-white transition-all shadow-sm border border-gray-100", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Bookmark, { size: 18 }) })
+        /* @__PURE__ */ jsx("button", { className: "w-10 h-10 flex items-center justify-center rounded-[5px] bg-gray-50 text-gray-400 hover:bg-blue-500 hover:text-white transition-all shadow-sm border border-gray-100", children: /* @__PURE__ */ jsx(Bookmark, { size: 18 }) })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "flex-1 min-w-0 px-6 md:px-12 pt-6 pb-8 max-w-full md:mx-0 break-words overflow-hidden", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-10 overflow-hidden max-w-full", children: renderMedia() }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "space-y-12 overflow-hidden", children: data.items && data.items.length > 0 ? data.items.map((item, index) => {
+      /* @__PURE__ */ jsxs("article", { className: "flex-1 min-w-0 px-6 md:px-12 pt-6 pb-8 max-w-full md:mx-0 break-words overflow-hidden", children: [
+        /* @__PURE__ */ jsx("div", { className: "mb-10 overflow-hidden max-w-full", children: renderMedia() }),
+        /* @__PURE__ */ jsx("div", { className: "space-y-12 overflow-hidden", children: data.items && data.items.length > 0 ? data.items.map((item, index) => {
           const isLastItem = index === (data.items?.length || 0) - 1;
           switch (item.type) {
             case "text":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rich-text-content prose prose-lg max-w-full text-gray-800", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900 mb-4", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { dangerouslySetInnerHTML: { __html: item.description || "" }, className: "leading-[1.85] font-medium text-gray-700" }),
-                item.source && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-gray-400 mt-2 italic flex items-center gap-1", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { size: 12 }),
+              return /* @__PURE__ */ jsxs("div", { className: "rich-text-content prose prose-lg max-w-full text-gray-800", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900 mb-4", children: item.title }),
+                /* @__PURE__ */ jsx("div", { dangerouslySetInnerHTML: { __html: item.description || "" }, className: "leading-[1.85] font-medium text-gray-700" }),
+                item.source && /* @__PURE__ */ jsxs("p", { className: "text-xs text-gray-400 mt-2 italic flex items-center gap-1", children: [
+                  /* @__PURE__ */ jsx(Link, { size: 12 }),
                   " ",
                   t("news.source_prefix"),
                   " ",
@@ -298,17 +299,17 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
                 ] })
               ] }, item.id);
             case "image":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4 max-w-full overflow-hidden", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900 break-normal", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative w-full bg-gray-50 rounded-[5px] overflow-hidden border border-gray-100 shadow-lg flex items-center justify-center max-h-[600px]", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4 max-w-full overflow-hidden", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900 break-normal", children: item.title }),
+                /* @__PURE__ */ jsxs("div", { className: "relative w-full bg-gray-50 rounded-[5px] overflow-hidden border border-gray-100 shadow-lg flex items-center justify-center max-h-[600px]", children: [
+                  /* @__PURE__ */ jsx(
                     "div",
                     {
                       className: "absolute inset-0 bg-center bg-no-repeat bg-cover blur-2xl opacity-10 scale-110",
                       style: { backgroundImage: `url(${item.mediaUrl})` }
                     }
                   ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  /* @__PURE__ */ jsx(
                     "img",
                     {
                       src: item.mediaUrl,
@@ -317,7 +318,7 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
                     }
                   )
                 ] }),
-                item.description && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                item.description && /* @__PURE__ */ jsx(
                   "div",
                   {
                     dangerouslySetInnerHTML: { __html: item.description },
@@ -327,7 +328,7 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
               ] }, item.id);
             case "paragraph":
             case "quote":
-              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "py-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              return /* @__PURE__ */ jsx("div", { className: "py-4", children: /* @__PURE__ */ jsx(
                 ParagraphCard,
                 {
                   data: {
@@ -342,83 +343,83 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
                 }
               ) }, item.id);
             case "slider":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(GalleryCard, { data: { ...data, mediaList: item.mediaUrls } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(GalleryCard, { data: { ...data, mediaList: item.mediaUrls } })
               ] }, item.id);
             case "poll":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-6 pt-12 border-t-2 border-palette-beige/30 mt-16 relative", children: [
-                isLastItem && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute -top-4 left-1/2 -translate-x-1/2 bg-white px-4 py-1 flex items-center gap-2", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-palette-red" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] font-black uppercase tracking-[0.3em] text-palette-tan", children: t("news.end") }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-palette-red" })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-6 pt-12 border-t-2 border-palette-beige/30 mt-16 relative", children: [
+                isLastItem && /* @__PURE__ */ jsxs("div", { className: "absolute -top-4 left-1/2 -translate-x-1/2 bg-white px-4 py-1 flex items-center gap-2", children: [
+                  /* @__PURE__ */ jsx("div", { className: "w-2 h-2 rounded-full bg-palette-red" }),
+                  /* @__PURE__ */ jsx("span", { className: "text-[10px] font-black uppercase tracking-[0.3em] text-palette-tan", children: t("news.end") }),
+                  /* @__PURE__ */ jsx("div", { className: "w-2 h-2 rounded-full bg-palette-red" })
                 ] }),
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "text-3xl md:text-4xl font-[1000] text-gray-900 leading-tight tracking-tighter", children: [
+                item.title && /* @__PURE__ */ jsxs("h3", { className: "text-3xl md:text-4xl font-[1000] text-gray-900 leading-tight tracking-tighter", children: [
                   item.title,
                   !item.title.trim().endsWith("?") && !item.title.trim().endsWith("!") ? "?" : ""
                 ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(PollCard, { data: { ...data, title: item.title, summary: item.description, options: item.options, isImagePoll: item.isImagePoll, pollColumns: item.pollColumns } })
+                /* @__PURE__ */ jsx(PollCard, { data: { ...data, title: item.title, summary: item.description, options: item.options, isImagePoll: item.isImagePoll, pollColumns: item.pollColumns } })
               ] }, item.id);
             case "vs":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(VSCard, { data: { ...data, title: item.title, options: item.options } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(VSCard, { data: { ...data, title: item.title, options: item.options } })
               ] }, item.id);
             case "beforeafter":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(BeforeAfterCard, { data: { ...data, beforeAfterData: item.beforeAfterData } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(BeforeAfterCard, { data: { ...data, beforeAfterData: item.beforeAfterData } })
               ] }, item.id);
             case "flipcard":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(FlipCard, { data: { ...data, flipData: item.flipData } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(FlipCard, { data: { ...data, flipData: item.flipData } })
               ] }, item.id);
             case "review":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(ReviewCard, { data: { ...data, reviewData: item.reviewData } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(ReviewCard, { data: { ...data, reviewData: item.reviewData } })
               ] }, item.id);
             case "video":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(VideoCard, { data: { ...data, mediaUrl: item.mediaUrl } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(VideoCard, { data: { ...data, mediaUrl: item.mediaUrl } })
               ] }, item.id);
             case "audio":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(AudioCard, { data: { ...data, mediaUrl: item.mediaUrl } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(AudioCard, { data: { ...data, mediaUrl: item.mediaUrl } })
               ] }, item.id);
             case "social":
             case "iframe":
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-                item.title && /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EmbedCard, { data: { ...data, mediaUrl: item.mediaUrl } })
+              return /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
+                item.title && /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900", children: item.title }),
+                /* @__PURE__ */ jsx(EmbedCard, { data: { ...data, mediaUrl: item.mediaUrl } })
               ] }, item.id);
             default:
               return null;
           }
-        }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        }) : /* @__PURE__ */ jsx(
           "div",
           {
             className: "rich-text-content prose prose-lg max-w-full text-gray-800",
             dangerouslySetInnerHTML: { __html: data.content || t("news.content_not_found") }
           }
         ) }),
-        data.faqData && data.faqData.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-16 pt-10 border-t border-gray-100 space-y-8", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 bg-blue-50 rounded-[5px] flex items-center justify-center text-blue-600", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CheckCircle2, { size: 24 }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-black text-gray-900 uppercase tracking-tighter", children: t("news.faq_title") })
+        data.faqData && data.faqData.length > 0 && /* @__PURE__ */ jsxs("div", { className: "mt-16 pt-10 border-t border-gray-100 space-y-8", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-3", children: [
+            /* @__PURE__ */ jsx("div", { className: "w-10 h-10 bg-blue-50 rounded-[5px] flex items-center justify-center text-blue-600", children: /* @__PURE__ */ jsx(CheckCircle2, { size: 24 }) }),
+            /* @__PURE__ */ jsx("h3", { className: "text-2xl font-black text-gray-900 uppercase tracking-tighter", children: t("news.faq_title") })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid gap-4", children: data.faqData.map((faq, idx) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-gray-50/50 rounded-[10px] border border-gray-100/50 p-6 transition-all hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 group", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shrink-0 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform", children: "?" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-lg font-black text-gray-900 leading-tight", children: faq.q }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-gray-600 leading-relaxed font-medium", children: faq.a })
+          /* @__PURE__ */ jsx("div", { className: "grid gap-4", children: data.faqData.map((faq, idx) => /* @__PURE__ */ jsx("div", { className: "bg-gray-50/50 rounded-[10px] border border-gray-100/50 p-6 transition-all hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 group", children: /* @__PURE__ */ jsxs("div", { className: "flex gap-4", children: [
+            /* @__PURE__ */ jsx("div", { className: "shrink-0 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform", children: "?" }),
+            /* @__PURE__ */ jsxs("div", { className: "space-y-3", children: [
+              /* @__PURE__ */ jsx("h4", { className: "text-lg font-black text-gray-900 leading-tight", children: faq.q }),
+              /* @__PURE__ */ jsx("p", { className: "text-gray-600 leading-relaxed font-medium", children: faq.a })
             ] })
           ] }) }, idx)) })
         ] }),
-        data.keywords && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-2 mt-12 pb-6 border-b border-gray-50", children: data.keywords.split(",").map((tag, idx) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        data.keywords && /* @__PURE__ */ jsx("div", { className: "flex flex-wrap gap-2 mt-12 pb-6 border-b border-gray-50", children: data.keywords.split(",").map((tag, idx) => /* @__PURE__ */ jsxs(
           "button",
           {
             className: "px-4 py-2 bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest rounded-[5px] hover:bg-gray-200 transition-all",
@@ -429,19 +430,19 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
           },
           idx
         )) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-10 pt-8 border-t-2 border-palette-beige/50", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-3 mb-6", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 px-4 py-2 bg-palette-beige/30 rounded-full border border-palette-beige", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 text-palette-tan", viewBox: "0 0 24 24", fill: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px] font-bold text-palette-tan uppercase tracking-widest", children: t("news.react_title") })
+        /* @__PURE__ */ jsxs("div", { className: "mt-10 pt-8 border-t-2 border-palette-beige/50", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-center gap-3 mb-6", children: [
+            /* @__PURE__ */ jsx("div", { className: "h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent" }),
+            /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-2 px-4 py-2 bg-palette-beige/30 rounded-full border border-palette-beige", children: [
+              /* @__PURE__ */ jsx("svg", { className: "w-4 h-4 text-palette-tan", viewBox: "0 0 24 24", fill: "currentColor", children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" }) }),
+              /* @__PURE__ */ jsx("span", { className: "text-[11px] font-bold text-palette-tan uppercase tracking-widest", children: t("news.react_title") })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent" })
+            /* @__PURE__ */ jsx("div", { className: "h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent" })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center justify-center gap-2 md:gap-4 flex-nowrap overflow-visible pt-2 pb-2", children: emojis.map((item) => {
+          /* @__PURE__ */ jsx("div", { className: "flex items-center justify-center gap-2 md:gap-4 flex-nowrap overflow-visible pt-2 pb-2", children: emojis.map((item) => {
             const isSelected = selectedEmojis.includes(item.id);
             const isDisabled = !isSelected && selectedEmojis.length >= MAX_REACTIONS;
-            return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            return /* @__PURE__ */ jsxs(
               "button",
               {
                 onClick: () => toggleEmoji(item.id),
@@ -451,37 +452,37 @@ const NewsDetail = ({ data, onBack, navItems, loading }) => {
                       ${isDisabled ? "opacity-40 cursor-not-allowed hover:translate-y-0 hover:shadow-none" : "cursor-pointer"}
                     `,
                 children: [
-                  isSelected && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-md", children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-3 h-3 text-white", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 3, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M5 13l4 4L19 7" }) }) }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-3xl md:text-4xl transition-transform duration-300 select-none ${isSelected ? "scale-110" : "group-hover:scale-110"}`, children: item.emoji }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[9px] font-bold uppercase tracking-wider transition-colors ${isSelected ? "text-emerald-600" : "text-palette-tan/40 group-hover:text-palette-tan"}`, children: item.label }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-sm font-black transition-colors ${isSelected ? "text-emerald-600" : "text-palette-tan"}`, children: isSelected ? item.count + 1 : item.count })
+                  isSelected && /* @__PURE__ */ jsx("div", { className: "absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-md", children: /* @__PURE__ */ jsx("svg", { className: "w-3 h-3 text-white", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 3, children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M5 13l4 4L19 7" }) }) }),
+                  /* @__PURE__ */ jsx("span", { className: `text-3xl md:text-4xl transition-transform duration-300 select-none ${isSelected ? "scale-110" : "group-hover:scale-110"}`, children: item.emoji }),
+                  /* @__PURE__ */ jsx("span", { className: `text-[9px] font-bold uppercase tracking-wider transition-colors ${isSelected ? "text-emerald-600" : "text-palette-tan/40 group-hover:text-palette-tan"}`, children: item.label }),
+                  /* @__PURE__ */ jsx("span", { className: `text-sm font-black transition-colors ${isSelected ? "text-emerald-600" : "text-palette-tan"}`, children: isSelected ? item.count + 1 : item.count })
                 ]
               },
               item.id
             );
           }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: `text-center text-xs font-medium mt-4 transition-colors ${selectedEmojis.length >= MAX_REACTIONS ? "text-palette-red" : "text-palette-tan/40"}`, children: selectedEmojis.length >= MAX_REACTIONS ? t("reactions.max_reactions").replace("{max}", String(MAX_REACTIONS)) : t("reactions.remaining").replace("{remaining}", String(MAX_REACTIONS - selectedEmojis.length)) })
+          /* @__PURE__ */ jsx("p", { className: `text-center text-xs font-medium mt-4 transition-colors ${selectedEmojis.length >= MAX_REACTIONS ? "text-palette-red" : "text-palette-tan/40"}`, children: selectedEmojis.length >= MAX_REACTIONS ? t("reactions.max_reactions").replace("{max}", String(MAX_REACTIONS)) : t("reactions.remaining").replace("{remaining}", String(MAX_REACTIONS - selectedEmojis.length)) })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-10 pt-8 border-t border-gray-100", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 mb-6", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1 h-8 bg-palette-red rounded-full" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-xl font-black text-gray-900 tracking-tight", children: t("news.share_thoughts") }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xs font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full", children: [
+        /* @__PURE__ */ jsxs("div", { className: "mt-10 pt-8 border-t border-gray-100", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-3 mb-6", children: [
+            /* @__PURE__ */ jsx("div", { className: "w-1 h-8 bg-palette-red rounded-full" }),
+            /* @__PURE__ */ jsx("h3", { className: "text-xl font-black text-gray-900 tracking-tight", children: t("news.share_thoughts") }),
+            /* @__PURE__ */ jsxs("span", { className: "text-xs font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full", children: [
               data.comments,
               " ",
               t("card.comments")
             ] })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(CommentSection, { postId: data.id, publisherId: data.publisherId })
+          /* @__PURE__ */ jsx(CommentSection, { postId: data.id, publisherId: data.publisherId })
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsx(
       "button",
       {
         onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
         className: `fixed bottom-8 right-8 p-4 bg-white border border-gray-200 rounded-[5px] shadow-xl text-gray-400 hover:text-blue-600 transition-all z-50 ${scrollProgress > 20 ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none"}`,
-        children: /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronRight, { size: 20, className: "-rotate-90" })
+        children: /* @__PURE__ */ jsx(ChevronRight, { size: 20, className: "-rotate-90" })
       }
     )
   ] });
@@ -495,8 +496,8 @@ const NewsDetailPage = ({
   newsItem,
   newsItems
 }) => {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(LanguageProvider, { initialLang, initialTranslations, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToastProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-h-screen bg-palette-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { className: "max-w-[1280px] pt-[84px] gap-8 px-4 mx-auto flex justify-center items-start", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("section", { className: "flex-1 min-w-0 pb-10 flex justify-center w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full max-w-[840px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsx(LanguageProvider, { initialLang, initialTranslations, children: /* @__PURE__ */ jsx(ToastProvider, { children: /* @__PURE__ */ jsx("div", { className: "min-h-screen bg-palette-white", children: /* @__PURE__ */ jsxs("main", { className: "max-w-[1280px] pt-[84px] gap-8 px-4 mx-auto flex justify-center items-start", children: [
+    /* @__PURE__ */ jsx("section", { className: "flex-1 min-w-0 pb-10 flex justify-center w-full", children: /* @__PURE__ */ jsx("div", { className: "w-full max-w-[840px]", children: /* @__PURE__ */ jsx(
       NewsDetail,
       {
         data: newsItem,
@@ -505,7 +506,7 @@ const NewsDetailPage = ({
         loading: !newsItem
       }
     ) }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("aside", { className: "hidden xl:block w-[320px] flex-shrink-0 pb-8 sticky top-[72px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx(RightSidebar, { newsData: newsItems, loading: newsItems.length === 0 }) })
+    /* @__PURE__ */ jsx("aside", { className: "hidden xl:block w-[320px] flex-shrink-0 pb-8 sticky top-[72px]", children: /* @__PURE__ */ jsx(RightSidebar, { newsData: newsItems, loading: newsItems.length === 0 }) })
   ] }) }) }) });
 };
 

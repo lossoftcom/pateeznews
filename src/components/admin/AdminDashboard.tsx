@@ -68,9 +68,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     { id: 'stories', label: t('admin.sidebar.stories'), icon: 'bolt', perm: 'manage_content', group: t('admin.management') },
     { id: 'comments', label: t('admin.sidebar.comments'), icon: 'comment', perm: 'manage_content', group: t('admin.management') },
     { id: 'users', label: t('admin.sidebar.users'), icon: 'group', perm: 'manage_users', group: t('admin.management') },
+    { id: 'navigation', label: t('admin.sidebar.navigation'), icon: 'account_tree', perm: 'manage_navigation', group: t('admin.management') },
+    { id: 'roles', label: t('admin.sidebar.roles'), icon: 'verified_user', perm: 'view_roles', group: t('admin.management') },
     // { id: 'publishers', label: t('admin.sidebar.publishers'), icon: 'business_center', perm: 'manage_users', group: t('admin.management') },
-    { id: 'navigation', label: t('admin.sidebar.navigation'), icon: 'account_tree', perm: 'manage_navigation', group: t('admin.system') },
-    { id: 'roles', label: t('admin.sidebar.roles'), icon: 'verified_user', perm: 'view_roles', group: t('admin.system') },
     { id: 'settings', label: t('admin.sidebar.settings'), icon: 'settings', perm: 'view_settings', group: t('admin.system') },
     { id: 'languages', label: t('admin.sidebar.languages'), icon: 'language', perm: 'view_languages', group: t('admin.system') },
   ], [t]);

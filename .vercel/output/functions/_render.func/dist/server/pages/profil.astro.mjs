@@ -1,10 +1,10 @@
 /* empty css                                  */
 import { c as createComponent, b as createAstro, r as renderComponent, a as renderTemplate } from '../chunks/astro/server_CUMT7Dv3.mjs';
 import 'piccolore';
-import { l as loadLocaleData, $ as $$Layout } from '../chunks/Layout_DDIagS4a.mjs';
+import { l as loadLocaleData, $ as $$Layout } from '../chunks/Layout_DwLhRwnK.mjs';
 import { d as dataService } from '../chunks/dataService_Bp0vcODm.mjs';
 import { r as resolveLangCode } from '../chunks/lang_B1d4Ts2g.mjs';
-export { r as renderers } from '../chunks/_@astro-renderers_8ZcaT4W7.mjs';
+export { renderers } from '../renderers.mjs';
 
 const $$Astro = createAstro();
 const prerender = false;
