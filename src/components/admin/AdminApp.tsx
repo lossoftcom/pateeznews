@@ -30,6 +30,7 @@ const ADMIN_TABS = new Set([
   'navigation',
   'roles',
   'settings',
+  'ai_settings',
   'languages',
   'my_profile',
   'hikaye-editor',
@@ -46,6 +47,7 @@ const ADMIN_TAB_SLUGS: Record<string, { default: string; tr?: string; en?: strin
   navigation: { default: 'navigation', tr: 'menu-kategori', en: 'navigation' },
   roles: { default: 'roles-permissions', tr: 'roller-izinler', en: 'roles-permissions' },
   settings: { default: 'settings', tr: 'ayarlar', en: 'settings' },
+  ai_settings: { default: 'ai-settings', tr: 'ai-ayarlari', en: 'ai-settings' },
   languages: { default: 'languages', tr: 'dil-ayarlari', en: 'languages' },
   my_profile: { default: 'profile', tr: 'profilim', en: 'profile' },
   // Internal/special tabs

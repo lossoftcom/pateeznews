@@ -5,6 +5,7 @@ import { NEWS_FEED } from '@/constants';
 import type { SiteSettings } from '@/types';
 import AdminErrorBoundary from './AdminErrorBoundary';
 const LanguageSettings = React.lazy(() => import('./LanguageSettings'));
+const AiSettings = React.lazy(() => import('./AiSettings'));
 const RoleSettings = React.lazy(() => import('./RoleSettings'));
 const UserManagement = React.lazy(() => import('./UserManagement'));
 const UserProfileSettings = React.lazy(() => import('./UserProfileSettings'));
@@ -72,6 +73,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     { id: 'roles', label: t('admin.sidebar.roles'), icon: 'verified_user', perm: 'view_roles', group: t('admin.management') },
     // { id: 'publishers', label: t('admin.sidebar.publishers'), icon: 'business_center', perm: 'manage_users', group: t('admin.management') },
     { id: 'settings', label: t('admin.sidebar.settings'), icon: 'settings', perm: 'view_settings', group: t('admin.system') },
+    { id: 'ai_settings', label: t('admin.sidebar.ai_settings'), icon: 'psychology', perm: 'view_settings', group: t('admin.system') },
     { id: 'languages', label: t('admin.sidebar.languages'), icon: 'language', perm: 'view_languages', group: t('admin.system') },
   ], [t]);
 
@@ -138,7 +140,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
         const { data: roleData } = await supabase.from('roles').select('id').eq('name', roleName).single();
         if (roleData) {
           const { data: permData } = await supabase.from('role_permissions').select('permission_key').eq('role_id', roleData.id);
-          if (permData) setPermissions(permData.map(p => p.permission_key));
+          if (permData) setPermissions(permData.map((p: any) => p.permission_key));
         } else {
           setPermissions(['view_overview']);
         }
@@ -224,6 +226,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     if (activeTab === 'comments' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'navigation' && !hasPermission('manage_navigation')) return <AccessDenied />;
     if (activeTab === 'settings' && !hasPermission('view_settings')) return <AccessDenied />;
+    if (activeTab === 'ai_settings' && !hasPermission('view_settings')) return <AccessDenied />;
     if (activeTab === 'languages' && !hasPermission('view_languages')) return <AccessDenied />;
     if (activeTab === 'roles' && !hasPermission('view_roles')) return <AccessDenied />;
 
@@ -290,6 +293,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
                 />
               );
               case 'settings': return <Settings />;
+              case 'ai_settings': return <AiSettings />;
               default: return null;
             }
           })()}
@@ -375,12 +379,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
       <main className={`flex-1 min-h-screen transition-all duration-500 ease-in-out ${isSidebarOpen ? 'ltr:ml-[260px] rtl:mr-[260px]' : 'ltr:ml-[88px] rtl:mr-[88px]'}`}>
         <header className="h-20 bg-white/70 backdrop-blur-2xl border-b border-palette-tan/20 sticky top-0 z-30 px-8 flex items-center justify-between">
           <div>
-	            <h1 className="text-[22px] font-bold text-palette-maroon tracking-tight">
-	              {activeTab === 'edit_user' ? t('users.role_modal.title') :
-	                activeTab === 'edit_publisher' ? t('publishers.form.edit_title') :
-	                  activeTab === 'edit_post' ? t('admin.post.edit_title') :
-	                    (menuItems.find(i => i.id === activeTab)?.label || t('admin.sidebar.overview'))}
-	            </h1>
+            <h1 className="text-[22px] font-bold text-palette-maroon tracking-tight">
+              {activeTab === 'edit_user' ? t('users.role_modal.title') :
+                activeTab === 'edit_publisher' ? t('publishers.form.edit_title') :
+                  activeTab === 'edit_post' ? t('admin.post.edit_title') :
+                    (menuItems.find(i => i.id === activeTab)?.label || t('admin.sidebar.overview'))}
+            </h1>
             <p className="text-[13px] text-palette-tan font-bold mt-0.5">
               {new Date().toLocaleDateString(t('admin.date_format'), { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
@@ -591,10 +595,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
             <div className="w-14 h-14 bg-red-50 text-palette-red rounded-[5px] flex items-center justify-center mx-auto mb-6 shadow-inner">
               <span className="material-symbols-rounded" style={{ fontSize: '24px' }}>warning</span>
             </div>
-	            <h3 className="text-xl font-black text-palette-maroon tracking-tight mb-3 uppercase">{t('common.confirm_title')}</h3>
-	            <p className="text-[14px] font-bold text-palette-tan/60 leading-relaxed mb-8 px-4">
-	              {t('common.unsaved_changes_confirm')}
-	            </p>
+            <h3 className="text-xl font-black text-palette-maroon tracking-tight mb-3 uppercase">{t('common.confirm_title')}</h3>
+            <p className="text-[14px] font-bold text-palette-tan/60 leading-relaxed mb-8 px-4">
+              {t('common.unsaved_changes_confirm')}
+            </p>
             <div className="flex items-center gap-3">
               <button
                 onClick={(e) => { e.stopPropagation(); setShowUnsavedModal(false); setPendingNavigation(null); }}
@@ -604,15 +608,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); confirmNavigation(); }}
-	                className="flex-1 h-12 bg-palette-red text-white rounded-[5px] font-black text-[13px] tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-palette-red/20 flex items-center justify-center gap-2"
-	              >
-	                <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>logout</span>
-	                <span className="mt-0.5">{t('common.exit_upper')}</span>
-	              </button>
-	            </div>
-	          </div>
-	        </div>
-	      )}
+                className="flex-1 h-12 bg-palette-red text-white rounded-[5px] font-black text-[13px] tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-palette-red/20 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>logout</span>
+                <span className="mt-0.5">{t('common.exit_upper')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

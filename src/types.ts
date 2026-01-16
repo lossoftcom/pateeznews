@@ -195,4 +195,8 @@ export interface SiteSettings {
   robots_txt?: string;
   header_custom_codes?: string;
   footer_custom_codes?: string;
+  // AI Settings
+  google_ai_api_key?: string;
+  google_ai_model?: string;
+  google_ai_active?: boolean;
 }

@@ -15,6 +15,7 @@ import PostReviewItem from './PostReviewItem';
 import PostQuoteItem from './PostQuoteItem';
 import PostIframeItem from './PostIframeItem';
 import PostQuizItem from './PostQuizItem';
+import AiAssistantDialog from './AiAssistantDialog';
 import 'react-quill-new/dist/quill.snow.css';
 import { useDropzone } from 'react-dropzone';
 import { type NavigationItem } from '@/types';
@@ -317,9 +318,9 @@ const FieEmojiToolOptions = () => {
                     fontWeight: 700,
                     cursor: 'pointer',
                 }}
-	            >
-	                {t('admin.post.emoji_tab.emojis')}
-	            </button>
+            >
+                {t('admin.post.emoji_tab.emojis')}
+            </button>
             <button
                 type="button"
                 onClick={() => { setTab('flags'); setOpen(true); }}
@@ -332,9 +333,9 @@ const FieEmojiToolOptions = () => {
                     fontWeight: 700,
                     cursor: 'pointer',
                 }}
-	            >
-	                {t('admin.post.emoji_tab.flags')}
-	            </button>
+            >
+                {t('admin.post.emoji_tab.flags')}
+            </button>
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
@@ -347,9 +348,9 @@ const FieEmojiToolOptions = () => {
                     fontWeight: 700,
                     cursor: 'pointer',
                 }}
-	            >
-	                {open ? t('common.close_action') : t('common.open_action')}
-	            </button>
+            >
+                {open ? t('common.close_action') : t('common.open_action')}
+            </button>
 
             <Popper
                 className="FIE_emoji-picker"
@@ -544,6 +545,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     const initialDetailTabRef = useRef<typeof activeDetailTab>(activeDetailTab);
     const initialFormDataRef = useRef<typeof formData | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
+    const [showAiDialog, setShowAiDialog] = useState(false);
     const initDirtyTimerRef = useRef<number | null>(null);
     const [isLoadingPost, setIsLoadingPost] = useState(!!postId);
     const postLoadRef = useRef<string | null>(null);
@@ -710,7 +712,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                         .eq('user_id', user.id);
 
                     if (assignments && assignments.length > 0) {
-                        const ids = assignments.map(a => a.publisher_id);
+                        const ids = assignments.map((a: any) => a.publisher_id);
                         const { data } = await supabase.from('profiles').select('id, full_name').in('id', ids);
                         setPublishers(data || []);
                     }
@@ -803,9 +805,9 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         if (postId && formData.items.length > 0) return;
 
         if (activeDetailTab === 'article') {
-            const hasQuiz = formData.items.some(item => item.type === 'quiz' as any);
-            const hasPoll = formData.items.some(item => item.type === 'poll');
-            const hasVideo = formData.items.some(item => item.type === 'video');
+            const hasQuiz = formData.items.some((item: PostItem) => item.type === 'quiz' as any);
+            const hasPoll = formData.items.some((item: PostItem) => item.type === 'poll');
+            const hasVideo = formData.items.some((item: PostItem) => item.type === 'video');
 
             if (hasQuiz || (formData.items.length === 1 && (hasPoll || hasVideo)) || formData.items.length === 0) {
                 if (hasQuiz || hasPoll || hasVideo || formData.items.length === 0) {
@@ -833,7 +835,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 }
             }
         } else if (activeDetailTab === 'poll') {
-            const hasPoll = formData.items.some(item => item.type === 'poll');
+            const hasPoll = formData.items.some((item: PostItem) => item.type === 'poll');
             const onlyPoll = formData.items.length === 1 && hasPoll;
             if (!onlyPoll) {
                 const pollItem: PostItem = {
@@ -863,7 +865,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 });
             }
         } else if (activeDetailTab === 'video') {
-            const hasVideo = formData.items.some(item => item.type === 'video');
+            const hasVideo = formData.items.some((item: PostItem) => item.type === 'video');
             const onlyVideo = formData.items.length === 1 && hasVideo;
             if (!onlyVideo) {
                 const videoItem: PostItem = {
@@ -889,7 +891,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 });
             }
         } else if (activeDetailTab === 'quiz') {
-            const hasQuiz = formData.items.some(item => item.type === 'quiz' as any);
+            const hasQuiz = formData.items.some((item: PostItem) => item.type === 'quiz' as any);
             const onlyQuiz = formData.items.length === 1 && hasQuiz;
             if (!onlyQuiz) {
                 const quizItem: PostItem = {
@@ -936,7 +938,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 });
             }
         } else if (activeDetailTab === 'paragraph') {
-            const hasQuote = formData.items.some(item => item.type === 'quote');
+            const hasQuote = formData.items.some((item: PostItem) => item.type === 'quote');
             if (!hasQuote) {
                 const quoteItem: PostItem = {
                     id: Math.random().toString(36).substr(2, 9),
@@ -1001,7 +1003,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
             const currentMediaUrl = activeMediaTarget === 'thumbnail'
                 ? formData.thumbnail
-                : formData.items.find(i => i.id === activeMediaTarget)?.mediaUrl;
+                : formData.items.find((i: PostItem) => i.id === activeMediaTarget)?.mediaUrl;
 
             if (currentMediaUrl) {
                 try {
@@ -1124,7 +1126,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     setIsThumbnailLoading(true);
                     setFormData(prev => ({ ...prev, thumbnail: newSrc }));
                 } else if (activeMediaTarget) {
-                    const targetItem = formData.items.find(i => i.id === activeMediaTarget);
+                    const targetItem = formData.items.find((i: PostItem) => i.id === activeMediaTarget);
                     if (targetItem?.type === 'flipcard' && activeMediaSubTarget) {
                         const currentFlipData = targetItem.flipData || {
                             frontImage: '',
@@ -1138,12 +1140,12 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                             [activeMediaSubTarget]: newSrc
                         });
                     } else if (targetItem?.type === 'beforeafter' && activeMediaSubTarget) {
-	                        const currentData = targetItem.beforeAfterData || {
-	                            beforeImage: '',
-	                            afterImage: '',
-	                            beforeLabel: t('admin.post.before_label_short'),
-	                            afterLabel: t('admin.post.after_label_short')
-	                        };
+                        const currentData = targetItem.beforeAfterData || {
+                            beforeImage: '',
+                            afterImage: '',
+                            beforeLabel: t('admin.post.before_label_short'),
+                            afterLabel: t('admin.post.after_label_short')
+                        };
                         handleUpdateItem(activeMediaTarget, 'beforeAfterData', {
                             ...currentData,
                             [activeMediaSubTarget]: newSrc
@@ -1151,7 +1153,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     } else if (targetItem?.type === 'poll' || targetItem?.type === 'vs') {
                         if (activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
                             const currentOptions = targetItem.options || [];
-                            handleUpdateItem(activeMediaTarget, 'options', currentOptions.map(o =>
+                            handleUpdateItem(activeMediaTarget, 'options', currentOptions.map((o: any) =>
                                 o.id === activeMediaOptionTarget ? { ...o, image: newSrc } : o
                             ));
                         } else {
@@ -1165,7 +1167,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 // Update local files list
                 setLocalFiles(prev => {
                     // Remove old entry if exists (by ID) to avoid duplicates
-                    const filtered = prev.filter(p => p.id !== result.id);
+                    const filtered = prev.filter((p: any) => p.id !== result.id);
                     return [result, ...filtered];
                 });
             } else {
@@ -1277,17 +1279,17 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             if (itemData && itemData.length > 0) {
                 // 1. Try to find the existing category
                 let matchedItem = formData.category
-                    ? itemData.find(i => i.label === formData.category)
+                    ? itemData.find((i: NavigationItem) => i.label === formData.category)
                     : null;
 
                 // 2. If no category set, try to pick a reasonable default
                 if (!matchedItem) {
-                    matchedItem = itemData.find(i => !i.parent_id && i.type !== 'header');
+                    matchedItem = itemData.find((i: NavigationItem) => !i.parent_id && i.type !== 'header');
                 }
 
                 if (matchedItem) {
-                    const parentItem = itemData.find(i => i.id === matchedItem.parent_id);
-                    const grandParentItem = parentItem ? itemData.find(i => i.id === parentItem.parent_id) : null;
+                    const parentItem = itemData.find((i: NavigationItem) => i.id === matchedItem.parent_id);
+                    const grandParentItem = parentItem ? itemData.find((i: NavigationItem) => i.id === parentItem.parent_id) : null;
 
                     if (grandParentItem && grandParentItem.id !== 'root' && grandParentItem.type !== 'header') {
                         // Level 3 category matched
@@ -1397,7 +1399,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 if (activeMediaTarget === 'thumbnail') {
                     setFormData({ ...formData, thumbnail: trimmedUrl });
                 } else if (activeMediaTarget) {
-                    const targetItem = formData.items.find(i => i.id === activeMediaTarget);
+                    const targetItem = formData.items.find((i: PostItem) => i.id === activeMediaTarget);
                     if (targetItem?.type === 'flipcard' && activeMediaSubTarget) {
                         const currentFlipData = targetItem.flipData || {
                             frontImage: '',
@@ -1411,12 +1413,12 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                             [activeMediaSubTarget]: trimmedUrl
                         });
                     } else if (targetItem?.type === 'beforeafter' && activeMediaSubTarget) {
-	                        const currentData = targetItem.beforeAfterData || {
-	                            beforeImage: '',
-	                            afterImage: '',
-	                            beforeLabel: t('admin.post.before_label_short'),
-	                            afterLabel: t('admin.post.after_label_short')
-	                        };
+                        const currentData = targetItem.beforeAfterData || {
+                            beforeImage: '',
+                            afterImage: '',
+                            beforeLabel: t('admin.post.before_label_short'),
+                            afterLabel: t('admin.post.after_label_short')
+                        };
                         handleUpdateItem(activeMediaTarget, 'beforeAfterData', {
                             ...currentData,
                             [activeMediaSubTarget]: trimmedUrl
@@ -1424,7 +1426,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     } else if (targetItem?.type === 'poll' || targetItem?.type === 'vs') {
                         if (activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
                             const currentOptions = targetItem.options || [];
-                            handleUpdateItem(activeMediaTarget, 'options', currentOptions.map(o =>
+                            handleUpdateItem(activeMediaTarget, 'options', currentOptions.map((o: any) =>
                                 o.id === activeMediaOptionTarget ? { ...o, image: trimmedUrl } : o
                             ));
                         } else {
@@ -1458,13 +1460,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
         // Always re-sequence if activeSort is set, otherwise just give it a number
         if (activeSort) {
-            newItems = newItems.map((item, idx) => ({
+            newItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             newItems[newItems.length - 1].orderNumber = nextOrder;
         }
@@ -1486,13 +1488,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         let newItems = [...formData.items, newItem];
 
         if (activeSort) {
-            newItems = newItems.map((item, idx) => ({
+            newItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             newItems[newItems.length - 1].orderNumber = nextOrder;
         }
@@ -1514,13 +1516,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         let newItems = [...formData.items, newItem];
 
         if (activeSort) {
-            newItems = newItems.map((item, idx) => ({
+            newItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             newItems[newItems.length - 1].orderNumber = nextOrder;
         }
@@ -1543,13 +1545,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1571,13 +1573,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1598,13 +1600,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1625,13 +1627,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1661,13 +1663,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1681,24 +1683,24 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             title: '',
             description: '',
             orderNumber: 0,
-	            beforeAfterData: {
-	                beforeImage: '',
-	                afterImage: '',
-	                beforeLabel: t('admin.post.before_label_short'),
-	                afterLabel: t('admin.post.after_label_short')
-	            }
-	        };
+            beforeAfterData: {
+                beforeImage: '',
+                afterImage: '',
+                beforeLabel: t('admin.post.before_label_short'),
+                afterLabel: t('admin.post.after_label_short')
+            }
+        };
 
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1723,13 +1725,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1742,13 +1744,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
             if (field === 'showOnHomepage' && value === true) {
                 // Eğer bu item ana sayfada gösterilecekse, diğer hepsini kapat
-                updatedItems = prev.items.map(item => ({
+                updatedItems = prev.items.map((item: PostItem) => ({
                     ...item,
                     showOnHomepage: item.id === id ? true : false
                 }));
             } else {
                 // Diğer güncellemeler normal şekilde devam etsin
-                updatedItems = prev.items.map(item =>
+                updatedItems = prev.items.map((item: PostItem) =>
                     item.id === id ? { ...item, [field]: value } : item
                 );
             }
@@ -1761,30 +1763,30 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     };
 
     const handleAddVSItem = () => {
-	        const newItem: PostItem = {
-	            id: Math.random().toString(36).substr(2, 9),
-	            type: 'vs',
-	            title: '',
-	            description: '',
-	            orderNumber: 0,
-	            options: [
-	                { id: Math.random().toString(36).substr(2, 9), text: t('admin.post.vs.left_side'), votes: 0, image: '' },
-	                { id: Math.random().toString(36).substr(2, 9), text: t('admin.post.vs.right_side'), votes: 0, image: '' }
-	            ],
-	            isImagePoll: true,
-	            pollColumns: 2
-	        };
+        const newItem: PostItem = {
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'vs',
+            title: '',
+            description: '',
+            orderNumber: 0,
+            options: [
+                { id: Math.random().toString(36).substr(2, 9), text: t('admin.post.vs.left_side'), votes: 0, image: '' },
+                { id: Math.random().toString(36).substr(2, 9), text: t('admin.post.vs.right_side'), votes: 0, image: '' }
+            ],
+            isImagePoll: true,
+            pollColumns: 2
+        };
 
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1792,36 +1794,36 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     };
 
     const handleAddReviewItem = () => {
-	        const newItem: PostItem = {
-	            id: Math.random().toString(36).substr(2, 9),
-	            type: 'review',
+        const newItem: PostItem = {
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'review',
             title: '',
             description: '',
             orderNumber: 0,
-	            reviewData: {
-	                productName: '',
-	                productImage: '',
-	                score: 85,
-	                pros: [t('admin.post.review.pros_placeholder')],
-	                cons: [t('admin.post.review.cons_placeholder')],
-	                breakdown: [
-	                    { label: t('admin.post.review.criteria.design'), score: 80 },
-	                    { label: t('admin.post.review.criteria.performance'), score: 80 }
-	                ],
-	                verdict: t('admin.post.review.verdict_placeholder')
-	            }
-	        };
+            reviewData: {
+                productName: '',
+                productImage: '',
+                score: 85,
+                pros: [t('admin.post.review.pros_placeholder')],
+                cons: [t('admin.post.review.cons_placeholder')],
+                breakdown: [
+                    { label: t('admin.post.review.criteria.design'), score: 80 },
+                    { label: t('admin.post.review.criteria.performance'), score: 80 }
+                ],
+                verdict: t('admin.post.review.verdict_placeholder')
+            }
+        };
 
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1840,13 +1842,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1865,13 +1867,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         const newItems = [...formData.items, newItem];
         let finalItems = newItems;
         if (activeSort) {
-            finalItems = newItems.map((item, idx) => ({
+            finalItems = newItems.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (newItems.length - idx)
             }));
         } else {
             const nextOrder = formData.items.length > 0
-                ? Math.max(...formData.items.map(i => i.orderNumber || 0)) + 1
+                ? Math.max(...formData.items.map((i: PostItem) => i.orderNumber || 0)) + 1
                 : 1;
             finalItems[finalItems.length - 1].orderNumber = nextOrder;
         }
@@ -1880,10 +1882,10 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
     const handleRemoveItem = (id: string) => {
         if ((activeDetailTab === 'article' || activeDetailTab === 'poll' || activeDetailTab === 'video' || activeDetailTab === 'quiz') && formData.items.length <= 1) return;
-        let filtered = formData.items.filter(item => item.id !== id);
+        let filtered = formData.items.filter((item: PostItem) => item.id !== id);
         if (activeSort) {
             // Re-sequence remaining items
-            filtered = filtered.map((item, idx) => ({
+            filtered = filtered.map((item: PostItem, idx: number) => ({
                 ...item,
                 orderNumber: activeSort === 'asc' ? (idx + 1) : (filtered.length - idx)
             }));
@@ -1893,7 +1895,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
     const handleSortItems = (order: 'asc' | 'desc') => {
         // Re-sequence based on current visual positions in the array
-        const resequenced = formData.items.map((item, idx) => ({
+        const resequenced = formData.items.map((item: PostItem, idx: number) => ({
             ...item,
             orderNumber: order === 'asc' ? (idx + 1) : (formData.items.length - idx)
         }));
@@ -1975,23 +1977,23 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 return;
             }
 
-	            if (count && count >= 2) {
-	                showToast(t('admin.post.max_pinned_error'), 'error');
-	                return;
-	            }
-	        }
+            if (count && count >= 2) {
+                showToast(t('admin.post.max_pinned_error'), 'error');
+                return;
+            }
+        }
 
         setFormData(prev => ({ ...prev, isPinned: newPinnedValue }));
     };
 
     const handleSave = async (status: 'published' | 'draft') => {
-	        const errors: { title?: string; summary?: string } = {};
-	        if (!formData.title.trim()) {
-	            errors.title = t('admin.post.title_required');
-	        }
-	        if (!formData.summary.trim()) {
-	            errors.summary = t('admin.post.summary_required');
-	        }
+        const errors: { title?: string; summary?: string } = {};
+        if (!formData.title.trim()) {
+            errors.title = t('admin.post.title_required');
+        }
+        if (!formData.summary.trim()) {
+            errors.summary = t('admin.post.summary_required');
+        }
 
         if (Object.keys(errors).length > 0) {
             setValidationErrors(errors);
@@ -2005,18 +2007,18 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             return;
         }
 
-	        if (!formData.category) {
-	            showToast(t('admin.post.category_required'), 'error');
-	            categoryRef.current?.focus();
-	            return;
-	        }
+        if (!formData.category) {
+            showToast(t('admin.post.category_required'), 'error');
+            categoryRef.current?.focus();
+            return;
+        }
 
         try {
-	            const { data: { user } } = await supabase.auth.getUser();
-	            if (!user) {
-	                showToast(t('auth.login_required'), 'error');
-	                return;
-	            }
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                showToast(t('auth.login_required'), 'error');
+                return;
+            }
 
             const slug = formData.slug || formData.title.toLowerCase()
                 .replace(/ğ/g, 'g')
@@ -2031,32 +2033,32 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 .trim();
 
             const finalItems = ensureUniqueItemIds([...formData.items]);
-	            if (formData.faqData && formData.faqData.length > 0) {
-	                finalItems.push({
-	                    id: 'faq-schema-block',
-	                    type: 'faq',
-	                    title: t('admin.post.faq_short'),
-	                    description: '',
-	                    faqData: formData.faqData
-	                } as any);
-	            }
+            if (formData.faqData && formData.faqData.length > 0) {
+                finalItems.push({
+                    id: 'faq-schema-block',
+                    type: 'faq',
+                    title: t('admin.post.faq_short'),
+                    description: '',
+                    faqData: formData.faqData
+                } as any);
+            }
 
             const normalizedPublishAt = toIsoString(formData.publishAt);
-	            const postData: any = {
-	                title: formData.title,
-	                summary: formData.summary,
-	                category: formData.category,
-	                thumbnail_url: formData.thumbnail,
-	                thumbnail_alt: formData.thumbnailAlt,
-	                seo_title: formData.seoTitle,
-	                seo_description: formData.seoDescription,
-	                keywords: formData.keywords,
-	                slug: slug,
-	                fact_checked: formData.factChecked,
-	                schema_type: formData.schemaType,
-	                faq_data: formData.faqData,
-	                items: finalItems,
-	                published_at: status === 'published' ? (normalizedPublishAt || new Date().toISOString()) : null,
+            const postData: any = {
+                title: formData.title,
+                summary: formData.summary,
+                category: formData.category,
+                thumbnail_url: formData.thumbnail,
+                thumbnail_alt: formData.thumbnailAlt,
+                seo_title: formData.seoTitle,
+                seo_description: formData.seoDescription,
+                keywords: formData.keywords,
+                slug: slug,
+                fact_checked: formData.factChecked,
+                schema_type: formData.schemaType,
+                faq_data: formData.faqData,
+                items: finalItems,
+                published_at: status === 'published' ? (normalizedPublishAt || new Date().toISOString()) : null,
                 status: status,
                 language_code: selectedLanguage,
                 publisher_id: formData.publisher_id || user?.id,
@@ -2066,41 +2068,41 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 ...(formData.id ? {} : { likes_count: 0, shares_count: 0, comments_count: 0 })
             };
 
-		            if (formData.id) {
-		                // Update
-	                const { error } = await supabase
-	                    .from('posts')
-	                    .update(postData)
-	                    .eq('id', formData.id);
-		                if (error) throw error;
-		                showToast(t('admin.post.update_success'), 'success');
-		                // Kaydedildiyse artık dirty değil
-		                initialFormDataRef.current = JSON.parse(JSON.stringify(formData));
-		                initialSelectedLanguageRef.current = selectedLanguage;
-		                initialDetailTabRef.current = activeDetailTab;
-		            } else {
-	                // Insert
-	                const { data, error } = await supabase
-	                    .from('posts')
-	                    .insert([postData])
+            if (formData.id) {
+                // Update
+                const { error } = await supabase
+                    .from('posts')
+                    .update(postData)
+                    .eq('id', formData.id);
+                if (error) throw error;
+                showToast(t('admin.post.update_success'), 'success');
+                // Kaydedildiyse artık dirty değil
+                initialFormDataRef.current = JSON.parse(JSON.stringify(formData));
+                initialSelectedLanguageRef.current = selectedLanguage;
+                initialDetailTabRef.current = activeDetailTab;
+            } else {
+                // Insert
+                const { data, error } = await supabase
+                    .from('posts')
+                    .insert([postData])
                     .select()
                     .single();
-	                if (error) throw error;
-	                if (data) {
-		                    showToast(t('admin.post.create_success'), 'success');
-		                    // Reset page if it was a new post
-		                    if (!postId) {
-	                        // Yeni ekleme ekranını sıfırlarken dirty snapshot'ını da sıfırla
-	                        setIsInitialized(false);
-	                        initialFormDataRef.current = null;
-	                        if (initDirtyTimerRef.current) {
-	                            window.clearTimeout(initDirtyTimerRef.current);
-	                            initDirtyTimerRef.current = null;
-	                        }
-	                        setFormData({
-	                            id: '',
-	                            title: '',
-	                            summary: '',
+                if (error) throw error;
+                if (data) {
+                    showToast(t('admin.post.create_success'), 'success');
+                    // Reset page if it was a new post
+                    if (!postId) {
+                        // Yeni ekleme ekranını sıfırlarken dirty snapshot'ını da sıfırla
+                        setIsInitialized(false);
+                        initialFormDataRef.current = null;
+                        if (initDirtyTimerRef.current) {
+                            window.clearTimeout(initDirtyTimerRef.current);
+                            initDirtyTimerRef.current = null;
+                        }
+                        setFormData({
+                            id: '',
+                            title: '',
+                            summary: '',
                             category: '',
                             thumbnail: '',
                             thumbnailAlt: '',
@@ -2143,11 +2145,11 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     }
                 }
             }
-	        } catch (error: any) {
-	            console.error('Save error:', error);
-	            showToast(t('common.error_prefix') + error.message, 'error');
-	        }
-	    };
+        } catch (error: any) {
+            console.error('Save error:', error);
+            showToast(t('common.error_prefix') + error.message, 'error');
+        }
+    };
 
     return (
         <div className="animate-in fade-in duration-500 admin-font relative">
@@ -2155,1221 +2157,1236 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             {isLoadingPost && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-[2px]">
                     <div className="flex items-center gap-3 px-5 py-3 bg-white rounded-[3px] border border-palette-tan/20 shadow-lg">
-	                        <span className="material-symbols-rounded animate-spin text-palette-maroon" style={{ fontSize: '22px' }}>progress_activity</span>
-	                        <div className="flex flex-col">
-	                            <span className="text-[12px] font-black text-palette-maroon uppercase tracking-wider">{t('admin.post.loading_title')}</span>
-	                            <span className="text-[11px] font-bold text-palette-tan/60">{t('admin.post.loading_subtitle')}</span>
-	                        </div>
-	                    </div>
-	                </div>
-	            )}
-            <div className={isLoadingPost ? 'pointer-events-none select-none opacity-70' : ''}>
-            {/* MODERN COMPACT HEADER */}
-            <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-[3px] border border-palette-tan/20 shadow-sm">
-                <div className="flex items-center gap-4">
-                    {onBack && (
-                        <button
-                            onClick={onBack}
-                            className="w-10 h-10 flex items-center justify-center rounded-[3px] bg-palette-beige/50 text-palette-maroon border border-palette-tan/20 hover:bg-palette-tan/10 transition-all"
-                        >
-                            <span className="material-symbols-rounded">arrow_back</span>
-                        </button>
-                    )}
-                    <div>
-                        <h2 className="text-xl font-bold text-palette-maroon">
-                            {postId ? t('admin.post.edit_title') : t('admin.post.new_title')}
-                        </h2>
-                        <p className="text-[13px] font-bold text-palette-tan/50 tracking-wider">{t('admin.post.panel_desc')}</p>
+                        <span className="material-symbols-rounded animate-spin text-palette-maroon" style={{ fontSize: '22px' }}>progress_activity</span>
+                        <div className="flex flex-col">
+                            <span className="text-[12px] font-black text-palette-maroon uppercase tracking-wider">{t('admin.post.loading_title')}</span>
+                            <span className="text-[11px] font-bold text-palette-tan/60">{t('admin.post.loading_subtitle')}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
+            <div className={isLoadingPost ? 'pointer-events-none select-none opacity-70' : ''}>
+                {/* MODERN COMPACT HEADER */}
+                <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-[3px] border border-palette-tan/20 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        {onBack && (
+                            <button
+                                onClick={onBack}
+                                className="w-10 h-10 flex items-center justify-center rounded-[3px] bg-palette-beige/50 text-palette-maroon border border-palette-tan/20 hover:bg-palette-tan/10 transition-all"
+                            >
+                                <span className="material-symbols-rounded">arrow_back</span>
+                            </button>
+                        )}
+                        <div>
+                            <h2 className="text-xl font-bold text-palette-maroon">
+                                {postId ? t('admin.post.edit_title') : t('admin.post.new_title')}
+                            </h2>
+                            <p className="text-[13px] font-bold text-palette-tan/50 tracking-wider">{t('admin.post.panel_desc')}</p>
+                        </div>
+                    </div>
+                </div>
 
-            <div className="flex gap-6 items-start">
-                {/* MAIN CONTENT AREA */}
-                <div className="flex-1 space-y-6">
-                    {/* JOINED TABS AND CONTENT SECTION */}
-                    <div className="bg-white rounded-[3px] border border-palette-tan/20 shadow-sm overflow-hidden">
-                        {/* PREMIUM TAB NAVIGATION - IMAGE STYLE */}
-                        <div className="border-b border-palette-tan/15 bg-white">
-                            <div className="flex h-24">
-                                {[
-                                    { id: 'article', label: t('admin.post.tab.article'), icon: 'description' },
-                                    { id: 'quiz', label: t('admin.post.tab.quiz'), icon: 'quiz' },
-                                    { id: 'poll', label: t('admin.post.tab.poll'), icon: 'poll' },
-                                    { id: 'video', label: t('admin.post.tab.video'), icon: 'smart_display' },
-                                    { id: 'TABLE OF CONTENTS', label: t('admin.post.tab.contents'), icon: 'format_list_numbered' },
-                                    { id: 'recipe', label: t('admin.post.tab.recipe'), icon: 'restaurant' }
-                                ].map((tab, idx, arr) => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveDetailTab(tab.id as any)}
-                                        className={`
+                <div className="flex gap-6 items-start">
+                    {/* MAIN CONTENT AREA */}
+                    <div className="flex-1 space-y-6">
+                        {/* JOINED TABS AND CONTENT SECTION */}
+                        <div className="bg-white rounded-[3px] border border-palette-tan/20 shadow-sm overflow-hidden">
+                            {/* PREMIUM TAB NAVIGATION - IMAGE STYLE */}
+                            <div className="border-b border-palette-tan/15 bg-white">
+                                <div className="flex h-24">
+                                    {[
+                                        { id: 'article', label: t('admin.post.tab.article'), icon: 'description' },
+                                        { id: 'quiz', label: t('admin.post.tab.quiz'), icon: 'quiz' },
+                                        { id: 'poll', label: t('admin.post.tab.poll'), icon: 'poll' },
+                                        { id: 'video', label: t('admin.post.tab.video'), icon: 'smart_display' },
+                                        { id: 'TABLE OF CONTENTS', label: t('admin.post.tab.contents'), icon: 'format_list_numbered' },
+                                        { id: 'recipe', label: t('admin.post.tab.recipe'), icon: 'restaurant' }
+                                    ].map((tab, idx, arr) => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveDetailTab(tab.id as any)}
+                                            className={`
                                             flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative group
                                             ${idx !== arr.length - 1 ? 'border-r border-palette-tan/10' : ''}
                                             ${activeDetailTab === tab.id
-                                                ? 'bg-palette-beige/20 text-palette-maroon'
-                                                : 'text-palette-tan/40 hover:bg-palette-beige/5 hover:text-palette-maroon'}
+                                                    ? 'bg-palette-beige/20 text-palette-maroon'
+                                                    : 'text-palette-tan/40 hover:bg-palette-beige/5 hover:text-palette-maroon'}
                                         `}
-                                    >
-                                        <span
-                                            className={`material-symbols-rounded ${activeDetailTab === tab.id ? 'text-palette-maroon' : 'text-palette-tan/30 group-hover:text-palette-maroon'} transition-colors`}
-                                            style={{ fontSize: '28px' }}
                                         >
-                                            {tab.icon}
-                                        </span>
-                                        <span className={`text-[12px] uppercase font-black tracking-widest ${activeDetailTab === tab.id ? 'opacity-100' : 'opacity-60'}`}>
-                                            {tab.label}
-                                        </span>
-
-                                        {/* ACTIVE TRIANGLE POINTER (Points into content area) */}
-                                        {activeDetailTab === tab.id && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white z-20" />
-                                        )}
-                                        {activeDetailTab === tab.id && (
-                                            <div className="absolute top-[calc(100%+0.5px)] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[9px] border-t-palette-tan/20 z-10" />
-                                        )}
-
-                                        {activeDetailTab === tab.id && (
-                                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-palette-maroon" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* BASIC & SEO INTEGRATED INFO */}
-                        <div className="p-8 space-y-6">
-                            <div className="flex items-center justify-between border-b border-palette-tan/15 pb-4">
-                                <div className="flex items-center gap-3">
-                                    <span className="material-symbols-rounded text-palette-red" style={{ fontSize: '20px' }}>description</span>
-                                    <h3 className="text-base font-bold text-palette-maroon uppercase tracking-widest">{t('admin.post.content_info')}</h3>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-[13px] font-bold text-palette-tan">{t('admin.post.pin_to_top')}</span>
-                                    <button
-                                        onClick={handleTogglePinned}
-                                        className={`w-10 h-5 rounded-full relative transition-all shadow-inner ${formData.isPinned ? 'bg-amber-500' : 'bg-palette-tan/20'}`}
-                                    >
-                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm ${formData.isPinned ? 'right-1' : 'left-1'}`} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-5">
-                                <div className="space-y-1.5">
-                                    <label className="text-[13px] font-bold text-palette-tan ml-1">{t('admin.post.post_title')}</label>
-                                    <input
-                                        ref={titleRef}
-                                        type="text"
-                                        value={formData.title}
-                                        onChange={(e) => handleTitleChange(e.target.value)}
-                                        placeholder={t('nav_settings.form.label') + "..."}
-                                        className={`w-full bg-palette-beige/5 border ${validationErrors.title ? 'border-palette-red/50 bg-palette-red/5' : 'border-palette-tan/20'} rounded-[3px] p-3.5 text-[18px] font-bold text-palette-maroon focus:border-palette-red outline-none transition-all`}
-                                    />
-                                    {validationErrors.title && (
-                                        <p className="text-[11px] font-black text-palette-red ml-1 animate-in slide-in-from-top-1 duration-200">
-                                            {validationErrors.title}
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-[13px] font-bold text-palette-tan ml-1">{t('admin.post.summary')}</label>
-                                    <textarea
-                                        ref={summaryRef}
-                                        rows={2}
-                                        value={formData.summary}
-                                        onChange={(e) => handleSummaryChange(e.target.value)}
-                                        placeholder={t('admin.post.summary_placeholder')}
-                                        className={`w-full bg-palette-beige/5 border ${validationErrors.summary ? 'border-palette-red/50 bg-palette-red/5' : 'border-palette-tan/20'} rounded-[3px] p-3.5 text-base font-medium text-palette-maroon focus:border-palette-red outline-none transition-all resize-none`}
-                                    />
-                                    {validationErrors.summary && (
-                                        <p className="text-[11px] font-black text-palette-red ml-1 animate-in slide-in-from-top-1 duration-200">
-                                            {validationErrors.summary}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* AUTOMATED SEO SECTION */}
-                            <div className="mt-8 pt-8 border-t border-palette-tan/15 space-y-5">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <span className="material-symbols-rounded text-palette-tan" style={{ fontSize: '20px' }}>settings</span>
-                                        <h3 className="text-[13px] font-bold text-palette-tan uppercase tracking-tighter">{t('admin.post.seo_ai')}</h3>
-                                    </div>
-	                                    <span className="text-[11px] font-black text-green-600 bg-green-50 px-2 py-1 rounded-[3px] border border-green-100 italic">{t('admin.post.google_ai_ready')}</span>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.meta_title')}</label>
-                                        <input
-                                            type="text"
-                                            value={formData.seoTitle}
-                                            onChange={(e) => setFormData({ ...formData, seoTitle: e.target.value })}
-                                            className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-maroon outline-none"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.slug')}</label>
-                                        <input
-                                            type="text"
-                                            value={formData.slug}
-                                            onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                                            className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-red outline-none"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.meta_desc')}</label>
-                                    <input
-                                        type="text"
-                                        value={formData.seoDescription}
-                                        onChange={(e) => setFormData({ ...formData, seoDescription: e.target.value })}
-                                        className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-medium text-palette-tan outline-none"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.schema_type')}</label>
-                                    <select
-                                        value={formData.schemaType}
-                                        onChange={(e) => setFormData({ ...formData, schemaType: e.target.value })}
-                                        className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-maroon outline-none cursor-pointer"
-                                    >
-                                        {SCHEMA_TYPE_OPTIONS.map((schemaType) => (
-                                            <option key={schemaType} value={schemaType}>{schemaType}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.keywords')}</label>
-                                    <div className="flex flex-wrap gap-2 p-2 bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] min-h-[38px] transition-all focus-within:border-palette-red/40">
-                                        {formData.keywords.split(',').filter(t => t.trim() !== '').map((tag, idx) => (
-                                            <span key={idx} className="flex items-center gap-1.5 px-2 py-0.5 bg-palette-maroon text-white text-[11px] font-bold rounded-[3px] animate-in zoom-in duration-200">
-                                                {tag.trim()}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const newTags = formData.keywords.split(',').filter((_, i) => i !== idx);
-                                                        setFormData({ ...formData, keywords: newTags.join(',') });
-                                                    }}
-                                                    className="hover:text-palette-beige transition-colors flex items-center"
-                                                >
-                                                    <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>close</span>
-                                                </button>
-                                            </span>
-                                        ))}
-                                        <input
-                                            type="text"
-                                            value={tagInput}
-                                            onChange={(e) => setTagInput(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' || e.key === ',') {
-                                                    e.preventDefault();
-                                                    const val = tagInput.trim().replace(',', '');
-                                                    if (val) {
-                                                        const currentTags = formData.keywords ? formData.keywords.split(',').map(t => t.trim()) : [];
-                                                        if (!currentTags.includes(val)) {
-                                                            setFormData({ ...formData, keywords: [...currentTags, val].filter(t => t).join(',') });
-                                                        }
-                                                        setTagInput('');
-                                                    }
-                                                } else if (e.key === 'Backspace' && !tagInput && formData.keywords) {
-                                                    const currentTags = formData.keywords.split(',');
-                                                    currentTags.pop();
-                                                    setFormData({ ...formData, keywords: currentTags.join(',') });
-                                                }
-                                            }}
-                                            placeholder={formData.keywords ? "" : t('admin.post.enter_to_add')}
-                                            className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-palette-tan min-w-[120px]"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="space-y-3 pt-4 border-t border-palette-tan/10">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-[12px] font-bold text-palette-tan/60 flex items-center gap-2">
-                                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>quiz</span> {t('admin.post.faq_title')}
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, faqData: [...formData.faqData, { q: '', a: '' }] })}
-                                        className="text-[11px] font-black text-palette-maroon hover:bg-palette-maroon/5 px-2 py-1 rounded transition-colors flex items-center gap-1"
-                                    >
-                                        <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>add</span> {t('admin.post.faq_add_btn')}
-                                    </button>
-                                </div>
-                                <div className="space-y-4">
-                                    {formData.faqData.map((faq, idx) => (
-                                        <div key={idx} className="p-3 bg-palette-beige/5 border border-palette-tan/10 rounded-[3px] space-y-3 relative group/faq">
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, faqData: formData.faqData.filter((_, i) => i !== idx) })}
-                                                className="absolute -top-2 -right-2 w-6 h-6 bg-white border border-palette-tan/20 text-palette-tan/40 hover:text-palette-red hover:border-palette-red rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/faq:opacity-100 transition-all z-10"
+                                            <span
+                                                className={`material-symbols-rounded ${activeDetailTab === tab.id ? 'text-palette-maroon' : 'text-palette-tan/30 group-hover:text-palette-maroon'} transition-colors`}
+                                                style={{ fontSize: '28px' }}
                                             >
-                                                <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>close</span>
-                                            </button>
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[10px] font-black text-palette-tan/40 uppercase">#{idx + 1} {t('admin.post.faq_question')}</span>
-                                                </div>
-                                                <input
-                                                    type="text"
-                                                    value={faq.q}
-                                                    onChange={(e) => {
-                                                        const newFaq = [...formData.faqData];
-                                                        newFaq[idx].q = e.target.value;
-                                                        setFormData({ ...formData, faqData: newFaq });
-                                                    }}
-                                                    placeholder={t('admin.post.faq_question') + "..."}
-                                                    className="w-full bg-white border border-palette-tan/20 rounded-[3px] px-3 py-1.5 text-sm font-bold text-palette-maroon outline-none"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[10px] font-black text-palette-tan/40 uppercase">{t('admin.post.faq_answer')}</span>
-                                                </div>
-                                                <textarea
-                                                    value={faq.a}
-                                                    onChange={(e) => {
-                                                        const newFaq = [...formData.faqData];
-                                                        newFaq[idx].a = e.target.value;
-                                                        setFormData({ ...formData, faqData: newFaq });
-                                                    }}
-                                                    rows={2}
-                                                    placeholder={t('admin.post.faq_answer') + "..."}
-                                                    className="w-full bg-white border border-palette-tan/20 rounded-[3px] px-3 py-1.5 text-sm font-medium text-palette-tan focus:border-palette-red outline-none transition-all resize-none"
-                                                />
-                                            </div>
-                                        </div>
+                                                {tab.icon}
+                                            </span>
+                                            <span className={`text-[12px] uppercase font-black tracking-widest ${activeDetailTab === tab.id ? 'opacity-100' : 'opacity-60'}`}>
+                                                {tab.label}
+                                            </span>
+
+                                            {/* ACTIVE TRIANGLE POINTER (Points into content area) */}
+                                            {activeDetailTab === tab.id && (
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white z-20" />
+                                            )}
+                                            {activeDetailTab === tab.id && (
+                                                <div className="absolute top-[calc(100%+0.5px)] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[9px] border-t-palette-tan/20 z-10" />
+                                            )}
+
+                                            {activeDetailTab === tab.id && (
+                                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-palette-maroon" />
+                                            )}
+                                        </button>
                                     ))}
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    {/* ITEM LIST CONTROLS */}
-                    {activeDetailTab !== 'quiz' && (
-                        <div className="flex justify-center items-center py-4">
-                            <div className="inline-flex bg-white border border-palette-tan/20 rounded-[3px] p-1.5 shadow-sm gap-1">
-                                <button
-                                    onClick={() => handleSortItems('asc')}
-                                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[3px] text-[12px] font-black transition-all active:scale-95 leading-none group ${activeSort === 'asc'
-                                        ? 'bg-palette-maroon text-white shadow-md shadow-palette-maroon/20 scale-[1.02]'
-                                        : 'text-palette-tan hover:text-palette-maroon hover:bg-palette-beige/30'
-                                        }`}
-                                >
-                                    <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>sort</span>
-                                    <span className="leading-none">{t('admin.post.sort.asc')}</span>
-                                </button>
-                                <button
-                                    onClick={() => handleSortItems('desc')}
-                                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[3px] text-[12px] font-black transition-all active:scale-95 leading-none group ${activeSort === 'desc'
-                                        ? 'bg-palette-maroon text-white shadow-md shadow-palette-maroon/20 scale-[1.02]'
-                                        : 'text-palette-tan hover:text-palette-maroon hover:bg-palette-beige/30'
-                                        }`}
-                                >
-                                    <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>sort</span>
-                                    <span className="leading-none">{t('admin.post.sort.desc')}</span>
-                                </button>
-                                <button
-                                    onClick={() => { setActiveSort(null); setShowBlockNumbers(false); }}
-                                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[3px] text-[12px] font-black transition-all active:scale-95 leading-none group ${activeSort === null
-                                        ? 'bg-palette-maroon text-white shadow-md shadow-palette-maroon/20 scale-[1.02]'
-                                        : 'text-palette-tan hover:text-palette-maroon hover:bg-palette-beige/30'
-                                        }`}
-                                >
-                                    <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>numbers</span>
-                                    <span className="leading-none">{t('admin.post.sort.hide')}</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
 
-                    <div className="space-y-6">
-                        {formData.items.map((item, index) => {
-                            const itemKey = `${item.id}-${index}`;
-                            return item.type === 'slider' ? (
-                                <PostSliderImageItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                />
-                            ) : item.type === 'image' ? (
-                                <PostImageItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('image'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
-                                    onOpenImageEditor={(id) => {
-                                        setActiveMediaTarget(id);
-                                        editorSaveInFlightRef.current = false;
-                                        setIsEditorSaving(false);
-                                        setShowImageEditor(true);
-                                    }}
-                                />
-                            ) : item.type === 'video' ? (
-                                <PostVideoItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaType('video');
-                                        fetchMedia('video');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('video'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
-                                />
-                            ) : item.type === 'audio' ? (
-                                <PostAudioItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaType('audio');
-                                        fetchMedia('audio');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('audio'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
-                                />
-                            ) : item.type === 'file' ? (
-                                <PostFileItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaType('file');
-                                        fetchMedia('file');
-                                        setShowFileManager(true);
-                                    }}
-                                />
-                            ) : item.type === 'social' ? (
-                                <PostSocialItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                />
-                            ) : item.type === 'flipcard' ? (
-                                <PostFlipCardItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id, subField) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id, subField) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaType('image');
-                                        setTempUrl('');
-                                        setUrlError(null);
-                                        setIsUrlMode(true);
-                                    }}
-                                    onOpenImageEditor={(id, subField) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        editorSaveInFlightRef.current = false;
-                                        setIsEditorSaving(false);
-                                        setShowImageEditor(true);
-                                    }}
-                                />
-                            ) : item.type === 'beforeafter' ? (
-                                <PostBeforeAfterItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id, subField) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id, subField) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaType('image');
-                                        setTempUrl('');
-                                        setUrlError(null);
-                                        setIsUrlMode(true);
-                                    }}
-                                    onOpenImageEditor={(id, subField) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        editorSaveInFlightRef.current = false;
-                                        setIsEditorSaving(false);
-                                        setShowImageEditor(true);
-                                    }}
-                                />
-                            ) : item.type === ('quiz' as any) ? (
-                                <PostQuizItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        setTempUrl('');
-                                        setUrlError(null);
-                                        setIsUrlMode(true);
-                                    }}
-                                    onOpenImageEditor={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        editorSaveInFlightRef.current = false;
-                                        setIsEditorSaving(false);
-                                        setShowImageEditor(true);
-                                    }}
-                                />
-                            ) : item.type === 'iframe' ? (
-                                <PostIframeItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                />
-                            ) : item.type === 'quote' ? (
-                                <PostQuoteItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                />
-                            ) : item.type === 'poll' ? (
-                                <PostPollItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        setTempUrl('');
-                                        setUrlError(null);
-                                        setIsUrlMode(true);
-                                    }}
-                                    onOpenImageEditor={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        editorSaveInFlightRef.current = false;
-                                        setIsEditorSaving(false);
-                                        setShowImageEditor(true);
-                                    }}
-                                />
-                            ) : item.type === 'vs' ? (
-                                <PostVSItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        setTempUrl('');
-                                        setUrlError(null);
-                                        setIsUrlMode(true);
-                                    }}
-                                    onOpenImageEditor={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        editorSaveInFlightRef.current = false;
-                                        setIsEditorSaving(false);
-                                        setShowImageEditor(true);
-                                    }}
-                                />
-                            ) : item.type === 'review' ? (
-                                <PostReviewItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                    onOpenFileManager={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        fetchMedia('image');
-                                        setShowFileManager(true);
-                                    }}
-                                    onOpenUrlMode={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        setActiveMediaType('image');
-                                        setTempUrl('');
-                                        setUrlError(null);
-                                        setIsUrlMode(true);
-                                    }}
-                                    onOpenImageEditor={(id, subField, optionId) => {
-                                        setActiveMediaTarget(id);
-                                        setActiveMediaSubTarget(subField || null);
-                                        setActiveMediaOptionTarget(optionId || null);
-                                        editorSaveInFlightRef.current = false;
-                                        setIsEditorSaving(false);
-                                        setShowImageEditor(true);
-                                    }}
-                                />
-                            ) : (
-                                <PostTextItem
-                                    key={itemKey}
-                                    item={item}
-                                    index={index}
-                                    totalItems={formData.items.length}
-                                    showBlockNumbers={showBlockNumbers}
-                                    onUpdate={handleUpdateItem}
-                                    onRemove={handleRemoveItem}
-                                    isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                    onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                    onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                />
-                            );
-                        })}
-
-                        {(activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') && (
-                            <div className="flex flex-wrap pt-4 gap-3">
-                                <button
-                                    onClick={handleAddItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-palette-maroon text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-palette-maroon/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>title</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.text')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddImageItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>image</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.image')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddSliderItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>gallery_thumbnail</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.slider')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddVideoItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>videocam</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.video')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddAudioItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-amber-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>mic</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.audio')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddFileItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>attach_file</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.file')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddSocialItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-500/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>share</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.social')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddFlipCardItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-orange-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>sync</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.flip')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddBeforeAfterItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>compare</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.before_after')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddPollItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>poll</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.poll_alt')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddVSItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>swords</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.vs')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddReviewItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>stars</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.review_alt')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddQuoteItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-800/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>format_quote</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.quote')}</span>
-                                </button>
-                                <button
-                                    onClick={handleAddIframeItem}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-700 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-700/10 leading-none"
-                                >
-                                    <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>public</span>
-                                    <span className="leading-none mt-[1px]">{t('admin.post.add.iframe')}</span>
-                                </button>
-                            </div>
-                        )}
-
-
-                    </div>
-                </div>
-
-                {/* SIDEBAR */}
-                <div className="w-96 shrink-0 space-y-6">
-                    <div className="bg-white p-6 rounded-[3px] border border-palette-tan/20 shadow-sm space-y-5">
-                        <div className="space-y-4">
-                            <h4 className="text-[13px] font-bold text-palette-tan ml-1 border-b border-palette-tan/15 pb-2 uppercase tracking-widest">{t('admin.post.cover')}</h4>
-                            <div className="rounded-[3px] bg-palette-beige/5 border-2 border-dashed border-palette-tan/20 flex flex-col items-center justify-center overflow-hidden transition-all relative group w-full min-h-[160px]">
-                                {formData.thumbnail ? (
-                                    <div className="relative w-full">
-                                        <img
-                                            src={formData.thumbnail}
-                                            onLoad={() => setIsThumbnailLoading(false)}
-                                            onError={() => setIsThumbnailLoading(false)}
-                                            className="w-full h-auto object-contain block"
-                                        />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setActiveMediaTarget('thumbnail');
-                                                    setActiveMediaType('image');
-                                                    fetchMedia('image');
-                                                    editorSaveInFlightRef.current = false;
-                                                    setIsEditorSaving(false);
-                                                    setShowImageEditor(true);
-                                                }}
-                                                className="p-3 bg-white/10 backdrop-blur-md rounded-[3px] text-white hover:bg-emerald-600 transition-all"
-                                                title={t('common.edit')}
-                                            >
-                                                <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>edit</span>
-                                            </button>
-                                            <button
-                                                onClick={() => setFormData({ ...formData, thumbnail: '' })}
-                                                className="p-3 bg-white/10 backdrop-blur-md rounded-[3px] text-white hover:bg-palette-red transition-all"
-                                                title={t('common.delete')}
-                                            >
-                                                <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>delete</span>
-                                            </button>
-                                        </div>
-                                        {isThumbnailLoading && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-white/60 pointer-events-none">
-                                                <span className="material-symbols-rounded animate-spin text-palette-maroon" style={{ fontSize: '22px' }}>progress_activity</span>
-                                            </div>
-                                        )}
+                            {/* BASIC & SEO INTEGRATED INFO */}
+                            <div className="p-8 space-y-6">
+                                <div className="flex items-center justify-between border-b border-palette-tan/15 pb-4">
+                                    <div className="flex items-center gap-3">
+                                        <span className="material-symbols-rounded text-palette-red" style={{ fontSize: '20px' }}>description</span>
+                                        <h3 className="text-base font-bold text-palette-maroon uppercase tracking-widest">{t('admin.post.content_info')}</h3>
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center py-8">
-                                        <div onClick={() => { setActiveMediaTarget('thumbnail'); setActiveMediaType('image'); fetchMedia('image'); setShowFileManager(true); }} className="flex flex-col items-center cursor-pointer group/pick mb-2">
-                                            <span className="material-symbols-rounded text-palette-tan/20 group-hover/pick:text-palette-maroon transition-all mb-2" style={{ fontSize: '40px' }}>add</span>
-                                            <span className="text-[13px] font-bold text-palette-tan/50 px-4 text-center">{t('admin.post.pick_image_alt')}</span>
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[13px] font-bold text-palette-tan">{t('admin.post.pin_to_top')}</span>
+                                            <button
+                                                onClick={handleTogglePinned}
+                                                className={`w-10 h-5 rounded-full relative transition-all shadow-inner ${formData.isPinned ? 'bg-amber-500' : 'bg-palette-tan/20'}`}
+                                            >
+                                                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm ${formData.isPinned ? 'right-1' : 'left-1'}`} />
+                                            </button>
                                         </div>
+
                                         <button
-                                            onClick={() => { setActiveMediaTarget('thumbnail'); setActiveMediaType('image'); setIsUrlMode(true); setTempUrl(''); setUrlError(null); }}
-                                            className="mt-2 text-[10px] font-black text-palette-tan/60 hover:text-palette-maroon border border-palette-tan/20 px-3 py-1.5 rounded-[3px] bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wider"
+                                            type="button"
+                                            onClick={() => setShowAiDialog(true)}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-palette-maroon/5 border border-palette-maroon/10 text-palette-maroon rounded-[4px] hover:bg-palette-maroon/10 hover:border-palette-maroon/20 transition-all active:scale-95 group shadow-sm"
                                         >
-                                            <span className="material-symbols-rounded" style={{ fontSize: '11px' }}>public</span> {t('admin.post.add_with_url')}
+                                            <span className="material-symbols-rounded group-hover:rotate-12 transition-transform duration-300" style={{ fontSize: '18px' }}>auto_fix_high</span>
+                                            <span className="text-[11px] font-black tracking-widest uppercase leading-none">{t('admin.ai_assistant.button')}</span>
                                         </button>
                                     </div>
-                                )}
+                                </div>
+                                <AiAssistantDialog
+                                    isOpen={showAiDialog}
+                                    onClose={() => setShowAiDialog(false)}
+                                />
+
+                                <div className="grid grid-cols-1 gap-5">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[13px] font-bold text-palette-tan ml-1">{t('admin.post.post_title')}</label>
+                                        <input
+                                            ref={titleRef}
+                                            type="text"
+                                            value={formData.title}
+                                            onChange={(e) => handleTitleChange(e.target.value)}
+                                            placeholder={t('nav_settings.form.label') + "..."}
+                                            className={`w-full bg-palette-beige/5 border ${validationErrors.title ? 'border-palette-red/50 bg-palette-red/5' : 'border-palette-tan/20'} rounded-[3px] p-3.5 text-[18px] font-bold text-palette-maroon focus:border-palette-red outline-none transition-all`}
+                                        />
+                                        {validationErrors.title && (
+                                            <p className="text-[11px] font-black text-palette-red ml-1 animate-in slide-in-from-top-1 duration-200">
+                                                {validationErrors.title}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="text-[13px] font-bold text-palette-tan ml-1">{t('admin.post.summary')}</label>
+                                        <textarea
+                                            ref={summaryRef}
+                                            rows={2}
+                                            value={formData.summary}
+                                            onChange={(e) => handleSummaryChange(e.target.value)}
+                                            placeholder={t('admin.post.summary_placeholder')}
+                                            className={`w-full bg-palette-beige/5 border ${validationErrors.summary ? 'border-palette-red/50 bg-palette-red/5' : 'border-palette-tan/20'} rounded-[3px] p-3.5 text-base font-medium text-palette-maroon focus:border-palette-red outline-none transition-all resize-none`}
+                                        />
+                                        {validationErrors.summary && (
+                                            <p className="text-[11px] font-black text-palette-red ml-1 animate-in slide-in-from-top-1 duration-200">
+                                                {validationErrors.summary}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* AUTOMATED SEO SECTION */}
+                                <div className="mt-8 pt-8 border-t border-palette-tan/15 space-y-5">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-rounded text-palette-tan" style={{ fontSize: '20px' }}>settings</span>
+                                            <h3 className="text-[13px] font-bold text-palette-tan uppercase tracking-tighter">{t('admin.post.seo_ai')}</h3>
+                                        </div>
+                                        <span className="text-[11px] font-black text-green-600 bg-green-50 px-2 py-1 rounded-[3px] border border-green-100 italic">{t('admin.post.google_ai_ready')}</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.meta_title')}</label>
+                                            <input
+                                                type="text"
+                                                value={formData.seoTitle}
+                                                onChange={(e) => setFormData({ ...formData, seoTitle: e.target.value })}
+                                                className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-maroon outline-none"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.slug')}</label>
+                                            <input
+                                                type="text"
+                                                value={formData.slug}
+                                                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                                                className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-red outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.meta_desc')}</label>
+                                        <input
+                                            type="text"
+                                            value={formData.seoDescription}
+                                            onChange={(e) => setFormData({ ...formData, seoDescription: e.target.value })}
+                                            className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-medium text-palette-tan outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.schema_type')}</label>
+                                        <select
+                                            value={formData.schemaType}
+                                            onChange={(e) => setFormData({ ...formData, schemaType: e.target.value })}
+                                            className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-maroon outline-none cursor-pointer"
+                                        >
+                                            {SCHEMA_TYPE_OPTIONS.map((schemaType) => (
+                                                <option key={schemaType} value={schemaType}>{schemaType}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[12px] font-bold text-palette-tan/60">{t('posts.form.keywords')}</label>
+                                        <div className="flex flex-wrap gap-2 p-2 bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] min-h-[38px] transition-all focus-within:border-palette-red/40">
+                                            {formData.keywords.split(',').filter(t => t.trim() !== '').map((tag, idx) => (
+                                                <span key={idx} className="flex items-center gap-1.5 px-2 py-0.5 bg-palette-maroon text-white text-[11px] font-bold rounded-[3px] animate-in zoom-in duration-200">
+                                                    {tag.trim()}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newTags = formData.keywords.split(',').filter((_, i) => i !== idx);
+                                                            setFormData({ ...formData, keywords: newTags.join(',') });
+                                                        }}
+                                                        className="hover:text-palette-beige transition-colors flex items-center"
+                                                    >
+                                                        <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>close</span>
+                                                    </button>
+                                                </span>
+                                            ))}
+                                            <input
+                                                type="text"
+                                                value={tagInput}
+                                                onChange={(e) => setTagInput(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ',') {
+                                                        e.preventDefault();
+                                                        const val = tagInput.trim().replace(',', '');
+                                                        if (val) {
+                                                            const currentTags = formData.keywords ? formData.keywords.split(',').map(t => t.trim()) : [];
+                                                            if (!currentTags.includes(val)) {
+                                                                setFormData({ ...formData, keywords: [...currentTags, val].filter(t => t).join(',') });
+                                                            }
+                                                            setTagInput('');
+                                                        }
+                                                    } else if (e.key === 'Backspace' && !tagInput && formData.keywords) {
+                                                        const currentTags = formData.keywords.split(',');
+                                                        currentTags.pop();
+                                                        setFormData({ ...formData, keywords: currentTags.join(',') });
+                                                    }
+                                                }}
+                                                placeholder={formData.keywords ? "" : t('admin.post.enter_to_add')}
+                                                className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-palette-tan min-w-[120px]"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-3 pt-4 border-t border-palette-tan/10">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[12px] font-bold text-palette-tan/60 flex items-center gap-2">
+                                            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>quiz</span> {t('admin.post.faq_title')}
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, faqData: [...formData.faqData, { q: '', a: '' }] })}
+                                            className="text-[11px] font-black text-palette-maroon hover:bg-palette-maroon/5 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                                        >
+                                            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>add</span> {t('admin.post.faq_add_btn')}
+                                        </button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {formData.faqData.map((faq, idx) => (
+                                            <div key={idx} className="p-3 bg-palette-beige/5 border border-palette-tan/10 rounded-[3px] space-y-3 relative group/faq">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, faqData: formData.faqData.filter((_, i) => i !== idx) })}
+                                                    className="absolute -top-2 -right-2 w-6 h-6 bg-white border border-palette-tan/20 text-palette-tan/40 hover:text-palette-red hover:border-palette-red rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/faq:opacity-100 transition-all z-10"
+                                                >
+                                                    <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>close</span>
+                                                </button>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[10px] font-black text-palette-tan/40 uppercase">#{idx + 1} {t('admin.post.faq_question')}</span>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={faq.q}
+                                                        onChange={(e) => {
+                                                            const newFaq = [...formData.faqData];
+                                                            newFaq[idx].q = e.target.value;
+                                                            setFormData({ ...formData, faqData: newFaq });
+                                                        }}
+                                                        placeholder={t('admin.post.faq_question') + "..."}
+                                                        className="w-full bg-white border border-palette-tan/20 rounded-[3px] px-3 py-1.5 text-sm font-bold text-palette-maroon outline-none"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[10px] font-black text-palette-tan/40 uppercase">{t('admin.post.faq_answer')}</span>
+                                                    </div>
+                                                    <textarea
+                                                        value={faq.a}
+                                                        onChange={(e) => {
+                                                            const newFaq = [...formData.faqData];
+                                                            newFaq[idx].a = e.target.value;
+                                                            setFormData({ ...formData, faqData: newFaq });
+                                                        }}
+                                                        rows={2}
+                                                        placeholder={t('admin.post.faq_answer') + "..."}
+                                                        className="w-full bg-white border border-palette-tan/20 rounded-[3px] px-3 py-1.5 text-sm font-medium text-palette-tan focus:border-palette-red outline-none transition-all resize-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        {formData.thumbnail && (
-                            <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
-                                <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5 uppercase">
-                                    <span className="material-symbols-rounded normal-case" style={{ fontSize: '12px' }}>language</span> {t('admin.post.image_alt')}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.thumbnailAlt}
-                                    onChange={(e) => setFormData({ ...formData, thumbnailAlt: e.target.value })}
-                                    className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-xs font-bold text-palette-maroon outline-none focus:border-palette-red transition-all"
-                                    placeholder={t('admin.post.image_alt')}
-                                />
+                        {/* ITEM LIST CONTROLS */}
+                        {activeDetailTab !== 'quiz' && (
+                            <div className="flex justify-center items-center py-4">
+                                <div className="inline-flex bg-white border border-palette-tan/20 rounded-[3px] p-1.5 shadow-sm gap-1">
+                                    <button
+                                        onClick={() => handleSortItems('asc')}
+                                        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[3px] text-[12px] font-black transition-all active:scale-95 leading-none group ${activeSort === 'asc'
+                                            ? 'bg-palette-maroon text-white shadow-md shadow-palette-maroon/20 scale-[1.02]'
+                                            : 'text-palette-tan hover:text-palette-maroon hover:bg-palette-beige/30'
+                                            }`}
+                                    >
+                                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>sort</span>
+                                        <span className="leading-none">{t('admin.post.sort.asc')}</span>
+                                    </button>
+                                    <button
+                                        onClick={() => handleSortItems('desc')}
+                                        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[3px] text-[12px] font-black transition-all active:scale-95 leading-none group ${activeSort === 'desc'
+                                            ? 'bg-palette-maroon text-white shadow-md shadow-palette-maroon/20 scale-[1.02]'
+                                            : 'text-palette-tan hover:text-palette-maroon hover:bg-palette-beige/30'
+                                            }`}
+                                    >
+                                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>sort</span>
+                                        <span className="leading-none">{t('admin.post.sort.desc')}</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setActiveSort(null); setShowBlockNumbers(false); }}
+                                        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[3px] text-[12px] font-black transition-all active:scale-95 leading-none group ${activeSort === null
+                                            ? 'bg-palette-maroon text-white shadow-md shadow-palette-maroon/20 scale-[1.02]'
+                                            : 'text-palette-tan hover:text-palette-maroon hover:bg-palette-beige/30'
+                                            }`}
+                                    >
+                                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>numbers</span>
+                                        <span className="leading-none">{t('admin.post.sort.hide')}</span>
+                                    </button>
+                                </div>
                             </div>
                         )}
+
+                        <div className="space-y-6">
+                            {formData.items.map((item, index) => {
+                                const itemKey = `${item.id}-${index}`;
+                                return item.type === 'slider' ? (
+                                    <PostSliderImageItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                    />
+                                ) : item.type === 'image' ? (
+                                    <PostImageItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('image'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
+                                        onOpenImageEditor={(id) => {
+                                            setActiveMediaTarget(id);
+                                            editorSaveInFlightRef.current = false;
+                                            setIsEditorSaving(false);
+                                            setShowImageEditor(true);
+                                        }}
+                                    />
+                                ) : item.type === 'video' ? (
+                                    <PostVideoItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaType('video');
+                                            fetchMedia('video');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('video'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
+                                    />
+                                ) : item.type === 'audio' ? (
+                                    <PostAudioItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaType('audio');
+                                            fetchMedia('audio');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('audio'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
+                                    />
+                                ) : item.type === 'file' ? (
+                                    <PostFileItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaType('file');
+                                            fetchMedia('file');
+                                            setShowFileManager(true);
+                                        }}
+                                    />
+                                ) : item.type === 'social' ? (
+                                    <PostSocialItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                    />
+                                ) : item.type === 'flipcard' ? (
+                                    <PostFlipCardItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id, subField) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id, subField) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaType('image');
+                                            setTempUrl('');
+                                            setUrlError(null);
+                                            setIsUrlMode(true);
+                                        }}
+                                        onOpenImageEditor={(id, subField) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            editorSaveInFlightRef.current = false;
+                                            setIsEditorSaving(false);
+                                            setShowImageEditor(true);
+                                        }}
+                                    />
+                                ) : item.type === 'beforeafter' ? (
+                                    <PostBeforeAfterItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id, subField) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id, subField) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaType('image');
+                                            setTempUrl('');
+                                            setUrlError(null);
+                                            setIsUrlMode(true);
+                                        }}
+                                        onOpenImageEditor={(id, subField) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            editorSaveInFlightRef.current = false;
+                                            setIsEditorSaving(false);
+                                            setShowImageEditor(true);
+                                        }}
+                                    />
+                                ) : item.type === ('quiz' as any) ? (
+                                    <PostQuizItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            setTempUrl('');
+                                            setUrlError(null);
+                                            setIsUrlMode(true);
+                                        }}
+                                        onOpenImageEditor={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            editorSaveInFlightRef.current = false;
+                                            setIsEditorSaving(false);
+                                            setShowImageEditor(true);
+                                        }}
+                                    />
+                                ) : item.type === 'iframe' ? (
+                                    <PostIframeItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                    />
+                                ) : item.type === 'quote' ? (
+                                    <PostQuoteItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                    />
+                                ) : item.type === 'poll' ? (
+                                    <PostPollItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            setTempUrl('');
+                                            setUrlError(null);
+                                            setIsUrlMode(true);
+                                        }}
+                                        onOpenImageEditor={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            editorSaveInFlightRef.current = false;
+                                            setIsEditorSaving(false);
+                                            setShowImageEditor(true);
+                                        }}
+                                    />
+                                ) : item.type === 'vs' ? (
+                                    <PostVSItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            setTempUrl('');
+                                            setUrlError(null);
+                                            setIsUrlMode(true);
+                                        }}
+                                        onOpenImageEditor={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            editorSaveInFlightRef.current = false;
+                                            setIsEditorSaving(false);
+                                            setShowImageEditor(true);
+                                        }}
+                                    />
+                                ) : item.type === 'review' ? (
+                                    <PostReviewItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                        onOpenFileManager={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            fetchMedia('image');
+                                            setShowFileManager(true);
+                                        }}
+                                        onOpenUrlMode={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            setActiveMediaType('image');
+                                            setTempUrl('');
+                                            setUrlError(null);
+                                            setIsUrlMode(true);
+                                        }}
+                                        onOpenImageEditor={(id, subField, optionId) => {
+                                            setActiveMediaTarget(id);
+                                            setActiveMediaSubTarget(subField || null);
+                                            setActiveMediaOptionTarget(optionId || null);
+                                            editorSaveInFlightRef.current = false;
+                                            setIsEditorSaving(false);
+                                            setShowImageEditor(true);
+                                        }}
+                                    />
+                                ) : (
+                                    <PostTextItem
+                                        key={itemKey}
+                                        item={item}
+                                        index={index}
+                                        totalItems={formData.items.length}
+                                        showBlockNumbers={showBlockNumbers}
+                                        onUpdate={handleUpdateItem}
+                                        onRemove={handleRemoveItem}
+                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
+                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+                                    />
+                                );
+                            })}
+
+                            {(activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') && (
+                                <div className="flex flex-wrap pt-4 gap-3">
+                                    <button
+                                        onClick={handleAddItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-palette-maroon text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-palette-maroon/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>title</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.text')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddImageItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>image</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.image')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddSliderItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>gallery_thumbnail</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.slider')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddVideoItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>videocam</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.video')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddAudioItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-amber-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>mic</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.audio')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddFileItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>attach_file</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.file')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddSocialItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-500/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>share</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.social')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddFlipCardItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-orange-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>sync</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.flip')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddBeforeAfterItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>compare</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.before_after')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddPollItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>poll</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.poll_alt')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddVSItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>swords</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.vs')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddReviewItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>stars</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.review_alt')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddQuoteItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-800/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>format_quote</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.quote')}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleAddIframeItem}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-700 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-700/10 leading-none"
+                                    >
+                                        <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>public</span>
+                                        <span className="leading-none mt-[1px]">{t('admin.post.add.iframe')}</span>
+                                    </button>
+                                </div>
+                            )}
+
+
+                        </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-[3px] border border-palette-tan/20 shadow-sm space-y-5">
-                        <h4 className="text-[13px] font-bold text-palette-tan ml-1 border-b border-palette-tan/15 pb-2 uppercase tracking-widest flex items-center justify-between">
-                            {t('admin.post.cat_settings')}
-                            <span className="material-symbols-rounded text-palette-tan/30" style={{ fontSize: '14px' }}>settings</span>
-                        </h4>
-
-                        <div className="space-y-4">
-                            {/* DİL SEÇİMİ */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5">
-                                    <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>language</span> {t('admin.post.post_lang')}
-                                </label>
-                                <div className="relative group">
-                                    <select
-                                        value={selectedLanguage}
-                                        onChange={(e) => setSelectedLanguage(e.target.value)}
-                                        className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all"
-                                    >
-                                        {languages.map(lang => (
-                                            <option key={lang.code} value={lang.code}>{lang.name}</option>
-                                        ))}
-                                    </select>
-                                    <span className="material-symbols-rounded absolute right-3 top-1/2 -translate-y-1/2 text-palette-tan/40 pointer-events-none group-hover:text-palette-maroon transition-colors" style={{ fontSize: '16px' }}>expand_more</span>
+                    {/* SIDEBAR */}
+                    <div className="w-96 shrink-0 space-y-6">
+                        <div className="bg-white p-6 rounded-[3px] border border-palette-tan/20 shadow-sm space-y-5">
+                            <div className="space-y-4">
+                                <h4 className="text-[13px] font-bold text-palette-tan ml-1 border-b border-palette-tan/15 pb-2 uppercase tracking-widest">{t('admin.post.cover')}</h4>
+                                <div className="rounded-[3px] bg-palette-beige/5 border-2 border-dashed border-palette-tan/20 flex flex-col items-center justify-center overflow-hidden transition-all relative group w-full min-h-[160px]">
+                                    {formData.thumbnail ? (
+                                        <div className="relative w-full">
+                                            <img
+                                                src={formData.thumbnail}
+                                                onLoad={() => setIsThumbnailLoading(false)}
+                                                onError={() => setIsThumbnailLoading(false)}
+                                                className="w-full h-auto object-contain block"
+                                            />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setActiveMediaTarget('thumbnail');
+                                                        setActiveMediaType('image');
+                                                        fetchMedia('image');
+                                                        editorSaveInFlightRef.current = false;
+                                                        setIsEditorSaving(false);
+                                                        setShowImageEditor(true);
+                                                    }}
+                                                    className="p-3 bg-white/10 backdrop-blur-md rounded-[3px] text-white hover:bg-emerald-600 transition-all"
+                                                    title={t('common.edit')}
+                                                >
+                                                    <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>edit</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setFormData({ ...formData, thumbnail: '' })}
+                                                    className="p-3 bg-white/10 backdrop-blur-md rounded-[3px] text-white hover:bg-palette-red transition-all"
+                                                    title={t('common.delete')}
+                                                >
+                                                    <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>delete</span>
+                                                </button>
+                                            </div>
+                                            {isThumbnailLoading && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-white/60 pointer-events-none">
+                                                    <span className="material-symbols-rounded animate-spin text-palette-maroon" style={{ fontSize: '22px' }}>progress_activity</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-8">
+                                            <div onClick={() => { setActiveMediaTarget('thumbnail'); setActiveMediaType('image'); fetchMedia('image'); setShowFileManager(true); }} className="flex flex-col items-center cursor-pointer group/pick mb-2">
+                                                <span className="material-symbols-rounded text-palette-tan/20 group-hover/pick:text-palette-maroon transition-all mb-2" style={{ fontSize: '40px' }}>add</span>
+                                                <span className="text-[13px] font-bold text-palette-tan/50 px-4 text-center">{t('admin.post.pick_image_alt')}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => { setActiveMediaTarget('thumbnail'); setActiveMediaType('image'); setIsUrlMode(true); setTempUrl(''); setUrlError(null); }}
+                                                className="mt-2 text-[10px] font-black text-palette-tan/60 hover:text-palette-maroon border border-palette-tan/20 px-3 py-1.5 rounded-[3px] bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wider"
+                                            >
+                                                <span className="material-symbols-rounded" style={{ fontSize: '11px' }}>public</span> {t('admin.post.add_with_url')}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-
-                            {/* ANA KATEGORİ SEÇİMİ */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5">
-                                    <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>category</span> {t('admin.post.main_cat')}
-                                </label>
-                                <div className="relative group">
-                                    <select
-                                        ref={categoryRef}
-                                        value={selectedSubId || selectedParentId}
-                                        onChange={(e) => handleParentCategoryChange(e.target.value)}
-                                        className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all"
-                                    >
-                                        <option value="">{t('admin.post.select_cat')}</option>
-                                        {treeCategories.map(cat => (
-                                            <option key={cat.id} value={cat.id}>{cat.label}</option>
-                                        ))}
-                                    </select>
-                                    <span className="material-symbols-rounded absolute right-3 top-1/2 -translate-y-1/2 text-palette-tan/40 pointer-events-none group-hover:text-palette-maroon transition-colors" style={{ fontSize: '16px' }}>expand_more</span>
-                                </div>
-                            </div>
-
-                            {/* ALT KATEGORİ SEÇİMİ */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5">
-                                    <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>list</span> {t('admin.post.sub_cat')}
-                                </label>
-                                <div className="relative group">
-                                    <select
-                                        value={selectedThirdId}
-                                        onChange={(e) => handleSubCategoryChange(e.target.value)}
-                                        disabled={!(selectedSubId || selectedParentId)}
-                                        className={`w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all ${!(selectedSubId || selectedParentId) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    >
-                                        <option value="">{t('admin.post.select_sub_cat')}</option>
-                                        {categories.filter(c =>
-                                            c.parent_id === (selectedSubId || selectedParentId) &&
-                                            (c.type === 'category' || c.type === 'district')
-                                        ).map(cat => (
-                                            <option key={cat.id} value={cat.id}>{cat.label}</option>
-                                        ))}
-                                    </select>
-                                    <span className="material-symbols-rounded absolute right-3 top-1/2 -translate-y-1/2 text-palette-tan/40 pointer-events-none group-hover:text-palette-maroon transition-colors" style={{ fontSize: '16px' }}>expand_more</span>
-                                </div>
-                            </div>
-
-                            {/* ALT KATEGORİNİN ALT KATEGORİSİ SEÇİMİ (3. Seviye) */}
-                            {selectedThirdId && categories.filter(c => c.parent_id === selectedThirdId).length > 0 && (
+                            {formData.thumbnail && (
                                 <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+                                    <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5 uppercase">
+                                        <span className="material-symbols-rounded normal-case" style={{ fontSize: '12px' }}>language</span> {t('admin.post.image_alt')}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.thumbnailAlt}
+                                        onChange={(e) => setFormData({ ...formData, thumbnailAlt: e.target.value })}
+                                        className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-xs font-bold text-palette-maroon outline-none focus:border-palette-red transition-all"
+                                        placeholder={t('admin.post.image_alt')}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="bg-white p-6 rounded-[3px] border border-palette-tan/20 shadow-sm space-y-5">
+                            <h4 className="text-[13px] font-bold text-palette-tan ml-1 border-b border-palette-tan/15 pb-2 uppercase tracking-widest flex items-center justify-between">
+                                {t('admin.post.cat_settings')}
+                                <span className="material-symbols-rounded text-palette-tan/30" style={{ fontSize: '14px' }}>settings</span>
+                            </h4>
+
+                            <div className="space-y-4">
+                                {/* DİL SEÇİMİ */}
+                                <div className="space-y-1.5">
                                     <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5">
-                                        <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>subdirectory_arrow_right</span> {t('admin.post.sub_sub_cat')}
+                                        <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>language</span> {t('admin.post.post_lang')}
                                     </label>
                                     <div className="relative group">
                                         <select
-                                            value={selectedFourthId}
-                                            onChange={(e) => handleSubSubCategoryChange(e.target.value)}
+                                            value={selectedLanguage}
+                                            onChange={(e) => setSelectedLanguage(e.target.value)}
                                             className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all"
                                         >
-                                            <option value="">{t('admin.post.select_sub_sub_cat')}</option>
-                                            {categories.filter(c => c.parent_id === selectedThirdId).map(cat => (
+                                            {languages.map(lang => (
+                                                <option key={lang.code} value={lang.code}>{lang.name}</option>
+                                            ))}
+                                        </select>
+                                        <span className="material-symbols-rounded absolute right-3 top-1/2 -translate-y-1/2 text-palette-tan/40 pointer-events-none group-hover:text-palette-maroon transition-colors" style={{ fontSize: '16px' }}>expand_more</span>
+                                    </div>
+                                </div>
+
+                                {/* ANA KATEGORİ SEÇİMİ */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5">
+                                        <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>category</span> {t('admin.post.main_cat')}
+                                    </label>
+                                    <div className="relative group">
+                                        <select
+                                            ref={categoryRef}
+                                            value={selectedSubId || selectedParentId}
+                                            onChange={(e) => handleParentCategoryChange(e.target.value)}
+                                            className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all"
+                                        >
+                                            <option value="">{t('admin.post.select_cat')}</option>
+                                            {treeCategories.map(cat => (
                                                 <option key={cat.id} value={cat.id}>{cat.label}</option>
                                             ))}
                                         </select>
                                         <span className="material-symbols-rounded absolute right-3 top-1/2 -translate-y-1/2 text-palette-tan/40 pointer-events-none group-hover:text-palette-maroon transition-colors" style={{ fontSize: '16px' }}>expand_more</span>
                                     </div>
                                 </div>
-                            )}
+
+                                {/* ALT KATEGORİ SEÇİMİ */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5">
+                                        <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>list</span> {t('admin.post.sub_cat')}
+                                    </label>
+                                    <div className="relative group">
+                                        <select
+                                            value={selectedThirdId}
+                                            onChange={(e) => handleSubCategoryChange(e.target.value)}
+                                            disabled={!(selectedSubId || selectedParentId)}
+                                            className={`w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all ${!(selectedSubId || selectedParentId) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        >
+                                            <option value="">{t('admin.post.select_sub_cat')}</option>
+                                            {categories.filter(c =>
+                                                c.parent_id === (selectedSubId || selectedParentId) &&
+                                                (c.type === 'category' || c.type === 'district')
+                                            ).map(cat => (
+                                                <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                            ))}
+                                        </select>
+                                        <span className="material-symbols-rounded absolute right-3 top-1/2 -translate-y-1/2 text-palette-tan/40 pointer-events-none group-hover:text-palette-maroon transition-colors" style={{ fontSize: '16px' }}>expand_more</span>
+                                    </div>
+                                </div>
+
+                                {/* ALT KATEGORİNİN ALT KATEGORİSİ SEÇİMİ (3. Seviye) */}
+                                {selectedThirdId && categories.filter(c => c.parent_id === selectedThirdId).length > 0 && (
+                                    <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+                                        <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5">
+                                            <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>subdirectory_arrow_right</span> {t('admin.post.sub_sub_cat')}
+                                        </label>
+                                        <div className="relative group">
+                                            <select
+                                                value={selectedFourthId}
+                                                onChange={(e) => handleSubSubCategoryChange(e.target.value)}
+                                                className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all"
+                                            >
+                                                <option value="">{t('admin.post.select_sub_sub_cat')}</option>
+                                                {categories.filter(c => c.parent_id === selectedThirdId).map(cat => (
+                                                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                                ))}
+                                            </select>
+                                            <span className="material-symbols-rounded absolute right-3 top-1/2 -translate-y-1/2 text-palette-tan/40 pointer-events-none group-hover:text-palette-maroon transition-colors" style={{ fontSize: '16px' }}>expand_more</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-2">
+                                <div className="px-3 py-2 bg-palette-red/5 border border-palette-red/10 rounded-[3px]">
+                                    <p className="text-[10px] font-black text-palette-red uppercase tracking-wider">{t('admin.post.selected_cat')}</p>
+                                    <p className="text-[12px] font-bold text-palette-maroon">{formData.category || t('common.not_specified')}</p>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="pt-2">
-                            <div className="px-3 py-2 bg-palette-red/5 border border-palette-red/10 rounded-[3px]">
-                                <p className="text-[10px] font-black text-palette-red uppercase tracking-wider">{t('admin.post.selected_cat')}</p>
-                                <p className="text-[12px] font-bold text-palette-maroon">{formData.category || t('common.not_specified')}</p>
-                            </div>
-                        </div>
-                    </div>
 
 
+                        <div className="bg-white p-6 rounded-[3px] border border-palette-tan/20 shadow-sm space-y-5">
+                            <div className="space-y-4">
+                                <h4 className="text-[13px] font-bold text-palette-tan ml-1 border-b border-palette-tan/15 pb-2 uppercase tracking-widest">{t('admin.post.publishing')}</h4>
 
-                    <div className="bg-white p-6 rounded-[3px] border border-palette-tan/20 shadow-sm space-y-5">
-                        <div className="space-y-4">
-                            <h4 className="text-[13px] font-bold text-palette-tan ml-1 border-b border-palette-tan/15 pb-2 uppercase tracking-widest">{t('admin.post.publishing')}</h4>
-
-                            <div className="flex items-center justify-between p-4 bg-palette-beige/10 rounded-[3px] border border-palette-tan/20">
-                                <div className="flex items-center gap-2">
-                                    <span className={`material-symbols-rounded ${formData.factChecked ? 'text-green-500' : 'text-palette-tan/30'}`} style={{ fontSize: '16px' }}>verified_user</span>
-	                                    <span className="text-[13px] font-bold text-palette-maroon">{t('admin.post.fact_check')}</span>
-                                </div>
-                                <button onClick={() => setFormData({ ...formData, factChecked: !formData.factChecked })} className={`w-10 h-5 rounded-full relative transition-all ${formData.factChecked ? 'bg-green-500' : 'bg-palette-tan/20'}`}>
-                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formData.factChecked ? 'right-1' : 'left-1'}`} />
-                                </button>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-black text-palette-tan/60 ml-1 uppercase">{t('admin.post.publish_future')}</label>
-                                <input
-                                    type="datetime-local"
-                                    value={formData.publishAt}
-                                    onChange={(e) => setFormData({ ...formData, publishAt: e.target.value })}
-                                    className="w-full bg-palette-beige/10 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none cursor-pointer"
-                                />
-                            </div>
-
-                            <div className="pt-4 space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button
-                                        onClick={() => handleSave('published')}
-                                        className="flex items-center justify-center gap-2 py-2.5 bg-palette-red text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-red/10"
-                                    >
-                                        {t('admin.post.publish_btn')}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSave('draft')}
-                                        className="flex items-center justify-center gap-2 py-2.5 bg-palette-maroon text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-maroon/10"
-                                    >
-                                        {t('admin.post.draft_btn')}
+                                <div className="flex items-center justify-between p-4 bg-palette-beige/10 rounded-[3px] border border-palette-tan/20">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`material-symbols-rounded ${formData.factChecked ? 'text-green-500' : 'text-palette-tan/30'}`} style={{ fontSize: '16px' }}>verified_user</span>
+                                        <span className="text-[13px] font-bold text-palette-maroon">{t('admin.post.fact_check')}</span>
+                                    </div>
+                                    <button onClick={() => setFormData({ ...formData, factChecked: !formData.factChecked })} className={`w-10 h-5 rounded-full relative transition-all ${formData.factChecked ? 'bg-green-500' : 'bg-palette-tan/20'}`}>
+                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formData.factChecked ? 'right-1' : 'left-1'}`} />
                                     </button>
                                 </div>
-                                <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-palette-tan text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-tan/10">
-                                    {t('admin.post.schedule_btn')}
-                                </button>
+
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-palette-tan/60 ml-1 uppercase">{t('admin.post.publish_future')}</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={formData.publishAt}
+                                        onChange={(e) => setFormData({ ...formData, publishAt: e.target.value })}
+                                        className="w-full bg-palette-beige/10 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none cursor-pointer"
+                                    />
+                                </div>
+
+                                <div className="pt-4 space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => handleSave('published')}
+                                            className="flex items-center justify-center gap-2 py-2.5 bg-palette-red text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-red/10"
+                                        >
+                                            {t('admin.post.publish_btn')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleSave('draft')}
+                                            className="flex items-center justify-center gap-2 py-2.5 bg-palette-maroon text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-maroon/10"
+                                        >
+                                            {t('admin.post.draft_btn')}
+                                        </button>
+                                    </div>
+                                    <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-palette-tan text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-tan/10">
+                                        {t('admin.post.schedule_btn')}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* MEDIA MANAGER MODAL */}
-            {
-                showFileManager && (
-                    <MediaManagerModal
-                        onClose={() => setShowFileManager(false)}
-                        onSelect={(src) => {
-                            if (activeMediaTarget === 'thumbnail') {
-                                setFormData({ ...formData, thumbnail: src });
-                            } else if (activeMediaTarget) {
-                                // Find target item to check type
-                                const targetItem = formData.items.find(i => i.id === activeMediaTarget);
-                                if (targetItem?.type === 'slider') {
-                                    const currentUrls = targetItem.mediaUrls || [];
-                                    handleUpdateItem(activeMediaTarget, 'mediaUrls', [...currentUrls, src] as any);
-                                } else if (targetItem?.type === 'flipcard' && activeMediaSubTarget) {
-                                    const currentFlipData = targetItem.flipData || {
-                                        frontImage: '',
-                                        backImage: '',
-                                        frontTitle: '',
-                                        backTitle: '',
-                                        backDescription: ''
-                                    };
-                                    handleUpdateItem(activeMediaTarget, 'flipData', {
-                                        ...currentFlipData,
-                                        [activeMediaSubTarget]: src
-                                    } as any);
-                                } else if (targetItem?.type === 'beforeafter' && activeMediaSubTarget) {
-                                    const currentData = targetItem.beforeAfterData || {
-                                        beforeImage: '',
-                                        afterImage: '',
-                                        beforeLabel: t('common.before'),
-                                        afterLabel: t('common.after')
-                                    };
-                                    handleUpdateItem(activeMediaTarget, 'beforeAfterData', {
-                                        ...currentData,
-                                        [activeMediaSubTarget]: src
-                                    } as any);
-                                } else if (targetItem?.type === 'poll' || targetItem?.type === 'vs') {
-                                    if (activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
-                                        const currentOptions = targetItem.options || [];
-                                        handleUpdateItem(activeMediaTarget, 'options', currentOptions.map(o =>
-                                            o.id === activeMediaOptionTarget ? { ...o, image: src } : o
-                                        ) as any);
+                {/* MEDIA MANAGER MODAL */}
+                {
+                    showFileManager && (
+                        <MediaManagerModal
+                            onClose={() => setShowFileManager(false)}
+                            onSelect={(src) => {
+                                if (activeMediaTarget === 'thumbnail') {
+                                    setFormData({ ...formData, thumbnail: src });
+                                } else if (activeMediaTarget) {
+                                    // Find target item to check type
+                                    const targetItem = formData.items.find((i: PostItem) => i.id === activeMediaTarget);
+                                    if (targetItem?.type === 'slider') {
+                                        const currentUrls = targetItem.mediaUrls || [];
+                                        handleUpdateItem(activeMediaTarget, 'mediaUrls', [...currentUrls, src] as any);
+                                    } else if (targetItem?.type === 'flipcard' && activeMediaSubTarget) {
+                                        const currentFlipData = targetItem.flipData || {
+                                            frontImage: '',
+                                            backImage: '',
+                                            frontTitle: '',
+                                            backTitle: '',
+                                            backDescription: ''
+                                        };
+                                        handleUpdateItem(activeMediaTarget, 'flipData', {
+                                            ...currentFlipData,
+                                            [activeMediaSubTarget]: src
+                                        } as any);
+                                    } else if (targetItem?.type === 'beforeafter' && activeMediaSubTarget) {
+                                        const currentData = targetItem.beforeAfterData || {
+                                            beforeImage: '',
+                                            afterImage: '',
+                                            beforeLabel: t('common.before'),
+                                            afterLabel: t('common.after')
+                                        };
+                                        handleUpdateItem(activeMediaTarget, 'beforeAfterData', {
+                                            ...currentData,
+                                            [activeMediaSubTarget]: src
+                                        } as any);
+                                    } else if (targetItem?.type === 'poll' || targetItem?.type === 'vs') {
+                                        if (activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
+                                            const currentOptions = targetItem.options || [];
+                                            handleUpdateItem(activeMediaTarget, 'options', currentOptions.map((o: any) =>
+                                                o.id === activeMediaOptionTarget ? { ...o, image: src } : o
+                                            ) as any);
+                                        } else {
+                                            handleUpdateItem(activeMediaTarget, 'mediaUrl', src);
+                                        }
                                     } else {
                                         handleUpdateItem(activeMediaTarget, 'mediaUrl', src);
                                     }
-                                } else {
-                                    handleUpdateItem(activeMediaTarget, 'mediaUrl', src);
                                 }
-                            }
-                            setShowFileManager(false);
-                            setUrlError(null);
-                        }}
-                        localFiles={localFiles}
-                        setLocalFiles={setLocalFiles}
-                        type={activeMediaType}
-                    />
-                )
-            }
+                                setShowFileManager(false);
+                                setUrlError(null);
+                            }}
+                            localFiles={localFiles}
+                            setLocalFiles={setLocalFiles}
+                            type={activeMediaType}
+                        />
+                    )
+                }
 
-            {/* URL MODE MODAL */}
-            {
-                isUrlMode && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsUrlMode(false)} />
-                        <div className="bg-white w-full max-w-sm rounded-[3px] overflow-hidden shadow-2xl relative p-8 animate-in zoom-in duration-300 border border-palette-tan/20">
-                            <div className="text-center space-y-5">
-                                <div className="flex flex-col items-center gap-2">
-                                    <div className="p-3 bg-palette-beige/20 rounded-full">
-                                        <span className="material-symbols-rounded text-palette-maroon" style={{ fontSize: '24px' }}>public</span>
+                {/* URL MODE MODAL */}
+                {
+                    isUrlMode && (
+                        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsUrlMode(false)} />
+                            <div className="bg-white w-full max-w-sm rounded-[3px] overflow-hidden shadow-2xl relative p-8 animate-in zoom-in duration-300 border border-palette-tan/20">
+                                <div className="text-center space-y-5">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="p-3 bg-palette-beige/20 rounded-full">
+                                            <span className="material-symbols-rounded text-palette-maroon" style={{ fontSize: '24px' }}>public</span>
+                                        </div>
+                                        <h3 className="text-lg font-black text-palette-maroon tracking-tight uppercase">
+                                            {activeMediaType === 'video' ? t('admin.post.url_title_video') : activeMediaType === 'audio' ? t('admin.post.url_title_audio') : t('admin.post.url_title_image')}
+                                        </h3>
+                                        <p className="text-[11px] font-bold text-palette-tan/50 leading-relaxed max-w-[250px] mx-auto">
+                                            {activeMediaType === 'video'
+                                                ? t('admin.post.url_desc_video')
+                                                : activeMediaType === 'audio'
+                                                    ? t('admin.post.url_desc_audio')
+                                                    : t('admin.post.url_desc_image')
+                                            }
+                                        </p>
                                     </div>
-                                    <h3 className="text-lg font-black text-palette-maroon tracking-tight uppercase">
-                                        {activeMediaType === 'video' ? t('admin.post.url_title_video') : activeMediaType === 'audio' ? t('admin.post.url_title_audio') : t('admin.post.url_title_image')}
-                                    </h3>
-                                    <p className="text-[11px] font-bold text-palette-tan/50 leading-relaxed max-w-[250px] mx-auto">
-                                        {activeMediaType === 'video'
-                                            ? t('admin.post.url_desc_video')
-                                            : activeMediaType === 'audio'
-                                                ? t('admin.post.url_desc_audio')
-                                                : t('admin.post.url_desc_image')
-                                        }
-                                    </p>
-                                </div>
 
-                                <div className="space-y-3">
-                                    <input
-                                        autoFocus
-                                        type="url"
-                                        value={tempUrl}
-                                        onChange={(e) => setTempUrl(e.target.value)}
-                                        placeholder={activeMediaType === 'video' ? "https://youtube.com/watch?v=..." : activeMediaType === 'audio' ? "https://music.youtube.com/..." : "https://example.com/image.jpg"}
-                                        className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] px-3 py-2.5 text-sm font-bold text-palette-maroon outline-none focus:border-palette-maroon transition-all placeholder:text-palette-tan/20"
-                                        onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-                                    />
-                                    {urlError && <p className="text-xs font-bold text-red-500 animate-pulse">{urlError}</p>}
-                                </div>
+                                    <div className="space-y-3">
+                                        <input
+                                            autoFocus
+                                            type="url"
+                                            value={tempUrl}
+                                            onChange={(e) => setTempUrl(e.target.value)}
+                                            placeholder={activeMediaType === 'video' ? "https://youtube.com/watch?v=..." : activeMediaType === 'audio' ? "https://music.youtube.com/..." : "https://example.com/image.jpg"}
+                                            className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] px-3 py-2.5 text-sm font-bold text-palette-maroon outline-none focus:border-palette-maroon transition-all placeholder:text-palette-tan/20"
+                                            onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+                                        />
+                                        {urlError && <p className="text-xs font-bold text-red-500 animate-pulse">{urlError}</p>}
+                                    </div>
 
-                                <div className="flex gap-2 pt-2">
-                                    <button
-                                        onClick={handleUrlSubmit}
-                                        disabled={validatingUrl}
-                                        className="flex-1 py-2.5 bg-palette-maroon text-white font-black text-[11px] tracking-widest rounded-[3px] hover:bg-palette-red transition-all shadow-md active:scale-95"
-                                    >
-                                        {validatingUrl ? t('admin.post.processing') + '...' : (activeMediaType === 'video' ? t('admin.post.get_video') : activeMediaType === 'audio' ? t('admin.post.get_audio') : t('admin.post.get_image'))}
-                                    </button>
-                                    <button onClick={() => setIsUrlMode(false)} className="px-5 py-2.5 bg-palette-beige/20 text-palette-tan font-black text-[11px] tracking-widest rounded-[3px] hover:bg-palette-beige/40 transition-all">
-                                        {t('common.cancel')}
-                                    </button>
+                                    <div className="flex gap-2 pt-2">
+                                        <button
+                                            onClick={handleUrlSubmit}
+                                            disabled={validatingUrl}
+                                            className="flex-1 py-2.5 bg-palette-maroon text-white font-black text-[11px] tracking-widest rounded-[3px] hover:bg-palette-red transition-all shadow-md active:scale-95"
+                                        >
+                                            {validatingUrl ? t('admin.post.processing') + '...' : (activeMediaType === 'video' ? t('admin.post.get_video') : activeMediaType === 'audio' ? t('admin.post.get_audio') : t('admin.post.get_image'))}
+                                        </button>
+                                        <button onClick={() => setIsUrlMode(false)} className="px-5 py-2.5 bg-palette-beige/20 text-palette-tan font-black text-[11px] tracking-widest rounded-[3px] hover:bg-palette-beige/40 transition-all">
+                                            {t('common.cancel')}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )
-            }
+                    )
+                }
 
-            {
-                showImageEditor && (
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-500">
-                        <div
-                            className="absolute inset-0 bg-palette-maroon/80 backdrop-blur-sm"
-                            onClick={() => {
-                                if (isEditorSaving) return;
-                                setShowImageEditor(false);
-                            }}
-                        />
+                {
+                    showImageEditor && (
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-500">
+                            <div
+                                className="absolute inset-0 bg-palette-maroon/80 backdrop-blur-sm"
+                                onClick={() => {
+                                    if (isEditorSaving) return;
+                                    setShowImageEditor(false);
+                                }}
+                            />
 
-                        <div className="bg-white w-full max-w-7xl h-[85vh] rounded-[3px] overflow-hidden shadow-2xl relative flex flex-col border border-palette-tan/20 animate-in zoom-in-95 duration-300">
-                            {isEditorSaving && (
-                                <div className="absolute inset-0 z-[99999] flex items-center justify-center bg-white/60">
-                                    <div className="flex items-center gap-2 px-4 py-2 rounded-[3px] bg-white shadow-md border border-palette-tan/20">
-                                        <span className="material-symbols-rounded animate-spin text-palette-maroon" style={{ fontSize: '18px' }}>progress_activity</span>
-                                        <span className="text-[11px] font-black tracking-widest text-palette-maroon uppercase">{t('common.processing')}</span>
+                            <div className="bg-white w-full max-w-7xl h-[85vh] rounded-[3px] overflow-hidden shadow-2xl relative flex flex-col border border-palette-tan/20 animate-in zoom-in-95 duration-300">
+                                {isEditorSaving && (
+                                    <div className="absolute inset-0 z-[99999] flex items-center justify-center bg-white/60">
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-[3px] bg-white shadow-md border border-palette-tan/20">
+                                            <span className="material-symbols-rounded animate-spin text-palette-maroon" style={{ fontSize: '18px' }}>progress_activity</span>
+                                            <span className="text-[11px] font-black tracking-widest text-palette-maroon uppercase">{t('common.processing')}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                            {/* 
+                                )}
+                                {/* 
                             StyleSheetManager reintroduced with aggressive filtering to fix "Unknown prop" errors.
                             The filter ensures only valid HTML attributes are passed to the DOM.
                         */}
-                            <StyleSheetManager shouldForwardProp={shouldForwardProp}>
-                                <FilerobotEditor
-                                    {...editorConfig}
-                                    source={activeMediaTarget === 'thumbnail' ? formData.thumbnail : (() => {
-                                        const item = formData.items.find(i => i.id === activeMediaTarget);
-                                        if (item?.type === 'flipcard' && activeMediaSubTarget) {
-                                            return (item.flipData as any)?.[activeMediaSubTarget] || '';
-                                        }
-                                        if (item?.type === 'beforeafter' && activeMediaSubTarget) {
-                                            return (item.beforeAfterData as any)?.[activeMediaSubTarget] || '';
-                                        }
-                                        if (item?.type === 'poll') {
-                                            if (activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
-                                                return item.options?.find(o => o.id === activeMediaOptionTarget)?.image || '';
+                                <StyleSheetManager shouldForwardProp={shouldForwardProp}>
+                                    <FilerobotEditor
+                                        {...editorConfig}
+                                        source={activeMediaTarget === 'thumbnail' ? formData.thumbnail : (() => {
+                                            const item = formData.items.find((i: PostItem) => i.id === activeMediaTarget);
+                                            if (item?.type === 'flipcard' && activeMediaSubTarget) {
+                                                return (item.flipData as any)?.[activeMediaSubTarget] || '';
                                             }
-                                            return item.mediaUrl || '';
-                                        }
-                                        return item?.mediaUrl || '';
-                                    })()}
-                                    onSave={handleEditorSave}
-                                    onClose={handleEditorClose}
-                                />
-                            </StyleSheetManager>
+                                            if (item?.type === 'beforeafter' && activeMediaSubTarget) {
+                                                return (item.beforeAfterData as any)?.[activeMediaSubTarget] || '';
+                                            }
+                                            if (item?.type === 'poll') {
+                                                if (activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
+                                                    return item.options?.find(o => o.id === activeMediaOptionTarget)?.image || '';
+                                                }
+                                                return item.mediaUrl || '';
+                                            }
+                                            return item?.mediaUrl || '';
+                                        })()}
+                                        onSave={handleEditorSave}
+                                        onClose={handleEditorClose}
+                                    />
+                                </StyleSheetManager>
+                            </div>
                         </div>
-                    </div>
-                )
-            }
+                    )
+                }
             </div>
         </div>
     );
@@ -3435,7 +3452,7 @@ const MediaManagerModal: React.FC<{
 
         const term = normalize(searchTerm);
 
-        return localFiles.filter(f =>
+        return localFiles.filter((f: any) =>
             normalize(f.name || '').includes(term) ||
             normalize(f.value || '').includes(term)
         );
@@ -3443,13 +3460,13 @@ const MediaManagerModal: React.FC<{
 
     const handleDelete = async () => {
         if (!selectedImage) return;
-        const fileToDelete = localFiles.find(f => f.src === selectedImage);
+        const fileToDelete = localFiles.find((f: any) => f.src === selectedImage);
         if (!fileToDelete) return;
 
         try {
             const success = await storageService.deleteFile(fileToDelete.id);
             if (success) {
-                const newFiles = localFiles.filter(f => f.src !== selectedImage);
+                const newFiles = localFiles.filter((f: any) => f.src !== selectedImage);
                 setLocalFiles(newFiles);
                 setSelectedImage(null);
             }
