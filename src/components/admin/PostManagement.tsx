@@ -2270,6 +2270,36 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                 <AiAssistantDialog
                                     isOpen={showAiDialog}
                                     onClose={() => setShowAiDialog(false)}
+                                    onApply={(data) => {
+                                        // Update form data with AI results
+                                        setFormData(prev => {
+                                            const updatedItems = [...prev.items];
+                                            if (data.content) {
+                                                const firstTextIdx = updatedItems.findIndex(item => item.type === 'text');
+                                                if (firstTextIdx !== -1) {
+                                                    updatedItems[firstTextIdx] = { ...updatedItems[firstTextIdx], description: data.content };
+                                                } else {
+                                                    updatedItems.unshift({
+                                                        id: Math.random().toString(36).substr(2, 9),
+                                                        type: 'text',
+                                                        title: '',
+                                                        description: data.content,
+                                                        showOnHomepage: true
+                                                    });
+                                                }
+                                            }
+
+                                            return {
+                                                ...prev,
+                                                title: data.title || prev.title,
+                                                summary: data.summary || prev.summary,
+                                                seoTitle: data.metaTitle || prev.seoTitle,
+                                                seoDescription: data.metaDesc || prev.seoDescription,
+                                                keywords: data.keywords && data.keywords.length > 0 ? data.keywords.join(', ') : prev.keywords,
+                                                items: updatedItems
+                                            };
+                                        });
+                                    }}
                                 />
 
                                 <div className="grid grid-cols-1 gap-5">

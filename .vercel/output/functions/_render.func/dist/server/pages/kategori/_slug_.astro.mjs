@@ -1,8 +1,8 @@
 /* empty css                                     */
 import { c as createComponent, b as createAstro, r as renderComponent, a as renderTemplate } from '../../chunks/astro/server_CUMT7Dv3.mjs';
 import 'piccolore';
-import { l as loadLocaleData, $ as $$Layout } from '../../chunks/Layout_DqQfhmns.mjs';
-import { H as HomePage } from '../../chunks/HomePage_C3GPqKS7.mjs';
+import { l as loadLocaleData, $ as $$Layout } from '../../chunks/Layout_Dg8OtuKb.mjs';
+import { H as HomePage } from '../../chunks/HomePage_Bg8Qvh0s.mjs';
 import { d as dataService } from '../../chunks/dataService_Bp0vcODm.mjs';
 import { s as slugify } from '../../chunks/helpers_xme2WEyl.mjs';
 import { r as resolveLangCode } from '../../chunks/lang_B1d4Ts2g.mjs';
