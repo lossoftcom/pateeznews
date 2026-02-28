@@ -12,6 +12,9 @@ interface AiAssistantDialogProps {
         keywords: string[];
         metaTitle: string;
         metaDesc: string;
+        slug: string;
+        schemaType: string;
+        faqs: { q: string, a: string }[];
     }) => void;
 }
 
@@ -41,17 +44,27 @@ Aşağıdaki "Dijital Haber Yazım Anayasası" kurallarına sıkı sıkıya bağ
 - Ses Tonu: Otoriter ama konuşma diline yakın.
 - Vurgu: Önemli anahtar kelimeleri ve verileri kalın (bold) yap.
 
-### 5. SEO VE DERİNLİK (ONLINE PİRAMİT)
+### 5. SEO VE TEKNİK YAPILANDIRMA
 - Uzunluk: Konu detaylıysa SEO için uzun yazmaktan çekinme (1000+ kelime), modüler parçalarla böl.
-- Kapanış: "Sırada ne var?" başlığıyla aksiyon odaklı bitir.
+- Slug: Haberle uyumlu, kısa ve SEO dostu URL (küçük harf, rakam ve tire).
+- Schema: En uygun Schema.org tipini seç (NewsArticle, BlogPosting, Article).
+- FAQ: Haberle ilgili 3-4 adet Soru-Cevap hazırla.
 
 ### ÇIKTI FORMATI (ZORUNLU):
 Yanıtını MUTLAKA aşağıdaki formatta ver, başka hiçbir metin ekleme:
 [TITLE]Haber Başlığı Buraya[/TITLE]
 [SUMMARY]Haberin Spot Özeti Buraya[/SUMMARY]
+[SLUG]haber-slug-buraya[/SLUG]
 [KEYWORDS]anahtar, kelime, listesi, buraya[/KEYWORDS]
 [METATITLE]SEO Başlığı Buraya[/METATITLE]
 [METADESC]SEO Açıklaması Buraya[/METADESC]
+[SCHEMA]NewsArticle[/SCHEMA]
+[FAQ]
+S: Soru 1?
+C: Cevap 1.
+S: Soru 2?
+C: Cevap 2.
+[/FAQ]
 [CONTENT]
 Haberin tüm gövde metni (Anayasa kurallarına göre düzenlenmiş) buraya.
 [/CONTENT]
@@ -172,13 +185,31 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
             return match ? match[1].trim() : '';
         };
 
+        const faqRaw = extract('FAQ');
+        const faqs: { q: string, a: string }[] = [];
+        if (faqRaw) {
+            const pairs = faqRaw.split(/S:/).filter(p => p.trim());
+            pairs.forEach(p => {
+                const parts = p.split(/C:/);
+                if (parts.length === 2) {
+                    faqs.push({
+                        q: parts[0].replace(/\?$/, '').trim() + '?',
+                        a: parts[1].trim()
+                    });
+                }
+            });
+        }
+
         return {
             title: extract('TITLE'),
             summary: extract('SUMMARY'),
             content: extract('CONTENT'),
             keywords: extract('KEYWORDS').split(',').map(k => k.trim()).filter(k => k),
             metaTitle: extract('METATITLE'),
-            metaDesc: extract('METADESC')
+            metaDesc: extract('METADESC'),
+            slug: extract('SLUG'),
+            schemaType: extract('SCHEMA') || 'NewsArticle',
+            faqs: faqs
         };
     };
 
@@ -212,9 +243,15 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 Yanıtını MUTLAKA aşağıdaki formatta ver, başka hiçbir ek metin veya yorum ekleme. Sadece etiketler arasındaki metni döndür:
 [TITLE]Haber Başlığı[/TITLE]
 [SUMMARY]Spot Özet[/SUMMARY]
+[SLUG]haber-basligi-url[/SLUG]
 [KEYWORDS]anahtar, kelime, listesi[/KEYWORDS]
 [METATITLE]SEO Başlığı[/METATITLE]
 [METADESC]SEO Açıklaması[/METADESC]
+[SCHEMA]NewsArticle[/SCHEMA]
+[FAQ]
+S: Soru?
+C: Cevap.
+[/FAQ]
 [CONTENT]
 Haber içeriği
 [/CONTENT]` : '';
@@ -343,7 +380,7 @@ Haber içeriği
     return (
         <div
             ref={dialogRef}
-            className="fixed z-[9999] shadow-2xl border border-palette-maroon/15 rounded-[8px] flex flex-col overflow-hidden bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200"
+            className="fixed z-[9999] shadow-[0_32px_120px_-20px_rgba(74,4,4,0.3)] border border-palette-maroon/15 rounded-[12px] flex flex-col overflow-hidden bg-white/98 backdrop-blur-2xl animate-in zoom-in-95 duration-300 ease-out"
             style={{
                 left: `${position.x}px`,
                 top: `${position.y}px`,
@@ -355,121 +392,149 @@ Haber içeriği
             {/* Header / Drag Handle */}
             <div
                 onMouseDown={handleMouseDown}
-                className="drag-handle h-12 bg-palette-maroon/5 border-b border-palette-maroon/10 flex items-center justify-between px-4 cursor-grab active:cursor-grabbing shrink-0 group"
+                className="drag-handle h-14 bg-gradient-to-r from-palette-maroon/[0.03] to-transparent border-b border-palette-maroon/5 flex items-center justify-between px-6 cursor-grab active:cursor-grabbing shrink-0 group"
             >
-                <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-palette-maroon rounded-[4px] text-white shadow-md flex items-center justify-center">
-                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>auto_fix_high</span>
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <div className="absolute inset-0 bg-palette-maroon blur-lg opacity-20 animate-pulse" />
+                        <div className="relative w-9 h-9 bg-palette-maroon rounded-[8px] text-white shadow-xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-500">
+                            <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>auto_fix_high</span>
+                        </div>
                     </div>
-                    <span className="text-sm font-black text-palette-maroon tracking-widest uppercase selection:bg-transparent">
-                        {t('admin.ai_assistant.title')}
-                    </span>
+                    <div className="flex flex-col">
+                        <span className="text-[14px] font-black text-palette-maroon tracking-[0.2em] uppercase leading-none selection:bg-transparent">
+                            {t('admin.ai_assistant.title')}
+                        </span>
+                        <span className="text-[9px] font-bold text-palette-tan/40 uppercase tracking-widest mt-1 selection:bg-transparent">
+                            Professional News Engine v3.4
+                        </span>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    <div className="h-6 w-[1px] bg-palette-maroon/10 mx-2" />
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-palette-red/10 text-palette-maroon/40 hover:text-palette-red transition-all"
+                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-palette-red/10 text-palette-maroon/30 hover:text-palette-red transition-all duration-300 active:scale-90"
                     >
-                        <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>close</span>
+                        <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>close_fullscreen</span>
                     </button>
                 </div>
             </div>
 
-            {/* Split View Content */}
-            <div className="flex-1 flex overflow-hidden bg-palette-beige/5">
+            <div className="flex-1 flex overflow-hidden">
                 {/* Left Panel: Input */}
-                <div className="flex-1 flex flex-col border-r border-palette-tan/10 p-5">
-                    <div className="flex items-center justify-between mb-2">
-                        <label className="text-[11px] font-black text-palette-tan uppercase tracking-widest ml-1">
-                            {t('admin.ai_assistant.input')}
-                        </label>
-                        <div className="flex items-center gap-2">
-                            {/* Model Select */}
-                            <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 material-symbols-rounded text-palette-tan/50 pointer-events-none" style={{ fontSize: '12px' }}>psychology</span>
-                                <select
-                                    value={selectedModel}
-                                    onChange={(e) => setSelectedModel(e.target.value)}
-                                    className="appearance-none bg-white border border-palette-tan/10 rounded pl-6 pr-4 py-1 text-[10px] font-bold text-palette-maroon outline-none focus:border-palette-maroon/30 cursor-pointer shadow-sm hover:bg-palette-beige/5 transition-all"
-                                >
-                                    {models.map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                            </div>
+                <div className="flex-1 flex flex-col border-r border-palette-maroon/[0.04] bg-white relative">
+                    <div className="h-14 flex items-center px-6 border-b border-palette-maroon/[0.02] gap-4">
+                        <div className="flex items-center gap-2.5 shrink-0">
+                            <span className="material-symbols-rounded text-palette-tan/60" style={{ fontSize: '16px' }}>edit_note</span>
+                            <label className="text-[10px] font-black text-palette-tan uppercase tracking-[0.2em]">
+                                {t('admin.ai_assistant.input')}
+                            </label>
+                        </div>
 
-                            {/* Prompt Select */}
-                            <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 material-symbols-rounded text-palette-tan/50 pointer-events-none" style={{ fontSize: '12px' }}>description</span>
-                                <select
-                                    value={selectedFormat}
-                                    onChange={(e) => setSelectedFormat(e.target.value)}
-                                    className="appearance-none bg-white border border-palette-tan/10 rounded pl-6 pr-4 py-1 text-[10px] font-bold text-palette-maroon outline-none focus:border-palette-maroon/30 cursor-pointer shadow-sm hover:bg-palette-beige/5 transition-all max-w-[200px]"
-                                >
-                                    <option value="">{t('ai_settings.tab.formats')}</option>
-                                    {readyFormats.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
-                                </select>
+                        <div className="ml-auto flex items-center gap-2">
+                            {/* Premium Selects Wrapper */}
+                            <div className="flex items-center bg-palette-beige/20 p-1 rounded-[8px] border border-palette-maroon/5">
+                                {/* Model Select */}
+                                <div className="relative group">
+                                    <select
+                                        value={selectedModel}
+                                        onChange={(e) => setSelectedModel(e.target.value)}
+                                        className="appearance-none bg-white/40 hover:bg-white border-none rounded-[6px] pl-8 pr-3 py-1.5 text-[10px] font-black text-palette-maroon outline-none cursor-pointer transition-all min-w-[140px] tracking-tight"
+                                    >
+                                        <option value="" disabled>Model Seçin</option>
+                                        {models.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                                    </select>
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-rounded text-palette-maroon/40" style={{ fontSize: '14px' }}>psychology</span>
+                                </div>
+
+                                <div className="w-[1px] h-4 bg-palette-maroon/5 mx-1" />
+
+                                {/* Format Select */}
+                                <div className="relative group">
+                                    <select
+                                        value={selectedFormat}
+                                        onChange={(e) => setSelectedFormat(e.target.value)}
+                                        className="appearance-none bg-white/40 hover:bg-white border-none rounded-[6px] pl-8 pr-3 py-1.5 text-[10px] font-black text-palette-maroon outline-none cursor-pointer transition-all max-w-[160px] tracking-tight"
+                                    >
+                                        <option value="">{t('ai_settings.tab.formats')}</option>
+                                        {readyFormats.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
+                                    </select>
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-rounded text-palette-maroon/40" style={{ fontSize: '14px' }}>format_list_bulleted</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <textarea
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        placeholder={t('admin.ai_assistant.placeholder')}
-                        className="flex-1 w-full p-5 bg-white border border-palette-tan/10 rounded-[6px] text-sm font-medium text-palette-maroon outline-none focus:border-palette-maroon/30 transition-all resize-none shadow-inner leading-relaxed overflow-y-auto custom-scrollbar"
-                    />
+
+                    <div className="flex-1 p-6 flex flex-col">
+                        <textarea
+                            value={content}
+                            onChange={(e) => setContent(e.target.value)}
+                            placeholder={t('admin.ai_assistant.placeholder')}
+                            className="flex-1 w-full p-0 bg-transparent text-[15px] font-medium text-palette-maroon outline-none transition-all resize-none leading-relaxed overflow-y-auto custom-scrollbar placeholder:text-palette-tan/30"
+                        />
+                    </div>
                 </div>
 
                 {/* Right Panel: Output */}
-                <div className="flex-1 flex flex-col p-5 bg-white/40">
-                    <div className="flex items-center justify-between mb-2">
-                        <label className="text-[11px] font-black text-palette-tan uppercase tracking-widest ml-1">
-                            {t('admin.ai_assistant.output')}
-                        </label>
-                        <div className="flex items-center gap-2">
-                            {canApply && (
-                                <button
-                                    onClick={handleApplyData}
-                                    className="flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/10 animate-in fade-in slide-in-from-right-2"
-                                >
-                                    <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>send</span>
-                                    <span className="text-[10px] font-bold uppercase tracking-tight">{t('admin.ai_assistant.apply')}</span>
-                                </button>
-                            )}
+                <div className="flex-1 flex flex-col bg-palette-beige/[0.03]">
+                    <div className="h-14 flex items-center px-6 border-b border-palette-maroon/[0.02] gap-4">
+                        <div className="flex items-center gap-2.5 shrink-0">
+                            <span className="material-symbols-rounded text-palette-maroon/40" style={{ fontSize: '16px' }}>auto_awesome</span>
+                            <label className="text-[10px] font-black text-palette-tan uppercase tracking-[0.2em]">
+                                {t('admin.ai_assistant.output')}
+                            </label>
+                        </div>
+
+                        <div className="ml-auto flex items-center gap-2">
                             {resultContent && (
                                 <button
                                     onClick={handleCopy}
-                                    className="flex items-center gap-1.5 px-2 py-1 rounded bg-palette-maroon/5 text-palette-maroon hover:bg-palette-maroon/10 transition-all"
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-[6px] bg-white border border-palette-maroon/5 text-palette-maroon hover:bg-palette-maroon hover:text-white transition-all duration-300 shadow-sm group"
                                 >
-                                    <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>
+                                    <span className="material-symbols-rounded group-hover:scale-110 transition-transform" style={{ fontSize: '16px' }}>
                                         {isCopied ? 'check' : 'content_copy'}
                                     </span>
-                                    <span className="text-[10px] font-bold uppercase tracking-tight">
+                                    <span className="text-[10px] font-black uppercase tracking-widest">
                                         {isCopied ? t('admin.ai_assistant.copied') : t('admin.ai_assistant.copy')}
                                     </span>
                                 </button>
                             )}
+
+                            {canApply && (
+                                <button
+                                    onClick={handleApplyData}
+                                    className="flex items-center gap-2 px-4 py-1.5 rounded-[6px] bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 group"
+                                >
+                                    <span className="material-symbols-rounded group-hover:translate-x-0.5 transition-transform" style={{ fontSize: '16px' }}>rocket_launch</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">{t('admin.ai_assistant.apply')}</span>
+                                </button>
+                            )}
                         </div>
                     </div>
-                    <div className="flex-1 w-full p-5 bg-white border border-palette-tan/10 rounded-[6px] text-sm font-medium text-palette-maroon shadow-inner leading-relaxed overflow-y-auto custom-scrollbar selection:bg-palette-maroon/10">
+                    <div className="flex-1 p-6 relative overflow-hidden">
                         {isGenerating ? (
-                            <div className="h-full flex flex-col items-center justify-center text-palette-maroon/40 select-none">
-                                <span className="material-symbols-rounded animate-spin mb-3" style={{ fontSize: '32px' }}>progress_activity</span>
-                                <p className="text-[11px] font-bold uppercase tracking-widest">{t('common.processing')}</p>
+                            <div className="h-full flex flex-col items-center justify-center text-palette-maroon/20">
+                                <div className="w-16 h-16 relative flex items-center justify-center mb-6">
+                                    <div className="absolute inset-0 border-4 border-palette-maroon/5 rounded-full" />
+                                    <div className="absolute inset-0 border-4 border-palette-maroon border-t-transparent rounded-full animate-spin" />
+                                    <span className="material-symbols-rounded" style={{ fontSize: '24px' }}>neurology</span>
+                                </div>
+                                <p className="text-[11px] font-black uppercase tracking-[0.4em] animate-pulse">{t('common.processing')}</p>
                             </div>
                         ) : (
                             resultContent ? (
-                                <div className="whitespace-pre-wrap font-medium">
-                                    {resultContent.replace(/\[\/?[A-Z]+\]/g, (match) => {
-                                        return ''; // Keep it clean for preview, but logic needs full text
-                                    })}
-                                    {/* Temporary display of raw tags for testing */}
-                                    <div className="mt-4 pt-4 border-t border-palette-maroon/5 text-[10px] opacity-20 hidden">
-                                        {resultContent}
+                                <div className="h-full w-full overflow-y-auto custom-scrollbar selection:bg-palette-maroon/10">
+                                    <div className="text-[14px] font-medium text-palette-maroon leading-relaxed whitespace-pre-wrap pb-10">
+                                        {resultContent.replace(/\[\/?[A-Z]+\]/g, '')}
                                     </div>
                                 </div>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-palette-tan/30 select-none">
-                                    <span className="material-symbols-rounded mb-2" style={{ fontSize: '48px' }}>magic_button</span>
-                                    <p className="text-[11px] font-bold uppercase tracking-widest">{t('admin.ai_assistant.ready')}</p>
+                                <div className="h-full flex flex-col items-center justify-center text-palette-tan/20">
+                                    <div className="p-8 rounded-[20px] bg-palette-beige/5 border border-palette-maroon/[0.03] shadow-inner mb-4">
+                                        <span className="material-symbols-rounded" style={{ fontSize: '64px', opacity: 0.1 }}>tempest</span>
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em]">{t('admin.ai_assistant.ready')}</p>
                                 </div>
                             )
                         )}
@@ -478,30 +543,32 @@ Haber içeriği
             </div>
 
             {/* Footer Actions */}
-            <div className="h-20 bg-white border-t border-palette-maroon/10 flex items-center justify-between px-6 shrink-0 gap-4">
-                <div className="shrink-0 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span className="text-[10px] font-bold text-palette-tan/40 uppercase tracking-widest">{t('admin.ai_assistant.ready')}</span>
+            <div className="h-20 bg-white border-t border-palette-maroon/[0.05] flex items-center justify-between px-8 shrink-0 bg-gradient-to-b from-transparent to-palette-beige/[0.03]">
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600/80 border border-emerald-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-[9px] font-black uppercase tracking-widest">{t('admin.ai_assistant.ready')}</span>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => handleGenerate('organize')}
                         disabled={!content || isGenerating}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-palette-maroon/5 text-palette-maroon border border-palette-maroon/10 rounded-[4px] font-black text-[11px] tracking-widest hover:bg-palette-maroon/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-4 h-9 bg-white border border-palette-maroon/10 rounded-[6px] text-palette-maroon text-[10px] font-black uppercase tracking-widest hover:border-palette-maroon/30 hover:shadow-md transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
                     >
-                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>auto_fix</span>
+                        <span className="material-symbols-rounded" style={{ fontSize: '16px', opacity: 0.6 }}>brush</span>
                         {t('admin.ai_assistant.organize')}
                     </button>
 
                     <button
                         onClick={() => handleGenerate('make-ready')}
                         disabled={!content || isGenerating}
-                        className="flex items-center gap-2 px-8 py-2.5 bg-palette-maroon text-white rounded-[4px] font-black text-[11px] tracking-widest hover:bg-palette-red transition-all shadow-xl shadow-palette-maroon/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
+                        className="flex items-center gap-2 px-6 h-9 bg-palette-maroon text-white rounded-[6px] text-[11px] font-black uppercase tracking-[0.2em] hover:bg-palette-red transition-all shadow-[0_8px_20px_-8px_rgba(74,4,4,0.4)] active:scale-95 disabled:opacity-30 disabled:grayscale group relative overflow-hidden"
                     >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>stars</span>
-                        {t('admin.ai_assistant.make_ready')}
+                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
+                        <span className="relative z-10">{t('admin.ai_assistant.make_ready')}</span>
+                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
                 </div>
             </div>

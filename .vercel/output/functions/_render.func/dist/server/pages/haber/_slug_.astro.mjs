@@ -1,12 +1,12 @@
 /* empty css                                     */
 import { c as createComponent, b as createAstro, r as renderComponent, a as renderTemplate } from '../../chunks/astro/server_CUMT7Dv3.mjs';
 import 'piccolore';
-import { u as useLanguage, a as useToast, L as LanguageProvider, T as ToastProvider, l as loadLocaleData, $ as $$Layout } from '../../chunks/Layout_Dg8OtuKb.mjs';
+import { u as useLanguage, a as useToast, L as LanguageProvider, T as ToastProvider, l as loadLocaleData, $ as $$Layout } from '../../chunks/Layout_CKpoT2wu.mjs';
 import { jsxs, jsx } from 'react/jsx-runtime';
 import React, { useState, useEffect } from 'react';
 import { Home, ChevronRight, CheckCircle2, Calendar, Clock, Share2, ArrowLeft, Twitter, Facebook, Linkedin, Link, Heart, Bookmark } from 'lucide-react';
 import { N as NewsType, d as dataService } from '../../chunks/dataService_Bp0vcODm.mjs';
-import { E as EmbedCard, A as AudioCard, V as VideoCard, R as ReviewCard, F as FlipCard, B as BeforeAfterCard, a as VSCard, P as PollCard, G as GalleryCard, b as ParagraphCard, C as CommentSection, c as RightSidebar } from '../../chunks/RightSidebar_JrNKaJU0.mjs';
+import { E as EmbedCard, A as AudioCard, V as VideoCard, R as ReviewCard, F as FlipCard, B as BeforeAfterCard, a as VSCard, P as PollCard, G as GalleryCard, b as ParagraphCard, C as CommentSection, c as RightSidebar } from '../../chunks/RightSidebar_Bxf8Vkin.mjs';
 import { s as slugify } from '../../chunks/helpers_xme2WEyl.mjs';
 import { r as resolveLangCode } from '../../chunks/lang_B1d4Ts2g.mjs';
 import { a as getImage } from '../../chunks/_astro_assets_DfkzboBU.mjs';

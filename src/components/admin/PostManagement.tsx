@@ -2289,6 +2289,11 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                 }
                                             }
 
+                                            // Validate schemaType against SCHEMA_TYPE_OPTIONS
+                                            const finalSchema = SCHEMA_TYPE_OPTIONS.includes(data.schemaType as any)
+                                                ? data.schemaType as any
+                                                : 'NewsArticle';
+
                                             return {
                                                 ...prev,
                                                 title: data.title || prev.title,
@@ -2296,6 +2301,9 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                 seoTitle: data.metaTitle || prev.seoTitle,
                                                 seoDescription: data.metaDesc || prev.seoDescription,
                                                 keywords: data.keywords && data.keywords.length > 0 ? data.keywords.join(', ') : prev.keywords,
+                                                slug: data.slug || prev.slug,
+                                                schemaType: finalSchema,
+                                                faqData: data.faqs && data.faqs.length > 0 ? data.faqs : prev.faqData,
                                                 items: updatedItems
                                             };
                                         });
