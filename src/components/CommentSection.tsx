@@ -206,9 +206,23 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
 
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
 
-    if (user && publisherId) {
+    let updatedUser = user;
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile) {
+        updatedUser = { ...user, profile } as any;
+      }
+    }
+
+    setUser(updatedUser);
+
+    if (updatedUser && publisherId) {
       const { data: block } = await supabase
         .from('publisher_blocks')
         .select('id')
@@ -257,7 +271,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
           .from('comment_likes')
           .select('comment_id')
           .eq('user_id', user.id);
-        likedIds = likes?.map(l => String(l.comment_id)) || [];
+        likedIds = likes?.map((l: any) => String(l.comment_id)) || [];
       }
 
       // Format and nest comments
@@ -274,8 +288,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
       const commentMap = new Map();
       const rootComments: Comment[] = [];
 
-      formattedComments.forEach(c => commentMap.set(c.id, c));
-      formattedComments.forEach(c => {
+      formattedComments.forEach((c: any) => commentMap.set(c.id, c));
+      formattedComments.forEach((c: any) => {
         if (c.parent_id && commentMap.has(String(c.parent_id))) {
           commentMap.get(String(c.parent_id)).replies.push(c);
         } else {
@@ -415,11 +429,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
           <div className="py-10 text-center text-palette-tan/20 text-xs font-bold uppercase tracking-widest animate-pulse">
             {t('comments.loading')}
           </div>
-        ) : comments.length === 0 ? (
-          <div className="py-10 text-center text-palette-tan/20 text-xs font-bold uppercase tracking-widest">
-            {t('comments.empty_prompt')}
-          </div>
-        ) : (
+        ) : comments.length === 0 ? null : (
           visibleComments.map((comment) => (
             <CommentItem
               key={comment.id}
@@ -497,8 +507,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
         <div className="flex gap-3 items-center">
           <div className="w-9 h-9 rounded-[5px] bg-palette-beige overflow-hidden flex-shrink-0 border border-palette-beige shadow-sm">
             <img
-              src={user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user ? 'User' : 'Guest'}&background=f3f4f6&color=94a3b8`}
+              src={user?.profile?.avatar_url || user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user ? (user.profile?.full_name || user.profile?.username || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User') : 'Guest')}&background=f3f4f6&color=94a3b8`}
               className="w-full h-full object-cover"
+              alt="User Avatar"
             />
           </div>
           <div className="flex-1 relative group">
@@ -507,7 +518,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handlePostComment()}
-              placeholder={isBlocked ? t('comments.input_blocked') : t('comments.input_placeholder')}
+              placeholder={isBlocked ? t('comments.input_blocked') : (comments.length === 0 && !loading ? t('comments.empty_prompt') : t('comments.input_placeholder'))}
               disabled={isBlocked}
               className="w-full h-10 pl-4 pr-20 rounded-[5px] bg-white border border-palette-beige/60 focus:border-palette-red/40 text-[13px] font-medium text-palette-maroon placeholder:text-palette-tan/30 focus:outline-none focus:ring-4 focus:ring-palette-red/5 transition-all shadow-sm"
             />

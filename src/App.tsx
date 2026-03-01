@@ -260,14 +260,14 @@ const App: React.FC = () => {
         let userLikes: string[] = [];
         let userSaves: string[] = [];
         if (user && postsData.length > 0) {
-          const postIds = postsData.map(p => p.id).filter(isUUID);
+          const postIds = postsData.map((p: any) => p.id).filter(isUUID);
           if (postIds.length > 0) {
             const [likes, saves] = await Promise.all([
               supabase.from('post_likes').select('post_id').in('post_id', postIds).eq('user_id', user.id),
               supabase.from('post_saves').select('post_id').in('post_id', postIds).eq('user_id', user.id)
             ]);
-            userLikes = (likes.data || []).map(l => l.post_id);
-            userSaves = (saves.data || []).map(s => s.post_id);
+            userLikes = (likes.data || []).map((l: any) => l.post_id);
+            userSaves = (saves.data || []).map((s: any) => s.post_id);
           }
         }
 
