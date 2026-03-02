@@ -536,6 +536,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     const [selectedThirdId, setSelectedThirdId] = useState<string>('');
     const [selectedFourthId, setSelectedFourthId] = useState<string>('');
     const [publishers, setPublishers] = useState<any[]>([]);
+    const loadedCardDataRef = useRef<Record<string, any> | null>(null);
 
     const titleRef = useRef<HTMLInputElement>(null);
     const summaryRef = useRef<HTMLTextAreaElement>(null);
@@ -726,6 +727,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         if (!postId) {
             postLoadRef.current = null;
             setIsLoadingPost(false);
+            loadedCardDataRef.current = null;
             return;
         }
         if (postLoadRef.current === String(postId)) return;
@@ -743,6 +745,9 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
                 if (error) throw error;
                 if (data) {
+                    loadedCardDataRef.current = (data.card_data && typeof data.card_data === 'object' && !Array.isArray(data.card_data))
+                        ? (data.card_data as Record<string, any>)
+                        : null;
                     const loadedLanguage = data.language_code || 'tr';
                     const postType = data.type === 'contents' ? 'TABLE OF CONTENTS' : (data.type as any || 'article');
                     const loadedData = {
@@ -790,6 +795,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             } catch (err) {
                 console.error("Error fetching post:", err);
                 postLoadRef.current = null;
+                loadedCardDataRef.current = null;
             } finally {
                 setIsLoadingPost(false);
             }
@@ -1986,6 +1992,169 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         setFormData(prev => ({ ...prev, isPinned: newPinnedValue }));
     };
 
+    const buildCardDataPatch = (items: PostItem[]) => {
+        const safeItems = Array.isArray(items) ? items : [];
+        const clean = (value: unknown) => String(value || '').trim();
+        const normalizedTab = clean(activeDetailTab).toLowerCase();
+
+        const normalizeHtml = (value: unknown) => {
+            const html = clean(value);
+            if (!html) return '';
+            if (html === '<p><br></p>' || html === '<p></p>') return '';
+            return html;
+        };
+
+        const pickFeaturedItem = (): PostItem | undefined => {
+            const flagged = safeItems.find((i) => !!(i as any)?.showOnHomepage) as PostItem | undefined;
+            if (flagged) return flagged;
+
+            // For single-type posts, pick the first relevant block even if not flagged.
+            if (normalizedTab === 'video') {
+                return safeItems.find((i) => clean((i as any)?.type).toLowerCase() === 'video') as PostItem | undefined;
+            }
+            if (normalizedTab === 'poll') {
+                return safeItems.find((i) => clean((i as any)?.type).toLowerCase() === 'poll') as PostItem | undefined;
+            }
+            if (normalizedTab === 'paragraph') {
+                return safeItems.find((i) => clean((i as any)?.type).toLowerCase() === 'quote') as PostItem | undefined;
+            }
+
+            return undefined;
+        };
+
+        const featured = pickFeaturedItem();
+
+        // Reset/clear all homepage-card overrides to avoid stale card state when the selection changes.
+        const patch: Record<string, any> = {
+            type: null,
+            mediaUrl: null,
+            mediaList: null,
+            thumbnail: null,
+            thumbnailAlt: null,
+            flipData: null,
+            beforeAfterData: null,
+            reviewData: null,
+            options: null,
+            isImagePoll: null,
+            pollColumns: null,
+            totalVotes: null,
+            blockTitle: null,
+            blockDescription: null,
+            paragraphData: null,
+        };
+
+        if (!featured) return patch;
+
+        const featuredType = clean((featured as any)?.type).toLowerCase();
+        const featuredMediaUrl = clean((featured as any)?.mediaUrl);
+        const featuredTitle = clean((featured as any)?.title);
+        const featuredDescription = normalizeHtml((featured as any)?.description);
+
+        const cleanUrlArray = (value: unknown) =>
+            Array.isArray(value) ? value.map((u) => clean(u)).filter(Boolean) : [];
+
+        const voteSum = (options: any[]) => options.reduce((sum, opt) => sum + (Number(opt?.votes) || 0), 0);
+
+        switch (featuredType) {
+            case 'video': {
+                if (!featuredMediaUrl) return patch;
+                patch.type = 'video';
+                patch.mediaUrl = featuredMediaUrl;
+                return patch;
+            }
+            case 'audio': {
+                if (!featuredMediaUrl) return patch;
+                patch.type = 'audio';
+                patch.mediaUrl = featuredMediaUrl;
+                return patch;
+            }
+            case 'social':
+            case 'iframe': {
+                if (!featuredMediaUrl) return patch;
+                patch.type = 'embed';
+                patch.mediaUrl = featuredMediaUrl;
+                return patch;
+            }
+            case 'slider': {
+                const mediaUrls = cleanUrlArray((featured as any)?.mediaUrls);
+                if (mediaUrls.length === 0) return patch;
+                patch.type = 'gallery';
+                patch.mediaList = mediaUrls;
+                return patch;
+            }
+            case 'image': {
+                if (!featuredMediaUrl) return patch;
+                patch.type = 'image';
+                patch.thumbnail = featuredMediaUrl;
+                patch.thumbnailAlt = clean((featured as any)?.altText) || null;
+                return patch;
+            }
+            case 'flipcard': {
+                const flipData = (featured as any)?.flipData;
+                if (!flipData) return patch;
+                const frontImage = clean(flipData.frontImage);
+                const backImage = clean(flipData.backImage);
+                if (!frontImage || !backImage) return patch;
+                patch.type = 'flip_card';
+                patch.flipData = flipData;
+                return patch;
+            }
+            case 'beforeafter': {
+                const beforeAfterData = (featured as any)?.beforeAfterData;
+                if (!beforeAfterData) return patch;
+                const beforeImage = clean(beforeAfterData.beforeImage);
+                const afterImage = clean(beforeAfterData.afterImage);
+                if (!beforeImage || !afterImage) return patch;
+                patch.type = 'before_after';
+                patch.beforeAfterData = beforeAfterData;
+                return patch;
+            }
+            case 'review': {
+                const reviewData = (featured as any)?.reviewData;
+                if (!reviewData) return patch;
+                if (!clean(reviewData.productName)) return patch;
+                patch.type = 'review';
+                patch.reviewData = reviewData;
+                return patch;
+            }
+            case 'poll': {
+                const options = Array.isArray((featured as any)?.options) ? (featured as any).options : [];
+                if (options.length === 0) return patch;
+                patch.type = 'poll';
+                patch.thumbnail = featuredMediaUrl || null;
+                patch.options = options;
+                patch.isImagePoll = (featured as any)?.isImagePoll ?? null;
+                patch.pollColumns = (featured as any)?.pollColumns ?? null;
+                patch.totalVotes = voteSum(options);
+                patch.blockTitle = featuredTitle || null;
+                patch.blockDescription = featuredDescription || null;
+                return patch;
+            }
+            case 'vs': {
+                const options = Array.isArray((featured as any)?.options) ? (featured as any).options : [];
+                if (options.length < 2) return patch;
+                patch.type = 'vs';
+                patch.thumbnail = featuredMediaUrl || null;
+                patch.options = options.slice(0, 2);
+                patch.totalVotes = voteSum(options);
+                patch.blockTitle = featuredTitle || null;
+                patch.blockDescription = featuredDescription || null;
+                return patch;
+            }
+            case 'quote': {
+                if (!featuredDescription) return patch;
+                patch.type = 'paragraph';
+                patch.paragraphData = {
+                    items: [featuredDescription],
+                    quoteAuthor: featuredTitle || undefined,
+                };
+                return patch;
+            }
+            default:
+                return patch;
+        }
+    };
+
     const handleSave = async (status: 'published' | 'draft') => {
         const errors: { title?: string; summary?: string } = {};
         if (!formData.title.trim()) {
@@ -2043,6 +2212,10 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 } as any);
             }
 
+            const cardDataBase = loadedCardDataRef.current || {};
+            const cardDataPatch = buildCardDataPatch(finalItems);
+            const mergedCardData = { ...cardDataBase, ...cardDataPatch };
+
             const normalizedPublishAt = toIsoString(formData.publishAt);
             const postData: any = {
                 title: formData.title,
@@ -2058,6 +2231,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 schema_type: formData.schemaType,
                 faq_data: formData.faqData,
                 items: finalItems,
+                card_data: mergedCardData,
                 published_at: status === 'published' ? (normalizedPublishAt || new Date().toISOString()) : null,
                 status: status,
                 language_code: selectedLanguage,
@@ -2075,6 +2249,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     .update(postData)
                     .eq('id', formData.id);
                 if (error) throw error;
+                loadedCardDataRef.current = mergedCardData;
                 showToast(t('admin.post.update_success'), 'success');
                 // Kaydedildiyse artık dirty değil
                 initialFormDataRef.current = JSON.parse(JSON.stringify(formData));
@@ -2089,6 +2264,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     .single();
                 if (error) throw error;
                 if (data) {
+                    loadedCardDataRef.current = mergedCardData;
                     showToast(t('admin.post.create_success'), 'success');
                     // Reset page if it was a new post
                     if (!postId) {

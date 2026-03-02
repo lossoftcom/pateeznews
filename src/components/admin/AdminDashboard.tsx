@@ -4,20 +4,75 @@ import { supabase } from '@/lib/supabase';
 import { NEWS_FEED } from '@/constants';
 import type { SiteSettings } from '@/types';
 import AdminErrorBoundary from './AdminErrorBoundary';
-const LanguageSettings = React.lazy(() => import('./LanguageSettings'));
-const AiSettings = React.lazy(() => import('./AiSettings'));
-const RoleSettings = React.lazy(() => import('./RoleSettings'));
-const UserManagement = React.lazy(() => import('./UserManagement'));
-const UserProfileSettings = React.lazy(() => import('./UserProfileSettings'));
-const NavigationSettings = React.lazy(() => import('./NavigationSettings'));
-const StoryManagement = React.lazy(() => import('./StoryManagement'));
-const PostManagement = React.lazy(() => import('./PostManagement'));
-const PostList = React.lazy(() => import('./PostList'));
-const PublisherManagement = React.lazy(() => import('./PublisherManagement'));
-const PublisherProfileSettings = React.lazy(() => import('./PublisherProfileSettings'));
-const Settings = React.lazy(() => import('./Settings'));
-const CommentManagement = React.lazy(() => import('./CommentManagement'));
 import { useLanguage } from '@/context/LanguageContext';
+
+const isRetryableImportError = (error: unknown) => {
+  const message = String((error as any)?.message || error || '');
+  return (
+    message.includes('Outdated Optimize Dep') ||
+    message.includes('Failed to fetch dynamically imported module') ||
+    message.includes('Importing a module script failed') ||
+    message.includes('ChunkLoadError') ||
+    message.includes('Loading chunk') ||
+    message.includes('Failed to fetch')
+  );
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const importWithRetry = async <T,>(
+  importer: () => Promise<{ default: T }>,
+  retries = 6,
+  delayMs = 200
+): Promise<{ default: T }> => {
+  try {
+    return await importer();
+  } catch (error) {
+    if (!isRetryableImportError(error) || retries <= 0) {
+      // In rare cases (especially on production deploys), a chunk can fail due to a stale cache.
+      // Reload once to recover without showing the admin error screen.
+      if (
+        typeof window !== 'undefined' &&
+        isRetryableImportError(error) &&
+        (import.meta as any)?.env?.PROD
+      ) {
+        try {
+          const key = '__pateez_admin_chunk_reload__';
+          const previous = sessionStorage.getItem(key);
+          if (!previous) {
+            sessionStorage.setItem(key, String(Date.now()));
+            window.location.reload();
+            // Keep Suspense pending until reload happens.
+            return await new Promise<{ default: T }>(() => {});
+          }
+        } catch {
+          // ignore
+        }
+      }
+      throw error;
+    }
+
+    await sleep(delayMs);
+    return importWithRetry(importer, retries - 1, Math.min(delayMs * 2, 2000));
+  }
+};
+
+const lazyWithRetry = <T,>(importer: () => Promise<{ default: T }>) =>
+  React.lazy(() => importWithRetry(importer));
+
+const LanguageSettings = lazyWithRetry(() => import('./LanguageSettings'));
+const AiSettings = lazyWithRetry(() => import('./AiSettings'));
+const RoleSettings = lazyWithRetry(() => import('./RoleSettings'));
+const UserManagement = lazyWithRetry(() => import('./UserManagement'));
+const UserProfileSettings = lazyWithRetry(() => import('./UserProfileSettings'));
+const NavigationSettings = lazyWithRetry(() => import('./NavigationSettings'));
+const StoryManagement = lazyWithRetry(() => import('./StoryManagement'));
+const PostManagement = lazyWithRetry(() => import('./PostManagement'));
+const PostList = lazyWithRetry(() => import('./PostList'));
+const PublisherManagement = lazyWithRetry(() => import('./PublisherManagement'));
+const PublisherProfileSettings = lazyWithRetry(() => import('./PublisherProfileSettings'));
+const Settings = lazyWithRetry(() => import('./Settings'));
+const CommentManagement = lazyWithRetry(() => import('./CommentManagement'));
 
 interface AdminDashboardProps {
   onLogout: () => void;

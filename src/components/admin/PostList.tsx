@@ -55,6 +55,9 @@ const PostRow = React.memo(({
     isSelected: boolean;
     onSelectRow: (id: string) => void;
 }) => {
+    const slugOrId = (post.slug || '').trim() || post.id;
+    const detailHref = `/haber/${encodeURIComponent(slugOrId)}`;
+
     return (
         <tr className={`hover:bg-palette-beige/5 transition-all group h-[92px] ${openDropdownId === post.id ? 'relative z-[100]' : 'relative z-1'}`}>
             <td className="px-4 py-0 align-middle">
@@ -82,9 +85,16 @@ const PostRow = React.memo(({
                             {post.is_pinned && (
                                 <span className="material-symbols-rounded text-amber-500 fill-current flex-shrink-0" style={{ fontSize: '18px' }}>push_pin</span>
                             )}
-                            <p className="font-bold text-palette-maroon text-[14px] leading-tight group-hover:text-palette-red transition-colors whitespace-normal break-words line-clamp-2">
+                            <a
+                                href={detailHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="font-bold text-palette-maroon text-[14px] leading-tight group-hover:text-palette-red transition-colors whitespace-normal break-words line-clamp-2"
+                                title={post.title}
+                            >
                                 {post.title}
-                            </p>
+                            </a>
                         </div>
                         <div className="flex items-center gap-2">
                             {(() => {

@@ -62,6 +62,10 @@ export default defineConfig({
                 '@scaleflex/ui/core/popper',
                 '@scaleflex/icons',
                 'styled-components',
+                // Prevent dev hard-refresh 504 "Outdated Optimize Dep" flashes for heavy admin deps.
+                'react-dropzone',
+                'react-quill-new',
+                '@emotion/is-prop-valid',
             ],
         }
     },
