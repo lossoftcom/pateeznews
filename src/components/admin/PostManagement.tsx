@@ -485,6 +485,238 @@ const SCHEMA_TYPE_OPTIONS = [
     'Article',
 ] as const;
 
+const normalizeAiNewlines = (value: unknown) =>
+    String(value ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+const escapeHtml = (value: string) =>
+    value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+const stripMarkdownEmphasis = (value: string) =>
+    String(value || '')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/__(.+?)__/g, '$1')
+        .replace(/\*(.+?)\*/g, '$1')
+        .replace(/\*\*/g, '')
+        .replace(/__/g, '')
+        .trim();
+
+const markdownInlineToSafeHtml = (value: string) => {
+    const escaped = escapeHtml(String(value || ''));
+    return escaped
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*\*/g, '')
+        .replace(/__/g, '');
+};
+
+const buildQuillHtmlFromLines = (lines: string[]) => {
+    const htmlParts: string[] = [];
+    let inList: 'ul' | 'ol' | null = null;
+    let paragraphBuf: string[] = [];
+
+    const flushParagraph = () => {
+        const joined = paragraphBuf.join(' ').trim();
+        if (!joined) {
+            paragraphBuf = [];
+            return;
+        }
+        htmlParts.push(`<p>${markdownInlineToSafeHtml(joined)}</p>`);
+        paragraphBuf = [];
+    };
+
+    const closeList = () => {
+        if (!inList) return;
+        htmlParts.push(inList === 'ol' ? '</ol>' : '</ul>');
+        inList = null;
+    };
+
+    const normalized = (Array.isArray(lines) ? lines : []).map((l) => String(l ?? ''));
+    for (const rawLine of normalized) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) {
+            flushParagraph();
+            closeList();
+            continue;
+        }
+
+        const ulMatch = trimmed.match(/^[-*•–]\s+(.+)$/);
+        const olMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+        const listValue = (ulMatch?.[1] || olMatch?.[1] || '').trim();
+
+        if (listValue) {
+            flushParagraph();
+            const nextType: 'ul' | 'ol' = ulMatch ? 'ul' : 'ol';
+            if (inList && inList !== nextType) closeList();
+            if (!inList) {
+                htmlParts.push(nextType === 'ol' ? '<ol>' : '<ul>');
+                inList = nextType;
+            }
+            htmlParts.push(`<li>${markdownInlineToSafeHtml(listValue)}</li>`);
+            continue;
+        }
+
+        closeList();
+        paragraphBuf.push(trimmed);
+    }
+
+    flushParagraph();
+    closeList();
+
+    return htmlParts.join('');
+};
+
+const normalizeQuillEmpty = (value: unknown) => {
+    const html = String(value || '').trim();
+    if (!html) return '';
+    if (html === '<p><br></p>' || html === '<p></p>') return '';
+    return html;
+};
+
+const parseSmartBrevitySummary = (rawSummary: string) => {
+    const normalized = normalizeAiNewlines(rawSummary).trim();
+    const lines = normalized
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+    const normalizeLine = (line: string) => stripMarkdownEmphasis(line).replace(/^[-*•–]\s*/, '').trim();
+    const isYeni = (line: string) => /yeni\s*ne\s*var/i.test(line);
+    const isNeden = (line: string) => /neden\s*önemli/i.test(line);
+    const isLabelLine = (line: string) => isYeni(line) || isNeden(line);
+
+    const extractValueAfterColon = (line: string) => {
+        const cleaned = normalizeLine(line);
+        const parts = cleaned.split(/:\s*/);
+        if (parts.length < 2) return '';
+        return parts.slice(1).join(':').trim();
+    };
+
+    const yeniLine = lines.find((l) => isYeni(l));
+    const nedenLine = lines.find((l) => isNeden(l));
+
+    const spotLines = lines
+        .map(normalizeLine)
+        .filter((l) => l && !isLabelLine(l));
+
+    const spot = spotLines.join(' ').trim();
+
+    return {
+        spot,
+        yeniNeVar: yeniLine ? extractValueAfterColon(yeniLine) : '',
+        nedenOnemli: nedenLine ? extractValueAfterColon(nedenLine) : '',
+    };
+};
+
+type AiContentBlock =
+    | { kind: 'text'; title: string; lines: string[] }
+    | { kind: 'image'; caption: string };
+
+const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
+    const normalized = normalizeAiNewlines(rawContent);
+    const lines = normalized.split('\n');
+
+    const blocks: AiContentBlock[] = [];
+    let currentTitle = '';
+    let currentLines: string[] = [];
+
+    const flushText = () => {
+        const title = stripMarkdownEmphasis(currentTitle);
+        const bodyLines = currentLines.map((l) => String(l ?? '')).filter((l) => l !== undefined);
+        const hasBody = bodyLines.some((l) => l.trim());
+        if (!title && !hasBody) {
+            currentTitle = '';
+            currentLines = [];
+            return;
+        }
+        blocks.push({ kind: 'text', title, lines: bodyLines });
+        currentTitle = '';
+        currentLines = [];
+    };
+
+    // Supports:
+    // [BURAYA İLGİLİ GÖRSEL GELECEK: ...]
+    // [BURAYA İLGİLİ GRAFİK GELECEK: ...]
+    // [BURAYA İLGİLİ GÖRSEL/GRAFİK GELECEK: ...]
+    const imagePlaceholderRegex = /^\[?\s*BURAYA\s+İLGİLİ\s+(?:GÖRSEL(?:\s*\/\s*GRAF[İI]K)?|GRAF[İI]K)\s+GELECEK\s*:\s*(.+?)\s*\]?\s*$/i;
+
+    for (const rawLine of lines) {
+        const line = String(rawLine ?? '').trim();
+
+        if (!line) {
+            currentLines.push('');
+            continue;
+        }
+
+        const imageMatch = line.match(imagePlaceholderRegex);
+        if (imageMatch) {
+            flushText();
+            const caption = stripMarkdownEmphasis(imageMatch[1] || '');
+            if (caption) blocks.push({ kind: 'image', caption });
+            continue;
+        }
+
+        const boldHeadingMatch = line.match(/^\*\*(.+?)\*\*$/);
+        const hashHeadingMatch = line.match(/^#{2,6}\s+(.+)$/);
+        const heading = stripMarkdownEmphasis(boldHeadingMatch?.[1] || hashHeadingMatch?.[1] || '');
+
+        if (heading) {
+            flushText();
+            currentTitle = heading;
+            continue;
+        }
+
+        currentLines.push(line);
+    }
+
+    flushText();
+
+    return blocks;
+};
+
+const buildItemsFromAiContent = (rawContent: string) => {
+    const blocks = parseAiContentBlocks(String(rawContent || ''));
+    const items: PostItem[] = [];
+
+    const now = Date.now();
+    const makeId = (type: string) => `${type}-${Math.random().toString(36).slice(2, 10)}`;
+
+    blocks.forEach((block) => {
+        if (block.kind === 'image') {
+            const caption = block.caption.trim();
+            const captionHtml = caption ? `<p>${markdownInlineToSafeHtml(caption)}</p>` : '';
+            items.push({
+                id: makeId('image'),
+                type: 'image',
+                title: '',
+                description: captionHtml,
+                mediaUrl: '',
+                altText: caption,
+                source: '',
+                createdAt: now,
+                orderNumber: items.length + 1,
+            });
+            return;
+        }
+
+        const html = buildQuillHtmlFromLines(block.lines);
+        items.push({
+            id: makeId('text'),
+            type: 'text',
+            title: block.title || '',
+            description: html,
+            mediaUrl: '',
+            createdAt: now,
+            orderNumber: items.length + 1,
+        });
+    });
+
+    return items;
+};
+
 const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirtyChange }) => {
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -2447,23 +2679,76 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                     isOpen={showAiDialog}
                                     onClose={() => setShowAiDialog(false)}
                                     onApply={(data) => {
-                                        // Update form data with AI results
                                         setFormData(prev => {
-                                            const updatedItems = [...prev.items];
-                                            if (data.content) {
-                                                const firstTextIdx = updatedItems.findIndex(item => item.type === 'text');
+                                            const cleanedTitle = stripMarkdownEmphasis(data.title || '');
+                                            const cleanedMetaTitle = stripMarkdownEmphasis(data.metaTitle || '');
+                                            const cleanedMetaDesc = stripMarkdownEmphasis(data.metaDesc || '');
+                                            const cleanedSlug = stripMarkdownEmphasis(data.slug || '');
+
+                                            const summaryParts = parseSmartBrevitySummary(String(data.summary || ''));
+                                            const cleanedSummary =
+                                                summaryParts.spot ||
+                                                summaryParts.yeniNeVar ||
+                                                '';
+
+                                            const existingItems = Array.isArray(prev.items) ? prev.items : [];
+                                            const generatedItems = data.content ? buildItemsFromAiContent(String(data.content || '')) : [];
+
+                                            // If Smart Brevity bullets were produced in SUMMARY, move them into the body (first text block)
+                                            // so SUMMARY stays clean and professional.
+                                            const contentAlreadyHasLead = /(yeni\s*ne\s*var|neden\s*önemli)/i.test(String(data.content || ''));
+                                            const leadLis: string[] = [];
+                                            if (!contentAlreadyHasLead) {
+                                                if (summaryParts.yeniNeVar) {
+                                                    leadLis.push(`<li><strong>Yeni ne var?</strong> ${markdownInlineToSafeHtml(summaryParts.yeniNeVar)}</li>`);
+                                                }
+                                                if (summaryParts.nedenOnemli) {
+                                                    leadLis.push(`<li><strong>Neden önemli?</strong> ${markdownInlineToSafeHtml(summaryParts.nedenOnemli)}</li>`);
+                                                }
+                                            }
+                                            const leadHtml = leadLis.length > 0 ? `<ul>${leadLis.join('')}</ul>` : '';
+
+                                            if (generatedItems.length > 0 && leadHtml) {
+                                                const firstTextIdx = generatedItems.findIndex((i) => (i.type || 'text') === 'text');
                                                 if (firstTextIdx !== -1) {
-                                                    updatedItems[firstTextIdx] = { ...updatedItems[firstTextIdx], description: data.content };
+                                                    const existingDesc = normalizeQuillEmpty(generatedItems[firstTextIdx].description);
+                                                    generatedItems[firstTextIdx] = {
+                                                        ...generatedItems[firstTextIdx],
+                                                        description: `${leadHtml}${existingDesc ? existingDesc : ''}`,
+                                                    };
                                                 } else {
-                                                    updatedItems.unshift({
-                                                        id: Math.random().toString(36).substr(2, 9),
+                                                    generatedItems.unshift({
+                                                        id: `text-${Math.random().toString(36).slice(2, 10)}`,
                                                         type: 'text',
                                                         title: '',
-                                                        description: data.content,
-                                                        showOnHomepage: true
+                                                        description: leadHtml,
+                                                        mediaUrl: '',
+                                                        createdAt: Date.now(),
+                                                        orderNumber: 1,
                                                     });
                                                 }
                                             }
+
+                                            const isMeaningfulItem = (item: PostItem) => {
+                                                const type = String(item?.type || 'text');
+                                                if (type !== 'text') return true;
+                                                if (stripMarkdownEmphasis(String(item?.title || '')).trim()) return true;
+                                                if (normalizeQuillEmpty(item?.description)) return true;
+                                                return false;
+                                            };
+
+                                            const shouldReplaceItems = existingItems.length === 0 || !existingItems.some(isMeaningfulItem);
+
+                                            let nextItems = existingItems;
+                                            if (generatedItems.length > 0 && activeDetailTab === 'article') {
+                                                nextItems = shouldReplaceItems ? generatedItems : [...existingItems, ...generatedItems];
+                                            }
+
+                                            // Renumber order to keep block numbering stable.
+                                            const renumberedItems = nextItems.map((item, idx) => ({
+                                                ...item,
+                                                orderNumber: idx + 1,
+                                            }));
 
                                             // Validate schemaType against SCHEMA_TYPE_OPTIONS
                                             const finalSchema = SCHEMA_TYPE_OPTIONS.includes(data.schemaType as any)
@@ -2472,15 +2757,15 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
                                             return {
                                                 ...prev,
-                                                title: data.title || prev.title,
-                                                summary: data.summary || prev.summary,
-                                                seoTitle: data.metaTitle || prev.seoTitle,
-                                                seoDescription: data.metaDesc || prev.seoDescription,
+                                                title: cleanedTitle || prev.title,
+                                                summary: cleanedSummary || prev.summary,
+                                                seoTitle: cleanedMetaTitle || prev.seoTitle,
+                                                seoDescription: cleanedMetaDesc || prev.seoDescription,
                                                 keywords: data.keywords && data.keywords.length > 0 ? data.keywords.join(', ') : prev.keywords,
-                                                slug: data.slug || prev.slug,
+                                                slug: cleanedSlug || prev.slug,
                                                 schemaType: finalSchema,
                                                 faqData: data.faqs && data.faqs.length > 0 ? data.faqs : prev.faqData,
-                                                items: updatedItems
+                                                items: renumberedItems
                                             };
                                         });
                                     }}

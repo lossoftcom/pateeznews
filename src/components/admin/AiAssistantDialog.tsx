@@ -81,6 +81,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
     const [isCopied, setIsCopied] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [canApply, setCanApply] = useState(false);
+    const [apiNotice, setApiNotice] = useState('');
 
     const [models, setModels] = useState<string[]>([]);
     const [selectedModel, setSelectedModel] = useState('');
@@ -107,10 +108,11 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
                 .eq('language_code', currentLang.code)
                 .maybeSingle();
             if (data) {
-                if (data.google_ai_model) setSelectedModel(data.google_ai_model);
+                const preferredModel = data.google_ai_model || '';
+                if (preferredModel) setSelectedModel(preferredModel);
                 if (data.google_ai_api_key) {
                     setApiKey(data.google_ai_api_key);
-                    fetchModels(data.google_ai_api_key);
+                    fetchModels(data.google_ai_api_key, preferredModel);
                 }
             }
         } catch (err) {
@@ -118,19 +120,73 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
         }
     };
 
-    const fetchModels = async (key: string) => {
+    const fetchModels = async (key: string, preferredModel?: string) => {
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-            const data = await response.json();
-            if (data.models) {
-                const availableModels = data.models
-                    .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
-                    .map((m: any) => m.name.replace('models/', ''));
-                setModels(availableModels);
+            const encodedKey = encodeURIComponent(key);
 
-                // If current selected model is not in the list, but list is not empty, maybe update?
-                // Actually, let's keep the selected one if it's valid, otherwise the dropdown will handle it.
-            }
+            const extractModelIds = (data: any) =>
+                (data?.models || [])
+                    .filter((m: any) => {
+                        const methods = m?.supportedGenerationMethods;
+                        return Array.isArray(methods) && methods.includes('generateContent');
+                    })
+                    .map((m: any) => String(m.name).replace('models/', '').trim())
+                    .filter(Boolean);
+
+            const fetchList = async (apiVersion: 'v1' | 'v1beta') => {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/${apiVersion}/models?key=${encodedKey}`);
+                    const data = await response.json().catch(() => ({}));
+                    if (data?.error) return { modelIds: [] as string[] };
+                    return { modelIds: extractModelIds(data) };
+                } catch {
+                    return { modelIds: [] as string[] };
+                }
+            };
+
+            const [v1Res, v1betaRes] = await Promise.all([fetchList('v1'), fetchList('v1beta')]);
+
+            const baseModelIds = (() => {
+                const seen = new Set<string>();
+                const merged = [...v1Res.modelIds, ...v1betaRes.modelIds].map((id) => String(id || '').trim()).filter(Boolean);
+                const uniqueModels = merged.filter((id) => {
+                    if (seen.has(id)) return false;
+                    seen.add(id);
+                    return true;
+                });
+
+                // Sadece Flash 3, Flash 3.1 ve Gemma'nın en güçlü modelini filtrele
+                const geminiFlash = uniqueModels.filter(id =>
+                    id.toLowerCase().includes('gemini-3-flash') ||
+                    id.toLowerCase().includes('gemini-3.1-flash')
+                );
+
+                const gemmaModels = uniqueModels.filter(id => id.toLowerCase().includes('gemma'));
+                let bestGemma = '';
+                if (gemmaModels.length > 0) {
+                    if (gemmaModels.find(m => m.includes('27b'))) bestGemma = gemmaModels.find(m => m.includes('27b'))!;
+                    else if (gemmaModels.find(m => m.includes('9b'))) bestGemma = gemmaModels.find(m => m.includes('9b'))!;
+                    else if (gemmaModels.find(m => m.includes('7b'))) bestGemma = gemmaModels.find(m => m.includes('7b'))!;
+                    else bestGemma = gemmaModels[0];
+                }
+
+                const finalModels = [...geminiFlash];
+                if (bestGemma) finalModels.push(bestGemma);
+
+                return finalModels;
+            })();
+
+            setModels(baseModelIds);
+
+            setSelectedModel((current) => {
+                const preferred = String(preferredModel || '').trim();
+                if (preferred && baseModelIds.includes(preferred)) return preferred;
+                if (current && baseModelIds.includes(current)) return current;
+                const fallback = baseModelIds.find((m) => m.toLowerCase().includes('-flash')) || baseModelIds[0] || '';
+                return fallback || current || '';
+            });
+
+            // If current selected model is not in the list, but list is not empty, the dropdown will fall back.
         } catch (err) {
             console.error('Error fetching models:', err);
         }
@@ -179,10 +235,28 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
     };
 
     const parseAiResult = (text: string) => {
-        const extract = (tag: string) => {
-            const regex = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`);
-            const match = text.match(regex);
-            return match ? match[1].trim() : '';
+        const KNOWN_TAGS = ['TITLE', 'SUMMARY', 'SLUG', 'KEYWORDS', 'METATITLE', 'METADESC', 'SCHEMA', 'FAQ', 'CONTENT'] as const;
+
+        const extract = (tag: typeof KNOWN_TAGS[number]) => {
+            const open = `[${tag}]`;
+            const close = `[/${tag}]`;
+
+            const start = text.indexOf(open);
+            if (start === -1) return '';
+
+            const afterOpen = start + open.length;
+            const closeIdx = text.indexOf(close, afterOpen);
+            if (closeIdx !== -1) return text.slice(afterOpen, closeIdx).trim();
+
+            // If the closing tag is missing (often due to token limit truncation),
+            // fall back to reading until the next known tag (or end-of-text).
+            const nextTagStarts = KNOWN_TAGS
+                .filter((t) => t !== tag)
+                .map((t) => text.indexOf(`[${t}]`, afterOpen))
+                .filter((idx) => idx !== -1);
+
+            const nextIdx = nextTagStarts.length > 0 ? Math.min(...nextTagStarts) : -1;
+            return (nextIdx !== -1 ? text.slice(afterOpen, nextIdx) : text.slice(afterOpen)).trim();
         };
 
         const faqRaw = extract('FAQ');
@@ -224,6 +298,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
         setIsGenerating(true);
         setCanApply(false);
         setResultContent('');
+        setApiNotice('');
 
         try {
             // Determine system prompt: Default Constitution or Selected Format
@@ -258,31 +333,109 @@ Haber içeriği
 
             const finalPrompt = systemPrompt + outputInstruction + "\n\nKonu / İçerik:\n" + content;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: finalPrompt
-                        }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        topK: 40,
-                        topP: 0.95,
-                        maxOutputTokens: 2048,
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: finalPrompt
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.7,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 4096,
+                }
+            };
+
+            const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            const extractRetryDelaySeconds = (error: any, fallbackMessage: string) => {
+                const details = Array.isArray(error?.details) ? error.details : [];
+                for (const detail of details) {
+                    const type = String(detail?.['@type'] || '');
+                    if (!type.endsWith('google.rpc.RetryInfo')) continue;
+                    const retryDelay = String(detail?.retryDelay || '').trim();
+                    const match = retryDelay.match(/^(\d+(?:\.\d+)?)s$/);
+                    if (match) return Number(match[1]);
+                }
+
+                const match = String(fallbackMessage || '').match(/Please retry in\s+(\d+(?:\.\d+)?)s\./i);
+                if (match) return Number(match[1]);
+                return null;
+            };
+
+            const isFreeTierLimitZero = (error: any, fallbackMessage: string) => {
+                const message = String(error?.message || fallbackMessage || '').toLowerCase();
+                if (message.includes('free_tier') && message.includes('limit: 0')) return true;
+
+                const details = Array.isArray(error?.details) ? error.details : [];
+                for (const detail of details) {
+                    const type = String(detail?.['@type'] || '');
+                    if (!type.endsWith('google.rpc.QuotaFailure')) continue;
+                    const violations = Array.isArray(detail?.violations) ? detail.violations : [];
+                    for (const violation of violations) {
+                        const description = String(violation?.description || '').toLowerCase();
+                        if (description.includes('free_tier') && description.includes('limit: 0')) return true;
                     }
-                })
-            });
+                }
 
-            const data = await response.json();
+                return false;
+            };
 
-            if (data.error) {
-                throw new Error(data.error.message);
+            const callGenerate = async (apiVersion: 'v1' | 'v1beta', modelId: string) => {
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    },
+                );
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data?.error) {
+                    const error = data?.error || {};
+                    const message = String(error?.message || `HTTP ${response.status}`);
+                    return { ok: false as const, message, error, status: response.status, apiVersion, modelId };
+                }
+                return { ok: true as const, message: '', data, apiVersion, modelId };
+            };
+
+            const tryGenerateWithModel = async (modelId: string) => {
+                // Stable models may be served from v1 while previews can be on v1beta. Try both.
+                const primary = await callGenerate('v1', modelId);
+                if (primary.ok) return primary;
+                return await callGenerate('v1beta', modelId);
+            };
+
+            const primaryResult = await tryGenerateWithModel(selectedModel);
+
+            let result = primaryResult;
+            if (!result.ok) {
+                const retryDelaySeconds = extractRetryDelaySeconds(result.error, result.message);
+
+                if (isFreeTierLimitZero(result.error, result.message)) {
+                    setApiNotice(
+                        `Seçilen model (${selectedModel}) bu API anahtarının mevcut planında kullanılamıyor (free tier limiti 0). ` +
+                        `Bu bir kod hatası değil: Pro modeller için billing/ücretli plan gerekir. ` +
+                        `Model otomatik olarak değiştirilmedi; Ayarlar > AI Ayarları'ndan başka model seçebilir veya billing açıp tekrar deneyebilirsin.`,
+                    );
+                } else if (typeof retryDelaySeconds === 'number' && Number.isFinite(retryDelaySeconds) && retryDelaySeconds > 0) {
+                    // Keep the UI responsive: only auto-retry for short delays.
+                    if (retryDelaySeconds <= 5) {
+                        await sleep(Math.ceil(retryDelaySeconds * 1000));
+                        result = await tryGenerateWithModel(selectedModel);
+                    } else {
+                        setApiNotice(`Rate limit aşıldı. Lütfen ${Math.ceil(retryDelaySeconds)} saniye sonra tekrar deneyin.`);
+                    }
+                }
             }
+
+            if (!result.ok) {
+                throw new Error(result.message);
+            }
+
+            const data = result.data;
 
             const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!aiText) {
@@ -443,7 +596,11 @@ Haber içeriği
                                         className="appearance-none bg-white/40 hover:bg-white border-none rounded-[6px] pl-8 pr-3 py-1.5 text-[10px] font-black text-palette-maroon outline-none cursor-pointer transition-all min-w-[140px] tracking-tight"
                                     >
                                         <option value="" disabled>Model Seçin</option>
-                                        {models.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                                        {models.map((m) => (
+                                            <option key={m} value={m}>
+                                                {m}
+                                            </option>
+                                        ))}
                                     </select>
                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-rounded text-palette-maroon/40" style={{ fontSize: '14px' }}>psychology</span>
                                 </div>
@@ -513,6 +670,12 @@ Haber içeriği
                         </div>
                     </div>
                     <div className="flex-1 p-6 relative overflow-hidden">
+                        {apiNotice && (
+                            <div className="mb-4 flex items-start gap-2 px-4 py-3 bg-amber-500/5 border border-amber-100 rounded-[8px] text-amber-700">
+                                <span className="material-symbols-rounded mt-0.5" style={{ fontSize: '16px', opacity: 0.9 }}>info</span>
+                                <div className="text-[11px] font-bold leading-relaxed">{apiNotice}</div>
+                            </div>
+                        )}
                         {isGenerating ? (
                             <div className="h-full flex flex-col items-center justify-center text-palette-maroon/20">
                                 <div className="w-16 h-16 relative flex items-center justify-center mb-6">

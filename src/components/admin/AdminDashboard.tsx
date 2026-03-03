@@ -274,6 +274,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   };
 
   const renderContent = () => {
+    if (permissionLoading) {
+      return (
+        <div className="h-full flex items-center justify-center p-20">
+          <span className="material-symbols-rounded animate-spin text-palette-tan" style={{ fontSize: '40px' }}>
+            progress_activity
+          </span>
+        </div>
+      );
+    }
+
     if (activeTab === 'users' && !hasPermission('manage_users')) return <AccessDenied />;
     if (activeTab === 'posts' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'edit_post' && !hasPermission('manage_content')) return <AccessDenied />;

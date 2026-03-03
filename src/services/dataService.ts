@@ -16,6 +16,7 @@ const normalizeNewsType = (value: unknown): NewsType => {
         case 'AUDIO':
             return NewsType.AUDIO;
         case 'GALLERY':
+        case 'SLIDER':
             return NewsType.GALLERY;
         case 'EMBED':
         case 'IFRAME':
@@ -282,6 +283,54 @@ export const dataService = {
         };
 
         const items = Array.isArray(merged.items) ? merged.items : [];
+        const homepageItem = items.find((item: any) => item && item.showOnHomepage === true);
+
+        // If an item is flagged for homepage rendering, use that item's type and payload
+        // so the feed card shows the selected block (video/poll/slider/etc.).
+        if (homepageItem) {
+            const homepageTypeRaw = String(homepageItem?.type ?? '').trim();
+            const homepageType = homepageTypeRaw.toLowerCase() === 'slider'
+                ? NewsType.GALLERY
+                : normalizeNewsType(homepageTypeRaw);
+
+            const homepageDescription = typeof homepageItem?.description === 'string' ? homepageItem.description : '';
+            const homepageMediaUrl = typeof homepageItem?.mediaUrl === 'string' ? homepageItem.mediaUrl : '';
+            const homepageAlt = typeof homepageItem?.altText === 'string' ? homepageItem.altText : '';
+
+            merged.type = homepageType;
+
+            if (homepageType === NewsType.POLL) {
+                (merged as any).blockTitle = typeof homepageItem?.title === 'string' ? homepageItem.title : '';
+                (merged as any).blockDescription = homepageDescription || '';
+                if (Array.isArray((homepageItem as any)?.options)) merged.options = (homepageItem as any).options;
+                if (typeof (homepageItem as any)?.isImagePoll === 'boolean') merged.isImagePoll = (homepageItem as any).isImagePoll;
+                if ((homepageItem as any)?.pollColumns === 2 || (homepageItem as any)?.pollColumns === 3) merged.pollColumns = (homepageItem as any).pollColumns;
+                if (typeof (homepageItem as any)?.totalVotes === 'number') merged.totalVotes = (homepageItem as any).totalVotes;
+            } else if (homepageDescription.trim()) {
+                merged.summary = homepageDescription;
+            }
+
+            if (homepageType === NewsType.VIDEO || homepageType === NewsType.AUDIO || homepageType === NewsType.EMBED) {
+                if (homepageMediaUrl) merged.mediaUrl = homepageMediaUrl;
+            }
+
+            if (homepageType === NewsType.GALLERY) {
+                const mediaUrls = Array.isArray((homepageItem as any)?.mediaUrls)
+                    ? (homepageItem as any).mediaUrls.filter((u: any) => typeof u === 'string' && u.trim())
+                    : [];
+                if (mediaUrls.length > 0) {
+                    merged.mediaList = mediaUrls;
+                }
+            }
+
+            if (homepageType === NewsType.IMAGE) {
+                if (homepageMediaUrl) {
+                    merged.thumbnail = homepageMediaUrl;
+                    if (homepageAlt) merged.thumbnailAlt = homepageAlt;
+                }
+            }
+        }
+
         const coverFromItems = items.find((item: any) =>
             item &&
             item.type === 'image' &&

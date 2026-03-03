@@ -16,7 +16,7 @@ const AiSettings: React.FC = () => {
 
     const [formData, setFormData] = useState({
         google_ai_apiKey: '',
-        google_ai_model: 'gemini-1.5-flash',
+        google_ai_model: '',
         google_ai_active: false
     });
 
@@ -28,6 +28,68 @@ const AiSettings: React.FC = () => {
     const [isTesting, setIsTesting] = useState(false);
     const [fetchedModels, setFetchedModels] = useState<string[]>([]);
 
+    const fetchGeminiModels = async (apiKey: string, preferredModel?: string) => {
+        const encodedKey = encodeURIComponent(apiKey);
+
+        const extractModelIds = (data: any) =>
+            (data?.models || [])
+                .filter((m: any) => {
+                    const methods = m?.supportedGenerationMethods;
+                    return Array.isArray(methods) && methods.includes('generateContent');
+                })
+                .map((m: any) => String(m.name).replace('models/', '').trim())
+                .filter(Boolean);
+
+        const fetchList = async (apiVersion: 'v1' | 'v1beta') => {
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/${apiVersion}/models?key=${encodedKey}`);
+                const data = await response.json().catch(() => ({}));
+                if (data?.error) return { modelIds: [] as string[], error: String(data.error.message || 'Unknown error') };
+                return { modelIds: extractModelIds(data), error: '' };
+            } catch (err: any) {
+                return { modelIds: [] as string[], error: String(err?.message || 'Network error') };
+            }
+        };
+
+        const [v1Res, v1betaRes] = await Promise.all([fetchList('v1'), fetchList('v1beta')]);
+
+        const baseModelIds = (() => {
+            const seen = new Set<string>();
+            const merged = [...v1Res.modelIds, ...v1betaRes.modelIds].map((id) => String(id || '').trim()).filter(Boolean);
+            const uniqueModels = merged.filter((id) => {
+                if (seen.has(id)) return false;
+                seen.add(id);
+                return true;
+            });
+
+            // Sadece Flash 3, Flash 3.1 ve Gemma'nın en güçlü modelini filtrele
+            const geminiFlash = uniqueModels.filter(id =>
+                id.toLowerCase().includes('gemini-3-flash') ||
+                id.toLowerCase().includes('gemini-3.1-flash')
+            );
+
+            const gemmaModels = uniqueModels.filter(id => id.toLowerCase().includes('gemma'));
+            let bestGemma = '';
+            if (gemmaModels.length > 0) {
+                if (gemmaModels.find(m => m.includes('27b'))) bestGemma = gemmaModels.find(m => m.includes('27b'))!;
+                else if (gemmaModels.find(m => m.includes('9b'))) bestGemma = gemmaModels.find(m => m.includes('9b'))!;
+                else if (gemmaModels.find(m => m.includes('7b'))) bestGemma = gemmaModels.find(m => m.includes('7b'))!;
+                else bestGemma = gemmaModels[0];
+            }
+
+            const finalModels = [...geminiFlash];
+            if (bestGemma) finalModels.push(bestGemma);
+
+            return finalModels;
+        })();
+
+        if (baseModelIds.length === 0) {
+            const message = v1Res.error || v1betaRes.error || 'Model listesi alınamadı.';
+            throw new Error(message);
+        }
+        return baseModelIds;
+    };
+
     useEffect(() => {
         fetchLanguages();
     }, []);
@@ -38,6 +100,13 @@ const AiSettings: React.FC = () => {
             fetchFormats();
         }
     }, [settingsLanguage, activeTab]);
+
+    useEffect(() => {
+        if (fetchedModels.length === 0) return;
+        if (formData.google_ai_model && fetchedModels.includes(formData.google_ai_model)) return;
+        const fallback = fetchedModels.find((m) => m.toLowerCase().includes('-flash')) || fetchedModels[0];
+        setFormData((prev) => ({ ...prev, google_ai_model: fallback }));
+    }, [fetchedModels]);
 
     const fetchLanguages = async () => {
         try {
@@ -84,15 +153,24 @@ const AiSettings: React.FC = () => {
             if (data) {
                 setFormData({
                     google_ai_apiKey: data.google_ai_api_key || '',
-                    google_ai_model: data.google_ai_model || 'gemini-1.5-flash',
+                    google_ai_model: data.google_ai_model || '',
                     google_ai_active: data.google_ai_active || false
                 });
+                if (data.google_ai_api_key) {
+                    fetchGeminiModels(data.google_ai_api_key, data.google_ai_model || '').then(setFetchedModels).catch((err) => {
+                        console.error('Error fetching Gemini models:', err);
+                        setFetchedModels([]);
+                    });
+                } else {
+                    setFetchedModels([]);
+                }
             } else {
                 setFormData({
                     google_ai_apiKey: '',
-                    google_ai_model: 'gemini-1.5-flash',
+                    google_ai_model: '',
                     google_ai_active: false
                 });
+                setFetchedModels([]);
             }
         } catch (err) {
             console.error('Error fetching AI settings:', err);
@@ -109,25 +187,12 @@ const AiSettings: React.FC = () => {
 
         setIsTesting(true);
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${formData.google_ai_apiKey}`);
-            const data = await response.json();
-
-            if (data.error) {
-                throw new Error(data.error.message);
-            }
-
-            if (data.models) {
-                // Filter models that support generateContent and start with models/
-                const models = data.models
-                    .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
-                    .map((m: any) => m.name.replace('models/', ''));
-
-                setFetchedModels(models);
-                if (models.length > 0) {
-                    showToast(t('ai_settings.test_success'), 'success');
-                } else {
-                    showToast(t('ai_settings.no_models'), 'warning');
-                }
+            const models = await fetchGeminiModels(formData.google_ai_apiKey, formData.google_ai_model);
+            setFetchedModels(models);
+            if (models.length > 0) {
+                showToast(t('ai_settings.test_success'), 'success');
+            } else {
+                showToast(t('ai_settings.no_models'), 'warning');
             }
         } catch (err: any) {
             console.error('API Test Error:', err);
@@ -365,17 +430,14 @@ const AiSettings: React.FC = () => {
                                                     onChange={(e) => setFormData({ ...formData, google_ai_model: e.target.value })}
                                                     className="w-full h-12 bg-palette-beige/10 border border-palette-tan/20 rounded-[5px] pl-12 pr-10 text-[13px] font-bold focus:border-palette-red focus:ring-4 focus:ring-palette-red/5 transition-all appearance-none cursor-pointer outline-none"
                                                 >
-                                                    {fetchedModels.length > 0 ? (
-                                                        fetchedModels.map(model => (
-                                                            <option key={model} value={model}>{model}</option>
-                                                        ))
-                                                    ) : (
-                                                        <>
-                                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                                                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                                                        </>
-                                                    )}
+                                                    <option value="" disabled>
+                                                        {fetchedModels.length > 0 ? 'Model Seçin' : 'API bağlantısını test edin'}
+                                                    </option>
+                                                    {fetchedModels.map((model) => (
+                                                        <option key={model} value={model}>
+                                                            {model}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                                 <span className="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-rounded text-palette-tan/50 pointer-events-none" style={{ fontSize: '20px' }}>expand_more</span>
                                             </div>
