@@ -28,16 +28,16 @@ const ParagraphCard: React.FC<ParagraphCardProps> = ({ data }) => {
                 </div>
 
                 {/* Content Section */}
-                <div className="relative z-10 flex flex-col items-start text-left">
+                <div className="relative z-10 flex flex-col items-start text-left w-full">
                     <div className="bg-white p-4 rounded-full shadow-md border border-palette-beige/30 mb-8 transform -rotate-3 group-hover:rotate-0 transition-transform duration-700 ml-0 mr-auto">
                         <Quote size={32} className="text-palette-red drop-shadow-sm" fill="currentColor" />
                     </div>
 
-                    <div className="space-y-6 max-w-[90%] ml-0 mr-auto">
+                    <div className="space-y-6 w-full max-w-[100%] sm:max-w-[90%] ml-0 mr-auto">
                         {items.map((item, index) => (
                             <div
                                 key={index}
-                                className="rich-text-content text-[22px] md:text-[26px] font-[800] text-palette-maroon/90 leading-snug tracking-tight italic flex flex-col items-start break-words"
+                                className="rich-text-content text-[22px] md:text-[26px] font-[800] text-palette-maroon/90 leading-snug tracking-tight italic w-full break-words break-all sm:break-normal"
                                 dangerouslySetInnerHTML={{ __html: item }}
                             />
                         ))}

@@ -15,13 +15,13 @@ const youtubeParser = (url: string) => {
   if (match && match[2].length === 11) {
     const id = match[2];
     const isShorts = url.includes('/shorts/');
-	    return {
-	      id,
-	      embed: `https://www.youtube.com/embed/${id}?enablejsapi=1&autoplay=0&mute=1&controls=0&rel=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&playsinline=1`,
-	      thumbnail: `https://img.youtube.com/vi/${id}/maxresdefault.jpg`,
-	      isShorts
-	    };
-	  }
+    return {
+      id,
+      embed: `https://www.youtube.com/embed/${id}?enablejsapi=1&autoplay=0&mute=1&controls=0&rel=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&playsinline=1`,
+      thumbnail: `https://img.youtube.com/vi/${id}/maxresdefault.jpg`,
+      isShorts
+    };
+  }
   return null;
 };
 
@@ -368,6 +368,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
   }, [isYoutube, isPlaying]);
 
   const toggleMute = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     if (isYoutube) {
       sendYoutubeCommand(isMuted ? "unMute" : "mute");
@@ -379,6 +380,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
   };
 
   const togglePlay = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     if (isYoutube) {
       if (isPlaying) { sendYoutubeCommand("pauseVideo"); setIsPlaying(false); userHasPaused.current = true; }
@@ -412,7 +414,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
       <div
         ref={videoContainerRef}
         onClick={togglePlay}
-        className="relative w-full bg-black shadow-lg border border-gray-100 group flex justify-center items-center overflow-hidden cursor-pointer rounded-[5px]"
+        className="video-interact-area relative w-full bg-black shadow-lg border border-gray-100 group flex justify-center items-center overflow-hidden cursor-pointer rounded-[5px]"
       >
         {isYoutube ? (
           <div className={`w-full mx-auto aspect-video ${ytInfo.isShorts ? 'max-w-[300px] aspect-[9/16]' : ''}`}>
@@ -426,15 +428,15 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
             />
           </div>
         ) : (
-	          <video
-	            ref={videoRef}
-	            src={data.mediaUrl}
-	            poster={data.optimizedThumbnail?.src || data.thumbnail}
-	            className="w-auto h-auto max-h-[450px] object-contain mx-auto"
-	            muted={true}
-	            playsInline
-	            loop
-	            onLoadedMetadata={(e) => setTimeDisplay(formatTime(e.currentTarget.duration))}
+          <video
+            ref={videoRef}
+            src={data.mediaUrl}
+            poster={data.optimizedThumbnail?.src || data.thumbnail}
+            className="w-auto h-auto max-h-[450px] object-contain mx-auto"
+            muted={true}
+            playsInline
+            loop
+            onLoadedMetadata={(e) => setTimeDisplay(formatTime(e.currentTarget.duration))}
             onTimeUpdate={handleTimeUpdate}
           />
         )}
