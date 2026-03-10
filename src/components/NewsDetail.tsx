@@ -152,23 +152,23 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
     const postType = String((data as any).postType || '').toLowerCase();
     const coverThumbnail = ((data as any).coverThumbnail as string) || data.thumbnail;
 
-	    // Eğer bu bir "article" haberi ise, ana medya her zaman haberin kapak görseli olmalı.
-	    if (postType === 'article') {
-	      const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
-	      const coverSrc = coverOptimized?.src || coverThumbnail;
-	      return (
-	        <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8">
-	          <img
-	            src={coverSrc}
-	            srcSet={coverOptimized?.srcSet}
-	            sizes={coverOptimized?.sizes}
-	            alt={data.thumbnailAlt || data.seoTitle || data.title}
-	            title={data.thumbnailAlt || data.seoTitle || data.title}
-	            className="w-full h-auto object-cover max-h-[600px]"
-	          />
-	        </div>
-	      );
-	    }
+    // Eğer bu bir "article" haberi ise, ana medya her zaman haberin kapak görseli olmalı.
+    if (postType === 'article') {
+      const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
+      const coverSrc = coverOptimized?.src || coverThumbnail;
+      return (
+        <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8">
+          <img
+            src={coverSrc}
+            srcSet={coverOptimized?.srcSet}
+            sizes={coverOptimized?.sizes}
+            alt={data.thumbnailAlt || data.seoTitle || data.title}
+            title={data.thumbnailAlt || data.seoTitle || data.title}
+            className="w-full h-auto object-cover max-h-[600px]"
+          />
+        </div>
+      );
+    }
 
     switch (data.type) {
       case NewsType.REVIEW: return <ReviewCard data={data} />;
@@ -181,20 +181,20 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       case NewsType.POLL: return <PollCard data={data} />;
       case NewsType.VS: return <VSCard data={data} />;
       case NewsType.PARAGRAPH: return <ParagraphCard data={data} />;
-	      default: return (
-	        <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8">
-	          <img
-	            src={data.optimizedThumbnail?.src || data.thumbnail}
-	            srcSet={data.optimizedThumbnail?.srcSet}
-	            sizes={data.optimizedThumbnail?.sizes}
-	            alt={data.thumbnailAlt || data.seoTitle || data.title}
-	            title={data.thumbnailAlt || data.seoTitle || data.title}
-	            className="w-full h-auto object-cover max-h-[600px]"
-	          />
-	        </div>
-	      );
-	    }
-	  };
+      default: return (
+        <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8">
+          <img
+            src={data.optimizedThumbnail?.src || data.thumbnail}
+            srcSet={data.optimizedThumbnail?.srcSet}
+            sizes={data.optimizedThumbnail?.sizes}
+            alt={data.thumbnailAlt || data.seoTitle || data.title}
+            title={data.thumbnailAlt || data.seoTitle || data.title}
+            className="w-full h-auto object-cover max-h-[600px]"
+          />
+        </div>
+      );
+    }
+  };
 
   // 🚀 Dynamic Reading Time Engine
   const calculateReadingTime = () => {
@@ -250,13 +250,13 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         {/* Meta Info Bar */}
         <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-100">
           <div className="flex items-center gap-4">
-	            <div className="w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm">
-	              <img src={data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`} alt={data.author} className="w-full h-full object-cover" />
-	            </div>
-	            <div>
-	              <div className="flex items-center gap-1.5">
-	                <span className="text-sm font-black text-gray-900">{data.author}</span>
-	                <CheckCircle2 size={14} className="text-blue-500" />
+            <div className="w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm">
+              <img src={data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`} alt={data.author} className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-black text-gray-900">{data.author}</span>
+                <CheckCircle2 size={14} className="text-blue-500" />
               </div>
               <div className="flex items-center gap-3 text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
                 <span className="flex items-center gap-1"><Calendar size={12} /> {data.timestamp}</span>
@@ -472,23 +472,32 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
 
           {/* FAQ Section */}
           {data.faqData && data.faqData.length > 0 && (
-            <div className="mt-16 pt-10 border-t border-gray-100 space-y-8">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-50 rounded-[5px] flex items-center justify-center text-blue-600">
-                  <CheckCircle2 size={24} />
+            <div className="mt-10 pt-8 border-t-2 border-palette-beige/50">
+              <div className="flex items-center justify-center gap-3 mb-6">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-palette-beige/30 rounded-full border border-palette-beige">
+                  <span className="material-symbols-rounded text-palette-tan" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>
+                    quiz
+                  </span>
+                  <span className="text-[10px] font-bold text-palette-tan uppercase tracking-widest">{t('news.faq_title')}</span>
                 </div>
-                <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{t('news.faq_title')}</h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
               </div>
-              <div className="grid gap-4">
+
+              <div className="grid gap-3">
                 {data.faqData.map((faq, idx) => (
-                  <div key={idx} className="bg-gray-50/50 rounded-[10px] border border-gray-100/50 p-6 transition-all hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 group">
-                    <div className="flex gap-4">
-                      <div className="shrink-0 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
-                        ?
+                  <div key={idx} className="bg-white rounded-[5px] border border-palette-beige/50 p-4 md:p-5 transition-all duration-300 hover:border-palette-tan/20 hover:shadow-[0_4px_15px_rgba(24,37,64,0.03)] group relative overflow-hidden">
+                    <div className="absolute -right-2 -top-4 text-[70px] font-black text-palette-beige/30 pointer-events-none group-hover:scale-[1.10] group-hover:text-palette-red/5 transition-transform duration-700 select-none">
+                      ?
+                    </div>
+                    <div className="flex flex-col gap-3 relative z-10">
+                      <div className="flex items-start gap-3">
+                        <span className="text-palette-red font-[900] text-[18px] leading-none mt-0.5 select-none opacity-80 group-hover:opacity-100 transition-opacity">Q.</span>
+                        <h4 className="text-base md:text-lg font-[900] text-palette-tan leading-tight tracking-tight pt-[1px]">{faq.q}</h4>
                       </div>
-                      <div className="space-y-3">
-                        <h4 className="text-lg font-black text-gray-900 leading-tight">{faq.q}</h4>
-                        <p className="text-gray-600 leading-relaxed font-medium">{faq.a}</p>
+                      <div className="pl-8">
+                        <div className="w-6 h-[2px] bg-palette-red/30 mb-3 group-hover:w-16 group-hover:bg-palette-red/60 transition-all duration-500"></div>
+                        <p className="text-[13px] md:text-[14px] text-gray-600 leading-[1.7] font-medium">{faq.a}</p>
                       </div>
                     </div>
                   </div>

@@ -505,6 +505,9 @@ const stripMarkdownEmphasis = (value: string) =>
         .replace(/__/g, '')
         .trim();
 
+const stripMarkdownHeadingPrefix = (value: string) =>
+    String(value || '').replace(/^#{1,6}\s*/, '').trim();
+
 const markdownInlineToSafeHtml = (value: string) => {
     const escaped = escapeHtml(String(value || ''));
     return escaped
@@ -588,6 +591,33 @@ const parseSmartBrevitySummary = (rawSummary: string) => {
     const isNeden = (line: string) => /neden\s*önemli/i.test(line);
     const isLabelLine = (line: string) => isYeni(line) || isNeden(line);
 
+    const splitLineIntoEmojiBullets = (input: string) => {
+        const text = String(input ?? '').trim();
+        if (!text) return [] as string[];
+
+        const bulletStartRe = /\p{Extended_Pictographic}\uFE0F?\s*[^:\n]{2,120}:\s*/gu;
+        const starts = Array.from(text.matchAll(bulletStartRe))
+            .map((m) => m.index)
+            .filter((idx): idx is number => typeof idx === 'number');
+
+        if (starts.length <= 1) return [text];
+
+        const parts: string[] = [];
+        if (starts[0] > 0) {
+            const prefix = text.slice(0, starts[0]).trim();
+            if (prefix) parts.push(prefix);
+        }
+
+        for (let i = 0; i < starts.length; i++) {
+            const start = starts[i];
+            const end = i + 1 < starts.length ? starts[i + 1] : text.length;
+            const part = text.slice(start, end).trim();
+            if (part) parts.push(part);
+        }
+
+        return parts.length > 0 ? parts : [text];
+    };
+
     const extractValueAfterColon = (line: string) => {
         const cleaned = normalizeLine(line);
         const parts = cleaned.split(/:\s*/);
@@ -595,14 +625,19 @@ const parseSmartBrevitySummary = (rawSummary: string) => {
         return parts.slice(1).join(':').trim();
     };
 
-    const yeniLine = lines.find((l) => isYeni(l));
-    const nedenLine = lines.find((l) => isNeden(l));
-
-    const spotLines = lines
+    const expandedLines = lines
         .map(normalizeLine)
+        .flatMap((l) => splitLineIntoEmojiBullets(l))
+        .map((l) => String(l ?? '').trim())
+        .filter(Boolean);
+
+    const yeniLine = expandedLines.find((l) => isYeni(l));
+    const nedenLine = expandedLines.find((l) => isNeden(l));
+
+    const spotLines = expandedLines
         .filter((l) => l && !isLabelLine(l));
 
-    const spot = spotLines.join(' ').trim();
+    const spot = spotLines.join('\n').trim();
 
     return {
         spot,
@@ -612,8 +647,10 @@ const parseSmartBrevitySummary = (rawSummary: string) => {
 };
 
 type AiContentBlock =
-    | { kind: 'text'; title: string; lines: string[] }
-    | { kind: 'image'; caption: string };
+    | { kind: 'text'; title: string; lines: string[]; blockNo?: number }
+    | { kind: 'image'; title: string; caption: string; altText?: string }
+    | { kind: 'video'; title: string; caption: string }
+    | { kind: 'audio'; title: string; caption: string };
 
 const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
     const normalized = normalizeAiNewlines(rawContent);
@@ -622,6 +659,8 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
     const blocks: AiContentBlock[] = [];
     let currentTitle = '';
     let currentLines: string[] = [];
+    let currentTextBlockNo: number | null = null;
+    let capturedSpotLines: string[] = [];
 
     const flushText = () => {
         const title = stripMarkdownEmphasis(currentTitle);
@@ -632,9 +671,116 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
             currentLines = [];
             return;
         }
-        blocks.push({ kind: 'text', title, lines: bodyLines });
+        blocks.push({ kind: 'text', title, lines: bodyLines, blockNo: currentTextBlockNo || undefined });
         currentTitle = '';
         currentLines = [];
+    };
+
+    const normalizeTrKey = (value: string) =>
+        String(value || '')
+            .toLocaleLowerCase('tr-TR')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/ı/g, 'i')
+            .replace(/ş/g, 's')
+            .replace(/ğ/g, 'g')
+            .replace(/ç/g, 'c')
+            .replace(/ö/g, 'o')
+            .replace(/ü/g, 'u')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    const parseItemMarkerLine = (input: string) => {
+        const trimmed = String(input ?? '').trim();
+        if (!trimmed) return null;
+
+        // Preferred format: [İTEM: ...]
+        if (trimmed.startsWith('[')) {
+            const closeIdx = trimmed.indexOf(']');
+            if (closeIdx !== -1) {
+                const inside = trimmed.slice(1, closeIdx).trim();
+                const restRaw = trimmed.slice(closeIdx + 1).trim();
+
+                const colonIdx = inside.indexOf(':');
+                if (colonIdx !== -1) {
+                    const prefix = inside.slice(0, colonIdx).trim();
+                    const markerRaw = inside.slice(colonIdx + 1).trim();
+
+                    if (normalizeTrKey(prefix) === 'item' && markerRaw) {
+                        return { markerRaw, restRaw };
+                    }
+                }
+            }
+        }
+
+        // Fallback (no brackets): İTEM: ...
+        const colonIdx = trimmed.indexOf(':');
+        if (colonIdx !== -1) {
+            const prefix = trimmed.slice(0, colonIdx).trim();
+            const markerRaw = trimmed.slice(colonIdx + 1).trim();
+            if (normalizeTrKey(prefix) === 'item' && markerRaw) {
+                return { markerRaw, restRaw: '' };
+            }
+        }
+
+        return null;
+    };
+
+    const parseMediaDetailLine = (input: string) => {
+        const cleaned = stripMarkdownEmphasis(String(input || '')).replace(/^[-*•–]\s*/, '').trim();
+        const colonIdx = cleaned.indexOf(':');
+        if (colonIdx === -1) return null;
+        const keyRaw = cleaned.slice(0, colonIdx).trim();
+        const valueRaw = cleaned.slice(colonIdx + 1).trim();
+        if (!keyRaw || !valueRaw) return null;
+
+        const key = normalizeTrKey(keyRaw);
+        const value = valueRaw.trim();
+        if (!value) return null;
+
+        if (key.includes('medya') && (key.includes('baslik') || key.includes('baslig'))) return { field: 'title' as const, value };
+        if (key.includes('alt') && key.includes('aciklama')) return { field: 'caption' as const, value };
+        if (key.includes('tasvir') || key.includes('talimat')) return { field: 'altText' as const, value };
+        return null;
+    };
+
+    const isMediaDetailCandidateLine = (input: string) => {
+        const cleaned = stripMarkdownEmphasis(String(input || '')).trim();
+        return /^[-*•–]\s*[^:]{2,}:\s*.+/.test(cleaned);
+    };
+
+    const parseMediaDetails = (detailLines: string[]) => {
+        let title = '';
+        let caption = '';
+        let altText = '';
+        const fallbacks: string[] = [];
+
+        for (const line of detailLines) {
+            const parsed = parseMediaDetailLine(line);
+            if (parsed?.field === 'title') {
+                title = parsed.value;
+                continue;
+            }
+            if (parsed?.field === 'caption') {
+                caption = parsed.value;
+                continue;
+            }
+            if (parsed?.field === 'altText') {
+                altText = parsed.value;
+                continue;
+            }
+
+            const cleaned = stripMarkdownEmphasis(String(line || '')).replace(/^[-*•–]\s*/, '').trim();
+            if (cleaned) fallbacks.push(cleaned);
+        }
+
+        if (!caption && fallbacks.length > 0) caption = fallbacks.join(' ');
+
+        return {
+            title: stripMarkdownEmphasis(title),
+            caption: stripMarkdownEmphasis(caption),
+            altText: stripMarkdownEmphasis(altText),
+        };
     };
 
     // Supports:
@@ -643,19 +789,238 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
     // [BURAYA İLGİLİ GÖRSEL/GRAFİK GELECEK: ...]
     const imagePlaceholderRegex = /^\[?\s*BURAYA\s+İLGİLİ\s+(?:GÖRSEL(?:\s*\/\s*GRAF[İI]K)?|GRAF[İI]K)\s+GELECEK\s*:\s*(.+?)\s*\]?\s*$/i;
 
-    for (const rawLine of lines) {
-        const line = String(rawLine ?? '').trim();
+    const trimEdgeEmptyLines = (value: string[]) => {
+        const arr = Array.isArray(value) ? value.map((v) => String(v ?? '')) : [];
+        let start = 0;
+        let end = arr.length;
+        while (start < end && !arr[start].trim()) start++;
+        while (end > start && !arr[end - 1].trim()) end--;
+        return arr.slice(start, end);
+    };
+
+    const splitSpotLineIntoEmojiBullets = (input: string) => {
+        const text = String(input ?? '').trim();
+        if (!text) return [] as string[];
+
+        const bulletStartRe = /\p{Extended_Pictographic}\uFE0F?\s*[^:\n]{2,120}:\s*/gu;
+        const starts = Array.from(text.matchAll(bulletStartRe))
+            .map((m) => m.index)
+            .filter((idx): idx is number => typeof idx === 'number');
+
+        if (starts.length <= 1) return [text];
+
+        const parts: string[] = [];
+        if (starts[0] > 0) {
+            const prefix = text.slice(0, starts[0]).trim();
+            if (prefix) parts.push(prefix);
+        }
+
+        for (let i = 0; i < starts.length; i++) {
+            const start = starts[i];
+            const end = i + 1 < starts.length ? starts[i + 1] : text.length;
+            const part = text.slice(start, end).trim();
+            if (part) parts.push(part);
+        }
+
+        return parts.length > 0 ? parts : [text];
+    };
+
+    const isListLine = (value: string) => /^[-*•–]\s+/.test(value) || /^\d+\.\s+/.test(value);
+
+    const formatSpotLinesForQuill = (lines: string[]) => {
+        const expanded: string[] = [];
+        for (const rawLine of Array.isArray(lines) ? lines : []) {
+            const trimmed = String(rawLine ?? '').trim();
+            if (!trimmed) {
+                expanded.push('');
+                continue;
+            }
+            const parts = splitSpotLineIntoEmojiBullets(trimmed);
+            if (parts.length > 0) expanded.push(...parts);
+        }
+
+        const out: string[] = [];
+        for (const rawLine of expanded) {
+            const trimmed = String(rawLine ?? '').trim();
+            if (!trimmed) {
+                if (out.length > 0 && out[out.length - 1] !== '') out.push('');
+                continue;
+            }
+
+            const prev = out.length > 0 ? String(out[out.length - 1] ?? '').trim() : '';
+            const prevIsList = prev ? isListLine(prev) : false;
+            const currIsList = isListLine(trimmed);
+
+            // Force separate paragraphs for non-list SPOT lines (emoji bullets etc.)
+            if (prev && !prevIsList && !currIsList) out.push('');
+
+            out.push(trimmed);
+        }
+
+        return trimEdgeEmptyLines(out);
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const rawLine = String(lines[i] ?? '');
+        let line = rawLine.trim();
 
         if (!line) {
             currentLines.push('');
             continue;
         }
 
+        const markerInfo = parseItemMarkerLine(line);
+        if (markerInfo) {
+            const markerRaw = stripMarkdownEmphasis(markerInfo.markerRaw || '');
+            const restRaw = String(markerInfo.restRaw || '').trim();
+            const marker = normalizeTrKey(markerRaw);
+
+            const isMedia = marker.includes('medya');
+            const isVideo = marker.includes('video');
+            const isAudio = marker.includes('ses') || marker.includes('audio');
+            const isImage = marker.includes('gorsel') || marker.includes('grafik') || marker.includes('resim') || marker.includes('foto');
+            const isImageSuggestion = marker.includes('gorsel') && marker.includes('oneri');
+            const isTextBlockMarker = marker.includes('metin blok');
+            const isSpotSection = marker.includes('spot') || marker.includes('ozet');
+            let nextTextBlockNo: number | null = null;
+
+            if (isTextBlockMarker) {
+                const match = marker.match(/metin blok\s*(\d+)/i);
+                if (match) {
+                    const parsedNo = Number(match[1]);
+                    if (Number.isFinite(parsedNo) && parsedNo > 0) nextTextBlockNo = parsedNo;
+                }
+            }
+
+            const shouldSkipSection =
+                !isMedia &&
+                !isTextBlockMarker &&
+                (
+                    marker === 'baslik' ||
+                    marker.startsWith('seo') ||
+                    marker.includes('seo ') ||
+                    marker.includes('seo meta')
+                );
+
+            if (isTextBlockMarker) {
+                // Split blocks and move SPOT under block-1 at the end (handled later).
+                // Important: flush before changing the active text block number.
+                flushText();
+                if (nextTextBlockNo) currentTextBlockNo = nextTextBlockNo;
+                if (!restRaw) continue;
+                line = restRaw;
+            }
+
+            if (isMedia && (isVideo || isAudio || isImage)) {
+                flushText();
+
+                const detailLines: string[] = [];
+                if (restRaw) detailLines.push(restRaw);
+
+                let j = i + 1;
+                for (; j < lines.length; j++) {
+                    const next = String(lines[j] ?? '').trim();
+                    if (!next) continue;
+                    if (parseItemMarkerLine(next)) break;
+
+                    const parsed = parseMediaDetailLine(next);
+                    if (!parsed && !isMediaDetailCandidateLine(next)) break;
+                    detailLines.push(next);
+                }
+
+                const details = parseMediaDetails(detailLines);
+                const title = details.title || '';
+                const caption = details.caption || '';
+                const altText = details.altText || '';
+
+                if (isImage) {
+                    blocks.push({ kind: 'image', title, caption, altText: altText || caption || '' });
+                } else if (isVideo) {
+                    blocks.push({ kind: 'video', title, caption });
+                } else if (isAudio) {
+                    blocks.push({ kind: 'audio', title, caption });
+                }
+
+                i = j - 1;
+                continue;
+            }
+
+            if (isSpotSection) {
+                flushText();
+
+                const collected: string[] = [];
+                if (restRaw) collected.push(restRaw);
+
+                let j = i + 1;
+                for (; j < lines.length; j++) {
+                    const nextRaw = String(lines[j] ?? '');
+                    const nextTrim = nextRaw.trim();
+                    if (parseItemMarkerLine(nextTrim)) break;
+                    collected.push(nextTrim);
+                }
+
+                const trimmedCollected = trimEdgeEmptyLines(collected);
+                if (trimmedCollected.some((l) => l.trim())) capturedSpotLines = trimmedCollected;
+
+                i = j - 1;
+                continue;
+            }
+
+            if (isImageSuggestion) {
+                flushText();
+
+                let caption = restRaw;
+                let j = i + 1;
+                if (!caption) {
+                    while (j < lines.length) {
+                        const next = String(lines[j] ?? '').trim();
+                        if (!next) {
+                            j++;
+                            continue;
+                        }
+                        if (parseItemMarkerLine(next)) break;
+                        caption = next;
+                        j++;
+                        break;
+                    }
+                }
+
+                caption = stripMarkdownEmphasis(caption)
+                    .replace(/^\(\s*/, '')
+                    .replace(/\s*\)$/, '')
+                    .trim();
+
+                if (caption) blocks.push({ kind: 'image', title: '', caption, altText: caption });
+
+                i = j - 1;
+                continue;
+            }
+
+            if (shouldSkipSection) {
+                flushText();
+
+                let j = i + 1;
+                for (; j < lines.length; j++) {
+                    const next = String(lines[j] ?? '').trim();
+                    if (!next) continue;
+                    if (parseItemMarkerLine(next)) break;
+                }
+
+                i = j - 1;
+                continue;
+            }
+
+            // Non-media markers are structural only; split blocks and keep any inline remainder.
+            flushText();
+            if (!restRaw) continue;
+            line = restRaw;
+        }
+
         const imageMatch = line.match(imagePlaceholderRegex);
         if (imageMatch) {
             flushText();
             const caption = stripMarkdownEmphasis(imageMatch[1] || '');
-            if (caption) blocks.push({ kind: 'image', caption });
+            if (caption) blocks.push({ kind: 'image', title: '', caption, altText: caption });
             continue;
         }
 
@@ -674,6 +1039,26 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
 
     flushText();
 
+    // Merge [İTEM: SPOT / ÖZET] into [İTEM: METİN BLOK 1 - GİRİŞ] and keep it at the bottom.
+    if (capturedSpotLines.length > 0) {
+        const spotLines = formatSpotLinesForQuill(trimEdgeEmptyLines(capturedSpotLines));
+        if (spotLines.length > 0) {
+            const block1Indices = blocks
+                .map((b, idx) => (b.kind === 'text' && (b as any)?.blockNo === 1 ? idx : -1))
+                .filter((idx) => idx !== -1);
+            const targetIdx = block1Indices.length > 0
+                ? block1Indices[block1Indices.length - 1]
+                : blocks.findIndex((b) => b.kind === 'text');
+
+            if (targetIdx !== -1) {
+                const target = blocks[targetIdx] as any;
+                const existingLines = Array.isArray(target?.lines) ? target.lines.map((l: any) => String(l ?? '')) : [];
+                const hasExisting = existingLines.some((l) => l.trim());
+                target.lines = [...existingLines, ...(hasExisting ? [''] : []), ...spotLines];
+            }
+        }
+    }
+
     return blocks;
 };
 
@@ -688,13 +1073,33 @@ const buildItemsFromAiContent = (rawContent: string) => {
         if (block.kind === 'image') {
             const caption = block.caption.trim();
             const captionHtml = caption ? `<p>${markdownInlineToSafeHtml(caption)}</p>` : '';
+            const title = stripMarkdownHeadingPrefix(stripMarkdownEmphasis(block.title || ''));
+            const altText = stripMarkdownEmphasis(block.altText || caption || '');
             items.push({
                 id: makeId('image'),
                 type: 'image',
-                title: '',
+                title,
                 description: captionHtml,
                 mediaUrl: '',
-                altText: caption,
+                altText,
+                source: '',
+                createdAt: now,
+                orderNumber: items.length + 1,
+            });
+            return;
+        }
+
+        if (block.kind === 'video' || block.kind === 'audio') {
+            const caption = block.caption.trim();
+            const captionHtml = caption ? `<p>${markdownInlineToSafeHtml(caption)}</p>` : '';
+            const title = stripMarkdownHeadingPrefix(stripMarkdownEmphasis(block.title || ''));
+            const type = block.kind;
+            items.push({
+                id: makeId(type),
+                type,
+                title,
+                description: captionHtml,
+                mediaUrl: '',
                 source: '',
                 createdAt: now,
                 orderNumber: items.length + 1,
@@ -2167,6 +2572,12 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         setFormData({ ...formData, items: newItems });
     };
 
+    const normalizeSeoDescriptionInput = (value: string) =>
+        String(value || '')
+            .replace(/\s*\n+\s*/g, ' ')
+            .trim()
+            .slice(0, 160);
+
     const handleTitleChange = (val: string) => {
         const slug = val.toLowerCase()
             .replace(/ğ/g, 'g')
@@ -2186,7 +2597,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             title: val,
             slug: slug,
             seoTitle: val.slice(0, 60),
-            seoDescription: formData.summary || val.slice(0, 160)
+            seoDescription: normalizeSeoDescriptionInput(formData.summary || val)
         });
     };
 
@@ -2195,7 +2606,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         setFormData({
             ...formData,
             summary: val,
-            seoDescription: val.slice(0, 160)
+            seoDescription: normalizeSeoDescriptionInput(val)
         });
     };
 
@@ -2779,7 +3190,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             type="text"
                                             value={formData.title}
                                             onChange={(e) => handleTitleChange(e.target.value)}
-                                            placeholder={t('nav_settings.form.label') + "..."}
+                                            placeholder={t('admin.post.post_title_placeholder')}
                                             className={`w-full bg-palette-beige/5 border ${validationErrors.title ? 'border-palette-red/50 bg-palette-red/5' : 'border-palette-tan/20'} rounded-[3px] p-3.5 text-[18px] font-bold text-palette-maroon focus:border-palette-red outline-none transition-all`}
                                         />
                                         {validationErrors.title && (
@@ -2824,6 +3235,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                 type="text"
                                                 value={formData.seoTitle}
                                                 onChange={(e) => setFormData({ ...formData, seoTitle: e.target.value })}
+                                                placeholder={t('posts.form.meta_title_placeholder')}
                                                 className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-maroon outline-none"
                                             />
                                         </div>
@@ -2833,6 +3245,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                 type="text"
                                                 value={formData.slug}
                                                 onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                                                placeholder={t('posts.form.slug_placeholder')}
                                                 className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-bold text-palette-red outline-none"
                                             />
                                         </div>
@@ -2843,6 +3256,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             type="text"
                                             value={formData.seoDescription}
                                             onChange={(e) => setFormData({ ...formData, seoDescription: e.target.value })}
+                                            placeholder={t('posts.form.meta_desc_placeholder')}
                                             className="w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-2 text-sm font-medium text-palette-tan outline-none"
                                         />
                                     </div>

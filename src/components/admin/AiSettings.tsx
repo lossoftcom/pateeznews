@@ -62,11 +62,42 @@ const AiSettings: React.FC = () => {
                 return true;
             });
 
-            // Sadece Flash 3, Flash 3.1 ve Gemma'nın en güçlü modelini filtrele
-            const geminiFlash = uniqueModels.filter(id =>
-                id.toLowerCase().includes('gemini-3-flash') ||
-                id.toLowerCase().includes('gemini-3.1-flash')
-            );
+            // Sadece Flash 3, Flash 2.5 ve Gemma'nın en güçlü modelini filtrele
+            const isImageVariant = (id: string) => id.toLowerCase().includes('image');
+
+            const geminiFlash = uniqueModels.filter((id) => {
+                const lower = id.toLowerCase();
+                if (isImageVariant(lower)) return false;
+                return lower.includes('gemini-3-flash') || lower.includes('gemini-3.1-flash');
+            });
+
+            const pickBestModel = (candidates: string[]) => {
+                const rank = (id: string) => {
+                    const lower = id.toLowerCase();
+                    let score = 0;
+                    if (lower.includes('latest')) score += 1000;
+                    if (!lower.includes('preview') && !lower.includes('exp') && !lower.includes('experimental')) score += 200;
+                    if (lower.includes('preview')) score -= 50;
+                    // "lite" modeller daha hızlı/ucuz ama genelde daha az yetenekli; güç tercihinde geri bırak.
+                    if (lower.includes('flash-lite') || lower.includes('-lite')) score -= 2000;
+                    return score;
+                };
+
+                return [...candidates]
+                    .sort((a, b) => {
+                        const diff = rank(b) - rank(a);
+                        if (diff !== 0) return diff;
+                        return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
+                    })[0] || '';
+            };
+
+            const gemini25FlashCandidates = uniqueModels.filter((id) => {
+                const lower = id.toLowerCase();
+                if (isImageVariant(lower)) return false;
+                return lower.includes('gemini-2.5-flash');
+            });
+            const exactGemini25Flash = gemini25FlashCandidates.find((m) => m.toLowerCase() === 'gemini-2.5-flash') || '';
+            const bestGemini25Flash = exactGemini25Flash || pickBestModel(gemini25FlashCandidates);
 
             const gemmaModels = uniqueModels.filter(id => id.toLowerCase().includes('gemma'));
             let bestGemma = '';
@@ -78,6 +109,7 @@ const AiSettings: React.FC = () => {
             }
 
             const finalModels = [...geminiFlash];
+            if (bestGemini25Flash && !finalModels.includes(bestGemini25Flash)) finalModels.push(bestGemini25Flash);
             if (bestGemma) finalModels.push(bestGemma);
 
             return finalModels;

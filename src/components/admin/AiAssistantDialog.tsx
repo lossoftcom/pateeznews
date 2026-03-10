@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 
 interface AiAssistantDialogProps {
@@ -72,6 +73,7 @@ Haberin tüm gövde metni (Anayasa kurallarına göre düzenlenmiş) buraya.
 
 const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, onApply }) => {
     const { t, currentLang } = useLanguage();
+    const { showToast } = useToast();
     const [position, setPosition] = useState({ x: 100, y: 100 });
     const [size, setSize] = useState({ width: 900, height: 600 });
     const [isDragging, setIsDragging] = useState(false);
@@ -82,6 +84,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
     const [isGenerating, setIsGenerating] = useState(false);
     const [canApply, setCanApply] = useState(false);
     const [apiNotice, setApiNotice] = useState('');
+    const [newsMedia, setNewsMedia] = useState({ image: false, video: false, audio: false });
 
     const [models, setModels] = useState<string[]>([]);
     const [selectedModel, setSelectedModel] = useState('');
@@ -155,11 +158,42 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
                     return true;
                 });
 
-                // Sadece Flash 3, Flash 3.1 ve Gemma'nın en güçlü modelini filtrele
-                const geminiFlash = uniqueModels.filter(id =>
-                    id.toLowerCase().includes('gemini-3-flash') ||
-                    id.toLowerCase().includes('gemini-3.1-flash')
-                );
+                // Sadece Flash 3, Flash 2.5 ve Gemma'nın en güçlü modelini filtrele
+                const isImageVariant = (id: string) => id.toLowerCase().includes('image');
+
+                const geminiFlash = uniqueModels.filter((id) => {
+                    const lower = id.toLowerCase();
+                    if (isImageVariant(lower)) return false;
+                    return lower.includes('gemini-3-flash') || lower.includes('gemini-3.1-flash');
+                });
+
+                const pickBestModel = (candidates: string[]) => {
+                    const rank = (id: string) => {
+                        const lower = id.toLowerCase();
+                        let score = 0;
+                        if (lower.includes('latest')) score += 1000;
+                        if (!lower.includes('preview') && !lower.includes('exp') && !lower.includes('experimental')) score += 200;
+                        if (lower.includes('preview')) score -= 50;
+                        // "lite" modeller daha hızlı/ucuz ama genelde daha az yetenekli; güç tercihinde geri bırak.
+                        if (lower.includes('flash-lite') || lower.includes('-lite')) score -= 2000;
+                        return score;
+                    };
+
+                    return [...candidates]
+                        .sort((a, b) => {
+                            const diff = rank(b) - rank(a);
+                            if (diff !== 0) return diff;
+                            return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
+                        })[0] || '';
+                };
+
+                const gemini25FlashCandidates = uniqueModels.filter((id) => {
+                    const lower = id.toLowerCase();
+                    if (isImageVariant(lower)) return false;
+                    return lower.includes('gemini-2.5-flash');
+                });
+                const exactGemini25Flash = gemini25FlashCandidates.find((m) => m.toLowerCase() === 'gemini-2.5-flash') || '';
+                const bestGemini25Flash = exactGemini25Flash || pickBestModel(gemini25FlashCandidates);
 
                 const gemmaModels = uniqueModels.filter(id => id.toLowerCase().includes('gemma'));
                 let bestGemma = '';
@@ -171,6 +205,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
                 }
 
                 const finalModels = [...geminiFlash];
+                if (bestGemini25Flash && !finalModels.includes(bestGemini25Flash)) finalModels.push(bestGemini25Flash);
                 if (bestGemma) finalModels.push(bestGemma);
 
                 return finalModels;
@@ -192,22 +227,27 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
         }
     };
 
-    const fetchReadyFormats = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('ai_ready_formats')
-                .select('*')
-                .eq('language_code', currentLang.code)
-                .eq('is_active', true)
-                .order('title');
-            if (data) {
-                setReadyFormats(data);
-                // No auto-select, let user pick
-            }
-        } catch (err) {
-            console.error('Error fetching ready formats:', err);
-        }
-    };
+	    const fetchReadyFormats = async () => {
+	        try {
+	            const { data } = await supabase
+	                .from('ai_ready_formats')
+	                .select('*')
+	                .eq('language_code', currentLang.code)
+	                .eq('is_active', true)
+	                .order('title');
+	            if (data) {
+	                setReadyFormats(data);
+	                setSelectedFormat((current) => {
+	                    const currentValue = String(current || '').trim();
+	                    if (currentValue && data.some((f: any) => String(f?.id) === currentValue)) return currentValue;
+	                    const firstId = data[0]?.id;
+	                    return firstId ? String(firstId) : '';
+	                });
+	            }
+	        } catch (err) {
+	            console.error('Error fetching ready formats:', err);
+	        }
+	    };
 
     // Update size to be wider by default if it's the first open
     useEffect(() => {
@@ -262,12 +302,19 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
         const faqRaw = extract('FAQ');
         const faqs: { q: string, a: string }[] = [];
         if (faqRaw) {
+            const normalizeFaqQuestion = (value: string) => {
+                const raw = String(value ?? '').trim();
+                if (!raw) return '';
+                const base = raw.replace(/\s*[?؟]+$/g, '').trim();
+                return `${base || raw}?`;
+            };
+
             const pairs = faqRaw.split(/S:/).filter(p => p.trim());
             pairs.forEach(p => {
                 const parts = p.split(/C:/);
                 if (parts.length === 2) {
                     faqs.push({
-                        q: parts[0].replace(/\?$/, '').trim() + '?',
+                        q: normalizeFaqQuestion(parts[0]),
                         a: parts[1].trim()
                     });
                 }
@@ -289,6 +336,11 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 
     const handleGenerate = async (mode: 'organize' | 'make-ready') => {
         if (!content || isGenerating) return;
+
+        if (!selectedFormat) {
+            showToast('AI hazır formatı seçmelisiniz', 'error');
+            return;
+        }
 
         if (!apiKey) {
             alert("AI API Key bulunamadı. Lütfen Ayarlar > AI Ayarları kısmından API anahtarınızı girin.");
@@ -331,7 +383,13 @@ C: Cevap.
 Haber içeriği
 [/CONTENT]` : '';
 
-            const finalPrompt = systemPrompt + outputInstruction + "\n\nKonu / İçerik:\n" + content;
+            const mediaLines: string[] = [];
+            if (newsMedia.image) mediaLines.push(t('admin.ai_assistant.media.image'));
+            if (newsMedia.video) mediaLines.push(t('admin.ai_assistant.media.video'));
+            if (newsMedia.audio) mediaLines.push(t('admin.ai_assistant.media.audio'));
+            const mediaSuffix = mediaLines.length > 0 ? `\n\n${mediaLines.join('\n')}` : '';
+
+            const finalPrompt = systemPrompt + outputInstruction + "\n\nKonu / İçerik:\n" + content + mediaSuffix;
 
             const payload = {
                 contents: [{
@@ -382,6 +440,12 @@ Haber içeriği
                 return false;
             };
 
+            const isHighDemandError = (error: any, fallbackMessage: string) => {
+                const message = String(error?.message || fallbackMessage || '').toLowerCase();
+                if (!message) return false;
+                return message.includes('high demand') || message.includes('please try again later');
+            };
+
             const callGenerate = async (apiVersion: 'v1' | 'v1beta', modelId: string) => {
                 const response = await fetch(
                     `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -402,15 +466,31 @@ Haber içeriği
             };
 
             const tryGenerateWithModel = async (modelId: string) => {
-                // Stable models may be served from v1 while previews can be on v1beta. Try both.
-                const primary = await callGenerate('v1', modelId);
+                // Gemini API docs primarily use v1beta for generateContent.
+                // Use v1beta by default and only fall back to v1 when the model is not supported on that version.
+                const primaryVersion: 'v1' | 'v1beta' = 'v1beta';
+                const secondaryVersion: 'v1' | 'v1beta' = 'v1';
+
+                const primary = await callGenerate(primaryVersion, modelId);
                 if (primary.ok) return primary;
-                return await callGenerate('v1beta', modelId);
+
+                const msg = String(primary.message || '').toLowerCase();
+                const isNotFoundForApiVersion =
+                    primary.status === 404 ||
+                    msg.includes('not found for api version') ||
+                    msg.includes('not supported for generatecontent');
+
+                if (isNotFoundForApiVersion) {
+                    return await callGenerate(secondaryVersion, modelId);
+                }
+
+                return primary;
             };
 
             const primaryResult = await tryGenerateWithModel(selectedModel);
 
             let result = primaryResult;
+            let handledNoticeOnly = false;
             if (!result.ok) {
                 const retryDelaySeconds = extractRetryDelaySeconds(result.error, result.message);
 
@@ -420,19 +500,93 @@ Haber içeriği
                         `Bu bir kod hatası değil: Pro modeller için billing/ücretli plan gerekir. ` +
                         `Model otomatik olarak değiştirilmedi; Ayarlar > AI Ayarları'ndan başka model seçebilir veya billing açıp tekrar deneyebilirsin.`,
                     );
+                    handledNoticeOnly = true;
+                } else if (isHighDemandError(result.error, result.message)) {
+                    const retryScheduleMs = [1200, 2200];
+                    for (const delayMs of retryScheduleMs) {
+                        setApiNotice(
+                            `Model şu an yoğun. ${Math.ceil(delayMs / 1000)} saniye sonra otomatik tekrar denenecek. ` +
+                            `İstersen başka model de seçebilirsin.`,
+                        );
+                        await sleep(delayMs);
+                        result = await tryGenerateWithModel(selectedModel);
+                        if (result.ok) {
+                            setApiNotice('');
+                            break;
+                        }
+                        if (!isHighDemandError(result.error, result.message)) break;
+                    }
+
+                    if (!result.ok && isHighDemandError(result.error, result.message)) {
+                        setApiNotice('Model şu an yoğun. Lütfen biraz sonra tekrar deneyin veya başka model seçin.');
+                        handledNoticeOnly = true;
+                    }
                 } else if (typeof retryDelaySeconds === 'number' && Number.isFinite(retryDelaySeconds) && retryDelaySeconds > 0) {
                     // Keep the UI responsive: only auto-retry for short delays.
                     if (retryDelaySeconds <= 5) {
                         await sleep(Math.ceil(retryDelaySeconds * 1000));
                         result = await tryGenerateWithModel(selectedModel);
+                        if (!result.ok) {
+                            setApiNotice(`Rate limit aşıldı. Lütfen biraz sonra tekrar deneyin veya başka model seçin.`);
+                            handledNoticeOnly = true;
+                        }
                     } else {
-                        setApiNotice(`Rate limit aşıldı. Lütfen ${Math.ceil(retryDelaySeconds)} saniye sonra tekrar deneyin.`);
+                        setApiNotice(`Rate limit aşıldı. Lütfen ${Math.ceil(retryDelaySeconds)} saniye sonra tekrar deneyin veya başka model seçin.`);
+                        handledNoticeOnly = true;
+                    }
+                } else if (result.status === 429) {
+                    setApiNotice('Rate limit aşıldı. Lütfen biraz sonra tekrar deneyin veya başka model seçin.');
+                    handledNoticeOnly = true;
+                } else {
+                    const msg = String(result.message || '').toLowerCase();
+                    const looksLikeQuota =
+                        msg.includes('exceeded your current quota') ||
+                        msg.includes('quota exceeded') ||
+                        msg.includes('rate limit') ||
+                        msg.includes('resource_exhausted');
+                    if (looksLikeQuota) {
+                        setApiNotice('Kota/rate limit aşıldı. Lütfen biraz sonra tekrar deneyin veya başka model seçin (gerekirse billing/plan kontrol edin).');
+                        handledNoticeOnly = true;
+                    }
+                }
+            }
+
+            // If the error type changes after internal retries (e.g., "high demand" -> rate limit),
+            // ensure we still show a clean notice without dumping the raw API error to the UI.
+            if (!result.ok && !handledNoticeOnly) {
+                const retryDelaySecondsAfterRetry = extractRetryDelaySeconds(result.error, result.message);
+                if (
+                    typeof retryDelaySecondsAfterRetry === 'number' &&
+                    Number.isFinite(retryDelaySecondsAfterRetry) &&
+                    retryDelaySecondsAfterRetry > 0
+                ) {
+                    setApiNotice(
+                        retryDelaySecondsAfterRetry > 5
+                            ? `Rate limit aşıldı. Lütfen ${Math.ceil(retryDelaySecondsAfterRetry)} saniye sonra tekrar deneyin veya başka model seçin.`
+                            : 'Rate limit aşıldı. Lütfen biraz sonra tekrar deneyin veya başka model seçin.',
+                    );
+                    handledNoticeOnly = true;
+                } else if (result.status === 429) {
+                    setApiNotice('Rate limit aşıldı. Lütfen biraz sonra tekrar deneyin veya başka model seçin.');
+                    handledNoticeOnly = true;
+                } else {
+                    const msg = String(result.message || '').toLowerCase();
+                    const looksLikeQuota =
+                        msg.includes('exceeded your current quota') ||
+                        msg.includes('quota exceeded') ||
+                        msg.includes('rate limit') ||
+                        msg.includes('resource_exhausted');
+                    if (looksLikeQuota) {
+                        setApiNotice('Kota/rate limit aşıldı. Lütfen biraz sonra tekrar deneyin veya başka model seçin (gerekirse billing/plan kontrol edin).');
+                        handledNoticeOnly = true;
                     }
                 }
             }
 
             if (!result.ok) {
-                throw new Error(result.message);
+                if (handledNoticeOnly) return;
+                setResultContent(`HATA: ${result.message || 'AI ile bağlantı kurulamadı.'}`);
+                return;
             }
 
             const data = result.data;
@@ -712,18 +866,44 @@ Haber içeriği
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span className="text-[9px] font-black uppercase tracking-widest">{t('admin.ai_assistant.ready')}</span>
                     </div>
+                    <div className="flex items-center gap-2">
+                        <label className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors cursor-pointer select-none ${newsMedia.image ? 'bg-emerald-50 border-emerald-100' : 'bg-palette-beige/20 border-palette-maroon/5 hover:bg-palette-beige/30'}`}>
+                            <input
+                                type="checkbox"
+                                checked={newsMedia.image}
+                                onChange={(e) => setNewsMedia(prev => ({ ...prev, image: e.target.checked }))}
+                                className={`w-3.5 h-3.5 rounded-[4px] border-palette-tan/30 cursor-pointer ${newsMedia.image ? 'text-emerald-600 focus:ring-emerald-600' : 'text-palette-maroon focus:ring-palette-maroon'}`}
+                            />
+                            <span className={`text-[9px] font-bold tracking-wide whitespace-nowrap ${newsMedia.image ? 'text-emerald-700' : 'text-palette-maroon/70'}`}>
+                                {t('admin.ai_assistant.media.image')}
+                            </span>
+                        </label>
+                        <label className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors cursor-pointer select-none ${newsMedia.video ? 'bg-emerald-50 border-emerald-100' : 'bg-palette-beige/20 border-palette-maroon/5 hover:bg-palette-beige/30'}`}>
+                            <input
+                                type="checkbox"
+                                checked={newsMedia.video}
+                                onChange={(e) => setNewsMedia(prev => ({ ...prev, video: e.target.checked }))}
+                                className={`w-3.5 h-3.5 rounded-[4px] border-palette-tan/30 cursor-pointer ${newsMedia.video ? 'text-emerald-600 focus:ring-emerald-600' : 'text-palette-maroon focus:ring-palette-maroon'}`}
+                            />
+                            <span className={`text-[9px] font-bold tracking-wide whitespace-nowrap ${newsMedia.video ? 'text-emerald-700' : 'text-palette-maroon/70'}`}>
+                                {t('admin.ai_assistant.media.video')}
+                            </span>
+                        </label>
+                        <label className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors cursor-pointer select-none ${newsMedia.audio ? 'bg-emerald-50 border-emerald-100' : 'bg-palette-beige/20 border-palette-maroon/5 hover:bg-palette-beige/30'}`}>
+                            <input
+                                type="checkbox"
+                                checked={newsMedia.audio}
+                                onChange={(e) => setNewsMedia(prev => ({ ...prev, audio: e.target.checked }))}
+                                className={`w-3.5 h-3.5 rounded-[4px] border-palette-tan/30 cursor-pointer ${newsMedia.audio ? 'text-emerald-600 focus:ring-emerald-600' : 'text-palette-maroon focus:ring-palette-maroon'}`}
+                            />
+                            <span className={`text-[9px] font-bold tracking-wide whitespace-nowrap ${newsMedia.audio ? 'text-emerald-700' : 'text-palette-maroon/70'}`}>
+                                {t('admin.ai_assistant.media.audio')}
+                            </span>
+                        </label>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => handleGenerate('organize')}
-                        disabled={!content || isGenerating}
-                        className="flex items-center gap-2 px-4 h-9 bg-white border border-palette-maroon/10 rounded-[6px] text-palette-maroon text-[10px] font-black uppercase tracking-widest hover:border-palette-maroon/30 hover:shadow-md transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
-                    >
-                        <span className="material-symbols-rounded" style={{ fontSize: '16px', opacity: 0.6 }}>brush</span>
-                        {t('admin.ai_assistant.organize')}
-                    </button>
-
                     <button
                         onClick={() => handleGenerate('make-ready')}
                         disabled={!content || isGenerating}
