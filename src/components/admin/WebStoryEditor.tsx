@@ -7,12 +7,12 @@ import {
 import { elementTypes } from '@googleforcreators/element-library';
 import { registerElementType } from '@googleforcreators/elements';
 import { DATA_VERSION } from '@googleforcreators/migration';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { type StoryItem } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 
 // Element tiplerini başlangıçta kaydet (StoryEditor yüklenmeden önce hazır olmalı)
-elementTypes.forEach(registerElementType);
+elementTypes.forEach((elementType: any) => registerElementType(elementType));
 
 interface WebStoryEditorProps {
     story: StoryItem;
@@ -35,7 +35,7 @@ const WebStoryEditor: React.FC<WebStoryEditorProps> = ({ story, onClose, onSaveS
                         title: title || story.title
                     };
 
-                    const { error } = await supabase
+                    const { error } = await neon
                         .from('stories')
                         .update({
                             story_data: storyData,
@@ -53,7 +53,7 @@ const WebStoryEditor: React.FC<WebStoryEditorProps> = ({ story, onClose, onSaveS
                     return Promise.reject(err);
                 }
             },
-            // Medya kütüphanesi için basit bir fetch (Gelecekte Supabase Storage ile bağlanabilir)
+            // Medya kütüphanesi için basit bir fetch (Gelecekte Neon Storage ile bağlanabilir)
             getMedia: async () => {
                 return [];
             }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
+import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
 
 interface AiAssistantDialogProps {
     isOpen: boolean;
@@ -105,7 +106,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 
     const fetchSettings = async () => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await neon
                 .from('site_settings')
                 .select('google_ai_api_key, google_ai_model')
                 .eq('language_code', currentLang.code)
@@ -229,7 +230,7 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 
 	    const fetchReadyFormats = async () => {
 	        try {
-	            const { data } = await supabase
+	            const { data } = await neon
 	                .from('ai_ready_formats')
 	                .select('*')
 	                .eq('language_code', currentLang.code)
@@ -487,16 +488,32 @@ Haber içeriği
                 return primary;
             };
 
-            const primaryResult = await tryGenerateWithModel(selectedModel);
+            const selectedModelForRequest = normalizeGeminiModelName(selectedModel) || normalizeGeminiModelName(models[0]) || 'gemini-2.5-flash';
+            const oneLowerModel = (() => {
+                const selectedIndex = models.findIndex((model) => normalizeGeminiModelName(model) === selectedModelForRequest);
+                const nextFromList = selectedIndex >= 0 ? normalizeGeminiModelName(models[selectedIndex + 1]) : '';
+                return nextFromList || getOneLowerGeminiModel(selectedModelForRequest);
+            })();
+
+            const primaryResult = await tryGenerateWithModel(selectedModelForRequest);
 
             let result = primaryResult;
+            if (!result.ok && oneLowerModel && oneLowerModel !== selectedModelForRequest && isGeminiFallbackWorthTrying(result.status, result.message)) {
+                setApiNotice(`Seçilen model (${selectedModelForRequest}) hata verdi veya yoğun. Bir alt model (${oneLowerModel}) deneniyor.`);
+                result = await tryGenerateWithModel(oneLowerModel);
+                if (result.ok) {
+                    setApiNotice(`Seçilen model yoğun olduğu için üretim bir alt model (${oneLowerModel}) ile tamamlandı.`);
+                }
+            }
+
             let handledNoticeOnly = false;
             if (!result.ok) {
                 const retryDelaySeconds = extractRetryDelaySeconds(result.error, result.message);
+                const retryModel = result.modelId || selectedModelForRequest;
 
                 if (isFreeTierLimitZero(result.error, result.message)) {
                     setApiNotice(
-                        `Seçilen model (${selectedModel}) bu API anahtarının mevcut planında kullanılamıyor (free tier limiti 0). ` +
+                        `Model (${retryModel}) bu API anahtarının mevcut planında kullanılamıyor (free tier limiti 0). ` +
                         `Bu bir kod hatası değil: Pro modeller için billing/ücretli plan gerekir. ` +
                         `Model otomatik olarak değiştirilmedi; Ayarlar > AI Ayarları'ndan başka model seçebilir veya billing açıp tekrar deneyebilirsin.`,
                     );
@@ -509,7 +526,7 @@ Haber içeriği
                             `İstersen başka model de seçebilirsin.`,
                         );
                         await sleep(delayMs);
-                        result = await tryGenerateWithModel(selectedModel);
+                        result = await tryGenerateWithModel(retryModel);
                         if (result.ok) {
                             setApiNotice('');
                             break;
@@ -525,7 +542,7 @@ Haber içeriği
                     // Keep the UI responsive: only auto-retry for short delays.
                     if (retryDelaySeconds <= 5) {
                         await sleep(Math.ceil(retryDelaySeconds * 1000));
-                        result = await tryGenerateWithModel(selectedModel);
+                        result = await tryGenerateWithModel(retryModel);
                         if (!result.ok) {
                             setApiNotice(`Rate limit aşıldı. Lütfen biraz sonra tekrar deneyin veya başka model seçin.`);
                             handledNoticeOnly = true;

@@ -9,6 +9,40 @@ export interface MediaItem {
     path: string;
 }
 
+export interface RenameMediaWithAiPayload {
+    src: string;
+    type?: 'image' | 'video' | 'audio' | 'file' | 'logo' | 'profile';
+    languageCode?: string;
+    mediaKind?: string;
+    context?: string;
+}
+
+export interface RenameMediaWithAiResult {
+    success: boolean;
+    filename: string;
+    src: string;
+    replacements: Array<{
+        oldId: string;
+        newId: string;
+        oldSrc: string;
+        newSrc: string;
+    }>;
+}
+
+export interface GenerateMediaAltTextPayload {
+    src: string;
+    languageCode?: string;
+    mediaKind?: string;
+    context?: string;
+    currentAlt?: string;
+}
+
+export interface GenerateMediaAltTextResult {
+    success: boolean;
+    altText: string;
+    usedVision: boolean;
+}
+
 export const storageService = {
     async getFiles(type: 'image' | 'video' | 'audio' | 'file' | 'profile' = 'image'): Promise<MediaItem[]> {
         try {
@@ -17,8 +51,8 @@ export const storageService = {
             const files = await response.json();
             return files.map((f: any) => ({
                 ...f,
-                type: f.type || 'file',
-                path: f.id.split('/')[1] // The date folder
+                type: f.type || type,
+                path: f.path || f.id.split('/')[0]
             }));
         } catch (err) {
             console.error('Storage error:', err);
@@ -61,9 +95,9 @@ export const storageService = {
             return {
                 id: result.id,
                 value: result.value,
-                size: file.size,
+                size: result.size || file.size,
                 date: Date.now() / 1000,
-                type: "file",
+                type: result.type || type || 'image',
                 src: result.src,
                 thumb: result.thumb,
                 path: result.id.split('/')[0]
@@ -74,17 +108,106 @@ export const storageService = {
         }
     },
 
-    async deleteFile(fileId: string): Promise<boolean> {
+    async replaceFile(file: File, fileId: string, type: 'image' | 'video' | 'audio' | 'file' | 'logo' | 'profile' = 'image'): Promise<MediaItem | null> {
         try {
-            // Use the full ID (date/filename) for deletion
-            const response = await fetch(`/api/storage/delete/${encodeURIComponent(fileId)}`, {
-                method: 'DELETE'
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('replaceId', fileId);
+            formData.append('type', type);
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
+            const response = await fetch('/api/storage/upload', {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal
+            }).finally(() => clearTimeout(timeoutId));
+
+            if (!response.ok) {
+                const details = await response.text().catch(() => '');
+                throw new Error(`Replace failed (${response.status})${details ? `: ${details}` : ''}`);
+            }
+
+            const result = await response.json();
+
+            return {
+                id: result.id,
+                value: result.value,
+                size: result.size || file.size,
+                date: Date.now() / 1000,
+                type: result.type || type,
+                src: result.src,
+                thumb: result.thumb,
+                path: result.id.split('/')[0]
+            };
+        } catch (err) {
+            console.error('Replace error:', err);
+            return null;
+        }
+    },
+
+    async deleteFile(fileId: string, type?: string): Promise<boolean> {
+        try {
+            const response = await fetch('/api/storage/delete', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: fileId, type })
             });
-            if (!response.ok) throw new Error('Delete failed');
+            if (!response.ok) {
+                const details = await response.text().catch(() => '');
+                throw new Error(`Delete failed (${response.status})${details ? `: ${details}` : ''}`);
+            }
             return true;
         } catch (err) {
             console.error('Delete error:', err);
             return false;
+        }
+    },
+
+    async renameMediaWithAi(payload: RenameMediaWithAiPayload): Promise<RenameMediaWithAiResult | null> {
+        try {
+            const response = await fetch('/api/storage/seo-rename', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const details = await response.text().catch(() => '');
+                throw new Error(`SEO rename failed (${response.status})${details ? `: ${details}` : ''}`);
+            }
+
+            return await response.json();
+        } catch (err) {
+            console.error('SEO rename error:', err);
+            return null;
+        }
+    },
+
+    async generateMediaAltTextWithAi(payload: GenerateMediaAltTextPayload): Promise<GenerateMediaAltTextResult | null> {
+        try {
+            const response = await fetch('/api/storage/seo-alt-text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const details = await response.text().catch(() => '');
+                throw new Error(`SEO alt text failed (${response.status})${details ? `: ${details}` : ''}`);
+            }
+
+            return await response.json();
+        } catch (err) {
+            console.error('SEO alt text error:', err);
+            return null;
         }
     }
 };

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   ArrowLeft, Search, Zap, Flame, LayoutGrid, Eye, MessageCircle, Heart, Share2, TrendingUp
@@ -52,7 +52,7 @@ const CategoriesList: React.FC<CategoriesListProps> = ({ onBack, onCategorySelec
       try {
         setLoading(true);
         // 1. Fetch Categories from Nav Items
-        const { data: navData, error: navError } = await supabase
+        const { data: navData, error: navError } = await neon
           .from('navigation_items')
           .select('*')
           .eq('type', 'category')
@@ -63,7 +63,7 @@ const CategoriesList: React.FC<CategoriesListProps> = ({ onBack, onCategorySelec
         if (navError) throw navError;
 
         // 2. Fetch Post Metrics
-        const { data: postMetrics, error: metricsError } = await supabase
+        const { data: postMetrics, error: metricsError } = await neon
           .from('posts')
           .select('category, likes_count, comments_count, shares_count')
           .eq('status', 'published')
@@ -72,7 +72,7 @@ const CategoriesList: React.FC<CategoriesListProps> = ({ onBack, onCategorySelec
         if (metricsError) throw metricsError;
 
         const stats: Record<string, any> = {};
-        postMetrics?.forEach(p => {
+        postMetrics?.forEach((p: any) => {
           if (!p.category) return;
           if (!stats[p.category]) stats[p.category] = { count: 0, likes: 0, comments: 0, shares: 0, views: 0 };
           stats[p.category].count += 1;
@@ -83,7 +83,7 @@ const CategoriesList: React.FC<CategoriesListProps> = ({ onBack, onCategorySelec
         });
 
         if (navData) {
-          const mapped = navData.map((item, idx) => {
+          const mapped = navData.map((item: any, idx: number) => {
             const style = CATEGORY_STYLES[idx % CATEGORY_STYLES.length];
             const val = item.value || item.label;
             const s = stats[val] || stats[item.label] || { count: 0, likes: 0, comments: 0, shares: 0, views: 0 };

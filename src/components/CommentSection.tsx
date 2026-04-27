@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Heart, Reply, Trash2, Send, ChevronDown, ChevronUp, Flag, UserMinus, ShieldAlert } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
 import Picker, { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
 const EmojiPicker = (Picker as any).default || Picker;
 import { Smile } from 'lucide-react';
+import { postAction } from '@/services/appActions';
 
 interface Comment {
   id: string;
@@ -200,16 +201,21 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    checkUser();
-    fetchComments();
+    let isMounted = true;
+    const load = async () => {
+      const nextUser = await checkUser();
+      if (isMounted) await fetchComments(nextUser);
+    };
+    load();
+    return () => { isMounted = false; };
   }, [postId]);
 
   const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await neon.auth.getUser();
 
     let updatedUser = user;
     if (user) {
-      const { data: profile } = await supabase
+      const { data: profile } = await neon
         .from('profiles')
         .select('*')
         .eq('id', user.id)
@@ -223,7 +229,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
     setUser(updatedUser);
 
     if (updatedUser && publisherId) {
-      const { data: block } = await supabase
+      const { data: block } = await neon
         .from('publisher_blocks')
         .select('id')
         .eq('publisher_id', publisherId)
@@ -232,6 +238,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
 
       if (block) setIsBlocked(true);
     }
+
+    return updatedUser;
   };
 
   useEffect(() => {
@@ -248,11 +256,12 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
     setNewComment(prev => prev + emojiData.emoji);
   };
 
-  const fetchComments = async () => {
+  const fetchComments = async (currentUser = user) => {
     try {
       setLoading(true);
+      await postAction('state', { postId }).catch(() => null);
       // Fetch all approved comments for this post
-      const { data, error } = await supabase
+      const { data, error } = await neon
         .from('comments')
         .select(`
           *,
@@ -266,11 +275,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
 
       // Check likes if user is logged in
       let likedIds: string[] = [];
-      if (user) {
-        const { data: likes } = await supabase
+      if (currentUser) {
+        const { data: likes } = await neon
           .from('comment_likes')
           .select('comment_id')
-          .eq('user_id', user.id);
+          .eq('user_id', currentUser.id);
         likedIds = likes?.map((l: any) => String(l.comment_id)) || [];
       }
 
@@ -335,7 +344,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
         status: 'pending'
       };
 
-      const { error } = await supabase.from('comments').insert([commentData]);
+      const { error } = await neon.from('comments').insert([commentData]);
       if (error) throw error;
 
       showToast(t('comments.submitted_pending'), 'success');
@@ -358,13 +367,13 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
 
     try {
       if (comment.userLiked) {
-        await supabase.from('comment_likes').delete().eq('comment_id', comment.id).eq('user_id', user.id);
-        await supabase.rpc('decrement_comment_likes', { comment_id: comment.id });
+        await neon.from('comment_likes').delete().eq('comment_id', comment.id).eq('user_id', user.id);
+        await neon.rpc('decrement_comment_likes', { comment_id: comment.id });
       } else {
-        await supabase.from('comment_likes').insert({ comment_id: comment.id, user_id: user.id });
-        await supabase.rpc('increment_comment_likes', { comment_id: comment.id });
+        await neon.from('comment_likes').insert({ comment_id: comment.id, user_id: user.id });
+        await neon.rpc('increment_comment_likes', { comment_id: comment.id });
       }
-      fetchComments(); // Refresh to update counts
+      fetchComments(user); // Refresh to update counts
     } catch (err) {
       console.error('Like error:', err);
     }
@@ -375,7 +384,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
     if (!reason) return;
 
     try {
-      const { error } = await supabase.from('comment_reports').insert({
+      const { error } = await neon.from('comment_reports').insert({
         comment_id: comment.id,
         user_id: user?.id || null,
         guest_email: user ? null : guestEmail,
@@ -392,10 +401,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
     if (!window.confirm(t('comments.delete_confirm_user'))) return;
 
     try {
-      const { error } = await supabase.from('comments').delete().eq('id', comment.id);
+      const { error } = await neon.from('comments').delete().eq('id', comment.id);
       if (error) throw error;
       showToast(t('comments.deleted_short'), 'success');
-      fetchComments();
+      fetchComments(user);
     } catch (err) {
       showToast(t('comments.delete_failed'), 'error');
     }
@@ -406,7 +415,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
     if (!window.confirm(t('comments.block_confirm'))) return;
 
     try {
-      const { error } = await supabase.from('publisher_blocks').insert({
+      const { error } = await neon.from('publisher_blocks').insert({
         publisher_id: publisherId,
         blocked_user_id: comment.user_id
       });

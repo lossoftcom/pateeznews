@@ -1,8 +1,10 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-    readonly VITE_SUPABASE_URL: string
-    readonly VITE_SUPABASE_ANON_KEY: string
+    readonly DATABASE_URL?: string
+    readonly NEON_DATABASE_URL?: string
+    readonly NEON_AUTH_SECRET?: string
+    readonly PUBLIC_REMOTE_IMAGE_HOSTS?: string
 }
 
 interface ImportMeta {

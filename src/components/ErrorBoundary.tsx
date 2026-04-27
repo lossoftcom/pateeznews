@@ -1,10 +1,11 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import tr from '@/lib/locales/tr';
 import en from '@/lib/locales/en';
 import ar from '@/lib/locales/ar';
 
-const LOCALES: Record<string, Record<string, string>> = { tr, en, ar };
+const LOCALES: Record<string, Record<string, any>> = { tr, en, ar };
 
 interface Props {
     children: ReactNode;
@@ -45,7 +46,8 @@ class ErrorBoundary extends Component<Props, State> {
 
     private t(key: string): string {
         const lang = this.getLangCode();
-        return LOCALES[lang]?.[key] || LOCALES.tr?.[key] || key;
+        const localized = LOCALES[lang]?.[key] ?? LOCALES.tr?.[key];
+        return typeof localized === 'string' ? localized : key;
     }
 
     public render() {

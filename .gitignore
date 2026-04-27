@@ -3,3 +3,5 @@ dist/
 .DS_Store
 .env.local
 .vercel/
+migration/*.sql
+!migration/2026-04-27-add-manset-slider.sql

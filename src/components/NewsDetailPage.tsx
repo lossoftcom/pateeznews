@@ -13,6 +13,7 @@ interface NewsDetailPageProps {
     navigationItems: NavigationItem[];
     newsItem: NewsItem;
     newsItems: NewsItem[];
+    sidebarSnapshot?: any;
 }
 
 const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
@@ -21,7 +22,8 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
     siteSettings,
     navigationItems,
     newsItem,
-    newsItems
+    newsItems,
+    sidebarSnapshot
 }) => {
     // 🚀 NO MORE DELAYS (2026 LIGHT-SPEED) - Page is visible instantly
     return (
@@ -44,7 +46,7 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
                         </section>
 
                         <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8 sticky top-[72px]">
-                            <RightSidebar newsData={newsItems} loading={newsItems.length === 0} />
+                            <RightSidebar newsData={newsItems} loading={newsItems.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} />
                         </aside>
                     </main>
                 </div>

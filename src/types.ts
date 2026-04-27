@@ -50,6 +50,7 @@ export interface NewsItem {
   comments: number;
   shares: number;
   views: number;
+  saves?: number;
   options?: PollOption[];
   quizDescription?: string;
   totalVotes?: number;
@@ -88,6 +89,7 @@ export interface NewsItem {
   items?: any[];
   sourceAvatar?: string;
   isPinned?: boolean;
+  isManset?: boolean;
   // User specific interaction states (pre-fetched for speed)
   userLiked?: boolean;
   userSaved?: boolean;
@@ -199,4 +201,12 @@ export interface SiteSettings {
   google_ai_api_key?: string;
   google_ai_model?: string;
   google_ai_active?: boolean;
+  // Weather Settings
+  weather_enabled?: boolean;
+  weather_location_name?: string;
+  weather_location_country?: string;
+  weather_latitude?: number;
+  weather_longitude?: number;
+  weather_timezone?: string;
+  weather_update_interval_minutes?: number;
 }

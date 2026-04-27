@@ -16,10 +16,11 @@ import PostQuoteItem from './PostQuoteItem';
 import PostIframeItem from './PostIframeItem';
 import PostQuizItem from './PostQuizItem';
 import AiAssistantDialog from './AiAssistantDialog';
+import MediaFilenameBadge from './MediaFilenameBadge';
 import 'react-quill-new/dist/quill.snow.css';
 import { useDropzone } from 'react-dropzone';
 import { type NavigationItem } from '@/types';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { storageService, type MediaItem } from '@/services/storageService';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
@@ -33,7 +34,73 @@ import useStore from 'react-filerobot-image-editor/lib/hooks/useStore';
 import { SET_ANNOTATION } from 'react-filerobot-image-editor/lib/actions';
 import { TOOLS_ITEMS as FIE_DEFAULT_TOOLS_ITEMS } from 'react-filerobot-image-editor/lib/components/tools/tools.constants';
 
+// Filerobot beta ships a few ESM files that call React.createElement without importing React.
+(globalThis as any).React = React;
+
 const FilerobotEditor: any = FilerobotImageEditor;
+
+const STORAGE_FILE_MARKER = '/api/storage/file/';
+const STORAGE_FILE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profile'] as const;
+type StorageFileType = typeof STORAGE_FILE_TYPES[number];
+
+const safeDecodeStoragePath = (value: string) => {
+    let decoded = value;
+    for (let i = 0; i < 3; i++) {
+        try {
+            const next = decodeURIComponent(decoded);
+            if (next === decoded) break;
+            decoded = next;
+        } catch {
+            break;
+        }
+    }
+    return decoded;
+};
+
+const stripUrlNoise = (value: string) => value.split(/[?#]/)[0];
+
+const normalizeMediaReferenceForCompare = (value: unknown) => {
+    const clean = stripUrlNoise(String(value || ''));
+    const markerIndex = clean.indexOf(STORAGE_FILE_MARKER);
+    const comparable = markerIndex >= 0 ? clean.slice(markerIndex) : clean;
+    return safeDecodeStoragePath(comparable).replace(/\\/g, '/').normalize('NFC');
+};
+
+const getStorageFileReference = (src: string): { type: StorageFileType; id: string } | null => {
+    if (!src || !src.includes(STORAGE_FILE_MARKER)) return null;
+
+    const cleanSrc = stripUrlNoise(src);
+    const markerIndex = cleanSrc.indexOf(STORAGE_FILE_MARKER);
+    if (markerIndex < 0) return null;
+
+    const rawPath = safeDecodeStoragePath(cleanSrc.slice(markerIndex + STORAGE_FILE_MARKER.length))
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '');
+    if (!rawPath || rawPath.includes('\0')) return null;
+
+    const [firstSegment, ...rest] = rawPath.split('/');
+    if (STORAGE_FILE_TYPES.includes(firstSegment as StorageFileType) && rest.length > 0) {
+        return { type: firstSegment as StorageFileType, id: rest.join('/') };
+    }
+
+    return { type: 'image', id: rawPath };
+};
+
+const filenameBaseFromStorageId = (id: string) => {
+    const filename = id.split('/').pop() || `edited-${Date.now()}`;
+    return filename.replace(/\.[a-z0-9]+$/i, '') || `edited-${Date.now()}`;
+};
+
+const htmlToPlainText = (value: unknown) => String(value || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const FIE_FEATURED_FONTS = ['Montserrat', 'Playfair Display', 'Oswald', 'Space Grotesk'] as const;
 const FIE_FEATURED_FONT_SET = new Set(FIE_FEATURED_FONTS.map((font) => font.toLowerCase()));
@@ -1053,7 +1120,7 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
             if (targetIdx !== -1) {
                 const target = blocks[targetIdx] as any;
                 const existingLines = Array.isArray(target?.lines) ? target.lines.map((l: any) => String(l ?? '')) : [];
-                const hasExisting = existingLines.some((l) => l.trim());
+                const hasExisting = existingLines.some((l: string) => l.trim());
                 target.lines = [...existingLines, ...(hasExisting ? [''] : []), ...spotLines];
             }
         }
@@ -1141,6 +1208,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         publishAt: '',
         publisher_id: '',
         isPinned: false,
+        showInManset: false,
         faqData: [] as { q: string, a: string }[],
         items: [] as PostItem[]
     });
@@ -1154,6 +1222,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     const [showImageEditor, setShowImageEditor] = useState(false);
     const [isEditorSaving, setIsEditorSaving] = useState(false);
     const [isThumbnailLoading, setIsThumbnailLoading] = useState(false);
+    const [isGeneratingThumbnailAlt, setIsGeneratingThumbnailAlt] = useState(false);
     const editorSaveInFlightRef = React.useRef(false);
     const [localFiles, setLocalFiles] = useState<any[]>([]);
     const [validatingUrl, setValidatingUrl] = useState(false);
@@ -1314,6 +1383,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             formData.factChecked !== initial.factChecked ||
             formData.schemaType !== initial.schemaType ||
             formData.isPinned !== initial.isPinned ||
+            formData.showInManset !== initial.showInManset ||
             formData.publishAt !== initial.publishAt ||
             formData.publisher_id !== initial.publisher_id ||
             !areFaqEqual() ||
@@ -1335,23 +1405,23 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
     useEffect(() => {
         const fetchUserAndPublishers = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await neon.auth.getUser();
             if (user) {
-                const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+                const { data: profile } = await neon.from('profiles').select('role').eq('id', user.id).single();
                 const role = profile?.role;
 
                 if (role === 'admin') {
-                    const { data } = await supabase.from('profiles').select('id, full_name').eq('role', 'publisher');
+                    const { data } = await neon.from('profiles').select('id, full_name').eq('role', 'publisher');
                     setPublishers(data || []);
                 } else {
-                    const { data: assignments } = await supabase
+                    const { data: assignments } = await neon
                         .from('publisher_users')
                         .select('publisher_id')
                         .eq('user_id', user.id);
 
                     if (assignments && assignments.length > 0) {
                         const ids = assignments.map((a: any) => a.publisher_id);
-                        const { data } = await supabase.from('profiles').select('id, full_name').in('id', ids);
+                        const { data } = await neon.from('profiles').select('id, full_name').in('id', ids);
                         setPublishers(data || []);
                     }
                 }
@@ -1374,7 +1444,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
         const fetchPostData = async () => {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await neon
                     .from('posts')
                     .select('*')
                     .eq('id', postId)
@@ -1403,6 +1473,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                         publishAt: toDateTimeLocal(data.published_at || ''),
                         publisher_id: data.publisher_id || '',
                         isPinned: data.is_pinned || false,
+                        showInManset: data.show_in_manset || false,
                         faqData: data.faq_data || (data.items || []).find((i: any) => i.type === 'faq')?.faqData || [] as { q: string, a: string }[],
                         items: ensureUniqueItemIds((data.items || []).filter((i: any) => i.type !== 'faq') as PostItem[])
                     };
@@ -1633,67 +1704,41 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         };
     }, [postId, formData, selectedLanguage, activeDetailTab, isInitialized]);
 
+    const getActiveEditorSource = React.useCallback(() => {
+        if (activeMediaTarget === 'thumbnail') return formData.thumbnail || '';
+        const item = formData.items.find((i: PostItem) => i.id === activeMediaTarget);
+        if (!item) return '';
+
+        if (item.type === 'flipcard' && activeMediaSubTarget) {
+            return (item.flipData as any)?.[activeMediaSubTarget] || '';
+        }
+
+        if (item.type === 'beforeafter' && activeMediaSubTarget) {
+            return (item.beforeAfterData as any)?.[activeMediaSubTarget] || '';
+        }
+
+        if ((item.type === 'poll' || item.type === 'vs') && activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
+            return item.options?.find(o => o.id === activeMediaOptionTarget)?.image || '';
+        }
+
+        return item.mediaUrl || '';
+    }, [activeMediaOptionTarget, activeMediaSubTarget, activeMediaTarget, formData.items, formData.thumbnail]);
+
     const handleEditorSave = React.useCallback(async (editedImageObject: any) => {
         if (editorSaveInFlightRef.current) return;
         editorSaveInFlightRef.current = true;
         setIsEditorSaving(true);
 
         try {
-            // Get original filename to preserve it if possible
-            let originalName = `edited-${Date.now()}`;
-            // Extract existing "date/filename" path if we are editing an existing image
-            let customPath: string | undefined = undefined;
-
-            const currentMediaUrl = activeMediaTarget === 'thumbnail'
-                ? formData.thumbnail
-                : formData.items.find((i: PostItem) => i.id === activeMediaTarget)?.mediaUrl;
-
-            if (currentMediaUrl) {
-                try {
-                    // Check if it's a local storage URL
-                    if (currentMediaUrl.includes('/api/storage/file/')) {
-                        const urlWithoutQuery = currentMediaUrl.split('?')[0];
-                        const idx = urlWithoutQuery.indexOf('/api/storage/file/');
-                        const rawPath = idx >= 0 ? urlWithoutQuery.slice(idx + '/api/storage/file/'.length) : '';
-                        const decodedPath = (() => {
-                            try {
-                                return decodeURIComponent(rawPath);
-                            } catch {
-                                return rawPath;
-                            }
-                        })();
-
-                        const [datePart, ...fileParts] = decodedPath.split('/');
-                        const fileWithExt = fileParts.join('/');
-                        if (datePart && fileWithExt) {
-                            const normalizeLower = (s: string) => s.toLowerCase();
-                            let baseName = fileWithExt;
-                            if (normalizeLower(baseName).endsWith('_xl.webp')) baseName = baseName.slice(0, -'_xl.webp'.length);
-                            if (normalizeLower(baseName).endsWith('_sm.webp')) baseName = baseName.slice(0, -'_sm.webp'.length);
-                            if (normalizeLower(baseName).endsWith('.webp')) baseName = baseName.slice(0, -'.webp'.length);
-
-                            customPath = `${datePart}/${baseName}`; // e.g. "2024-12-31/filename"
-                            const namePart = baseName.split('/').pop();
-                            if (namePart) originalName = namePart;
-                        }
-                    }
-                } catch (e) {
-                    console.error('Filename extraction failed:', e);
-                }
-            }
+            const currentMediaUrl = getActiveEditorSource();
+            const storageRef = getStorageFileReference(currentMediaUrl);
+            const originalName = storageRef
+                ? filenameBaseFromStorageId(storageRef.id)
+                : `edited-${Date.now()}`;
 
             let file: File;
 
-            const extRaw = typeof editedImageObject?.extension === 'string' ? editedImageObject.extension : 'webp';
-            const extension = extRaw.replace(/^\./, '').toLowerCase() || 'webp';
-            const mimeFromExt =
-                extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' :
-                    extension === 'png' ? 'image/png' :
-                        extension === 'webp' ? 'image/webp' :
-                            'application/octet-stream';
-            const mimeType = typeof editedImageObject?.mimeType === 'string'
-                ? (editedImageObject.mimeType === 'image/jpg' ? 'image/jpeg' : editedImageObject.mimeType)
-                : mimeFromExt;
+            const mimeType = 'image/webp';
 
             const normalizeQuality = (q: unknown) => {
                 if (typeof q !== 'number' || Number.isNaN(q)) return undefined;
@@ -1701,7 +1746,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 if (q > 1) return Math.min(q / 100, 1);
                 return q;
             };
-            const quality = normalizeQuality(editedImageObject?.quality);
+            const quality = normalizeQuality(editedImageObject?.quality) ?? 0.92;
 
             const safeBaseName = originalName.replace(/\.[a-z0-9]+$/i, '') || `edited-${Date.now()}`;
 
@@ -1751,15 +1796,11 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 return;
             }
 
-            const finalMimeType = blob.type || mimeType;
-            const finalExtension =
-                finalMimeType === 'image/jpeg' ? 'jpg' :
-                    finalMimeType === 'image/png' ? 'png' :
-                        finalMimeType === 'image/webp' ? 'webp' :
-                            extension;
-            file = new File([blob], `${safeBaseName}.${finalExtension}`, { type: finalMimeType });
+            file = new File([blob], `${safeBaseName}.webp`, { type: blob.type || mimeType });
 
-            const result = await storageService.uploadFile(file, customPath);
+            const result = storageRef
+                ? await storageService.replaceFile(file, storageRef.id, storageRef.type)
+                : await storageService.uploadFile(file, undefined, 'image');
 
             if (result) {
                 // Force cache bust
@@ -1809,8 +1850,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
                 // Update local files list
                 setLocalFiles(prev => {
-                    // Remove old entry if exists (by ID) to avoid duplicates
-                    const filtered = prev.filter((p: any) => p.id !== result.id);
+                    const currentSrcWithoutQuery = currentMediaUrl ? stripUrlNoise(currentMediaUrl) : '';
+                    const filtered = prev.filter((p: any) => {
+                        const oldIdMatch = storageRef && p.id === storageRef.id;
+                        const newIdMatch = p.id === result.id;
+                        const srcMatch = currentSrcWithoutQuery && stripUrlNoise(p.src || '') === currentSrcWithoutQuery;
+                        return !oldIdMatch && !newIdMatch && !srcMatch;
+                    });
                     return [result, ...filtered];
                 });
             } else {
@@ -1824,7 +1870,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             setIsEditorSaving(false);
             setShowImageEditor(false);
         }
-    }, [formData.thumbnail, activeMediaTarget, formData.items]);
+    }, [activeMediaOptionTarget, activeMediaSubTarget, activeMediaTarget, formData.items, getActiveEditorSource, t]);
 
     const handleEditorClose = React.useCallback((closeReason?: any, haveNotSavedChanges?: any) => {
         editorSaveInFlightRef.current = false;
@@ -1902,7 +1948,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
     const fetchLanguages = async () => {
         try {
-            const { data } = await supabase.from('languages').select('code, name');
+            const { data } = await neon.from('languages').select('code, name');
             if (data) setLanguages(data);
         } catch (error) {
             console.error("Error fetching languages:", error);
@@ -1911,7 +1957,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
     const fetchCategories = async (langCode: string) => {
         try {
-            const { data: itemData } = await supabase
+            const { data: itemData } = await neon
                 .from('navigation_items')
                 .select('*')
                 .eq('language_code', langCode)
@@ -2405,6 +2451,176 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         });
     };
 
+    type MediaRenameType = 'image' | 'video' | 'audio' | 'file' | 'logo' | 'profile';
+
+    const buildMediaRenameContext = React.useCallback(() => {
+        const lines: string[] = [
+            `Haber başlığı: ${formData.title || ''}`,
+            `Kısa özet/spot: ${formData.summary || ''}`,
+            `SEO başlık: ${formData.seoTitle || ''}`,
+            `SEO açıklama: ${formData.seoDescription || ''}`,
+            `Kategori: ${formData.category || ''}`,
+            `Anahtar kelimeler: ${formData.keywords || ''}`,
+            `Yayın dili: ${selectedLanguage || 'tr'}`,
+        ];
+
+        if (formData.faqData.length > 0) {
+            lines.push('FAQ:');
+            formData.faqData.forEach((faq, index) => {
+                lines.push(`${index + 1}. Soru: ${faq.q || ''}`);
+                lines.push(`${index + 1}. Cevap: ${faq.a || ''}`);
+            });
+        }
+
+        formData.items.forEach((item, index) => {
+            lines.push(`İçerik bloğu ${index + 1} (${item.type || 'text'}):`);
+            if (item.title) lines.push(`Başlık: ${item.title}`);
+            if (item.description) lines.push(`Açıklama/metin: ${htmlToPlainText(item.description)}`);
+            if (item.altText) lines.push(`Alt metin: ${item.altText}`);
+            if (item.source) lines.push(`Kaynak: ${item.source}`);
+            if (item.flipData) {
+                lines.push(`Flip ön başlık: ${item.flipData.frontTitle || ''}`);
+                lines.push(`Flip arka başlık: ${item.flipData.backTitle || ''}`);
+                lines.push(`Flip ön açıklama: ${htmlToPlainText(item.flipData.frontDescription)}`);
+                lines.push(`Flip arka açıklama: ${htmlToPlainText(item.flipData.backDescription)}`);
+            }
+            if (item.beforeAfterData) {
+                lines.push(`Before/After önce etiketi: ${item.beforeAfterData.beforeLabel || ''}`);
+                lines.push(`Before/After sonra etiketi: ${item.beforeAfterData.afterLabel || ''}`);
+            }
+            if (item.reviewData) {
+                lines.push(`İnceleme ürünü/konusu: ${item.reviewData.productName || ''}`);
+                lines.push(`İnceleme kararı: ${htmlToPlainText(item.reviewData.verdict)}`);
+                lines.push(`Artılar: ${(item.reviewData.pros || []).join(', ')}`);
+                lines.push(`Eksiler: ${(item.reviewData.cons || []).join(', ')}`);
+            }
+            if (item.options?.length) {
+                lines.push(`Seçenekler: ${item.options.map((option) => option.text).filter(Boolean).join(', ')}`);
+            }
+            if (item.quizData) {
+                lines.push(`Quiz tipi: ${item.quizData.quizType}`);
+                lines.push(`Quiz sonuçları: ${(item.quizData.results || []).map((result) => `${result.title} ${htmlToPlainText(result.description)}`).join(' | ')}`);
+                lines.push(`Quiz soruları: ${(item.quizData.questions || []).map((question) => {
+                    const answers = (question.answers || []).map((answer) => answer.text).filter(Boolean).join(', ');
+                    return `${question.title} ${htmlToPlainText(question.description)} Cevaplar: ${answers}`;
+                }).join(' | ')}`);
+            }
+        });
+
+        return lines.filter(Boolean).join('\n').slice(0, 6000);
+    }, [formData, selectedLanguage]);
+
+    const buildFocusedMediaKind = React.useCallback((item: PostItem, index: number, label: string) => {
+        const parts = [label, `blok ${index + 1}`];
+
+        if (item.title) parts.push(`başlık: ${item.title}`);
+        if (item.description) parts.push(`metin: ${htmlToPlainText(item.description).slice(0, 220)}`);
+        if (item.altText) parts.push(`alt metin: ${item.altText}`);
+        if (item.source) parts.push(`kaynak: ${item.source}`);
+        if (item.options?.length) {
+            parts.push(`seçenekler: ${item.options.map((option) => option.text).filter(Boolean).join(', ')}`);
+        }
+        if (item.flipData) {
+            parts.push(`flip ön: ${item.flipData.frontTitle || ''} ${htmlToPlainText(item.flipData.frontDescription).slice(0, 120)}`.trim());
+            parts.push(`flip arka: ${item.flipData.backTitle || ''} ${htmlToPlainText(item.flipData.backDescription).slice(0, 120)}`.trim());
+        }
+        if (item.beforeAfterData) {
+            parts.push(`before after: ${item.beforeAfterData.beforeLabel || ''} / ${item.beforeAfterData.afterLabel || ''}`);
+        }
+        if (item.reviewData) {
+            parts.push(`inceleme: ${item.reviewData.productName || ''} ${htmlToPlainText(item.reviewData.verdict).slice(0, 160)}`.trim());
+        }
+        if (item.quizData) {
+            parts.push(`quiz: ${(item.quizData.questions || []).map((question) => question.title).filter(Boolean).join(', ')}`);
+        }
+
+        return parts.filter(Boolean).join(' | ').slice(0, 700);
+    }, []);
+
+    const replaceMediaReferences = React.useCallback((value: any, replacements: Array<{ oldSrc: string; newSrc: string }>, cacheToken: number): any => {
+        if (typeof value === 'string') {
+            const cleanValue = normalizeMediaReferenceForCompare(value);
+            const match = replacements.find((item) => normalizeMediaReferenceForCompare(item.oldSrc) === cleanValue);
+            return match ? `${match.newSrc}?v=${cacheToken}` : value;
+        }
+
+        if (Array.isArray(value)) {
+            return value.map((item) => replaceMediaReferences(item, replacements, cacheToken));
+        }
+
+        if (value && typeof value === 'object') {
+            return Object.fromEntries(
+                Object.entries(value).map(([key, nestedValue]) => [key, replaceMediaReferences(nestedValue, replacements, cacheToken)])
+            );
+        }
+
+        return value;
+    }, []);
+
+    const handleRenameMediaWithAi = React.useCallback(async (src: string, type: MediaRenameType = 'image', mediaKind = 'haber medyası') => {
+        const result = await storageService.renameMediaWithAi({
+            src,
+            type,
+            languageCode: selectedLanguage,
+            mediaKind,
+            context: buildMediaRenameContext()
+        });
+
+        if (!result || !result.replacements?.length) {
+            showToast('AI dosya adı oluşturulamadı veya medya yeniden adlandırılamadı.', 'error');
+            return null;
+        }
+
+        const cacheToken = Date.now();
+        setFormData(prev => replaceMediaReferences(prev, result.replacements, cacheToken));
+        setLocalFiles(prev => prev.map((file: any) => {
+            const replacement = result.replacements.find((item) =>
+                normalizeMediaReferenceForCompare(item.oldId) === normalizeMediaReferenceForCompare(file.id) ||
+                normalizeMediaReferenceForCompare(item.oldSrc) === normalizeMediaReferenceForCompare(file.src)
+            );
+            return replacement
+                ? {
+                    ...file,
+                    id: replacement.newId,
+                    value: replacement.newId.split('/').pop(),
+                    src: replacement.newSrc,
+                    thumb: replacement.newSrc,
+                    path: replacement.newId.split('/')[0],
+                    date: cacheToken / 1000
+                }
+                : file;
+        }));
+        showToast('Medya adı SEO uyumlu olarak güncellendi.', 'success');
+
+        const selectedReplacement = result.replacements.find((item) => normalizeMediaReferenceForCompare(item.oldSrc) === normalizeMediaReferenceForCompare(src)) || result.replacements[0];
+        return `${selectedReplacement.newSrc}?v=${cacheToken}`;
+    }, [buildMediaRenameContext, replaceMediaReferences, selectedLanguage, showToast]);
+
+    const handleGenerateThumbnailAltWithAi = React.useCallback(async () => {
+        if (!formData.thumbnail || isGeneratingThumbnailAlt) return;
+
+        setIsGeneratingThumbnailAlt(true);
+        try {
+            const result = await storageService.generateMediaAltTextWithAi({
+                src: formData.thumbnail,
+                languageCode: selectedLanguage,
+                mediaKind: `haber kapak görseli | ${formData.title || formData.summary || ''}`,
+                currentAlt: formData.thumbnailAlt,
+                context: buildMediaRenameContext()
+            });
+
+            if (!result?.altText) {
+                showToast('Kapak görseli için AI alt text üretilemedi.', 'error');
+                return;
+            }
+
+            setFormData(prev => ({ ...prev, thumbnailAlt: result.altText }));
+            showToast('Kapak görseli alt text AI ile üretildi.', 'success');
+        } finally {
+            setIsGeneratingThumbnailAlt(false);
+        }
+    }, [buildMediaRenameContext, formData.thumbnail, formData.thumbnailAlt, isGeneratingThumbnailAlt, selectedLanguage, showToast]);
+
     const handleAddVSItem = () => {
         const newItem: PostItem = {
             id: Math.random().toString(36).substr(2, 9),
@@ -2615,7 +2831,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
         if (newPinnedValue) {
             // Check current pinned count from database
-            const { count, error: countError } = await supabase
+            const { count, error: countError } = await neon
                 .from('posts')
                 .select('*', { count: 'exact', head: true })
                 .eq('is_pinned', true)
@@ -2633,6 +2849,10 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         }
 
         setFormData(prev => ({ ...prev, isPinned: newPinnedValue }));
+    };
+
+    const handleToggleManset = () => {
+        setFormData(prev => ({ ...prev, showInManset: !prev.showInManset }));
     };
 
     const buildCardDataPatch = (items: PostItem[]) => {
@@ -2826,7 +3046,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         }
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await neon.auth.getUser();
             if (!user) {
                 showToast(t('auth.login_required'), 'error');
                 return;
@@ -2880,14 +3100,15 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 language_code: selectedLanguage,
                 publisher_id: formData.publisher_id || user?.id,
                 is_pinned: formData.isPinned,
-                type: activeDetailTab,
+                show_in_manset: formData.showInManset,
+                type: activeDetailTab === 'TABLE OF CONTENTS' ? 'contents' : activeDetailTab,
                 updated_at: new Date().toISOString(),
                 ...(formData.id ? {} : { likes_count: 0, shares_count: 0, comments_count: 0 })
             };
 
             if (formData.id) {
                 // Update
-                const { error } = await supabase
+                const { error } = await neon
                     .from('posts')
                     .update(postData)
                     .eq('id', formData.id);
@@ -2900,7 +3121,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 initialDetailTabRef.current = activeDetailTab;
             } else {
                 // Insert
-                const { data, error } = await supabase
+                const { data, error } = await neon
                     .from('posts')
                     .insert([postData])
                     .select()
@@ -2934,6 +3155,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                             publishAt: '',
                             publisher_id: '',
                             isPinned: false,
+                            showInManset: false,
                             faqData: [] as { q: string, a: string }[],
                             items: [
                                 activeDetailTab === 'paragraph' ? {
@@ -3065,11 +3287,25 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                         <span className="material-symbols-rounded text-palette-red" style={{ fontSize: '20px' }}>description</span>
                                         <h3 className="text-base font-bold text-palette-maroon uppercase tracking-widest">{t('admin.post.content_info')}</h3>
                                     </div>
-                                    <div className="flex items-center gap-6">
+                                    <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[13px] font-bold text-palette-tan">{t('admin.post.manset_slider')}</span>
+                                            <button
+                                                type="button"
+                                                onClick={handleToggleManset}
+                                                aria-pressed={formData.showInManset}
+                                                className={`w-10 h-5 rounded-full relative transition-all shadow-inner ${formData.showInManset ? 'bg-palette-red' : 'bg-palette-tan/20'}`}
+                                            >
+                                                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm ${formData.showInManset ? 'right-1' : 'left-1'}`} />
+                                            </button>
+                                        </div>
+
                                         <div className="flex items-center gap-3">
                                             <span className="text-[13px] font-bold text-palette-tan">{t('admin.post.pin_to_top')}</span>
                                             <button
+                                                type="button"
                                                 onClick={handleTogglePinned}
+                                                aria-pressed={formData.isPinned}
                                                 className={`w-10 h-5 rounded-full relative transition-all shadow-inner ${formData.isPinned ? 'bg-amber-500' : 'bg-palette-tan/20'}`}
                                             >
                                                 <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm ${formData.isPinned ? 'right-1' : 'left-1'}`} />
@@ -3437,6 +3673,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             fetchMedia('image');
                                             setShowFileManager(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'slider görseli'))}
                                     />
                                 ) : item.type === 'image' ? (
                                     <PostImageItem
@@ -3463,6 +3700,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'görsel bloğu'))}
                                     />
                                 ) : item.type === 'video' ? (
                                     <PostVideoItem
@@ -3483,6 +3721,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setShowFileManager(true);
                                         }}
                                         onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('video'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'video bloğu'))}
                                     />
                                 ) : item.type === 'audio' ? (
                                     <PostAudioItem
@@ -3570,6 +3809,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'flipcard görseli'))}
                                     />
                                 ) : item.type === 'beforeafter' ? (
                                     <PostBeforeAfterItem
@@ -3605,6 +3845,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'before after görseli'))}
                                     />
                                 ) : item.type === ('quiz' as any) ? (
                                     <PostQuizItem
@@ -3643,6 +3884,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'quiz görseli'))}
                                     />
                                 ) : item.type === 'iframe' ? (
                                     <PostIframeItem
@@ -3707,6 +3949,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'anket görseli'))}
                                     />
                                 ) : item.type === 'vs' ? (
                                     <PostVSItem
@@ -3745,6 +3988,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'vs görseli'))}
                                     />
                                 ) : item.type === 'review' ? (
                                     <PostReviewItem
@@ -3783,6 +4027,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
+                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'inceleme görseli'))}
                                     />
                                 ) : (
                                     <PostTextItem
@@ -3921,6 +4166,11 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                 onError={() => setIsThumbnailLoading(false)}
                                                 className="w-full h-auto object-contain block"
                                             />
+                                            <MediaFilenameBadge
+                                                src={formData.thumbnail}
+                                                type="image"
+                                                onRename={(src, type) => handleRenameMediaWithAi(src, type, `haber kapak görseli | ${formData.title || formData.summary || ''}`)}
+                                            />
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
                                                 <button
                                                     onClick={() => {
@@ -3968,9 +4218,24 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                             </div>
                             {formData.thumbnail && (
                                 <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
-                                    <label className="text-[11px] font-black text-palette-tan/60 ml-1 flex items-center gap-1.5 uppercase">
-                                        <span className="material-symbols-rounded normal-case" style={{ fontSize: '12px' }}>language</span> {t('admin.post.image_alt')}
-                                    </label>
+                                    <div className="ml-1 flex items-center justify-between gap-2">
+                                        <label className="flex items-center gap-1.5 text-[11px] font-black uppercase text-palette-tan/60">
+                                            <span className="material-symbols-rounded normal-case" style={{ fontSize: '12px' }}>language</span> {t('admin.post.image_alt')}
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={handleGenerateThumbnailAltWithAi}
+                                            disabled={isGeneratingThumbnailAlt}
+                                            className="flex h-7 shrink-0 items-center gap-1.5 rounded-[3px] border border-palette-tan/20 bg-white px-2 text-[9px] font-black uppercase tracking-tight text-palette-maroon shadow-sm transition-all hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                            title="AI ile SEO alt text üret"
+                                            aria-label="AI ile kapak görseli SEO alt text üret"
+                                        >
+                                            <span className={`material-symbols-rounded ${isGeneratingThumbnailAlt ? 'animate-spin' : ''}`} style={{ fontSize: '13px' }}>
+                                                {isGeneratingThumbnailAlt ? 'progress_activity' : 'auto_awesome'}
+                                            </span>
+                                            <span>{isGeneratingThumbnailAlt ? 'Üretiyor' : 'AI Üret'}</span>
+                                        </button>
+                                    </div>
                                     <input
                                         type="text"
                                         value={formData.thumbnailAlt}
@@ -4125,7 +4390,10 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             {t('admin.post.draft_btn')}
                                         </button>
                                     </div>
-                                    <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-palette-tan text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-tan/10">
+                                    <button
+                                        onClick={() => handleSave('published')}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-palette-tan text-white rounded-[3px] font-black text-[11px] tracking-widest hover:opacity-90 transition-all shadow-lg shadow-palette-tan/10"
+                                    >
                                         {t('admin.post.schedule_btn')}
                                     </button>
                                 </div>
@@ -4156,9 +4424,10 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             backTitle: '',
                                             backDescription: ''
                                         };
+                                        const xlSrc = src.replace('_sm', '_xl');
                                         handleUpdateItem(activeMediaTarget, 'flipData', {
                                             ...currentFlipData,
-                                            [activeMediaSubTarget]: src
+                                            [activeMediaSubTarget]: xlSrc
                                         } as any);
                                     } else if (targetItem?.type === 'beforeafter' && activeMediaSubTarget) {
                                         const currentData = targetItem.beforeAfterData || {
@@ -4276,22 +4545,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                 <StyleSheetManager shouldForwardProp={shouldForwardProp}>
                                     <FilerobotEditor
                                         {...editorConfig}
-                                        source={activeMediaTarget === 'thumbnail' ? formData.thumbnail : (() => {
-                                            const item = formData.items.find((i: PostItem) => i.id === activeMediaTarget);
-                                            if (item?.type === 'flipcard' && activeMediaSubTarget) {
-                                                return (item.flipData as any)?.[activeMediaSubTarget] || '';
-                                            }
-                                            if (item?.type === 'beforeafter' && activeMediaSubTarget) {
-                                                return (item.beforeAfterData as any)?.[activeMediaSubTarget] || '';
-                                            }
-                                            if (item?.type === 'poll') {
-                                                if (activeMediaSubTarget === 'options' && activeMediaOptionTarget) {
-                                                    return item.options?.find(o => o.id === activeMediaOptionTarget)?.image || '';
-                                                }
-                                                return item.mediaUrl || '';
-                                            }
-                                            return item?.mediaUrl || '';
-                                        })()}
+                                        source={getActiveEditorSource()}
                                         onSave={handleEditorSave}
                                         onClose={handleEditorClose}
                                     />
@@ -4316,9 +4570,12 @@ const MediaManagerModal: React.FC<{
     const { t } = useLanguage();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [selectedImages, setSelectedImages] = useState<string[]>([]);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop: async (acceptedFiles) => {
@@ -4371,20 +4628,105 @@ const MediaManagerModal: React.FC<{
         );
     }, [localFiles, searchTerm]);
 
+    const selectedImageSet = useMemo(() => new Set(selectedImages), [selectedImages]);
+    const selectedFiles = useMemo(
+        () => localFiles.filter((file: any) => selectedImageSet.has(file.src)),
+        [localFiles, selectedImageSet]
+    );
+
+    const clearSelection = () => {
+        setSelectedImage(null);
+        setSelectedImages([]);
+    };
+
+    const handleSelectFile = (file: any, event: React.MouseEvent) => {
+        event.stopPropagation();
+
+        if (event.shiftKey) {
+            const anchorSrc = selectedImage;
+            const fileIndex = filteredFiles.findIndex((item: any) => item.src === file.src);
+            const anchorIndex = anchorSrc
+                ? filteredFiles.findIndex((item: any) => item.src === anchorSrc)
+                : -1;
+
+            setSelectedImages(prev => {
+                const next = new Set(prev);
+
+                if (anchorIndex >= 0 && fileIndex >= 0) {
+                    const start = Math.min(anchorIndex, fileIndex);
+                    const end = Math.max(anchorIndex, fileIndex);
+                    filteredFiles.slice(start, end + 1).forEach((item: any) => next.add(item.src));
+                } else {
+                    next.add(file.src);
+                }
+
+                return Array.from(next);
+            });
+            setSelectedImage(file.src);
+            return;
+        }
+
+        setSelectedImage(file.src);
+        setSelectedImages([file.src]);
+    };
+
     const handleDelete = async () => {
-        if (!selectedImage) return;
+        if (!selectedImage || deleting || bulkDeleting) return;
         const fileToDelete = localFiles.find((f: any) => f.src === selectedImage);
         if (!fileToDelete) return;
 
+        setDeleting(true);
         try {
-            const success = await storageService.deleteFile(fileToDelete.id);
+            const success = await storageService.deleteFile(fileToDelete.id, fileToDelete.type || type);
             if (success) {
-                const newFiles = localFiles.filter((f: any) => f.src !== selectedImage);
-                setLocalFiles(newFiles);
+                setLocalFiles(prev => prev.filter((f: any) => f.src !== fileToDelete.src));
                 setSelectedImage(null);
+                setSelectedImages(prev => prev.filter(src => src !== fileToDelete.src));
             }
         } catch (err) {
             console.error("Delete failed:", err);
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const handleDeleteSelected = async () => {
+        if (selectedFiles.length === 0 || deleting || bulkDeleting) return;
+
+        const confirmed = window.confirm(
+            t('admin.post.delete_selected_confirm').replace('{count}', String(selectedFiles.length))
+        );
+        if (!confirmed) return;
+
+        setBulkDeleting(true);
+        const filesToDelete = [...selectedFiles];
+        const deletedSrcs = new Set<string>();
+
+        try {
+            for (const file of filesToDelete) {
+                const success = await storageService.deleteFile(file.id, file.type || type);
+                if (success) {
+                    deletedSrcs.add(file.src);
+                }
+            }
+
+            if (deletedSrcs.size > 0) {
+                setLocalFiles(prev => prev.filter((file: any) => !deletedSrcs.has(file.src)));
+                setSelectedImages(prev => prev.filter(src => !deletedSrcs.has(src)));
+                if (selectedImage && deletedSrcs.has(selectedImage)) {
+                    setSelectedImage(null);
+                }
+            }
+
+            if (deletedSrcs.size !== filesToDelete.length) {
+                window.alert(
+                    t('admin.post.delete_selected_partial')
+                        .replace('{deleted}', String(deletedSrcs.size))
+                        .replace('{total}', String(filesToDelete.length))
+                );
+            }
+        } finally {
+            setBulkDeleting(false);
         }
     };
 
@@ -4518,7 +4860,7 @@ const MediaManagerModal: React.FC<{
                     {/* MAIN CONTENT: IMAGES GRID (Refined Typography) */}
                     <div
                         className="flex-1 p-8 overflow-y-auto bg-white custom-scrollbar"
-                        onClick={() => setSelectedImage(null)}
+                        onClick={clearSelection}
                     >
                         {filteredFiles.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-palette-tan/10">
@@ -4532,17 +4874,14 @@ const MediaManagerModal: React.FC<{
                                 {filteredFiles.map((file) => (
                                     <div
                                         key={file.id}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedImage(file.src);
-                                        }}
+                                        onClick={(e) => handleSelectFile(file, e)}
                                         onDoubleClick={(e) => {
                                             e.stopPropagation();
                                             onSelect(file.src);
                                         }}
                                         className="group flex flex-col cursor-pointer"
                                     >
-                                        <div className={`relative aspect-square rounded-[3px] border-2 transition-all duration-300 overflow-hidden flex items-center justify-center ${selectedImage === file.src
+                                        <div className={`relative aspect-square rounded-[3px] border-2 transition-all duration-300 overflow-hidden flex items-center justify-center ${selectedImageSet.has(file.src)
                                             ? 'border-emerald-500 ring-[8px] ring-emerald-500/5 shadow-2xl'
                                             : 'border-palette-tan/10 hover:border-palette-maroon/40 group-hover:shadow-xl bg-palette-beige/5'
                                             }`}>
@@ -4550,7 +4889,7 @@ const MediaManagerModal: React.FC<{
                                                 file.thumb ? (
                                                     <img
                                                         src={file.thumb}
-                                                        className={`w-full h-full object-cover transition-all duration-700 ${selectedImage === file.src ? 'scale-105' : 'group-hover:scale-105 group-hover:rotate-1'
+                                                        className={`w-full h-full object-cover transition-all duration-700 ${selectedImageSet.has(file.src) ? 'scale-105' : 'group-hover:scale-105 group-hover:rotate-1'
                                                             }`}
                                                         loading="lazy"
                                                     />
@@ -4573,14 +4912,14 @@ const MediaManagerModal: React.FC<{
                                             ) : (
                                                 <img
                                                     src={file.thumb || file.src}
-                                                    className={`w-full h-full object-contain p-1 transition-all duration-700 ${selectedImage === file.src ? 'scale-105' : 'group-hover:scale-105 group-hover:rotate-1'
+                                                    className={`w-full h-full object-contain p-1 transition-all duration-700 ${selectedImageSet.has(file.src) ? 'scale-105' : 'group-hover:scale-105 group-hover:rotate-1'
                                                         }`}
                                                     loading="lazy"
                                                 />
                                             )}
 
                                             {/* Status Badge */}
-                                            {selectedImage === file.src && (
+                                            {selectedImageSet.has(file.src) && (
                                                 <div className="absolute inset-0 bg-emerald-500/5 flex items-center justify-center">
                                                     <div className="bg-emerald-500 text-white rounded-full p-2 shadow-2xl animate-in zoom-in-50 duration-300 ring-4 ring-white">
                                                         <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>check</span>
@@ -4594,7 +4933,7 @@ const MediaManagerModal: React.FC<{
                                                 </span>
                                             </div>
                                         </div>
-                                        <p className={`mt-3 text-[10px] font-black tracking-tight truncate px-1 transition-all duration-300 ${selectedImage === file.src ? 'text-emerald-700 font-bold' : 'text-palette-tan/60 group-hover:text-palette-maroon'
+                                        <p className={`mt-3 text-[10px] font-black tracking-tight truncate px-1 transition-all duration-300 ${selectedImageSet.has(file.src) ? 'text-emerald-700 font-bold' : 'text-palette-tan/60 group-hover:text-palette-maroon'
                                             }`}>
                                             {file.value || file.name || 'document.bin'}
                                         </p>
@@ -4610,18 +4949,31 @@ const MediaManagerModal: React.FC<{
 
                 {/* FOOTER: Perfectly Aligned */}
                 <div className="px-8 py-4 border-t border-palette-tan/10 flex items-center justify-between bg-palette-beige/5">
-                    <button
-                        onClick={handleDelete}
-                        disabled={!selectedImage}
-                        className="flex items-center justify-center gap-2 h-9 px-5 bg-palette-red text-white rounded-[3px] text-[11px] font-black tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-palette-red/10 disabled:opacity-20 disabled:shadow-none active:scale-95"
-                    >
-                        <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete</span>
-                        {t('admin.post.delete_permanently')}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleDelete}
+                            disabled={!selectedImage || deleting || bulkDeleting}
+                            className="flex items-center justify-center gap-2 h-9 px-5 bg-palette-red text-white rounded-[3px] text-[11px] font-black tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-palette-red/10 disabled:opacity-20 disabled:shadow-none active:scale-95"
+                        >
+                            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>{deleting ? 'progress_activity' : 'delete'}</span>
+                            {deleting ? t('common.deleting') : t('admin.post.delete_permanently')}
+                        </button>
+
+                        <button
+                            onClick={handleDeleteSelected}
+                            disabled={selectedFiles.length === 0 || deleting || bulkDeleting || uploading}
+                            className="flex items-center justify-center gap-2 h-9 px-5 bg-white text-palette-red border border-palette-red/20 rounded-[3px] text-[11px] font-black tracking-widest hover:bg-red-50 hover:border-palette-red/40 transition-all shadow-sm disabled:opacity-20 disabled:shadow-none active:scale-95"
+                        >
+                            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>{bulkDeleting ? 'progress_activity' : 'delete_sweep'}</span>
+                            {bulkDeleting
+                                ? t('common.deleting')
+                                : `${t('admin.post.delete_selected_media')} (${selectedFiles.length})`}
+                        </button>
+                    </div>
 
                     <div className="flex items-center gap-4">
                         <button
-                            disabled={!selectedImage || uploading}
+                            disabled={!selectedImage || uploading || deleting || bulkDeleting}
                             onClick={() => selectedImage && onSelect(selectedImage)}
                             className="flex items-center justify-center gap-2 h-10 px-8 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.2em] shadow-2xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all disabled:opacity-20 disabled:shadow-none active:scale-95"
                         >

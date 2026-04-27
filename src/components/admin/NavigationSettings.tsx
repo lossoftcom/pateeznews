@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NavigationMenu, type NavigationItem } from '@/types';
 
@@ -72,10 +72,10 @@ const NavigationSettings: React.FC = () => {
 
   const fetchLanguages = async () => {
     try {
-      const { data, error } = await supabase.from('languages').select('code, name');
+      const { data, error } = await neon.from('languages').select('code, name');
       if (error) throw error;
       setLanguages(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching languages:", error);
     }
   };
@@ -83,13 +83,13 @@ const NavigationSettings: React.FC = () => {
   const fetchMenus = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.from('navigation_menus').select('*');
+      const { data, error } = await neon.from('navigation_menus').select('*');
       if (error) throw error;
       setMenus(data || []);
       if (data && data.length > 0 && !activeMenuId) {
         setActiveMenuId(data[0].id);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
     } finally {
       setLoading(false);
@@ -99,7 +99,7 @@ const NavigationSettings: React.FC = () => {
   const fetchItems = async (menuId: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await neon
         .from('navigation_items')
         .select('*')
         .eq('menu_id', menuId)
@@ -125,7 +125,7 @@ const NavigationSettings: React.FC = () => {
   const createDefaultMenu = async () => {
     setSeeding(true);
     try {
-      const { data: menuData, error: menuError } = await supabase
+      const { data: menuData, error: menuError } = await neon
         .from('navigation_menus')
         .insert({ code: 'sidebar_main', name: 'Ana Sidebar', description: 'Sol taraftaki ana navigasyon menüsü.' })
         .select()
@@ -141,19 +141,19 @@ const NavigationSettings: React.FC = () => {
       ];
 
       for (const item of itemsToInsert) {
-        const { data: parentItem } = await supabase.from('navigation_items').insert(item).select().single();
+        const { data: parentItem } = await neon.from('navigation_items').insert(item).select().single();
 
         if (item.label === 'Şehirler' && parentItem) {
-          const { data: nigde } = await supabase.from('navigation_items').insert({
+          const { data: nigde } = await neon.from('navigation_items').insert({
             menu_id: menuId, parent_id: parentItem.id, label: 'Niğde', type: 'dropdown', value: 'nigde', icon: 'location_on', order_index: 1
           }).select().single();
 
-          await supabase.from('navigation_items').insert({
+          await neon.from('navigation_items').insert({
             menu_id: menuId, parent_id: parentItem.id, label: 'İstanbul', type: 'category', value: 'istanbul', icon: 'location_on', order_index: 2
           });
 
           if (nigde) {
-            await supabase.from('navigation_items').insert({
+            await neon.from('navigation_items').insert({
               menu_id: menuId, parent_id: nigde.id, label: 'Trendler', type: 'link', value: '/nigde-trend', icon: 'trending_up', order_index: 3
             });
           }
@@ -183,7 +183,7 @@ const NavigationSettings: React.FC = () => {
 
     try {
       for (let i = 0; i < _items.length; i++) {
-        await supabase.from('navigation_items').update({ order_index: i }).eq('id', _items[i].id);
+        await neon.from('navigation_items').update({ order_index: i }).eq('id', _items[i].id);
       }
     } catch (error) {
       console.error("Sorting error:", error);
@@ -207,14 +207,14 @@ const NavigationSettings: React.FC = () => {
       };
 
       if (editingItem) {
-        await supabase.from('navigation_items').update(payload).eq('id', editingItem.id);
+        await neon.from('navigation_items').update(payload).eq('id', editingItem.id);
       } else {
-        await supabase.from('navigation_items').insert(payload);
+        await neon.from('navigation_items').insert(payload);
       }
 
       setShowItemModal(false);
       fetchItems(activeMenuId);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setStatusModal({ show: true, type: 'error', message: t('admin.generic_error').replace('{error}', error.message) });
     } finally {
@@ -231,7 +231,7 @@ const NavigationSettings: React.FC = () => {
     if (!itemToDelete) return;
     setSaving(true);
     try {
-      await supabase.from('navigation_items').delete().eq('id', itemToDelete.id);
+      await neon.from('navigation_items').delete().eq('id', itemToDelete.id);
       setItems(prev => prev.filter(i => i.id !== itemToDelete.id));
       setShowDeleteModal(false);
       setItemToDelete(null);

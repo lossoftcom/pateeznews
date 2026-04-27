@@ -23,49 +23,54 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
   const isImage = data.isImagePoll;
   const columnClass = isImage ? (data.pollColumns === 3 ? 'grid-cols-3' : 'grid-cols-2') : 'grid-cols-1';
 
-	  return (
-	    <div className="mt-1 space-y-4 overflow-hidden">
-	    {/* SUMMARY - Creative Style */}
-	    <div className="px-1 mb-2">
-	      <div
-	        className="text-palette-maroon/60 text-[15px] leading-relaxed font-[500] italic [&>p]:m-0"
-	        dangerouslySetInnerHTML={{ __html: data.summary }}
-	      />
-	    </div>
+  return (
+    <div className="mt-1 space-y-4 overflow-hidden">
+      {/* SUMMARY - Creative Style */}
+      <div className="px-1 mb-2">
+        <div
+          className="text-palette-maroon/60 text-[15px] leading-relaxed font-[500] italic [&>p]:m-0"
+          dangerouslySetInnerHTML={{ __html: data.summary }}
+        />
+      </div>
 
       {/* MAIN POLL CONTAINER */}
-      <div className="relative bg-gradient-to-br from-palette-beige/10 via-white to-palette-beige/5 rounded-[5px] border border-palette-beige/40 overflow-hidden shadow-sm">
+      <div
+        className="card-interact-area relative bg-gradient-to-br from-palette-beige/10 via-white to-palette-beige/5 rounded-[5px] border border-palette-beige/40 overflow-hidden shadow-sm"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
 
         {/* IMAGE SECTION */}
-	        {data.thumbnail && (
-	          <div className="relative w-full overflow-hidden group/image">
-	            <img
-	              src={data.optimizedThumbnail?.src || data.thumbnail}
-	              srcSet={data.optimizedThumbnail?.srcSet}
-	              sizes={data.optimizedThumbnail?.sizes}
-	              alt={data.thumbnailAlt || data.seoTitle || data.title}
-	              className="w-full h-auto object-contain transition-transform duration-[2s] group-hover/image:scale-[1.02]"
-	            />
-	            {/* Gradient Overlay */}
-	            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent pointer-events-none" />
+        {data.thumbnail && (
+          <div className="relative w-full overflow-hidden group/image">
+            <img
+              src={(data.optimizedThumbnail?.src || data.thumbnail)?.replace('_sm', '_xl')}
+              alt={data.thumbnailAlt || data.seoTitle || data.title}
+              className="w-full h-auto object-contain transition-transform duration-[2s] group-hover/image:scale-[1.02]"
+            />
+            {/* Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent pointer-events-none" />
 
             {/* Category Badge - Bottom Right */}
             <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
               <div className="flex items-center gap-1.5 bg-palette-red px-3 py-1.5 rounded-[3px] shadow-lg">
-	                <span className="material-symbols-rounded text-white" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>
-	                  poll
-	                </span>
-	                <span className="text-[10px] font-black text-white uppercase tracking-widest">{t('poll.badge')}</span>
-	              </div>
-	            </div>
+                <span className="material-symbols-rounded text-white" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>
+                  poll
+                </span>
+                <span className="text-[10px] font-black text-white uppercase tracking-widest">{t('poll.badge')}</span>
+              </div>
+            </div>
 
             {/* Live Indicator - Top Left */}
             <div className="absolute top-4 left-4 z-20">
-	              <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/10">
-	                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-	                <span className="text-[9px] font-black text-white uppercase tracking-widest">{t('right.live')}</span>
-	              </div>
-	            </div>
+              <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/10">
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+                <span className="text-[9px] font-black text-white uppercase tracking-widest">{t('right.live')}</span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -100,33 +105,33 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                     key={option.id}
                     disabled={hasVoted}
                     onClick={() => handleVote(option.id)}
-                  className={`group relative flex flex-col rounded-[5px] overflow-hidden transition-all duration-500 bg-palette-beige/5 border ${hasVoted
-                    ? isSelected
-                      ? 'ring-2 ring-palette-maroon shadow-xl z-10 border-palette-maroon/40'
-                      : 'opacity-40 grayscale-[50%] scale-[0.98] border-palette-beige/30'
-                    : 'border-palette-beige/40 hover:shadow-xl hover:scale-[1.02] active:scale-[0.99]'
-                    }`}
-                >
+                    className={`group relative flex flex-col rounded-[5px] overflow-hidden transition-all duration-500 bg-palette-beige/5 border ${hasVoted
+                      ? isSelected
+                        ? 'ring-2 ring-palette-maroon shadow-xl z-10 border-palette-maroon/40'
+                        : 'opacity-40 grayscale-[50%] scale-[0.98] border-palette-beige/30'
+                      : 'border-palette-beige/40 hover:shadow-xl hover:scale-[1.02] active:scale-[0.99]'
+                      }`}
+                  >
                     {/* Image Container - Fixed Height with Blurred Background */}
                     <div className="relative w-full h-[240px] overflow-hidden">
                       {/* Blurred Background Fill */}
                       <div
                         className="absolute inset-0 bg-center bg-cover blur-2xl opacity-50 scale-110"
-                        style={{ backgroundImage: `url(${option.image})` }}
+                        style={{ backgroundImage: `url(${option.image?.replace('_sm', '_xl')})` }}
                       />
                       {/* Main Image - Object Contain */}
                       <img
-                        src={option.image}
+                        src={option.image?.replace('_sm', '_xl')}
                         alt={option.text}
                         className={`relative z-10 w-full h-full object-contain transition-transform duration-700 ${!hasVoted ? 'group-hover:scale-105' : ''}`}
                       />
 
                       {/* Hover Overlay - Before Vote */}
-	                      {!hasVoted && (
-	                        <div className="absolute inset-0 z-20 bg-gradient-to-t from-palette-maroon/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
-	                          <span className="text-white text-[10px] font-black uppercase tracking-widest">{t('poll.vote_action')}</span>
-	                        </div>
-	                      )}
+                      {!hasVoted && (
+                        <div className="absolute inset-0 z-20 bg-gradient-to-t from-palette-maroon/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
+                          <span className="text-white text-[10px] font-black uppercase tracking-widest">{t('poll.vote_action')}</span>
+                        </div>
+                      )}
 
                       {/* Result Overlay - After Vote */}
                       {hasVoted && (
@@ -135,10 +140,10 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                           <div className="text-white text-5xl font-[1000] italic tracking-tighter drop-shadow-lg animate-in zoom-in duration-500">
                             <AnimatedNumber value={percentage} suffix="" />%
                           </div>
-	                          {/* Vote Count */}
-	                          <div className="text-white/80 text-[11px] font-bold mt-1 animate-in fade-in slide-in-from-bottom-2 duration-700">
-	                            {currentOptionVotes} {t('poll.vote_unit')}
-	                          </div>
+                          {/* Vote Count */}
+                          <div className="text-white/80 text-[11px] font-bold mt-1 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                            {currentOptionVotes} {t('poll.vote_unit')}
+                          </div>
                           {/* Selected Check */}
                           {isSelected && (
                             <div className="absolute top-3 right-3 w-8 h-8 bg-white text-palette-maroon rounded-full flex items-center justify-center shadow-lg animate-in zoom-in duration-300">
@@ -216,9 +221,9 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                           <span className={`text-[14px] font-[900] tabular-nums block ${isSelected ? 'text-palette-maroon' : 'text-palette-tan/60'}`}>
                             <AnimatedNumber value={percentage} suffix="%" />
                           </span>
-	                          <span className="text-[10px] font-[600] text-palette-tan/50">
-	                            {currentOptionVotes} {t('poll.vote_unit')}
-	                          </span>
+                          <span className="text-[10px] font-[600] text-palette-tan/50">
+                            {currentOptionVotes} {t('poll.vote_unit')}
+                          </span>
                         </div>
                         {isSelected && (
                           <CheckCircle2 size={18} className="text-palette-maroon animate-in zoom-in duration-300" />
@@ -234,18 +239,18 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
 
         {/* FOOTER - Minimal Stats */}
         <div className="px-6 py-4 bg-palette-beige/[0.04] border-t border-palette-beige/20 flex items-center justify-between">
-	          <div className="flex items-center gap-2 text-palette-tan/50">
-	            <Users size={14} />
-	            <span className="text-[11px] font-[800] tracking-wide">
-	              <AnimatedNumber value={hasVoted ? (data.totalVotes || 0) + 1 : (data.totalVotes || 0)} suffix="" /> {t('poll.participant_unit')}
-	            </span>
-	          </div>
-	          {hasVoted && (
-	            <div className="flex items-center gap-1.5 text-emerald-600 animate-in fade-in slide-in-from-right-2 duration-500">
-	              <CheckCircle2 size={14} />
-	              <span className="text-[10px] font-black uppercase tracking-widest">{t('card.vote')}</span>
-	            </div>
-	          )}
+          <div className="flex items-center gap-2 text-palette-tan/50">
+            <Users size={14} />
+            <span className="text-[11px] font-[800] tracking-wide">
+              <AnimatedNumber value={hasVoted ? (data.totalVotes || 0) + 1 : (data.totalVotes || 0)} suffix="" /> {t('poll.participant_unit')}
+            </span>
+          </div>
+          {hasVoted && (
+            <div className="flex items-center gap-1.5 text-emerald-600 animate-in fade-in slide-in-from-right-2 duration-500">
+              <CheckCircle2 size={14} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{t('card.vote')}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

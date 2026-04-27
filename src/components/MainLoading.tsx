@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { type SiteSettings } from '@/types';
 
@@ -22,7 +22,7 @@ const MainLoading: React.FC = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await neon
                     .from('site_settings')
                     .select('*')
                     .eq('language_code', currentLang.code)

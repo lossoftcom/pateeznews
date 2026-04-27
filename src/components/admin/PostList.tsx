@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 
@@ -222,7 +222,15 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
     const [posts, setPosts] = useState<PostRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [totalCount, setTotalCount] = useState(0);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => {
+        try {
+            const stored = sessionStorage.getItem('pateez_admin_post_search') || '';
+            sessionStorage.removeItem('pateez_admin_post_search');
+            return stored;
+        } catch {
+            return '';
+        }
+    });
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(25);
@@ -252,15 +260,15 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
     useEffect(() => {
         const fetchMetadata = async () => {
             await Promise.all([
-                supabase.from('navigation_items').select('*').then(({ data }) => data && setNavItems(data)),
-                supabase.from('languages').select('*').then(({ data }) => data && setLanguages(data)),
-                supabase.from('profiles').select('id, full_name').not('full_name', 'is', null).then(({ data }) => data && setPublishers(data)),
-                supabase.from('posts').select('category, type, publisher_id').then(({ data }) => {
+                neon.from('navigation_items').select('*').then(({ data }) => data && setNavItems(data)),
+                neon.from('languages').select('*').then(({ data }) => data && setLanguages(data)),
+                neon.from('profiles').select('id, full_name').not('full_name', 'is', null).then(({ data }) => data && setPublishers(data)),
+                neon.from('posts').select('category, type, publisher_id').then(({ data }) => {
                     if (data) {
                         setUsedFilters({
-                            categories: Array.from(new Set(data.map(p => p.category).filter(Boolean))),
-                            types: Array.from(new Set(data.map(p => p.type).filter(Boolean))),
-                            publisherIds: Array.from(new Set(data.map(p => p.publisher_id).filter(Boolean)))
+                            categories: Array.from(new Set(data.map((p: any) => p.category).filter(Boolean))),
+                            types: Array.from(new Set(data.map((p: any) => p.type).filter(Boolean))),
+                            publisherIds: Array.from(new Set(data.map((p: any) => p.publisher_id).filter(Boolean)))
                         });
                     }
                 })
@@ -278,19 +286,14 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
-    // REAL-TIME SYNC (2025 Standard)
+    // Lightweight live refresh fallback for the custom Neon bridge.
     useEffect(() => {
-        const channel = supabase
-            .channel('posts-changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-                fetchPosts();
-            })
-            .subscribe();
+        const timer = window.setInterval(() => {
+            fetchPosts();
+        }, 30000);
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [currentPage, pageSize, searchTerm, filters]);
+        return () => window.clearInterval(timer);
+    }, [currentPage, pageSize, debouncedSearchTerm, filters]);
 
     useEffect(() => {
         fetchPosts();
@@ -312,7 +315,7 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
             const from = (currentPage - 1) * pageSize;
             const to = from + pageSize - 1;
 
-            let query = supabase
+            let query = neon
                 .from('posts')
                 .select('id,title,category,type,status,slug,created_at,thumbnail_url,likes_count,shares_count,comments_count,language_code,is_pinned,profiles:publisher_id(full_name)', { count: 'exact' });
 
@@ -385,7 +388,7 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
         setPosts(posts.map(p => p.id === post.id ? { ...p, status: newStatus } : p));
 
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('posts')
                 .update({
                     status: newStatus,
@@ -406,7 +409,7 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
 
         if (newPinned) {
             // Check current pinned count from database
-            const { count, error: countError } = await supabase
+            const { count, error: countError } = await neon
                 .from('posts')
                 .select('*', { count: 'exact', head: true })
                 .eq('is_pinned', true);
@@ -435,7 +438,7 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
         setPosts(sortedPosts);
 
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('posts')
                 .update({ is_pinned: newPinned })
                 .eq('id', post.id);
@@ -457,7 +460,7 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
         setShowDeleteModal(false);
 
         try {
-            const { error } = await supabase.from('posts').delete().eq('id', postToDelete.id);
+            const { error } = await neon.from('posts').delete().eq('id', postToDelete.id);
             if (error) throw error;
             setPostToDelete(null);
             showToast(t('admin.post.delete_success'), 'success');
@@ -476,7 +479,7 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
         setShowBulkDeleteModal(false);
 
         try {
-            const { error } = await supabase.from('posts').delete().in('id', selectedIds);
+            const { error } = await neon.from('posts').delete().in('id', selectedIds);
             if (error) throw error;
             setSelectedIds([]);
             showToast(t('posts.bulk_delete_success').replace('{count}', String(selectedIds.length)), 'success');

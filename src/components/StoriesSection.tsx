@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { FreeMode, Mousewheel } from 'swiper/modules';
 import 'swiper/css';
@@ -27,7 +27,7 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ onBack }) => {
     useEffect(() => {
         const fetchStories = async () => {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await neon
                     .from('stories')
                     .select('*')
                     .eq('is_active', true)
@@ -35,7 +35,7 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ onBack }) => {
 
                 if (error) throw error;
                 if (data) {
-                    const mapped: StoryItem[] = data.map(s => ({
+                    const mapped: StoryItem[] = data.map((s: any) => ({
                         id: s.id,
                         title: s.title,
                         mediaUrl: s.media_url,

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { type StoryItem } from '@/types';
 import WebStoryEditor from './WebStoryEditor';
@@ -56,7 +56,7 @@ const StoryManagement: React.FC<StoryManagementProps> = ({ onEditStory }) => {
             setLoading(true);
             setErrorMsg(null);
 
-            const { data, error } = await supabase
+            const { data, error } = await neon
                 .from('stories')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -118,7 +118,7 @@ const StoryManagement: React.FC<StoryManagementProps> = ({ onEditStory }) => {
         e.preventDefault();
         setSaving(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await neon.auth.getUser();
             if (!user) throw new Error("Oturum bulunamadı");
 
             const payload = {
@@ -132,13 +132,13 @@ const StoryManagement: React.FC<StoryManagementProps> = ({ onEditStory }) => {
             };
 
             if (storyToEdit) {
-                const { error } = await supabase
+                const { error } = await neon
                     .from('stories')
                     .update(payload)
                     .eq('id', storyToEdit.id);
                 if (error) throw error;
             } else {
-                const { error } = await supabase
+                const { error } = await neon
                     .from('stories')
                     .insert([payload]);
                 if (error) throw error;
@@ -167,7 +167,7 @@ const StoryManagement: React.FC<StoryManagementProps> = ({ onEditStory }) => {
         if (!storyToDelete) return;
         setSaving(true);
         try {
-            const { error } = await supabase.from('stories').delete().eq('id', storyToDelete.id);
+            const { error } = await neon.from('stories').delete().eq('id', storyToDelete.id);
             if (error) throw error;
             setShowDeleteModal(false);
             setStoryToDelete(null);

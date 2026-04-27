@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { storageService } from '@/services/storageService';
 import { useToast } from '@/context/ToastContext';
 
@@ -84,7 +84,7 @@ const Settings: React.FC<SettingsProps> = () => {
     const fetchSettings = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data, error } = await neon
                 .from('site_settings')
                 .select('*')
                 .eq('language_code', settingsLanguage)
@@ -163,7 +163,7 @@ const Settings: React.FC<SettingsProps> = () => {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('site_settings')
                 .upsert({
                     language_code: settingsLanguage,
@@ -172,7 +172,7 @@ const Settings: React.FC<SettingsProps> = () => {
                 }, { onConflict: 'language_code' });
 
             if (error) throw error;
-            const { data: savedSettings, error: fetchError } = await supabase
+            const { data: savedSettings, error: fetchError } = await neon
                 .from('site_settings')
                 .select('*')
                 .eq('language_code', settingsLanguage)

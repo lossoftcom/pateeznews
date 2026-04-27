@@ -11,50 +11,42 @@ interface FlipCardProps {
 const FlipCard: React.FC<FlipCardProps> = ({ data }) => {
   const { t } = useLanguage();
   const [isFlipped, setIsFlipped] = useState(false);
-  const [cardHeight, setCardHeight] = useState<number>(500);
+  const [cardHeight, setCardHeight] = useState<number>(0);
+  const [isReady, setIsReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!data.flipData) return;
 
     const img1 = new Image();
-    const img2 = new Image();
-    let loadedCount = 0;
 
-    const calculateHeight = () => {
-      loadedCount++;
-      if (loadedCount === 2) {
-        const containerWidth = containerRef.current?.offsetWidth || 600;
-
-        const isFrontVertical = img1.naturalHeight > img1.naturalWidth;
-        const isBackVertical = img2.naturalHeight > img2.naturalWidth;
-
-        if (isFrontVertical && isBackVertical) {
-          setCardHeight(400);
-        } else {
-          const height1 = (containerWidth / img1.naturalWidth) * img1.naturalHeight;
-          const height2 = (containerWidth / img2.naturalWidth) * img2.naturalHeight;
-          // Küçüğe göre ayarla
-          setCardHeight(Math.min(height1, height2));
-        }
+    const getOptimalHeight = (width: number, imgH: number, imgW: number) => {
+      const ratio = imgH / imgW;
+      if (ratio > 1.05) { // Dikey
+        return 450;
+      } else if (ratio >= 0.95 && ratio <= 1.05) { // Kare
+        return width;
+      } else { // Yatay
+        return width * ratio;
       }
     };
 
-    img1.onload = calculateHeight;
-    img2.onload = calculateHeight;
+    img1.onload = () => {
+      const containerWidth = containerRef.current?.offsetWidth || 600;
+      setCardHeight(getOptimalHeight(containerWidth, img1.naturalHeight, img1.naturalWidth));
+      setIsReady(true);
+    };
+
     img1.src = data.flipData.frontImage;
+
+    // Arka yüz resmini de önceden yükle (ama bekleme)
+    const img2 = new Image();
     img2.src = data.flipData.backImage;
 
     const handleResize = () => {
-      if (img1.complete && img2.complete) {
+      if (img1.complete) {
         const containerWidth = containerRef.current?.offsetWidth || 600;
-        if (img1.naturalHeight > img1.naturalWidth && img2.naturalHeight > img2.naturalWidth) {
-          setCardHeight(400);
-        } else {
-          const height1 = (containerWidth / img1.naturalWidth) * img1.naturalHeight;
-          const height2 = (containerWidth / img2.naturalWidth) * img2.naturalHeight;
-          setCardHeight(Math.min(height1, height2));
-        }
+        setCardHeight(getOptimalHeight(containerWidth, img1.naturalHeight, img1.naturalWidth));
       }
     };
 
@@ -76,14 +68,17 @@ const FlipCard: React.FC<FlipCardProps> = ({ data }) => {
       {/* Card Container with Perspective */}
       <div
         ref={containerRef}
-        className="w-full cursor-pointer group perspective-1000 relative"
+        className="card-interact-area w-full cursor-pointer group perspective-1000 relative"
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           setIsFlipped(!isFlipped);
         }}
         style={{
           perspective: '1000px',
-          height: `${cardHeight}px`
+          height: isReady ? `${cardHeight}px` : '0px',
+          opacity: isReady ? 1 : 0,
+          overflow: 'hidden',
         }}
       >
         {/* Inner Flipper Container */}
@@ -111,15 +106,15 @@ const FlipCard: React.FC<FlipCardProps> = ({ data }) => {
             </div>
 
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-[1] pointer-events-none" />
-	            <img src={data.flipData.frontImage} alt={t('flip_card.alt_front')} className="max-w-full max-h-full object-contain relative z-[2]" />
+            <img src={data.flipData.frontImage?.replace('_sm', '_xl')} alt={t('flip_card.alt_front')} className="w-full h-full object-contain relative z-[2]" />
 
             {/* Front Content */}
             <div className="absolute bottom-0 left-0 w-full p-8 text-white z-10">
-	              <div className="flex items-center gap-2 mb-3">
-	                <span className="bg-blue-600/90 backdrop-blur-md px-3 py-1 rounded-[5px] text-[10px] font-black uppercase tracking-widest shadow-lg border border-white/20">
-	                  {t('flip_card.tap_flip')}
-	                </span>
-	              </div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="bg-blue-600/90 backdrop-blur-md px-3 py-1 rounded-[5px] text-[10px] font-black uppercase tracking-widest shadow-lg border border-white/20">
+                  {t('flip_card.tap_flip')}
+                </span>
+              </div>
               {data.flipData.frontLink ? (
                 <a
                   href={data.flipData.frontLink}
@@ -139,12 +134,12 @@ const FlipCard: React.FC<FlipCardProps> = ({ data }) => {
                   dangerouslySetInnerHTML={{ __html: data.flipData.frontDescription }}
                 />
               )}
-	              <div className="flex items-center gap-2.5 text-white/70 text-[10px] font-bold uppercase tracking-widest">
+              <div className="flex items-center gap-2.5 text-white/70 text-[10px] font-bold uppercase tracking-widest">
                 <div className="p-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
                   <RotateCw size={12} className="animate-spin-slow" />
                 </div>
-	                <span>{t('flip_card.tap_for_back')}</span>
-	              </div>
+                <span>{t('flip_card.tap_for_back')}</span>
+              </div>
             </div>
 
             <div className="absolute top-5 right-5 bg-black/30 backdrop-blur-md p-2.5 rounded-full border border-white/20 z-10 shadow-lg group-hover:scale-110 transition-transform">
@@ -171,15 +166,15 @@ const FlipCard: React.FC<FlipCardProps> = ({ data }) => {
             </div>
 
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-[1] pointer-events-none" />
-	            <img src={data.flipData.backImage} alt={t('flip_card.alt_back')} className="max-w-full max-h-full object-contain relative z-[2]" />
+            <img src={data.flipData.backImage?.replace('_sm', '_xl')} alt={t('flip_card.alt_back')} className="w-full h-full object-contain relative z-[2]" />
 
             {/* Back Content - Matches Front layout */}
             <div className="absolute bottom-0 left-0 w-full p-8 text-white z-10">
-	              <div className="flex items-center gap-2 mb-3">
-	                <span className="bg-emerald-600/90 backdrop-blur-md px-3 py-1 rounded-[5px] text-[10px] font-black uppercase tracking-widest shadow-lg border border-white/20">
-	                  {t('flip_card.back_badge')}
-	                </span>
-	              </div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="bg-emerald-600/90 backdrop-blur-md px-3 py-1 rounded-[5px] text-[10px] font-black uppercase tracking-widest shadow-lg border border-white/20">
+                  {t('flip_card.back_badge')}
+                </span>
+              </div>
               {data.flipData.backLink ? (
                 <a
                   href={data.flipData.backLink}
@@ -199,12 +194,12 @@ const FlipCard: React.FC<FlipCardProps> = ({ data }) => {
                   dangerouslySetInnerHTML={{ __html: data.flipData.backDescription }}
                 />
               )}
-	              <div className="flex items-center gap-2.5 text-white/70 text-[10px] font-bold uppercase tracking-widest">
+              <div className="flex items-center gap-2.5 text-white/70 text-[10px] font-bold uppercase tracking-widest">
                 <div className="p-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
                   <RotateCw size={12} className="animate-spin-slow" />
                 </div>
-	                <span>{t('flip_card.tap_for_front')}</span>
-	              </div>
+                <span>{t('flip_card.tap_for_front')}</span>
+              </div>
             </div>
 
             <div className="absolute top-5 right-5 bg-black/30 backdrop-blur-md p-2.5 rounded-full border border-white/20 z-10 shadow-lg group-hover:scale-110 transition-transform">

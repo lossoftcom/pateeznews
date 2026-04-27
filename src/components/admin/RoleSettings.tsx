@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import type { Role, Permission } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -32,34 +32,34 @@ const RoleSettings: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const { data: rolesData, error: rolesError } = await supabase.from('roles').select('*');
+      const { data: rolesData, error: rolesError } = await neon.from('roles').select('*');
       if (rolesError) throw rolesError;
 
-      const { data: permData, error: permError } = await supabase.from('permissions').select('*').order('group_name');
+      const { data: permData, error: permError } = await neon.from('permissions').select('*').order('group_name');
       if (permError) throw permError;
 
-      const { data: profiles, error: profilesError } = await supabase.from('profiles').select('role');
+      const { data: profiles, error: profilesError } = await neon.from('profiles').select('role');
       if (!profilesError && profiles) {
         const counts: Record<string, number> = {};
-        profiles.forEach(p => {
+        profiles.forEach((p: any) => {
           const r = p.role || 'member';
           counts[r] = (counts[r] || 0) + 1;
         });
         setMemberCounts(counts);
       }
 
-      const { data: allMappings, error: mapError } = await supabase.from('role_permissions').select('role_id, permission_key');
+      const { data: allMappings, error: mapError } = await neon.from('role_permissions').select('role_id, permission_key');
       if (!mapError && allMappings) {
         const summary: Record<string, string[]> = {};
-        allMappings.forEach(m => {
+        allMappings.forEach((m: any) => {
           if (!summary[m.role_id]) summary[m.role_id] = [];
-          const pName = permData.find(pd => pd.key === m.permission_key)?.label;
+          const pName = permData.find((pd: any) => pd.key === m.permission_key)?.label;
           if (pName) summary[m.role_id].push(pName);
         });
         setRolePermissionsSummary(summary);
       }
 
-      const sortedRoles = (rolesData || []).sort((a, b) => {
+      const sortedRoles = (rolesData || []).sort((a: Role, b: Role) => {
         if (a.name === 'admin') return -1;
         if (b.name === 'admin') return 1;
         return a.label.localeCompare(b.label);
@@ -77,9 +77,9 @@ const RoleSettings: React.FC = () => {
   const openPermissionModal = async (role: Role) => {
     setSelectedRole(role);
     try {
-      const { data, error } = await supabase.from('role_permissions').select('permission_key').eq('role_id', role.id);
+      const { data, error } = await neon.from('role_permissions').select('permission_key').eq('role_id', role.id);
       if (error) throw error;
-      setRolePermissions(data.map(p => p.permission_key));
+      setRolePermissions(data.map((p: any) => p.permission_key));
       setShowPermModal(true);
     } catch (err) { console.error(err); }
   };
@@ -93,9 +93,9 @@ const RoleSettings: React.FC = () => {
     if (!selectedRole || selectedRole.name === 'admin') return;
     setSaving(true);
     try {
-      await supabase.from('role_permissions').delete().eq('role_id', selectedRole.id);
+      await neon.from('role_permissions').delete().eq('role_id', selectedRole.id);
       if (rolePermissions.length > 0) {
-        await supabase.from('role_permissions').insert(rolePermissions.map(key => ({ role_id: selectedRole.id, permission_key: key })));
+        await neon.from('role_permissions').insert(rolePermissions.map(key => ({ role_id: selectedRole.id, permission_key: key })));
       }
       setSuccess(true);
       setTimeout(() => { setSuccess(false); setShowPermModal(false); }, 1500);
@@ -107,7 +107,7 @@ const RoleSettings: React.FC = () => {
     if (!roleForm.name || !roleForm.label) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('roles').insert([{
+      const { error } = await neon.from('roles').insert([{
         name: roleForm.name.toLowerCase().replace(' ', '_'),
         label: roleForm.label,
         description: roleForm.description

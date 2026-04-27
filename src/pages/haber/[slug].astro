@@ -29,12 +29,13 @@ const lang = resolveLangCode({
 
 const langMeta = seoAlternates.find((entry) => entry.code === lang);
 
-const [initialTranslations, siteSettings, navigationItems, newsItem, newsItems] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, newsItem, newsItems, sidebarSnapshot] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
   dataService.getNavigationItems(lang),
   dataService.getNewsBySlug(slug as string),
-  dataService.getNewsItems(lang)
+  dataService.getNewsItems(lang),
+  dataService.getSidebarSnapshot(lang)
 ]);
 
 const initialLang = {
@@ -212,5 +213,6 @@ const faqLd = faqItems.length > 0 ? {
     navigationItems={navigationItems}
     newsItem={newsItemWithOptimized as any}
     newsItems={newsItems}
+    sidebarSnapshot={sidebarSnapshot}
   />
 </Layout>

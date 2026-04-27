@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { loadLocaleData } from '@/lib/locales';
 
 interface Language {
@@ -45,6 +45,9 @@ const STATIC_TR: Record<string, string> = {
   "feed.title_suffix": "Seçtiklerimiz",
   "feed.latest": "En Yeni",
   "feed.popular": "Popüler",
+  "right.weather": "Niğde",
+  "right.weather_partly_cloudy": "Parçalı Bulutlu",
+  "right.weather_feels_like_26": "Hissedilen: 26°",
 };
 
 export const LanguageProvider: React.FC<{
@@ -133,9 +136,9 @@ export const LanguageProvider: React.FC<{
         if (isMounted) setLoading(false);
       }
 
-      // Arka planda Supabase'den güncel dil listesini al (Bloke etme)
+      // Arka planda Neon'den güncel dil listesini al (Bloke etme)
       try {
-        const { data: dbLangs } = await supabase
+        const { data: dbLangs } = await neon
           .from('languages')
           .select('*')
           .eq('status', 'active');

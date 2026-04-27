@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { supabase } from './lib/supabase';
+import { neon } from './lib/neon';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Feed from './components/Feed';
@@ -214,10 +214,10 @@ const App: React.FC = () => {
   // --- NEWS FETCHING CORE (Hierarchical & Persistent) ---
   const fetchNews = useCallback(async (category?: string | null, navItemsOverride?: NavigationItem[]) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await neon.auth.getUser();
       const currentNav = navItemsOverride || navigationItems;
 
-      let query = supabase
+      let query = neon
         .from('posts')
         .select(`*, profiles:publisher_id (id, username, full_name, avatar_url, role)`)
         .eq('status', 'published')
@@ -263,8 +263,8 @@ const App: React.FC = () => {
           const postIds = postsData.map((p: any) => p.id).filter(isUUID);
           if (postIds.length > 0) {
             const [likes, saves] = await Promise.all([
-              supabase.from('post_likes').select('post_id').in('post_id', postIds).eq('user_id', user.id),
-              supabase.from('post_saves').select('post_id').in('post_id', postIds).eq('user_id', user.id)
+              neon.from('post_likes').select('post_id').in('post_id', postIds).eq('user_id', user.id),
+              neon.from('post_saves').select('post_id').in('post_id', postIds).eq('user_id', user.id)
             ]);
             userLikes = (likes.data || []).map((l: any) => l.post_id);
             userSaves = (saves.data || []).map((s: any) => s.post_id);
@@ -311,6 +311,7 @@ const App: React.FC = () => {
             items: item.items || [],
             sourceAvatar: profile?.avatar_url || '',
             isPinned: item.is_pinned || false,
+            isManset: item.show_in_manset || false,
             userLiked: userLikes.includes(item.id),
             userSaved: userSaves.includes(item.id),
             publisherId: item.publisher_id,
@@ -339,7 +340,7 @@ const App: React.FC = () => {
 
   const fetchSingleNews = useCallback(async (newsId: string) => {
     try {
-      let query = supabase
+      let query = neon
         .from('posts')
         .select(`*, profiles:publisher_id (id, username, full_name, avatar_url, role)`);
 
@@ -386,6 +387,7 @@ const App: React.FC = () => {
           items: item.items || [],
           sourceAvatar: profile?.avatar_url || '',
           isPinned: item.is_pinned || false,
+          isManset: item.show_in_manset || false,
           publisherId: item.publisher_id,
           ...extraData,
           ...(homepageItem?.type === 'poll'
@@ -419,10 +421,10 @@ const App: React.FC = () => {
       const initialNewsId = (segments[0] === 'haber' && segments[1]) ? segments[1] : null;
 
       const [sessionRes, navRes, settingsRes, storiesRes] = await Promise.all([
-        supabase.auth.getSession(),
-        supabase.from('navigation_items').select('*, navigation_menus!inner(code)').eq('language_code', currentLang.code).order('order_index'),
-        supabase.from('site_settings').select('*').eq('language_code', currentLang.code).maybeSingle(),
-        supabase.from('stories').select('*').eq('is_active', true).order('created_at', { ascending: false })
+        neon.auth.getSession(),
+        neon.from('navigation_items').select('*, navigation_menus!inner(code)').eq('language_code', currentLang.code).order('order_index'),
+        neon.from('site_settings').select('*').eq('language_code', currentLang.code).maybeSingle(),
+        neon.from('stories').select('*').eq('is_active', true).order('created_at', { ascending: false })
       ]);
 
       if (navRes.data) {
@@ -848,7 +850,7 @@ const App: React.FC = () => {
             updateUrl('edit_user_profile');
           }}
           onLogout={async () => {
-            await supabase.auth.signOut();
+            await neon.auth.signOut();
             setSession(null);
             setView('feed');
             updateUrl('feed');
@@ -1014,7 +1016,7 @@ const App: React.FC = () => {
 
         {(view === 'feed' || view === 'detail') && (
           <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8">
-            <RightSidebar newsData={newsItems} />
+            <RightSidebar newsData={newsItems} siteSettings={siteSettings} />
           </aside>
         )}
       </main>

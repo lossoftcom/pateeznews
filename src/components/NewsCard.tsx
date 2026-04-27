@@ -4,11 +4,12 @@ import { CheckCircle2, Heart, Bookmark, Share2 } from 'lucide-react';
 import { NewsType, type NewsItem, type SiteSettings, type NavigationItem } from '@/types';
 import CommentSection from './CommentSection';
 import { useToast } from '@/context/ToastContext';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from '@/components/ui/Skeleton';
 import { navigate } from 'astro:transitions/client';
 import { prefetch } from 'astro:prefetch';
+import { postAction } from '@/services/appActions';
 
 // Kart Bileşenleri
 import ReviewCard from './cards/ReviewCard';
@@ -66,11 +67,12 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
 
   const [isLiked, setIsLiked] = useState(data.userLiked || false);
   const [isDisliked, setIsDisliked] = useState(data.userDisliked || false);
-  const [showComments, setShowComments] = useState(true);
+  const [showComments, setShowComments] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(data.userSaved || false);
   const [likesCount, setLikesCount] = useState(data.likes || 0);
   const [dislikesCount, setDislikesCount] = useState(data.dislikes || 0);
-  const [savesCount, setSavesCount] = useState(data.shares || 0);
+  const [savesCount, setSavesCount] = useState(data.saves || 0);
+  const [sharesCount, setSharesCount] = useState(data.shares || 0);
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [publisherId, setPublisherId] = useState<string | null>(data.publisherId || null);
@@ -84,39 +86,24 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
 
       try {
         // 🚀 2026 Optimization: Use getSession() which is faster (reads from local storage)
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await neon.auth.getSession();
         const user = session?.user;
 
         if (user && isMounted) {
           setUserId(user.id);
 
-          // Parallelize all user-specific state checks
-          const [likeRes, saveRes, dislikeRes, postRes] = await Promise.all([
-            supabase.from('post_likes').select('id').eq('post_id', data.id).eq('user_id', user.id).maybeSingle(),
-            supabase.from('post_saves').select('id').eq('post_id', data.id).eq('user_id', user.id).maybeSingle(),
-            supabase.from('post_dislikes').select('id').eq('post_id', data.id).eq('user_id', user.id).maybeSingle(),
-            supabase.from('posts').select('publisher_id, dislikes_count').eq('id', data.id).maybeSingle()
-          ]);
+          const state = await postAction<any>('state', { postId: data.id, publisherId: data.publisherId });
 
           if (!isMounted) return;
 
-          if (likeRes.data) setIsLiked(true);
-          if (saveRes.data) setIsBookmarked(true);
-          if (dislikeRes.data) setIsDisliked(true);
-
-          if (postRes.data) {
-            if (postRes.data.dislikes_count) setDislikesCount(postRes.data.dislikes_count);
-            if (postRes.data.publisher_id) {
-              setPublisherId(postRes.data.publisher_id);
-              const { data: followData } = await supabase
-                .from('publisher_follows')
-                .select('id')
-                .eq('publisher_id', postRes.data.publisher_id)
-                .eq('user_id', user.id)
-                .maybeSingle();
-              if (followData && isMounted) setIsFollowing(true);
-            }
-          }
+          setIsLiked(!!state.userState?.liked);
+          setIsBookmarked(!!state.userState?.saved);
+          setIsDisliked(!!state.userState?.disliked);
+          setIsFollowing(!!state.userState?.following);
+          setLikesCount(state.counts?.likes ?? likesCount);
+          setDislikesCount(state.counts?.dislikes ?? dislikesCount);
+          setSharesCount(state.counts?.shares ?? sharesCount);
+          setSavesCount(state.counts?.saves ?? savesCount);
         }
       } catch (error) {
         console.error("Error checking user status:", error);
@@ -136,44 +123,19 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
       return;
     }
 
-    const newIsLiked = !isLiked;
-    const wasDisliked = isDisliked;
-
-    setIsLiked(newIsLiked);
-    setLikesCount(prev => newIsLiked ? prev + 1 : Math.max(0, prev - 1));
-
-    if (newIsLiked && wasDisliked) {
-      setIsDisliked(false);
-      setDislikesCount(prev => Math.max(0, prev - 1));
-    }
-
     setIsLoading(true);
     try {
-      if (newIsLiked) {
-        await supabase.from('post_likes').insert({ post_id: data.id, user_id: userId });
-        await supabase.from('posts').update({ likes_count: likesCount + 1 }).eq('id', data.id);
-
-        if (wasDisliked) {
-          await supabase.from('post_dislikes').delete().eq('post_id', data.id).eq('user_id', userId);
-          await supabase.from('posts').update({ dislikes_count: Math.max(0, dislikesCount - 1) }).eq('id', data.id);
-        }
-      } else {
-        await supabase.from('post_likes').delete().eq('post_id', data.id).eq('user_id', userId);
-        await supabase.from('posts').update({ likes_count: Math.max(0, likesCount - 1) }).eq('id', data.id);
-      }
+      const result = await postAction<any>('toggle_like', { postId: data.id, publisherId });
+      setIsLiked(!!result.userState?.liked);
+      setIsDisliked(!!result.userState?.disliked);
+      setLikesCount(result.counts?.likes ?? likesCount);
+      setDislikesCount(result.counts?.dislikes ?? dislikesCount);
     } catch (error) {
-      // Revert states on error
-      setIsLiked(!newIsLiked);
-      setLikesCount(prev => newIsLiked ? Math.max(0, prev - 1) : prev + 1);
-      if (newIsLiked && wasDisliked) {
-        setIsDisliked(true);
-        setDislikesCount(prev => prev + 1);
-      }
       showToast(t('common.like_failed'), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [isLiked, isDisliked, isLoading, userId, data.id, likesCount, dislikesCount, showToast]);
+  }, [isLoading, userId, data.id, publisherId, likesCount, dislikesCount, showToast, t]);
 
   const handleDislike = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -184,44 +146,19 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
       return;
     }
 
-    const newIsDisliked = !isDisliked;
-    const wasLiked = isLiked;
-
-    setIsDisliked(newIsDisliked);
-    setDislikesCount(prev => newIsDisliked ? prev + 1 : Math.max(0, prev - 1));
-
-    if (newIsDisliked && wasLiked) {
-      setIsLiked(false);
-      setLikesCount(prev => Math.max(0, prev - 1));
-    }
-
     setIsLoading(true);
     try {
-      if (newIsDisliked) {
-        await supabase.from('post_dislikes').insert({ post_id: data.id, user_id: userId });
-        await supabase.from('posts').update({ dislikes_count: dislikesCount + 1 }).eq('id', data.id);
-
-        if (wasLiked) {
-          await supabase.from('post_likes').delete().eq('post_id', data.id).eq('user_id', userId);
-          await supabase.from('posts').update({ likes_count: Math.max(0, likesCount - 1) }).eq('id', data.id);
-        }
-      } else {
-        await supabase.from('post_dislikes').delete().eq('post_id', data.id).eq('user_id', userId);
-        await supabase.from('posts').update({ dislikes_count: Math.max(0, dislikesCount - 1) }).eq('id', data.id);
-      }
+      const result = await postAction<any>('toggle_dislike', { postId: data.id, publisherId });
+      setIsLiked(!!result.userState?.liked);
+      setIsDisliked(!!result.userState?.disliked);
+      setLikesCount(result.counts?.likes ?? likesCount);
+      setDislikesCount(result.counts?.dislikes ?? dislikesCount);
     } catch (error) {
-      // Revert states on error
-      setIsDisliked(!newIsDisliked);
-      setDislikesCount(prev => newIsDisliked ? Math.max(0, prev - 1) : prev + 1);
-      if (newIsDisliked && wasLiked) {
-        setIsLiked(true);
-        setLikesCount(prev => prev + 1);
-      }
       showToast(t('common.dislike_failed'), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [isLiked, isDisliked, isLoading, userId, data.id, likesCount, dislikesCount, showToast]);
+  }, [isLoading, userId, data.id, publisherId, likesCount, dislikesCount, showToast, t]);
 
   const handleFollow = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -230,18 +167,11 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
       return;
     }
 
-    const newIsFollowing = !isFollowing;
-    setIsFollowing(newIsFollowing);
-
     setIsLoading(true);
     try {
-      if (newIsFollowing) {
-        await supabase.from('publisher_follows').insert({ publisher_id: publisherId, user_id: userId });
-      } else {
-        await supabase.from('publisher_follows').delete().eq('publisher_id', publisherId).eq('user_id', userId);
-      }
+      const result = await postAction<{ following: boolean }>('toggle_follow', { publisherId });
+      setIsFollowing(result.following);
     } catch (error) {
-      setIsFollowing(!newIsFollowing);
       showToast(t('common.follow_failed'), 'error');
     } finally {
       setIsLoading(false);
@@ -259,25 +189,17 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
       return;
     }
 
-    const newIsBookmarked = !isBookmarked;
-    setIsBookmarked(newIsBookmarked);
-    setSavesCount(prev => newIsBookmarked ? prev + 1 : prev - 1);
-
     setIsLoading(true);
     try {
-      if (newIsBookmarked) {
-        await supabase.from('post_saves').insert({ post_id: data.id, user_id: userId });
-      } else {
-        await supabase.from('post_saves').delete().eq('post_id', data.id).eq('user_id', userId);
-      }
+      const result = await postAction<any>('toggle_save', { postId: data.id, publisherId });
+      setIsBookmarked(!!result.userState?.saved);
+      setSavesCount(result.counts?.saves ?? savesCount);
     } catch (error) {
-      setIsBookmarked(!newIsBookmarked);
-      setSavesCount(prev => newIsBookmarked ? prev - 1 : prev + 1);
       showToast(t('common.bookmark_failed'), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [isBookmarked, isLoading, userId, data.id, showToast]);
+  }, [isLoading, userId, data.id, publisherId, savesCount, showToast, t]);
 
   // Paylaş menüsü state
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -307,8 +229,17 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
 
   // 2026 SEO & AI Optimized Sharing Config
   const shareUrl = typeof window !== 'undefined'
-    ? (data.slug ? `${window.location.origin}/haber/${data.slug}` : `${window.location.origin}/post/${data.id}`)
+    ? `${window.location.origin}/haber/${data.slug || data.id}`
     : '';
+
+  const recordShare = async (platform: string) => {
+    try {
+      const result = await postAction<any>('share', { postId: data.id, publisherId, platform });
+      setSharesCount(result.counts?.shares ?? sharesCount + 1);
+    } catch {
+      setSharesCount((prev) => prev + 1);
+    }
+  };
 
   const getUtmUrl = (platform: string) => {
     const separator = shareUrl.includes('?') ? '&' : '?';
@@ -334,6 +265,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
 
   // Sosyal medya paylaşım fonksiyonları
   const shareToWhatsApp = () => {
+    void recordShare('whatsapp');
     const text = getAIOptimizedText();
     const url = getUtmUrl('whatsapp');
     const finalMessage = `${text}\n\n🔗 Hemen oku: ${url}`;
@@ -345,6 +277,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
   };
 
   const shareToTelegram = () => {
+    void recordShare('telegram');
     const text = getAIOptimizedText();
     const url = getUtmUrl('telegram');
     window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank');
@@ -352,6 +285,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
   };
 
   const shareToTwitter = () => {
+    void recordShare('twitter');
     const stripHtml = (html: string) => html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
     const cleanTitle = stripHtml(data.title);
     const text = `🔥 ${cleanTitle}`;
@@ -363,14 +297,16 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
   };
 
   const shareToFacebook = () => {
+    void recordShare('facebook');
     const url = getUtmUrl('facebook');
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
     setShowShareMenu(false);
   };
 
   const shareToInstagram = async () => {
+    void recordShare('instagram');
     // Instagram direct link sharing is limited to stories for apps, for web we use copy + redirect
-    await copyLink(false);
+    await copyLink(false, false);
     showToast(t('common.link_copied_instagram'), 'info');
     setTimeout(() => {
       window.open('https://www.instagram.com/', '_blank');
@@ -379,7 +315,8 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
   };
 
   const shareToTikTok = async () => {
-    await copyLink(false);
+    void recordShare('tiktok');
+    await copyLink(false, false);
     showToast(t('common.link_copied_tiktok'), 'info');
     setTimeout(() => {
       window.open('https://www.tiktok.com/', '_blank');
@@ -388,6 +325,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
   };
 
   const shareToSocial = async () => {
+    void recordShare('native');
     const url = getUtmUrl('nsosyal');
     const text = getAIOptimizedText();
 
@@ -402,15 +340,16 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
           url: url,
         });
       } catch (error) {
-        if ((error as any).name !== 'AbortError') copyLink();
+        if ((error as any).name !== 'AbortError') copyLink(true, false);
       }
     } else {
-      copyLink();
+      copyLink(true, false);
     }
     setShowShareMenu(false);
   };
 
-  const copyLink = async (showNotification = true) => {
+  const copyLink = async (showNotification = true, track = true) => {
+    if (track) void recordShare('copy_link');
     const url = getUtmUrl('copy_link');
     try {
       await navigator.clipboard.writeText(url);
@@ -431,6 +370,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
       case NewsType.VIDEO: return <VideoCard data={data} />;
       case NewsType.GALLERY: return <GalleryCard data={data} />;
       case NewsType.POLL: return <PollCard data={data} />;
+      case NewsType.QUIZ: return <PollCard data={data} />;
       case NewsType.VS: return <VSCard data={data} />;
       case NewsType.PARAGRAPH: return <ParagraphCard data={data} />;
       case NewsType.IMAGE:
@@ -480,7 +420,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
         <span className="sr-only">{data.title}</span>
       </a>
 
-      <div className="relative pointer-events-none [&_button]:pointer-events-auto [&_input]:pointer-events-auto [&_textarea]:pointer-events-auto [&_select]:pointer-events-auto [&_a]:pointer-events-auto [&_.video-interact-area]:pointer-events-auto">
+      <div className="relative pointer-events-none [&_button]:pointer-events-auto [&_input]:pointer-events-auto [&_textarea]:pointer-events-auto [&_select]:pointer-events-auto [&_a]:pointer-events-auto [&_.video-interact-area]:pointer-events-auto [&_.card-interact-area]:pointer-events-auto">
         {/* HEADER */}
         <div className="px-6 pt-6 pb-2 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
@@ -566,7 +506,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
                 onClick={handleShare}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-[5px] text-palette-tan/50 hover:text-palette-red hover:bg-palette-red/5 transition-all duration-100 active:scale-95 group/share"
               >
-                <span className="text-[12px] font-bold leading-none">{data.shares.toLocaleString()}</span>
+                <span className="text-[12px] font-bold leading-none">{sharesCount.toLocaleString()}</span>
                 <span className="material-symbols-rounded leading-none animate-heartbeat-1" style={{ fontSize: '20px' }}>
                   share
                 </span>
@@ -697,6 +637,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
                 >
                   bookmark
                 </span>
+                {savesCount > 0 && <span className="sr-only">{savesCount}</span>}
               </button>
 
               {/* Premium Like/Dislike Capsule */}

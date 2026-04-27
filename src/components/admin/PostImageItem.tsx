@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import ReactQuill from 'react-quill-new';
 import { QUILL_MODULES, QUILL_FORMATS, type PostItem } from './PostTextItem';
 import { useLanguage } from '@/context/LanguageContext';
+import MediaFilenameBadge from './MediaFilenameBadge';
 
 interface PostImageItemProps {
     item: PostItem;
@@ -17,6 +18,7 @@ interface PostImageItemProps {
     onOpenFileManager: (id: string) => void;
     onOpenUrlMode: (id: string) => void;
     onOpenImageEditor: (id: string) => void;
+    onRenameMedia?: (src: string, type: 'image') => Promise<string | null>;
 }
 
 const PostImageItem: React.FC<PostImageItemProps> = ({
@@ -31,7 +33,8 @@ const PostImageItem: React.FC<PostImageItemProps> = ({
     onMoveDown,
     onOpenFileManager,
     onOpenUrlMode,
-    onOpenImageEditor
+    onOpenImageEditor,
+    onRenameMedia
 }) => {
     const { t } = useLanguage();
     const [showOptions, setShowOptions] = useState(false);
@@ -136,6 +139,7 @@ const PostImageItem: React.FC<PostImageItemProps> = ({
                                             onError={() => setIsImageLoading(false)}
                                             className="max-w-full max-h-[220px] object-contain block"
                                         />
+                                        <MediaFilenameBadge src={item.mediaUrl} type="image" onRename={onRenameMedia} />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => onOpenImageEditor(item.id)}

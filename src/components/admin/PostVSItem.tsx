@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactQuill from 'react-quill-new';
 import { QUILL_MODULES, QUILL_FORMATS, type PostItem } from './PostTextItem';
 import { useLanguage } from '@/context/LanguageContext';
+import MediaFilenameBadge from './MediaFilenameBadge';
 
 interface PostVSItemProps {
     item: PostItem;
@@ -16,6 +17,7 @@ interface PostVSItemProps {
     onOpenFileManager: (id: string, subField?: string, optionId?: string) => void;
     onOpenUrlMode: (id: string, subField?: string, optionId?: string) => void;
     onOpenImageEditor: (id: string, subField?: string, optionId?: string) => void;
+    onRenameMedia?: (src: string, type: 'image') => Promise<string | null>;
 }
 
 const PostVSItem: React.FC<PostVSItemProps> = ({
@@ -30,7 +32,8 @@ const PostVSItem: React.FC<PostVSItemProps> = ({
     onMoveDown,
     onOpenFileManager,
     onOpenUrlMode,
-    onOpenImageEditor
+    onOpenImageEditor,
+    onRenameMedia
 }) => {
     const { t } = useLanguage();
     const [showOptions, setShowOptions] = useState(false);
@@ -152,6 +155,7 @@ const PostVSItem: React.FC<PostVSItemProps> = ({
                                             onLoad={() => setIsMainImageLoading(false)}
                                             className="max-w-full max-h-[220px] object-contain block"
                                         />
+                                        <MediaFilenameBadge src={item.mediaUrl} type="image" onRename={onRenameMedia} />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => onOpenImageEditor(item.id, 'mediaUrl')}
@@ -228,6 +232,7 @@ const PostVSItem: React.FC<PostVSItemProps> = ({
                                     {option.image ? (
                                         <div className="w-full h-full p-2">
                                             <img src={option.image} className="w-full h-full object-contain rounded-[2px]" />
+                                            <MediaFilenameBadge src={option.image} type="image" onRename={onRenameMedia} className="bottom-1 right-1" />
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-all flex items-center justify-center gap-2">
                                                 <button
                                                     onClick={() => onOpenImageEditor(item.id, 'options', option.id)}

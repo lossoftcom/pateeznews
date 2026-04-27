@@ -17,9 +17,7 @@ const StandardCard: React.FC<StandardCardProps> = ({ data }) => {
       </div>
       <div className="relative rounded-lg overflow-hidden group flex items-center justify-center">
         <img
-          src={data.optimizedThumbnail?.src || data.thumbnail}
-          srcSet={data.optimizedThumbnail?.srcSet}
-          sizes={data.optimizedThumbnail?.sizes}
+          src={data.thumbnail}
           alt={data.thumbnailAlt || data.seoTitle || data.title}
           className="w-auto h-auto max-w-full max-h-[400px] object-contain transition-transform duration-1000 group-hover:scale-[1.02] mx-auto"
         />

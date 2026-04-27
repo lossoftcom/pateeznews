@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { loadLocaleData } from '@/lib/locales';
 
@@ -53,7 +53,7 @@ const LanguageSettings: React.FC = () => {
   const fetchLanguages = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await neon
         .from('languages')
         .select('*')
         .order('code', { ascending: true });
@@ -119,7 +119,7 @@ const LanguageSettings: React.FC = () => {
     if (!langToDelete) return;
     setProcessing(langToDelete.code);
     try {
-      const { error } = await supabase.from('languages').delete().eq('code', langToDelete.code);
+      const { error } = await neon.from('languages').delete().eq('code', langToDelete.code);
       if (error) throw error;
 
       const newLanguages = languages.filter(l => l.code !== langToDelete.code);
@@ -173,7 +173,7 @@ const LanguageSettings: React.FC = () => {
       is_default: editingLang ? editingLang.is_default : false
     };
     try {
-      await supabase.from('languages').upsert(payload, { onConflict: 'code' });
+      await neon.from('languages').upsert(payload, { onConflict: 'code' });
       fetchLanguages();
       setShowModal(false);
     } catch (e) {
@@ -186,8 +186,8 @@ const LanguageSettings: React.FC = () => {
     e.stopPropagation();
     try {
       setProcessing(code);
-      await supabase.from('languages').update({ is_default: false }).neq('code', code);
-      await supabase.from('languages').update({ is_default: true }).eq('code', code);
+      await neon.from('languages').update({ is_default: false }).neq('code', code);
+      await neon.from('languages').update({ is_default: true }).eq('code', code);
       localStorage.setItem('pateez_lang', code);
       writeLangCookie(code);
       window.location.reload();
@@ -222,7 +222,7 @@ const LanguageSettings: React.FC = () => {
           code: json.meta.code, name: json.meta.name, direction: json.meta.direction || 'ltr',
           status: json.meta.status || 'active', flag_code: json.meta.flag_code || json.meta.code, is_default: false
         };
-        await supabase.from('languages').upsert(dbPayload, { onConflict: 'code' });
+        await neon.from('languages').upsert(dbPayload, { onConflict: 'code' });
         localStorage.setItem(`pateez_locale_${dbPayload.code}`, JSON.stringify(json.translations));
         window.location.reload();
       } catch (err) { setStatusModal({ show: true, type: 'error', message: t('lang.import_error') }); } finally { setImporting(false); }

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface PublisherProfileSettingsProps {
@@ -28,12 +28,12 @@ const PublisherProfileSettings: React.FC<PublisherProfileSettingsProps> = ({ pub
             let targetId = publisherId;
 
             if (!targetId) {
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { user } } = await neon.auth.getUser();
                 if (!user) return;
                 targetId = user.id;
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await neon
                 .from('profiles')
                 .select('*')
                 .eq('id', targetId)
@@ -80,7 +80,7 @@ const PublisherProfileSettings: React.FC<PublisherProfileSettingsProps> = ({ pub
         setSaving(true);
         try {
             // Uniqueness check
-            const { data: conflicts } = await supabase
+            const { data: conflicts } = await neon
                 .from('profiles')
                 .select('username, email')
                 .or(`username.eq.${profile.username},email.eq.${profile.email}`)
@@ -88,7 +88,7 @@ const PublisherProfileSettings: React.FC<PublisherProfileSettingsProps> = ({ pub
 
             if (conflicts && conflicts.length > 0) {
                 const errors: Record<string, string> = {};
-                conflicts.forEach(c => {
+                conflicts.forEach((c: any) => {
                     if (c.username?.toLowerCase() === profile.username?.toLowerCase()) errors.username = t('profile.username_taken');
                     if (c.email?.toLowerCase() === profile.email?.toLowerCase()) errors.email = t('profile.email_taken');
                 });
@@ -99,7 +99,7 @@ const PublisherProfileSettings: React.FC<PublisherProfileSettingsProps> = ({ pub
                 }
             }
 
-            const { error } = await supabase
+            const { error } = await neon
                 .from('profiles')
                 .update({
                     full_name: profile.full_name,

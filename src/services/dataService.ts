@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { NewsType, type NavigationItem, type NewsItem, type SiteSettings } from '@/types';
 
 const normalizeNewsType = (value: unknown): NewsType => {
@@ -9,6 +9,9 @@ const normalizeNewsType = (value: unknown): NewsType => {
         case 'ARTICLE':
         case 'POST':
         case 'NEWS':
+        case 'CONTENTS':
+        case 'TABLE_OF_CONTENTS':
+        case 'RECIPE':
         case '':
             return NewsType.STANDARD;
         case 'VIDEO':
@@ -57,6 +60,12 @@ const CACHE_TTL = {
 const cache: Record<string, { data: any; expiry: number }> = {};
 const inflight: Record<string, Promise<any> | undefined> = {};
 
+const ensureServerSchema = async () => {
+    if (!import.meta.env.SSR) return;
+    const { ensureAppSchema } = await import('@/lib/server/appDb');
+    await ensureAppSchema();
+};
+
 const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) => {
     const now = Date.now();
     if (cache[key] && cache[key].expiry > now) {
@@ -81,7 +90,7 @@ const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) 
 export const dataService = {
     async getSiteSettings(lang: string): Promise<SiteSettings | null> {
         return withCache(`settings_${lang}`, CACHE_TTL.SETTINGS, async () => {
-            const { data, error } = await supabase
+            const { data, error } = await neon
                 .from('site_settings')
                 .select('*')
                 .eq('language_code', lang)
@@ -99,7 +108,7 @@ export const dataService = {
         return withCache('seo_alternates', CACHE_TTL.SETTINGS, async () => {
             const fallback = [{ code: 'tr', name: 'Türkçe', direction: 'ltr' as const, flagCode: 'tr', isDefault: true }];
 
-            const { data: langs, error: langsError } = await supabase
+            const { data: langs, error: langsError } = await neon
                 .from('languages')
                 .select('code, is_default, status, name, direction, flag_code')
                 .eq('status', 'active');
@@ -125,7 +134,7 @@ export const dataService = {
                 .map((l) => l.code)
                 .filter((code) => !!code);
 
-            const { data: settings, error: settingsError } = await supabase
+            const { data: settings, error: settingsError } = await neon
                 .from('site_settings')
                 .select('language_code, canonical_url')
                 .in('language_code', codes);
@@ -158,9 +167,58 @@ export const dataService = {
         });
     },
 
+    async getSidebarSnapshot(lang: string): Promise<any | null> {
+        if (!import.meta.env.SSR) return null;
+
+        try {
+            const [{ ensureAppSchema }, { dbQuery }] = await Promise.all([
+                import('@/lib/server/appDb'),
+                import('@/lib/server/neonDb'),
+            ]);
+            await ensureAppSchema();
+
+            const languageCode = String(lang || 'tr').trim() || 'tr';
+            const [sidebarResult, pharmacyResult] = await Promise.all([
+                dbQuery<{ payload: any }>(
+                    `SELECT payload
+                     FROM public.app_cache
+                     WHERE key = $1
+                     LIMIT 1`,
+                    [`sidebar:${languageCode}`]
+                ),
+                dbQuery<{ payload: any }>(
+                    `SELECT payload
+                     FROM public.app_cache
+                     WHERE key = $1
+                       AND expires_at > now()
+                     LIMIT 1`,
+                    ['duty_pharmacies:nigde']
+                ),
+            ]);
+
+            const payload = sidebarResult.rows[0]?.payload;
+            const sidebarPayload = payload
+                ? (typeof payload === 'string' ? JSON.parse(payload) : payload)
+                : null;
+            const pharmacyPayload = pharmacyResult.rows[0]?.payload
+                ? (typeof pharmacyResult.rows[0].payload === 'string'
+                    ? JSON.parse(pharmacyResult.rows[0].payload)
+                    : pharmacyResult.rows[0].payload)
+                : null;
+
+            if (!sidebarPayload && !pharmacyPayload) return null;
+            return {
+                ...(sidebarPayload || {}),
+                dutyPharmacies: pharmacyPayload || null,
+            };
+        } catch {
+            return null;
+        }
+    },
+
     async getNavigationItems(lang: string): Promise<NavigationItem[]> {
         return withCache(`nav_${lang}`, CACHE_TTL.NAV, async () => {
-            const { data, error } = await supabase
+            const { data, error } = await neon
                 .from('navigation_items')
                 .select('*')
                 .eq('language_code', lang)
@@ -178,11 +236,13 @@ export const dataService = {
     async getNewsItems(lang: string, category?: string | string[] | null, limit = 50): Promise<NewsItem[]> {
         const cacheKey = `news_${lang}_${Array.isArray(category) ? category.join(',') : (category || 'home')}_${limit}`;
         return withCache(cacheKey, CACHE_TTL.NEWS, async () => {
-            let query = supabase
+            await ensureServerSchema();
+            let query = neon
                 .from('posts')
-                .select(`id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, fact_checked, schema_type, card_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`)
+                .select(`id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, views_count, saves_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, show_in_manset, fact_checked, schema_type, card_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`)
                 .eq('status', 'published')
                 .eq('language_code', lang)
+                .or(`published_at.lte.${new Date().toISOString()},published_at.is.null`)
                 .order('is_pinned', { ascending: false })
                 .order('published_at', { ascending: false });
 
@@ -204,7 +264,7 @@ export const dataService = {
                 return [];
             }
 
-            return (data || []).map(post => this.mapPost(post));
+            return (data || []).map((post: any) => this.mapPost(post));
         });
     },
 
@@ -215,7 +275,7 @@ export const dataService = {
         const selectClause = `*, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
 
         // 1) Try by slug
-        const slugRes = await supabase
+        const slugRes = await neon
             .from('posts')
             .select(selectClause)
             .eq('slug', normalized)
@@ -225,7 +285,7 @@ export const dataService = {
 
         // 2) Fallback to numeric id
         if (/^[0-9]+$/.test(normalized)) {
-            const idRes = await supabase
+            const idRes = await neon
                 .from('posts')
                 .select(selectClause)
                 .eq('id', normalized)
@@ -268,7 +328,8 @@ export const dataService = {
             dislikes: post?.dislikes_count ?? (cardData as any)?.dislikes ?? 0,
             comments: post?.comments_count ?? (cardData as any)?.comments ?? 0,
             shares: post?.shares_count ?? (cardData as any)?.shares ?? 0,
-            views: (cardData as any)?.views ?? 0,
+            views: post?.views_count ?? (cardData as any)?.views ?? 0,
+            saves: post?.saves_count ?? (cardData as any)?.saves ?? 0,
             seoTitle: post?.seo_title ?? (cardData as any)?.seoTitle,
             seoDescription: post?.seo_description ?? (cardData as any)?.seoDescription,
             keywords: post?.keywords ?? (cardData as any)?.keywords,
@@ -279,6 +340,7 @@ export const dataService = {
             items: itemsRaw,
             sourceAvatar: post?.profiles?.avatar_url || (cardData as any)?.sourceAvatar || '',
             isPinned: post?.is_pinned ?? (cardData as any)?.isPinned ?? false,
+            isManset: post?.show_in_manset ?? (cardData as any)?.isManset ?? false,
             publisherId: post?.publisher_id ?? (cardData as any)?.publisherId,
         };
 
@@ -339,10 +401,14 @@ export const dataService = {
             (item.showOnHomepage || item.orderNumber === 1)
         );
 
+        const savedCoverThumbnail = typeof post?.thumbnail_url === 'string' && post.thumbnail_url.trim()
+            ? post.thumbnail_url
+            : '';
         merged.coverThumbnail =
-            (cardData as any)?.coverThumbnail ??
-            coverFromItems?.mediaUrl ??
-            merged.thumbnail;
+            savedCoverThumbnail ||
+            (cardData as any)?.coverThumbnail ||
+            merged.thumbnail ||
+            coverFromItems?.mediaUrl;
 
         if (resolvedType === NewsType.GALLERY && (!merged.mediaList || merged.mediaList.length === 0)) {
             const slider = items.find((item: any) => item?.type === 'slider' && Array.isArray(item?.mediaUrls));
@@ -364,7 +430,7 @@ export const dataService = {
 
     async getStories(lang: string): Promise<any[]> {
         return withCache(`stories_${lang}`, CACHE_TTL.STORIES, async () => {
-            const { data, error } = await supabase
+            const { data, error } = await neon
                 .from('stories')
                 .select('*')
                 .eq('is_active', true)

@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Camera, Check, Globe, LayoutGrid, Link as LinkIcon, Save, Sparkles, User, X, Mail, Phone, MapPin, Briefcase, Calendar, Shield, Lock, Trash2, Smartphone } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { storageService } from '@/services/storageService';
 import { useLanguage } from '@/context/LanguageContext';
+import { accountAction } from '@/services/appActions';
 
 interface UserEditProfileProps {
   userId?: string;
@@ -47,6 +48,9 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success'>('idle');
   const [uploadingImage, setUploadingImage] = useState<'avatar' | 'cover' | null>(null);
+  const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+  const [deletePassword, setDeletePassword] = useState('');
+  const [formMessage, setFormMessage] = useState<string | null>(null);
 
   const normalizeProfileMediaUrl = (input: any): string => {
     if (!input) return '';
@@ -71,7 +75,8 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
     const fetchProfile = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase
+        await accountAction('ensure-schema').catch(() => null);
+        const { data, error } = await neon
           .from('profiles')
           .select('*')
           .eq('id', userId)
@@ -116,6 +121,10 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
 
     fetchProfile();
   }, [userId]);
+
+  useEffect(() => {
+    setFormMessage(null);
+  }, [activeTab]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'cover') => {
     const file = e.target.files?.[0];
@@ -191,7 +200,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
       if (prefColumnsRef.current.show_email) updatePayload.show_email = formData.show_email;
       if (prefColumnsRef.current.rss_feeds) updatePayload.rss_feeds = formData.rss_feeds;
 
-      const { error } = await supabase
+      const { error } = await neon
         .from('profiles')
         .update(updatePayload)
         .eq('id', userId);
@@ -202,6 +211,49 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
       setTimeout(() => setSaveStatus('idle'), 1000);
     } catch (err) {
       console.error('Error saving profile:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!passwords.current || !passwords.next || passwords.next !== passwords.confirm) {
+      setFormMessage(t('profile.passwords_not_match'));
+      return;
+    }
+
+    setSaving(true);
+    setFormMessage(null);
+    try {
+      await accountAction('update-password', {
+        currentPassword: passwords.current,
+        newPassword: passwords.next,
+      });
+      setPasswords({ current: '', next: '', confirm: '' });
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 1200);
+    } catch (error: any) {
+      setFormMessage(error.message || t('common.action_failed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      setFormMessage(t('profile.enter_password_confirm'));
+      return;
+    }
+    if (!window.confirm(t('profile.delete_confirm_title'))) return;
+
+    setSaving(true);
+    setFormMessage(null);
+    try {
+      await accountAction('delete-self', { currentPassword: deletePassword });
+      await neon.auth.signOut();
+      window.location.href = '/';
+    } catch (error: any) {
+      setFormMessage(error.message || t('common.action_failed'));
     } finally {
       setSaving(false);
     }
@@ -582,20 +634,25 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
                 </div>
 
                 <div className="space-y-4 max-w-sm">
+                  {formMessage && (
+                    <div className="px-4 py-3 rounded-[5px] bg-palette-red/5 border border-palette-red/20 text-[12px] font-bold text-palette-red">
+                      {formMessage}
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-black text-gray-500 uppercase tracking-widest">{t('user_edit_profile.password.current')}</label>
-                    <input type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-[5px] text-sm font-bold focus:bg-white focus:border-blue-500 outline-none transition-all" />
+                    <input type="password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-[5px] text-sm font-bold focus:bg-white focus:border-blue-500 outline-none transition-all" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-black text-gray-500 uppercase tracking-widest">{t('user_edit_profile.password.new')}</label>
-                    <input type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-[5px] text-sm font-bold focus:bg-white focus:border-blue-500 outline-none transition-all" />
+                    <input type="password" value={passwords.next} onChange={(e) => setPasswords({ ...passwords, next: e.target.value })} placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-[5px] text-sm font-bold focus:bg-white focus:border-blue-500 outline-none transition-all" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-black text-gray-500 uppercase tracking-widest">{t('user_edit_profile.password.confirm')}</label>
-                    <input type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-[5px] text-sm font-bold focus:bg-white focus:border-blue-500 outline-none transition-all" />
+                    <input type="password" value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-[5px] text-sm font-bold focus:bg-white focus:border-blue-500 outline-none transition-all" />
                   </div>
-                  <button className="w-full py-3 bg-gray-900 text-white rounded-[5px] text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md active:scale-95">
-                    {t('profile.update_password')}
+                  <button onClick={handleUpdatePassword} disabled={saving} className="w-full py-3 bg-gray-900 text-white rounded-[5px] text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-60">
+                    {saving ? `${t('common.saving')}...` : t('profile.update_password')}
                   </button>
                 </div>
               </div>
@@ -622,11 +679,16 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
                   </div>
 
                   <div className="flex flex-col gap-3 pt-2">
+                    {formMessage && (
+                      <div className="px-4 py-3 rounded-[5px] bg-white border border-red-200 text-[12px] font-bold text-palette-red">
+                        {formMessage}
+                      </div>
+                    )}
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-black text-red-900 uppercase tracking-widest">{t('profile.enter_password_confirm')}</label>
-                      <input type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-white border border-red-200 rounded-[5px] text-sm font-bold focus:border-red-500 outline-none transition-all" />
+                      <input type="password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-3 bg-white border border-red-200 rounded-[5px] text-sm font-bold focus:border-red-500 outline-none transition-all" />
                     </div>
-                    <button className="flex items-center justify-center gap-2 py-4 bg-palette-red text-white rounded-[5px] text-[11px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl active:scale-95">
+                    <button onClick={handleDeleteAccount} disabled={saving} className="flex items-center justify-center gap-2 py-4 bg-palette-red text-white rounded-[5px] text-[11px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl active:scale-95 disabled:opacity-60">
                       <Trash2 size={16} />
                       {t('profile.delete_permanently')}
                     </button>
@@ -636,6 +698,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
             )}
 
             {/* SAVE BUTTON AT THE BOTTOM */}
+            {activeTab !== 'change_password' && activeTab !== 'delete_account' && (
             <div className="mt-10 pt-8 border-t border-gray-100 flex justify-end">
               <button
                 onClick={handleSave}
@@ -653,6 +716,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
                 <span>{saving ? `${t('common.saving')}...` : saveStatus === 'success' ? t('profile.saved_success') : t('common.save_changes')}</span>
               </button>
             </div>
+            )}
 
           </div>
         </div>

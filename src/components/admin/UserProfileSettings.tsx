@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { storageService } from '@/services/storageService';
 import { useLanguage } from '@/context/LanguageContext';
+import { accountAction } from '@/services/appActions';
 
 interface UserProfileSettingsProps {
   userId?: string;
@@ -83,15 +84,16 @@ const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ userId, onSuc
   const fetchProfile = async () => {
     try {
       setLoading(true);
+      await accountAction('ensure-schema').catch(() => null);
       let targetId = userId;
 
       if (!targetId) {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await neon.auth.getUser();
         if (!user) return;
         targetId = user.id;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await neon
         .from('profiles')
         .select('*')
         .eq('id', targetId)
@@ -192,7 +194,7 @@ const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ userId, onSuc
 
     try {
       // Uniqueness check for username
-      const { data: conflict } = await supabase
+      const { data: conflict } = await neon
         .from('profiles')
         .select('username')
         .eq('username', formData.username)
@@ -232,7 +234,7 @@ const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ userId, onSuc
       if (prefColumnsRef.current.show_email) updatePayload.show_email = formData.show_email;
       if (prefColumnsRef.current.rss_feeds) updatePayload.rss_feeds = formData.rss_feeds;
 
-      const { error } = await supabase
+      const { error } = await neon
         .from('profiles')
         .update(updatePayload)
         .eq('id', formData.id);
@@ -262,11 +264,17 @@ const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ userId, onSuc
     setFormErrors({});
     setSaving(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwords.new
-      });
-
-      if (error) throw error;
+      if (userId) {
+        await accountAction('admin-update-password', {
+          userId: formData.id,
+          newPassword: passwords.new,
+        });
+      } else {
+        await accountAction('update-password', {
+          currentPassword: passwords.old,
+          newPassword: passwords.new,
+        });
+      }
       setSaveStatus('success');
       setPasswords({ old: '', new: '', confirm: '' });
       setTimeout(() => setSaveStatus('idle'), 3000);
@@ -285,13 +293,16 @@ const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ userId, onSuc
 
     setSaving(true);
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', formData.id);
-      if (error) throw error;
+      if (userId) {
+        await accountAction('admin-delete-user', { userId: formData.id });
+      } else {
+        await accountAction('delete-self', { currentPassword: passwords.old });
+      }
 
       // If it's the current user, sign out
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await neon.auth.getUser();
       if (user && user.id === formData.id) {
-        await supabase.auth.signOut();
+        await neon.auth.signOut();
         window.location.reload();
       } else if (onSuccess) {
         onSuccess();

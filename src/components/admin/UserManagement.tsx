@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { navigate } from 'astro:transitions/client';
+import { accountAction } from '@/services/appActions';
 
 interface Profile {
   id: string;
@@ -201,16 +202,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
       // Rollere ve yayıncı listesine sadece ilk açılışta veya ihtiyaç duyulduğunda bakalım
       if (roles.length <= 4 || publishersList.length === 0) {
         const [rRes, pRes] = await Promise.all([
-          supabase.from('roles').select('*').neq('name', 'publisher'),
-          supabase.from('profiles').select('*').eq('role', 'publisher')
+          neon.from('roles').select('*').neq('name', 'publisher'),
+          neon.from('profiles').select('*').eq('role', 'publisher')
         ]);
         if (rRes.data) setRoles(rRes.data);
         if (pRes.data) setPublishersList(pRes.data as unknown as Profile[]);
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await neon.auth.getUser();
       if (user && !currentUserRole) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        const { data: profile } = await neon.from('profiles').select('role').eq('id', user.id).single();
         setCurrentUserRole(profile?.role || '');
       }
 
@@ -218,7 +219,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
       const to = from + pageSize - 1;
 
       // IŞIK HIZI: Sadece bu sayfadaki kişileri ve onların yayıncılarını çekiyoruz
-      let query = supabase.from('profiles')
+      let query = neon.from('profiles')
         .select('*, publisher_users!publisher_users_user_id_fkey(publisher:profiles!publisher_users_publisher_id_fkey(id, full_name))', { count: 'exact' })
         .neq('role', 'publisher');
 
@@ -302,14 +303,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
     setSaving(true);
     try {
       // Uniqueness check
-      const { data: conflicts, error: checkError } = await supabase
+      const { data: conflicts, error: checkError } = await neon
         .from('profiles')
         .select('username, email')
         .or(`username.eq.${newUser.username},email.eq.${newUser.email}`);
 
       if (conflicts && conflicts.length > 0) {
         const errors: Record<string, string> = {};
-        conflicts.forEach(c => {
+        conflicts.forEach((c: any) => {
           if (c.username?.toLowerCase() === newUser.username.toLowerCase()) errors.username = t('profile.username_taken');
           if (c.email?.toLowerCase() === newUser.email.toLowerCase()) errors.email = t('profile.email_taken');
         });
@@ -321,7 +322,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
       }
 
       // 2025 Robust Sign Up: Include all essential fields in metadata to avoid trigger failures
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: authData, error: authError } = await neon.auth.signUp({
         email: newUser.email,
         password: newUser.password,
         options: {
@@ -342,7 +343,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
         await new Promise(resolve => setTimeout(resolve, 800));
 
         // Use upsert to guarantee the profile record exists with correct data
-        const { error: upsertError } = await supabase
+        const { error: upsertError } = await neon
           .from('profiles')
           .upsert({
             id: authData.user.id,
@@ -359,7 +360,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
 
         if (upsertError) {
           // Final fallback: attempt a targeted update if upsert had a complex conflict
-          await supabase
+          await neon
             .from('profiles')
             .update({
               role: newUser.role,
@@ -414,7 +415,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
     setSaving(true);
     try {
       // Uniqueness check
-      const { data: conflicts, error: checkError } = await supabase
+      const { data: conflicts, error: checkError } = await neon
         .from('profiles')
         .select('username, email')
         .or(`username.eq.${editUserData.username},email.eq.${editUserData.email}`)
@@ -422,7 +423,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
 
       if (conflicts && conflicts.length > 0) {
         const errors: Record<string, string> = {};
-        conflicts.forEach(c => {
+        conflicts.forEach((c: any) => {
           if (c.username?.toLowerCase() === editUserData.username.toLowerCase()) errors.username = t('profile.username_taken');
           if (c.email?.toLowerCase() === editUserData.email.toLowerCase()) errors.email = t('profile.email_taken');
         });
@@ -433,7 +434,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
         }
       }
 
-      const { error } = await supabase
+      const { error } = await neon
         .from('profiles')
         .update({
           full_name: editUserData.full_name,
@@ -445,6 +446,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
         .eq('id', editUserData.id);
 
       if (error) throw error;
+
+      if (editUserData.password) {
+        await accountAction('admin-update-password', {
+          userId: editUserData.id,
+          newPassword: editUserData.password,
+        });
+      }
 
       setSuccess(true);
 
@@ -475,12 +483,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
     handleCloseDeleteModal();
 
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', userToDelete.id);
-      if (error) {
-        // Revert
-        setProfiles(previousProfiles);
-        throw error;
-      }
+      await accountAction('admin-delete-user', { userId: userToDelete.id });
       // No need to fetch data, we already removed it
     } catch (err: any) {
       setStatusModal({ show: true, type: 'error', message: t('admin.generic_error').replace('{error}', err.message) });
@@ -708,7 +711,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
                                     setProfiles(prev => prev.map(p => p.id === user.id ? { ...p, status: 'Aktif' } : p));
 
                                     try {
-                                      const { error } = await supabase.from('profiles').update({ status: 'Aktif' }).eq('id', user.id);
+                                      const { error } = await neon.from('profiles').update({ status: 'Aktif' }).eq('id', user.id);
                                       if (error) {
                                         // Revert on error
                                         setProfiles(prev => prev.map(p => p.id === user.id ? { ...p, status: user.status } : p));
@@ -730,7 +733,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
                                     setProfiles(prev => prev.map(p => p.id === user.id ? { ...p, status: 'Engelli' } : p));
 
                                     try {
-                                      const { error } = await supabase.from('profiles').update({ status: 'Engelli' }).eq('id', user.id);
+                                      const { error } = await neon.from('profiles').update({ status: 'Engelli' }).eq('id', user.id);
                                       if (error) {
                                         // Revert on error
                                         setProfiles(prev => prev.map(p => p.id === user.id ? { ...p, status: user.status } : p));
@@ -753,7 +756,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
                                     setProfiles(prev => prev.map(p => p.id === user.id ? { ...p, reward_system: newRewardState } : p));
 
                                     try {
-                                      const { error } = await supabase.from('profiles').update({ reward_system: newRewardState }).eq('id', user.id);
+                                      const { error } = await neon.from('profiles').update({ reward_system: newRewardState }).eq('id', user.id);
                                       if (error) {
                                         // Revert on error
                                         setProfiles(prev => prev.map(p => p.id === user.id ? { ...p, reward_system: user.reward_system } : p));
@@ -1213,7 +1216,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
                   try {
                     for (const userId of selectedUsersForPublisher) {
                       for (const pubId of selectedPublishersForUser) {
-                        await supabase.from('publisher_users').upsert({
+                        await neon.from('publisher_users').upsert({
                           user_id: userId,
                           publisher_id: pubId
                         });
@@ -1361,13 +1364,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ onEditUser, initialSear
                 onClick={async () => {
                   setSaving(true);
                   try {
-                    await supabase.from('publisher_users').delete().eq('user_id', targetUserForPublishers.id);
+                    await neon.from('publisher_users').delete().eq('user_id', targetUserForPublishers.id);
                     if (selectedPublishersForUser.length > 0) {
                       const inserts = selectedPublishersForUser.map(pubId => ({
                         user_id: targetUserForPublishers.id,
                         publisher_id: pubId
                       }));
-                      const { error } = await supabase.from('publisher_users').insert(inserts);
+                      const { error } = await neon.from('publisher_users').insert(inserts);
                       if (error) throw error;
                     }
                     setStatusModal({ show: true, type: 'success', message: t('users.user_publishers_edit.update_success') });

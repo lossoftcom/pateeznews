@@ -22,6 +22,7 @@ interface HomePageProps {
     navigationItems: NavigationItem[];
     newsItems: NewsItem[];
     storiesItems?: any[];
+    sidebarSnapshot?: any;
     selectedCategory?: string;
     isInitialHome?: boolean;
 }
@@ -33,6 +34,7 @@ const HomePage: React.FC<HomePageProps> = ({
     navigationItems,
     newsItems: initialNews,
     storiesItems,
+    sidebarSnapshot,
     selectedCategory: initialCategory,
     isInitialHome = true
 }) => {
@@ -212,7 +214,7 @@ const HomePage: React.FC<HomePageProps> = ({
 
                         {activeView === 'feed' && (
                             <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8">
-                                <RightSidebar newsData={displayNews} loading={initialNews.length === 0} />
+                                <RightSidebar newsData={displayNews} loading={initialNews.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} />
                             </aside>
                         )}
                     </main>

@@ -57,7 +57,7 @@ const PostAudioItem: React.FC<PostAudioItemProps> = ({
     const [duration, setDuration] = useState(0);
     const audioRef = useRef<HTMLAudioElement>(null);
 
-    const ytInfo = youtubeMusicParser(item.mediaUrl);
+    const ytInfo = youtubeMusicParser(item.mediaUrl || '');
     const isYoutube = !!ytInfo;
 
     useEffect(() => {

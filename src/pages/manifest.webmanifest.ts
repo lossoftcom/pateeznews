@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { dataService } from '@/services/dataService';
 import { resolveLangCode } from '@/utils/lang';
 
@@ -61,7 +61,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const fetchSettings = async (languageCode: string) => {
-    const { data } = await supabase
+    const { data } = await neon
       .from('site_settings')
       .select('site_name, meta_description, canonical_url, favicon_url, logo_url, og_image_url')
       .eq('language_code', languageCode)

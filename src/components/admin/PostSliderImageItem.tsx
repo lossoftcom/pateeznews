@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { QUILL_MODULES, QUILL_FORMATS, type PostItem } from './PostTextItem';
 import { storageService } from '@/services/storageService';
 import { useLanguage } from '@/context/LanguageContext';
+import MediaFilenameBadge from './MediaFilenameBadge';
 
 interface PostSliderImageItemProps {
     item: PostItem;
@@ -17,6 +18,7 @@ interface PostSliderImageItemProps {
     onMoveUp?: (index: number) => void;
     onMoveDown?: (index: number) => void;
     onOpenFileManager: (id: string) => void;
+    onRenameMedia?: (src: string, type: 'image') => Promise<string | null>;
 }
 
 const PostSliderImageItem: React.FC<PostSliderImageItemProps> = ({
@@ -29,7 +31,8 @@ const PostSliderImageItem: React.FC<PostSliderImageItemProps> = ({
     isDeletable = true,
     onMoveUp,
     onMoveDown,
-    onOpenFileManager
+    onOpenFileManager,
+    onRenameMedia
 }) => {
     const { t } = useLanguage();
     const [showDescription, setShowDescription] = useState(false);
@@ -190,6 +193,7 @@ const PostSliderImageItem: React.FC<PostSliderImageItemProps> = ({
                                         <div key={i} className="group/img flex flex-col gap-2">
                                             <div className="relative aspect-square rounded-[3px] overflow-hidden bg-white border border-palette-tan/10 shadow-sm transition-all hover:shadow-md">
                                                 <img src={url} className="w-full h-full object-contain" alt={fileName} />
+                                                <MediaFilenameBadge src={url} type="image" onRename={onRenameMedia} className="bottom-1 right-1" />
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-all flex items-center justify-center">
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); removeImage(i); }}

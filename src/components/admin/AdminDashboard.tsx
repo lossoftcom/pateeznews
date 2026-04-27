@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { NEWS_FEED } from '@/constants';
-import type { SiteSettings } from '@/types';
+import type { SiteSettings, StoryItem } from '@/types';
 import AdminErrorBoundary from './AdminErrorBoundary';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -20,7 +20,7 @@ const isRetryableImportError = (error: unknown) => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const importWithRetry = async <T,>(
+const importWithRetry = async <T extends React.ComponentType<any>,>(
   importer: () => Promise<{ default: T }>,
   retries = 6,
   delayMs = 200
@@ -57,22 +57,77 @@ const importWithRetry = async <T,>(
   }
 };
 
-const lazyWithRetry = <T,>(importer: () => Promise<{ default: T }>) =>
+const lazyWithRetry = <T extends React.ComponentType<any>,>(importer: () => Promise<{ default: T }>) =>
   React.lazy(() => importWithRetry(importer));
 
 const LanguageSettings = lazyWithRetry(() => import('./LanguageSettings'));
 const AiSettings = lazyWithRetry(() => import('./AiSettings'));
+const DutyPharmacySettings = lazyWithRetry(() => import('./DutyPharmacySettings'));
+const WeatherSettings = lazyWithRetry(() => import('./WeatherSettings'));
 const RoleSettings = lazyWithRetry(() => import('./RoleSettings'));
 const UserManagement = lazyWithRetry(() => import('./UserManagement'));
 const UserProfileSettings = lazyWithRetry(() => import('./UserProfileSettings'));
 const NavigationSettings = lazyWithRetry(() => import('./NavigationSettings'));
 const StoryManagement = lazyWithRetry(() => import('./StoryManagement'));
+const WebStoryEditor = lazyWithRetry(() => import('./WebStoryEditor'));
 const PostManagement = lazyWithRetry(() => import('./PostManagement'));
 const PostList = lazyWithRetry(() => import('./PostList'));
 const PublisherManagement = lazyWithRetry(() => import('./PublisherManagement'));
 const PublisherProfileSettings = lazyWithRetry(() => import('./PublisherProfileSettings'));
 const Settings = lazyWithRetry(() => import('./Settings'));
 const CommentManagement = lazyWithRetry(() => import('./CommentManagement'));
+
+const StoryEditorRoute: React.FC<{ storyId?: string | null; onBack: () => void }> = ({ storyId, onBack }) => {
+  const { t } = useLanguage();
+  const [story, setStory] = useState<StoryItem | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStory = async () => {
+      if (!storyId) {
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await neon.from('stories').select('*').eq('id', storyId).maybeSingle();
+      if (!isMounted) return;
+      if (!error && data) {
+        setStory({
+          id: data.id,
+          title: data.title,
+          mediaUrl: data.media_url,
+          mediaType: data.media_type,
+          sourceName: data.source_name,
+          publisherId: data.publisher_id,
+          createdAt: data.created_at,
+          expiresAt: data.expires_at,
+          isActive: data.is_active,
+          viewCount: data.view_count || 0,
+          storyData: data.story_data,
+          storyMarkup: data.story_markup,
+        });
+      }
+      setLoading(false);
+    };
+    fetchStory();
+    return () => { isMounted = false; };
+  }, [storyId]);
+
+  if (loading) {
+    return <div className="h-[500px] flex items-center justify-center"><span className="material-symbols-rounded animate-spin text-palette-tan" style={{ fontSize: '40px' }}>progress_activity</span></div>;
+  }
+
+  if (!story) {
+    return (
+      <div className="bg-white rounded-[5px] border border-palette-tan/20 p-12 text-center">
+        <p className="text-sm font-black text-palette-tan/50 mb-6">{t('stories.empty_state')}</p>
+        <button onClick={onBack} className="px-6 h-10 bg-palette-red text-white rounded-[5px] text-[11px] font-black tracking-widest">{t('admin.post.go_back')}</button>
+      </div>
+    );
+  }
+
+  return <WebStoryEditor story={story} onClose={onBack} onSaveSuccess={onBack} />;
+};
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -97,6 +152,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   const [editingUserId, setEditingUserId] = useState<string | null>(initialUserId);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [adminSearchTerm, setAdminSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const [userRole, setUserRole] = useState<string>('member');
@@ -126,9 +182,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     { id: 'users', label: t('admin.sidebar.users'), icon: 'group', perm: 'manage_users', group: t('admin.management') },
     { id: 'navigation', label: t('admin.sidebar.navigation'), icon: 'account_tree', perm: 'manage_navigation', group: t('admin.management') },
     { id: 'roles', label: t('admin.sidebar.roles'), icon: 'verified_user', perm: 'view_roles', group: t('admin.management') },
-    // { id: 'publishers', label: t('admin.sidebar.publishers'), icon: 'business_center', perm: 'manage_users', group: t('admin.management') },
+    { id: 'publishers', label: t('admin.sidebar.publishers'), icon: 'business_center', perm: 'manage_users', group: t('admin.management') },
     { id: 'settings', label: t('admin.sidebar.settings'), icon: 'settings', perm: 'view_settings', group: t('admin.system') },
     { id: 'ai_settings', label: t('admin.sidebar.ai_settings'), icon: 'psychology', perm: 'view_settings', group: t('admin.system') },
+    { id: 'duty_pharmacy_settings', label: t('admin.sidebar.duty_pharmacy_settings'), icon: 'local_pharmacy', perm: 'view_settings', group: t('admin.system') },
+    { id: 'weather_settings', label: t('admin.sidebar.weather_settings'), icon: 'partly_cloudy_day', perm: 'view_settings', group: t('admin.system') },
     { id: 'languages', label: t('admin.sidebar.languages'), icon: 'language', perm: 'view_languages', group: t('admin.system') },
   ], [t]);
 
@@ -182,19 +240,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   const fetchUserPermissions = async () => {
     setPermissionLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await neon.auth.getUser();
       if (!user) return;
       const isDemoUser = user.email?.toLowerCase() === 'demo.user@gmail.com';
-      const { data: profile } = await supabase.from('profiles').select('role, avatar_url').eq('id', user.id).single();
+      const { data: profile } = await neon.from('profiles').select('role, avatar_url').eq('id', user.id).single();
       const roleName = isDemoUser ? 'admin' : (profile?.role || 'member');
       setUserRole(roleName);
       setCurrentUserAvatar(profile?.avatar_url || null);
       if (roleName === 'admin') {
         setPermissions(['view_overview', 'view_settings', 'view_languages', 'view_roles', 'manage_content', 'manage_users', 'manage_navigation']);
       } else {
-        const { data: roleData } = await supabase.from('roles').select('id').eq('name', roleName).single();
+        const { data: roleData } = await neon.from('roles').select('id').eq('name', roleName).single();
         if (roleData) {
-          const { data: permData } = await supabase.from('role_permissions').select('permission_key').eq('role_id', roleData.id);
+          const { data: permData } = await neon.from('role_permissions').select('permission_key').eq('role_id', roleData.id);
           if (permData) setPermissions(permData.map((p: any) => p.permission_key));
         } else {
           setPermissions(['view_overview']);
@@ -210,15 +268,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const [postRes, profileRes] = await Promise.all([
-        supabase.from('posts').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true })
+      const [postRes, profileRes, viewsRes] = await Promise.all([
+        neon.from('posts').select('*', { count: 'exact', head: true }),
+        neon.from('profiles').select('*', { count: 'exact', head: true }),
+        neon.from('posts').select('views_count, card_data').limit(10000)
       ]);
+
+      const totalViews = (viewsRes.data || []).reduce((sum: number, post: any) => {
+        const viewsFromColumn = Number(post.views_count || 0);
+        const viewsFromCard = Number(post.card_data?.views || 0);
+        return sum + Math.max(viewsFromColumn, viewsFromCard);
+      }, 0);
 
       setStats({
         posts: postRes.count || 0,
         profiles: profileRes.count || 0,
-        views: (postRes.count || 0) * 1250
+        views: totalViews
       });
     } catch (err) {
     } finally {
@@ -227,7 +292,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await neon.auth.signOut();
     onLogout();
   };
 
@@ -239,7 +304,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   const handleSeedData = async () => {
     try {
       setSeeding(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await neon.auth.getUser();
       if (!user) return;
       const formattedPosts = NEWS_FEED.map(news => ({
         publisher_id: user.id,
@@ -251,7 +316,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
         media_url: news.mediaUrl,
         card_data: { ...news }
       }));
-      await supabase.from('posts').insert(formattedPosts);
+      await neon.from('posts').insert(formattedPosts);
       setStatusModal({ show: true, type: 'success', message: t('admin.seed_success') });
       fetchStats();
     } catch (err: any) {
@@ -259,6 +324,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     } finally {
       setSeeding(false);
     }
+  };
+
+  const handleNotificationsClick = async () => {
+    try {
+      const { count } = await neon
+        .from('comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      setStatusModal({
+        show: true,
+        type: 'success',
+        message: `${count || 0} ${t('admin.sidebar.comments')}`,
+      });
+    } catch (err: any) {
+      setStatusModal({ show: true, type: 'error', message: t('admin.generic_error').replace('{error}', err.message) });
+    }
+  };
+
+  const handleAdminSearchSubmit = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return;
+    const term = adminSearchTerm.trim();
+    if (!term) return;
+    try {
+      sessionStorage.setItem('pateez_admin_post_search', term);
+    } catch {
+      // ignore
+    }
+    handleTabChange('news_list');
   };
 
   const handleEditUser = (userId: string) => {
@@ -288,10 +381,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     if (activeTab === 'posts' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'edit_post' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'stories' && !hasPermission('manage_content')) return <AccessDenied />;
+    if (activeTab === 'hikaye-editor' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'comments' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'navigation' && !hasPermission('manage_navigation')) return <AccessDenied />;
     if (activeTab === 'settings' && !hasPermission('view_settings')) return <AccessDenied />;
     if (activeTab === 'ai_settings' && !hasPermission('view_settings')) return <AccessDenied />;
+    if (activeTab === 'duty_pharmacy_settings' && !hasPermission('view_settings')) return <AccessDenied />;
+    if (activeTab === 'weather_settings' && !hasPermission('view_settings')) return <AccessDenied />;
     if (activeTab === 'languages' && !hasPermission('view_languages')) return <AccessDenied />;
     if (activeTab === 'roles' && !hasPermission('view_roles')) return <AccessDenied />;
 
@@ -327,7 +423,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
               case 'posts': return <PostManagement key={`posts-${postsKey}`} onDirtyChange={setIsDirty} onBack={() => handleTabChange('news_list')} />;
               case 'news_list': return <PostList onEditPost={handleEditPost} onAddPost={() => handleTabChange('posts')} />;
               case 'edit_post': return <PostManagement key={`edit-${editingUserId}`} postId={editingUserId || undefined} onDirtyChange={setIsDirty} onBack={() => handleTabChange('news_list')} />;
-              case 'stories': return <StoryManagement onEditStory={(id) => handleTabChange('hikaye-editor', id)} />;
+              case 'stories': return <StoryManagement onEditStory={(id: string) => handleTabChange('hikaye-editor', id)} />;
+              case 'hikaye-editor': return <StoryEditorRoute storyId={editingUserId} onBack={() => handleTabChange('stories')} />;
               case 'comments': return <CommentManagement onNewsSelect={onNewsSelect} />;
               case 'navigation': return <NavigationSettings />;
               case 'languages': return <LanguageSettings />;
@@ -359,6 +456,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
               );
               case 'settings': return <Settings />;
               case 'ai_settings': return <AiSettings />;
+              case 'duty_pharmacy_settings': return <DutyPharmacySettings />;
+              case 'weather_settings': return <WeatherSettings />;
               default: return null;
             }
           })()}
@@ -448,6 +547,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
               {activeTab === 'edit_user' ? t('users.role_modal.title') :
                 activeTab === 'edit_publisher' ? t('publishers.form.edit_title') :
                   activeTab === 'edit_post' ? t('admin.post.edit_title') :
+                    activeTab === 'hikaye-editor' ? t('admin.story.editor.title') :
                     (menuItems.find(i => i.id === activeTab)?.label || t('admin.sidebar.overview'))}
             </h1>
             <p className="text-[13px] text-palette-tan font-bold mt-0.5">
@@ -458,7 +558,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
           <div className="flex items-center gap-0">
             <div className="hidden lg:flex items-center gap-2 px-2 py-2 bg-palette-beige/30 rounded-[5px] border border-palette-tan/20 focus-within:bg-white focus-within:border-palette-tan transition-all group">
               <span className="material-symbols-rounded text-palette-tan/40 group-focus-within:text-palette-tan" style={{ fontSize: '18px' }}>search</span>
-              <input type="text" placeholder={t('admin.header.search')} className="bg-transparent border-none outline-none text-sm font-semibold w-40 placeholder:text-palette-tan/30 text-palette-maroon" />
+              <input
+                type="text"
+                value={adminSearchTerm}
+                onChange={(event) => setAdminSearchTerm(event.target.value)}
+                onKeyDown={handleAdminSearchSubmit}
+                placeholder={t('admin.header.search')}
+                className="bg-transparent border-none outline-none text-sm font-semibold w-40 placeholder:text-palette-tan/30 text-palette-maroon"
+              />
             </div>
 
             <a
@@ -502,7 +609,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
               )}
             </div>
 
-            <button className="relative w-9 h-9 flex items-center justify-center rounded-[5px] text-palette-tan hover:text-palette-maroon hover:bg-palette-beige transition-all">
+            <button onClick={handleNotificationsClick} className="relative w-9 h-9 flex items-center justify-center rounded-[5px] text-palette-tan hover:text-palette-maroon hover:bg-palette-beige transition-all">
               <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>notifications</span>
               <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-palette-red rounded-[5px]"></span>
             </button>
@@ -552,11 +659,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
                         <div className="flex items-center gap-3"><span className="material-symbols-rounded" style={{ fontSize: '18px' }}>person</span> {t('users.actions.edit')}</div>
                         <span className="material-symbols-rounded opacity-40 -rotate-90" style={{ fontSize: '16px' }}>expand_more</span>
                       </button>
-                      <button className="w-full flex items-center justify-between px-4 py-2.5 text-palette-tan hover:bg-palette-beige hover:text-palette-maroon rounded-[5px] text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => { handleTabChange('settings'); setShowProfileMenu(false); }}
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-palette-tan hover:bg-palette-beige hover:text-palette-maroon rounded-[5px] text-sm font-semibold transition-all"
+                      >
                         <div className="flex items-center gap-3"><span className="material-symbols-rounded" style={{ fontSize: '18px' }}>credit_card</span> {t('admin.management')}</div>
                         <span className="material-symbols-rounded opacity-40 -rotate-90" style={{ fontSize: '16px' }}>expand_more</span>
                       </button>
-                      <button className="w-full flex items-center justify-between px-4 py-2.5 text-palette-tan hover:bg-palette-beige hover:text-palette-maroon rounded-[5px] text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => { handleTabChange('comments'); setShowProfileMenu(false); }}
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-palette-tan hover:bg-palette-beige hover:text-palette-maroon rounded-[5px] text-sm font-semibold transition-all"
+                      >
                         <div className="flex items-center gap-3"><span className="material-symbols-rounded" style={{ fontSize: '18px' }}>history</span> {t('admin.recent_activity')}</div>
                         <span className="material-symbols-rounded opacity-40 -rotate-90" style={{ fontSize: '16px' }}>expand_more</span>
                       </button>
@@ -578,7 +691,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
         </header>
 
         <div className="p-10 max-w-[1400px] mx-auto">
-          {activeTab === 'overview' ? (
+          {activeTab === 'overview' && permissionLoading ? (
+            <div className="h-full flex items-center justify-center p-20">
+              <span className="material-symbols-rounded animate-spin text-palette-tan" style={{ fontSize: '40px' }}>progress_activity</span>
+            </div>
+          ) : activeTab === 'overview' && !hasPermission('view_overview') ? (
+            <AccessDenied />
+          ) : activeTab === 'overview' ? (
             <div className="space-y-10 animate-in duration-700">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {[

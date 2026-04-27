@@ -19,6 +19,7 @@ import { type NewsItem, NewsType, type NavigationItem } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import Skeleton from '@/components/ui/Skeleton';
+import { postAction } from '@/services/appActions';
 
 // Kart bileşenleri
 import ReviewCard from './cards/ReviewCard';
@@ -43,6 +44,15 @@ interface NewsDetailProps {
 const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading }) => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
+  const [detailCounts, setDetailCounts] = useState({
+    likes: data.likes || 0,
+    dislikes: data.dislikes || 0,
+    shares: data.shares || 0,
+    saves: data.saves || 0,
+    views: data.views || 0,
+  });
+  const [detailState, setDetailState] = useState({ liked: false, saved: false });
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
 
@@ -57,17 +67,20 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
   };
 
   const shareToTwitter = () => {
+    void recordShare('twitter');
     const cleanTitle = stripHtml(data.title);
     const url = getUtmUrl('twitter');
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent('🔥 ' + cleanTitle)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
   };
 
   const shareToFacebook = () => {
+    void recordShare('facebook');
     const url = getUtmUrl('facebook');
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
   };
 
-  const copyLink = async () => {
+  const copyLink = async (track = true) => {
+    if (track) void recordShare('copy_link');
     const url = getUtmUrl('copy_link');
     try {
       await navigator.clipboard.writeText(url);
@@ -78,6 +91,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
   };
 
   const handleNativeShare = async () => {
+    void recordShare('native');
     const cleanTitle = stripHtml(data.title);
     const cleanSummary = stripHtml(data.summary).substring(0, 100);
     const url = getUtmUrl('nsosyal');
@@ -90,30 +104,75 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
           url: url,
         });
       } catch (e) {
-        copyLink();
+        copyLink(false);
       }
     } else {
-      copyLink();
+      copyLink(false);
     }
   };
 
   // Emoji Reactions Config
   const MAX_REACTIONS = 3;
   const emojis = [
-    { id: 'bravo', emoji: '👏', label: t('reactions.bravo'), count: 3 },
-    { id: 'dislike', emoji: '👎', label: t('reactions.dislike'), count: 1 },
-    { id: 'love', emoji: '😍', label: t('reactions.love'), count: 1 },
-    { id: 'sad', emoji: '🥺', label: t('reactions.sad'), count: 0 },
-    { id: 'great', emoji: '🙌', label: t('reactions.great'), count: 0 },
-    { id: 'laugh', emoji: '😂', label: t('reactions.laugh'), count: 0 },
-    { id: 'angry', emoji: '😡', label: t('reactions.angry'), count: 0 },
+    { id: 'bravo', emoji: '👏', label: t('reactions.bravo'), count: reactionCounts.bravo || 0 },
+    { id: 'dislike', emoji: '👎', label: t('reactions.dislike'), count: reactionCounts.dislike || 0 },
+    { id: 'love', emoji: '😍', label: t('reactions.love'), count: reactionCounts.love || 0 },
+    { id: 'sad', emoji: '🥺', label: t('reactions.sad'), count: reactionCounts.sad || 0 },
+    { id: 'great', emoji: '🙌', label: t('reactions.great'), count: reactionCounts.great || 0 },
+    { id: 'laugh', emoji: '😂', label: t('reactions.laugh'), count: reactionCounts.laugh || 0 },
+    { id: 'angry', emoji: '😡', label: t('reactions.angry'), count: reactionCounts.angry || 0 },
   ];
 
-  const toggleEmoji = (id: string) => {
-    if (selectedEmojis.includes(id)) {
-      setSelectedEmojis(selectedEmojis.filter(e => e !== id));
-    } else if (selectedEmojis.length < MAX_REACTIONS) {
-      setSelectedEmojis([...selectedEmojis, id]);
+  const applyPostState = (result: any) => {
+    if (result?.counts) {
+      setDetailCounts({
+        likes: result.counts.likes ?? detailCounts.likes,
+        dislikes: result.counts.dislikes ?? detailCounts.dislikes,
+        shares: result.counts.shares ?? detailCounts.shares,
+        saves: result.counts.saves ?? detailCounts.saves,
+        views: result.counts.views ?? detailCounts.views,
+      });
+    }
+    if (result?.reactions) setReactionCounts(result.reactions);
+    if (result?.userState) {
+      setSelectedEmojis(result.userState.reactions || []);
+      setDetailState({
+        liked: !!result.userState.liked,
+        saved: !!result.userState.saved,
+      });
+    }
+  };
+
+  const recordShare = async (platform: string) => {
+    try {
+      applyPostState(await postAction('share', { postId: data.id, publisherId: data.publisherId, platform }));
+    } catch {
+      setDetailCounts((prev) => ({ ...prev, shares: prev.shares + 1 }));
+    }
+  };
+
+  const toggleEmoji = async (id: string) => {
+    if (!selectedEmojis.includes(id) && selectedEmojis.length >= MAX_REACTIONS) return;
+    try {
+      applyPostState(await postAction('toggle_reaction', { postId: data.id, publisherId: data.publisherId, reaction: id }));
+    } catch {
+      showToast(t('auth.login_required_like'), 'info');
+    }
+  };
+
+  const toggleDetailLike = async () => {
+    try {
+      applyPostState(await postAction('toggle_like', { postId: data.id, publisherId: data.publisherId }));
+    } catch {
+      showToast(t('auth.login_required_like'), 'info');
+    }
+  };
+
+  const toggleDetailSave = async () => {
+    try {
+      applyPostState(await postAction('toggle_save', { postId: data.id, publisherId: data.publisherId }));
+    } catch {
+      showToast(t('auth.login_required_bookmark'), 'info');
     }
   };
 
@@ -148,6 +207,33 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    postAction('view', { postId: data.id, publisherId: data.publisherId })
+      .then((result) => {
+        if (isMounted) applyPostState(result);
+      })
+      .catch(() => null);
+    return () => { isMounted = false; };
+  }, [data.id, data.publisherId]);
+
+  const renderQuizBlock = (item: any) => (
+    <div key={item.id} className="space-y-5 p-6 md:p-8 rounded-[5px] border border-palette-beige/60 bg-palette-beige/10">
+      {item.title && <h3 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">{item.title}</h3>}
+      {item.description && <div className="rich-text-content text-sm font-bold text-palette-tan/70" dangerouslySetInnerHTML={{ __html: item.description }} />}
+      <div className="grid gap-3">
+        {(item.options || []).map((option: any, optionIndex: number) => (
+          <div key={option.id || optionIndex} className="flex items-center gap-3 rounded-[5px] border border-palette-beige bg-white px-4 py-3">
+            <span className="w-7 h-7 rounded-[5px] bg-palette-beige/60 text-palette-tan flex items-center justify-center text-[11px] font-black">
+              {optionIndex + 1}
+            </span>
+            <span className="text-sm font-bold text-gray-800">{option.text || option.label || option.title}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   const renderMedia = () => {
     const postType = String((data as any).postType || '').toLowerCase();
     const coverThumbnail = ((data as any).coverThumbnail as string) || data.thumbnail;
@@ -156,12 +242,11 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
     if (postType === 'article') {
       const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
       const coverSrc = coverOptimized?.src || coverThumbnail;
+      if (!coverSrc) return null;
       return (
-        <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8">
+        <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-2">
           <img
-            src={coverSrc}
-            srcSet={coverOptimized?.srcSet}
-            sizes={coverOptimized?.sizes}
+            src={coverSrc?.replace('_sm', '_xl')}
             alt={data.thumbnailAlt || data.seoTitle || data.title}
             title={data.thumbnailAlt || data.seoTitle || data.title}
             className="w-full h-auto object-cover max-h-[600px]"
@@ -179,20 +264,21 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       case NewsType.VIDEO: return <VideoCard data={data} />;
       case NewsType.GALLERY: return <GalleryCard data={data} />;
       case NewsType.POLL: return <PollCard data={data} />;
+      case NewsType.QUIZ: return data.items?.find((item: any) => item?.type === 'quiz') ? renderQuizBlock(data.items.find((item: any) => item?.type === 'quiz')) : null;
       case NewsType.VS: return <VSCard data={data} />;
       case NewsType.PARAGRAPH: return <ParagraphCard data={data} />;
-      default: return (
-        <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-8">
-          <img
-            src={data.optimizedThumbnail?.src || data.thumbnail}
-            srcSet={data.optimizedThumbnail?.srcSet}
-            sizes={data.optimizedThumbnail?.sizes}
-            alt={data.thumbnailAlt || data.seoTitle || data.title}
-            title={data.thumbnailAlt || data.seoTitle || data.title}
-            className="w-full h-auto object-cover max-h-[600px]"
-          />
-        </div>
-      );
+      default:
+        if (!data.thumbnail && !data.optimizedThumbnail?.src) return null;
+        return (
+          <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-2">
+            <img
+              src={(data.optimizedThumbnail?.src || data.thumbnail)?.replace('_sm', '_xl')}
+              alt={data.thumbnailAlt || data.seoTitle || data.title}
+              title={data.thumbnailAlt || data.seoTitle || data.title}
+              className="w-full h-auto object-cover max-h-[600px]"
+            />
+          </div>
+        );
     }
   };
 
@@ -219,7 +305,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       </div>
 
       {/* TOP HEADER - FULL WIDTH AREA */}
-      <div className="px-6 md:px-10 pt-8 pb-6 border-b border-gray-50 bg-gray-50/30 rounded-t-[5px]">
+      <div className={`px-6 md:px-10 pt-8 ${data.title || data.summary ? 'pb-6' : 'pb-4'} border-b border-gray-50 bg-gray-50/30 rounded-t-[5px]`}>
         {/* Breadcrumbs */}
         <nav className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-400 capitalize tracking-widest mb-6">
           <button onClick={onBack} className="flex items-center gap-1.5 hover:text-blue-600 transition-colors">
@@ -237,18 +323,24 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         </nav>
 
         {/* Header Section */}
-        <div className="w-full mb-10 overflow-hidden max-w-full">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-[900] text-gray-900 leading-[1.05] tracking-tighter mb-6">
-            {data.title}
-          </h1>
-          <div
-            dangerouslySetInnerHTML={{ __html: data.summary }}
-            className="rich-text-content text-xl md:text-2xl font-bold text-gray-500 leading-relaxed max-w-full"
-          />
-        </div>
+        {(data.title || data.summary) && (
+          <div className="w-full mb-6 max-w-full">
+            {data.title && (
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-[900] text-gray-900 leading-[1.15] tracking-tighter mb-4">
+                {data.title}
+              </h1>
+            )}
+            {data.summary && (
+              <div
+                dangerouslySetInnerHTML={{ __html: data.summary }}
+                className="rich-text-content text-xl md:text-2xl font-bold text-gray-500 leading-relaxed max-w-full"
+              />
+            )}
+          </div>
+        )}
 
         {/* Meta Info Bar */}
-        <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-100">
+        <div className={`flex items-center justify-between pt-6 border-t border-gray-100 ${data.title || data.summary ? 'mt-6' : 'mt-2'}`}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm">
               <img src={data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`} alt={data.author} className="w-full h-full object-cover" />
@@ -265,7 +357,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mt-4 md:mt-0">
             <button
               onClick={handleNativeShare}
               className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-[5px] text-xs font-black transition-all hover:bg-gray-800 shadow-md active:scale-95"
@@ -288,7 +380,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
           <div className="flex flex-col items-center mb-2">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest [writing-mode:vertical-lr] rotate-180 mb-2">{t('card.share')}</span>
             <div className="w-px h-8 bg-gray-100 mb-2"></div>
-            <span className="text-xs font-black text-blue-600 mb-2">{data.shares.toLocaleString()}</span>
+            <span className="text-xs font-black text-blue-600 mb-2">{detailCounts.shares.toLocaleString()}</span>
           </div>
 
           <button
@@ -313,7 +405,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
             <Linkedin size={18} className="fill-current" />
           </button>
           <button
-            onClick={copyLink}
+            onClick={() => copyLink()}
             className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-gray-100 text-gray-500 hover:bg-gray-900 hover:text-white transition-all shadow-sm active:scale-95"
           >
             <LinkIcon size={18} />
@@ -323,25 +415,30 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
 
           {/* Like Button with Count */}
           <div className="flex flex-col items-center">
-            <button className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm group">
+            <button onClick={toggleDetailLike} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm group ${detailState.liked ? 'bg-rose-500 text-white' : 'bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white'}`}>
               <Heart size={18} className="group-hover:scale-110 transition-transform" />
             </button>
-            <span className="text-[10px] font-black text-rose-500 mt-1">{data.likes.toLocaleString()}</span>
+            <span className="text-[10px] font-black text-rose-500 mt-1">{detailCounts.likes.toLocaleString()}</span>
           </div>
 
           {/* Bookmark Button */}
-          <button className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-gray-50 text-gray-400 hover:bg-blue-500 hover:text-white transition-all shadow-sm border border-gray-100">
+          <button onClick={toggleDetailSave} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm border border-gray-100 ${detailState.saved ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-blue-500 hover:text-white'}`}>
             <Bookmark size={18} />
           </button>
         </aside>
 
         {/* MAIN BODY CONTENT */}
-        <article className="flex-1 min-w-0 px-6 md:px-12 pt-6 pb-8 max-w-full md:mx-0 break-words overflow-hidden">
+        <article className={`flex-1 min-w-0 px-6 md:px-12 ${data.title || data.summary ? 'pt-6' : 'pt-2'} pb-8 max-w-full md:mx-0 break-words overflow-hidden`}>
 
           {/* Main Media (Video, Poll, Gallery etc.) */}
-          <div className="mb-10 overflow-hidden max-w-full">
-            {renderMedia()}
-          </div>
+          {(() => {
+            const mediaContent = renderMedia();
+            return mediaContent ? (
+              <div className="mb-6 overflow-hidden max-w-full">
+                {mediaContent}
+              </div>
+            ) : null;
+          })()}
 
           {/* Body Items Rendering */}
           <div className="space-y-12 overflow-hidden">
@@ -422,18 +519,20 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                         <PollCard data={{ ...data, title: item.title, summary: item.description, options: item.options, isImagePoll: item.isImagePoll, pollColumns: item.pollColumns } as any} />
                       </div>
                     );
+                  case 'quiz':
+                    return renderQuizBlock(item);
                   case 'vs':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
                       <VSCard data={{ ...data, title: item.title, options: item.options } as any} />
                     </div>;
                   case 'beforeafter':
-                    return <div key={item.id} className="space-y-4">
+                    return <div key={item.id} className="space-y-4 pt-2">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
                       <BeforeAfterCard data={{ ...data, beforeAfterData: item.beforeAfterData } as any} />
                     </div>;
                   case 'flipcard':
-                    return <div key={item.id} className="space-y-4">
+                    return <div key={item.id} className="space-y-4 pt-2">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
                       <FlipCard data={{ ...data, flipData: item.flipData } as any} />
                     </div>;
@@ -543,7 +642,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                 return (
                   <button
                     key={item.id}
-                    onClick={() => toggleEmoji(item.id)}
+                    onClick={() => void toggleEmoji(item.id)}
                     disabled={isDisabled}
                     className={`group relative flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all duration-300 flex-shrink-0
                       ${isSelected

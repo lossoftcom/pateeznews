@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { X, ArrowRight, Loader2, AlertCircle, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { accountAction } from '@/services/appActions';
 
 interface LoginProps {
   onSuccess: () => void;
@@ -56,16 +57,33 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose }) => {
     setError(null);
     try {
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await neon.auth.signUp({ email, password });
         if (error) throw error;
         if (data.user) onSuccess();
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await neon.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (data.user) onSuccess();
       }
     } catch (err: any) {
       setError(err.message === "Invalid login credentials" ? t('auth.invalid_credentials') : err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError(t('auth.email_placeholder'));
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      await accountAction('request-password-reset', { email });
+      setError(t('common.success'));
+    } catch (err: any) {
+      setError(err.message || t('common.action_failed'));
     } finally {
       setLoading(false);
     }
@@ -181,7 +199,7 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose }) => {
               </div>
               {!isSignUp && (
                 <div className="flex justify-end">
-                  <button type="button" className="text-[10px] font-bold text-gray-400 hover:text-palette-red transition-colors">{t('auth.forgot_password')}</button>
+                  <button type="button" onClick={handleForgotPassword} className="text-[10px] font-bold text-gray-400 hover:text-palette-red transition-colors">{t('auth.forgot_password')}</button>
                 </div>
               )}
             </div>

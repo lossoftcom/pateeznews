@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface Publisher {
@@ -133,7 +133,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
             const to = from + pageSize - 1;
 
             // 1. IŞIK HIZI: Sadece bu sayfadaki yayıncıları çekiyoruz
-            let query = supabase
+            let query = neon
                 .from('profiles')
                 .select('*', { count: 'exact' })
                 .eq('role', 'publisher');
@@ -155,18 +155,18 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
                 return;
             }
 
-            const pubIds = pubData.map(p => p.id);
+            const pubIds = pubData.map((p: any) => p.id);
 
             // 2. TARGETED FETCH: Sadece bu sayfadaki yayıncıların ilişkilerini çekiyoruz
             const [usersRes, categoriesRes, postsRes] = await Promise.all([
-                supabase.from('publisher_users')
+                neon.from('publisher_users')
                     .select('publisher_id, profiles!publisher_users_user_id_fkey(id, full_name, username)')
                     .in('publisher_id', pubIds),
-                supabase.from('publisher_categories')
+                neon.from('publisher_categories')
                     .select('publisher_id, navigation_items(id, label)')
                     .in('publisher_id', pubIds),
                 // Post sayısı için tüm tablo yerine id üzerinden hızlı bir sayım alıyoruz
-                supabase.from('posts').select('publisher_id').in('publisher_id', pubIds)
+                neon.from('posts').select('publisher_id').in('publisher_id', pubIds)
             ]);
 
             const allUsers = usersRes.data || [];
@@ -192,7 +192,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
                 }
             });
 
-            const enrichedData = pubData.map(pub => ({
+            const enrichedData = pubData.map((pub: any) => ({
                 ...pub,
                 assigned_users: userMap[pub.id] || [],
                 assigned_categories: categoryMap[pub.id] || [],
@@ -212,27 +212,19 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
         fetchData();
     }, [currentPage, pageSize, debouncedSearchTerm]);
 
-    // REAL-TIME SYNC: Listen to changes in posts and publisher_users for instant updates
+    // Lightweight live refresh fallback for the custom Neon bridge.
     useEffect(() => {
-        const postsChannel = supabase
-            .channel('publisher-management-sync')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-                fetchData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'publisher_users' }, () => {
-                fetchData();
-            })
-            .subscribe();
+        const timer = window.setInterval(() => {
+            fetchData();
+        }, 30000);
 
-        return () => {
-            supabase.removeChannel(postsChannel);
-        };
+        return () => window.clearInterval(timer);
     }, []);
 
     const stats = useMemo(() => {
-        const totalPosts = publishers.reduce((acc, pub) => acc + (pub.post_count || 0), 0);
-        const activePubs = publishers.filter(p => p.status === 'Aktif').length;
-        const passivePubs = publishers.filter(p => p.status !== 'Aktif').length;
+        const totalPosts = publishers.reduce((acc, pub: any) => acc + (pub.post_count || 0), 0);
+        const activePubs = publishers.filter((p: any) => p.status === 'Aktif').length;
+        const passivePubs = publishers.filter((p: any) => p.status !== 'Aktif').length;
 
 	        return [
 	            { label: t('publishers.stats.session'), value: totalCount, change: '+0%', desc: t('publishers.stats.total_publishers_desc'), icon: 'business', color: 'bg-red-50 text-red-600', iconBg: 'bg-red-50' },
@@ -259,7 +251,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
         handleCloseDeleteModal();
 
         try {
-            const { error } = await supabase.from('profiles').delete().eq('id', publisherToDelete.id);
+            const { error } = await neon.from('profiles').delete().eq('id', publisherToDelete.id);
             if (error) {
                 setPublishers(previousPublishers);
                 throw error;
@@ -503,7 +495,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
                                                                         setPublishers(prev => prev.map(p => p.id === pub.id ? { ...p, reward_system: newReward } : p));
 
                                                                         try {
-                                                                            const { error } = await supabase.from('profiles').update({ reward_system: newReward }).eq('id', pub.id);
+                                                                            const { error } = await neon.from('profiles').update({ reward_system: newReward }).eq('id', pub.id);
                                                                             if (error) {
                                                                                 // Revert
                                                                                 setPublishers(prev => prev.map(p => p.id === pub.id ? { ...p, reward_system: pub.reward_system } : p));
@@ -526,7 +518,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
                                                                         setPublishers(prev => prev.map(p => p.id === pub.id ? { ...p, status: newStatus } : p));
 
                                                                         try {
-                                                                            const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', pub.id);
+                                                                            const { error } = await neon.from('profiles').update({ status: newStatus }).eq('id', pub.id);
                                                                             if (error) {
                                                                                 // Revert
                                                                                 setPublishers(prev => prev.map(p => p.id === pub.id ? { ...p, status: pub.status } : p));
@@ -790,7 +782,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
                                         setSaving(true);
                                         try {
                                             // Uniqueness check
-                                            const query = supabase
+                                            const query = neon
                                                 .from('profiles')
                                                 .select('username, email')
                                                 .or(`username.eq.${formData.username},email.eq.${formData.email}`);
@@ -803,7 +795,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
 
                                             if (conflicts && conflicts.length > 0) {
                                                 const errors: Record<string, string> = {};
-	                                                conflicts.forEach(c => {
+	                                                conflicts.forEach((c: any) => {
 	                                                    if (c.username?.toLowerCase() === formData.username?.toLowerCase()) errors.username = t('profile.username_taken');
 	                                                    if (c.email?.toLowerCase() === formData.email?.toLowerCase()) errors.email = t('profile.email_taken');
 	                                                });
@@ -832,7 +824,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
                                             };
 
                                             if (showEditModal && formData.id) {
-                                                const { error } = await supabase.from('profiles').update(payload).eq('id', formData.id);
+                                                const { error } = await neon.from('profiles').update(payload).eq('id', formData.id);
                                                 if (error) throw error;
 	                                            } else {
 	                                                if (!formData.password || formData.password !== formData.confirmPassword) {
@@ -841,7 +833,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
 	                                                    return;
 	                                                }
 
-                                                const { data: authData, error: authError } = await supabase.auth.signUp({
+                                                const { data: authData, error: authError } = await neon.auth.signUp({
                                                     email: formData.email!,
                                                     password: formData.password!,
                                                     options: {
@@ -855,7 +847,7 @@ const PublisherManagement: React.FC<PublisherManagementProps> = ({ onEditPublish
                                                 if (authError) throw authError;
 
                                                 if (authData.user) {
-                                                    const { error: profileError } = await supabase
+                                                    const { error: profileError } = await neon
                                                         .from('profiles')
                                                         .update(payload)
                                                         .eq('id', authData.user.id);

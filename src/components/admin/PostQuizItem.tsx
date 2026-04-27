@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactQuill from 'react-quill-new';
 import { useLanguage } from '@/context/LanguageContext';
 import { QUILL_MODULES, QUILL_FORMATS, type PostItem } from './PostTextItem';
+import MediaFilenameBadge from './MediaFilenameBadge';
 
 interface PostQuizItemProps {
     item: PostItem;
@@ -16,6 +17,7 @@ interface PostQuizItemProps {
     onOpenFileManager?: (id: string, subField: string, optionId?: string) => void;
     onOpenUrlMode?: (id: string, subField: string, optionId?: string) => void;
     onOpenImageEditor?: (id: string, subField: string, optionId?: string) => void;
+    onRenameMedia?: (src: string, type: 'image') => Promise<string | null>;
 }
 
 const PostQuizItem: React.FC<PostQuizItemProps> = ({
@@ -30,7 +32,8 @@ const PostQuizItem: React.FC<PostQuizItemProps> = ({
     onMoveDown,
     onOpenFileManager,
     onOpenUrlMode,
-    onOpenImageEditor
+    onOpenImageEditor,
+    onRenameMedia
 }) => {
     const { t } = useLanguage();
     const defaultQuizData = {
@@ -218,6 +221,7 @@ const PostQuizItem: React.FC<PostQuizItemProps> = ({
                                         {res.image ? (
                                             <div className="relative w-full h-full flex items-center justify-center bg-palette-beige/5 min-h-[220px]">
                                                 <img src={res.image} className="max-w-full max-h-[220px] object-contain block" />
+                                                <MediaFilenameBadge src={res.image} type="image" onRename={onRenameMedia} />
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-all flex items-center justify-center gap-2">
                                                     <button
                                                         onClick={() => onOpenImageEditor?.(item.id, `results.${resIdx}.image`)}
@@ -357,6 +361,7 @@ const PostQuizItem: React.FC<PostQuizItemProps> = ({
                                                 {q.image ? (
                                                     <div className="relative w-full h-full flex items-center justify-center bg-palette-beige/5 min-h-[220px]">
                                                         <img src={q.image} className="max-w-full max-h-[220px] object-contain block" />
+                                                        <MediaFilenameBadge src={q.image} type="image" onRename={onRenameMedia} />
                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
                                                             <button
                                                                 onClick={() => onOpenImageEditor?.(item.id, `questions.${qIdx}.image`)}
@@ -456,6 +461,7 @@ const PostQuizItem: React.FC<PostQuizItemProps> = ({
                                                         {ans.image ? (
                                                             <div className="w-full h-full p-2">
                                                                 <img src={ans.image} className="w-full h-full object-contain rounded-[2px]" />
+                                                                <MediaFilenameBadge src={ans.image} type="image" onRename={onRenameMedia} className="bottom-1 right-1" />
                                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-all flex items-center justify-center gap-2">
                                                                     <button
                                                                         onClick={() => onOpenImageEditor?.(item.id, `questions.${qIdx}.answers.${ansIdx}.image`)}

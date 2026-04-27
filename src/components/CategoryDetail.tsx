@@ -1,10 +1,12 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, LayoutGrid, Zap, Filter, TrendingUp, Search } from 'lucide-react';
 import { NEWS_FEED } from '@/constants';
 import NewsCard from './NewsCard';
 import { type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
+import { subscribeNewsletter } from '@/services/appActions';
+import { useToast } from '@/context/ToastContext';
 
 interface CategoryDetailProps {
   category: string;
@@ -14,9 +16,26 @@ interface CategoryDetailProps {
 }
 
 const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNewsSelect, siteSettings }) => {
-  const { t } = useLanguage();
+  const { t, currentLang } = useLanguage();
+  const { showToast } = useToast();
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
   // Kategoriye ait haberleri filtrele (basit eşleşme için includes kullanıyoruz)
   const categoryNews = NEWS_FEED.filter(news => news.category.toLowerCase().includes(category.toLowerCase()));
+  const handleNewsletterSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!newsletterEmail.trim()) return;
+    setNewsletterLoading(true);
+    try {
+      await subscribeNewsletter(newsletterEmail, `category:${category}`, currentLang.code || 'tr');
+      setNewsletterEmail('');
+      showToast(t('common.success'), 'success');
+    } catch (error: any) {
+      showToast(error.message || t('common.action_failed'), 'error');
+    } finally {
+      setNewsletterLoading(false);
+    }
+  };
 
   return (
     <div className="animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm overflow-hidden mb-10">
@@ -105,16 +124,18 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
         <div className="max-w-xl mx-auto text-center">
           <h4 className="text-xl font-black text-gray-900 mb-2">{t('category_detail.newsletter_title')}</h4>
           <p className="text-gray-500 text-sm font-medium mb-8">{t('category_detail.newsletter_description').replace('{category}', category)}</p>
-          <div className="flex gap-2">
+          <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
             <input
               type="email"
+              value={newsletterEmail}
+              onChange={(event) => setNewsletterEmail(event.target.value)}
               placeholder={t('category_detail.email_placeholder')}
               className="flex-1 bg-gray-50 border border-gray-200 rounded-[5px] px-4 text-sm font-bold focus:bg-white focus:border-blue-400 focus:outline-none transition-all"
             />
-            <button className="px-6 py-3 bg-blue-600 text-white rounded-[5px] font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
-              {t('category_detail.subscribe')}
+            <button disabled={newsletterLoading} className="px-6 py-3 bg-blue-600 text-white rounded-[5px] font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-60">
+              {newsletterLoading ? '...' : t('category_detail.subscribe')}
             </button>
-          </div>
+          </form>
         </div>
       </div>
 

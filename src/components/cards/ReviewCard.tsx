@@ -63,14 +63,12 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ data }) => {
           {imageRatio === 'vertical' && (
             <div
               className="absolute inset-0 bg-center bg-no-repeat bg-cover blur-2xl opacity-20 scale-110"
-              style={{ backgroundImage: `url(${productImage || data.optimizedThumbnail?.src || data.thumbnail})` }}
+              style={{ backgroundImage: `url(${(productImage || data.optimizedThumbnail?.src || data.thumbnail)?.replace('_sm', '_xl')})` }}
             />
           )}
 
           <img
-            src={productImage || data.optimizedThumbnail?.src || data.thumbnail}
-            srcSet={!productImage ? data.optimizedThumbnail?.srcSet : undefined}
-            sizes={!productImage ? data.optimizedThumbnail?.sizes : undefined}
+            src={(productImage || data.optimizedThumbnail?.src || data.thumbnail)?.replace('_sm', '_xl')}
             alt={productName}
             className={`relative z-10 transition-transform duration-1000 group-hover:scale-105 mx-auto ${imageRatio === 'vertical' ? 'h-full w-auto object-contain' : 'w-full h-auto block'
               }`}
@@ -84,20 +82,20 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ data }) => {
           <div className="absolute inset-0 z-20 bg-gradient-to-t from-black via-transparent to-transparent opacity-90" />
           <div className="absolute bottom-0 left-0 w-full p-6 text-white z-30">
             <div className="flex items-center justify-between">
-	              <div>
-	                <span className="inline-block px-3 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-[5px] mb-2">
-	                  {t('review.badge')}
-	                </span>
-	                <h3 className="text-3xl font-black leading-none tracking-tight">{productName}</h3>
-	              </div>
+              <div>
+                <span className="inline-block px-3 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-[5px] mb-2">
+                  {t('review.badge')}
+                </span>
+                <h3 className="text-3xl font-black leading-none tracking-tight">{productName}</h3>
+              </div>
               <div className={`w-20 h-20 rounded-[5px] ${scoreBg} ${scoreBorder} border-4 flex flex-col items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.3)] backdrop-blur-md transform rotate-3`}>
-	                <span className={`text-2xl font-black ${scoreColor} leading-none`}>
-	                  <AnimatedNumber value={score} suffix="" />
-	                </span>
-	                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{t('review.score_label')}</span>
-	              </div>
-	            </div>
-	          </div>
+                <span className={`text-2xl font-black ${scoreColor} leading-none`}>
+                  <AnimatedNumber value={score} suffix="" />
+                </span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{t('review.score_label')}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Content Section */}
@@ -106,11 +104,11 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ data }) => {
           {/* Pros & Cons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {/* Pros */}
-	            <div className="bg-emerald-50/50 rounded-[5px] p-5 border border-emerald-100">
-	              <div className="flex items-center gap-2 mb-4">
-	                <div className="bg-emerald-500 p-1 rounded-[5px] text-white"><Check size={14} strokeWidth={4} /></div>
-	                <h4 className="text-emerald-900 font-extrabold text-sm uppercase tracking-wide">{t('review.pros')}</h4>
-	              </div>
+            <div className="bg-emerald-50/50 rounded-[5px] p-5 border border-emerald-100">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-emerald-500 p-1 rounded-[5px] text-white"><Check size={14} strokeWidth={4} /></div>
+                <h4 className="text-emerald-900 font-extrabold text-sm uppercase tracking-wide">{t('review.pros')}</h4>
+              </div>
               <ul className="space-y-3">
                 {pros.map((pro, idx) => (
                   <li key={idx} className="flex items-start gap-2.5">
@@ -122,11 +120,11 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ data }) => {
             </div>
 
             {/* Cons */}
-	            <div className="bg-rose-50/50 rounded-[5px] p-5 border border-rose-100">
-	              <div className="flex items-center gap-2 mb-4">
-	                <div className="bg-rose-500 p-1 rounded-[5px] text-white"><X size={14} strokeWidth={4} /></div>
-	                <h4 className="text-rose-900 font-extrabold text-sm uppercase tracking-wide">{t('review.cons')}</h4>
-	              </div>
+            <div className="bg-rose-50/50 rounded-[5px] p-5 border border-rose-100">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-rose-500 p-1 rounded-[5px] text-white"><X size={14} strokeWidth={4} /></div>
+                <h4 className="text-rose-900 font-extrabold text-sm uppercase tracking-wide">{t('review.cons')}</h4>
+              </div>
               <ul className="space-y-3">
                 {cons.map((con, idx) => (
                   <li key={idx} className="flex items-start gap-2.5">
@@ -139,10 +137,10 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ data }) => {
           </div>
 
           {/* Breakdown Progress Bars */}
-	          <div className="space-y-4 mb-8">
-	            <h4 className="font-extrabold text-gray-900 text-sm uppercase tracking-wide flex items-center gap-2">
-	              <BarChart3 size={16} className="text-blue-500" /> {t('review.detailed_scoring')}
-	            </h4>
+          <div className="space-y-4 mb-8">
+            <h4 className="font-extrabold text-gray-900 text-sm uppercase tracking-wide flex items-center gap-2">
+              <BarChart3 size={16} className="text-blue-500" /> {t('review.detailed_scoring')}
+            </h4>
             <div className="space-y-3">
               {breakdown.map((item, idx) => (
                 <div key={idx} className="flex flex-col gap-1">
@@ -165,11 +163,11 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ data }) => {
           {/* Verdict Box */}
           <div className="bg-gray-900 text-white rounded-[5px] p-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 rounded-[5px] blur-[60px] opacity-20" />
-	            <div className="relative z-10">
-	              <div className="flex items-center gap-2 mb-3 text-blue-300">
-	                <Award size={20} />
-	                <span className="text-xs font-black uppercase tracking-widest">{t('review.verdict_label')}</span>
-	              </div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3 text-blue-300">
+                <Award size={20} />
+                <span className="text-xs font-black uppercase tracking-widest">{t('review.verdict_label')}</span>
+              </div>
               <div
                 className="rich-text-content text-sm leading-relaxed font-medium text-gray-300 italic [&>p]:mb-0"
                 dangerouslySetInnerHTML={{ __html: verdict }}

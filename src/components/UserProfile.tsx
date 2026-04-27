@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, MessageSquare, Share2, Calendar, Settings2, Sparkles, User as UserIcon, Mail, Link as LinkIcon, Globe, Users, FileText, Eye, Heart } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import {  type NewsItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
+import { accountAction } from '@/services/appActions';
 
 interface UserProfileProps {
   userId?: string;
@@ -45,14 +46,13 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
     const fetchData = async () => {
       try {
         setLoading(true);
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        await accountAction('ensure-schema').catch(() => null);
+        const { data: { user: currentUser } } = await neon.auth.getUser();
 
         // Query building - Standardized and robust
-        const profileSelect = showEmail
-          ? 'id, full_name, username, expertise, about_me, avatar_url, social_links, created_at, role, email'
-          : 'id, full_name, username, expertise, about_me, avatar_url, social_links, created_at, role';
+        const profileSelect = 'id, full_name, username, expertise, about_me, avatar_url, social_links, created_at, role, email, show_email';
 
-        let profileQuery = supabase
+        let profileQuery = neon
           .from('profiles')
           .select(profileSelect);
 
@@ -72,11 +72,22 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
             setIsOwnProfile(true);
           }
 
-          const { count: postsCountData } = await supabase
-            .from('posts')
-            .select('id', { count: 'exact', head: true })
-            .eq('publisher_id', profile.id)
-            .eq('status', 'published');
+          const [postsCountResult, followersResult, followingResult] = await Promise.all([
+            neon
+              .from('posts')
+              .select('id', { count: 'exact', head: true })
+              .eq('publisher_id', profile.id)
+              .eq('status', 'published'),
+            neon
+              .from('publisher_follows')
+              .select('id', { count: 'exact', head: true })
+              .eq('publisher_id', profile.id),
+            neon
+              .from('publisher_follows')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', profile.id),
+          ]);
+          const shouldShowEmail = showEmail && profile.show_email !== false;
 
           // Parse social links safely
           let socialLinks = {};
@@ -103,18 +114,19 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
             handle: profile.username ? `@${profile.username}` : '',
             category: profile.expertise || t('users_list.default_description'),
             description: profile.about_me || '',
-            email: showEmail ? (profile.email || '') : '',
+            email: shouldShowEmail ? (profile.email || '') : '',
             avatar: normalizeProfileMediaUrl(profile.avatar_url),
             cover: normalizeProfileMediaUrl((socialLinks as any)?.cover_url),
-            followers: '0',
-            postsCount: (postsCountData || 0).toString(),
+            followers: (followersResult.count || 0).toString(),
+            following: (followingResult.count || 0).toString(),
+            postsCount: (postsCountResult.count || 0).toString(),
             joinedDate: profile.created_at ? new Date(profile.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '',
             verified: profile.role === 'admin' || profile.role === 'editor',
             social_links: socialLinks
           };
           setUserData(newData);
 
-          const { data: postsData, error: postsError } = await supabase
+          const { data: postsData, error: postsError } = await neon
             .from('posts')
             .select('*')
             .eq('publisher_id', profile.id)
@@ -289,7 +301,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
               </div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('user_profile.stats.following')}</p>
             </div>
-            <p className="text-2xl font-bold text-gray-900">12</p>
+            <p className="text-2xl font-bold text-gray-900">{userData.following || '0'}</p>
           </div>
           <div className="bg-white rounded-[5px] p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3 mb-2">

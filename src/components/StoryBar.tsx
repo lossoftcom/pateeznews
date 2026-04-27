@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Zap } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { Eye, X, Zap } from 'lucide-react';
+import { neon } from '@/lib/neon';
+import { trackStoryView } from '@/services/appActions';
 
 interface StoryBarProps {
   initialStories?: any[];
@@ -9,6 +10,7 @@ interface StoryBarProps {
 const StoryBar: React.FC<StoryBarProps> = ({ initialStories }) => {
   const [stories, setStories] = useState<any[]>(initialStories || []);
   const [loading, setLoading] = useState(!initialStories || initialStories.length === 0);
+  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (initialStories && initialStories.length > 0) {
@@ -20,7 +22,7 @@ const StoryBar: React.FC<StoryBarProps> = ({ initialStories }) => {
     const fetchStories = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        const { data, error } = await neon
           .from('stories')
           .select('*')
           .eq('is_active', true)
@@ -52,6 +54,20 @@ const StoryBar: React.FC<StoryBarProps> = ({ initialStories }) => {
 
   if (stories.length === 0) return null;
 
+  const activeStory = activeStoryIndex !== null ? stories[activeStoryIndex] : null;
+  const openStory = (index: number) => {
+    setActiveStoryIndex(index);
+    const story = stories[index];
+    if (!story?.id) return;
+    trackStoryView(story.id)
+      .then((result) => {
+        setStories((prev) => prev.map((item, itemIndex) => (
+          itemIndex === index ? { ...item, view_count: result.viewCount, viewCount: result.viewCount } : item
+        )));
+      })
+      .catch(() => null);
+  };
+
   return (
     <div className="w-full pb-1 pt-2">
       {/* Scroll Container */}
@@ -61,6 +77,7 @@ const StoryBar: React.FC<StoryBarProps> = ({ initialStories }) => {
         {stories.map((story) => (
           <div
             key={story.id}
+            onClick={() => openStory(stories.indexOf(story))}
             className="group relative flex-shrink-0 w-[120px] h-[200px] rounded-[5px] cursor-pointer transition-all duration-75 hover:-translate-y-1.5"
           >
             {/* Arka plan gölgesi - Glow Effect */}
@@ -113,6 +130,32 @@ const StoryBar: React.FC<StoryBarProps> = ({ initialStories }) => {
           </div>
         ))}
       </div>
+
+      {activeStory && (
+        <div className="fixed inset-0 z-[500] bg-gray-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <button
+            onClick={() => setActiveStoryIndex(null)}
+            className="absolute top-5 right-5 w-11 h-11 rounded-[5px] bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+          >
+            <X size={22} />
+          </button>
+          <div className="w-full max-w-[420px] aspect-[9/16] rounded-[5px] overflow-hidden bg-black shadow-2xl border border-white/10 relative">
+            {String(activeStory.media_type || activeStory.mediaType).toLowerCase() === 'video' ? (
+              <video src={activeStory.media_url || activeStory.mediaUrl} className="w-full h-full object-cover" controls autoPlay />
+            ) : (
+              <img src={activeStory.media_url || activeStory.mediaUrl || activeStory.image} alt={activeStory.title} className="w-full h-full object-cover" />
+            )}
+            <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent text-white">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">
+                <Zap size={12} className="text-yellow-400 fill-yellow-400" />
+                <span>{activeStory.source_name || activeStory.source || 'Pateez'}</span>
+                <span className="ml-auto flex items-center gap-1"><Eye size={12} /> {activeStory.view_count || activeStory.viewCount || 0}</span>
+              </div>
+              <h3 className="text-lg font-black leading-tight">{activeStory.title}</h3>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

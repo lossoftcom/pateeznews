@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ExternalLink, Twitter, Facebook, Instagram } from 'lucide-react';
 import { NewsType, type NewsItem } from '@/types';
 
@@ -9,21 +9,95 @@ interface EmbedCardProps {
 
 const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
 
+  // mediaUrl HTML (blockquote vb.) içerebilir, orijinal kaynak URL'sini çıkar
+  const extractSourceUrl = (raw: string): string => {
+    // Twitter/X: HTML blockquote içinden tweet URL'sini çıkar
+    const twitterMatch = raw.match(/href="(https?:\/\/(?:twitter\.com|x\.com)\/[^"]*\/status\/\d+[^"]*)"/i);
+    if (twitterMatch) {
+      return twitterMatch[1].split('?')[0];
+    }
+
+    // Instagram: embed URL'sini orijinal URL'ye çevir
+    const instaEmbedMatch = raw.match(/(https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\/[^/\s"]+)/i);
+    if (instaEmbedMatch) {
+      return instaEmbedMatch[1].replace(/\/embed.*$/, '/');
+    }
+
+    // Facebook: plugins URL'sinden orijinal URL'yi çıkar
+    if (raw.includes('facebook.com/plugins/')) {
+      try {
+        const parsed = new URL(raw);
+        const href = parsed.searchParams.get('href');
+        if (href) return href;
+      } catch { }
+    }
+
+    // Pinterest: embed URL'sinden orijinal URL'yi çıkar
+    if (raw.includes('assets.pinterest.com/ext/embed.html')) {
+      try {
+        const parsed = new URL(raw);
+        const id = parsed.searchParams.get('id');
+        if (id) return `https://www.pinterest.com/pin/${id}/`;
+      } catch { }
+    }
+
+    // Genel: herhangi bir http URL varsa çıkar (HTML içinde olabilir)
+    const genericMatch = raw.match(/https?:\/\/[^\s"<>]+/i);
+    if (genericMatch && raw.startsWith('<')) {
+      return genericMatch[0].split('?')[0];
+    }
+
+    return raw;
+  };
+
+  const sourceUrl = extractSourceUrl(data.mediaUrl);
+  const twitterRef = useRef<HTMLDivElement>(null);
+
+  // Tweet ID'sini çıkar (HTML blockquote veya düz URL'den)
+  const extractTweetId = (raw: string): string | null => {
+    // status/XXXXX pattern'ini ara (hem URL'de hem HTML'de çalışır)
+    const match = raw.match(/\/status\/(\d+)/);
+    return match ? match[1] : null;
+  };
+
   // EMBED SCRIPT YÖNETİMİ (Twitter)
   useEffect(() => {
     const isTwitter = data.mediaUrl.includes('twitter.com') || data.mediaUrl.includes('x.com');
 
-    if (isTwitter) {
+    if (isTwitter && twitterRef.current) {
+      const tweetId = extractTweetId(data.mediaUrl);
+      if (!tweetId) return;
+
+      // Önceki içeriği temizle
+      twitterRef.current.innerHTML = '';
+
+      const loadWidget = () => {
+        if ((window as any).twttr?.widgets) {
+          (window as any).twttr.widgets.createTweet(tweetId, twitterRef.current, {
+            dnt: true,
+            theme: 'light',
+          });
+        }
+      };
+
       const src = "https://platform.twitter.com/widgets.js";
       const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
       if (!existing) {
         const script = document.createElement("script");
         script.src = src;
         script.async = true;
-        script.onload = () => (window as any).twttr?.widgets?.load();
+        script.onload = loadWidget;
         document.body.appendChild(script);
-      } else if ((window as any).twttr?.widgets) {
-        (window as any).twttr.widgets.load();
+      } else {
+        // Script zaten yüklü, widget'ı oluştur
+        const checkAndLoad = () => {
+          if ((window as any).twttr?.widgets) {
+            loadWidget();
+          } else {
+            setTimeout(checkAndLoad, 200);
+          }
+        };
+        checkAndLoad();
       }
     }
 
@@ -43,11 +117,7 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
     platformIcon = <Twitter size={14} className="fill-current" />;
 
     embedContent = (
-      <div className="w-full flex justify-center bg-white overflow-hidden">
-        <blockquote className="twitter-tweet" data-dnt="true" data-theme="light">
-          <a href={data.mediaUrl}></a>
-        </blockquote>
-      </div>
+      <div ref={twitterRef} className="w-full flex justify-center bg-white overflow-hidden" />
     );
 
   } else if (data.mediaUrl.includes('facebook.com')) {
@@ -163,7 +233,7 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
 
       {/* Link Linki (Fallback) */}
       <div className="flex justify-start pt-2">
-        <a href={data.mediaUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+        <a href={sourceUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
           <ExternalLink size={12} />
           Kaynağa Git
         </a>

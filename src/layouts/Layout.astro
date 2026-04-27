@@ -163,7 +163,6 @@ const preconnectOrigins = (() => {
 		}
 	};
 
-	addOrigin(import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL);
 	addOrigin(resolvedOgImage);
 	addOrigin(resolvedFavicon);
 	addOrigin(orgLogo);
@@ -335,7 +334,7 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 					client:load
 					initialLang={initialLang}
 					initialTranslations={initialTranslations}
-					siteSettings={siteSettings}
+					siteSettings={siteSettings ?? null}
 					navigationItems={navigationItems}
 				/>
 			</div>

@@ -4,7 +4,7 @@ import PublicProfileApp from '@/components/PublicProfileApp';
 import { dataService } from '@/services/dataService';
 import { loadLocaleData } from '@/lib/locales';
 import { resolveLangCode } from '@/utils/lang';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 
 export const prerender = false;
 
@@ -55,14 +55,14 @@ const initialLang = {
 
 const selectProfileFields = 'id, username, slug, full_name, avatar_url, about_me, expertise, website, social_links, meta_title, meta_description, meta_keywords, canonical_url, role, created_at, updated_at';
 
-let profileRes = await supabase
+let profileRes = await neon
   .from('profiles')
   .select(selectProfileFields)
   .eq('username', rawUsername)
   .maybeSingle();
 
 if (!profileRes.data) {
-  profileRes = await supabase
+  profileRes = await neon
     .from('profiles')
     .select(selectProfileFields)
     .eq('slug', rawUsername)

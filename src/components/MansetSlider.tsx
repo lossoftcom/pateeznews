@@ -1,0 +1,214 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import type { NewsItem } from '@/types';
+
+const AUTOPLAY_DELAY = 5000;
+
+interface MansetSlide {
+    id: string;
+    title: string;
+    description: string;
+    image: string;
+    alt: string;
+    date: string;
+}
+
+interface MansetSliderProps {
+    slides?: NewsItem[];
+    onNewsSelect?: (id: string) => void;
+}
+
+const stripHtml = (value: string) => (
+    value
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+);
+
+const formatSlideDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    const datePart = date.toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        weekday: 'long',
+    });
+    const timePart = date.toLocaleTimeString('tr-TR', {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+
+    return `${datePart} Saat: ${timePart}`;
+};
+
+const mapNewsToSlide = (news: NewsItem): MansetSlide | null => {
+    const image = news.coverThumbnail || news.thumbnail || news.mediaList?.[0] || news.mediaUrl;
+    if (!image) return null;
+
+    const title = stripHtml(news.seoTitle || news.title || '');
+    if (!title) return null;
+
+    return {
+        id: String(news.id),
+        title,
+        description: stripHtml(news.summary || news.seoDescription || ''),
+        image,
+        alt: news.thumbnailAlt || title,
+        date: formatSlideDate(news.timestamp || ''),
+    };
+};
+
+const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], onNewsSelect }) => {
+    const slides = useMemo(() => newsSlides.map(mapNewsToSlide).filter(Boolean) as MansetSlide[], [newsSlides]);
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
+
+    useEffect(() => {
+        if (activeIndex >= slides.length) {
+            setActiveIndex(0);
+        }
+    }, [activeIndex, slides.length]);
+
+    const goToSlide = useCallback((index: number) => {
+        if (slides.length === 0) return;
+        setActiveIndex((index + slides.length) % slides.length);
+    }, [slides.length]);
+
+    const goToPrevious = useCallback(() => {
+        if (slides.length === 0) return;
+        setActiveIndex((current) => (current - 1 + slides.length) % slides.length);
+    }, [slides.length]);
+
+    const goToNext = useCallback(() => {
+        if (slides.length === 0) return;
+        setActiveIndex((current) => (current + 1) % slides.length);
+    }, [slides.length]);
+
+    useEffect(() => {
+        if (isPaused || slides.length < 2) return undefined;
+
+        const timer = window.setInterval(goToNext, AUTOPLAY_DELAY);
+        return () => window.clearInterval(timer);
+    }, [goToNext, isPaused, slides.length]);
+
+    if (slides.length === 0) return null;
+
+    return (
+        <section
+            className="manset-slider w-full relative rounded-[5px] overflow-hidden shadow-sm bg-gray-900 group cursor-pointer"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            aria-label="Manşet haber sliderı"
+        >
+            <div className="relative w-full aspect-[11/10]">
+                {slides.map((slide, index) => {
+                    const isActive = index === activeIndex;
+
+                    return (
+                        <article
+                            key={slide.id}
+                            aria-hidden={!isActive}
+                            onClick={() => onNewsSelect?.(slide.id)}
+                            className={`absolute inset-0 overflow-hidden transition-opacity duration-700 ease-out ${
+                                isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                            }`}
+                        >
+                            <img
+                                src={slide.image}
+                                alt={slide.alt}
+                                className="w-full h-full object-cover transform transition-transform duration-[15000ms] ease-out scale-105 group-hover:scale-110"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
+                            <div className="absolute bottom-0 left-0 w-full p-6 sm:p-8 md:p-10 z-10 flex flex-col justify-end transform transition-transform duration-500 translate-y-1 group-hover:translate-y-0">
+                                <h2 className="text-white text-[28px] sm:text-[36px] md:text-[44px] font-black tracking-tight leading-[1.2] mb-3 drop-shadow-lg line-clamp-2 transition-colors duration-300 group-hover:text-palette-red">
+                                    {slide.title}
+                                </h2>
+                                {slide.description && (
+                                    <p className="text-gray-200 text-base sm:text-lg line-clamp-3 max-w-4xl font-medium leading-relaxed drop-shadow-md mb-5">
+                                        {slide.description}
+                                    </p>
+                                )}
+                                {slide.date && (
+                                    <div className="flex items-center mb-2">
+                                        <span className="text-gray-400 text-xs font-light flex items-center gap-1.5 drop-shadow-md">
+                                            <span className="material-symbols-rounded text-[14px] opacity-70">schedule</span>
+                                            {slide.date}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </article>
+                    );
+                })}
+
+                {slides.length > 1 && (
+                    <>
+                        <button
+                            type="button"
+                            aria-label="Önceki manşet"
+                            onClick={goToPrevious}
+                            className="manset-nav-button manset-prev absolute top-[24%] md:top-[38%] left-3 md:left-5 -translate-y-1/2 z-30 w-12 h-12 md:w-14 md:h-14 appearance-none border-0 bg-transparent flex items-center justify-center overflow-visible text-white/90 cursor-pointer outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 transition-all duration-300 hover:text-white hover:scale-105 active:scale-95"
+                        >
+                            <ChevronLeft className="manset-arrow-icon opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none" strokeWidth={1.25} aria-hidden="true" />
+                        </button>
+
+                        <button
+                            type="button"
+                            aria-label="Sonraki manşet"
+                            onClick={goToNext}
+                            className="manset-nav-button manset-next absolute top-[24%] md:top-[38%] right-3 md:right-5 -translate-y-1/2 z-30 w-12 h-12 md:w-14 md:h-14 appearance-none border-0 bg-transparent flex items-center justify-center overflow-visible text-white/90 cursor-pointer outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 transition-all duration-300 hover:text-white hover:scale-105 active:scale-95"
+                        >
+                            <ChevronRight className="manset-arrow-icon opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none" strokeWidth={1.25} aria-hidden="true" />
+                        </button>
+                    </>
+                )}
+
+                <div className="absolute left-1/2 bottom-4 z-30 -translate-x-1/2 flex items-center justify-center gap-[5px] whitespace-nowrap">
+                    {slides.map((slide, index) => {
+                        const isActive = index === activeIndex;
+
+                        return (
+                            <button
+                                key={slide.id}
+                                type="button"
+                                aria-label={`Manşet ${index + 1}`}
+                                aria-current={isActive ? 'true' : undefined}
+                                onClick={() => goToSlide(index)}
+                                className={`h-[9px] rounded-full border-0 p-0 outline-none cursor-pointer transition-all duration-300 ${
+                                    isActive
+                                        ? 'w-7 bg-palette-red shadow-none'
+                                        : 'w-[9px] bg-white/80 shadow-none hover:bg-palette-red/80'
+                                }`}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
+
+            <style>{`
+                .manset-slider .manset-arrow-icon {
+                    width: 42px;
+                    height: 42px;
+                    filter: none;
+                    transition: opacity 0.25s ease, width 0.25s ease, height 0.25s ease, transform 0.25s ease;
+                }
+
+                .manset-slider .manset-nav-button:hover .manset-arrow-icon {
+                    transform: scale(1.08);
+                }
+
+                @media (min-width: 768px) {
+                    .manset-slider .manset-arrow-icon {
+                        width: 52px;
+                        height: 52px;
+                    }
+                }
+            `}</style>
+        </section>
+    );
+};
+
+export default MansetSlider;

@@ -8,17 +8,18 @@ export const formatTime = (seconds: number): string => {
 };
 
 // UUID doğrulayıcı
-export const isUUID = (str: string): boolean => {
+export const isUUID = (str: unknown): boolean => {
   if (!str) return false;
+  const value = String(str);
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(str);
+  return uuidRegex.test(value);
 };
 
 // Post ID doğrulayıcı (bigint string veya UUID)
-export const isPostId = (value: string): boolean => {
+export const isPostId = (value: unknown): boolean => {
   if (!value) return false;
   if (isUUID(value)) return true;
-  return /^[0-9]+$/.test(value);
+  return /^[0-9]+$/.test(String(value));
 };
 
 // Görece zaman formatlayıcı (Örn: 2 saat önce)

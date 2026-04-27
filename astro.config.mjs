@@ -5,13 +5,10 @@ import vercel from '@astrojs/vercel';
 
 import { fileURLToPath } from 'url';
 
-const supabaseUrl = process.env.PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-let supabaseHostname;
-try {
-    supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : undefined;
-} catch {
-    supabaseHostname = undefined;
-}
+const remoteImageHosts = (process.env.PUBLIC_REMOTE_IMAGE_HOSTS || '')
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
 
 // https://astro.build/config
 export default defineConfig({
@@ -22,7 +19,7 @@ export default defineConfig({
     integrations: [react(), tailwind()],
     image: {
         remotePatterns: [
-            ...(supabaseHostname ? [{ protocol: 'https', hostname: supabaseHostname }] : [{ protocol: 'https', hostname: '**.supabase.co' }]),
+            ...remoteImageHosts.map((hostname) => ({ protocol: 'https', hostname })),
             { protocol: 'https', hostname: 'images.unsplash.com' },
             { protocol: 'https', hostname: 'picsum.photos' },
         ],

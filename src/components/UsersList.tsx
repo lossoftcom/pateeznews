@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, ArrowLeft, Users, TrendingUp, Search, Plus, UserPlus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface User {
@@ -30,7 +30,7 @@ const UsersList: React.FC<UsersListProps> = ({ onBack, onUserSelect }) => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await neon
           .from('profiles')
           .select('*')
           .eq('role', 'publisher')
@@ -39,7 +39,7 @@ const UsersList: React.FC<UsersListProps> = ({ onBack, onUserSelect }) => {
         if (error) throw error;
 
         if (data) {
-          const mapped: User[] = data.map(p => ({
+          const mapped: User[] = data.map((p: any) => ({
             id: p.id,
             name: p.full_name || p.username || t('comments.anonymous_user'),
             category: p.expertise || t('nav.agenda'),

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import StoryBar from './StoryBar';
+import MansetSlider from './MansetSlider';
 import NewsCard, { NewsCardSkeleton } from './NewsCard';
 import { type NewsItem, NewsType, type SiteSettings, type NavigationItem } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
@@ -19,7 +19,7 @@ interface FeedProps {
   loading?: boolean;
 }
 
-const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClick, storiesData, siteSettings, navItems, selectedCategory, loading }) => {
+const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClick, siteSettings, navItems, selectedCategory, loading }) => {
   const [activeFilter, setActiveFilter] = useState<'latest' | 'popular'>('latest');
   const { t } = useLanguage();
 
@@ -36,9 +36,19 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
     return sorted;
   }, [newsData, activeFilter]);
 
+  const mansetItems = useMemo(() => (
+    newsData
+      .filter((news) => news.isManset)
+      .slice(0, 20)
+  ), [newsData]);
+
   return (
     <div className="flex flex-col gap-6 pb-4">
-      <StoryBar initialStories={storiesData} />
+      {!resolvedTitle && mansetItems.length > 0 && (
+        <div className="px-1">
+          <MansetSlider slides={mansetItems} onNewsSelect={onNewsSelect} />
+        </div>
+      )}
 
       <div className="px-1 mt-1 mb-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

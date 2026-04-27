@@ -41,12 +41,13 @@ const getNewsItemsForInitialLoad = async () => {
     return dataService.getNewsItems(lang);
 };
 
-const [initialTranslations, siteSettings, navigationItems, storiesItems, newsItems] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, storiesItems, newsItems, sidebarSnapshot] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
   dataService.getNavigationItems(lang),
   dataService.getStories(lang),
-  getNewsItemsForInitialLoad()
+  getNewsItemsForInitialLoad(),
+  dataService.getSidebarSnapshot(lang)
 ]);
 
 // Determine selectedCategory for the UI
@@ -117,6 +118,7 @@ const itemListLd = {
     navigationItems={navigationItems}
     newsItems={newsItems}
     storiesItems={storiesItems}
+    sidebarSnapshot={sidebarSnapshot}
     selectedCategory={selectedCategory}
     isInitialHome={true}
   />

@@ -142,6 +142,7 @@ CREATE TABLE public.posts (
   published_at timestamp with time zone,
   updated_at timestamp with time zone DEFAULT now(),
   is_pinned boolean DEFAULT false,
+  show_in_manset boolean DEFAULT false,
   search_vector tsvector,
   dislikes_count integer DEFAULT 0,
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -267,8 +268,23 @@ Allow: /
 Sitemap: https://yourdomain.com/sitemap.xml'::text,
   header_custom_codes text,
   footer_custom_codes text,
+  weather_enabled boolean DEFAULT true,
+  weather_location_name text DEFAULT 'Niğde'::text,
+  weather_location_country text DEFAULT 'Türkiye'::text,
+  weather_latitude double precision DEFAULT 37.96583,
+  weather_longitude double precision DEFAULT 34.67935,
+  weather_timezone text DEFAULT 'Europe/Istanbul'::text,
+  weather_update_interval_minutes integer DEFAULT 30,
   CONSTRAINT site_settings_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.app_cache (
+  key text NOT NULL,
+  payload jsonb NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT app_cache_pkey PRIMARY KEY (key)
+);
+CREATE INDEX app_cache_expires_at_idx ON public.app_cache USING btree (expires_at);
 CREATE TABLE public.stories (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),

@@ -5,6 +5,7 @@ import { prefetch } from 'astro:prefetch';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NavigationItem, type SiteSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
+import { searchSite } from '@/services/appActions';
 
 interface NavbarProps {
   onHomeClick?: () => void;
@@ -37,6 +38,10 @@ const Navbar: React.FC<NavbarProps> = ({
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<{ posts: any[]; profiles: any[] }>({ posts: [], profiles: [] });
   const langMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -87,6 +92,54 @@ const Navbar: React.FC<NavbarProps> = ({
     if (showLangMenu || showUserMenu) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showLangMenu, showUserMenu]);
+
+  useEffect(() => {
+    if (!isSearchOpen || searchTerm.trim().length < 2) {
+      setSearchResults({ posts: [], profiles: [] });
+      return;
+    }
+
+    let isMounted = true;
+    const timer = window.setTimeout(() => {
+      setSearchLoading(true);
+      searchSite(searchTerm.trim(), currentLang.code || 'tr')
+        .then((result) => {
+          if (isMounted) setSearchResults({ posts: result.posts || [], profiles: result.profiles || [] });
+        })
+        .catch(() => {
+          if (isMounted) setSearchResults({ posts: [], profiles: [] });
+        })
+        .finally(() => {
+          if (isMounted) setSearchLoading(false);
+        });
+    }, 220);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [isSearchOpen, searchTerm, currentLang.code]);
+
+  const openSearchResult = (href: string) => {
+    setIsSearchOpen(false);
+    setSearchTerm('');
+    void navigate(href);
+  };
+
+  const handleSearchSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const firstPost = searchResults.posts[0];
+    const firstProfile = searchResults.profiles[0];
+    if (firstPost) {
+      openSearchResult(`/haber/${encodeURIComponent(firstPost.slug || firstPost.id)}`);
+      return;
+    }
+    if (firstProfile) {
+      openSearchResult(`/profil/${encodeURIComponent(firstProfile.username || firstProfile.id)}`);
+      return;
+    }
+    if (searchTerm.trim()) openSearchResult(`/kategori/${slugify(searchTerm.trim())}`);
+  };
 
   return (
     <header className="fixed top-0 left-0 w-full z-[250]">
@@ -335,20 +388,49 @@ const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            <button className="lg:hidden w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-beige/10 text-gray-900 ml-1">
-              <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>menu</span>
+            <button
+              onClick={() => setIsMobileMenuOpen((value) => !value)}
+              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-beige/10 text-gray-900 ml-1"
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>{isMobileMenuOpen ? 'close' : 'menu'}</span>
             </button>
           </div>
         </div>
       </div >
 
+      {isMobileMenuOpen && (
+        <div className="lg:hidden absolute top-[64px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl z-[252] animate-in slide-in-from-top-2">
+          <div className="max-w-[1280px] mx-auto px-4 py-3">
+            <div className="grid gap-1">
+              <button
+                onClick={() => { setIsMobileMenuOpen(false); goHome(); }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[12px] font-black tracking-widest text-palette-red hover:bg-palette-beige/10"
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>home</span>
+                {t('nav.home')}
+              </button>
+              {headerItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => { setIsMobileMenuOpen(false); navigateHeaderItem(item); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[12px] font-black tracking-widest text-palette-tan hover:bg-palette-beige/10 hover:text-palette-red"
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>{item.icon || 'chevron_right'}</span>
+                  {t(item.label)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SEARCH BAR */}
       < div
-        className={`absolute top-[64px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl transition-all duration-75 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[80px] opacity-100 py-3.5' : 'max-h-0 opacity-0 py-0'
+        className={`absolute top-[64px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl transition-all duration-75 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[420px] opacity-100 py-3.5' : 'max-h-0 opacity-0 py-0'
           }`}
       >
         <div className="max-w-[1280px] mx-auto px-4">
-          <div className="relative flex items-center">
+          <form onSubmit={handleSearchSubmit} className="relative flex items-center">
             <div className="absolute left-4 flex items-center justify-center z-10">
               <span className="material-symbols-rounded text-palette-tan/30" style={{ fontSize: '22px' }}>
                 search
@@ -357,6 +439,8 @@ const Navbar: React.FC<NavbarProps> = ({
             <input
               type="text"
               autoFocus={isSearchOpen}
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
               placeholder={t('nav.search')}
               className="w-full h-11 bg-palette-beige/10 rounded-[5px] border border-palette-beige focus:border-palette-tan/30 text-sm font-bold text-gray-900 placeholder:text-palette-tan/20 outline-none pl-11 pr-11 transition-none"
             />
@@ -368,7 +452,58 @@ const Navbar: React.FC<NavbarProps> = ({
                 <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
               </button>
             </div>
-          </div>
+          </form>
+
+          {(searchTerm.trim().length >= 2 || searchLoading) && (
+            <div className="mt-3 bg-white rounded-[5px] border border-palette-beige/60 shadow-sm overflow-hidden">
+              {searchLoading ? (
+                <div className="px-4 py-5 text-[11px] font-black text-palette-tan/40 uppercase tracking-widest">
+                  {t('comments.loading')}
+                </div>
+              ) : searchResults.posts.length === 0 && searchResults.profiles.length === 0 ? (
+                <button
+                  onClick={() => openSearchResult(`/kategori/${slugify(searchTerm.trim())}`)}
+                  className="w-full px-4 py-5 text-left text-[12px] font-bold text-palette-tan hover:bg-palette-beige/10"
+                >
+                  {searchTerm.trim()}
+                </button>
+              ) : (
+                <div className="divide-y divide-palette-beige/40">
+                  {searchResults.posts.map((post) => (
+                    <button
+                      key={`post-${post.id}`}
+                      onClick={() => openSearchResult(`/haber/${encodeURIComponent(post.slug || post.id)}`)}
+                      onMouseEnter={() => prefetch(`/haber/${encodeURIComponent(post.slug || post.id)}`)}
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-palette-beige/10 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-[5px] bg-palette-beige/20 overflow-hidden flex-shrink-0">
+                        {post.thumbnail_url ? <img src={post.thumbnail_url} className="w-full h-full object-cover" alt={post.title} /> : null}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-black text-gray-900 truncate">{post.title}</p>
+                        <p className="text-[9px] font-bold text-palette-tan/40 uppercase tracking-widest truncate">{post.category}</p>
+                      </div>
+                    </button>
+                  ))}
+                  {searchResults.profiles.map((profile) => (
+                    <button
+                      key={`profile-${profile.id}`}
+                      onClick={() => openSearchResult(`/profil/${encodeURIComponent(profile.username || profile.id)}`)}
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-palette-beige/10 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-[5px] bg-palette-beige/20 overflow-hidden flex-shrink-0">
+                        {profile.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.full_name || profile.username} /> : null}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-black text-gray-900 truncate">{profile.full_name || profile.username}</p>
+                        <p className="text-[9px] font-bold text-palette-tan/40 uppercase tracking-widest truncate">@{profile.username || profile.role}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div >
 

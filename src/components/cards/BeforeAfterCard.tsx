@@ -25,10 +25,17 @@ const BeforeAfterCard: React.FC<BeforeAfterCardProps> = ({ data }) => {
         />
       </div>
 
-      <div className="relative w-full h-[450px] rounded-[5px] overflow-hidden shadow-2xl select-none group border border-gray-100">
+      <div
+        className="card-interact-area relative w-full h-[450px] rounded-[5px] overflow-hidden shadow-2xl select-none group border border-gray-100"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         {/* AFTER IMAGE (Background - Full) */}
         <img
-          src={data.beforeAfterData.afterImage}
+          src={data.beforeAfterData.afterImage?.replace('_sm', '_xl')}
           alt="After"
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -39,7 +46,7 @@ const BeforeAfterCard: React.FC<BeforeAfterCardProps> = ({ data }) => {
           style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
         >
           <img
-            src={data.beforeAfterData.beforeImage}
+            src={data.beforeAfterData.beforeImage?.replace('_sm', '_xl')}
             alt="Before"
             className="absolute inset-0 w-full h-full object-cover"
           />
@@ -56,13 +63,14 @@ const BeforeAfterCard: React.FC<BeforeAfterCardProps> = ({ data }) => {
           </div>
         </div>
 
-        {/* Invisible Range Input for Interaction */}
         <input
           type="range"
           min="0"
           max="100"
           value={sliderPosition}
           onChange={handleBeforeAfterChange}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onPointerDown={(e) => e.stopPropagation()}
           className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-30"
         />
 

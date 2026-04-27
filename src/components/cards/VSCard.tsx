@@ -63,15 +63,13 @@ const VSCard: React.FC<VSCardProps> = ({ data }) => {
         {/* Background Blur Effect */}
         <div
           className="absolute inset-0 bg-center bg-no-repeat bg-cover blur-2xl opacity-20 scale-110"
-          style={{ backgroundImage: `url(${data.thumbnail})` }}
+          style={{ backgroundImage: `url(${data.thumbnail?.replace('_sm', '_xl')})` }}
         />
-	        <img
-	          src={data.optimizedThumbnail?.src || data.thumbnail}
-	          srcSet={data.optimizedThumbnail?.srcSet}
-	          sizes={data.optimizedThumbnail?.sizes}
-	          alt={data.thumbnailAlt || data.seoTitle || data.title}
-	          className={`relative z-10 transition-transform duration-1000 group-hover:scale-105 ${imageRatio === 'vertical' ? 'w-auto h-full max-w-full object-contain' : 'w-full h-auto block'}`}
-	        />
+        <img
+          src={(data.optimizedThumbnail?.src || data.thumbnail)?.replace('_sm', '_xl')}
+          alt={data.thumbnailAlt || data.seoTitle || data.title}
+          className={`relative z-10 transition-transform duration-1000 group-hover:scale-105 ${imageRatio === 'vertical' ? 'w-auto h-full max-w-full object-contain' : 'w-full h-auto block'}`}
+        />
         <div className="absolute inset-0 z-20 bg-gradient-to-t from-palette-maroon/40 via-transparent to-transparent pointer-events-none" />
         <div className="absolute bottom-4 left-4 z-30 group/arena transform-gpu">
           <div className="flex items-center rounded-[4px] overflow-hidden shadow-[0_12px_24px_-8px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-md">
@@ -118,7 +116,7 @@ const VSCard: React.FC<VSCardProps> = ({ data }) => {
             }}
           >
             <img
-              src={left!.image}
+              src={left!.image?.replace('_sm', '_xl')}
               className={`absolute inset-0 w-full h-full object-cover ${!hasVoted ? 'group-hover/left:scale-110' : ''}`}
               style={{
                 transform: 'translate3d(0, 0, 0)',
@@ -218,7 +216,7 @@ const VSCard: React.FC<VSCardProps> = ({ data }) => {
             }}
           >
             <img
-              src={right!.image}
+              src={right!.image?.replace('_sm', '_xl')}
               className={`absolute inset-0 w-full h-full object-cover ${!hasVoted ? 'group-hover/right:scale-110' : ''}`}
               style={{
                 transform: 'translate3d(0, 0, 0)',

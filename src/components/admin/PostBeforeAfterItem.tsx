@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactQuill from 'react-quill-new';
 import { QUILL_MODULES, QUILL_FORMATS, type PostItem } from './PostTextItem';
 import { useLanguage } from '@/context/LanguageContext';
+import MediaFilenameBadge from './MediaFilenameBadge';
 
 interface PostBeforeAfterItemProps {
     item: PostItem;
@@ -16,6 +17,7 @@ interface PostBeforeAfterItemProps {
     onOpenFileManager: (id: string, subField?: string) => void;
     onOpenUrlMode: (id: string, subField?: string) => void;
     onOpenImageEditor: (id: string, subField?: string) => void;
+    onRenameMedia?: (src: string, type: 'image') => Promise<string | null>;
 }
 
 const PostBeforeAfterItem: React.FC<PostBeforeAfterItemProps> = ({
@@ -30,7 +32,8 @@ const PostBeforeAfterItem: React.FC<PostBeforeAfterItemProps> = ({
     onMoveDown,
     onOpenFileManager,
     onOpenUrlMode,
-    onOpenImageEditor
+    onOpenImageEditor,
+    onRenameMedia
 }) => {
     const { t } = useLanguage();
     const [showOptions, setShowOptions] = useState(false);
@@ -160,6 +163,7 @@ const PostBeforeAfterItem: React.FC<PostBeforeAfterItemProps> = ({
                                             onError={() => setIsBeforeLoading(false)}
                                             className="max-w-full max-h-[220px] object-contain block"
                                         />
+                                        <MediaFilenameBadge src={item.beforeAfterData.beforeImage} type="image" onRename={onRenameMedia} />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => onOpenImageEditor(item.id, 'beforeImage')}
@@ -237,6 +241,7 @@ const PostBeforeAfterItem: React.FC<PostBeforeAfterItemProps> = ({
                                             onError={() => setIsAfterLoading(false)}
                                             className="max-w-full max-h-[220px] object-contain block"
                                         />
+                                        <MediaFilenameBadge src={item.beforeAfterData.afterImage} type="image" onRename={onRenameMedia} />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => onOpenImageEditor(item.id, 'afterImage')}

@@ -234,8 +234,6 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
             <div className={`relative z-10 w-full h-full rounded-[5px] overflow-hidden shadow-2xl border-4 border-slate-700/50 bg-slate-800 transition-transform duration-700`}>
               <img
                 src={data.optimizedThumbnail?.src || data.thumbnail}
-                srcSet={data.optimizedThumbnail?.srcSet}
-                sizes={data.optimizedThumbnail?.sizes}
                 alt={data.thumbnailAlt || data.seoTitle || data.title || 'Cover'}
                 className="w-full h-full object-contain"
               />

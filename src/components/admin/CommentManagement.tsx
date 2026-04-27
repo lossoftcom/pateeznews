@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 
@@ -270,18 +270,18 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
     const fetchFilterOptions = async () => {
         try {
             // Get unique posts and users from existing comments
-            const { data: posts } = await supabase.from('admin_comment_details').select('post_id, post_title');
-            const { data: users } = await supabase.from('admin_comment_details').select('user_id, user_name');
+            const { data: posts } = await neon.from('admin_comment_details').select('post_id, post_title');
+            const { data: users } = await neon.from('admin_comment_details').select('user_id, user_name');
 
-            const uniquePosts = Array.from(new Set(posts?.map(p => p.post_id))).map(id => ({
-                id,
-                title: posts?.find(p => p.post_id === id)?.post_title || t('comments.unnamed_post')
-            })).filter(p => p.id);
+            const uniquePosts = Array.from(new Set((posts || []).map((p: any) => p.post_id))).map((id) => ({
+                id: String(id),
+                title: (posts || []).find((p: any) => p.post_id === id)?.post_title || t('comments.unnamed_post')
+            })).filter((p) => p.id);
 
-	            const uniqueUsers = Array.from(new Set(users?.map(u => u.user_id))).map(id => ({
-	                id,
-	                name: users?.find(u => u.user_id === id)?.user_name || t('common.anonymous')
-	            })).filter(u => u.id);
+	            const uniqueUsers = Array.from(new Set((users || []).map((u: any) => u.user_id))).map((id) => ({
+	                id: String(id),
+	                name: (users || []).find((u: any) => u.user_id === id)?.user_name || t('common.anonymous')
+	            })).filter((u) => u.id);
 
             setFilterOptions({ posts: uniquePosts, users: uniqueUsers });
         } catch (err) {
@@ -303,7 +303,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
         try {
             setLoading(true);
 
-            let query = supabase
+            let query = neon
                 .from('admin_comment_details')
                 .select('*', { count: 'exact' });
 
@@ -346,7 +346,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
             setTotalCount(count || 0);
 
             // İstatistikleri çek
-            const { data: stats, error: statsError } = await supabase.rpc('get_admin_comment_stats');
+            const { data: stats, error: statsError } = await neon.rpc('get_admin_comment_stats');
             if (!statsError && stats) {
                 setStatsData(stats);
             }
@@ -362,7 +362,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
 
     const handleApprove = async (comment: CommentRecord) => {
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('comments')
                 .update({ status: 'approved' })
                 .eq('id', comment.id);
@@ -373,7 +373,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
             showToast(t('comments.approved_success'), 'success');
 
             // Stats'ı güncelle
-            const { data: stats } = await supabase.rpc('get_admin_comment_stats');
+            const { data: stats } = await neon.rpc('get_admin_comment_stats');
             if (stats) setStatsData(stats);
 	        } catch (err: any) {
 	            showToast(t('common.error_prefix') + err.message, 'error');
@@ -382,7 +382,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
 
     const handleReject = async (comment: CommentRecord) => {
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('comments')
                 .update({ status: 'rejected' })
                 .eq('id', comment.id);
@@ -393,7 +393,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
             showToast(t('comments.rejected_success'), 'success');
 
             // Stats'ı güncelle
-            const { data: stats } = await supabase.rpc('get_admin_comment_stats');
+            const { data: stats } = await neon.rpc('get_admin_comment_stats');
             if (stats) setStatsData(stats);
 	        } catch (err: any) {
 	            showToast(t('common.error_prefix') + err.message, 'error');
@@ -403,7 +403,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
     const handleTogglePinned = async (comment: CommentRecord) => {
         const newPinned = !comment.is_pinned;
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('comments')
                 .update({ is_pinned: newPinned })
                 .eq('id', comment.id);
@@ -426,7 +426,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
         if (!commentToDelete) return;
 
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('comments')
                 .delete()
                 .eq('id', commentToDelete.id);
@@ -438,7 +438,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
             showToast(t('comments.deleted_success'), 'success');
 
             // Stats'ı güncelle
-            const { data: stats } = await supabase.rpc('get_admin_comment_stats');
+            const { data: stats } = await neon.rpc('get_admin_comment_stats');
             if (stats) setStatsData(stats);
 	        } catch (err: any) {
 	            showToast(t('common.error_prefix') + err.message, 'error');
@@ -451,7 +451,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
         if (selectedIds.length === 0) return;
 
         try {
-            const { error } = await supabase
+            const { error } = await neon
                 .from('comments')
                 .delete()
                 .in('id', selectedIds);
@@ -463,7 +463,7 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
 	            showToast(t('comments.bulk_delete_success').replace('{count}', String(selectedIds.length)), 'success');
 
             // Stats'ı güncelle
-            const { data: stats } = await supabase.rpc('get_admin_comment_stats');
+            const { data: stats } = await neon.rpc('get_admin_comment_stats');
             if (stats) setStatsData(stats);
 	        } catch (err: any) {
 	            showToast(t('common.error_prefix') + err.message, 'error');
@@ -482,10 +482,10 @@ const CommentManagement: React.FC<{ onNewsSelect?: (id: string) => void }> = ({ 
         if (!commentToReply || !replyContent.trim()) return;
 
 	        try {
-	            const { data: { user } } = await supabase.auth.getUser();
+	            const { data: { user } } = await neon.auth.getUser();
 	            if (!user) throw new Error(t('common.session_not_found'));
 
-            const { error } = await supabase
+            const { error } = await neon
                 .from('comments')
                 .insert([{
                     post_id: commentToReply.post_id,

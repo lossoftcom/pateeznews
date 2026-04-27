@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import ReactQuill from 'react-quill-new';
 import { QUILL_MODULES, QUILL_FORMATS, type PostItem } from './PostTextItem';
 import { useLanguage } from '@/context/LanguageContext';
+import MediaFilenameBadge from './MediaFilenameBadge';
 
 interface PostVideoItemProps {
     item: PostItem;
@@ -16,6 +17,7 @@ interface PostVideoItemProps {
     onMoveDown?: (index: number) => void;
     onOpenFileManager: (id: string) => void;
     onOpenUrlMode: (id: string) => void;
+    onRenameMedia?: (src: string, type: 'video') => Promise<string | null>;
 }
 
 const youtubeParser = (url: string) => {
@@ -47,7 +49,8 @@ const PostVideoItem: React.FC<PostVideoItemProps> = ({
     onMoveUp,
     onMoveDown,
     onOpenFileManager,
-    onOpenUrlMode
+    onOpenUrlMode,
+    onRenameMedia
 }) => {
     const { t } = useLanguage();
     const [showOptions, setShowOptions] = useState(false);
@@ -57,7 +60,7 @@ const PostVideoItem: React.FC<PostVideoItemProps> = ({
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const ytInfo = youtubeParser(item.mediaUrl);
+    const ytInfo = youtubeParser(item.mediaUrl || '');
     const isYoutube = !!ytInfo;
 
     const togglePlay = (e: React.MouseEvent) => {
@@ -222,6 +225,12 @@ const PostVideoItem: React.FC<PostVideoItemProps> = ({
                                                 loop
                                             />
                                         )}
+
+                                        <MediaFilenameBadge
+                                            src={item.mediaUrl}
+                                            type="video"
+                                            onRename={item.mediaUrl?.includes('/api/storage/file/') ? onRenameMedia : undefined}
+                                        />
 
                                         {/* CUSTOM COMPACT CONTROLS */}
                                         <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-between gap-3 z-[5]">
