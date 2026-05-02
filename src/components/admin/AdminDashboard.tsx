@@ -64,6 +64,7 @@ const LanguageSettings = lazyWithRetry(() => import('./LanguageSettings'));
 const AiSettings = lazyWithRetry(() => import('./AiSettings'));
 const DutyPharmacySettings = lazyWithRetry(() => import('./DutyPharmacySettings'));
 const WeatherSettings = lazyWithRetry(() => import('./WeatherSettings'));
+const DeathNoticeSettings = lazyWithRetry(() => import('./DeathNoticeSettings'));
 const RoleSettings = lazyWithRetry(() => import('./RoleSettings'));
 const UserManagement = lazyWithRetry(() => import('./UserManagement'));
 const UserProfileSettings = lazyWithRetry(() => import('./UserProfileSettings'));
@@ -165,6 +166,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   const [pendingNavigation, setPendingNavigation] = useState<{ tab: string, userId?: string } | null>(null);
   const [postsKey, setPostsKey] = useState(0);
 
+  useEffect(() => {
+    document.body.classList.add('admin-scrollbar-visible');
+    return () => {
+      document.body.classList.remove('admin-scrollbar-visible');
+    };
+  }, []);
+
   const brandName = (siteSettings?.site_name || '').trim();
   const [brandFirst, brandRest] = useMemo(() => {
     const baseTitle = brandName || t('nav.panel');
@@ -187,6 +195,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     { id: 'ai_settings', label: t('admin.sidebar.ai_settings'), icon: 'psychology', perm: 'view_settings', group: t('admin.system') },
     { id: 'duty_pharmacy_settings', label: t('admin.sidebar.duty_pharmacy_settings'), icon: 'local_pharmacy', perm: 'view_settings', group: t('admin.system') },
     { id: 'weather_settings', label: t('admin.sidebar.weather_settings'), icon: 'partly_cloudy_day', perm: 'view_settings', group: t('admin.system') },
+    { id: 'death_notice_settings', label: t('admin.sidebar.death_notice_settings'), icon: 'article', perm: 'view_settings', group: t('admin.system') },
     { id: 'languages', label: t('admin.sidebar.languages'), icon: 'language', perm: 'view_languages', group: t('admin.system') },
   ], [t]);
 
@@ -388,6 +397,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     if (activeTab === 'ai_settings' && !hasPermission('view_settings')) return <AccessDenied />;
     if (activeTab === 'duty_pharmacy_settings' && !hasPermission('view_settings')) return <AccessDenied />;
     if (activeTab === 'weather_settings' && !hasPermission('view_settings')) return <AccessDenied />;
+    if (activeTab === 'death_notice_settings' && !hasPermission('view_settings')) return <AccessDenied />;
     if (activeTab === 'languages' && !hasPermission('view_languages')) return <AccessDenied />;
     if (activeTab === 'roles' && !hasPermission('view_roles')) return <AccessDenied />;
 
@@ -458,6 +468,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
               case 'ai_settings': return <AiSettings />;
               case 'duty_pharmacy_settings': return <DutyPharmacySettings />;
               case 'weather_settings': return <WeatherSettings />;
+              case 'death_notice_settings': return <DeathNoticeSettings />;
               default: return null;
             }
           })()}

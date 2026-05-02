@@ -1,5 +1,106 @@
 import { neon } from '@/lib/neon';
 import { NewsType, type NavigationItem, type NewsItem, type SiteSettings } from '@/types';
+import { slugify } from '@/utils/helpers';
+import { getSpecialContentTypeAliases } from '@/utils/specialContent';
+
+const STORED_TEXT_ENTITY_MAP: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    Ccedil: 'Ç',
+    ccedil: 'ç',
+    Gbreve: 'Ğ',
+    gbreve: 'ğ',
+    hellip: '...',
+    Idot: 'İ',
+    imath: 'ı',
+    laquo: '"',
+    ldquo: '"',
+    lsquo: "'",
+    nbsp: ' ',
+    Ouml: 'Ö',
+    ouml: 'ö',
+    quot: '"',
+    raquo: '"',
+    rdquo: '"',
+    rsquo: "'",
+    Scedil: 'Ş',
+    scedil: 'ş',
+    Uuml: 'Ü',
+    uuml: 'ü',
+};
+
+const decodeStoredCodePoint = (value: string, radix: number, fallback: string) => {
+    const codePoint = Number.parseInt(value, radix);
+    if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+    if (codePoint === 60 || codePoint === 62) return fallback;
+    try {
+        return String.fromCodePoint(codePoint);
+    } catch {
+        return fallback;
+    }
+};
+
+const decodeStoredTextEntities = (value: unknown) => {
+    const decodeOnce = (input: string) => input
+        .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => STORED_TEXT_ENTITY_MAP[entity] ?? match)
+        .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeStoredCodePoint(hex, 16, match))
+        .replace(/&#(\d+);/g, (match, decimal: string) => decodeStoredCodePoint(decimal, 10, match));
+
+    const raw = String(value ?? '');
+    return decodeOnce(decodeOnce(raw)).replace(/\u00a0/g, ' ');
+};
+
+const normalizeStoredPlainText = (value: unknown) => decodeStoredTextEntities(value).trim();
+
+const TEXT_PAYLOAD_KEYS = new Set([
+    'title',
+    'summary',
+    'category',
+    'source',
+    'author',
+    'thumbnailAlt',
+    'altText',
+    'seoTitle',
+    'seoDescription',
+    'keywords',
+    'blockTitle',
+    'label',
+    'text',
+    'name',
+    'question',
+    'answer',
+    'q',
+    'a',
+    'frontTitle',
+    'backTitle',
+    'beforeLabel',
+    'afterLabel',
+    'productName',
+    'quoteAuthor',
+]);
+
+const TEXT_ARRAY_KEYS = new Set(['items', 'pros', 'cons']);
+
+const normalizeStoredTextPayload = (value: unknown, key = ''): unknown => {
+    if (typeof value === 'string') {
+        return TEXT_PAYLOAD_KEYS.has(key) || TEXT_ARRAY_KEYS.has(key)
+            ? normalizeStoredPlainText(value)
+            : value;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((entry) => normalizeStoredTextPayload(entry, key));
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .map(([childKey, childValue]) => [childKey, normalizeStoredTextPayload(childValue, childKey)])
+        );
+    }
+
+    return value;
+};
 
 const normalizeNewsType = (value: unknown): NewsType => {
     const raw = String(value ?? '').trim();
@@ -49,6 +150,29 @@ const normalizeNewsType = (value: unknown): NewsType => {
     }
 };
 
+const getCategoryTerms = (category?: string | string[] | null) => {
+    const rawTerms = (Array.isArray(category) ? category : [category])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+
+    return Array.from(new Set(rawTerms.flatMap((term) => {
+        const slug = slugify(term);
+        return [term, term.toLocaleLowerCase('tr-TR'), slug].filter(Boolean);
+    })));
+};
+
+const getTypeFilterConditions = (terms: string[]) => {
+    const typeAliases = getSpecialContentTypeAliases(terms);
+    return typeAliases.flatMap((alias) => {
+        const upperAlias = alias.toUpperCase();
+        return [
+            `type.eq.${alias}`,
+            `type.eq.${upperAlias}`,
+            `type.ilike.%${alias}%`,
+        ];
+    });
+};
+
 // --- INSTANT CACHE ENGINE (2026 LIGHT-SPEED) ---
 const CACHE_TTL = {
     SETTINGS: 1000 * 60 * 10, // 10 minutes
@@ -59,12 +183,6 @@ const CACHE_TTL = {
 
 const cache: Record<string, { data: any; expiry: number }> = {};
 const inflight: Record<string, Promise<any> | undefined> = {};
-
-const ensureServerSchema = async () => {
-    if (!import.meta.env.SSR) return;
-    const { ensureAppSchema } = await import('@/lib/server/appDb');
-    await ensureAppSchema();
-};
 
 const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) => {
     const now = Date.now();
@@ -167,55 +285,6 @@ export const dataService = {
         });
     },
 
-    async getSidebarSnapshot(lang: string): Promise<any | null> {
-        if (!import.meta.env.SSR) return null;
-
-        try {
-            const [{ ensureAppSchema }, { dbQuery }] = await Promise.all([
-                import('@/lib/server/appDb'),
-                import('@/lib/server/neonDb'),
-            ]);
-            await ensureAppSchema();
-
-            const languageCode = String(lang || 'tr').trim() || 'tr';
-            const [sidebarResult, pharmacyResult] = await Promise.all([
-                dbQuery<{ payload: any }>(
-                    `SELECT payload
-                     FROM public.app_cache
-                     WHERE key = $1
-                     LIMIT 1`,
-                    [`sidebar:${languageCode}`]
-                ),
-                dbQuery<{ payload: any }>(
-                    `SELECT payload
-                     FROM public.app_cache
-                     WHERE key = $1
-                       AND expires_at > now()
-                     LIMIT 1`,
-                    ['duty_pharmacies:nigde']
-                ),
-            ]);
-
-            const payload = sidebarResult.rows[0]?.payload;
-            const sidebarPayload = payload
-                ? (typeof payload === 'string' ? JSON.parse(payload) : payload)
-                : null;
-            const pharmacyPayload = pharmacyResult.rows[0]?.payload
-                ? (typeof pharmacyResult.rows[0].payload === 'string'
-                    ? JSON.parse(pharmacyResult.rows[0].payload)
-                    : pharmacyResult.rows[0].payload)
-                : null;
-
-            if (!sidebarPayload && !pharmacyPayload) return null;
-            return {
-                ...(sidebarPayload || {}),
-                dutyPharmacies: pharmacyPayload || null,
-            };
-        } catch {
-            return null;
-        }
-    },
-
     async getNavigationItems(lang: string): Promise<NavigationItem[]> {
         return withCache(`nav_${lang}`, CACHE_TTL.NAV, async () => {
             const { data, error } = await neon
@@ -236,13 +305,17 @@ export const dataService = {
     async getNewsItems(lang: string, category?: string | string[] | null, limit = 50): Promise<NewsItem[]> {
         const cacheKey = `news_${lang}_${Array.isArray(category) ? category.join(',') : (category || 'home')}_${limit}`;
         return withCache(cacheKey, CACHE_TTL.NEWS, async () => {
-            await ensureServerSchema();
-            let query = neon
+            const isHomeFeed = !category || category === 'home';
+            const publishedAtLimit = new Date().toISOString();
+            const selectColumns = `id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, views_count, saves_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, show_in_manset, fact_checked, schema_type, card_data, items, faq_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
+            const createPublishedQuery = () => neon
                 .from('posts')
-                .select(`id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, views_count, saves_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, show_in_manset, fact_checked, schema_type, card_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`)
+                .select(selectColumns)
                 .eq('status', 'published')
                 .eq('language_code', lang)
-                .or(`published_at.lte.${new Date().toISOString()},published_at.is.null`)
+                .or(`published_at.lte.${publishedAtLimit},published_at.is.null`);
+
+            let query = createPublishedQuery()
                 .order('is_pinned', { ascending: false })
                 .order('published_at', { ascending: false });
 
@@ -252,8 +325,13 @@ export const dataService = {
                     // For broad root clicks, we want exact matches for the root or any children slugs provided
                     query = query.in('category', category);
                 } else {
-                    const catLower = category.toLowerCase();
-                    query = query.or(`category.eq.${category},category.eq.${catLower},category.ilike.%${category}%`);
+                    const terms = getCategoryTerms(category);
+                    const categoryConditions = [
+                        `category.eq.${category}`,
+                        `category.eq.${category.toLocaleLowerCase('tr-TR')}`,
+                        `category.ilike.%${category}%`,
+                    ];
+                    query = query.or([...categoryConditions, ...getTypeFilterConditions(terms)].join(','));
                 }
             }
 
@@ -264,7 +342,26 @@ export const dataService = {
                 return [];
             }
 
-            return (data || []).map((post: any) => this.mapPost(post));
+            let rows = data || [];
+
+            if (isHomeFeed) {
+                const { data: mansetRows, error: mansetError } = await createPublishedQuery()
+                    .eq('show_in_manset', true)
+                    .order('published_at', { ascending: false })
+                    .limit(20);
+
+                if (!mansetError && mansetRows?.length) {
+                    const seen = new Set<string>();
+                    rows = [...mansetRows, ...rows].filter((post: any) => {
+                        const id = String(post?.id || '');
+                        if (!id || seen.has(id)) return false;
+                        seen.add(id);
+                        return true;
+                    });
+                }
+            }
+
+            return rows.map((post: any) => this.mapPost(post));
         });
     },
 
@@ -425,7 +522,7 @@ export const dataService = {
             if (audio?.mediaUrl) merged.mediaUrl = audio.mediaUrl;
         }
 
-        return merged as NewsItem;
+        return normalizeStoredTextPayload(merged) as NewsItem;
     },
 
     async getStories(lang: string): Promise<any[]> {

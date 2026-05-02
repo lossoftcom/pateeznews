@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { neon } from '@/lib/neon';
 import { slugify } from '@/utils/helpers';
-import { dataService } from '@/services/dataService';
+import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
 
 const CACHE_TTL_MS = 1000 * 60 * 5;

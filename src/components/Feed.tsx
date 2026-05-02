@@ -2,10 +2,9 @@
 import React, { useState, useMemo } from 'react';
 import MansetSlider from './MansetSlider';
 import NewsCard, { NewsCardSkeleton } from './NewsCard';
-import { type NewsItem, NewsType, type SiteSettings, type NavigationItem } from '@/types';
+import { type NewsItem, type SiteSettings, type NavigationItem } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from './ui/Skeleton';
-import { NEWS_FEED } from '@/constants';
 
 interface FeedProps {
   newsData: NewsItem[];
@@ -19,14 +18,30 @@ interface FeedProps {
   loading?: boolean;
 }
 
+const getNewsTime = (news: NewsItem) => {
+  const date = new Date(news.timestamp || '');
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
 const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClick, siteSettings, navItems, selectedCategory, loading }) => {
   const [activeFilter, setActiveFilter] = useState<'latest' | 'popular'>('latest');
   const { t } = useLanguage();
 
   const resolvedTitle = title ? t(title) : undefined;
 
+  const mansetItems = useMemo(() => (
+    newsData
+      .filter((news) => news.isManset)
+      .sort((a, b) => getNewsTime(b) - getNewsTime(a))
+      .slice(0, 20)
+  ), [newsData]);
+
+  const hiddenMansetIds = useMemo(() => (
+    !resolvedTitle ? new Set(mansetItems.map((news) => String(news.id))) : new Set<string>()
+  ), [mansetItems, resolvedTitle]);
+
   const displayData = useMemo(() => {
-    let sorted = [...newsData];
+    let sorted = newsData.filter((news) => !hiddenMansetIds.has(String(news.id)));
     if (activeFilter === 'popular') {
       sorted.sort((a, b) => {
         if (a.isPinned !== b.isPinned) return b.isPinned ? -1 : 1;
@@ -34,13 +49,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
       });
     }
     return sorted;
-  }, [newsData, activeFilter]);
-
-  const mansetItems = useMemo(() => (
-    newsData
-      .filter((news) => news.isManset)
-      .slice(0, 20)
-  ), [newsData]);
+  }, [newsData, hiddenMansetIds, activeFilter]);
 
   return (
     <div className="flex flex-col gap-6 pb-4">

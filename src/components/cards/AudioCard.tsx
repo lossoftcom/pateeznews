@@ -166,7 +166,7 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
     <div className="mt-1 space-y-3 overflow-hidden">
       <div className="px-1 mb-3">
         <div
-          className="rich-text-content text-gray-600/80 text-[16px] leading-relaxed font-medium text-left [&>p]:mb-0"
+          className="news-subtitle-font rich-text-content text-gray-600/80 text-[16px] leading-relaxed font-medium text-left [&>p]:mb-0"
           dangerouslySetInnerHTML={{ __html: data.summary }}
         />
       </div>
@@ -194,7 +194,7 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
               <Headphones size={12} className="text-blue-300" />
               <span className="text-[10px] font-bold text-blue-100 uppercase tracking-widest">PateezCast Özel</span>
             </div>
-            <h3 className="text-2xl font-black text-white leading-tight">{data.title}</h3>
+            <h3 className="news-title-font text-2xl font-black text-white leading-tight">{data.title}</h3>
             <p className="text-sm text-slate-400 font-medium">{data.author}</p>
           </div>
 
@@ -261,7 +261,7 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
               </div>
               <div className="relative w-full h-2 bg-slate-700/50 rounded-[5px] overflow-hidden cursor-pointer">
                 <div
-                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-[5px] transition-all duration-100 ease-linear shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-palette-accent to-palette-red rounded-[5px] transition-all duration-100 ease-linear shadow-[0_0_10px_rgba(243,156,18,0.5)]"
                   style={{ width: `${progress}%` }}
                 />
                 <input

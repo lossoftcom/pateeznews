@@ -18,6 +18,8 @@ interface PostVideoItemProps {
     onOpenFileManager: (id: string) => void;
     onOpenUrlMode: (id: string) => void;
     onRenameMedia?: (src: string, type: 'video') => Promise<string | null>;
+    blockTitle?: string;
+    titlePlaceholder?: string;
 }
 
 const youtubeParser = (url: string) => {
@@ -50,7 +52,9 @@ const PostVideoItem: React.FC<PostVideoItemProps> = ({
     onMoveDown,
     onOpenFileManager,
     onOpenUrlMode,
-    onRenameMedia
+    onRenameMedia,
+    blockTitle,
+    titlePlaceholder
 }) => {
     const { t } = useLanguage();
     const [showOptions, setShowOptions] = useState(false);
@@ -148,7 +152,7 @@ const PostVideoItem: React.FC<PostVideoItemProps> = ({
                         <div className="p-2 bg-palette-beige/20 rounded-[3px] text-palette-maroon">
                             <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>videocam</span>
                         </div>
-                        <h3 className="text-base font-bold text-palette-maroon">{t('admin.post.video_block')}</h3>
+                        <h3 className="text-base font-bold text-palette-maroon">{blockTitle || t('admin.post.video_block')}</h3>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -177,7 +181,7 @@ const PostVideoItem: React.FC<PostVideoItemProps> = ({
                                 value={item.title}
                                 onChange={(e) => onUpdate(item.id, 'title', e.target.value)}
                                 className="w-full h-9 bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] px-4 text-base font-bold text-palette-maroon outline-none focus:border-palette-red transition-all placeholder:text-palette-tan/20"
-                                placeholder={t('admin.post.slider_title_placeholder')}
+                                placeholder={titlePlaceholder || t('admin.post.slider_title_placeholder')}
                             />
                         </div>
                     </div>

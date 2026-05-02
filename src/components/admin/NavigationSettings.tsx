@@ -6,13 +6,13 @@ import { type NavigationMenu, type NavigationItem } from '@/types';
 
 // Google Material Symbols Icon List (Optimized for News/Portal)
 const ICON_OPTIONS = [
-  'home', 'trending_up', 'workspace_premium', 'movie', 'sports_esports', 'favorite', 'microscope',
+  'home', 'trending_up', 'workspace_premium', 'movie', 'sports_esports', 'sports_soccer', 'favorite', 'microscope',
   'public', 'smartphone', 'location_on', 'flag', 'list', 'check_circle', 'grid_view', 'bolt',
-  'music_note', 'photo_camera', 'info', 'star', 'palette', 'shopping_bag', 'coffee', 'directions_car',
+  'poll', 'quiz', 'smart_display', 'music_note', 'photo_camera', 'info', 'star', 'palette', 'shopping_bag', 'coffee', 'directions_car',
   'flight', 'notifications', 'shield', 'credit_card', 'history', 'video_library', 'newspaper', 'tv',
   'local_fire_department', 'rocket_launch', 'monitoring', 'mic', 'headset', 'monitor', 'laptop',
   'memory', 'database', 'code', 'terminal', 'cloud', 'wb_sunny', 'brightness_2', 'umbrella', 'air',
-  'restaurant', 'local_pizza', 'sports_bar', 'wine_bar', 'ghost', 'featured_seasonal', 'forest',
+  'restaurant', 'local_dining', 'local_pizza', 'sports_bar', 'wine_bar', 'ghost', 'featured_seasonal', 'forest',
   'terrain', 'waves', 'directions_boat', 'domain', 'business_center', 'payments', 'account_balance_wallet',
   'person', 'group', 'lock', 'key', 'visibility', 'mail', 'call', 'chat', 'calendar_month', 'schedule',
   'menu_book', 'library_books', 'school', 'target', 'fitness_center', 'swords', 'search'
@@ -153,9 +153,16 @@ const NavigationSettings: React.FC = () => {
           });
 
           if (nigde) {
-            await neon.from('navigation_items').insert({
-              menu_id: menuId, parent_id: nigde.id, label: 'Trendler', type: 'link', value: '/nigde-trend', icon: 'trending_up', order_index: 3
-            });
+            await neon.from('navigation_items').insert([
+              { menu_id: menuId, parent_id: nigde.id, label: 'Trendler', type: 'link', value: '/nigde-trend', icon: 'trending_up', order_index: 3 },
+              { menu_id: menuId, parent_id: nigde.id, label: 'Anketler', type: 'category', value: 'anketler', icon: 'poll', order_index: 4 },
+              { menu_id: menuId, parent_id: nigde.id, label: 'Testler', type: 'category', value: 'testler', icon: 'quiz', order_index: 5 },
+              { menu_id: menuId, parent_id: nigde.id, label: 'Video', type: 'category', value: 'video', icon: 'smart_display', order_index: 6 },
+              { menu_id: menuId, parent_id: nigde.id, label: 'Yemek Tarifi', type: 'category', value: 'yemek-tarifi', icon: 'restaurant', order_index: 8 },
+              { menu_id: menuId, parent_id: nigde.id, label: 'Etkinlik', type: 'category', value: 'etkinlik', icon: 'calendar_month', order_index: 9 },
+              { menu_id: menuId, parent_id: nigde.id, label: 'Spor', type: 'category', value: 'spor', icon: 'sports_soccer', order_index: 11 },
+              { menu_id: menuId, parent_id: nigde.id, label: 'Liste', type: 'category', value: 'icindekiler', icon: 'format_list_numbered', order_index: 99 }
+            ]);
           }
         }
       }

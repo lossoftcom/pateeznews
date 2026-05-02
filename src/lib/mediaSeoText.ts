@@ -35,14 +35,58 @@ const BOILERPLATE_PATTERNS = [
     'elbette'
 ];
 
-export const htmlToPlainText = (value: unknown) => String(value || '')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+const TEXT_ENTITY_MAP: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    Ccedil: 'Ç',
+    ccedil: 'ç',
+    Gbreve: 'Ğ',
+    gbreve: 'ğ',
+    hellip: '...',
+    Idot: 'İ',
+    imath: 'ı',
+    laquo: '"',
+    ldquo: '"',
+    lsquo: "'",
+    nbsp: ' ',
+    Ouml: 'Ö',
+    ouml: 'ö',
+    quot: '"',
+    raquo: '"',
+    rdquo: '"',
+    rsquo: "'",
+    Scedil: 'Ş',
+    scedil: 'ş',
+    Uuml: 'Ü',
+    uuml: 'ü',
+};
+
+const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
+    const codePoint = Number.parseInt(value, radix);
+    if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+    try {
+        return String.fromCodePoint(codePoint);
+    } catch {
+        return fallback;
+    }
+};
+
+const decodeTextEntities = (value: string) => {
+    const decodeOnce = (input: string) => input
+        .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+        .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextCodePoint(hex, 16, match))
+        .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextCodePoint(decimal, 10, match));
+
+    return decodeOnce(decodeOnce(value));
+};
+
+export const htmlToPlainText = (value: unknown) => decodeTextEntities(
+    String(value || '')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+)
     .replace(/\s+/g, ' ')
     .trim();
 

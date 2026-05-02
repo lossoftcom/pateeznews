@@ -3,6 +3,7 @@ import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import { useNeonSession } from '@/hooks/useNeonSession';
 import { useToast } from '@/context/ToastContext';
+import { BUILTIN_EVENT_READY_FORMATS, BUILTIN_POLL_READY_FORMATS, BUILTIN_QUIZ_READY_FORMATS, BUILTIN_RECIPE_READY_FORMATS, BUILTIN_TOC_READY_FORMATS, BUILTIN_VIDEO_READY_FORMATS } from '@/lib/aiReadyFormats';
 
 type WeatherLocationResult = {
     id?: number;
@@ -474,6 +475,14 @@ const AiSettings: React.FC = () => {
         { id: 'google', label: t('ai_settings.tab.google'), icon: 'psychology' },
         { id: 'formats', label: t('ai_settings.tab.formats'), icon: 'description' },
     ];
+    const builtinReadyFormats = [...BUILTIN_QUIZ_READY_FORMATS, ...BUILTIN_POLL_READY_FORMATS, ...BUILTIN_VIDEO_READY_FORMATS, ...BUILTIN_TOC_READY_FORMATS, ...BUILTIN_RECIPE_READY_FORMATS, ...BUILTIN_EVENT_READY_FORMATS];
+    const builtinFormatTitles = new Set(
+        builtinReadyFormats.map((format) => format.title.trim().toLocaleLowerCase('tr-TR'))
+    );
+    const visibleFormats = [
+        ...builtinReadyFormats,
+        ...formats.filter((format) => !builtinFormatTitles.has(String(format?.title || '').trim().toLocaleLowerCase('tr-TR'))),
+    ];
 
     if (loading) {
         return (
@@ -884,35 +893,44 @@ const AiSettings: React.FC = () => {
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
-                                            {formats.length > 0 ? (
+                                            {visibleFormats.length > 0 ? (
                                                 <div className="grid grid-cols-1 gap-4">
-                                                    {formats.map((format) => (
+                                                    {visibleFormats.map((format) => (
                                                         <div key={format.id} className="p-4 bg-palette-beige/5 border border-palette-tan/10 rounded-[5px] group hover:border-palette-red/30 transition-all">
                                                             <div className="flex items-start justify-between">
                                                                 <div className="space-y-1">
-                                                                    <h4 className="font-black text-palette-maroon text-sm tracking-tight">{format.title}</h4>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <h4 className="font-black text-palette-maroon text-sm tracking-tight">{format.title}</h4>
+                                                                        {format.isBuiltin && (
+                                                                            <span className="px-2 py-0.5 rounded-[4px] bg-palette-maroon/5 text-[9px] font-black uppercase tracking-widest text-palette-tan">
+                                                                                Sistem
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                     <p className="text-[11px] text-palette-tan font-medium line-clamp-2 leading-relaxed">
                                                                         {format.prompt}
                                                                     </p>
                                                                 </div>
-                                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setEditingFormat(format);
-                                                                            setFormatFormData({ title: format.title, prompt: format.prompt });
-                                                                            setShowFormatModal(true);
-                                                                        }}
-                                                                        className="w-8 h-8 flex items-center justify-center rounded bg-white border border-palette-tan/20 text-palette-tan hover:text-palette-maroon hover:border-palette-maroon transition-all"
-                                                                    >
-                                                                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>edit</span>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleDeleteFormat(format.id)}
-                                                                        className="w-8 h-8 flex items-center justify-center rounded bg-white border border-palette-tan/20 text-palette-tan hover:text-palette-red hover:border-palette-red transition-all"
-                                                                    >
-                                                                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>delete</span>
-                                                                    </button>
-                                                                </div>
+                                                                {!format.isBuiltin && (
+                                                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setEditingFormat(format);
+                                                                                setFormatFormData({ title: format.title, prompt: format.prompt });
+                                                                                setShowFormatModal(true);
+                                                                            }}
+                                                                            className="w-8 h-8 flex items-center justify-center rounded bg-white border border-palette-tan/20 text-palette-tan hover:text-palette-maroon hover:border-palette-maroon transition-all"
+                                                                        >
+                                                                            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>edit</span>
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDeleteFormat(format.id)}
+                                                                            className="w-8 h-8 flex items-center justify-center rounded bg-white border border-palette-tan/20 text-palette-tan hover:text-palette-red hover:border-palette-red transition-all"
+                                                                        >
+                                                                            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>delete</span>
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}

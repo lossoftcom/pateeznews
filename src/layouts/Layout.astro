@@ -1,8 +1,8 @@
 ---
 import '@/styles/index.css';
-import { ViewTransitions } from 'astro:transitions';
+import { ClientRouter } from 'astro:transitions';
 import type { NavigationItem, SiteSettings } from '@/types';
-import { dataService } from '@/services/dataService';
+import { dataService } from '@/services/dataService.server';
 
 interface Props {
 	title?: string;
@@ -101,7 +101,7 @@ const toAbsoluteUrl = (value: string | null | undefined) => {
 
 const resolvedOgImage = toAbsoluteUrl(ogImage || siteSettings?.og_image_url);
 const resolvedFavicon = favicon || siteSettings?.favicon_url || defaultFavicon;
-const themeColor = '#fcfcfb';
+const themeColor = '#F8F9FA';
 
 const twitterHandleRaw = String(siteSettings?.twitter_username || '').trim();
 const twitterSite = twitterHandleRaw
@@ -200,7 +200,7 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 		<link rel="apple-touch-icon" href={orgLogo || resolvedFavicon} />
 		<link rel="manifest" href={manifestHref} />
 		<meta name="generator" content={Astro.generator} />
-		<ViewTransitions />
+		<ClientRouter />
 
 		{preconnectOrigins.map((origin) => (
 			<>
@@ -231,6 +231,7 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 			<link rel="alternate" hreflang="x-default" href={xDefaultHref} />
 		)}
 
+		<link rel="preload" href="/fonts/inter-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
 		<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 		{isAdminRoute && (
 			<link rel="preload" href="/fonts/roboto-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -247,8 +248,8 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 				}
 				body {
 					font-family: 'Inter', system-ui, -apple-system, sans-serif;
-					background-color: #fcfcfb;
-					color: #182540;
+					background-color: #F8F9FA;
+					color: #2C3E50;
 				-webkit-font-smoothing: antialiased;
 				-moz-osx-font-smoothing: grayscale;
 				margin: 0;
@@ -326,7 +327,7 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 				: <script type="application/ld+json" set:html={safeJsonLd(jsonLd)}></script>
 		)}
 	</head>
-	<body>
+	<body class={isAdminRoute ? 'admin-route' : 'public-route'}>
 		<!-- 🚀 PERSISTENT NAVIGATION (ZERO RELOAD) -->
 		{!isAdminRoute && (
 			<div transition:persist="global-nav" class="relative z-[999]">

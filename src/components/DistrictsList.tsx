@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { neon } from '@/lib/neon';
 import { useLanguage } from '@/context/LanguageContext';
 import {
-    ArrowLeft, Search, MapPin, Eye, MessageCircle, Heart, Share2, TrendingUp
+    ArrowLeft, Search, MapPin, Eye, Heart, Share2, TrendingUp
 } from 'lucide-react';
 
 interface District {
@@ -23,14 +23,10 @@ interface District {
 }
 
 const DISTRICT_STYLES = [
-    { color: 'text-[#FF6B00]', bg: 'bg-[#FF6B00]/5', border: 'border-[#FF6B00]/10' },
-    { color: 'text-[#448AFF]', bg: 'bg-[#448AFF]/5', border: 'border-[#448AFF]/10' },
-    { color: 'text-[#9C27B0]', bg: 'bg-[#9C27B0]/5', border: 'border-[#9C27B0]/10' },
-    { color: 'text-[#E91E63]', bg: 'bg-[#E91E63]/5', border: 'border-[#E91E63]/10' },
-    { color: 'text-[#3F51B5]', bg: 'bg-[#3F51B5]/5', border: 'border-[#3F51B5]/10' },
-    { color: 'text-[#00BCD4]', bg: 'bg-[#00BCD4]/5', border: 'border-[#00BCD4]/10' },
-    { color: 'text-[#4CAF50]', bg: 'bg-[#4CAF50]/5', border: 'border-[#4CAF50]/10' },
-    { color: 'text-[#FF5252]', bg: 'bg-[#FF5252]/5', border: 'border-[#FF5252]/10' },
+    { color: 'text-palette-red', bg: 'bg-palette-red/5', border: 'border-palette-red/10' },
+    { color: 'text-palette-accent', bg: 'bg-palette-accent/10', border: 'border-palette-accent/15' },
+    { color: 'text-palette-maroon', bg: 'bg-palette-maroon/5', border: 'border-palette-maroon/10' },
+    { color: 'text-palette-tan', bg: 'bg-palette-tan/10', border: 'border-palette-tan/15' },
 ];
 
 interface DistrictsListProps {

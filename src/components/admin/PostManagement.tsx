@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import PostTextItem, { type PostItem } from './PostTextItem';
+import PostTextItem, { type EventData, type EventHighlightItem, type EventRegistrationType, type EventScheduleItem, type EventSpeakerItem, type PostItem, type RecipeData, type RecipeDifficulty, type RecipeDirectionItem, type RecipeIngredientItem, type RecipeNutritionItem, type TocListItem, type TocListStyle } from './PostTextItem';
 import PostImageItem from './PostImageItem';
 import PostSliderImageItem from './PostSliderImageItem';
 import PostVideoItem from './PostVideoItem';
@@ -15,6 +15,9 @@ import PostReviewItem from './PostReviewItem';
 import PostQuoteItem from './PostQuoteItem';
 import PostIframeItem from './PostIframeItem';
 import PostQuizItem from './PostQuizItem';
+import PostTableOfContentsItem, { createDefaultTocData } from './PostTableOfContentsItem';
+import PostRecipeItem, { createDefaultRecipeData } from './PostRecipeItem';
+import PostEventItem, { createDefaultEventData } from './PostEventItem';
 import AiAssistantDialog from './AiAssistantDialog';
 import MediaFilenameBadge from './MediaFilenameBadge';
 import 'react-quill-new/dist/quill.snow.css';
@@ -24,6 +27,7 @@ import { neon } from '@/lib/neon';
 import { storageService, type MediaItem } from '@/services/storageService';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
+import { SPECIAL_CONTENT_FILTERS, getSpecialContentConfig } from '@/utils/specialContent';
 import FilerobotImageEditor, { TABS, TOOLS } from 'react-filerobot-image-editor';
 import { StyleSheetManager } from 'styled-components';
 import isPropValid from '@emotion/is-prop-valid';
@@ -91,14 +95,112 @@ const filenameBaseFromStorageId = (id: string) => {
     return filename.replace(/\.[a-z0-9]+$/i, '') || `edited-${Date.now()}`;
 };
 
-const htmlToPlainText = (value: unknown) => String(value || '')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+const STORED_TEXT_ENTITY_MAP: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    Ccedil: 'Ç',
+    ccedil: 'ç',
+    Gbreve: 'Ğ',
+    gbreve: 'ğ',
+    hellip: '...',
+    Idot: 'İ',
+    imath: 'ı',
+    laquo: '"',
+    ldquo: '"',
+    lsquo: "'",
+    nbsp: ' ',
+    Ouml: 'Ö',
+    ouml: 'ö',
+    quot: '"',
+    raquo: '"',
+    rdquo: '"',
+    rsquo: "'",
+    Scedil: 'Ş',
+    scedil: 'ş',
+    Uuml: 'Ü',
+    uuml: 'ü',
+};
+
+const decodeStoredCodePoint = (value: string, radix: number, fallback: string) => {
+    const codePoint = Number.parseInt(value, radix);
+    if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+    if (codePoint === 60 || codePoint === 62) return fallback;
+    try {
+        return String.fromCodePoint(codePoint);
+    } catch {
+        return fallback;
+    }
+};
+
+const decodeStoredTextEntities = (value: unknown) => {
+    const decodeOnce = (input: string) => input
+        .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => STORED_TEXT_ENTITY_MAP[entity] ?? match)
+        .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeStoredCodePoint(hex, 16, match))
+        .replace(/&#(\d+);/g, (match, decimal: string) => decodeStoredCodePoint(decimal, 10, match));
+
+    const raw = String(value ?? '');
+    return decodeOnce(decodeOnce(raw)).replace(/\u00a0/g, ' ');
+};
+
+const normalizeStoredPlainText = (value: unknown) => decodeStoredTextEntities(value).trim();
+
+const STORED_TEXT_PAYLOAD_KEYS = new Set([
+    'title',
+    'summary',
+    'category',
+    'source',
+    'author',
+    'thumbnailAlt',
+    'altText',
+    'seoTitle',
+    'seoDescription',
+    'keywords',
+    'blockTitle',
+    'label',
+    'text',
+    'name',
+    'question',
+    'answer',
+    'q',
+    'a',
+    'frontTitle',
+    'backTitle',
+    'beforeLabel',
+    'afterLabel',
+    'productName',
+    'quoteAuthor',
+]);
+
+const STORED_TEXT_ARRAY_KEYS = new Set(['items', 'pros', 'cons']);
+
+const normalizeStoredPlainTextPayload = <T,>(value: T, key = ''): T => {
+    if (typeof value === 'string') {
+        return (STORED_TEXT_PAYLOAD_KEYS.has(key) || STORED_TEXT_ARRAY_KEYS.has(key)
+            ? normalizeStoredPlainText(value)
+            : value) as T;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((entry) => normalizeStoredPlainTextPayload(entry, key)) as T;
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .map(([childKey, childValue]) => [childKey, normalizeStoredPlainTextPayload(childValue, childKey)])
+        ) as T;
+    }
+
+    return value;
+};
+
+const htmlToPlainText = (value: unknown) => decodeStoredTextEntities(
+    String(value || '')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+)
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -550,7 +652,29 @@ const SCHEMA_TYPE_OPTIONS = [
     'LiveBlogPosting',
     'BlogPosting',
     'Article',
+    'Quiz',
+    'Recipe',
+    'Event',
 ] as const;
+
+const normalizeNavigationOptionKey = (value: unknown) =>
+    String(value || '')
+        .toLocaleLowerCase('tr-TR')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/ı/g, 'i')
+        .replace(/ş/g, 's')
+        .replace(/ğ/g, 'g')
+        .replace(/ç/g, 'c')
+        .replace(/ö/g, 'o')
+        .replace(/ü/g, 'u')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+const ADMIN_SPECIAL_CATEGORY_FILTERS = SPECIAL_CONTENT_FILTERS;
+const ADMIN_NORMAL_CATEGORY_FILTERS = [
+    { label: 'Spor', value: 'spor', icon: 'sports_soccer', rank: 7 },
+];
 
 const normalizeAiNewlines = (value: unknown) =>
     String(value ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -850,6 +974,12 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
         };
     };
 
+    const extractTextBlockTitleFromMarker = (markerRaw: string) => {
+        const cleaned = stripMarkdownHeadingPrefix(stripMarkdownEmphasis(markerRaw || ''));
+        const match = cleaned.match(/\d+\s*[-–—:|]\s*(.+)$/);
+        return stripMarkdownHeadingPrefix(stripMarkdownEmphasis(match?.[1] || '')).trim();
+    };
+
     // Supports:
     // [BURAYA İLGİLİ GÖRSEL GELECEK: ...]
     // [BURAYA İLGİLİ GRAFİK GELECEK: ...]
@@ -974,6 +1104,7 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
                 // Important: flush before changing the active text block number.
                 flushText();
                 if (nextTextBlockNo) currentTextBlockNo = nextTextBlockNo;
+                currentTitle = extractTextBlockTitleFromMarker(markerRaw);
                 if (!restRaw) continue;
                 line = restRaw;
             }
@@ -1077,10 +1208,12 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
                 continue;
             }
 
-            // Non-media markers are structural only; split blocks and keep any inline remainder.
-            flushText();
-            if (!restRaw) continue;
-            line = restRaw;
+            if (!isTextBlockMarker) {
+                // Non-media markers are structural only; split blocks and keep any inline remainder.
+                flushText();
+                if (!restRaw) continue;
+                line = restRaw;
+            }
         }
 
         const imageMatch = line.match(imagePlaceholderRegex);
@@ -1096,6 +1229,10 @@ const parseAiContentBlocks = (rawContent: string): AiContentBlock[] => {
         const heading = stripMarkdownEmphasis(boldHeadingMatch?.[1] || hashHeadingMatch?.[1] || '');
 
         if (heading) {
+            if (currentTitle && !currentLines.some((l) => String(l || '').trim())) {
+                currentTitle = heading;
+                continue;
+            }
             flushText();
             currentTitle = heading;
             continue;
@@ -1189,6 +1326,1815 @@ const buildItemsFromAiContent = (rawContent: string) => {
     return items;
 };
 
+const makeGeneratedId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+
+const hasHtmlTags = (value: string) => /<\/?[a-z][\s\S]*>/i.test(value);
+
+const normalizeAiHtml = (value: unknown) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (hasHtmlTags(raw)) return raw;
+    return `<p>${markdownInlineToSafeHtml(stripMarkdownEmphasis(raw))}</p>`;
+};
+
+const normalizeRecipeAiContentForItems = (value: unknown) => {
+    const panelLabelRe = /^(?:haber\s*başlığı|haber\s*basligi|başlık|baslik|kısa\s*özet|kisa\s*ozet|spot|meta\s*başlık|meta\s*baslik|meta\s*açıklama|meta\s*aciklama|url\s*(?:slug|uzantısı|uzantisi)|slug|schema(?:\.org)?(?:\s*türü|\s*turu)?|odak\s*anahtar\s*kelimeler|anahtar\s*kelimeler|seo(?:\s*&\s*ai)?|sıkça\s*sorulan\s*sorular|sikca\s*sorulan\s*sorular|faq|malzemeler|tarif\s*ayarları|tarif\s*ayarlari|hazırlık\s*süresi|hazirlik\s*suresi|pişirme\s*süresi|pisirme\s*suresi|porsiyon|zorluk|adım\s*adım|adim\s*adim|hazırlanışı|hazirlanisi|yapılış|yapilis|püf\s*noktaları|puf\s*noktalari|besin\s*değerleri|besin\s*degerleri)\b/i;
+    const labelsThatOwnNextLineRe = /^(?:haber\s*başlığı|haber\s*basligi|başlık|baslik|kısa\s*özet|kisa\s*ozet|spot|meta\s*başlık|meta\s*baslik|meta\s*açıklama|meta\s*aciklama|url\s*(?:slug|uzantısı|uzantisi)|slug|schema(?:\.org)?(?:\s*türü|\s*turu)?|odak\s*anahtar\s*kelimeler|anahtar\s*kelimeler|seo(?:\s*&\s*ai)?|sıkça\s*sorulan\s*sorular|sikca\s*sorulan\s*sorular|faq)$/i;
+
+    let normalized = decodeStoredTextEntities(value)
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+        .replace(/<\s*\/p\s*>\s*<\s*p[^>]*>/gi, '\n\n')
+        .replace(/<\s*\/?p[^>]*>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ');
+
+    normalized = normalizeAiNewlines(normalized)
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+    const output: string[] = [];
+    let skipNextValue = false;
+
+    for (const rawLine of normalized.split('\n')) {
+        let line = rawLine.trim();
+        if (!line) {
+            if (output.length > 0 && output[output.length - 1] !== '') output.push('');
+            continue;
+        }
+
+        if (/^\[\/?CONTENT\]$/i.test(line)) continue;
+        if (/^\[(?:İ?TEM|ITEM)\s*:/i.test(line)) {
+            skipNextValue = false;
+            output.push(line);
+            continue;
+        }
+
+        const labelCandidate = line.replace(/\s*:\s*.*$/, '').trim();
+        if (panelLabelRe.test(labelCandidate)) {
+            skipNextValue = labelsThatOwnNextLineRe.test(labelCandidate) && !line.includes(':');
+            continue;
+        }
+
+        if (skipNextValue) {
+            skipNextValue = false;
+            continue;
+        }
+
+        line = line
+            .replace(/(^|\s)#[\p{L}\p{N}_-]+/gu, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+
+        if (line) output.push(line);
+    }
+
+    return output
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+};
+
+const readAiBoolean = (value: unknown, fallback = false) => {
+    if (typeof value === 'boolean') return value;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (['true', '1', 'yes', 'evet'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'hayir', 'hayır'].includes(normalized)) return false;
+    return fallback;
+};
+
+const readAiNumber = (value: unknown) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : undefined;
+};
+
+const normalizeAiQuizType = (value: unknown, hasCorrectAnswers: boolean): 'personality' | 'trivia' | 'checklist' => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'personality' || normalized.includes('kişilik') || normalized.includes('kisilik')) return 'personality';
+    if (normalized === 'trivia' || normalized.includes('bilgi')) return 'trivia';
+    if (normalized === 'checklist' || normalized.includes('kontrol')) return 'checklist';
+    return hasCorrectAnswers ? 'trivia' : 'personality';
+};
+
+const normalizeAiQuizLayout = (value: unknown, answerCount: number): 'list' | 'grid2' | 'grid3' => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (
+        normalized === 'grid3' ||
+        normalized === '3' ||
+        normalized.includes('3') ||
+        normalized.includes('üç') ||
+        normalized.includes('uc') ||
+        normalized.includes('triple')
+    ) return 'grid3';
+    if (
+        normalized === 'grid2' ||
+        normalized === 'grid' ||
+        normalized === '2' ||
+        normalized.includes('2') ||
+        normalized.includes('iki') ||
+        normalized.includes('double')
+    ) return 'grid2';
+    return answerCount <= 3 ? 'grid2' : 'list';
+};
+
+const normalizeAiQuestionSorting = (value: unknown): 'asc' | 'desc' | 'hidden' => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'desc') return 'desc';
+    if (normalized === 'hidden' || normalized === 'hide') return 'hidden';
+    return 'asc';
+};
+
+const buildFallbackQuizResults = (questionCount: number) => {
+    const total = Math.max(1, questionCount);
+    const firstEnd = Math.max(0, Math.floor(total * 0.25));
+    const secondEnd = Math.max(firstEnd + 1, Math.floor(total * 0.5));
+    const thirdEnd = Math.max(secondEnd + 1, Math.floor(total * 0.75));
+
+    return [
+        { key: 'baslangic', title: 'Daha Yeni Başlıyorsun', description: '<p>Bu konuda keşfedecek çok detayın var.</p>', minScore: 0, maxScore: firstEnd },
+        { key: 'orta', title: 'Fena Değil', description: '<p>Temeli biliyorsun ama birkaç kritik detay kaçmış.</p>', minScore: firstEnd + 1, maxScore: secondEnd },
+        { key: 'iyi', title: 'Gayet İyisin', description: '<p>Bilgin güçlü; birkaç soruyla zirveyi kaçırdın.</p>', minScore: secondEnd + 1, maxScore: thirdEnd },
+        { key: 'zirve', title: 'Tam İsabet', description: '<p>Bu testi gerçekten konuya hakim biri gibi çözdün.</p>', minScore: thirdEnd + 1, maxScore: total },
+    ].filter((result) => result.minScore <= result.maxScore);
+};
+
+const buildQuizItemFromAiQuiz = (rawQuiz: any): PostItem | null => {
+    if (!rawQuiz || typeof rawQuiz !== 'object') return null;
+
+    const rawQuestions = Array.isArray(rawQuiz.questions) ? rawQuiz.questions : [];
+    const hasCorrectAnswers = rawQuestions.some((question: any) =>
+        Array.isArray(question?.answers) &&
+        question.answers.some((answer: any) => readAiBoolean(answer?.isCorrect ?? answer?.correct ?? answer?.is_correct, false))
+    );
+    const quizType = normalizeAiQuizType(rawQuiz.quizType ?? rawQuiz.type, hasCorrectAnswers);
+    const sourceResults = Array.isArray(rawQuiz.results) && rawQuiz.results.length > 0
+        ? rawQuiz.results
+        : buildFallbackQuizResults(rawQuestions.length);
+    const globalLayout =
+        rawQuiz.layout ??
+        rawQuiz.answerLayout ??
+        rawQuiz.answerFormat ??
+        rawQuiz.cevapFormati ??
+        rawQuiz.cevap_formatı ??
+        rawQuiz.cevap_format ??
+        '';
+
+    const resultKeyToId = new Map<string, string>();
+    const results = sourceResults
+        .map((result: any, index: number) => {
+            const id = makeGeneratedId('quiz-result');
+            const title = stripMarkdownEmphasis(String(result?.title || `Sonuç ${index + 1}`)).trim() || `Sonuç ${index + 1}`;
+            const keyCandidates = [
+                result?.key,
+                result?.id,
+                result?.resultKey,
+                result?.slug,
+                title,
+            ];
+            keyCandidates.forEach((candidate) => {
+                const key = String(candidate ?? '').trim();
+                if (key) resultKeyToId.set(key, id);
+            });
+
+            return {
+                id,
+                title,
+                image: String(result?.image || '').trim(),
+                description: normalizeAiHtml(result?.description || result?.desc || ''),
+                minScore: readAiNumber(result?.minScore),
+                maxScore: readAiNumber(result?.maxScore),
+                answerCount: readAiNumber(result?.answerCount),
+            };
+        })
+        .filter((result: any) => result.title);
+
+    const firstResultId = results[0]?.id || '';
+    const questions = rawQuestions
+        .map((question: any, questionIndex: number) => {
+            const rawAnswers = Array.isArray(question?.answers) ? question.answers : [];
+            const answers = rawAnswers
+                .map((answer: any) => {
+                    const text = stripMarkdownEmphasis(String(answer?.text || answer?.title || answer?.label || '')).trim();
+                    if (!text) return null;
+                    const rawResultKey = String(
+                        answer?.resultKey ??
+                        answer?.resultId ??
+                        answer?.result ??
+                        answer?.resultTitle ??
+                        ''
+                    ).trim();
+                    const resultIndex = readAiNumber(answer?.resultIndex);
+                    const mappedResultId =
+                        (rawResultKey ? resultKeyToId.get(rawResultKey) : '') ||
+                        (typeof resultIndex === 'number' ? results[Math.max(0, resultIndex - 1)]?.id : '') ||
+                        firstResultId;
+
+                    return {
+                        id: makeGeneratedId('quiz-answer'),
+                        text,
+                        image: String(answer?.image || '').trim(),
+                        resultId: quizType === 'personality' ? mappedResultId : '',
+                        isCorrect: quizType === 'trivia'
+                            ? readAiBoolean(answer?.isCorrect ?? answer?.correct ?? answer?.is_correct, false)
+                            : false,
+                    };
+                })
+                .filter(Boolean) as NonNullable<PostItem['quizData']>['questions'][number]['answers'];
+
+            if (!String(question?.title || '').trim() || answers.length === 0) return null;
+
+            if (quizType === 'trivia' && !answers.some((answer) => answer.isCorrect)) {
+                answers[0] = { ...answers[0], isCorrect: true };
+            }
+
+            return {
+                id: makeGeneratedId('quiz-question'),
+                title: stripMarkdownEmphasis(String(question?.title || `Soru ${questionIndex + 1}`)).trim(),
+                image: String(question?.image || '').trim(),
+                description: normalizeAiHtml(question?.description || question?.comment || question?.explanation || ''),
+                showOnCover: readAiBoolean(question?.showOnCover, questionIndex === 0),
+                layout: normalizeAiQuizLayout(
+                    question?.layout ??
+                    question?.answerLayout ??
+                    question?.answerFormat ??
+                    question?.cevapFormati ??
+                    question?.cevap_formatı ??
+                    question?.cevap_format ??
+                    globalLayout,
+                    answers.length
+                ),
+                answers,
+            };
+        })
+        .filter(Boolean) as NonNullable<PostItem['quizData']>['questions'];
+
+    if (questions.length === 0) return null;
+
+    return {
+        id: makeGeneratedId('quiz'),
+        type: 'quiz',
+        title: stripMarkdownEmphasis(String(rawQuiz.title || '')).trim(),
+        description: normalizeAiHtml(rawQuiz.description || rawQuiz.summary || ''),
+        orderNumber: 1,
+        quizData: {
+            quizType,
+            results,
+            questions,
+            questionSorting: normalizeAiQuestionSorting(rawQuiz.questionSorting),
+            allowMultiple: readAiBoolean(rawQuiz.allowMultiple, false),
+            showResults: readAiBoolean(rawQuiz.showResults, true),
+            endDate: String(rawQuiz.endDate || '').trim(),
+        },
+    };
+};
+
+const readOptionalAiBoolean = (value: unknown) => {
+    if (value === undefined || value === null || String(value).trim() === '') return undefined;
+    return readAiBoolean(value, false);
+};
+
+const normalizeAiPollColumns = (value: unknown, optionCount: number): 2 | 3 => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (
+        normalized === '3' ||
+        normalized === 'grid3' ||
+        normalized.includes('3') ||
+        normalized.includes('üç') ||
+        normalized.includes('uc') ||
+        normalized.includes('triple')
+    ) return 3;
+    if (
+        normalized === '2' ||
+        normalized === 'grid2' ||
+        normalized.includes('2') ||
+        normalized.includes('iki') ||
+        normalized.includes('double')
+    ) return 2;
+    return optionCount === 3 ? 3 : 2;
+};
+
+const normalizeAiPollImageMode = (rawPoll: any, columns: 2 | 3, options: NonNullable<PostItem['options']> = []) => {
+    const explicit = readOptionalAiBoolean(
+        rawPoll?.isImagePoll ??
+        rawPoll?.imagePoll ??
+        rawPoll?.hasImages ??
+        rawPoll?.gorselli ??
+        rawPoll?.görselli
+    );
+    if (typeof explicit === 'boolean') return explicit;
+
+    const layoutText = String(
+        rawPoll?.layout ??
+        rawPoll?.answerLayout ??
+        rawPoll?.answerFormat ??
+        rawPoll?.cevapFormati ??
+        rawPoll?.cevap_formatı ??
+        rawPoll?.cevap_format ??
+        ''
+    ).trim().toLowerCase();
+
+    if (layoutText.includes('liste') || layoutText.includes('list') || layoutText.includes('yazi') || layoutText.includes('yazı') || layoutText.includes('text')) {
+        return false;
+    }
+    if (layoutText.includes('resim') || layoutText.includes('görsel') || layoutText.includes('gorsel') || layoutText.includes('image') || layoutText.includes('grid')) {
+        return true;
+    }
+    if (options.some((option) => String(option?.image || '').trim())) return true;
+    return false;
+};
+
+const readAiPollList = (rawPoll: any) => {
+    const candidates = [rawPoll?.items, rawPoll?.polls, rawPoll?.questions];
+    return candidates.find((candidate) => Array.isArray(candidate) && candidate.length > 0) || [];
+};
+
+const readAiPollOptions = (rawPoll: any) => {
+    if (Array.isArray(rawPoll?.options)) return rawPoll.options;
+    if (Array.isArray(rawPoll?.answers)) return rawPoll.answers;
+    if (Array.isArray(rawPoll?.choices)) return rawPoll.choices;
+    if (Array.isArray(rawPoll?.secenekler)) return rawPoll.secenekler;
+    if (Array.isArray(rawPoll?.seçenekler)) return rawPoll.seçenekler;
+    return [];
+};
+
+const readAiPollImagePrompt = (rawPoll: any) => stripMarkdownEmphasis(String(
+    rawPoll?.imagePrompt ??
+    rawPoll?.visualIdea ??
+    rawPoll?.visualPrompt ??
+    rawPoll?.gorselFikri ??
+    rawPoll?.görselFikri ??
+    rawPoll?.soruGorseliFikri ??
+    rawPoll?.soruGörseliFikri ??
+    rawPoll?.source ??
+    ''
+)).trim();
+
+const clipAiPollDescriptionText = (value: string, maxLength = 120) => {
+    const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+    if (normalized.length <= maxLength) return normalized;
+    return normalized.slice(0, maxLength).replace(/\s+\S*$/g, '').trim() || normalized.slice(0, maxLength).trim();
+};
+
+const buildAiPollDescriptionFallback = (title: string, options: NonNullable<PostItem['options']>) => {
+    const question = clipAiPollDescriptionText(
+        stripMarkdownEmphasis(String(title || '')).replace(/[?!.\s]+$/g, ''),
+        86
+    );
+    const optionPreview = clipAiPollDescriptionText(
+        options
+            .map((option) => stripMarkdownEmphasis(String(option?.text || '')).trim())
+            .filter(Boolean)
+            .slice(0, 2)
+            .join(' veya '),
+        70
+    );
+
+    const sentence = question
+        ? `${question} için 2026 anketinde tercihini seç, güncel sonuçlara katıl.`
+        : optionPreview
+            ? `${optionPreview} seçenekleri için 2026 anketinde tercihini seç, güncel sonuçlara katıl.`
+            : '';
+
+    return normalizeAiHtml(sentence);
+};
+
+const buildSinglePollItemFromAiPoll = (rawPoll: any, index = 0): PostItem | null => {
+    if (!rawPoll || typeof rawPoll !== 'object') return null;
+
+    const rawOptions = readAiPollOptions(rawPoll);
+
+    const options = rawOptions
+        .map((option: any) => {
+            const text = stripMarkdownEmphasis(String(
+                option?.text ??
+                option?.title ??
+                option?.label ??
+                option?.name ??
+                ''
+            )).trim();
+            if (!text) return null;
+
+            const votes = readAiNumber(option?.votes ?? option?.voteCount ?? option?.oy ?? option?.oySayisi ?? option?.oy_sayisi);
+
+            return {
+                id: makeGeneratedId('poll-option'),
+                text,
+                votes: Math.max(0, Math.round(votes ?? 0)),
+                image: String(option?.image ?? option?.mediaUrl ?? option?.media ?? '').trim(),
+            };
+        })
+        .filter(Boolean) as NonNullable<PostItem['options']>;
+
+    if (options.length < 2) return null;
+
+    const globalLayout =
+        rawPoll.layout ??
+        rawPoll.answerLayout ??
+        rawPoll.answerFormat ??
+        rawPoll.cevapFormati ??
+        rawPoll.cevap_formatı ??
+        rawPoll.cevap_format ??
+        '';
+    const pollColumns = normalizeAiPollColumns(rawPoll.pollColumns ?? rawPoll.columns ?? globalLayout, options.length);
+    const title = stripMarkdownEmphasis(String(rawPoll.title || rawPoll.question || rawPoll.soru || rawPoll.questionTitle || '')).trim();
+    const description = normalizeAiHtml(rawPoll.description || rawPoll.summary || rawPoll.spot || '') || buildAiPollDescriptionFallback(title, options);
+
+    return {
+        id: makeGeneratedId('poll'),
+        type: 'poll',
+        title,
+        description,
+        mediaUrl: String(rawPoll.mediaUrl || rawPoll.image || rawPoll.mainImage || rawPoll.thumbnail || '').trim(),
+        source: readAiPollImagePrompt(rawPoll),
+        orderNumber: index + 1,
+        options,
+        isImagePoll: normalizeAiPollImageMode(rawPoll, pollColumns, options),
+        pollColumns,
+    };
+};
+
+const buildPollItemsFromAiPoll = (rawPoll: any): PostItem[] => {
+    if (!rawPoll || typeof rawPoll !== 'object') return [];
+
+    const pollList = readAiPollList(rawPoll);
+    const inheritedLayout =
+        rawPoll.layout ??
+        rawPoll.answerLayout ??
+        rawPoll.answerFormat ??
+        rawPoll.cevapFormati ??
+        rawPoll.cevap_formatı ??
+        rawPoll.cevap_format ??
+        '';
+
+    const inheritedFields = {
+        isImagePoll: rawPoll.isImagePoll ?? rawPoll.imagePoll ?? rawPoll.hasImages ?? rawPoll.gorselli ?? rawPoll.görselli,
+        pollColumns: rawPoll.pollColumns ?? rawPoll.columns,
+        layout: inheritedLayout,
+        answerLayout: rawPoll.answerLayout,
+        answerFormat: rawPoll.answerFormat,
+        cevapFormati: rawPoll.cevapFormati,
+        cevap_formatı: rawPoll.cevap_formatı,
+        cevap_format: rawPoll.cevap_format,
+    };
+
+    const pollItems = (pollList.length > 0
+        ? pollList
+            .map((poll: any, index: number) => buildSinglePollItemFromAiPoll({
+                ...inheritedFields,
+                ...poll,
+                options: readAiPollOptions(poll),
+            }, index))
+        : [buildSinglePollItemFromAiPoll(rawPoll, 0)]
+    ).filter(Boolean) as PostItem[];
+
+    if (pollItems.length === 0) return [];
+
+    const withHomepageFlag = pollItems.map((item, index) => ({
+        ...item,
+        showOnHomepage: index === 0 ? true : item.showOnHomepage,
+        orderNumber: index + 1,
+    }));
+
+    const closingRaw = String(
+        rawPoll.closing ??
+        rawPoll.closingText ??
+        rawPoll.miniClosing ??
+        rawPoll.outro ??
+        rawPoll.footer ??
+        ''
+    ).trim();
+    const closingHtml = normalizeAiHtml(closingRaw);
+
+    if (!closingHtml) return withHomepageFlag;
+
+    return [
+        ...withHomepageFlag,
+        {
+            id: makeGeneratedId('poll-closing'),
+            type: 'text',
+            title: '',
+            description: closingHtml,
+            mediaUrl: '',
+            createdAt: Date.now(),
+            orderNumber: withHomepageFlag.length + 1,
+        },
+    ];
+};
+
+const normalizeAiVideoUrlText = (value: unknown) => String(value || '').trim().replace(/&amp;/g, '&');
+
+const extractAiVideoUrlFromValue = (value: unknown) => {
+    const raw = normalizeAiVideoUrlText(value);
+    if (!raw) return '';
+
+    const iframeSrc = raw.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i)?.[1];
+    if (iframeSrc) return normalizeAiVideoUrlText(iframeSrc);
+
+    const srcAttr = raw.match(/\bsrc=["']([^"']+)["']/i)?.[1];
+    if (srcAttr) return normalizeAiVideoUrlText(srcAttr);
+
+    const urls = raw.match(/https?:\/\/[^\s"'<>]+/gi);
+    return urls?.[0] ? normalizeAiVideoUrlText(urls[0]) : raw;
+};
+
+const readAiVideoMediaUrl = (rawVideo: any) => {
+    const directCandidates = [
+        rawVideo?.mediaUrl,
+        rawVideo?.videoUrl,
+        rawVideo?.youtubeUrl,
+        rawVideo?.url,
+        rawVideo?.sourceUrl,
+        rawVideo?.src,
+        rawVideo?.embedUrl,
+    ];
+
+    for (const candidate of directCandidates) {
+        const parsed = extractAiVideoUrlFromValue(candidate);
+        if (parsed) return parsed;
+    }
+
+    const embedCandidates = [
+        rawVideo?.embedCode,
+        rawVideo?.iframe,
+        rawVideo?.html,
+    ];
+
+    for (const candidate of embedCandidates) {
+        const parsed = extractAiVideoUrlFromValue(candidate);
+        if (parsed) return parsed;
+    }
+
+    return '';
+};
+
+const buildAiVideoDescriptionFallback = (title: string, source: string) => {
+    const cleanTitle = stripMarkdownEmphasis(String(title || '')).replace(/[?!.\s]+$/g, '').trim();
+    const cleanSource = stripMarkdownEmphasis(String(source || '')).trim();
+    if (!cleanTitle && !cleanSource) return '';
+    const base = cleanTitle || `${cleanSource} videosu`;
+    return normalizeAiHtml(`${base}, 2026 gündeminde öne çıkan görüntüleri ve gelişmeleri kısa video formatında aktarıyor.`);
+};
+
+const buildVideoItemFromAiVideo = (rawVideo: any): PostItem | null => {
+    if (!rawVideo || typeof rawVideo !== 'object') return null;
+
+    const title = stripMarkdownEmphasis(String(rawVideo.title || rawVideo.videoTitle || rawVideo.headline || '')).trim();
+    const source = stripMarkdownEmphasis(String(
+        rawVideo.source ||
+        rawVideo.kaynak ||
+        rawVideo.channel ||
+        rawVideo.kanal ||
+        ''
+    )).trim();
+    const description = normalizeAiHtml(
+        rawVideo.description ||
+        rawVideo.siteDescription ||
+        rawVideo.shortDescription ||
+        rawVideo.summary ||
+        rawVideo.caption ||
+        rawVideo.spot ||
+        ''
+    ) || buildAiVideoDescriptionFallback(title, source);
+    const mediaUrl = readAiVideoMediaUrl(rawVideo);
+
+    if (!title && !description && !mediaUrl && !source) return null;
+
+    return {
+        id: makeGeneratedId('video'),
+        type: 'video',
+        title,
+        description,
+        mediaUrl,
+        source,
+        createdAt: Date.now(),
+        orderNumber: 1,
+    };
+};
+
+const buildVideoItemsFromAiVideo = (rawVideo: any): PostItem[] => {
+    const normalizeVideoEntry = (entry: any, parent: any, index: number, total: number) => {
+        if (typeof entry === 'string') {
+            return {
+                title: total > 1 && parent?.title ? `${parent.title} - Video ${index + 1}` : parent?.title || '',
+                description: parent?.description || parent?.summary || parent?.caption || '',
+                mediaUrl: entry,
+                source: parent?.source || parent?.channel || parent?.kanal || '',
+            };
+        }
+
+        if (!entry || typeof entry !== 'object') return null;
+
+        return {
+            source: parent?.source || parent?.channel || parent?.kanal || '',
+            ...entry,
+            title: entry.title || entry.videoTitle || entry.headline || (total > 1 && parent?.title ? `${parent.title} - Video ${index + 1}` : parent?.title || ''),
+            description: entry.description || entry.siteDescription || entry.shortDescription || entry.summary || entry.caption || entry.spot || '',
+        };
+    };
+
+    const readEntries = () => {
+        if (Array.isArray(rawVideo)) return { parent: {}, entries: rawVideo };
+        if (!rawVideo || typeof rawVideo !== 'object') return { parent: {}, entries: [] as any[] };
+
+        const nested =
+            (Array.isArray(rawVideo.videos) && rawVideo.videos) ||
+            (Array.isArray(rawVideo.videoItems) && rawVideo.videoItems) ||
+            (Array.isArray(rawVideo.items) && rawVideo.items) ||
+            (Array.isArray(rawVideo.blocks) && rawVideo.blocks) ||
+            [];
+
+        if (nested.length > 0) {
+            const parentUrl = readAiVideoMediaUrl(rawVideo);
+            const firstNestedUrl = readAiVideoMediaUrl(nested[0]);
+            const entries = parentUrl && parentUrl !== firstNestedUrl ? [rawVideo, ...nested] : nested;
+            return { parent: rawVideo, entries };
+        }
+
+        return { parent: rawVideo, entries: [rawVideo] };
+    };
+
+    const { parent, entries } = readEntries();
+    return entries
+        .map((entry, index) => normalizeVideoEntry(entry, parent, index, entries.length))
+        .map((entry) => buildVideoItemFromAiVideo(entry))
+        .filter((item): item is PostItem => Boolean(item));
+};
+
+const pickAiContentExcerptForMedia = (rawContent: unknown) => {
+    const blocks = parseAiContentBlocks(String(rawContent || ''));
+    for (const block of blocks) {
+        if (block.kind !== 'text') continue;
+        const line = block.lines
+            .map((value) => stripMarkdownHeadingPrefix(stripMarkdownEmphasis(String(value || ''))).trim())
+            .find(Boolean);
+        if (line) return line.replace(/\s+/g, ' ').trim();
+    }
+    return '';
+};
+
+const buildRequestedImageItemFromAi = (title: unknown, summary: unknown, rawContent: unknown): PostItem => {
+    const cleanPlain = (value: unknown) =>
+        stripMarkdownHeadingPrefix(stripMarkdownEmphasis(String(value || '')))
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    const cleanTitle = cleanPlain(title);
+    const cleanSummary = cleanPlain(summary);
+    const contentExcerpt = pickAiContentExcerptForMedia(rawContent);
+    const caption = cleanSummary || contentExcerpt || (cleanTitle ? `${cleanTitle} haberine ait görsel.` : 'Haberle ilgili görsel.');
+
+    return {
+        id: makeGeneratedId('image'),
+        type: 'image',
+        title: cleanTitle ? `${cleanTitle} görseli` : 'Haber görseli',
+        description: normalizeAiHtml(caption),
+        mediaUrl: '',
+        altText: cleanTitle || caption,
+        source: '',
+        createdAt: Date.now(),
+        orderNumber: 1,
+    };
+};
+
+const buildRequestedMediaItemFromAi = (
+    type: 'image' | 'video' | 'audio',
+    title: unknown,
+    summary: unknown,
+    rawContent: unknown,
+): PostItem => {
+    if (type === 'image') return buildRequestedImageItemFromAi(title, summary, rawContent);
+
+    const cleanPlain = (value: unknown) =>
+        stripMarkdownHeadingPrefix(stripMarkdownEmphasis(String(value || '')))
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    const cleanTitle = cleanPlain(title);
+    const cleanSummary = cleanPlain(summary);
+    const contentExcerpt = pickAiContentExcerptForMedia(rawContent);
+    const label = type === 'video' ? 'video' : 'ses';
+    const caption = cleanSummary || contentExcerpt || (cleanTitle ? `${cleanTitle} haberine ait ${label}.` : `Haberle ilgili ${label}.`);
+
+    return {
+        id: makeGeneratedId(type),
+        type,
+        title: cleanTitle ? `${cleanTitle} ${label}` : `Haber ${label}`,
+        description: normalizeAiHtml(caption),
+        mediaUrl: '',
+        source: '',
+        createdAt: Date.now(),
+        orderNumber: 1,
+    };
+};
+
+const withReadableEventTextItems = (
+    items: PostItem[],
+    fallbackTitles = ['Etkinlik Detayları', 'Programdan Öne Çıkanlar', 'Katılım Bilgileri'],
+    defaultTitle = 'Etkinlik Bilgileri',
+) => {
+    const output: PostItem[] = [];
+
+    const splitLongPlainText = (value: string) => {
+        const plain = htmlToPlainText(value);
+        if (plain.length < 650) return [];
+
+        const sentences = plain
+            .split(/(?<=[.!?])\s+/)
+            .map((sentence) => sentence.trim())
+            .filter(Boolean);
+        if (sentences.length < 4) return [];
+
+        const chunks: string[] = [];
+        let current = '';
+        for (const sentence of sentences) {
+            const next = current ? `${current} ${sentence}` : sentence;
+            if (next.length > 520 && current) {
+                chunks.push(current);
+                current = sentence;
+            } else {
+                current = next;
+            }
+        }
+        if (current) chunks.push(current);
+
+        return chunks.length > 1 ? chunks.slice(0, 3) : [];
+    };
+
+    items.forEach((item) => {
+        if (item.type !== 'text') {
+            output.push(item);
+            return;
+        }
+
+        const cleanedTitle = stripMarkdownHeadingPrefix(stripMarkdownEmphasis(item.title || '')).trim();
+        const fallbackTitle = fallbackTitles[output.filter((entry) => entry.type === 'text').length] || defaultTitle;
+        const chunks = splitLongPlainText(item.description || '');
+
+        if (chunks.length > 1) {
+            chunks.forEach((chunk, chunkIndex) => {
+                output.push({
+                    ...item,
+                    id: chunkIndex === 0 ? item.id : makeGeneratedId('text'),
+                    title: chunkIndex === 0 ? (cleanedTitle || fallbackTitle) : (fallbackTitles[output.filter((entry) => entry.type === 'text').length] || fallbackTitle),
+                    description: buildQuillHtmlFromLines([chunk]),
+                    orderNumber: output.length + 1,
+                });
+            });
+            return;
+        }
+
+        output.push({
+            ...item,
+            title: cleanedTitle || fallbackTitle,
+        });
+    });
+
+    return output;
+};
+
+const TOC_LIST_STYLES: TocListStyle[] = [
+    'none',
+    'decimal',
+    'decimal-leading-zero',
+    'circle',
+    'disc',
+    'square',
+    'lower-alpha',
+    'upper-alpha',
+    'lower-roman',
+    'upper-roman',
+];
+
+const normalizeAiTocListStyleValue = (value: unknown, fallback: TocListStyle): TocListStyle => {
+    const normalized = String(value || '').trim();
+    return TOC_LIST_STYLES.includes(normalized as TocListStyle) ? normalized as TocListStyle : fallback;
+};
+
+const normalizeAiTocLinkStyle = (value: any): NonNullable<NonNullable<PostItem['tocData']>['linkListStyle']> => {
+    const base = createDefaultTocData().linkListStyle!;
+    const style = value && typeof value === 'object' ? value : {};
+
+    return {
+        level1: normalizeAiTocListStyleValue(style.level1, 'decimal'),
+        level2: normalizeAiTocListStyleValue(style.level2, base.level2),
+        level3: normalizeAiTocListStyleValue(style.level3, base.level3),
+        showLevel1InText: readAiBoolean(style.showLevel1InText, true),
+        showLevel2InText: readAiBoolean(style.showLevel2InText, false),
+        showLevel3InText: readAiBoolean(style.showLevel3InText, false),
+    };
+};
+
+const slugifyTocAnchor = (value: unknown) => {
+    const text = stripMarkdownEmphasis(String(value || '')).toLocaleLowerCase('tr-TR');
+    return text
+        .replace(/ğ/g, 'g')
+        .replace(/ü/g, 'u')
+        .replace(/ş/g, 's')
+        .replace(/ı/g, 'i')
+        .replace(/ö/g, 'o')
+        .replace(/ç/g, 'c')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+};
+
+const normalizeAiTocContent = (value: unknown) => {
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => {
+                if (entry && typeof entry === 'object') {
+                    return normalizeAiTocContent((entry as any).content ?? (entry as any).body ?? (entry as any).text ?? (entry as any).description);
+                }
+                return normalizeAiTocContent(entry);
+            })
+            .filter(Boolean)
+            .join('');
+    }
+
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (hasHtmlTags(raw)) return raw;
+    return buildQuillHtmlFromLines(normalizeAiNewlines(raw).split('\n'));
+};
+
+const readAiTocItems = (rawToc: any) => {
+    if (Array.isArray(rawToc)) return rawToc;
+    if (!rawToc || typeof rawToc !== 'object') return [];
+    const candidates = [
+        rawToc.items,
+        rawToc.tocItems,
+        rawToc.sections,
+        rawToc.tableOfContents,
+        rawToc.contents,
+        rawToc.headings,
+        rawToc.basliklar,
+        rawToc.bolumler,
+        rawToc.bölümler,
+    ];
+    const found = candidates.find((candidate) => Array.isArray(candidate));
+    return Array.isArray(found) ? found : [];
+};
+
+const readAiTocOptionalUrl = (rawToc: any) => {
+    const candidates = [
+        rawToc?.optionalUrl,
+        rawToc?.url,
+        rawToc?.videoUrl,
+        rawToc?.sourceUrl,
+        rawToc?.video?.mediaUrl,
+        rawToc?.video?.videoUrl,
+        rawToc?.video?.url,
+        rawToc?.video?.embedCode,
+        rawToc?.embedCode,
+    ];
+
+    for (const candidate of candidates) {
+        const parsed = extractAiVideoUrlFromValue(candidate);
+        if (parsed) return parsed;
+    }
+
+    return '';
+};
+
+const buildAiTocImageDescriptionFallback = (title: string) => {
+    const cleanTitle = stripMarkdownEmphasis(String(title || '')).replace(/[?!.\s]+$/g, '').trim();
+    if (!cleanTitle) return '2026 güncel rehber içeriği için görsel açıklaması';
+    return `${cleanTitle} için 2026 güncel rehber görseli`;
+};
+
+const buildTocItemFromAiToc = (rawToc: any): PostItem | null => {
+    if (!rawToc || (typeof rawToc !== 'object' && !Array.isArray(rawToc))) return null;
+
+    const rawItems = readAiTocItems(rawToc);
+    const items = rawItems
+        .map((entry: any, index: number): TocListItem | null => {
+            const stringEntry = typeof entry === 'string' ? entry : '';
+            const titleCandidate =
+                stringEntry ||
+                entry?.title ||
+                entry?.heading ||
+                entry?.name ||
+                entry?.label ||
+                entry?.baslik ||
+                entry?.başlık ||
+                '';
+            const title = stripMarkdownEmphasis(String(
+                titleCandidate
+            )).trim();
+            const content = normalizeAiTocContent(
+                stringEntry ? '' : (
+                    entry?.content ??
+                    entry?.body ??
+                    entry?.description ??
+                    entry?.text ??
+                    entry?.html ??
+                    entry?.paragraphs ??
+                    entry?.paragraflar ??
+                    ''
+                )
+            );
+
+            if (!title && !normalizeQuillEmpty(content)) return null;
+
+            const safeTitle = title || `Bölüm ${index + 1}`;
+            const imageDescription = stripMarkdownEmphasis(String(
+                entry?.imageDescription ??
+                entry?.altText ??
+                entry?.alt ??
+                entry?.imageAlt ??
+                entry?.gorselAciklama ??
+                entry?.görselAçıklama ??
+                ''
+            )).trim() || buildAiTocImageDescriptionFallback(safeTitle);
+
+            return {
+                id: makeGeneratedId('toc-entry'),
+                orderNumber: index + 1,
+                title: safeTitle,
+                parentLink: stripMarkdownEmphasis(String(entry?.parentLink ?? entry?.anchor ?? entry?.slug ?? '')).trim() || slugifyTocAnchor(safeTitle),
+                image: String(entry?.image ?? entry?.mediaUrl ?? entry?.thumbnail ?? '').trim(),
+                imageDescription,
+                content,
+            };
+        })
+        .filter(Boolean) as TocListItem[];
+
+    if (items.length === 0) return null;
+
+    const title = stripMarkdownEmphasis(String(rawToc.title || rawToc.blockTitle || 'İçindekiler')).trim();
+    const rawStyle = rawToc.linkListStyle || rawToc.listStyle || rawToc.style || {};
+
+    return {
+        id: makeGeneratedId('toc'),
+        type: 'toc',
+        title,
+        description: '',
+        createdAt: Date.now(),
+        orderNumber: 1,
+        tocData: {
+            optionalUrl: readAiTocOptionalUrl(rawToc),
+            linkListStyle: normalizeAiTocLinkStyle(rawStyle),
+            items,
+        },
+    };
+};
+
+const readNestedPath = (source: any, path: string) => {
+    if (!source || !path) return undefined;
+    return path.split('.').reduce((current, segment) => {
+        if (current == null) return undefined;
+        return current[segment as keyof typeof current];
+    }, source);
+};
+
+const setNestedPath = (source: any, path: string, value: unknown) => {
+    const parts = path.split('.').filter(Boolean);
+    if (parts.length === 0) return source;
+
+    const root = Array.isArray(source) ? [...source] : { ...(source || {}) };
+    let cursor: any = root;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+        const key = parts[i];
+        const next = cursor[key];
+        cursor[key] = Array.isArray(next) ? [...next] : { ...(next || {}) };
+        cursor = cursor[key];
+    }
+
+    cursor[parts[parts.length - 1]] = value;
+    return root;
+};
+
+const createTocPostItem = (): PostItem => ({
+    id: Math.random().toString(36).substr(2, 9),
+    type: 'toc',
+    title: '',
+    description: '',
+    createdAt: Date.now(),
+    orderNumber: 1,
+    tocData: createDefaultTocData(),
+});
+
+const ensureTocPostItems = (items: PostItem[]) => {
+    if (items.some((item) => item.type === 'toc')) return items;
+
+    const tocItem = createTocPostItem();
+    if (items.length === 0) return [tocItem];
+
+    return [{
+        ...tocItem,
+        tocData: {
+            ...tocItem.tocData!,
+            items: items.map((item, index) => ({
+                id: item.id || Math.random().toString(36).substr(2, 9),
+                orderNumber: Number(item.orderNumber) || index + 1,
+                title: item.title || '',
+                parentLink: '',
+                image: item.mediaUrl || '',
+                imageDescription: item.altText || '',
+                content: item.description || '',
+            })),
+        },
+    }];
+};
+
+const readTocItemImage = (item: PostItem, tocItemId?: string | null) => {
+    if (!tocItemId || !item.tocData?.items) return '';
+    return item.tocData.items.find((tocItem) => tocItem.id === tocItemId)?.image || '';
+};
+
+const withUpdatedTocItemImage = (item: PostItem, tocItemId: string, image: string) => {
+    const fallback = createDefaultTocData();
+    const currentTocData = item.tocData || fallback;
+    const currentItems = Array.isArray(currentTocData.items) && currentTocData.items.length > 0
+        ? currentTocData.items
+        : fallback.items;
+
+    return {
+        ...fallback,
+        ...currentTocData,
+        linkListStyle: {
+            ...fallback.linkListStyle,
+            ...(currentTocData.linkListStyle || {}),
+        },
+        items: currentItems.map((tocItem) =>
+            tocItem.id === tocItemId ? { ...tocItem, image } : tocItem
+        ),
+    };
+};
+
+const createRecipePostItem = (): PostItem => ({
+    id: Math.random().toString(36).substr(2, 9),
+    type: 'recipe',
+    title: '',
+    description: '',
+    createdAt: Date.now(),
+    orderNumber: 1,
+    recipeData: createDefaultRecipeData(),
+});
+
+const createRecipeVideoPostItem = (): PostItem => ({
+    id: Math.random().toString(36).substr(2, 9),
+    type: 'video',
+    title: '',
+    description: '',
+    mediaUrl: '',
+    createdAt: Date.now(),
+    orderNumber: 1,
+    showOnHomepage: false,
+});
+
+const createRecipePostItems = (): PostItem[] => [
+    createRecipePostItem(),
+    createRecipeVideoPostItem(),
+];
+
+const normalizeAiRecipeDifficulty = (value: unknown): RecipeDifficulty => {
+    const normalized = String(value || '').trim().toLocaleLowerCase('tr-TR');
+    if (!normalized) return '';
+    if (normalized === 'easy' || normalized.includes('kolay') || normalized.includes('basit')) return 'easy';
+    if (normalized === 'hard' || normalized.includes('zor') || normalized.includes('güç') || normalized.includes('guc')) return 'hard';
+    if (normalized === 'medium' || normalized.includes('orta')) return 'medium';
+    return '';
+};
+
+const cleanAiRecipeListText = (value: unknown) =>
+    stripMarkdownEmphasis(String(value || ''))
+        .replace(/^[-*•–]\s+/, '')
+        .replace(/^\d+[.)]\s+/, '')
+        .trim();
+
+const makeAiRecipeIngredient = (text: string): RecipeIngredientItem => ({
+    id: makeGeneratedId('recipe-ingredient'),
+    text,
+});
+
+const makeAiRecipeNutrition = (label: string, value: string): RecipeNutritionItem => ({
+    id: makeGeneratedId('recipe-nutrition'),
+    label,
+    value,
+});
+
+const makeAiRecipeDirection = (
+    orderNumber: number,
+    title: string,
+    content: string,
+    image = '',
+    imageDescription = '',
+): RecipeDirectionItem => ({
+    id: makeGeneratedId('recipe-direction'),
+    orderNumber,
+    title,
+    image,
+    imageDescription,
+    content,
+});
+
+const normalizeAiRecipeHtml = (value: unknown) => {
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => normalizeAiRecipeHtml(entry))
+            .filter(Boolean)
+            .join('');
+    }
+
+    if (value && typeof value === 'object') {
+        return normalizeAiRecipeHtml((value as any).content ?? (value as any).body ?? (value as any).text ?? (value as any).description ?? '');
+    }
+
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (hasHtmlTags(raw)) return raw;
+    return buildQuillHtmlFromLines(normalizeAiNewlines(raw).split('\n'));
+};
+
+const flattenAiRecipeIngredients = (value: any, group = ''): RecipeIngredientItem[] => {
+    if (!value) return [];
+
+    if (typeof value === 'string') {
+        return normalizeAiNewlines(value)
+            .split('\n')
+            .map(cleanAiRecipeListText)
+            .filter(Boolean)
+            .map((text) => makeAiRecipeIngredient(group && !text.toLocaleLowerCase('tr-TR').includes(group.toLocaleLowerCase('tr-TR'))
+                ? `${group}: ${text}`
+                : text));
+    }
+
+    if (Array.isArray(value)) {
+        return value.flatMap((entry) => flattenAiRecipeIngredients(entry, group));
+    }
+
+    if (typeof value === 'object') {
+        const nextGroup = cleanAiRecipeListText(value.group ?? value.category ?? value.title ?? value.heading ?? value.baslik ?? value.başlık ?? group);
+        const nested = value.items ?? value.ingredients ?? value.malzemeler ?? value.list;
+        if (nested) return flattenAiRecipeIngredients(nested, nextGroup || group);
+
+        const text = cleanAiRecipeListText(value.text ?? value.name ?? value.label ?? value.value ?? '');
+        if (text) {
+            return [makeAiRecipeIngredient(nextGroup && !text.toLocaleLowerCase('tr-TR').includes(nextGroup.toLocaleLowerCase('tr-TR'))
+                ? `${nextGroup}: ${text}`
+                : text)];
+        }
+
+        return Object.entries(value as Record<string, unknown>).flatMap(([key, entryValue]) =>
+            ['group', 'category', 'title', 'heading', 'baslik', 'başlık'].includes(key)
+                ? []
+                : flattenAiRecipeIngredients(entryValue, cleanAiRecipeListText(key) || group)
+        );
+    }
+
+    return [];
+};
+
+const readAiRecipeIngredients = (rawRecipe: any) => {
+    const candidates = [
+        rawRecipe?.ingredients,
+        rawRecipe?.malzemeler,
+        rawRecipe?.ingredientList,
+        rawRecipe?.materials,
+    ];
+    const found = candidates.find((candidate) => candidate);
+    return flattenAiRecipeIngredients(found);
+};
+
+const readAiRecipeNutrition = (rawRecipe: any): RecipeNutritionItem[] => {
+    const value =
+        rawRecipe?.nutrition ??
+        rawRecipe?.nutritionFacts ??
+        rawRecipe?.besinDegerleri ??
+        rawRecipe?.besinDeğerleri ??
+        rawRecipe?.nutrients;
+
+    if (!value) return [];
+
+    const readEntry = (entry: any): RecipeNutritionItem | null => {
+        if (typeof entry === 'string') {
+            const text = cleanAiRecipeListText(entry);
+            if (!text) return null;
+            const [label, ...rest] = text.split(':');
+            if (rest.length > 0) return makeAiRecipeNutrition(label.trim(), rest.join(':').trim());
+            const parts = text.split(/\s+-\s+|\s+=\s+/);
+            return makeAiRecipeNutrition(parts[0]?.trim() || text, parts.slice(1).join(' - ').trim());
+        }
+
+        if (!entry || typeof entry !== 'object') return null;
+        const label = cleanAiRecipeListText(entry.label ?? entry.name ?? entry.title ?? entry.key ?? '');
+        const itemValue = cleanAiRecipeListText(entry.value ?? entry.amount ?? entry.text ?? '');
+        if (!label && !itemValue) return null;
+        return makeAiRecipeNutrition(label, itemValue);
+    };
+
+    const entries = Array.isArray(value)
+        ? value
+        : typeof value === 'object'
+            ? Object.entries(value as Record<string, unknown>).map(([label, entryValue]) => ({ label, value: entryValue }))
+            : normalizeAiNewlines(String(value)).split('\n');
+
+    return entries.map(readEntry).filter(Boolean) as RecipeNutritionItem[];
+};
+
+const buildAiRecipeDirectionImageDescription = (title: string) => {
+    const cleanTitle = stripMarkdownEmphasis(String(title || '')).replace(/[?!.\s]+$/g, '').trim();
+    if (!cleanTitle) return '2026 güncel tarif adımı görsel açıklaması';
+    return `${cleanTitle} için 2026 güncel tarif görseli`;
+};
+
+const readAiRecipeDirections = (rawRecipe: any): RecipeDirectionItem[] => {
+    const value =
+        rawRecipe?.directions ??
+        rawRecipe?.steps ??
+        rawRecipe?.instructions ??
+        rawRecipe?.adimlar ??
+        rawRecipe?.adımlar ??
+        rawRecipe?.yapilis ??
+        rawRecipe?.yapılış ??
+        rawRecipe?.hazirlanis ??
+        rawRecipe?.hazırlanış;
+
+    const entries = Array.isArray(value)
+        ? value
+        : typeof value === 'string'
+            ? normalizeAiNewlines(value).split(/\n(?=\s*\d+[.)]\s+)/).filter(Boolean)
+            : [];
+
+    const directions = entries
+        .map((entry: any, index: number): RecipeDirectionItem | null => {
+            if (typeof entry === 'string') {
+                const raw = cleanAiRecipeListText(entry);
+                if (!raw) return null;
+                const split = raw.match(/^(.{3,90}?)(?:\n|:\s+)([\s\S]+)$/);
+                const title = split?.[1]?.trim() || `Adım ${index + 1}`;
+                const content = normalizeAiRecipeHtml(split?.[2]?.trim() || raw);
+                return makeAiRecipeDirection(index + 1, title, content, '', buildAiRecipeDirectionImageDescription(title));
+            }
+
+            if (!entry || typeof entry !== 'object') return null;
+            const title = cleanAiRecipeListText(entry.title ?? entry.heading ?? entry.name ?? entry.label ?? entry.baslik ?? entry.başlık ?? `Adım ${index + 1}`);
+            const content = normalizeAiRecipeHtml(entry.content ?? entry.description ?? entry.text ?? entry.body ?? entry.detail ?? '');
+            const image = String(entry.image ?? entry.mediaUrl ?? entry.thumbnail ?? '').trim();
+            const imageDescription = cleanAiRecipeListText(
+                entry.imageDescription ??
+                entry.altText ??
+                entry.alt ??
+                entry.imageAlt ??
+                ''
+            ) || buildAiRecipeDirectionImageDescription(title);
+            if (!title && !normalizeQuillEmpty(content) && !image) return null;
+            return makeAiRecipeDirection(index + 1, title || `Adım ${index + 1}`, content, image, imageDescription);
+        })
+        .filter(Boolean) as RecipeDirectionItem[];
+
+    const tipsValue =
+        rawRecipe?.tips ??
+        rawRecipe?.pufNoktalari ??
+        rawRecipe?.püfNoktaları ??
+        rawRecipe?.puf_noktalari ??
+        rawRecipe?.notes;
+
+    const tips = Array.isArray(tipsValue)
+        ? tipsValue.map(cleanAiRecipeListText).filter(Boolean)
+        : typeof tipsValue === 'string'
+            ? normalizeAiNewlines(tipsValue).split('\n').map(cleanAiRecipeListText).filter(Boolean)
+            : [];
+
+    if (tips.length === 0) return directions;
+
+    const tipsContent = `<ul>${tips.map((tip) => `<li>${markdownInlineToSafeHtml(tip)}</li>`).join('')}</ul>`;
+    return [
+        ...directions,
+        makeAiRecipeDirection(
+            directions.length + 1,
+            'Püf Noktaları',
+            tipsContent,
+            '',
+            'Tarifin püf noktaları için 2026 güncel mutfak görseli',
+        ),
+    ];
+};
+
+const readAiRecipeOptionalUrl = (rawRecipe: any) => {
+    const candidates = [
+        rawRecipe?.optionalUrl,
+        rawRecipe?.sourceUrl,
+        rawRecipe?.sourceLink,
+        rawRecipe?.kaynakUrl,
+        rawRecipe?.url,
+    ];
+    const videoUrl = readAiVideoMediaUrl(rawRecipe?.video || {});
+    for (const candidate of candidates) {
+        const parsed = extractAiVideoUrlFromValue(candidate);
+        if (parsed && parsed !== videoUrl) return parsed;
+    }
+    return '';
+};
+
+const readAiRecipeVideoItem = (rawRecipe: any, fallbackTitle: string): PostItem => {
+    const rawVideo = rawRecipe?.video && typeof rawRecipe.video === 'object'
+        ? rawRecipe.video
+        : {
+            title: rawRecipe?.videoTitle ?? rawRecipe?.videoBaslik ?? rawRecipe?.videoBaşlık ?? '',
+            description: rawRecipe?.videoDescription ?? rawRecipe?.videoAciklama ?? rawRecipe?.videoAçıklama ?? '',
+            mediaUrl: rawRecipe?.videoUrl ?? rawRecipe?.youtubeUrl ?? rawRecipe?.mediaUrl ?? '',
+            embedCode: rawRecipe?.embedCode ?? rawRecipe?.iframe ?? '',
+            source: rawRecipe?.videoSource ?? rawRecipe?.source ?? '',
+        };
+
+    const videoItem = buildVideoItemFromAiVideo(rawVideo);
+    if (!videoItem) return createRecipeVideoPostItem();
+
+    return {
+        ...videoItem,
+        title: videoItem.title || (fallbackTitle ? `${fallbackTitle} videosu` : ''),
+        showOnHomepage: false,
+    };
+};
+
+const buildRecipeItemsFromAiRecipe = (rawRecipe: any): PostItem[] => {
+    if (!rawRecipe || typeof rawRecipe !== 'object') return [];
+
+    const title = cleanAiRecipeListText(rawRecipe.title ?? rawRecipe.recipeTitle ?? rawRecipe.baslik ?? rawRecipe.başlık ?? '');
+    const description = normalizeAiHtml(rawRecipe.description ?? rawRecipe.summary ?? rawRecipe.spot ?? '');
+    const ingredients = readAiRecipeIngredients(rawRecipe);
+    const nutrition = readAiRecipeNutrition(rawRecipe);
+    const directions = readAiRecipeDirections(rawRecipe);
+    const fallbackRecipeData = createDefaultRecipeData();
+
+    const hasRecipePayload =
+        title ||
+        normalizeQuillEmpty(description) ||
+        ingredients.length > 0 ||
+        nutrition.length > 0 ||
+        directions.length > 0 ||
+        rawRecipe.prepTime ||
+        rawRecipe.cookTime ||
+        rawRecipe.serving;
+
+    if (!hasRecipePayload) return [];
+
+    const recipeData: RecipeData = {
+        optionalUrl: readAiRecipeOptionalUrl(rawRecipe),
+        prepTime: cleanAiRecipeListText(rawRecipe.prepTime ?? rawRecipe.hazirlikSuresi ?? rawRecipe.hazırlıkSüresi ?? rawRecipe.preparationTime ?? ''),
+        cookTime: cleanAiRecipeListText(rawRecipe.cookTime ?? rawRecipe.pisirmeSuresi ?? rawRecipe.pişirmeSüresi ?? rawRecipe.cookingTime ?? ''),
+        serving: cleanAiRecipeListText(rawRecipe.serving ?? rawRecipe.portion ?? rawRecipe.porsiyon ?? rawRecipe.serves ?? ''),
+        difficulty: normalizeAiRecipeDifficulty(rawRecipe.difficulty ?? rawRecipe.zorluk),
+        videoUrl: '',
+        videoEmbedCode: '',
+        ingredients: ingredients.length > 0 ? ingredients : fallbackRecipeData.ingredients,
+        nutrition: nutrition.length > 0 ? nutrition : fallbackRecipeData.nutrition,
+        directions: directions.length > 0 ? directions : fallbackRecipeData.directions,
+    };
+
+    const recipeItem: PostItem = {
+        id: makeGeneratedId('recipe'),
+        type: 'recipe',
+        title,
+        description,
+        createdAt: Date.now(),
+        orderNumber: 1,
+        recipeData,
+    };
+
+    return [recipeItem, readAiRecipeVideoItem(rawRecipe, title)];
+};
+
+const ensureRecipeVideoPostItem = (items: PostItem[]) => {
+    if (items.some((item) => item.type === 'video')) return items;
+
+    const nextItems = [...items];
+    const recipeIndex = nextItems.findIndex((item) => item.type === 'recipe');
+    const insertIndex = recipeIndex >= 0 ? recipeIndex + 1 : 0;
+    nextItems.splice(insertIndex, 0, createRecipeVideoPostItem());
+    return nextItems;
+};
+
+const ensureRecipePostItems = (items: PostItem[]) => {
+    if (items.some((item) => item.type === 'recipe')) return ensureRecipeVideoPostItem(items);
+
+    const recipeItem = createRecipePostItem();
+    if (items.length === 0) return createRecipePostItems();
+
+    return [{
+        ...recipeItem,
+        recipeData: {
+            ...recipeItem.recipeData!,
+            directions: items.map((item, index) => ({
+                id: item.id || Math.random().toString(36).substr(2, 9),
+                orderNumber: Number(item.orderNumber) || index + 1,
+                title: item.title || '',
+                image: item.mediaUrl || '',
+                imageDescription: item.altText || '',
+                content: item.description || '',
+            })),
+        },
+    }, createRecipeVideoPostItem()];
+};
+
+const readRecipeDirectionImage = (item: PostItem, directionId?: string | null) => {
+    if (!directionId || !item.recipeData?.directions) return '';
+    return item.recipeData.directions.find((direction) => direction.id === directionId)?.image || '';
+};
+
+const withUpdatedRecipeDirectionImage = (item: PostItem, directionId: string, image: string) => {
+    const fallback = createDefaultRecipeData();
+    const currentRecipeData = item.recipeData || fallback;
+    const currentDirections = Array.isArray(currentRecipeData.directions) && currentRecipeData.directions.length > 0
+        ? currentRecipeData.directions
+        : fallback.directions;
+
+    return {
+        ...fallback,
+        ...currentRecipeData,
+        ingredients: Array.isArray(currentRecipeData.ingredients) && currentRecipeData.ingredients.length > 0
+            ? currentRecipeData.ingredients
+            : fallback.ingredients,
+        nutrition: Array.isArray(currentRecipeData.nutrition) && currentRecipeData.nutrition.length > 0
+            ? currentRecipeData.nutrition
+            : fallback.nutrition,
+        directions: currentDirections.map((direction) =>
+            direction.id === directionId ? { ...direction, image } : direction
+        ),
+    };
+};
+
+const cleanAiEventValue = (value: unknown) => cleanAiRecipeListText(value);
+
+const cleanOptionalAiEventValue = (value: unknown) => {
+    const text = cleanAiEventValue(value);
+    const normalized = text.toLocaleLowerCase('tr-TR');
+    if (!text) return '';
+    if (
+        normalized === 'yok' ||
+        normalized === 'boş' ||
+        normalized === 'bos' ||
+        normalized.includes('boş bırak') ||
+        normalized.includes('bos birak') ||
+        normalized.includes('belirtilm') ||
+        normalized.includes('yazmıyor') ||
+        normalized.includes('yazmiyor')
+    ) {
+        return '';
+    }
+    return text;
+};
+
+const extractAiHttpUrl = (value: unknown) => {
+    const raw = normalizeAiVideoUrlText(value);
+    if (!raw) return '';
+    const iframeSrc = raw.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i)?.[1];
+    if (iframeSrc && /^https?:\/\//i.test(iframeSrc)) return normalizeAiVideoUrlText(iframeSrc);
+    const srcAttr = raw.match(/\bsrc=["']([^"']+)["']/i)?.[1];
+    if (srcAttr && /^https?:\/\//i.test(srcAttr)) return normalizeAiVideoUrlText(srcAttr);
+    return normalizeAiVideoUrlText(raw.match(/https?:\/\/[^\s"'<>]+/i)?.[0] || '');
+};
+
+const normalizeAiEventDateParts = (value: unknown) => {
+    const raw = cleanOptionalAiEventValue(value);
+    if (!raw) return { date: '', time: '' };
+
+    const monthMap: Record<string, string> = {
+        ocak: '01',
+        şubat: '02',
+        subat: '02',
+        mart: '03',
+        nisan: '04',
+        mayıs: '05',
+        mayis: '05',
+        haziran: '06',
+        temmuz: '07',
+        ağustos: '08',
+        agustos: '08',
+        eylül: '09',
+        eylul: '09',
+        ekim: '10',
+        kasım: '11',
+        kasim: '11',
+        aralık: '12',
+        aralik: '12',
+    };
+    const pad = (part: string | number) => String(part).padStart(2, '0');
+
+    const isoMatch = raw.match(/(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s]+(\d{1,2}):(\d{2}))?/);
+    if (isoMatch) {
+        return {
+            date: `${isoMatch[1]}-${pad(isoMatch[2])}-${pad(isoMatch[3])}`,
+            time: isoMatch[4] ? `${pad(isoMatch[4])}:${isoMatch[5]}` : '',
+        };
+    }
+
+    const dottedMatch = raw.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+    if (dottedMatch) {
+        return {
+            date: `${dottedMatch[3]}-${pad(dottedMatch[2])}-${pad(dottedMatch[1])}`,
+            time: dottedMatch[4] ? `${pad(dottedMatch[4])}:${dottedMatch[5]}` : '',
+        };
+    }
+
+    const monthNameMatch = raw.match(/(\d{1,2})\s+([a-zğüşöçıİĞÜŞÖÇ]+)\s+(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/i);
+    if (monthNameMatch) {
+        const month = monthMap[monthNameMatch[2].toLocaleLowerCase('tr-TR')];
+        if (month) {
+            return {
+                date: `${monthNameMatch[3]}-${month}-${pad(monthNameMatch[1])}`,
+                time: monthNameMatch[4] ? `${pad(monthNameMatch[4])}:${monthNameMatch[5]}` : '',
+            };
+        }
+    }
+
+    const timeOnly = raw.match(/(\d{1,2}):(\d{2})/);
+    return { date: '', time: timeOnly ? `${pad(timeOnly[1])}:${timeOnly[2]}` : '' };
+};
+
+const normalizeAiEventDateTime = (value: unknown) => {
+    const parts = normalizeAiEventDateParts(value);
+    return parts.date ? `${parts.date}T${parts.time || '00:00'}` : '';
+};
+
+const normalizeAiEventScheduleDate = (value: unknown) => normalizeAiEventDateParts(value).date;
+
+const normalizeAiEventTime = (value: unknown) => {
+    const parts = normalizeAiEventDateParts(value);
+    if (parts.time) return parts.time;
+    const raw = cleanOptionalAiEventValue(value);
+    const match = raw.match(/(\d{1,2}):(\d{2})/);
+    return match ? `${match[1].padStart(2, '0')}:${match[2]}` : raw;
+};
+
+const normalizeAiEventRegistrationType = (value: unknown): EventRegistrationType => {
+    const normalized = cleanAiEventValue(value).toLocaleLowerCase('tr-TR');
+    if (!normalized) return 'none';
+    if (normalized === 'tickets' || normalized.includes('bilet')) return 'tickets';
+    if (normalized === 'external' || normalized.includes('harici') || normalized.includes('dış') || normalized.includes('dis')) return 'external';
+    if (normalized === 'required' || normalized.includes('kayıt') || normalized.includes('kayit') || normalized.includes('gerekiyor')) return 'required';
+    return 'none';
+};
+
+const makeAiEventSchedule = (entry: any, index: number): EventScheduleItem | null => {
+    if (!entry) return null;
+    if (typeof entry === 'string') {
+        const title = cleanAiEventValue(entry);
+        if (!title) return null;
+        return {
+            id: makeGeneratedId('event-schedule'),
+            orderNumber: index + 1,
+            date: '',
+            time: '',
+            title,
+            description: '',
+            image: '',
+            imageDescription: `${title} etkinlik afişi`,
+        };
+    }
+
+    const dateRaw = entry.date ?? entry.tarih ?? entry.startDate ?? entry.startDateTime ?? '';
+    const timeRaw = entry.time ?? entry.saat ?? dateRaw ?? '';
+    const title = cleanAiEventValue(entry.title ?? entry.sessionTitle ?? entry.oturumBasligi ?? entry.oturumBaşlığı ?? entry.name ?? entry.label ?? '');
+    const description = cleanAiEventValue(entry.description ?? entry.shortDescription ?? entry.kisaAciklama ?? entry.kısaAçıklama ?? entry.summary ?? '');
+    const imageDescription = cleanAiEventValue(
+        entry.imageDescription ??
+        entry.gorselAciklamasi ??
+        entry.görselAçıklaması ??
+        entry.altText ??
+        entry.alt ??
+        ''
+    ) || (title ? `${title} etkinlik afişi` : 'Etkinlik programı görsel açıklaması');
+
+    if (!title && !description && !dateRaw) return null;
+
+    return {
+        id: makeGeneratedId('event-schedule'),
+        orderNumber: index + 1,
+        date: normalizeAiEventScheduleDate(dateRaw),
+        time: normalizeAiEventTime(timeRaw),
+        title,
+        description,
+        image: String(entry.image ?? entry.mediaUrl ?? entry.thumbnail ?? '').trim(),
+        imageDescription,
+    };
+};
+
+const readAiEventSchedule = (rawEvent: any): EventScheduleItem[] => {
+    const rawSchedule =
+        rawEvent?.schedule ??
+        rawEvent?.program ??
+        rawEvent?.sessions ??
+        rawEvent?.programs ??
+        rawEvent?.etkinlikProgrami ??
+        rawEvent?.etkinlikProgramı;
+    const entries = Array.isArray(rawSchedule)
+        ? rawSchedule
+        : typeof rawSchedule === 'string'
+            ? normalizeAiNewlines(rawSchedule).split(/\n(?=\s*(?:Program\s*)?\d+)/i).filter(Boolean)
+            : [];
+
+    return entries.map(makeAiEventSchedule).filter(Boolean) as EventScheduleItem[];
+};
+
+const makeAiEventHighlight = (entry: any, index: number): EventHighlightItem | null => {
+    if (typeof entry === 'string') {
+        const value = cleanAiEventValue(entry);
+        return value ? { id: makeGeneratedId('event-highlight'), label: `Not ${index + 1}`, value } : null;
+    }
+
+    if (!entry || typeof entry !== 'object') return null;
+    const label = cleanAiEventValue(entry.label ?? entry.title ?? entry.name ?? `Not ${index + 1}`);
+    const value = cleanAiEventValue(entry.value ?? entry.text ?? entry.description ?? entry.note ?? '');
+    if (!label && !value) return null;
+    return { id: makeGeneratedId('event-highlight'), label: label || `Not ${index + 1}`, value };
+};
+
+const readAiEventHighlights = (rawEvent: any): EventHighlightItem[] => {
+    const rawHighlights =
+        rawEvent?.highlights ??
+        rawEvent?.notes ??
+        rawEvent?.eventNotes ??
+        rawEvent?.etkinlikNotlari ??
+        rawEvent?.etkinlikNotları ??
+        rawEvent?.notlar;
+    const entries = Array.isArray(rawHighlights)
+        ? rawHighlights
+        : typeof rawHighlights === 'string'
+            ? normalizeAiNewlines(rawHighlights).split('\n').map(cleanAiEventValue).filter(Boolean)
+            : [];
+
+    return entries.map(makeAiEventHighlight).filter(Boolean) as EventHighlightItem[];
+};
+
+const hasNoAiEventSpeakers = (value: unknown) => {
+    const normalized = cleanAiEventValue(value).toLocaleLowerCase('tr-TR');
+    return !normalized || normalized === 'yok' || normalized.includes('doldurulmaz') || normalized.includes('konuşmacı/moderatör alanı doldurulmaz') || normalized.includes('konusmaci/moderator alani doldurulmaz');
+};
+
+const makeAiEventSpeaker = (entry: any): EventSpeakerItem | null => {
+    if (typeof entry === 'string') {
+        if (hasNoAiEventSpeakers(entry)) return null;
+        const name = cleanAiEventValue(entry);
+        return name ? {
+            id: makeGeneratedId('event-speaker'),
+            name,
+            role: '',
+            image: '',
+            imageDescription: `${name} etkinlik konuğu görseli`,
+            bio: '',
+        } : null;
+    }
+
+    if (!entry || typeof entry !== 'object') return null;
+    const name = cleanAiEventValue(entry.name ?? entry.title ?? entry.label ?? '');
+    const role = cleanAiEventValue(entry.role ?? entry.unvan ?? entry.gorev ?? entry.görev ?? '');
+    const bio = normalizeAiRecipeHtml(entry.bio ?? entry.description ?? entry.text ?? '');
+    if (!name && !role && !normalizeQuillEmpty(bio)) return null;
+    const safeName = name || role || 'Konuk';
+    return {
+        id: makeGeneratedId('event-speaker'),
+        name: safeName,
+        role,
+        image: String(entry.image ?? entry.mediaUrl ?? entry.thumbnail ?? '').trim(),
+        imageDescription: cleanAiEventValue(entry.imageDescription ?? entry.altText ?? entry.alt ?? '') || `${safeName} etkinlik konuğu görseli`,
+        bio,
+    };
+};
+
+const readAiEventSpeakers = (rawEvent: any): EventSpeakerItem[] => {
+    const rawSpeakers =
+        rawEvent?.speakers ??
+        rawEvent?.guests ??
+        rawEvent?.konusmacilar ??
+        rawEvent?.konuşmacılar ??
+        rawEvent?.konuklar;
+    if (typeof rawSpeakers === 'string' && hasNoAiEventSpeakers(rawSpeakers)) return [];
+    const entries = Array.isArray(rawSpeakers)
+        ? rawSpeakers
+        : typeof rawSpeakers === 'string'
+            ? normalizeAiNewlines(rawSpeakers).split('\n').filter(Boolean)
+            : [];
+    return entries.map(makeAiEventSpeaker).filter(Boolean) as EventSpeakerItem[];
+};
+
+const buildEventItemFromAiEvent = (rawEvent: any): PostItem | null => {
+    if (!rawEvent || typeof rawEvent !== 'object') return null;
+
+    const schedule = readAiEventSchedule(rawEvent);
+    const highlights = readAiEventHighlights(rawEvent);
+    const speakers = readAiEventSpeakers(rawEvent);
+    const title = cleanAiEventValue(rawEvent.title ?? rawEvent.eventTitle ?? rawEvent.baslik ?? rawEvent.başlık ?? '');
+    const description = normalizeAiHtml(rawEvent.description ?? rawEvent.summary ?? rawEvent.spot ?? '');
+    const eventData: EventData = {
+        startDateTime: normalizeAiEventDateTime(rawEvent.startDateTime ?? rawEvent.start ?? rawEvent.baslangicTarihiSaati ?? rawEvent.başlangıçTarihiSaati ?? ''),
+        endDateTime: normalizeAiEventDateTime(rawEvent.endDateTime ?? rawEvent.end ?? rawEvent.bitisTarihiSaati ?? rawEvent.bitişTarihiSaati ?? ''),
+        organizer: cleanAiEventValue(rawEvent.organizer ?? rawEvent.organizator ?? rawEvent.organizatör ?? ''),
+        venueName: cleanAiEventValue(rawEvent.venueName ?? rawEvent.venue ?? rawEvent.mekan ?? rawEvent.mekân ?? ''),
+        address: cleanAiEventValue(rawEvent.address ?? rawEvent.adres ?? ''),
+        latitude: cleanOptionalAiEventValue(rawEvent.latitude ?? rawEvent.lat ?? rawEvent.enlem ?? ''),
+        longitude: cleanOptionalAiEventValue(rawEvent.longitude ?? rawEvent.lng ?? rawEvent.lon ?? rawEvent.boylam ?? ''),
+        registrationType: normalizeAiEventRegistrationType(rawEvent.registrationType ?? rawEvent.kayitTipi ?? rawEvent.kayıtTipi ?? ''),
+        ticketUrl: extractAiHttpUrl(rawEvent.ticketUrl ?? rawEvent.registrationUrl ?? rawEvent.kayitUrl ?? rawEvent.kayıtUrl ?? rawEvent.biletUrl ?? ''),
+        ticketPrice: cleanOptionalAiEventValue(rawEvent.ticketPrice ?? rawEvent.biletUcreti ?? rawEvent.biletÜcreti ?? ''),
+        capacity: cleanOptionalAiEventValue(rawEvent.capacity ?? rawEvent.kontenjan ?? ''),
+        scheduleTitle: cleanAiEventValue(rawEvent.scheduleTitle ?? rawEvent.programTitle ?? rawEvent.programBasligi ?? rawEvent.programBaşlığı ?? '') || (schedule.length > 0 ? 'Etkinlik Programı' : ''),
+        highlightsTitle: cleanAiEventValue(rawEvent.highlightsTitle ?? rawEvent.notesTitle ?? rawEvent.notlarBasligi ?? rawEvent.notlarBaşlığı ?? '') || (highlights.length > 0 ? 'Etkinlik Notları' : ''),
+        speakersTitle: cleanAiEventValue(rawEvent.speakersTitle ?? rawEvent.konusmacilarBasligi ?? rawEvent.konuşmacılarBaşlığı ?? '') || (speakers.length > 0 ? 'Konuşmacılar ve Konuklar' : ''),
+        schedule,
+        highlights,
+        speakers,
+    };
+
+    const hasEventPayload =
+        title ||
+        normalizeQuillEmpty(description) ||
+        eventData.startDateTime ||
+        eventData.endDateTime ||
+        eventData.organizer ||
+        eventData.venueName ||
+        schedule.length > 0 ||
+        highlights.length > 0 ||
+        speakers.length > 0;
+
+    if (!hasEventPayload) return null;
+
+    return {
+        id: makeGeneratedId('event'),
+        type: 'event',
+        title,
+        description,
+        createdAt: Date.now(),
+        orderNumber: 1,
+        eventData,
+    };
+};
+
+const createEventPostItem = (): PostItem => ({
+    id: Math.random().toString(36).substr(2, 9),
+    type: 'event',
+    title: '',
+    description: '',
+    createdAt: Date.now(),
+    orderNumber: 1,
+    eventData: createDefaultEventData(),
+});
+
+const ensureEventPostItems = (items: PostItem[]) => {
+    if (items.some((item) => item.type === 'event')) return items;
+    const eventItem = createEventPostItem();
+    return [eventItem];
+};
+
+const readEventSpeakerImage = (item: PostItem, speakerId?: string | null) => {
+    if (!speakerId || !item.eventData?.speakers) return '';
+    return item.eventData.speakers.find((speaker) => speaker.id === speakerId)?.image || '';
+};
+
+const readEventScheduleImage = (item: PostItem, scheduleId?: string | null) => {
+    if (!scheduleId || !item.eventData?.schedule) return '';
+    return item.eventData.schedule.find((entry) => entry.id === scheduleId)?.image || '';
+};
+
+const withUpdatedEventScheduleImage = (item: PostItem, scheduleId: string, image: string) => {
+    const fallback = createDefaultEventData();
+    const currentEventData = item.eventData || fallback;
+    const currentSchedule = Array.isArray(currentEventData.schedule) && currentEventData.schedule.length > 0
+        ? currentEventData.schedule
+        : fallback.schedule;
+
+    return {
+        ...fallback,
+        ...currentEventData,
+        schedule: currentSchedule.map((entry) =>
+            entry.id === scheduleId ? { ...entry, image } : entry
+        ),
+        highlights: Array.isArray(currentEventData.highlights) && currentEventData.highlights.length > 0
+            ? currentEventData.highlights
+            : fallback.highlights,
+        speakers: Array.isArray(currentEventData.speakers) && currentEventData.speakers.length > 0
+            ? currentEventData.speakers
+            : fallback.speakers,
+    };
+};
+
+const withUpdatedEventSpeakerImage = (item: PostItem, speakerId: string, image: string) => {
+    const fallback = createDefaultEventData();
+    const currentEventData = item.eventData || fallback;
+    const currentSpeakers = Array.isArray(currentEventData.speakers) && currentEventData.speakers.length > 0
+        ? currentEventData.speakers
+        : fallback.speakers;
+
+    return {
+        ...fallback,
+        ...currentEventData,
+        schedule: Array.isArray(currentEventData.schedule) && currentEventData.schedule.length > 0
+            ? currentEventData.schedule
+            : fallback.schedule,
+        highlights: Array.isArray(currentEventData.highlights) && currentEventData.highlights.length > 0
+            ? currentEventData.highlights
+            : fallback.highlights,
+        speakers: currentSpeakers.map((speaker) =>
+            speaker.id === speakerId ? { ...speaker, image } : speaker
+        ),
+    };
+};
+
 const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirtyChange }) => {
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -1232,7 +3178,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     const [activeMediaSubTarget, setActiveMediaSubTarget] = useState<string | null>(null);
     const [activeMediaOptionTarget, setActiveMediaOptionTarget] = useState<string | null>(null);
     const [tagInput, setTagInput] = useState('');
-    const [activeDetailTab, setActiveDetailTab] = useState<'article' | 'quiz' | 'poll' | 'video' | 'contents' | 'recipe' | 'TABLE OF CONTENTS' | 'paragraph'>('article');
+    const [activeDetailTab, setActiveDetailTab] = useState<'article' | 'quiz' | 'poll' | 'video' | 'contents' | 'recipe' | 'event' | 'TABLE OF CONTENTS' | 'paragraph'>('article');
     const [activeMediaType, setActiveMediaType] = useState<'image' | 'video' | 'audio' | 'file'>('image');
     const [categories, setCategories] = useState<NavigationItem[]>([]);
     const [languages, setLanguages] = useState<Language[]>([]);
@@ -1294,6 +3240,82 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             return parent && parent.type === 'header';
         }).map(parent => ({ id: parent.id, label: parent.label }));
     }, [categories]);
+
+    const selectedMainCategoryId = selectedSubId || selectedParentId;
+    const subCategoryOptions = useMemo(() => {
+        if (!selectedMainCategoryId) return [] as NavigationItem[];
+
+        const rawRealOptions = categories.filter(c =>
+            c.parent_id === selectedMainCategoryId &&
+            (c.type === 'category' || c.type === 'district')
+        );
+        const seenRealOptionKeys = new Set<string>();
+        const realOptions = rawRealOptions
+            .map((item) => {
+                const specialConfig = getSpecialContentConfig(item.value, item.label);
+                if (!specialConfig) return item;
+                return {
+                    ...item,
+                    label: specialConfig.title,
+                    value: specialConfig.value,
+                    icon: item.icon || specialConfig.icon,
+                    order_index: Math.min(Number(item.order_index) || 0, 900 + specialConfig.rank),
+                };
+            })
+            .filter((item) => {
+                const specialConfig = getSpecialContentConfig(item.value, item.label);
+                const key = specialConfig
+                    ? `special:${specialConfig.key}`
+                    : `normal:${normalizeNavigationOptionKey(item.value || item.label)}`;
+                if (!key || seenRealOptionKeys.has(key)) return false;
+                seenRealOptionKeys.add(key);
+                return true;
+            });
+        const existingKeys = new Set(
+            realOptions.flatMap((item) => [
+                normalizeNavigationOptionKey(item.label),
+                normalizeNavigationOptionKey(item.value),
+            ]).filter(Boolean)
+        );
+        const selectedParent = categories.find((item) => item.id === selectedMainCategoryId);
+        const menuId = selectedParent?.menu_id || categories[0]?.menu_id || '';
+
+        const syntheticOptions = ADMIN_SPECIAL_CATEGORY_FILTERS
+            .filter((config) => {
+                const labelKey = normalizeNavigationOptionKey(config.title);
+                const valueKey = normalizeNavigationOptionKey(config.value);
+                return !existingKeys.has(labelKey) && !existingKeys.has(valueKey);
+            })
+            .map((config, index): NavigationItem => ({
+                id: `admin-special-category-${selectedMainCategoryId}-${config.value}`,
+                menu_id: menuId,
+                parent_id: selectedMainCategoryId,
+                label: config.title,
+                type: 'category',
+                value: config.value,
+                icon: config.icon,
+                order_index: 900 + config.rank + index,
+                is_active: true,
+                language_code: selectedLanguage,
+            }));
+        const normalSyntheticOptions = ADMIN_NORMAL_CATEGORY_FILTERS
+            .filter((config) => !existingKeys.has(normalizeNavigationOptionKey(config.value)) && !existingKeys.has(normalizeNavigationOptionKey(config.label)))
+            .map((config, index): NavigationItem => ({
+                id: `admin-normal-category-${selectedMainCategoryId}-${config.value}`,
+                menu_id: menuId,
+                parent_id: selectedMainCategoryId,
+                label: config.label,
+                type: 'category',
+                value: config.value,
+                icon: config.icon,
+                order_index: 920 + config.rank + index,
+                is_active: true,
+                language_code: selectedLanguage,
+            }));
+
+        return [...realOptions, ...syntheticOptions, ...normalSyntheticOptions]
+            .sort((a, b) => (Number(a.order_index) || 0) - (Number(b.order_index) || 0));
+    }, [categories, selectedLanguage, selectedMainCategoryId]);
 
     const isDirty = useMemo(() => {
         // Henüz başlangıç verileri yüklenmediyse dirty sayma
@@ -1453,30 +3475,42 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 if (error) throw error;
                 if (data) {
                     loadedCardDataRef.current = (data.card_data && typeof data.card_data === 'object' && !Array.isArray(data.card_data))
-                        ? (data.card_data as Record<string, any>)
+                        ? normalizeStoredPlainTextPayload(data.card_data as Record<string, any>)
                         : null;
-                    const loadedLanguage = data.language_code || 'tr';
-                    const postType = data.type === 'contents' ? 'TABLE OF CONTENTS' : (data.type as any || 'article');
-                    const loadedData = {
-                        id: data.id,
-                        title: data.title || '',
-                        summary: data.summary || '',
-                        category: data.category || '',
+	                    const loadedLanguage = data.language_code || 'tr';
+	                    const postType = data.type === 'contents' ? 'TABLE OF CONTENTS' : (data.type as any || 'article');
+	                    const storedItems = ensureUniqueItemIds(
+	                        normalizeStoredPlainTextPayload((data.items || []).filter((i: any) => i.type !== 'faq') as PostItem[])
+	                    );
+	                    const loadedItems = postType === 'TABLE OF CONTENTS'
+	                        ? ensureTocPostItems(storedItems)
+                            : postType === 'recipe'
+                                ? ensureRecipePostItems(storedItems)
+                                : postType === 'event'
+                                    ? ensureEventPostItems(storedItems)
+	                            : storedItems;
+	                    const loadedData = {
+	                        id: data.id,
+                        title: normalizeStoredPlainText(data.title),
+                        summary: normalizeStoredPlainText(data.summary),
+                        category: normalizeStoredPlainText(data.category),
                         thumbnail: data.thumbnail_url || '',
-                        thumbnailAlt: data.thumbnail_alt || '',
-                        seoTitle: data.seo_title || '',
-                        seoDescription: data.seo_description || '',
-                        keywords: data.keywords || '',
+                        thumbnailAlt: normalizeStoredPlainText(data.thumbnail_alt),
+                        seoTitle: normalizeStoredPlainText(data.seo_title),
+                        seoDescription: normalizeStoredPlainText(data.seo_description),
+                        keywords: normalizeStoredPlainText(data.keywords),
                         slug: data.slug || '',
                         factChecked: data.fact_checked || false,
-                        schemaType: data.schema_type || 'NewsArticle',
+                        schemaType: data.schema_type || (postType === 'recipe' ? 'Recipe' : postType === 'event' ? 'Event' : 'NewsArticle'),
                         publishAt: toDateTimeLocal(data.published_at || ''),
                         publisher_id: data.publisher_id || '',
                         isPinned: data.is_pinned || false,
                         showInManset: data.show_in_manset || false,
-                        faqData: data.faq_data || (data.items || []).find((i: any) => i.type === 'faq')?.faqData || [] as { q: string, a: string }[],
-                        items: ensureUniqueItemIds((data.items || []).filter((i: any) => i.type !== 'faq') as PostItem[])
-                    };
+                        faqData: normalizeStoredPlainTextPayload(
+                            data.faq_data || (data.items || []).find((i: any) => i.type === 'faq')?.faqData || [] as { q: string, a: string }[]
+                        ),
+	                        items: loadedItems
+	                    };
                     setFormData(loadedData);
                     // Düzenleme modu için başlangıç verilerini kaydet
                     initialFormDataRef.current = JSON.parse(JSON.stringify(loadedData));
@@ -1522,9 +3556,12 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             const hasQuiz = formData.items.some((item: PostItem) => item.type === 'quiz' as any);
             const hasPoll = formData.items.some((item: PostItem) => item.type === 'poll');
             const hasVideo = formData.items.some((item: PostItem) => item.type === 'video');
+            const hasToc = formData.items.some((item: PostItem) => item.type === 'toc');
+            const hasRecipe = formData.items.some((item: PostItem) => item.type === 'recipe');
+            const hasEvent = formData.items.some((item: PostItem) => item.type === 'event');
 
-            if (hasQuiz || (formData.items.length === 1 && (hasPoll || hasVideo)) || formData.items.length === 0) {
-                if (hasQuiz || hasPoll || hasVideo || formData.items.length === 0) {
+            if (hasQuiz || hasRecipe || hasEvent || (formData.items.length === 1 && (hasPoll || hasVideo || hasToc)) || formData.items.length === 0) {
+                if (hasQuiz || hasPoll || hasVideo || hasToc || hasRecipe || hasEvent || formData.items.length === 0) {
                     const newItem: PostItem = {
                         id: Math.random().toString(36).substr(2, 9),
                         type: 'text',
@@ -1544,14 +3581,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                         ) {
                             initialFormDataRef.current.items = JSON.parse(JSON.stringify(nextItems));
                         }
-                        return { ...prev, items: nextItems };
+                        return { ...prev, schemaType: 'NewsArticle', items: nextItems };
                     });
                 }
             }
         } else if (activeDetailTab === 'poll') {
             const hasPoll = formData.items.some((item: PostItem) => item.type === 'poll');
-            const onlyPoll = formData.items.length === 1 && hasPoll;
-            if (!onlyPoll) {
+            if (!hasPoll) {
                 const pollItem: PostItem = {
                     id: Math.random().toString(36).substr(2, 9),
                     type: 'poll',
@@ -1578,10 +3614,67 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     return { ...prev, items: nextItems };
                 });
             }
+        } else if (activeDetailTab === 'TABLE OF CONTENTS') {
+            const hasToc = formData.items.some((item: PostItem) => item.type === 'toc');
+            const onlyToc = formData.items.length === 1 && hasToc;
+            if (!onlyToc) {
+                const tocItem = createTocPostItem();
+                setFormData(prev => {
+                    const nextItems = [tocItem];
+                    if (
+                        postId &&
+                        initialFormDataRef.current &&
+                        (initialFormDataRef.current.items?.length || 0) === (prev.items?.length || 0) &&
+                        (prev.items?.length || 0) === 0
+                    ) {
+                        initialFormDataRef.current.items = JSON.parse(JSON.stringify(nextItems));
+                    }
+                    return { ...prev, items: nextItems };
+                });
+            }
+        } else if (activeDetailTab === 'recipe') {
+            const hasRecipe = formData.items.some((item: PostItem) => item.type === 'recipe');
+            const hasRecipeVideo = formData.items.some((item: PostItem) => item.type === 'video');
+            if (!hasRecipe) {
+                setFormData(prev => {
+                    const nextItems = createRecipePostItems();
+                    if (
+                        postId &&
+                        initialFormDataRef.current &&
+                        (initialFormDataRef.current.items?.length || 0) === (prev.items?.length || 0) &&
+                        (prev.items?.length || 0) === 0
+                    ) {
+                        initialFormDataRef.current.items = JSON.parse(JSON.stringify(nextItems));
+                    }
+                    return { ...prev, schemaType: 'Recipe', items: nextItems };
+                });
+            } else if (!hasRecipeVideo) {
+                setFormData(prev => ({ ...prev, schemaType: 'Recipe', items: ensureRecipeVideoPostItem(prev.items) }));
+            } else if (formData.schemaType !== 'Recipe') {
+                setFormData(prev => ({ ...prev, schemaType: 'Recipe' }));
+            }
+        } else if (activeDetailTab === 'event') {
+            const hasEvent = formData.items.some((item: PostItem) => item.type === 'event');
+            const onlyEvent = formData.items.length === 1 && hasEvent;
+            if (!onlyEvent) {
+                setFormData(prev => {
+                    const nextItems = [createEventPostItem()];
+                    if (
+                        postId &&
+                        initialFormDataRef.current &&
+                        (initialFormDataRef.current.items?.length || 0) === (prev.items?.length || 0) &&
+                        (prev.items?.length || 0) === 0
+                    ) {
+                        initialFormDataRef.current.items = JSON.parse(JSON.stringify(nextItems));
+                    }
+                    return { ...prev, schemaType: 'Event', items: nextItems };
+                });
+            } else if (formData.schemaType !== 'Event') {
+                setFormData(prev => ({ ...prev, schemaType: 'Event' }));
+            }
         } else if (activeDetailTab === 'video') {
             const hasVideo = formData.items.some((item: PostItem) => item.type === 'video');
-            const onlyVideo = formData.items.length === 1 && hasVideo;
-            if (!onlyVideo) {
+            if (!hasVideo) {
                 const videoItem: PostItem = {
                     id: Math.random().toString(36).substr(2, 9),
                     type: 'video',
@@ -1721,6 +3814,26 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             return item.options?.find(o => o.id === activeMediaOptionTarget)?.image || '';
         }
 
+        if (item.type === 'quiz' && activeMediaSubTarget) {
+            return String(readNestedPath(item.quizData, activeMediaSubTarget) || '');
+        }
+
+        if (item.type === 'toc' && activeMediaSubTarget === 'tocItems') {
+            return readTocItemImage(item, activeMediaOptionTarget);
+        }
+
+        if (item.type === 'recipe' && activeMediaSubTarget === 'recipeDirections') {
+            return readRecipeDirectionImage(item, activeMediaOptionTarget);
+        }
+
+        if (item.type === 'event' && activeMediaSubTarget === 'eventSchedule') {
+            return readEventScheduleImage(item, activeMediaOptionTarget);
+        }
+
+        if (item.type === 'event' && activeMediaSubTarget === 'eventSpeakers') {
+            return readEventSpeakerImage(item, activeMediaOptionTarget);
+        }
+
         return item.mediaUrl || '';
     }, [activeMediaOptionTarget, activeMediaSubTarget, activeMediaTarget, formData.items, formData.thumbnail]);
 
@@ -1843,6 +3956,16 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                         } else {
                             handleUpdateItem(activeMediaTarget, 'mediaUrl', newSrc);
                         }
+                    } else if (targetItem?.type === 'quiz' && activeMediaSubTarget) {
+                        handleUpdateItem(activeMediaTarget, 'quizData', setNestedPath(targetItem.quizData || {}, activeMediaSubTarget, newSrc));
+                    } else if (targetItem?.type === 'toc' && activeMediaSubTarget === 'tocItems' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'tocData', withUpdatedTocItemImage(targetItem, activeMediaOptionTarget, newSrc));
+                    } else if (targetItem?.type === 'recipe' && activeMediaSubTarget === 'recipeDirections' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'recipeData', withUpdatedRecipeDirectionImage(targetItem, activeMediaOptionTarget, newSrc));
+                    } else if (targetItem?.type === 'event' && activeMediaSubTarget === 'eventSchedule' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'eventData', withUpdatedEventScheduleImage(targetItem, activeMediaOptionTarget, newSrc));
+                    } else if (targetItem?.type === 'event' && activeMediaSubTarget === 'eventSpeakers' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'eventData', withUpdatedEventSpeakerImage(targetItem, activeMediaOptionTarget, newSrc));
                     } else {
                         handleUpdateItem(activeMediaTarget, 'mediaUrl', newSrc);
                     }
@@ -2037,7 +4160,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     const handleSubCategoryChange = (catId: string) => {
         setSelectedThirdId(catId);
         setSelectedFourthId(''); // İkinci seviye değişince üçüncü seviyeyi sıfırla
-        const cat = categories.find(c => c.id === catId);
+        const cat = subCategoryOptions.find(c => c.id === catId) || categories.find(c => c.id === catId);
         if (cat) {
             setFormData({ ...formData, category: cat.label });
         }
@@ -2121,6 +4244,16 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                         } else {
                             handleUpdateItem(activeMediaTarget, 'mediaUrl', trimmedUrl);
                         }
+                    } else if (targetItem?.type === 'quiz' && activeMediaSubTarget) {
+                        handleUpdateItem(activeMediaTarget, 'quizData', setNestedPath(targetItem.quizData || {}, activeMediaSubTarget, trimmedUrl));
+                    } else if (targetItem?.type === 'toc' && activeMediaSubTarget === 'tocItems' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'tocData', withUpdatedTocItemImage(targetItem, activeMediaOptionTarget, trimmedUrl));
+                    } else if (targetItem?.type === 'recipe' && activeMediaSubTarget === 'recipeDirections' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'recipeData', withUpdatedRecipeDirectionImage(targetItem, activeMediaOptionTarget, trimmedUrl));
+                    } else if (targetItem?.type === 'event' && activeMediaSubTarget === 'eventSchedule' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'eventData', withUpdatedEventScheduleImage(targetItem, activeMediaOptionTarget, trimmedUrl));
+                    } else if (targetItem?.type === 'event' && activeMediaSubTarget === 'eventSpeakers' && activeMediaOptionTarget) {
+                        handleUpdateItem(activeMediaTarget, 'eventData', withUpdatedEventSpeakerImage(targetItem, activeMediaOptionTarget, trimmedUrl));
                     } else {
                         handleUpdateItem(activeMediaTarget, 'mediaUrl', trimmedUrl);
                     }
@@ -2505,6 +4638,29 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                     return `${question.title} ${htmlToPlainText(question.description)} Cevaplar: ${answers}`;
                 }).join(' | ')}`);
             }
+            if (item.tocData?.items?.length) {
+                lines.push(`İçindekiler URL: ${item.tocData.optionalUrl || ''}`);
+                lines.push(`İçindekiler maddeleri: ${item.tocData.items.map((tocItem) =>
+                    `${tocItem.orderNumber}. ${tocItem.title} ${htmlToPlainText(tocItem.content)}`
+                ).join(' | ')}`);
+            }
+            if (item.recipeData) {
+                lines.push(`Tarif URL: ${item.recipeData.optionalUrl || ''}`);
+                lines.push(`Tarif süreleri: Hazırlık ${item.recipeData.prepTime || ''}, pişirme ${item.recipeData.cookTime || ''}, porsiyon ${item.recipeData.serving || ''}, zorluk ${item.recipeData.difficulty || ''}`);
+                lines.push(`Malzemeler: ${(item.recipeData.ingredients || []).map((ingredient) => ingredient.text).filter(Boolean).join(', ')}`);
+                lines.push(`Besin değerleri: ${(item.recipeData.nutrition || []).map((nutrition) => `${nutrition.label} ${nutrition.value}`.trim()).filter(Boolean).join(', ')}`);
+                lines.push(`Tarif adımları: ${(item.recipeData.directions || []).map((direction) =>
+                    `${direction.orderNumber}. ${direction.title} ${htmlToPlainText(direction.content)}`
+                ).join(' | ')}`);
+            }
+            if (item.eventData) {
+                lines.push(`Etkinlik zamanları: ${item.eventData.startDateTime || ''} - ${item.eventData.endDateTime || ''}`);
+                lines.push(`Etkinlik organizatörü: ${item.eventData.organizer || ''}`);
+                lines.push(`Etkinlik konumu: ${item.eventData.venueName || ''} ${item.eventData.address || ''}`.trim());
+                lines.push(`Etkinlik programı: ${(item.eventData.schedule || []).map((entry) => `${entry.date} ${entry.time} ${entry.title} ${entry.description}`.trim()).filter(Boolean).join(' | ')}`);
+                lines.push(`Etkinlik öne çıkanlar: ${(item.eventData.highlights || []).map((entry) => `${entry.label} ${entry.value}`.trim()).filter(Boolean).join(' | ')}`);
+                lines.push(`Etkinlik konuşmacıları: ${(item.eventData.speakers || []).map((speaker) => `${speaker.name} ${speaker.role} ${htmlToPlainText(speaker.bio)}`.trim()).filter(Boolean).join(' | ')}`);
+            }
         });
 
         return lines.filter(Boolean).join('\n').slice(0, 6000);
@@ -2532,6 +4688,17 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         }
         if (item.quizData) {
             parts.push(`quiz: ${(item.quizData.questions || []).map((question) => question.title).filter(Boolean).join(', ')}`);
+        }
+        if (item.tocData?.items?.length) {
+            parts.push(`içindekiler: ${item.tocData.items.map((tocItem) => tocItem.title).filter(Boolean).join(', ')}`);
+        }
+        if (item.recipeData) {
+            parts.push(`tarif: ${(item.recipeData.directions || []).map((direction) => direction.title).filter(Boolean).join(', ')}`);
+            parts.push(`malzemeler: ${(item.recipeData.ingredients || []).map((ingredient) => ingredient.text).filter(Boolean).join(', ')}`);
+        }
+        if (item.eventData) {
+            parts.push(`etkinlik: ${item.eventData.venueName || ''} ${item.eventData.organizer || ''}`.trim());
+            parts.push(`konuşmacılar: ${(item.eventData.speakers || []).map((speaker) => speaker.name).filter(Boolean).join(', ')}`);
         }
 
         return parts.filter(Boolean).join(' | ').slice(0, 700);
@@ -2740,7 +4907,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     };
 
     const handleRemoveItem = (id: string) => {
-        if ((activeDetailTab === 'article' || activeDetailTab === 'poll' || activeDetailTab === 'video' || activeDetailTab === 'quiz') && formData.items.length <= 1) return;
+        if ((activeDetailTab === 'article' || activeDetailTab === 'poll' || activeDetailTab === 'video' || activeDetailTab === 'quiz' || activeDetailTab === 'TABLE OF CONTENTS' || activeDetailTab === 'recipe' || activeDetailTab === 'event') && formData.items.length <= 1) return;
         let filtered = formData.items.filter((item: PostItem) => item.id !== id);
         if (activeSort) {
             // Re-sequence remaining items
@@ -3019,11 +5186,15 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     };
 
     const handleSave = async (status: 'published' | 'draft') => {
+        const titleForStorage = normalizeStoredPlainText(formData.title);
+        const summaryForStorage = normalizeStoredPlainText(formData.summary);
+        const categoryForStorage = normalizeStoredPlainText(formData.category);
+        const faqDataForStorage = normalizeStoredPlainTextPayload(formData.faqData || []);
         const errors: { title?: string; summary?: string } = {};
-        if (!formData.title.trim()) {
+        if (!titleForStorage) {
             errors.title = t('admin.post.title_required');
         }
-        if (!formData.summary.trim()) {
+        if (!summaryForStorage) {
             errors.summary = t('admin.post.summary_required');
         }
 
@@ -3039,7 +5210,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             return;
         }
 
-        if (!formData.category) {
+        if (!categoryForStorage) {
             showToast(t('admin.post.category_required'), 'error');
             categoryRef.current?.focus();
             return;
@@ -3052,7 +5223,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 return;
             }
 
-            const slug = formData.slug || formData.title.toLowerCase()
+            const slug = formData.slug || titleForStorage.toLowerCase()
                 .replace(/ğ/g, 'g')
                 .replace(/ü/g, 'u')
                 .replace(/ş/g, 's')
@@ -3064,35 +5235,36 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 .replace(/-+/g, '-')
                 .trim();
 
-            const finalItems = ensureUniqueItemIds([...formData.items]);
-            if (formData.faqData && formData.faqData.length > 0) {
+            const itemsForStorage = ensureUniqueItemIds(normalizeStoredPlainTextPayload([...formData.items]));
+            const finalItems = [...itemsForStorage];
+            if (faqDataForStorage && faqDataForStorage.length > 0) {
                 finalItems.push({
                     id: 'faq-schema-block',
                     type: 'faq',
                     title: t('admin.post.faq_short'),
                     description: '',
-                    faqData: formData.faqData
+                    faqData: faqDataForStorage
                 } as any);
             }
 
             const cardDataBase = loadedCardDataRef.current || {};
             const cardDataPatch = buildCardDataPatch(finalItems);
-            const mergedCardData = { ...cardDataBase, ...cardDataPatch };
+            const mergedCardData = normalizeStoredPlainTextPayload({ ...cardDataBase, ...cardDataPatch });
 
             const normalizedPublishAt = toIsoString(formData.publishAt);
             const postData: any = {
-                title: formData.title,
-                summary: formData.summary,
-                category: formData.category,
+                title: titleForStorage,
+                summary: summaryForStorage,
+                category: categoryForStorage,
                 thumbnail_url: formData.thumbnail,
-                thumbnail_alt: formData.thumbnailAlt,
-                seo_title: formData.seoTitle,
-                seo_description: formData.seoDescription,
-                keywords: formData.keywords,
+                thumbnail_alt: normalizeStoredPlainText(formData.thumbnailAlt),
+                seo_title: normalizeStoredPlainText(formData.seoTitle),
+                seo_description: normalizeStoredPlainText(formData.seoDescription),
+                keywords: normalizeStoredPlainText(formData.keywords),
                 slug: slug,
                 fact_checked: formData.factChecked,
                 schema_type: formData.schemaType,
-                faq_data: formData.faqData,
+                faq_data: faqDataForStorage,
                 items: finalItems,
                 card_data: mergedCardData,
                 published_at: status === 'published' ? (normalizedPublishAt || new Date().toISOString()) : null,
@@ -3105,6 +5277,19 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 updated_at: new Date().toISOString(),
                 ...(formData.id ? {} : { likes_count: 0, shares_count: 0, comments_count: 0 })
             };
+            const savedFormData = {
+                ...formData,
+                title: titleForStorage,
+                summary: summaryForStorage,
+                category: categoryForStorage,
+                thumbnailAlt: normalizeStoredPlainText(formData.thumbnailAlt),
+                seoTitle: normalizeStoredPlainText(formData.seoTitle),
+                seoDescription: normalizeStoredPlainText(formData.seoDescription),
+                keywords: normalizeStoredPlainText(formData.keywords),
+                slug,
+                faqData: faqDataForStorage,
+                items: itemsForStorage,
+            };
 
             if (formData.id) {
                 // Update
@@ -3116,7 +5301,8 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                 loadedCardDataRef.current = mergedCardData;
                 showToast(t('admin.post.update_success'), 'success');
                 // Kaydedildiyse artık dirty değil
-                initialFormDataRef.current = JSON.parse(JSON.stringify(formData));
+                setFormData(savedFormData);
+                initialFormDataRef.current = JSON.parse(JSON.stringify(savedFormData));
                 initialSelectedLanguageRef.current = selectedLanguage;
                 initialDetailTabRef.current = activeDetailTab;
             } else {
@@ -3151,13 +5337,13 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                             keywords: '',
                             slug: '',
                             factChecked: false,
-                            schemaType: 'NewsArticle',
+                            schemaType: activeDetailTab === 'recipe' ? 'Recipe' : activeDetailTab === 'event' ? 'Event' : 'NewsArticle',
                             publishAt: '',
                             publisher_id: '',
                             isPinned: false,
                             showInManset: false,
                             faqData: [] as { q: string, a: string }[],
-                            items: [
+                            items: activeDetailTab === 'recipe' ? createRecipePostItems() : activeDetailTab === 'event' ? [createEventPostItem()] : [
                                 activeDetailTab === 'paragraph' ? {
                                     id: Math.random().toString(36).substr(2, 9),
                                     type: 'quote',
@@ -3191,6 +5377,167 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
             showToast(t('common.error_prefix') + error.message, 'error');
         }
     };
+
+    const renderTableOfContentsEditor = (item: PostItem, index: number, displayMode: 'all' | 'style' | 'items' = 'all') => (
+        <PostTableOfContentsItem
+            key={`${item.id}-${index}`}
+            item={item}
+            index={index}
+            totalItems={formData.items.length}
+            showBlockNumbers={showBlockNumbers}
+            displayMode={displayMode}
+            onUpdate={handleUpdateItem}
+            onRemove={handleRemoveItem}
+            isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz' && activeDetailTab !== 'TABLE OF CONTENTS') || formData.items.length > 1}
+            onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+            onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+            onOpenFileManager={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                setActiveMediaType('image');
+                fetchMedia('image');
+                setShowFileManager(true);
+            }}
+            onOpenUrlMode={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                setActiveMediaType('image');
+                setTempUrl('');
+                setUrlError(null);
+                setIsUrlMode(true);
+            }}
+            onOpenImageEditor={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                editorSaveInFlightRef.current = false;
+                setIsEditorSaving(false);
+                setShowImageEditor(true);
+            }}
+            onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'içindekiler görseli'))}
+        />
+    );
+
+    const renderRecipeEditor = (item: PostItem, index: number, displayMode: 'all' | 'info' | 'details' = 'all') => (
+        <PostRecipeItem
+            key={`${item.id}-${index}`}
+            item={item}
+            index={index}
+            totalItems={formData.items.length}
+            showBlockNumbers={showBlockNumbers}
+            displayMode={displayMode}
+            onUpdate={handleUpdateItem}
+            onRemove={handleRemoveItem}
+            isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz' && activeDetailTab !== 'TABLE OF CONTENTS' && activeDetailTab !== 'recipe') || formData.items.length > 1}
+            onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+            onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+            onOpenFileManager={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                setActiveMediaType('image');
+                fetchMedia('image');
+                setShowFileManager(true);
+            }}
+            onOpenUrlMode={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                setActiveMediaType('image');
+                setTempUrl('');
+                setUrlError(null);
+                setIsUrlMode(true);
+            }}
+            onOpenImageEditor={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                editorSaveInFlightRef.current = false;
+                setIsEditorSaving(false);
+                setShowImageEditor(true);
+            }}
+            onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'tarif görseli'))}
+        />
+    );
+
+    const renderEventEditor = (item: PostItem, index: number, displayMode: 'all' | 'settings' | 'sections' = 'all') => (
+        <PostEventItem
+            key={`${item.id}-${index}`}
+            item={item}
+            index={index}
+            totalItems={formData.items.length}
+            showBlockNumbers={showBlockNumbers}
+            displayMode={displayMode}
+            onUpdate={handleUpdateItem}
+            onRemove={handleRemoveItem}
+            isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz' && activeDetailTab !== 'TABLE OF CONTENTS' && activeDetailTab !== 'recipe' && activeDetailTab !== 'event') || formData.items.length > 1}
+            onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+            onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+            onOpenFileManager={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                setActiveMediaType('image');
+                fetchMedia('image');
+                setShowFileManager(true);
+            }}
+            onOpenUrlMode={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                setActiveMediaType('image');
+                setTempUrl('');
+                setUrlError(null);
+                setIsUrlMode(true);
+            }}
+            onOpenImageEditor={(id, subField, optionId) => {
+                setActiveMediaTarget(id);
+                setActiveMediaSubTarget(subField || null);
+                setActiveMediaOptionTarget(optionId || null);
+                editorSaveInFlightRef.current = false;
+                setIsEditorSaving(false);
+                setShowImageEditor(true);
+            }}
+            onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'etkinlik görseli'))}
+        />
+    );
+
+    const renderVideoEditor = (
+        item: PostItem,
+        index: number,
+        options: { blockTitle?: string; titlePlaceholder?: string; mediaKindLabel?: string } = {}
+    ) => (
+        <PostVideoItem
+            key={`${item.id}-${index}`}
+            item={item}
+            index={index}
+            totalItems={formData.items.length}
+            showBlockNumbers={showBlockNumbers}
+            blockTitle={options.blockTitle}
+            titlePlaceholder={options.titlePlaceholder}
+            onUpdate={handleUpdateItem}
+            onRemove={handleRemoveItem}
+            isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz' && activeDetailTab !== 'recipe') || formData.items.length > 1}
+            onMoveUp={(idx) => handleMoveItem(idx, 'up')}
+            onMoveDown={(idx) => handleMoveItem(idx, 'down')}
+            onOpenFileManager={(id) => {
+                setActiveMediaTarget(id);
+                setActiveMediaType('video');
+                fetchMedia('video');
+                setShowFileManager(true);
+            }}
+            onOpenUrlMode={(id) => {
+                setActiveMediaTarget(id);
+                setActiveMediaType('video');
+                setTempUrl('');
+                setUrlError(null);
+                setIsUrlMode(true);
+            }}
+            onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, options.mediaKindLabel || 'video bloğu'))}
+        />
+    );
 
     return (
         <div className="animate-in fade-in duration-500 admin-font relative">
@@ -3241,7 +5588,8 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                         { id: 'poll', label: t('admin.post.tab.poll'), icon: 'poll' },
                                         { id: 'video', label: t('admin.post.tab.video'), icon: 'smart_display' },
                                         { id: 'TABLE OF CONTENTS', label: t('admin.post.tab.contents'), icon: 'format_list_numbered' },
-                                        { id: 'recipe', label: t('admin.post.tab.recipe'), icon: 'restaurant' }
+                                        { id: 'recipe', label: t('admin.post.tab.recipe'), icon: 'restaurant' },
+                                        { id: 'event', label: t('admin.post.tab.event'), icon: 'event' }
                                     ].map((tab, idx, arr) => (
                                         <button
                                             key={tab.id}
@@ -3322,10 +5670,123 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                         </button>
                                     </div>
                                 </div>
-                                <AiAssistantDialog
-                                    isOpen={showAiDialog}
-                                    onClose={() => setShowAiDialog(false)}
-                                    onApply={(data) => {
+	                                <AiAssistantDialog
+	                                    isOpen={showAiDialog}
+	                                    onClose={() => setShowAiDialog(false)}
+	                                    contentType={activeDetailTab === 'quiz' ? 'quiz' : activeDetailTab === 'poll' ? 'poll' : activeDetailTab === 'video' ? 'video' : activeDetailTab === 'TABLE OF CONTENTS' ? 'toc' : activeDetailTab === 'recipe' ? 'recipe' : activeDetailTab === 'event' ? 'event' : 'article'}
+	                                    onApply={(data) => {
+	                                        const generatedQuizItem = activeDetailTab === 'quiz' && data.quiz
+	                                            ? buildQuizItemFromAiQuiz(data.quiz)
+	                                            : null;
+	                                        const generatedPollItems = activeDetailTab === 'poll' && data.poll
+	                                            ? buildPollItemsFromAiPoll(data.poll)
+	                                            : [];
+	                                        const generatedVideoItems = activeDetailTab === 'video' && data.video
+	                                            ? buildVideoItemsFromAiVideo(data.video)
+	                                            : [];
+	                                        const generatedTocItem = activeDetailTab === 'TABLE OF CONTENTS' && data.toc
+	                                            ? buildTocItemFromAiToc(data.toc)
+	                                            : null;
+	                                        const generatedRecipeItems = activeDetailTab === 'recipe' && data.recipe
+	                                            ? buildRecipeItemsFromAiRecipe(data.recipe)
+	                                            : [];
+	                                        const generatedEventItem = activeDetailTab === 'event' && data.event
+	                                            ? buildEventItemFromAiEvent(data.event)
+	                                            : null;
+
+                                        if (activeDetailTab === 'quiz' && !generatedQuizItem) {
+                                            showToast('AI test içeriği forma dönüştürülemedi. Lütfen tekrar üretin.', 'error');
+                                            return;
+                                        }
+
+	                                        if (activeDetailTab === 'poll' && generatedPollItems.length === 0) {
+	                                            showToast('AI anket içeriği forma dönüştürülemedi. Lütfen tekrar üretin.', 'error');
+	                                            return;
+	                                        }
+
+                                        if (activeDetailTab === 'video' && generatedVideoItems.length === 0) {
+                                            showToast('AI video içeriği forma dönüştürülemedi. Lütfen tekrar üretin.', 'error');
+                                            return;
+                                        }
+
+                                        if (activeDetailTab === 'TABLE OF CONTENTS' && !generatedTocItem) {
+                                            showToast('AI içindekiler içeriği forma dönüştürülemedi. Lütfen tekrar üretin.', 'error');
+                                            return;
+                                        }
+
+                                        if (activeDetailTab === 'recipe' && generatedRecipeItems.length === 0) {
+                                            showToast('AI tarif içeriği forma dönüştürülemedi. Lütfen tekrar üretin.', 'error');
+                                            return;
+                                        }
+
+                                        if (activeDetailTab === 'event' && !generatedEventItem) {
+                                            showToast('AI etkinlik içeriği forma dönüştürülemedi. Lütfen tekrar üretin.', 'error');
+                                            return;
+                                        }
+
+                                        const normalizeCategoryLabel = (value: unknown) =>
+                                            stripMarkdownEmphasis(String(value || ''))
+                                                .trim()
+                                                .toLocaleLowerCase('tr-TR')
+                                                .replace(/ğ/g, 'g')
+                                                .replace(/ü/g, 'u')
+                                                .replace(/ş/g, 's')
+                                                .replace(/ı/g, 'i')
+                                                .replace(/ö/g, 'o')
+                                                .replace(/ç/g, 'c')
+                                                .replace(/\s+/g, ' ');
+
+                                        const eventCategoryCandidates = activeDetailTab === 'event'
+                                            ? [
+                                                data.event?.subCategory,
+                                                'Tiyatro',
+                                                'Kültür Sanat',
+                                                data.event?.category,
+                                                'Etkinlik',
+                                                'Niğde',
+                                            ]
+                                                .map((label) => stripMarkdownEmphasis(String(label || '')).trim())
+                                                .filter(Boolean)
+                                            : [];
+
+                                        const applyAiEventCategorySelection = () => {
+                                            if (eventCategoryCandidates.length === 0) return '';
+                                            const matchedCategory = eventCategoryCandidates
+                                                .map((label) => {
+                                                    const normalizedLabel = normalizeCategoryLabel(label);
+                                                    return categories.find((category) =>
+                                                        category.type !== 'header' &&
+                                                        category.type !== 'trends' &&
+                                                        normalizeCategoryLabel(category.label) === normalizedLabel
+                                                    );
+                                                })
+                                                .find(Boolean) as NavigationItem | undefined;
+
+                                            if (!matchedCategory) return eventCategoryCandidates[0] || '';
+
+                                            const parentItem = categories.find((category) => category.id === matchedCategory.parent_id);
+                                            const grandParentItem = parentItem ? categories.find((category) => category.id === parentItem.parent_id) : null;
+                                            setSelectedSubId('');
+
+                                            if (grandParentItem && grandParentItem.id !== 'root' && grandParentItem.type !== 'header') {
+                                                setSelectedParentId(grandParentItem.id);
+                                                setSelectedThirdId(parentItem!.id);
+                                                setSelectedFourthId(matchedCategory.id);
+                                            } else if (parentItem && parentItem.id !== 'root' && parentItem.type !== 'header') {
+                                                setSelectedParentId(parentItem.id);
+                                                setSelectedThirdId(matchedCategory.id);
+                                                setSelectedFourthId('');
+                                            } else {
+                                                setSelectedParentId(matchedCategory.id);
+                                                setSelectedThirdId('');
+                                                setSelectedFourthId('');
+                                            }
+
+                                            return matchedCategory.label;
+                                        };
+
+                                        const aiEventCategoryLabel = applyAiEventCategorySelection();
+
                                         setFormData(prev => {
                                             const cleanedTitle = stripMarkdownEmphasis(data.title || '');
                                             const cleanedMetaTitle = stripMarkdownEmphasis(data.metaTitle || '');
@@ -3339,7 +5800,32 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                 '';
 
                                             const existingItems = Array.isArray(prev.items) ? prev.items : [];
-                                            const generatedItems = data.content ? buildItemsFromAiContent(String(data.content || '')) : [];
+                                            const aiContentForItems = activeDetailTab === 'recipe'
+                                                ? normalizeRecipeAiContentForItems(data.content)
+                                                : String(data.content || '');
+                                            let generatedItems = aiContentForItems ? buildItemsFromAiContent(aiContentForItems) : [];
+                                            const shouldApplyRequestedMedia =
+                                                activeDetailTab === 'article' ||
+                                                activeDetailTab === 'video' ||
+                                                activeDetailTab === 'recipe' ||
+                                                activeDetailTab === 'event';
+                                            const requestedMediaTitle = cleanedTitle || data.video?.title || data.recipe?.title || data.event?.scheduleTitle || data.event?.venueName;
+
+                                            if (shouldApplyRequestedMedia && data.requestedMedia?.image && !generatedItems.some((item) => item.type === 'image')) {
+                                                generatedItems.push(buildRequestedMediaItemFromAi('image', requestedMediaTitle, cleanedSummary || data.summary, aiContentForItems));
+                                            }
+                                            if (
+                                                shouldApplyRequestedMedia &&
+                                                data.requestedMedia?.video &&
+                                                activeDetailTab !== 'video' &&
+                                                activeDetailTab !== 'recipe' &&
+                                                !generatedItems.some((item) => item.type === 'video')
+                                            ) {
+                                                generatedItems.push(buildRequestedMediaItemFromAi('video', requestedMediaTitle, cleanedSummary || data.summary, aiContentForItems));
+                                            }
+                                            if (shouldApplyRequestedMedia && data.requestedMedia?.audio && !generatedItems.some((item) => item.type === 'audio')) {
+                                                generatedItems.push(buildRequestedMediaItemFromAi('audio', requestedMediaTitle, cleanedSummary || data.summary, aiContentForItems));
+                                            }
 
                                             // If Smart Brevity bullets were produced in SUMMARY, move them into the body (first text block)
                                             // so SUMMARY stays clean and professional.
@@ -3376,6 +5862,17 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                 }
                                             }
 
+                                            if (activeDetailTab === 'event' && generatedItems.length > 0) {
+                                                generatedItems = withReadableEventTextItems(generatedItems);
+                                            }
+                                            if (activeDetailTab === 'recipe' && generatedItems.length > 0) {
+                                                generatedItems = withReadableEventTextItems(
+                                                    generatedItems,
+                                                    ['Tarifin Hikayesi', 'Yöresel Lezzetin Sırrı', 'Servis Önerisi'],
+                                                    'Tarif Bilgileri',
+                                                );
+                                            }
+
                                             const isMeaningfulItem = (item: PostItem) => {
                                                 const type = String(item?.type || 'text');
                                                 if (type !== 'text') return true;
@@ -3390,6 +5887,56 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             if (generatedItems.length > 0 && activeDetailTab === 'article') {
                                                 nextItems = shouldReplaceItems ? generatedItems : [...existingItems, ...generatedItems];
                                             }
+                                            if (generatedQuizItem && activeDetailTab === 'quiz') {
+                                                nextItems = [{
+                                                    ...generatedQuizItem,
+                                                    title: generatedQuizItem.title || cleanedTitle,
+                                                    description: normalizeQuillEmpty(generatedQuizItem.description) || normalizeAiHtml(cleanedSummary || data.summary),
+                                                }];
+                                            }
+	                                            if (generatedPollItems.length > 0 && activeDetailTab === 'poll') {
+	                                                nextItems = generatedPollItems.map((item, idx) => ({
+	                                                    ...item,
+	                                                    title: item.title || (idx === 0 ? cleanedTitle : item.title),
+	                                                    orderNumber: idx + 1,
+	                                                }));
+	                                            }
+	                                            if (generatedVideoItems.length > 0 && activeDetailTab === 'video') {
+	                                                const videoItems = generatedVideoItems.map((item, idx) => ({
+	                                                    ...item,
+	                                                    title: item.title || cleanedTitle,
+	                                                    description: normalizeQuillEmpty(item.description) || normalizeAiHtml(cleanedSummary || data.summary),
+                                                        showOnHomepage: idx === 0 ? true : item.showOnHomepage,
+	                                                }));
+	                                                nextItems = generatedItems.length > 0
+	                                                    ? [...videoItems, ...generatedItems]
+	                                                    : videoItems;
+	                                            }
+	                                            if (generatedTocItem && activeDetailTab === 'TABLE OF CONTENTS') {
+	                                                nextItems = [{
+	                                                    ...generatedTocItem,
+	                                                    title: generatedTocItem.title || 'İçindekiler',
+	                                                }];
+	                                            }
+	                                            if (generatedRecipeItems.length > 0 && activeDetailTab === 'recipe') {
+                                                    const hasGeneratedVideoItem = generatedItems.some((item) => item.type === 'video');
+                                                    const recipeItems = hasGeneratedVideoItem
+                                                        ? generatedRecipeItems.filter((item) =>
+                                                            item.type !== 'video' ||
+                                                            stripMarkdownEmphasis(String(item.title || '')).trim() ||
+                                                            normalizeQuillEmpty(item.description) ||
+                                                            String(item.mediaUrl || '').trim()
+                                                        )
+                                                        : generatedRecipeItems;
+	                                                nextItems = generatedItems.length > 0
+	                                                    ? [...generatedItems, ...recipeItems]
+	                                                    : recipeItems;
+	                                            }
+	                                            if (generatedEventItem && activeDetailTab === 'event') {
+	                                                nextItems = generatedItems.length > 0
+	                                                    ? [...generatedItems, generatedEventItem]
+	                                                    : [generatedEventItem];
+	                                            }
 
                                             // Renumber order to keep block numbering stable.
                                             const renumberedItems = nextItems.map((item, idx) => ({
@@ -3398,14 +5945,22 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             }));
 
                                             // Validate schemaType against SCHEMA_TYPE_OPTIONS
-                                            const finalSchema = SCHEMA_TYPE_OPTIONS.includes(data.schemaType as any)
-                                                ? data.schemaType as any
-                                                : 'NewsArticle';
+                                            const finalSchema = activeDetailTab === 'recipe'
+                                                ? 'Recipe'
+                                                : activeDetailTab === 'event'
+                                                    ? 'Event'
+                                                    : SCHEMA_TYPE_OPTIONS.includes(data.schemaType as any)
+                                                        ? data.schemaType as any
+                                                        : 'NewsArticle';
 
                                             return {
                                                 ...prev,
                                                 title: cleanedTitle || prev.title,
                                                 summary: cleanedSummary || prev.summary,
+                                                category: aiEventCategoryLabel || prev.category,
+                                                thumbnailAlt: activeDetailTab === 'recipe' && data.recipe?.imageAlt
+                                                    ? stripMarkdownEmphasis(String(data.recipe.imageAlt || ''))
+                                                    : prev.thumbnailAlt,
                                                 seoTitle: cleanedMetaTitle || prev.seoTitle,
                                                 seoDescription: cleanedMetaDesc || prev.seoDescription,
                                                 keywords: data.keywords && data.keywords.length > 0 ? data.keywords.join(', ') : prev.keywords,
@@ -3566,8 +6121,8 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>add</span> {t('admin.post.faq_add_btn')}
                                         </button>
                                     </div>
-                                    <div className="space-y-4">
-                                        {formData.faqData.map((faq, idx) => (
+	                                    <div className="space-y-4">
+	                                        {formData.faqData.map((faq, idx) => (
                                             <div key={idx} className="p-3 bg-palette-beige/5 border border-palette-tan/10 rounded-[3px] space-y-3 relative group/faq">
                                                 <button
                                                     type="button"
@@ -3608,14 +6163,91 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                                         className="w-full bg-white border border-palette-tan/20 rounded-[3px] px-3 py-1.5 text-sm font-medium text-palette-tan focus:border-palette-red outline-none transition-all resize-none"
                                                     />
                                                 </div>
+	                                            </div>
+	                                        ))}
+	                                    </div>
+	                                        {activeDetailTab === 'TABLE OF CONTENTS' && (
+	                                            <div className="mt-5 pt-5 border-t border-palette-tan/10">
+	                                                {formData.items.map((item, index) => (
+	                                                    item.type === 'toc' ? (
+	                                                        <div key={`${item.id}-${index}-inline-toc`}>
+	                                                            {renderTableOfContentsEditor(item, index, 'style')}
+	                                                        </div>
+	                                                    ) : null
+	                                                ))}
+	                                            </div>
+	                                        )}
+                                        {activeDetailTab === 'recipe' && (
+                                            <div className="mt-5 pt-5 border-t border-palette-tan/10">
+                                                {formData.items.map((item, index) => (
+	                                                    item.type === 'recipe' ? (
+	                                                        <div key={`${item.id}-${index}-inline-recipe`}>
+	                                                            {renderRecipeEditor(item, index, 'info')}
+	                                                        </div>
+	                                                    ) : null
+	                                                ))}
+	                                            </div>
+	                                        )}
+                                        {activeDetailTab === 'event' && (
+                                            <div className="mt-5 pt-5 border-t border-palette-tan/10">
+                                                {formData.items.map((item, index) => (
+                                                    item.type === 'event' ? (
+                                                        <div key={`${item.id}-${index}-inline-event`}>
+                                                            {renderEventEditor(item, index, 'settings')}
+                                                        </div>
+                                                    ) : null
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                        )}
+	                                </div>
                             </div>
                         </div>
+                        {activeDetailTab === 'TABLE OF CONTENTS' && (
+                            <div className="mt-6">
+                                {formData.items.map((item, index) => (
+                                    item.type === 'toc' ? (
+                                        <div key={`${item.id}-${index}-outside-toc`}>
+                                            {renderTableOfContentsEditor(item, index, 'items')}
+                                        </div>
+                                    ) : null
+	                                ))}
+	                            </div>
+	                        )}
+                        {activeDetailTab === 'recipe' && (
+                            <div className="mt-6 space-y-6">
+                                {formData.items.map((item, index) => (
+                                    item.type === 'video' ? (
+                                        <div key={`${item.id}-${index}-outside-recipe-video`}>
+                                            {renderVideoEditor(item, index, {
+                                                blockTitle: t('admin.post.recipe.food_video'),
+                                                titlePlaceholder: t('admin.post.recipe.food_video_title_placeholder'),
+                                                mediaKindLabel: 'yemek videosu',
+                                            })}
+                                        </div>
+                                    ) : null
+                                ))}
+                                {formData.items.map((item, index) => (
+                                    item.type === 'recipe' ? (
+                                        <div key={`${item.id}-${index}-outside-recipe`}>
+                                            {renderRecipeEditor(item, index, 'details')}
+                                        </div>
+                                    ) : null
+                                ))}
+                            </div>
+                        )}
+                        {activeDetailTab === 'event' && (
+                            <div className="mt-6 space-y-6">
+                                {formData.items.map((item, index) => (
+                                    item.type === 'event' ? (
+                                        <div key={`${item.id}-${index}-outside-event`}>
+                                            {renderEventEditor(item, index, 'sections')}
+                                        </div>
+                                    ) : null
+                                ))}
+                            </div>
+                        )}
                         {/* ITEM LIST CONTROLS */}
-                        {activeDetailTab !== 'quiz' && (
+                        {activeDetailTab !== 'quiz' && activeDetailTab !== 'TABLE OF CONTENTS' && activeDetailTab !== 'recipe' && activeDetailTab !== 'event' && (
                             <div className="flex justify-center items-center py-4">
                                 <div className="inline-flex bg-white border border-palette-tan/20 rounded-[3px] p-1.5 shadow-sm gap-1">
                                     <button
@@ -3703,26 +6335,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                         onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'görsel bloğu'))}
                                     />
                                 ) : item.type === 'video' ? (
-                                    <PostVideoItem
-                                        key={itemKey}
-                                        item={item}
-                                        index={index}
-                                        totalItems={formData.items.length}
-                                        showBlockNumbers={showBlockNumbers}
-                                        onUpdate={handleUpdateItem}
-                                        onRemove={handleRemoveItem}
-                                        isDeletable={(activeDetailTab !== 'article' && activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') || formData.items.length > 1}
-                                        onMoveUp={(idx) => handleMoveItem(idx, 'up')}
-                                        onMoveDown={(idx) => handleMoveItem(idx, 'down')}
-                                        onOpenFileManager={(id) => {
-                                            setActiveMediaTarget(id);
-                                            setActiveMediaType('video');
-                                            fetchMedia('video');
-                                            setShowFileManager(true);
-                                        }}
-                                        onOpenUrlMode={(id) => { setActiveMediaTarget(id); setActiveMediaType('video'); setTempUrl(''); setUrlError(null); setIsUrlMode(true); }}
-                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'video bloğu'))}
-                                    />
+                                    activeDetailTab === 'recipe' ? null : renderVideoEditor(item, index)
                                 ) : item.type === 'audio' ? (
                                     <PostAudioItem
                                         key={itemKey}
@@ -3848,8 +6461,8 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                         onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'before after görseli'))}
                                     />
                                 ) : item.type === ('quiz' as any) ? (
-                                    <PostQuizItem
-                                        key={itemKey}
+	                                    <PostQuizItem
+	                                        key={itemKey}
                                         item={item}
                                         index={index}
                                         totalItems={formData.items.length}
@@ -3884,10 +6497,16 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             setIsEditorSaving(false);
                                             setShowImageEditor(true);
                                         }}
-                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'quiz görseli'))}
-                                    />
-                                ) : item.type === 'iframe' ? (
-                                    <PostIframeItem
+	                                        onRenameMedia={(src, type) => handleRenameMediaWithAi(src, type, buildFocusedMediaKind(item, index, 'quiz görseli'))}
+	                                    />
+		                                ) : item.type === 'toc' ? (
+                                            activeDetailTab === 'TABLE OF CONTENTS' ? null : renderTableOfContentsEditor(item, index)
+		                                ) : item.type === 'recipe' ? (
+                                            activeDetailTab === 'recipe' ? null : renderRecipeEditor(item, index)
+                                    ) : item.type === 'event' ? (
+                                            activeDetailTab === 'event' ? null : renderEventEditor(item, index)
+	                                ) : item.type === 'iframe' ? (
+	                                    <PostIframeItem
                                         key={itemKey}
                                         item={item}
                                         index={index}
@@ -4045,7 +6664,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                 );
                             })}
 
-                            {(activeDetailTab !== 'poll' && activeDetailTab !== 'video' && activeDetailTab !== 'quiz') && (
+                            {activeDetailTab !== 'quiz' && (
                                 <div className="flex flex-wrap pt-4 gap-3">
                                     <button
                                         onClick={handleAddItem}
@@ -4307,10 +6926,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                             className={`w-full bg-palette-beige/5 border border-palette-tan/20 rounded-[3px] p-3 text-sm font-bold text-palette-maroon outline-none appearance-none cursor-pointer focus:border-palette-red transition-all ${!(selectedSubId || selectedParentId) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="">{t('admin.post.select_sub_cat')}</option>
-                                            {categories.filter(c =>
-                                                c.parent_id === (selectedSubId || selectedParentId) &&
-                                                (c.type === 'category' || c.type === 'district')
-                                            ).map(cat => (
+                                            {subCategoryOptions.map(cat => (
                                                 <option key={cat.id} value={cat.id}>{cat.label}</option>
                                             ))}
                                         </select>
@@ -4449,6 +7065,16 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                         } else {
                                             handleUpdateItem(activeMediaTarget, 'mediaUrl', src);
                                         }
+                                    } else if (targetItem?.type === 'quiz' && activeMediaSubTarget) {
+                                        handleUpdateItem(activeMediaTarget, 'quizData', setNestedPath(targetItem.quizData || {}, activeMediaSubTarget, src) as any);
+                                    } else if (targetItem?.type === 'toc' && activeMediaSubTarget === 'tocItems' && activeMediaOptionTarget) {
+                                        handleUpdateItem(activeMediaTarget, 'tocData', withUpdatedTocItemImage(targetItem, activeMediaOptionTarget, src) as any);
+                                    } else if (targetItem?.type === 'recipe' && activeMediaSubTarget === 'recipeDirections' && activeMediaOptionTarget) {
+                                        handleUpdateItem(activeMediaTarget, 'recipeData', withUpdatedRecipeDirectionImage(targetItem, activeMediaOptionTarget, src) as any);
+                                    } else if (targetItem?.type === 'event' && activeMediaSubTarget === 'eventSchedule' && activeMediaOptionTarget) {
+                                        handleUpdateItem(activeMediaTarget, 'eventData', withUpdatedEventScheduleImage(targetItem, activeMediaOptionTarget, src) as any);
+                                    } else if (targetItem?.type === 'event' && activeMediaSubTarget === 'eventSpeakers' && activeMediaOptionTarget) {
+                                        handleUpdateItem(activeMediaTarget, 'eventData', withUpdatedEventSpeakerImage(targetItem, activeMediaOptionTarget, src) as any);
                                     } else {
                                         handleUpdateItem(activeMediaTarget, 'mediaUrl', src);
                                     }

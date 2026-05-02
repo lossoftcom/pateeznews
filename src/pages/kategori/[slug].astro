@@ -1,11 +1,13 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import HomePage from '@/components/HomePage';
-import { dataService } from '@/services/dataService';
+import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getImage } from 'astro:assets';
+import sharp from 'sharp';
+import path from 'node:path';
 
 export const prerender = false;
 
@@ -43,20 +45,46 @@ const initialLang = {
   is_default: langMeta?.isDefault || lang === defaultLangCode
 };
 
+const NORMAL_CATEGORY_LABELS: Record<string, string> = {
+  spor: 'Spor',
+};
+
 const resolvedCategory = (() => {
   if (!slug) return null;
   const match = navigationItems.find((item) => item.value === slug || slugify(item.label) === slug || slugify(item.value) === slug);
-  return match?.label || slug;
+  return match?.label || NORMAL_CATEGORY_LABELS[slugify(slug)] || slug;
 })();
 
-const newsItems = await dataService.getNewsItems(lang, resolvedCategory);
+const CATEGORY_PAGE_SIZE = 12;
+const categoryNewsPage = await dataService.getCategoryNewsPage(lang, resolvedCategory || '', CATEGORY_PAGE_SIZE, 0);
+const newsItems = categoryNewsPage.items;
 
 const title = `${resolvedCategory || slug} | ${siteSettings?.site_name || "Pateez News"}`;
 
 const canonicalBase = String(siteSettings?.canonical_url || Astro.url.origin).trim();
 const canonicalUrl = new URL(`/kategori/${encodeURIComponent(String(slug || ''))}`, canonicalBase).toString();
 
-const stripHtml = (html: string) => (html || '').replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
+const TEXT_ENTITY_MAP: Record<string, string> = {
+  amp: '&', apos: "'", Ccedil: 'Ç', ccedil: 'ç', Gbreve: 'Ğ', gbreve: 'ğ', hellip: '...',
+  Idot: 'İ', imath: 'ı', laquo: '"', ldquo: '"', lsquo: "'", nbsp: ' ', Ouml: 'Ö',
+  ouml: 'ö', quot: '"', raquo: '"', rdquo: '"', rsquo: "'", Scedil: 'Ş', scedil: 'ş',
+  Uuml: 'Ü', uuml: 'ü',
+};
+const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
+  const codePoint = Number.parseInt(value, radix);
+  if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+  try { return String.fromCodePoint(codePoint); } catch { return fallback; }
+};
+const decodeTextEntities = (value: string) => {
+  const decodeOnce = (input: string) => input
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextCodePoint(hex, 16, match))
+    .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextCodePoint(decimal, 10, match));
+  return decodeOnce(decodeOnce(value));
+};
+const stripHtml = (html: string) => decodeTextEntities((html || '').replace(/<[^>]*>?/gm, ' ').replace(/&nbsp;/g, ' '))
+  .replace(/\s+/g, ' ')
+  .trim();
 
 const breadcrumbLd = {
   "@context": "https://schema.org",
@@ -91,15 +119,64 @@ const itemListLd = {
 const THUMB_WIDTHS = [320, 480, 640, 840, 1280];
 const THUMB_SIZES = '(max-width: 840px) 100vw, 840px';
 const MAX_OPTIMIZED_ITEMS = 12;
+const STORAGE_FILE_PREFIX = '/api/storage/file/';
+const IMAGE_STORAGE_TYPES = new Set(['image', 'logo', 'profile']);
+
+const resolveLocalStorageImage = (src: string) => {
+  const raw = String(src || '').trim();
+  if (!raw) return null;
+
+  let pathname = raw;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      pathname = new URL(raw).pathname;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!pathname.startsWith(STORAGE_FILE_PREFIX)) return null;
+
+  const relativePath = decodeURIComponent(pathname.slice(STORAGE_FILE_PREFIX.length));
+  const [type, ...parts] = relativePath.split('/').filter(Boolean);
+  if (!type || !IMAGE_STORAGE_TYPES.has(type) || parts.length === 0) return null;
+
+  const baseDir = path.resolve(process.cwd(), 'Upload', type);
+  const filePath = path.resolve(baseDir, ...parts);
+  if (filePath !== baseDir && filePath.startsWith(`${baseDir}${path.sep}`)) return filePath;
+  return null;
+};
+
+const readLocalImageDimensions = async (src: string) => {
+  const filePath = resolveLocalStorageImage(src);
+  if (!filePath) return null;
+
+  try {
+    const metadata = await sharp(filePath).metadata();
+    const width = Number(metadata.width || 0);
+    const height = Number(metadata.height || 0);
+    if (width > 0 && height > 0) return { width, height };
+  } catch {
+    return null;
+  }
+
+  return null;
+};
 
 const buildOptimizedThumbnail = async (src: string) => {
   const raw = String(src || '').trim();
   if (!raw || raw.startsWith('data:')) return null;
+  const dimensions = await readLocalImageDimensions(raw);
   try {
     const result = await getImage({ src: raw, widths: THUMB_WIDTHS, format: 'webp', quality: 'mid' });
-    return { src: result.src, srcSet: result.srcSet.attribute, sizes: THUMB_SIZES };
+    return {
+      src: result.src,
+      srcSet: result.srcSet.attribute,
+      sizes: THUMB_SIZES,
+      ...(dimensions || {}),
+    };
   } catch {
-    return null;
+    return dimensions ? { src: raw, ...dimensions } : null;
   }
 };
 
@@ -133,6 +210,14 @@ const newsItemsWithOptimized = await Promise.all(
     navigationItems={navigationItems}
     newsItems={newsItemsWithOptimized}
     storiesItems={storiesItems}
+    categoryPagination={{
+      category: String(resolvedCategory || slug || ''),
+      limit: categoryNewsPage.limit,
+      nextOffset: categoryNewsPage.nextOffset,
+      total: categoryNewsPage.total,
+      totalViews: categoryNewsPage.totalViews,
+      hasMore: categoryNewsPage.hasMore,
+    }}
     selectedCategory={slug}
     isInitialHome={false}
   />

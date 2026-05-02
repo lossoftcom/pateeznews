@@ -1,10 +1,11 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import HomePage from '@/components/HomePage';
-import { dataService } from '@/services/dataService';
+import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
+import { getSpecialContentConfig } from '@/utils/specialContent';
 
 const cookies = Astro.request.headers.get('cookie') || '';
 const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];
@@ -12,6 +13,8 @@ const activeCatCookieValue = cookies.match(/pateez_active_cat=([^;]+)/)?.[1];
 const activeCatCookie = activeCatCookieValue ? decodeURIComponent(activeCatCookieValue) : null;
 const acceptLanguageHeader = Astro.request.headers.get('accept-language');
 const urlLang = Astro.url.searchParams.get('lang');
+const urlCategory = Astro.url.searchParams.get('kategori');
+const specialUrlCategory = getSpecialContentConfig(urlCategory);
 
 // Get SEO alternates first to resolve language
 const seoAlternates = await dataService.getSeoAlternates();
@@ -29,6 +32,7 @@ const langMeta = seoAlternates.find((entry) => entry.code === lang);
 // 🚀 LIGHT-SPEED PARALLEL FETCH (Everything in one go)
 // Logic: If there's a category cookie, we fetch that specific category news directly in the parallel block.
 const getNewsItemsForInitialLoad = async () => {
+    if (specialUrlCategory) return dataService.getNewsItems(lang, specialUrlCategory.value);
     if (!activeCatCookie) return dataService.getNewsItems(lang);
     
     // Quick resolve nav items locally for broad filtering logic to avoid extra DB hit if possible, 
@@ -52,7 +56,9 @@ const [initialTranslations, siteSettings, navigationItems, storiesItems, newsIte
 
 // Determine selectedCategory for the UI
 let selectedCategory: string | undefined = undefined;
-if (activeCatCookie) {
+if (specialUrlCategory) {
+    selectedCategory = specialUrlCategory.value;
+} else if (activeCatCookie) {
     const normalized = activeCatCookie.trim();
     const normalizedSlug = slugify(normalized);
     const navItem = navigationItems.find((item: any) =>
@@ -80,7 +86,27 @@ const description = siteSettings?.meta_description || "";
 const ogImage = siteSettings?.og_image_url || "";
 
 const canonicalBase = String(siteSettings?.canonical_url || Astro.url.origin).trim();
-const stripHtml = (html: string) => (html || '').replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
+const TEXT_ENTITY_MAP: Record<string, string> = {
+  amp: '&', apos: "'", Ccedil: 'Ç', ccedil: 'ç', Gbreve: 'Ğ', gbreve: 'ğ', hellip: '...',
+  Idot: 'İ', imath: 'ı', laquo: '"', ldquo: '"', lsquo: "'", nbsp: ' ', Ouml: 'Ö',
+  ouml: 'ö', quot: '"', raquo: '"', rdquo: '"', rsquo: "'", Scedil: 'Ş', scedil: 'ş',
+  Uuml: 'Ü', uuml: 'ü',
+};
+const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
+  const codePoint = Number.parseInt(value, radix);
+  if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+  try { return String.fromCodePoint(codePoint); } catch { return fallback; }
+};
+const decodeTextEntities = (value: string) => {
+  const decodeOnce = (input: string) => input
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextCodePoint(hex, 16, match))
+    .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextCodePoint(decimal, 10, match));
+  return decodeOnce(decodeOnce(value));
+};
+const stripHtml = (html: string) => decodeTextEntities((html || '').replace(/<[^>]*>?/gm, ' ').replace(/&nbsp;/g, ' '))
+  .replace(/\s+/g, ' ')
+  .trim();
 const itemListLd = {
   "@context": "https://schema.org",
   "@type": "ItemList",

@@ -16,7 +16,7 @@ const ParagraphCard: React.FC<ParagraphCardProps> = ({ data }) => {
             {/* SUBTITLE (SUMMARY) - Standard Card Style as Alt Başlık */}
             <div className="px-1 mb-2">
                 <div
-                    className="rich-text-content text-palette-tan/60 text-[16px] font-medium leading-relaxed text-left [&>p]:mb-0"
+                    className="news-subtitle-font rich-text-content text-palette-tan/60 text-[16px] font-medium leading-relaxed text-left [&>p]:mb-0"
                     dangerouslySetInnerHTML={{ __html: data.summary }}
                 />
             </div>
@@ -37,7 +37,7 @@ const ParagraphCard: React.FC<ParagraphCardProps> = ({ data }) => {
                         {items.map((item, index) => (
                             <div
                                 key={index}
-                                className="rich-text-content text-[22px] md:text-[26px] font-[800] text-palette-maroon/90 leading-snug tracking-tight italic w-full break-words break-all sm:break-normal"
+                                className="rich-text-content text-[22px] md:text-[26px] font-[800] text-palette-maroon/90 leading-snug tracking-tight italic w-full break-normal"
                                 dangerouslySetInnerHTML={{ __html: item }}
                             />
                         ))}

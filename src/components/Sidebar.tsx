@@ -6,6 +6,12 @@ import Footer from './Footer';
 import Skeleton from '@/components/ui/Skeleton';
 import { slugify } from '@/utils/helpers';
 import { navigate } from 'astro:transitions/client';
+import {
+  SPECIAL_CONTENT_FILTERS,
+  getSpecialContentConfig,
+  getSpecialContentConfigForItem,
+  getSpecialContentRank
+} from '@/utils/specialContent';
 
 interface SidebarProps {
   items: NavigationItem[];
@@ -20,9 +26,34 @@ interface SidebarProps {
 
 // 🌈 SIRA TABANLI RENK MOTORU (SEQUENTIAL COLOR ENGINE) - Consistency with brand aesthetics
 const ICON_COLORS = [
-  '#FF6B00', '#448AFF', '#9C27B0', '#E91E63', '#3F51B5', '#00BCD4',
-  '#4CAF50', '#FF5252', '#FF9800', '#673AB7', '#2196F3', '#009688'
+  '#EA4335', '#F39C12', '#2C3E50', '#95A5A6',
+  '#EA4335', '#F39C12', '#2C3E50', '#95A5A6'
 ];
+
+const HIDDEN_SIDEBAR_SPECIAL_KEYS = new Set(['poll', 'quiz', 'video', 'event']);
+const SIDEBAR_END_SPECIAL_KEYS = new Set(['contents']);
+const NORMAL_SIDEBAR_CATEGORY_FALLBACKS: NavigationItem[] = [
+  {
+    id: 'sidebar-normal-spor',
+    menu_id: 'virtual',
+    parent_id: '',
+    label: 'Spor',
+    type: 'category',
+    value: 'spor',
+    icon: 'sports_soccer',
+    order_index: 7,
+    is_active: true,
+  },
+];
+
+const getSpecialSidebarOrder = (rank: number) => Number.isFinite(rank) ? rank : 9999;
+
+const getDefaultRootItem = (items: NavigationItem[]) => (
+  items.find((item) => {
+    const value = item.value || item.label || '';
+    return slugify(value) === 'nigde' || slugify(item.label) === 'nigde';
+  }) || items[0] || null
+);
 
 const Sidebar: React.FC<SidebarProps> = ({
   items, activeCategory, onCategoryItemClick,
@@ -69,7 +100,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     return findRootId(item.parent_id);
   };
 
-  const selectedRootId = useMemo(() => selectedItem ? findRootId(selectedItem.id) : null, [selectedItem, items]);
+  const selectedRootId = useMemo(() => {
+    if (selectedItem) return findRootId(selectedItem.id);
+    if (getSpecialContentConfig(activeCategory)) {
+      return getDefaultRootItem(rootItems)?.id || null;
+    }
+    return getDefaultRootItem(rootItems)?.id || null;
+  }, [activeCategory, rootItems, selectedItem, items]);
 
   // 3. Group children of the selected root category
   const children = useMemo(() => {
@@ -78,10 +115,85 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, [selectedRootId, items]);
 
   const districts = children.filter(c => c.type === 'district');
-  const categoriesSub = children.filter(c =>
-    (c.type === 'category' || c.type === 'dropdown' || c.type === 'link' || !c.type)
+  const rawCategoryItems = children
+    .filter(c => (c.type === 'category' || c.type === 'dropdown' || c.type === 'link' || !c.type))
+    .filter(c => {
+      const specialConfig = getSpecialContentConfigForItem(c);
+      return !specialConfig || !HIDDEN_SIDEBAR_SPECIAL_KEYS.has(specialConfig.key);
+    })
+    .map((c) => {
+      const specialConfig = getSpecialContentConfigForItem(c);
+      if (!specialConfig) return c;
+      return {
+        ...c,
+        label: specialConfig.label,
+        value: specialConfig.value,
+        icon: c.icon || specialConfig.icon,
+        order_index: getSpecialSidebarOrder(specialConfig.rank),
+      };
+    });
+  const seenCategoryKeys = new Set<string>();
+  const categoryItems = rawCategoryItems.filter((item) => {
+    const specialConfig = getSpecialContentConfigForItem(item);
+    const key = specialConfig
+      ? `special:${specialConfig.key}`
+      : `normal:${slugify(item.value || item.label || '')}`;
+    if (!key || seenCategoryKeys.has(key)) return false;
+    seenCategoryKeys.add(key);
+    return true;
+  });
+  const existingSpecialKeys = new Set(
+    categoryItems
+      .map((item) => getSpecialContentConfigForItem(item)?.key)
+      .filter(Boolean)
   );
+  const injectedSidebarCategories: NavigationItem[] = selectedRootId
+    ? SPECIAL_CONTENT_FILTERS
+      .filter((config) => config.injectInSidebar && !existingSpecialKeys.has(config.key))
+      .map((config) => ({
+        id: `sidebar-special-${config.key}`,
+        menu_id: 'virtual',
+        parent_id: selectedRootId,
+        label: config.label,
+        type: 'category',
+        value: config.value,
+        icon: config.icon,
+        order_index: getSpecialSidebarOrder(config.rank),
+        is_active: true,
+      }))
+    : [];
+  const existingNormalCategoryKeys = new Set(
+    [...categoryItems, ...injectedSidebarCategories]
+      .flatMap((item) => [slugify(item.value || ''), slugify(item.label || '')])
+      .filter(Boolean)
+  );
+  const injectedNormalCategories = selectedRootId
+    ? NORMAL_SIDEBAR_CATEGORY_FALLBACKS
+      .filter((item) => !existingNormalCategoryKeys.has(slugify(item.value || item.label || '')))
+      .map((item) => ({ ...item, parent_id: selectedRootId }))
+    : [];
+  const categoriesSub = [...categoryItems, ...injectedSidebarCategories, ...injectedNormalCategories]
+    .sort((a, b) => {
+      const configA = getSpecialContentConfigForItem(a);
+      const configB = getSpecialContentConfigForItem(b);
+      const endA = !!configA && SIDEBAR_END_SPECIAL_KEYS.has(configA.key);
+      const endB = !!configB && SIDEBAR_END_SPECIAL_KEYS.has(configB.key);
+      if (endA !== endB) return endA ? 1 : -1;
+      const rankA = getSpecialContentRank(a);
+      const rankB = getSpecialContentRank(b);
+      return rankA !== rankB ? rankA - rankB : a.order_index - b.order_index;
+    });
   const trendsSub = children.filter(c => c.type === 'trends');
+
+  const isActiveItem = (item: NavigationItem) => {
+    if (!activeCategory) return false;
+    const normalized = String(activeCategory).trim();
+    const normalizedSlug = slugify(normalized);
+    return item.value === normalized ||
+      item.label === normalized ||
+      (item.value && slugify(item.value) === normalizedSlug) ||
+      slugify(item.label) === normalizedSlug;
+  };
 
   const renderIcon = (iconName: string, size = 20, color?: string, isSelected = false) => {
     if (!iconName) return null;
@@ -116,7 +228,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={`w-full relative flex items-center py-2.5 px-3 rounded-[5px] transition-all group ${isActive ? 'text-palette-red bg-palette-beige/5' : 'text-gray-600 hover:bg-palette-beige/10'}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`transition-all duration-150 ${isActive ? 'text-emerald-500 scale-110' : 'text-gray-400'}`}>
+                  <div className={`transition-all duration-150 ${isActive ? 'text-palette-red scale-110' : 'text-gray-400'}`}>
                     {renderIcon(isActive ? 'where_to_vote' : (item.icon || 'grid_view'), 20, isActive ? undefined : iconColor, isActive)}
                   </div>
                   <span className={`text-[14px] font-bold tracking-tight ${isActive ? 'text-gray-900 font-black' : ''}`}>
@@ -145,7 +257,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </h3>
               <div className="flex flex-col gap-1">
                 {districts.map((child, idx) => {
-                  const isActive = activeCategory === child.value || activeCategory === child.label;
+                  const isActive = isActiveItem(child);
                   const iconColor = ICON_COLORS[(idx + 8) % ICON_COLORS.length];
                   return (
                     <button
@@ -153,7 +265,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => navigateToCategory(child.value || child.label || null)}
                       className={`w-full flex items-center gap-3 py-2 px-3 rounded-[5px] transition-all group ${isActive ? 'text-palette-red bg-palette-beige/5' : 'text-gray-600 hover:bg-palette-beige/10'}`}
                     >
-                      <div className={`transition-all duration-150 ${isActive ? 'text-emerald-500 scale-110' : ''}`}>
+                      <div className={`transition-all duration-150 ${isActive ? 'text-palette-red scale-110' : ''}`}>
                         {renderIcon(isActive ? 'where_to_vote' : (child.icon || 'location_on'), 18, isActive ? undefined : iconColor, isActive)}
                       </div>
                       <span className={`text-[13px] font-bold tracking-tight ${isActive ? 'text-gray-900 font-black' : ''}`}>
@@ -178,7 +290,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </h3>
               <div className="flex flex-col gap-1">
                 {categoriesSub.map((child, idx) => {
-                  const isActive = activeCategory === child.value || activeCategory === child.label;
+                  const isActive = isActiveItem(child);
                   const iconColor = ICON_COLORS[(idx + 5) % ICON_COLORS.length];
                   return (
                     <button
@@ -211,7 +323,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </h3>
               <div className="flex flex-col gap-1">
                 {trendsSub.map((child, idx) => {
-                  const isActive = activeCategory === child.value || activeCategory === child.label;
+                  const isActive = isActiveItem(child);
                   const iconColor = ICON_COLORS[(idx + 2) % ICON_COLORS.length];
                   return (
                     <button

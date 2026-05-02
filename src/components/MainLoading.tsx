@@ -46,11 +46,11 @@ const MainLoading: React.FC = () => {
     const siteName = settings?.site_name || '';
 
     return (
-        <div className="fixed inset-0 z-[1000] bg-[#fcfcfb] flex flex-col items-center justify-center">
+        <div className="fixed inset-0 z-[1000] bg-[#F8F9FA] flex flex-col items-center justify-center">
             {/* High-End Background */}
             <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute top-[-10%] right-[-10%] w-1/2 h-1/2 bg-palette-red/[0.01] rounded-full blur-[120px]"></div>
-                <div className="absolute bottom-[-10%] left-[-10%] w-1/2 h-1/2 bg-[#182540]/[0.01] rounded-full blur-[120px]"></div>
+                <div className="absolute bottom-[-10%] left-[-10%] w-1/2 h-1/2 bg-[#2C3E50]/[0.01] rounded-full blur-[120px]"></div>
             </div>
 
             <div className="relative flex flex-col items-center w-full max-w-[220px]">
@@ -74,7 +74,7 @@ const MainLoading: React.FC = () => {
                         </div>
                     ) : settings ? (
                         <div className="animate-reveal-instant">
-                            <span className="text-xl font-[900] tracking-tighter text-[#182540] uppercase">
+                            <span className="text-xl font-[900] tracking-tighter text-[#2C3E50] uppercase">
                                 {siteName}
                             </span>
                         </div>
@@ -85,7 +85,7 @@ const MainLoading: React.FC = () => {
 
                 {/* Micro Loader */}
                 <div className="w-full space-y-5">
-                    <div className="w-full h-[1.5px] bg-[#182540]/[0.02] relative overflow-hidden rounded-full">
+                    <div className="w-full h-[1.5px] bg-[#2C3E50]/[0.02] relative overflow-hidden rounded-full">
                         <div className="absolute inset-0 bg-palette-red/30 w-full animate-fast-shimmer"></div>
                     </div>
                 </div>

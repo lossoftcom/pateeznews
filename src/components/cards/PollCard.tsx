@@ -28,7 +28,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
       {/* SUMMARY - Creative Style */}
       <div className="px-1 mb-2">
         <div
-          className="text-palette-maroon/60 text-[15px] leading-relaxed font-[500] italic [&>p]:m-0"
+          className="news-subtitle-font text-palette-maroon/60 text-[15px] leading-relaxed font-[500] italic [&>p]:m-0"
           dangerouslySetInnerHTML={{ __html: data.summary }}
         />
       </div>
@@ -67,7 +67,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
             {/* Live Indicator - Top Left */}
             <div className="absolute top-4 left-4 z-20">
               <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/10">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+                <div className="w-2 h-2 bg-palette-accent rounded-full animate-pulse shadow-[0_0_8px_rgba(243,156,18,0.6)]" />
                 <span className="text-[9px] font-black text-white uppercase tracking-widest">{t('right.live')}</span>
               </div>
             </div>

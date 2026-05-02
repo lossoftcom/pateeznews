@@ -11,6 +11,14 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    --pateez-deep-ocean: #2C3E50;
+    --pateez-surface: #F8F9FA;
+    --pateez-action: #EA4335;
+    --pateez-accent: #F39C12;
+    --pateez-support: #95A5A6;
+}
+
 /* Scaleflex UI poppers (used by Filerobot) are portaled to #SfxPopper.
    Our admin modals use very high z-index, so ensure poppers render above them. */
 #SfxPopper .SfxPopper-wrapper {
@@ -34,6 +42,58 @@
     font-weight: 300 900;
     font-display: swap;
     src: url('/fonts/inter-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'PateezAppleDisplay';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src:
+        local('SF Pro Display'),
+        local('SFProDisplay-Regular'),
+        local('.SF NS Display'),
+        url('/fonts/inter-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: 'PateezAppleDisplay';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src:
+        local('SF Pro Display'),
+        local('SFProDisplay-Regular'),
+        local('.SF NS Display'),
+        url('/fonts/inter-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'PateezAppleText';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src:
+        local('SF Pro Text'),
+        local('SFProText-Regular'),
+        local('.SF NS Text'),
+        url('/fonts/inter-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: 'PateezAppleText';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src:
+        local('SF Pro Text'),
+        local('SFProText-Regular'),
+        local('.SF NS Text'),
+        url('/fonts/inter-latin.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
@@ -69,12 +129,40 @@
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #F2F2F2;
+    background: var(--pateez-surface);
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #182540;
+    background: var(--pateez-deep-ocean);
+}
+
+html:has(body.admin-scrollbar-visible),
+body.admin-scrollbar-visible {
+    scrollbar-width: auto;
+    scrollbar-color: var(--pateez-support) var(--pateez-surface);
+}
+
+html:has(body.admin-scrollbar-visible)::-webkit-scrollbar,
+body.admin-scrollbar-visible::-webkit-scrollbar {
+    width: 10px;
+}
+
+html:has(body.admin-scrollbar-visible)::-webkit-scrollbar-track,
+body.admin-scrollbar-visible::-webkit-scrollbar-track {
+    background: var(--pateez-surface);
+}
+
+html:has(body.admin-scrollbar-visible)::-webkit-scrollbar-thumb,
+body.admin-scrollbar-visible::-webkit-scrollbar-thumb {
+    background: var(--pateez-support);
+    border: 2px solid var(--pateez-surface);
+    border-radius: 999px;
+}
+
+html:has(body.admin-scrollbar-visible)::-webkit-scrollbar-thumb:hover,
+body.admin-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: var(--pateez-deep-ocean);
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -107,6 +195,34 @@
     image-rendering: crisp-edges;
 }
 
+.news-title-font {
+    font-family: 'PateezAppleDisplay', 'SF Pro Display', 'PateezAppleText', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 900;
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+.news-subtitle-font {
+    font-family: 'PateezAppleText', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 400;
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+.news-subtitle-font :is(p, span, div, strong, em, a, li) {
+    font-family: inherit;
+    letter-spacing: inherit;
+}
+
+.news-subtitle-font strong,
+.news-subtitle-font b {
+    font-weight: 600;
+}
+
 /* Optimize scaling and transitions to prevent blur */
 .admin-font {
     -webkit-font-smoothing: antialiased;
@@ -135,18 +251,18 @@
     }
 
     2% {
-        filter: drop-shadow(0 0 6px rgba(208, 53, 78, 0.6));
-        color: #D0354E;
+        filter: drop-shadow(0 0 6px rgba(234, 67, 53, 0.6));
+        color: var(--pateez-action);
     }
 
     4% {
-        filter: drop-shadow(0 0 2px rgba(208, 53, 78, 0.3));
+        filter: drop-shadow(0 0 2px rgba(234, 67, 53, 0.3));
         color: inherit;
     }
 
     6% {
-        filter: drop-shadow(0 0 4px rgba(208, 53, 78, 0.5));
-        color: #D0354E;
+        filter: drop-shadow(0 0 4px rgba(234, 67, 53, 0.5));
+        color: var(--pateez-action);
     }
 }
 
@@ -179,30 +295,30 @@
     overflow: hidden;
     isolation: isolate;
     pointer-events: none;
-    background: #fff7ed;
-    box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.08);
+    background: var(--pateez-surface);
+    box-shadow: inset 0 0 0 1px rgba(243, 156, 18, 0.08);
 }
 
 .weather-motion--clear-night {
-    background: #eef2ff;
-    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.08);
+    background: var(--pateez-surface);
+    box-shadow: inset 0 0 0 1px rgba(44, 62, 80, 0.08);
 }
 
 .weather-motion--cloudy {
-    background: #f8fafc;
-    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+    background: var(--pateez-surface);
+    box-shadow: inset 0 0 0 1px rgba(149, 165, 166, 0.12);
 }
 
 .weather-motion--rain,
 .weather-motion--storm {
-    background: #eff6ff;
-    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
+    background: var(--pateez-surface);
+    box-shadow: inset 0 0 0 1px rgba(44, 62, 80, 0.1);
 }
 
 .weather-motion--snow,
 .weather-motion--fog {
-    background: #f8fafc;
-    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.1);
+    background: var(--pateez-surface);
+    box-shadow: inset 0 0 0 1px rgba(149, 165, 166, 0.1);
 }
 
 .weather-motion__orb,
@@ -218,14 +334,14 @@
     top: 50%;
     z-index: 2;
     transform: translate(-50%, -50%);
-    background: #fb923c;
-    box-shadow: 0 0 14px rgba(251, 146, 60, 0.35);
+    background: var(--pateez-accent);
+    box-shadow: 0 0 14px rgba(243, 156, 18, 0.35);
     animation: weather-orb-pulse 2.6s ease-in-out infinite;
 }
 
 .weather-motion--clear-night .weather-motion__orb {
-    background: #64748b;
-    box-shadow: 0 0 12px rgba(100, 116, 139, 0.25);
+    background: var(--pateez-deep-ocean);
+    box-shadow: 0 0 12px rgba(44, 62, 80, 0.25);
 }
 
 .weather-motion__moon-cut {
@@ -236,7 +352,7 @@
     top: 0.9rem;
     z-index: 3;
     border-radius: 999px;
-    background: #eef2ff;
+    background: var(--pateez-surface);
 }
 
 .weather-motion__ray {
@@ -249,7 +365,7 @@
     margin-left: -0.09rem;
     margin-top: -1.075rem;
     border-radius: 999px;
-    background: linear-gradient(to bottom, rgba(251, 146, 60, 0.1), rgba(251, 146, 60, 0.75), rgba(251, 146, 60, 0.1));
+    background: linear-gradient(to bottom, rgba(243, 156, 18, 0.1), rgba(243, 156, 18, 0.75), rgba(243, 156, 18, 0.1));
     transform-origin: 50% 50%;
     animation: weather-rays-spin 8s linear infinite;
 }
@@ -275,16 +391,16 @@
     left: 0.62rem;
     top: 0.58rem;
     z-index: 1;
-    background: #fbbf24;
+    background: var(--pateez-accent);
     opacity: 0.8;
-    box-shadow: 0 0 12px rgba(251, 191, 36, 0.22);
+    box-shadow: 0 0 12px rgba(243, 156, 18, 0.22);
     animation: weather-back-pulse 3.2s ease-in-out infinite;
 }
 
 .weather-motion--rain .weather-motion__back-orb,
 .weather-motion--storm .weather-motion__back-orb,
 .weather-motion--snow .weather-motion__back-orb {
-    background: #cbd5e1;
+    background: var(--pateez-support);
     opacity: 0.55;
     box-shadow: none;
 }
@@ -293,8 +409,8 @@
     position: absolute;
     z-index: 3;
     border-radius: 999px;
-    background: #94a3b8;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    background: var(--pateez-support);
+    box-shadow: 0 4px 10px rgba(44, 62, 80, 0.08);
     animation: weather-cloud-drift 3.8s ease-in-out infinite;
 }
 
@@ -353,12 +469,12 @@
 
 .weather-motion--storm .weather-motion__cloud,
 .weather-motion--rain .weather-motion__cloud {
-    background: #64748b;
+    background: var(--pateez-deep-ocean);
 }
 
 .weather-motion--snow .weather-motion__cloud,
 .weather-motion--fog .weather-motion__cloud {
-    background: #cbd5e1;
+    background: var(--pateez-support);
 }
 
 .weather-motion__drop,
@@ -373,7 +489,7 @@
     width: 0.12rem;
     height: 0.5rem;
     border-radius: 999px;
-    background: #38bdf8;
+    background: var(--pateez-deep-ocean);
     transform: rotate(12deg);
 }
 
@@ -395,8 +511,8 @@
     width: 0.28rem;
     height: 0.28rem;
     border-radius: 999px;
-    background: #93c5fd;
-    box-shadow: 0 0 0 1px rgba(147, 197, 253, 0.18);
+    background: var(--pateez-support);
+    box-shadow: 0 0 0 1px rgba(149, 165, 166, 0.18);
 }
 
 .weather-motion__flake--1 {
@@ -420,9 +536,9 @@
     z-index: 5;
     width: 0.54rem;
     height: 0.98rem;
-    background: #f59e0b;
+    background: var(--pateez-accent);
     clip-path: polygon(48% 0, 100% 0, 62% 42%, 88% 42%, 26% 100%, 42% 54%, 12% 54%);
-    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.45));
+    filter: drop-shadow(0 0 5px rgba(243, 156, 18, 0.45));
     animation: weather-bolt-flash 1.2s steps(2, end) infinite;
 }
 
@@ -433,7 +549,7 @@
     width: 1.72rem;
     height: 0.12rem;
     border-radius: 999px;
-    background: #94a3b8;
+    background: var(--pateez-support);
     opacity: 0.65;
     animation: weather-fog-slide 2.4s ease-in-out infinite;
 }
@@ -553,15 +669,34 @@
 }
 
 /* 📝 RICH TEXT CONTENT STYLING (GLOBAL) */
+.news-title-font,
+.news-subtitle-font,
 .rich-text-content,
 .rich-text-content * {
-    overflow-wrap: break-word !important;
-    word-wrap: break-word !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
     word-break: normal !important;
-    hyphens: none !important;
-    -webkit-hyphens: none !important;
-    -moz-hyphens: none !important;
-    -ms-hyphens: none !important;
+    hyphens: auto !important;
+    -webkit-hyphens: auto !important;
+    -moz-hyphens: auto !important;
+    -ms-hyphens: auto !important;
+    line-break: auto !important;
+}
+
+.news-title-font,
+.news-subtitle-font,
+.rich-text-content p,
+.rich-text-content li {
+    text-wrap: pretty;
+}
+
+.rich-text-content a,
+.rich-text-content code,
+.rich-text-content pre {
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    hyphens: manual !important;
+    -webkit-hyphens: manual !important;
 }
 
 .rich-text-content img {
@@ -570,7 +705,7 @@
     border-radius: 5px;
     margin: 1.5rem auto;
     display: block;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(44, 62, 80, 0.08);
 }
 
 .rich-text-content iframe,
@@ -593,7 +728,7 @@
     font-weight: 800;
     margin-top: 2rem;
     margin-bottom: 1rem;
-    color: #111827;
+    color: var(--pateez-deep-ocean);
 }
 
 .rich-text-content ul,
@@ -612,10 +747,10 @@
 }
 
 .rich-text-content blockquote {
-    border-left: 4px solid #D0354E;
+    border-left: 4px solid var(--pateez-action);
     padding-left: 1.5rem;
     font-style: italic;
-    color: #4B5563;
+    color: var(--pateez-support);
     margin: 2rem 0;
 }
 
@@ -629,6 +764,6 @@
 
 .rich-text-content th,
 .rich-text-content td {
-    border: 1px solid #E5E7EB;
+    border: 1px solid var(--pateez-surface);
     padding: 0.75rem;
 }

@@ -12,8 +12,14 @@ import { slugify } from '@/utils/helpers';
 
 import { dataService } from '@/services/dataService';
 import CategoriesList from './CategoriesList';
+import CategoryDetail from './CategoryDetail';
 import DistrictsList from './DistrictsList';
 import TrendsList from './TrendsList';
+import { getSpecialContentConfig } from '@/utils/specialContent';
+
+const NORMAL_CATEGORY_LABELS: Record<string, string> = {
+    spor: 'Spor',
+};
 
 interface HomePageProps {
     initialLang: any;
@@ -23,6 +29,14 @@ interface HomePageProps {
     newsItems: NewsItem[];
     storiesItems?: any[];
     sidebarSnapshot?: any;
+    categoryPagination?: {
+        category: string;
+        limit: number;
+        nextOffset: number;
+        total: number;
+        totalViews: number;
+        hasMore: boolean;
+    };
     selectedCategory?: string;
     isInitialHome?: boolean;
 }
@@ -35,13 +49,37 @@ const HomePage: React.FC<HomePageProps> = ({
     newsItems: initialNews,
     storiesItems,
     sidebarSnapshot,
+    categoryPagination,
     selectedCategory: initialCategory,
     isInitialHome = true
 }) => {
+    const getInitialFilterFromUrl = () => {
+        if (typeof window === 'undefined') return null;
+        return new URLSearchParams(window.location.search).get('kategori');
+    };
+
     const [displayNews, setDisplayNews] = useState<NewsItem[]>(initialNews);
-    const [activeCat, setActiveCat] = useState<string | null>(initialCategory || null);
+    const [activeCat, setActiveCat] = useState<string | null>(() => initialCategory || getInitialFilterFromUrl());
     const [isNewsLoading, setIsNewsLoading] = useState(false);
     const [activeView, setActiveView] = useState<'feed' | 'categories' | 'districts' | 'trends'>('feed');
+
+    const activeNavItem = useMemo(() => {
+        if (!activeCat) return null;
+        const normalized = String(activeCat).trim();
+        const normalizedSlug = slugify(normalized);
+        return navigationItems.find((item) =>
+            item.value === normalized ||
+            item.label === normalized ||
+            (item.value && slugify(item.value) === normalizedSlug) ||
+            slugify(item.label) === normalizedSlug
+        ) || null;
+    }, [navigationItems, activeCat]);
+
+    const activeSpecialContent = useMemo(() => (
+        getSpecialContentConfig(activeCat, activeNavItem?.value, activeNavItem?.label)
+    ), [activeCat, activeNavItem]);
+
+    const isCategoryDetailView = activeView === 'feed' && !isInitialHome && !!activeCat && !activeSpecialContent && activeNavItem?.type !== 'trends';
 
     const handleCategoryNavigation = useCallback(async (category: string | null) => {
         const normalize = (value: string | null) => {
@@ -64,6 +102,37 @@ const HomePage: React.FC<HomePageProps> = ({
             (item.value && slugify(item.value) === normalizedSlug) ||
             slugify(item.label) === normalizedSlug
         );
+
+        const specialContent = getSpecialContentConfig(normalized, navItem?.value, navItem?.label);
+        if (specialContent) {
+            setIsNewsLoading(true);
+            try {
+                document.cookie = `pateez_active_cat=${encodeURIComponent(specialContent.value)}; path=/; max-age=31536000; SameSite=Lax`;
+
+                const targetUrl = `/?kategori=${encodeURIComponent(specialContent.value)}`;
+                if (window.location.pathname !== '/' && window.location.pathname !== '') {
+                    void navigate(targetUrl);
+                    return;
+                }
+
+                const langCode = typeof initialLang === 'object' && initialLang !== null ? initialLang.code : initialLang;
+                const news = await dataService.getNewsItems(langCode, specialContent.value);
+
+                setDisplayNews(news);
+                setActiveCat(navItem?.value || navItem?.label || specialContent.value);
+
+                const url = new URL(window.location.href);
+                url.searchParams.set('kategori', specialContent.value);
+                window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+            } catch (err) {
+                console.error('Special content filtering error:', err);
+                setActiveCat(null);
+                setDisplayNews(initialNews);
+            } finally {
+                setIsNewsLoading(false);
+            }
+            return;
+        }
 
         if (!navItem) {
             void navigate(`/kategori/${slugify(normalized)}`);
@@ -125,6 +194,34 @@ const HomePage: React.FC<HomePageProps> = ({
         }
     }, [navigationItems, initialNews, initialLang]);
 
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const applySpecialFilter = (value?: string | null) => {
+            const rawValue = value ?? new URLSearchParams(window.location.search).get('kategori');
+            const specialContent = getSpecialContentConfig(rawValue);
+            if (!specialContent) return;
+            setActiveView('feed');
+            void handleCategoryNavigation(specialContent.value);
+        };
+
+        const handleFilterEvent = (event: Event) => {
+            const category = (event as CustomEvent<{ category?: string }>).detail?.category;
+            applySpecialFilter(category);
+        };
+
+        const handlePopState = () => applySpecialFilter();
+
+        applySpecialFilter();
+        window.addEventListener('pateez:content-filter', handleFilterEvent as EventListener);
+        window.addEventListener('popstate', handlePopState);
+
+        return () => {
+            window.removeEventListener('pateez:content-filter', handleFilterEvent as EventListener);
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, [handleCategoryNavigation]);
+
     const handleNewsSelect = useCallback((id: string) => {
         const selected = displayNews.find((n) => n.id === id);
         const slugOrId = selected?.slug || id;
@@ -134,21 +231,16 @@ const HomePage: React.FC<HomePageProps> = ({
     const categoryTitleKey = useMemo(() => {
         if (!activeCat) return undefined;
         const normalized = String(activeCat).trim();
-        const normalizedSlug = slugify(normalized);
-        const navItem = navigationItems.find((i) =>
-            i.value === normalized ||
-            i.label === normalized ||
-            (i.value && slugify(i.value) === normalizedSlug) ||
-            slugify(i.label) === normalizedSlug
-        );
+
+        if (activeSpecialContent) return activeSpecialContent.title;
 
         // 🚀 CRITICAL FIX: If it's a main category (Root), we return undefined 
         // to keep "Sizin İçin Seçtiklerimiz" as the title.
-        const isMain = navItem && (!navItem.parent_id || navItem.parent_id === 'root');
+        const isMain = activeNavItem && (!activeNavItem.parent_id || activeNavItem.parent_id === 'root');
         if (isMain) return undefined;
 
-        return navItem?.label || normalized;
-    }, [navigationItems, activeCat]);
+        return activeNavItem?.label || NORMAL_CATEGORY_LABELS[slugify(normalized)] || normalized;
+    }, [activeNavItem, activeCat, activeSpecialContent]);
 
     return (
         <LanguageProvider initialLang={initialLang} initialTranslations={initialTranslations}>
@@ -172,18 +264,30 @@ const HomePage: React.FC<HomePageProps> = ({
                         </aside>
 
                         <section className="flex-1 min-w-0 pb-10 flex justify-center w-full">
-                            <div className="w-full max-w-[840px]">
+                            <div className={`w-full ${isCategoryDetailView ? 'max-w-none' : 'max-w-[840px]'}`}>
                                 {activeView === 'feed' ? (
-                                    <Feed
-                                        newsData={displayNews}
-                                        storiesData={storiesItems}
-                                        siteSettings={siteSettings}
-                                        navItems={navigationItems}
-                                        selectedCategory={activeCat || undefined}
-                                        title={categoryTitleKey}
-                                        onNewsSelect={handleNewsSelect}
-                                        loading={isNewsLoading || initialNews.length === 0}
-                                    />
+                                    isCategoryDetailView ? (
+                                        <CategoryDetail
+                                            category={categoryTitleKey || activeCat}
+                                            newsItems={displayNews}
+                                            navItems={navigationItems}
+                                            pagination={categoryPagination}
+                                            siteSettings={siteSettings}
+                                            onNewsSelect={handleNewsSelect}
+                                            onBack={() => void navigate('/')}
+                                        />
+                                    ) : (
+                                        <Feed
+                                            newsData={displayNews}
+                                            storiesData={storiesItems}
+                                            siteSettings={siteSettings}
+                                            navItems={navigationItems}
+                                            selectedCategory={activeCat || undefined}
+                                            title={categoryTitleKey}
+                                            onNewsSelect={handleNewsSelect}
+                                            loading={isNewsLoading || initialNews.length === 0}
+                                        />
+                                    )
                                 ) : activeView === 'categories' ? (
                                     <CategoriesList
                                         onBack={() => setActiveView('feed')}
@@ -212,7 +316,7 @@ const HomePage: React.FC<HomePageProps> = ({
                             </div>
                         </section>
 
-                        {activeView === 'feed' && (
+                        {activeView === 'feed' && !isCategoryDetailView && (
                             <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8">
                                 <RightSidebar newsData={displayNews} loading={initialNews.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} />
                             </aside>

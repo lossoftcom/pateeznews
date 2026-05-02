@@ -123,7 +123,7 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
   } else if (data.mediaUrl.includes('facebook.com')) {
     platform = 'facebook';
     platformName = 'Facebook';
-    platformColor = 'bg-[#1877F2] text-white';
+    platformColor = 'bg-palette-maroon text-palette-beige';
     platformIcon = <Facebook size={14} className="fill-current" />;
     const encodedUrl = encodeURIComponent(data.mediaUrl);
     embedContent = (
@@ -171,7 +171,7 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
       </div>
     ) : (
       <div className="w-full flex justify-center bg-white overflow-hidden">
-        <a href={data.mediaUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+        <a href={data.mediaUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-palette-red hover:underline flex items-center gap-1">
           <ExternalLink size={12} />
           Instagram gönderisini aç
         </a>
@@ -180,8 +180,8 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
   } else if (data.mediaUrl.includes('pinterest.com') || data.mediaUrl.includes('pin.it')) {
     platform = 'pinterest';
     platformName = 'Pinterest';
-    platformColor = 'bg-[#E60023] text-white';
-    platformIcon = <ExternalLink size={14} className="text-white" />;
+    platformColor = 'bg-palette-red text-palette-beige';
+    platformIcon = <ExternalLink size={14} className="text-palette-beige" />;
 
     const pinId = data.mediaUrl.split('/').filter(Boolean).pop()?.split('?')[0];
     const isNumericId = !!pinId && /^\d+$/.test(pinId);
@@ -201,7 +201,7 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
       </div>
     ) : (
       <div className="w-full flex justify-center bg-white overflow-hidden">
-        <a href={data.mediaUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+        <a href={data.mediaUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-palette-red hover:underline flex items-center gap-1">
           <ExternalLink size={12} />
           Pinterest pini
         </a>
@@ -219,9 +219,9 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
             <span>{platformName}</span>
           </div>
         </div>
-        <h3 className="text-xl font-extrabold text-gray-900 leading-tight">{data.title}</h3>
+        <h3 className="news-title-font text-xl font-extrabold text-gray-900 leading-tight">{data.title}</h3>
         <div
-          className="rich-text-content text-gray-600/80 text-[16px] leading-relaxed font-medium text-left [&>p]:mb-0"
+          className="news-subtitle-font rich-text-content text-gray-600/80 text-[16px] leading-relaxed font-medium text-left [&>p]:mb-0"
           dangerouslySetInnerHTML={{ __html: data.summary }}
         />
       </div>
@@ -233,7 +233,7 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
 
       {/* Link Linki (Fallback) */}
       <div className="flex justify-start pt-2">
-        <a href={sourceUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+        <a href={sourceUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-palette-red hover:underline flex items-center gap-1">
           <ExternalLink size={12} />
           Kaynağa Git
         </a>

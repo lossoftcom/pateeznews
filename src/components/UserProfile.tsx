@@ -16,6 +16,52 @@ interface UserProfileProps {
   showEmail?: boolean;
 }
 
+const TEXT_ENTITY_MAP: Record<string, string> = {
+  amp: '&',
+  apos: "'",
+  Ccedil: 'Ç',
+  ccedil: 'ç',
+  Gbreve: 'Ğ',
+  gbreve: 'ğ',
+  hellip: '...',
+  Idot: 'İ',
+  imath: 'ı',
+  laquo: '"',
+  ldquo: '"',
+  lsquo: "'",
+  nbsp: ' ',
+  Ouml: 'Ö',
+  ouml: 'ö',
+  quot: '"',
+  raquo: '"',
+  rdquo: '"',
+  rsquo: "'",
+  Scedil: 'Ş',
+  scedil: 'ş',
+  Uuml: 'Ü',
+  uuml: 'ü',
+};
+
+const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
+  const codePoint = Number.parseInt(value, radix);
+  if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+  if (codePoint === 60 || codePoint === 62) return fallback;
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return fallback;
+  }
+};
+
+const normalizeStoredPlainText = (value: unknown) => {
+  const decodeOnce = (input: string) => input
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextCodePoint(hex, 16, match))
+    .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextCodePoint(decimal, 10, match));
+
+  return decodeOnce(decodeOnce(String(value ?? ''))).replace(/\u00a0/g, ' ').trim();
+};
+
 const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsSelect, onEditClick, siteSettings, showEmail = true }) => {
   const { t } = useLanguage();
 
@@ -110,10 +156,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
 
           const newData = {
             id: profile.id,
-            name: profile.full_name || profile.username || t('common.user'),
+            name: normalizeStoredPlainText(profile.full_name || profile.username || t('common.user')),
             handle: profile.username ? `@${profile.username}` : '',
-            category: profile.expertise || t('users_list.default_description'),
-            description: profile.about_me || '',
+            category: normalizeStoredPlainText(profile.expertise || t('users_list.default_description')),
+            description: normalizeStoredPlainText(profile.about_me),
             email: shouldShowEmail ? (profile.email || '') : '',
             avatar: normalizeProfileMediaUrl(profile.avatar_url),
             cover: normalizeProfileMediaUrl((socialLinks as any)?.cover_url),
@@ -140,11 +186,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
               return {
                 id: item.id,
                 type: 'STANDARD',
-                title: item.title,
-                summary: item.summary,
-                category: item.category,
-                source: profile.full_name || profile.username,
-                author: profile.full_name || t('common.editor'),
+                title: normalizeStoredPlainText(item.title),
+                summary: normalizeStoredPlainText(item.summary),
+                category: normalizeStoredPlainText(item.category),
+                source: normalizeStoredPlainText(profile.full_name || profile.username),
+                author: normalizeStoredPlainText(profile.full_name || t('common.editor')),
                 timestamp: item.published_at ? new Date(item.published_at).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '',
                 mediaUrl: item.media_url || '',
                 thumbnail: item.thumbnail_url || item.media_url || '',
@@ -437,11 +483,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
                       </div>
                     </div>
                     <div className="p-5">
-                      <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2 group-hover:text-palette-red transition-colors line-clamp-2">
+                      <h3 className="news-title-font text-lg font-bold text-gray-900 leading-snug mb-2 group-hover:text-palette-red transition-colors line-clamp-2">
                         {news.title}
                       </h3>
                       {news.summary && (
-                        <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-2">
+                        <p className="news-subtitle-font text-sm text-gray-600 leading-relaxed mb-3 line-clamp-2">
                           {news.summary}
                         </p>
                       )}

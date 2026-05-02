@@ -4,7 +4,7 @@ import { useLanguage } from '@/context/LanguageContext';
 
 export interface PostItem {
     id: string;
-    type?: 'text' | 'image' | 'slider' | 'video' | 'audio' | 'file' | 'social' | 'flipcard' | 'beforeafter' | 'poll' | 'vs' | 'review' | 'quote' | 'iframe';
+    type?: 'text' | 'image' | 'slider' | 'video' | 'audio' | 'file' | 'social' | 'flipcard' | 'beforeafter' | 'poll' | 'vs' | 'review' | 'quote' | 'iframe' | 'quiz' | 'toc' | 'recipe' | 'event';
     title: string;
     description: string;
     mediaUrl?: string;
@@ -49,6 +49,20 @@ export interface PostItem {
     pollColumns?: 2 | 3;
     altText?: string;
     faqData?: { q: string; a: string }[];
+    tocData?: {
+        optionalUrl?: string;
+        linkListStyle?: {
+            level1: TocListStyle;
+            level2: TocListStyle;
+            level3: TocListStyle;
+            showLevel1InText: boolean;
+            showLevel2InText: boolean;
+            showLevel3InText: boolean;
+        };
+        items: TocListItem[];
+    };
+    recipeData?: RecipeData;
+    eventData?: EventData;
     quizData?: {
         quizType: 'personality' | 'trivia' | 'checklist';
         results: {
@@ -80,6 +94,111 @@ export interface PostItem {
         showResults?: boolean;
         endDate?: string;
     };
+}
+
+export type TocListStyle =
+    | 'none'
+    | 'decimal'
+    | 'decimal-leading-zero'
+    | 'circle'
+    | 'disc'
+    | 'square'
+    | 'lower-alpha'
+    | 'upper-alpha'
+    | 'lower-roman'
+    | 'upper-roman';
+
+export interface TocListItem {
+    id: string;
+    orderNumber: number;
+    title: string;
+    parentLink: string;
+    image: string;
+    imageDescription: string;
+    content: string;
+}
+
+export type RecipeDifficulty = '' | 'easy' | 'medium' | 'hard';
+
+export interface RecipeIngredientItem {
+    id: string;
+    text: string;
+}
+
+export interface RecipeNutritionItem {
+    id: string;
+    label: string;
+    value: string;
+}
+
+export interface RecipeDirectionItem {
+    id: string;
+    orderNumber: number;
+    title: string;
+    image: string;
+    imageDescription: string;
+    content: string;
+}
+
+export interface RecipeData {
+    optionalUrl?: string;
+    prepTime?: string;
+    cookTime?: string;
+    serving?: string;
+    difficulty?: RecipeDifficulty;
+    videoUrl?: string;
+    videoEmbedCode?: string;
+    ingredients: RecipeIngredientItem[];
+    nutrition: RecipeNutritionItem[];
+    directions: RecipeDirectionItem[];
+}
+
+export type EventRegistrationType = '' | 'none' | 'required' | 'tickets' | 'external';
+
+export interface EventScheduleItem {
+    id: string;
+    orderNumber: number;
+    date: string;
+    time: string;
+    title: string;
+    description: string;
+    image: string;
+    imageDescription: string;
+}
+
+export interface EventHighlightItem {
+    id: string;
+    label: string;
+    value: string;
+}
+
+export interface EventSpeakerItem {
+    id: string;
+    name: string;
+    role: string;
+    image: string;
+    imageDescription: string;
+    bio: string;
+}
+
+export interface EventData {
+    startDateTime: string;
+    endDateTime: string;
+    organizer: string;
+    venueName: string;
+    address: string;
+    latitude: string;
+    longitude: string;
+    registrationType: EventRegistrationType;
+    ticketUrl: string;
+    ticketPrice: string;
+    capacity: string;
+    scheduleTitle: string;
+    highlightsTitle: string;
+    speakersTitle: string;
+    schedule: EventScheduleItem[];
+    highlights: EventHighlightItem[];
+    speakers: EventSpeakerItem[];
 }
 
 export const QUILL_MODULES = {

@@ -9,6 +9,10 @@ import {
   ChevronRight,
   CheckCircle2,
   Calendar,
+  MapPin,
+  Ticket,
+  Users,
+  Info,
   Twitter,
   Facebook,
   Linkedin,
@@ -41,6 +45,964 @@ interface NewsDetailProps {
   loading?: boolean;
 }
 
+const TEXT_ENTITY_MAP: Record<string, string> = {
+  amp: '&',
+  apos: "'",
+  Ccedil: 'Ç',
+  ccedil: 'ç',
+  Gbreve: 'Ğ',
+  gbreve: 'ğ',
+  hellip: '...',
+  Idot: 'İ',
+  imath: 'ı',
+  laquo: '"',
+  ldquo: '"',
+  lsquo: "'",
+  nbsp: ' ',
+  Ouml: 'Ö',
+  ouml: 'ö',
+  quot: '"',
+  raquo: '"',
+  rdquo: '"',
+  rsquo: "'",
+  Scedil: 'Ş',
+  scedil: 'ş',
+  Uuml: 'Ü',
+  uuml: 'ü',
+};
+
+const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
+  const codePoint = Number.parseInt(value, radix);
+  if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return fallback;
+  }
+};
+
+const stripHtmlToText = (html: string) => {
+  const decodeOnce = (input: string) => input
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextCodePoint(hex, 16, match))
+    .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextCodePoint(decimal, 10, match));
+
+  return decodeOnce(decodeOnce(String(html || '').replace(/<[^>]*>?/gm, ' ').replace(/&nbsp;/g, ' ')))
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+type QuizImageOrientation = 'unknown' | 'portrait' | 'wide';
+type LoadedQuizImageOrientation = Exclude<QuizImageOrientation, 'unknown'>;
+
+const QuizQuestionImage: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+  const [orientation, setOrientation] = useState<QuizImageOrientation>('unknown');
+
+  useEffect(() => {
+    setOrientation('unknown');
+  }, [src]);
+
+  const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    if (!naturalWidth || !naturalHeight) {
+      setOrientation('wide');
+      return;
+    }
+    setOrientation(naturalHeight > naturalWidth ? 'portrait' : 'wide');
+  };
+
+  const wrapperClass = orientation === 'portrait'
+    ? 'mt-4 flex h-[400px] w-full items-center justify-center overflow-hidden rounded-[4px] border border-gray-100 bg-gray-50'
+    : orientation === 'wide'
+      ? 'mt-4 w-full overflow-hidden rounded-[4px] border border-gray-100 bg-gray-50'
+      : 'relative mt-4 h-64 w-full overflow-hidden rounded-[4px] border border-gray-100 bg-gray-50';
+  const imageClass = orientation === 'portrait'
+    ? 'h-full w-auto max-w-full object-contain object-center'
+    : orientation === 'wide'
+      ? 'block h-auto w-full object-contain object-center'
+      : 'absolute inset-0 h-full w-full object-contain opacity-0';
+
+  return (
+    <div className={wrapperClass}>
+      {orientation === 'unknown' && <div className="h-full w-full animate-pulse bg-gray-100" />}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={handleLoad}
+        onError={() => setOrientation('wide')}
+        className={imageClass}
+      />
+    </div>
+  );
+};
+
+const QuizAnswerImage: React.FC<{
+  src: string;
+  alt: string;
+  hasPortraitInGroup: boolean;
+  isMarked: boolean;
+  onOrientation: (orientation: LoadedQuizImageOrientation) => void;
+}> = ({ src, alt, hasPortraitInGroup, isMarked, onOrientation }) => {
+  const [orientation, setOrientation] = useState<QuizImageOrientation>('unknown');
+
+  useEffect(() => {
+    setOrientation('unknown');
+  }, [src]);
+
+  const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    const nextOrientation: LoadedQuizImageOrientation = naturalHeight > naturalWidth ? 'portrait' : 'wide';
+    setOrientation(nextOrientation);
+    onOrientation(nextOrientation);
+  };
+
+  const frameHeightClass = hasPortraitInGroup ? 'h-[200px]' : 'h-[150px]';
+  const imageClass = orientation === 'portrait'
+    ? 'h-full w-auto max-w-full object-contain object-center transition-transform duration-300 group-hover/answer:scale-[1.02]'
+    : orientation === 'wide'
+      ? 'h-auto max-h-full w-full object-contain object-center transition-transform duration-300 group-hover/answer:scale-[1.02]'
+      : 'absolute inset-0 h-full w-full object-contain opacity-0';
+
+  return (
+    <div className={`relative flex ${frameHeightClass} w-full items-center justify-center overflow-hidden rounded-[4px] border border-gray-100 bg-gray-50`}>
+      {orientation === 'unknown' && <div className="h-full w-full animate-pulse bg-gray-100" />}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={handleLoad}
+        onError={() => {
+          setOrientation('wide');
+          onOrientation('wide');
+        }}
+        className={imageClass}
+      />
+      <span className={`absolute top-2 right-2 w-7 h-7 rounded-full border bg-white/90 backdrop-blur flex items-center justify-center shadow-sm ${isMarked ? 'border-current text-current' : 'border-gray-200 text-transparent'}`}>
+        {isMarked && <CheckCircle2 size={15} />}
+      </span>
+    </div>
+  );
+};
+
+const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
+  const quizData = item?.quizData || {};
+  const questionsRaw = Array.isArray(quizData.questions) ? quizData.questions : [];
+  const results = Array.isArray(quizData.results) ? quizData.results : [];
+  const quizType = String(quizData.quizType || 'personality').toLowerCase();
+  const allowMultiple = !!quizData.allowMultiple;
+  const showResults = quizData.showResults !== false;
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({});
+  const [answerImageOrientations, setAnswerImageOrientations] = useState<Record<string, LoadedQuizImageOrientation>>({});
+
+  useEffect(() => {
+    setAnswerImageOrientations({});
+  }, [item?.id]);
+
+  const questions = React.useMemo(() => {
+    const normalized = questionsRaw.map((question: any, index: number) => ({
+      ...question,
+      id: String(question?.id || `quiz-question-${index}`),
+      answers: Array.isArray(question?.answers)
+        ? question.answers.map((answer: any, answerIndex: number) => ({
+          ...answer,
+          id: String(answer?.id || `quiz-answer-${index}-${answerIndex}`),
+        }))
+        : [],
+    }));
+    if (quizData.questionSorting === 'desc') return [...normalized].reverse();
+    return normalized;
+  }, [questionsRaw, quizData.questionSorting]);
+
+  const toggleAnswer = (questionId: string, answerId: string) => {
+    setSelectedAnswers((prev) => {
+      const current = prev[questionId] || [];
+      const next = allowMultiple
+        ? (current.includes(answerId) ? current.filter((id) => id !== answerId) : [...current, answerId])
+        : [answerId];
+      return { ...prev, [questionId]: next };
+    });
+  };
+
+  const registerAnswerImageOrientation = React.useCallback((imageKey: string, orientation: LoadedQuizImageOrientation) => {
+    setAnswerImageOrientations((prev) => (
+      prev[imageKey] === orientation ? prev : { ...prev, [imageKey]: orientation }
+    ));
+  }, []);
+
+  const score = questions.reduce((total: number, question: any) => {
+    const selected = selectedAnswers[question.id] || [];
+    if (quizType === 'trivia') {
+      const correctIds = (question.answers || []).filter((answer: any) => !!answer.isCorrect).map((answer: any) => answer.id);
+      if (selected.length === 0 || correctIds.length === 0) return total;
+      const isExact = selected.every((id) => correctIds.includes(id)) && correctIds.every((id: string) => selected.includes(id));
+      return total + (isExact ? 1 : 0);
+    }
+    return total + selected.length;
+  }, 0);
+
+  const selectedResult = React.useMemo(() => {
+    if (results.length === 0) return null;
+
+    if (quizType === 'personality') {
+      const counts: Record<string, number> = {};
+      questions.forEach((question: any) => {
+        const selected = selectedAnswers[question.id] || [];
+        selected.forEach((answerId) => {
+          const answer = (question.answers || []).find((candidate: any) => candidate.id === answerId);
+          if (answer?.resultId) counts[answer.resultId] = (counts[answer.resultId] || 0) + 1;
+        });
+      });
+      const bestId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+      return results.find((result: any) => result.id === bestId) || results[0];
+    }
+
+    return results.find((result: any) => {
+      const minScore = Number.isFinite(Number(result?.minScore)) ? Number(result.minScore) : 0;
+      const maxScore = Number.isFinite(Number(result?.maxScore)) ? Number(result.maxScore) : questions.length;
+      const answerCount = Number.isFinite(Number(result?.answerCount)) ? Number(result.answerCount) : null;
+      if (answerCount !== null) return score === answerCount;
+      return score >= minScore && score <= maxScore;
+    }) || results[results.length - 1];
+  }, [questions, quizType, results, score, selectedAnswers]);
+
+  const answeredCount = questions.filter((question: any) => (selectedAnswers[question.id] || []).length > 0).length;
+  const canShowResult = showResults && questions.length > 0 && answeredCount === questions.length;
+
+  if (questions.length === 0) {
+    return (
+      <div key={item.id} className="space-y-5 p-6 md:p-8 rounded-[5px] border border-palette-beige/60 bg-palette-beige/10">
+        {item.title && <h3 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">{item.title}</h3>}
+        {item.description && <div className="rich-text-content text-sm font-bold text-palette-tan/70" dangerouslySetInnerHTML={{ __html: item.description }} />}
+        <div className="grid gap-3">
+          {(item.options || []).map((option: any, optionIndex: number) => (
+            <div key={option.id || optionIndex} className="flex items-center gap-3 rounded-[5px] border border-palette-beige bg-white px-4 py-3">
+              <span className="w-7 h-7 rounded-[5px] bg-palette-beige/60 text-palette-tan flex items-center justify-center text-[11px] font-black">
+                {optionIndex + 1}
+              </span>
+              <span className="text-sm font-bold text-gray-800">{option.text || option.label || option.title}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div key={item.id} className="space-y-7">
+      <div className="space-y-3 px-1">
+        {item.title && <h3 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">{item.title}</h3>}
+        {item.description && <div className="rich-text-content text-sm md:text-base font-bold text-palette-tan/75 leading-relaxed" dangerouslySetInnerHTML={{ __html: item.description }} />}
+      </div>
+
+      <div className="space-y-6">
+        {questions.map((question: any, questionIndex: number) => {
+          const selected = selectedAnswers[question.id] || [];
+          const layout = question.layout === 'grid3' ? 'md:grid-cols-3' : question.layout === 'grid2' ? 'md:grid-cols-2' : 'grid-cols-1';
+          const hasPortraitAnswerImage = (question.answers || []).some((answer: any) => (
+            !!answer.image && answerImageOrientations[`${question.id}:${answer.id}`] === 'portrait'
+          ));
+          return (
+            <div key={question.id} className="rounded-[5px] border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
+              <div className="flex items-start gap-3 md:gap-4">
+                {quizData.questionSorting !== 'hidden' && (
+                  <span className="w-9 h-9 shrink-0 rounded-[5px] bg-gray-900 text-white flex items-center justify-center text-sm font-black">
+                    {quizData.questionSorting === 'desc' ? questions.length - questionIndex : questionIndex + 1}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-lg md:text-xl font-black text-gray-900 leading-snug">{question.title}</h4>
+                  {question.description && <div className="rich-text-content mt-2 text-sm font-medium text-gray-500" dangerouslySetInnerHTML={{ __html: question.description }} />}
+                </div>
+              </div>
+
+              {question.image && <QuizQuestionImage src={question.image} alt={stripHtmlToText(question.title || '')} />}
+
+              <div className={`mt-5 grid ${layout} gap-4`}>
+                {(question.answers || []).map((answer: any) => {
+                  const isSelected = selected.includes(answer.id);
+                  const reveal = canShowResult && quizType === 'trivia';
+                  const hasImage = !!answer.image;
+                  const correctnessClass = reveal && answer.isCorrect
+                    ? 'border-palette-red bg-palette-red/5 text-palette-red ring-1 ring-palette-red/10'
+                    : reveal && isSelected && !answer.isCorrect
+                      ? 'border-palette-accent bg-palette-accent/10 text-palette-maroon ring-1 ring-palette-accent/20'
+                      : isSelected
+                        ? 'border-gray-900 bg-white text-gray-900 ring-2 ring-gray-900/10 shadow-md'
+                        : 'border-palette-beige bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md';
+                  const answerButtonClass = hasImage
+                    ? `group/answer relative overflow-hidden rounded-[4px] border p-1.5 text-left transition-all duration-200 hover:-translate-y-0.5 ${correctnessClass}`
+                    : `flex items-center gap-3 rounded-[4px] border px-4 py-3 text-left transition-all duration-200 ${correctnessClass}`;
+
+                  return (
+                    <button
+                      key={answer.id}
+                      type="button"
+                      onClick={() => toggleAnswer(question.id, answer.id)}
+                      className={answerButtonClass}
+                    >
+                      {hasImage ? (
+                        <>
+                          <QuizAnswerImage
+                            src={answer.image}
+                            alt={stripHtmlToText(answer.text || '')}
+                            hasPortraitInGroup={hasPortraitAnswerImage}
+                            isMarked={isSelected || (reveal && answer.isCorrect)}
+                            onOrientation={(orientation) => registerAnswerImageOrientation(`${question.id}:${answer.id}`, orientation)}
+                          />
+                          <span className="block px-2.5 pt-3 pb-2 text-[13px] md:text-sm font-semibold leading-snug text-current">
+                            {answer.text}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className={`w-6 h-6 shrink-0 rounded-full border flex items-center justify-center ${isSelected || (reveal && answer.isCorrect) ? 'border-current' : 'border-gray-200'}`}>
+                            {(isSelected || (reveal && answer.isCorrect)) && <CheckCircle2 size={14} />}
+                          </span>
+                          <span className="text-sm font-semibold leading-snug">{answer.text}</span>
+                        </>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showResults && (
+        <div className="rounded-[5px] border border-gray-200 bg-white p-5 md:p-6">
+          {canShowResult && selectedResult ? (
+            <div className="grid gap-5 md:grid-cols-[180px_1fr] items-center">
+              {selectedResult.image && <img src={selectedResult.image} alt={stripHtmlToText(selectedResult.title || '')} className="w-full max-h-[180px] rounded-[5px] object-cover bg-gray-50" />}
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  {quizType === 'trivia' ? `${score}/${questions.length}` : `${answeredCount}/${questions.length}`}
+                </div>
+                <h4 className="text-2xl md:text-3xl font-black text-gray-900">{selectedResult.title}</h4>
+                {selectedResult.description && <div className="rich-text-content text-sm md:text-base font-medium text-gray-600" dangerouslySetInnerHTML={{ __html: selectedResult.description }} />}
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-xs font-black uppercase tracking-widest text-palette-tan/50">
+              Sonucunu görmek için tüm soruları cevapla.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const toRoman = (value: number) => {
+  const pairs: Array<[number, string]> = [
+    [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'],
+    [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i'],
+  ];
+  let remaining = Math.max(1, Math.floor(value));
+  let output = '';
+  pairs.forEach(([amount, symbol]) => {
+    while (remaining >= amount) {
+      output += symbol;
+      remaining -= amount;
+    }
+  });
+  return output;
+};
+
+const toAlpha = (value: number) => {
+  let number = Math.max(1, Math.floor(value));
+  let output = '';
+  while (number > 0) {
+    number -= 1;
+    output = String.fromCharCode(97 + (number % 26)) + output;
+    number = Math.floor(number / 26);
+  }
+  return output;
+};
+
+const markerForStyle = (style: string, orderNumber: number) => {
+  switch (style) {
+    case 'decimal':
+      return String(orderNumber);
+    case 'decimal-leading-zero':
+      return String(orderNumber).padStart(2, '0');
+    case 'lower-alpha':
+      return toAlpha(orderNumber);
+    case 'upper-alpha':
+      return toAlpha(orderNumber).toUpperCase();
+    case 'lower-roman':
+      return toRoman(orderNumber);
+    case 'upper-roman':
+      return toRoman(orderNumber).toUpperCase();
+    case 'circle':
+      return '○';
+    case 'square':
+      return '▪';
+    case 'disc':
+      return '•';
+    default:
+      return '';
+  }
+};
+
+const TableOfContentsBlock: React.FC<{ item: any }> = ({ item }) => {
+  const { t } = useLanguage();
+  const tocData = item?.tocData || {};
+  const linkStyle = {
+    level1: 'none',
+    level2: 'none',
+    level3: 'none',
+    showLevel1InText: false,
+    showLevel2InText: false,
+    showLevel3InText: false,
+    ...(tocData.linkListStyle || {}),
+  };
+  const items = Array.isArray(tocData.items)
+    ? tocData.items
+      .map((entry: any, entryIndex: number) => ({
+        id: String(entry?.id || `toc-${entryIndex}`),
+        orderNumber: Number(entry?.orderNumber) || entryIndex + 1,
+        title: String(entry?.title || '').trim(),
+        parentLink: String(entry?.parentLink || '').trim(),
+        image: String(entry?.image || '').trim(),
+        imageDescription: String(entry?.imageDescription || '').trim(),
+        content: String(entry?.content || ''),
+      }))
+      .filter((entry: any) => entry.title || entry.content || entry.image)
+      .sort((a: any, b: any) => a.orderNumber - b.orderNumber)
+    : [];
+
+  const orderKeys = new Set(items.map((entry: any) => String(entry.orderNumber)));
+  const childrenByParent = items.reduce((map: Map<string, any[]>, entry: any) => {
+    const parentKey = orderKeys.has(entry.parentLink) ? entry.parentLink : '';
+    map.set(parentKey, [...(map.get(parentKey) || []), entry]);
+    return map;
+  }, new Map<string, any[]>());
+  const itemByOrder = new Map(items.map((entry: any) => [String(entry.orderNumber), entry]));
+  const levelCache = new Map<string, number>();
+
+  const getLevel = (entry: any): 1 | 2 | 3 => {
+    if (levelCache.has(entry.id)) return levelCache.get(entry.id) as 1 | 2 | 3;
+    const parent = itemByOrder.get(entry.parentLink);
+    const level = parent ? Math.min(getLevel(parent) + 1, 3) : 1;
+    levelCache.set(entry.id, level);
+    return level as 1 | 2 | 3;
+  };
+
+  const getStyleForLevel = (level: number) => {
+    if (level === 2) return linkStyle.level2 || 'none';
+    if (level === 3) return linkStyle.level3 || 'none';
+    return linkStyle.level1 || 'none';
+  };
+
+  const shouldShowMarkerInText = (level: number) => {
+    if (level === 2) return !!linkStyle.showLevel2InText;
+    if (level === 3) return !!linkStyle.showLevel3InText;
+    return !!linkStyle.showLevel1InText;
+  };
+
+  const renderNavList = (parentKey = '', level = 1): React.ReactNode => {
+    const children = childrenByParent.get(parentKey) || [];
+    if (children.length === 0) return null;
+    const listStyle = getStyleForLevel(level);
+
+    return (
+      <ol
+        className={`${level === 1 ? 'space-y-2' : 'mt-2 space-y-1.5'} ${listStyle === 'none' ? 'list-none' : ''}`}
+        style={{
+          listStyleType: listStyle === 'none' ? 'none' : listStyle,
+          paddingLeft: level === 1 ? 0 : 20,
+        }}
+      >
+        {children.map((entry: any) => (
+          <li key={entry.id} className="pl-1 text-sm font-bold text-gray-700 marker:text-palette-red marker:font-black">
+            <a href={`#toc-${entry.id}`} className="inline-flex items-center gap-2 hover:text-palette-red transition-colors">
+              <span>{entry.title || `${t('admin.post.toc.item')} ${entry.orderNumber}`}</span>
+              <ChevronRight size={14} className="text-gray-300" />
+            </a>
+            {renderNavList(String(entry.orderNumber), Math.min(level + 1, 3))}
+          </li>
+        ))}
+      </ol>
+    );
+  };
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="space-y-8">
+      <div className="rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-gray-200/70 pb-3">
+          <h3 className="text-xl font-black text-gray-900">{t('admin.post.tab.contents')}</h3>
+          {tocData.optionalUrl && (
+            <a
+              href={tocData.optionalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-[4px] border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-gray-600 hover:border-palette-red hover:text-palette-red transition-colors"
+            >
+              <LinkIcon size={13} />
+              URL
+            </a>
+          )}
+        </div>
+        {renderNavList()}
+      </div>
+
+      <div className="space-y-10">
+        {items.map((entry: any) => {
+          const level = getLevel(entry);
+          const style = getStyleForLevel(level);
+          const marker = shouldShowMarkerInText(level) ? markerForStyle(style, entry.orderNumber) : '';
+
+          return (
+            <section id={`toc-${entry.id}`} key={entry.id} className="scroll-mt-24 space-y-4">
+              <div className="flex items-start gap-3">
+                {marker && (
+                  <span className="mt-1 flex h-8 min-w-8 shrink-0 items-center justify-center rounded-[4px] bg-gray-900 px-2 text-xs font-black text-white">
+                    {marker}
+                  </span>
+                )}
+                <h3 className={`${level === 1 ? 'text-2xl md:text-3xl' : level === 2 ? 'text-xl md:text-2xl' : 'text-lg md:text-xl'} font-black text-gray-900 leading-tight`}>
+                  {entry.title}
+                </h3>
+              </div>
+
+              {entry.image && (
+                <figure className="overflow-hidden rounded-[5px] border border-gray-100 bg-gray-50">
+                  <img src={entry.image} alt={entry.imageDescription || entry.title} className="w-full max-h-[520px] object-contain" />
+                  {entry.imageDescription && (
+                    <figcaption className="border-t border-gray-100 px-4 py-2 text-xs font-medium italic text-gray-500">
+                      {entry.imageDescription}
+                    </figcaption>
+                  )}
+                </figure>
+              )}
+
+              {entry.content && (
+                <div
+                  className="rich-text-content prose prose-lg max-w-full text-gray-800 leading-[1.85] font-medium"
+                  dangerouslySetInnerHTML={{ __html: entry.content }}
+                />
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
+  const { t } = useLanguage();
+  const recipeData = item?.recipeData || {};
+  const ingredients = Array.isArray(recipeData.ingredients)
+    ? recipeData.ingredients.map((entry: any) => String(entry?.text || '').trim()).filter(Boolean)
+    : [];
+  const nutrition = Array.isArray(recipeData.nutrition)
+    ? recipeData.nutrition
+      .map((entry: any) => ({
+        label: String(entry?.label || '').trim(),
+        value: String(entry?.value || '').trim(),
+      }))
+      .filter((entry: any) => entry.label || entry.value)
+    : [];
+  const directions = Array.isArray(recipeData.directions)
+    ? recipeData.directions
+      .map((entry: any, entryIndex: number) => ({
+        id: String(entry?.id || `recipe-step-${entryIndex}`),
+        orderNumber: Number(entry?.orderNumber) || entryIndex + 1,
+        title: String(entry?.title || '').trim(),
+        image: String(entry?.image || '').trim(),
+        imageDescription: String(entry?.imageDescription || '').trim(),
+        content: String(entry?.content || ''),
+      }))
+      .filter((entry: any) => entry.title || entry.content || entry.image)
+      .sort((a: any, b: any) => a.orderNumber - b.orderNumber)
+    : [];
+  const metaItems = [
+    recipeData.prepTime ? { label: t('news.recipe.prep_time'), value: recipeData.prepTime } : null,
+    recipeData.cookTime ? { label: t('news.recipe.cook_time'), value: recipeData.cookTime } : null,
+    recipeData.serving ? { label: t('news.recipe.serving'), value: recipeData.serving } : null,
+    recipeData.difficulty ? { label: t('news.recipe.difficulty'), value: t(`news.recipe.difficulty_${recipeData.difficulty}`) } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
+
+  if (ingredients.length === 0 && nutrition.length === 0 && directions.length === 0 && !recipeData.videoUrl && !recipeData.videoEmbedCode) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-8">
+      <div className="rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
+        <div className="mb-4 flex flex-col gap-3 border-b border-gray-200/70 pb-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-xl font-black text-gray-900">{t('news.recipe.title')}</h3>
+            <p className="mt-1 text-xs font-bold text-gray-500">{t('news.recipe.subtitle')}</p>
+          </div>
+          {recipeData.optionalUrl && (
+            <a
+              href={recipeData.optionalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-[4px] border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-gray-600 hover:border-palette-red hover:text-palette-red transition-colors"
+            >
+              <LinkIcon size={13} />
+              URL
+            </a>
+          )}
+        </div>
+        {metaItems.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {metaItems.map((meta) => (
+              <div key={meta.label} className="rounded-[5px] border border-gray-100 bg-white p-3 shadow-sm">
+                <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{meta.label}</span>
+                <span className="mt-1 block text-sm font-black text-gray-900">{meta.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {(recipeData.videoEmbedCode || recipeData.videoUrl) && (
+        <div className="overflow-hidden rounded-[5px] border border-gray-100 bg-gray-950 shadow-lg">
+          {recipeData.videoEmbedCode ? (
+            <div
+              className="recipe-video-embed aspect-video w-full [&_iframe]:h-full [&_iframe]:w-full [&_iframe]:border-0"
+              dangerouslySetInnerHTML={{ __html: recipeData.videoEmbedCode }}
+            />
+          ) : (
+            <VideoCard data={{ mediaUrl: recipeData.videoUrl } as any} />
+          )}
+        </div>
+      )}
+
+      {(ingredients.length > 0 || nutrition.length > 0) && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {ingredients.length > 0 && (
+            <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+              <h4 className="mb-4 text-lg font-black text-gray-900">{t('news.recipe.ingredients')}</h4>
+              <ul className="space-y-3">
+                {ingredients.map((ingredient, index) => (
+                  <li key={`${ingredient}-${index}`} className="flex items-start gap-3 text-sm font-bold text-gray-700">
+                    <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-palette-red" />
+                    <span>{ingredient}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {nutrition.length > 0 && (
+            <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+              <h4 className="mb-4 text-lg font-black text-gray-900">{t('news.recipe.nutrition')}</h4>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {nutrition.map((entry, index) => (
+                  <div key={`${entry.label}-${index}`} className="rounded-[4px] border border-gray-100 bg-gray-50 px-3 py-2">
+                    <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{entry.label || t('news.recipe.nutrition_item')}</span>
+                    <span className="mt-0.5 block text-sm font-black text-gray-900">{entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {directions.length > 0 && (
+        <div className="space-y-6">
+          <h4 className="text-xl font-black text-gray-900">{t('news.recipe.directions')}</h4>
+          {directions.map((direction) => (
+            <section key={direction.id} className="grid gap-5 rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm md:grid-cols-[48px_minmax(0,1fr)]">
+              <span className="flex h-12 w-12 items-center justify-center rounded-[5px] bg-gray-900 text-base font-black text-white">
+                {direction.orderNumber}
+              </span>
+              <div className="space-y-4">
+                {direction.title && <h5 className="text-xl font-black text-gray-900">{direction.title}</h5>}
+                {direction.image && (
+                  <figure className="overflow-hidden rounded-[5px] border border-gray-100 bg-gray-50">
+                    <img src={direction.image} alt={direction.imageDescription || direction.title} className="w-full max-h-[520px] object-contain" />
+                    {direction.imageDescription && (
+                      <figcaption className="border-t border-gray-100 px-4 py-2 text-xs font-medium italic text-gray-500">
+                        {direction.imageDescription}
+                      </figcaption>
+                    )}
+                  </figure>
+                )}
+                {direction.content && (
+                  <div
+                    className="rich-text-content prose prose-lg max-w-full text-gray-800 leading-[1.85] font-medium"
+                    dangerouslySetInnerHTML={{ __html: direction.content }}
+                  />
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+const EventBlock: React.FC<{ item: any }> = ({ item }) => {
+  const { t, currentLang } = useLanguage();
+  const eventData = item?.eventData || {};
+  const locale = currentLang === 'tr' ? 'tr-TR' : currentLang === 'ar' ? 'ar' : 'en-US';
+  const formatDateTime = (value: unknown) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    return new Intl.DateTimeFormat(locale, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+  const formatDate = (value: unknown) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const [, year, month, day] = match;
+      const date = new Date(Number(year), Number(month) - 1, Number(day));
+      return new Intl.DateTimeFormat(locale, {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }).format(date);
+    }
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    return new Intl.DateTimeFormat(locale, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(date);
+  };
+  const registrationLabel = (type: string) => {
+    if (!type) return '';
+    return t(`news.event.registration_${type}`);
+  };
+  const schedule = Array.isArray(eventData.schedule)
+    ? eventData.schedule
+      .map((entry: any, entryIndex: number) => ({
+        id: String(entry?.id || `event-schedule-${entryIndex}`),
+        orderNumber: Number(entry?.orderNumber) || entryIndex + 1,
+        date: String(entry?.date || '').trim(),
+        time: String(entry?.time || '').trim(),
+        title: String(entry?.title || '').trim(),
+        description: String(entry?.description || '').trim(),
+        image: String(entry?.image || '').trim(),
+        imageDescription: String(entry?.imageDescription || '').trim(),
+      }))
+      .filter((entry: any) => entry.date || entry.time || entry.title || entry.description || entry.image)
+      .sort((a: any, b: any) => a.orderNumber - b.orderNumber)
+    : [];
+  const highlights = Array.isArray(eventData.highlights)
+    ? eventData.highlights
+      .map((entry: any) => ({
+        label: String(entry?.label || '').trim(),
+        value: String(entry?.value || '').trim(),
+      }))
+      .filter((entry: any) => entry.label || entry.value)
+    : [];
+  const speakers = Array.isArray(eventData.speakers)
+    ? eventData.speakers
+      .map((entry: any, entryIndex: number) => ({
+        id: String(entry?.id || `event-speaker-${entryIndex}`),
+        name: String(entry?.name || '').trim(),
+        role: String(entry?.role || '').trim(),
+        image: String(entry?.image || '').trim(),
+        imageDescription: String(entry?.imageDescription || '').trim(),
+        bio: String(entry?.bio || ''),
+      }))
+      .filter((entry: any) => entry.name || entry.role || entry.image || entry.bio)
+    : [];
+  const metaItems = [
+    eventData.startDateTime ? { icon: Calendar, label: t('news.event.start'), value: formatDateTime(eventData.startDateTime) } : null,
+    eventData.endDateTime ? { icon: Clock, label: t('news.event.end'), value: formatDateTime(eventData.endDateTime) } : null,
+    eventData.organizer ? { icon: Users, label: t('news.event.organizer'), value: eventData.organizer } : null,
+    eventData.venueName ? { icon: MapPin, label: t('news.event.venue'), value: eventData.venueName } : null,
+  ].filter(Boolean) as Array<{ icon: React.ElementType; label: string; value: string }>;
+  const hasRegistration = eventData.registrationType && eventData.registrationType !== 'none';
+  const hasLocation = eventData.address || eventData.latitude || eventData.longitude;
+  const hasContent = metaItems.length > 0 || hasRegistration || eventData.ticketUrl || eventData.ticketPrice || eventData.capacity || hasLocation || schedule.length > 0 || highlights.length > 0 || speakers.length > 0;
+
+  if (!hasContent) return null;
+
+  return (
+    <section className="space-y-8">
+      <div className="rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
+        <div className="mb-4 border-b border-gray-200/70 pb-4">
+          <h3 className="text-xl font-black text-gray-900">{t('news.event.title')}</h3>
+          <p className="mt-1 text-xs font-bold text-gray-500">{t('news.event.subtitle')}</p>
+        </div>
+        {metaItems.length > 0 && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {metaItems.map((meta) => {
+              const Icon = meta.icon;
+              return (
+                <div key={meta.label} className="rounded-[5px] border border-gray-100 bg-white p-3 shadow-sm">
+                  <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    <Icon size={13} />
+                    {meta.label}
+                  </span>
+                  <span className="mt-1 block text-sm font-black text-gray-900">{meta.value}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {(hasLocation || hasRegistration || eventData.ticketUrl || eventData.ticketPrice || eventData.capacity) && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {hasLocation && (
+            <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+              <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
+                <MapPin size={18} className="text-palette-red" />
+                {t('news.event.location')}
+              </h4>
+              <div className="space-y-3 text-sm font-bold text-gray-700">
+                {eventData.address && <p>{eventData.address}</p>}
+                {(eventData.latitude || eventData.longitude) && (
+                  <p className="rounded-[4px] border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-black text-gray-500">
+                    {t('news.event.coordinates')}: {[eventData.latitude, eventData.longitude].filter(Boolean).join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {(hasRegistration || eventData.ticketUrl || eventData.ticketPrice || eventData.capacity) && (
+            <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+              <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
+                <Ticket size={18} className="text-palette-red" />
+                {t('news.event.registration')}
+              </h4>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {eventData.registrationType && (
+                  <div className="rounded-[4px] border border-gray-100 bg-gray-50 px-3 py-2">
+                    <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{t('news.event.registration')}</span>
+                    <span className="mt-0.5 block text-sm font-black text-gray-900">{registrationLabel(eventData.registrationType)}</span>
+                  </div>
+                )}
+                {eventData.ticketPrice && (
+                  <div className="rounded-[4px] border border-gray-100 bg-gray-50 px-3 py-2">
+                    <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{t('news.event.price')}</span>
+                    <span className="mt-0.5 block text-sm font-black text-gray-900">{eventData.ticketPrice}</span>
+                  </div>
+                )}
+                {eventData.capacity && (
+                  <div className="rounded-[4px] border border-gray-100 bg-gray-50 px-3 py-2">
+                    <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{t('news.event.capacity')}</span>
+                    <span className="mt-0.5 block text-sm font-black text-gray-900">{eventData.capacity}</span>
+                  </div>
+                )}
+                {eventData.ticketUrl && (
+                  <a
+                    href={eventData.ticketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-[4px] border border-gray-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wider text-gray-600 hover:border-palette-red hover:text-palette-red transition-colors"
+                  >
+                    <LinkIcon size={13} />
+                    {t('news.event.ticket_url')}
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {schedule.length > 0 && (
+        <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 text-lg font-black text-gray-900">{eventData.scheduleTitle || t('news.event.schedule')}</h4>
+          <div className="space-y-3">
+            {schedule.map((entry: any) => (
+              <div key={entry.id} className="grid gap-3 rounded-[4px] border border-gray-100 bg-gray-50 p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+                <div className="space-y-1">
+                  {entry.date && <span className="block text-xs font-black text-gray-500">{formatDate(entry.date)}</span>}
+                  <span className="block text-sm font-black text-palette-red">{entry.time || `#${entry.orderNumber}`}</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+                  <div>
+                    {entry.title && <h5 className="text-sm font-black text-gray-900">{entry.title}</h5>}
+                    {entry.description && <p className="mt-1 text-sm font-medium text-gray-600">{entry.description}</p>}
+                  </div>
+                  {entry.image && (
+                    <figure className="overflow-hidden rounded-[4px] border border-gray-100 bg-white">
+                      <img
+                        src={entry.image}
+                        alt={entry.imageDescription || entry.title}
+                        className="h-24 w-full object-cover"
+                      />
+                    </figure>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {highlights.length > 0 && (
+        <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
+            <Info size={18} className="text-palette-red" />
+            {eventData.highlightsTitle || t('news.event.highlights')}
+          </h4>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {highlights.map((entry: any, index: number) => (
+              <div key={`${entry.label}-${index}`} className="rounded-[4px] border border-gray-100 bg-gray-50 px-3 py-2">
+                <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{entry.label}</span>
+                <span className="mt-0.5 block text-sm font-black text-gray-900">{entry.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {speakers.length > 0 && (
+        <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
+            <Users size={18} className="text-palette-red" />
+            {eventData.speakersTitle || t('news.event.speakers')}
+          </h4>
+          <div className="grid gap-4 md:grid-cols-2">
+            {speakers.map((speaker: any) => (
+              <div key={speaker.id} className="grid gap-4 rounded-[5px] border border-gray-100 bg-gray-50 p-4 sm:grid-cols-[96px_minmax(0,1fr)]">
+                {speaker.image && (
+                  <img
+                    src={speaker.image}
+                    alt={speaker.imageDescription || speaker.name}
+                    className="h-24 w-24 rounded-[5px] object-cover"
+                  />
+                )}
+                <div className="space-y-2">
+                  {speaker.name && <h5 className="text-base font-black text-gray-900">{speaker.name}</h5>}
+                  {speaker.role && <p className="text-xs font-black uppercase tracking-widest text-palette-red">{speaker.role}</p>}
+                  {speaker.bio && (
+                    <div
+                      className="rich-text-content prose prose-sm max-w-full text-gray-700"
+                      dangerouslySetInnerHTML={{ __html: speaker.bio }}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
 const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading }) => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
@@ -56,7 +1018,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
 
-  const stripHtml = (html: string) => (html || '').replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
+  const stripHtml = stripHtmlToText;
 
   const shareUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/haber/${data.slug || data.id}`
@@ -217,22 +1179,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
     return () => { isMounted = false; };
   }, [data.id, data.publisherId]);
 
-  const renderQuizBlock = (item: any) => (
-    <div key={item.id} className="space-y-5 p-6 md:p-8 rounded-[5px] border border-palette-beige/60 bg-palette-beige/10">
-      {item.title && <h3 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">{item.title}</h3>}
-      {item.description && <div className="rich-text-content text-sm font-bold text-palette-tan/70" dangerouslySetInnerHTML={{ __html: item.description }} />}
-      <div className="grid gap-3">
-        {(item.options || []).map((option: any, optionIndex: number) => (
-          <div key={option.id || optionIndex} className="flex items-center gap-3 rounded-[5px] border border-palette-beige bg-white px-4 py-3">
-            <span className="w-7 h-7 rounded-[5px] bg-palette-beige/60 text-palette-tan flex items-center justify-center text-[11px] font-black">
-              {optionIndex + 1}
-            </span>
-            <span className="text-sm font-bold text-gray-800">{option.text || option.label || option.title}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const renderQuizBlock = (item: any) => <QuizBlock key={item.id} item={item} />;
 
   const renderMedia = () => {
     const postType = String((data as any).postType || '').toLowerCase();
@@ -264,7 +1211,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       case NewsType.VIDEO: return <VideoCard data={data} />;
       case NewsType.GALLERY: return <GalleryCard data={data} />;
       case NewsType.POLL: return <PollCard data={data} />;
-      case NewsType.QUIZ: return data.items?.find((item: any) => item?.type === 'quiz') ? renderQuizBlock(data.items.find((item: any) => item?.type === 'quiz')) : null;
+      case NewsType.QUIZ: return null;
       case NewsType.VS: return <VSCard data={data} />;
       case NewsType.PARAGRAPH: return <ParagraphCard data={data} />;
       default:
@@ -299,7 +1246,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       {/* Reading Progress Bar */}
       <div className="fixed top-0 left-0 w-full h-1 z-[60] bg-gray-100/50 backdrop-blur-sm">
         <div
-          className="h-full bg-blue-600 transition-all duration-100 shadow-md"
+          className="h-full bg-palette-red transition-all duration-100 shadow-md"
           style={{ width: `${scrollProgress}%` }}
         />
       </div>
@@ -308,7 +1255,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       <div className={`px-6 md:px-10 pt-8 ${data.title || data.summary ? 'pb-6' : 'pb-4'} border-b border-gray-50 bg-gray-50/30 rounded-t-[5px]`}>
         {/* Breadcrumbs */}
         <nav className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-400 capitalize tracking-widest mb-6">
-          <button onClick={onBack} className="flex items-center gap-1.5 hover:text-blue-600 transition-colors">
+          <button onClick={onBack} className="flex items-center gap-1.5 hover:text-palette-red transition-colors">
             <Home size={12} />
             <span>{t('nav.home')}</span>
           </button>
@@ -326,14 +1273,14 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         {(data.title || data.summary) && (
           <div className="w-full mb-6 max-w-full">
             {data.title && (
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-[900] text-gray-900 leading-[1.15] tracking-tighter mb-4">
+              <h1 className="news-title-font text-4xl md:text-5xl lg:text-6xl font-[900] text-gray-900 leading-[1.15] tracking-tighter mb-4">
                 {data.title}
               </h1>
             )}
             {data.summary && (
               <div
                 dangerouslySetInnerHTML={{ __html: data.summary }}
-                className="rich-text-content text-xl md:text-2xl font-bold text-gray-500 leading-relaxed max-w-full"
+                className="news-subtitle-font rich-text-content text-xl md:text-2xl font-bold text-gray-500 leading-relaxed max-w-full"
               />
             )}
           </div>
@@ -348,7 +1295,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-black text-gray-900">{data.author}</span>
-                <CheckCircle2 size={14} className="text-blue-500" />
+                <CheckCircle2 size={14} className="text-palette-red" />
               </div>
               <div className="flex items-center gap-3 text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
                 <span className="flex items-center gap-1"><Calendar size={12} /> {data.timestamp}</span>
@@ -360,12 +1307,12 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
           <div className="flex items-center gap-2 mt-4 md:mt-0">
             <button
               onClick={handleNativeShare}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-[5px] text-xs font-black transition-all hover:bg-gray-800 shadow-md active:scale-95"
+              className="flex items-center gap-2 px-5 py-2.5 bg-palette-maroon text-white rounded-[5px] text-xs font-black transition-all hover:bg-palette-red shadow-md active:scale-95"
             >
               <Share2 size={14} />
               <span>{t('common.share')}</span>
             </button>
-            <button onClick={onBack} className="p-2.5 bg-white border border-gray-200 text-gray-400 rounded-[5px] hover:text-blue-600 transition-all">
+            <button onClick={onBack} className="p-2.5 bg-white border border-gray-200 text-gray-400 rounded-[5px] hover:text-palette-red transition-all">
               <ArrowLeft size={20} />
             </button>
           </div>
@@ -380,18 +1327,18 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
           <div className="flex flex-col items-center mb-2">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest [writing-mode:vertical-lr] rotate-180 mb-2">{t('card.share')}</span>
             <div className="w-px h-8 bg-gray-100 mb-2"></div>
-            <span className="text-xs font-black text-blue-600 mb-2">{detailCounts.shares.toLocaleString()}</span>
+            <span className="text-xs font-black text-palette-red mb-2">{detailCounts.shares.toLocaleString()}</span>
           </div>
 
           <button
             onClick={shareToTwitter}
-            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-[#1DA1F2] text-white hover:scale-110 transition-all shadow-sm active:scale-95"
+            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-red text-palette-beige hover:scale-110 transition-all shadow-sm active:scale-95"
           >
             <Twitter size={18} className="fill-current" />
           </button>
           <button
             onClick={shareToFacebook}
-            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-[#4267B2] text-white hover:scale-110 transition-all shadow-sm active:scale-95"
+            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-maroon text-palette-beige hover:scale-110 transition-all shadow-sm active:scale-95"
           >
             <Facebook size={18} className="fill-current" />
           </button>
@@ -400,7 +1347,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
               const url = getUtmUrl('linkedin');
               window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
             }}
-            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-[#0077B5] text-white hover:scale-110 transition-all shadow-sm active:scale-95"
+            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-accent text-palette-maroon hover:scale-110 transition-all shadow-sm active:scale-95"
           >
             <Linkedin size={18} className="fill-current" />
           </button>
@@ -415,20 +1362,20 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
 
           {/* Like Button with Count */}
           <div className="flex flex-col items-center">
-            <button onClick={toggleDetailLike} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm group ${detailState.liked ? 'bg-rose-500 text-white' : 'bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white'}`}>
+            <button onClick={toggleDetailLike} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm group ${detailState.liked ? 'bg-palette-red text-white' : 'bg-palette-red/5 text-palette-red hover:bg-palette-red hover:text-white'}`}>
               <Heart size={18} className="group-hover:scale-110 transition-transform" />
             </button>
-            <span className="text-[10px] font-black text-rose-500 mt-1">{detailCounts.likes.toLocaleString()}</span>
+            <span className="text-[10px] font-black text-palette-red mt-1">{detailCounts.likes.toLocaleString()}</span>
           </div>
 
           {/* Bookmark Button */}
-          <button onClick={toggleDetailSave} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm border border-gray-100 ${detailState.saved ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-blue-500 hover:text-white'}`}>
+          <button onClick={toggleDetailSave} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm border border-gray-100 ${detailState.saved ? 'bg-palette-maroon text-white' : 'bg-gray-50 text-gray-400 hover:bg-palette-maroon hover:text-white'}`}>
             <Bookmark size={18} />
           </button>
         </aside>
 
         {/* MAIN BODY CONTENT */}
-        <article className={`flex-1 min-w-0 px-6 md:px-12 ${data.title || data.summary ? 'pt-6' : 'pt-2'} pb-8 max-w-full md:mx-0 break-words overflow-hidden`}>
+        <article className={`flex-1 min-w-0 px-6 md:px-12 ${data.title || data.summary ? 'pt-6' : 'pt-2'} pb-8 max-w-full md:mx-0 overflow-hidden`}>
 
           {/* Main Media (Video, Poll, Gallery etc.) */}
           {(() => {
@@ -519,9 +1466,15 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                         <PollCard data={{ ...data, title: item.title, summary: item.description, options: item.options, isImagePoll: item.isImagePoll, pollColumns: item.pollColumns } as any} />
                       </div>
                     );
-                  case 'quiz':
-                    return renderQuizBlock(item);
-                  case 'vs':
+	                  case 'quiz':
+	                    return renderQuizBlock(item);
+	                  case 'toc':
+	                    return <TableOfContentsBlock key={item.id} item={item} />;
+	                  case 'recipe':
+	                    return <RecipeBlock key={item.id} item={item} />;
+	                  case 'event':
+	                    return <EventBlock key={item.id} item={item} />;
+	                  case 'vs':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
                       <VSCard data={{ ...data, title: item.title, options: item.options } as any} />
@@ -646,7 +1599,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                     disabled={isDisabled}
                     className={`group relative flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all duration-300 flex-shrink-0
                       ${isSelected
-                        ? 'bg-emerald-50 border-2 border-emerald-400 shadow-lg shadow-emerald-500/20 -translate-y-1'
+                        ? 'bg-palette-red/5 border-2 border-palette-red shadow-lg shadow-palette-red/20 -translate-y-1'
                         : 'bg-white border-2 border-transparent hover:border-palette-beige hover:bg-palette-beige/20 hover:-translate-y-1 hover:shadow-lg'
                       }
                       ${isDisabled ? 'opacity-40 cursor-not-allowed hover:translate-y-0 hover:shadow-none' : 'cursor-pointer'}
@@ -654,7 +1607,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                   >
                     {/* Selected Check */}
                     {isSelected && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-palette-red rounded-full flex items-center justify-center shadow-md">
                         <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -664,10 +1617,10 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                     <span className={`text-3xl md:text-4xl transition-transform duration-300 select-none ${isSelected ? 'scale-110' : 'group-hover:scale-110'}`}>
                       {item.emoji}
                     </span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors ${isSelected ? 'text-emerald-600' : 'text-palette-tan/40 group-hover:text-palette-tan'}`}>
+                    <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors ${isSelected ? 'text-palette-red' : 'text-palette-tan/40 group-hover:text-palette-tan'}`}>
                       {item.label}
                     </span>
-                    <span className={`text-sm font-black transition-colors ${isSelected ? 'text-emerald-600' : 'text-palette-tan'}`}>
+                    <span className={`text-sm font-black transition-colors ${isSelected ? 'text-palette-red' : 'text-palette-tan'}`}>
                       {isSelected ? item.count + 1 : item.count}
                     </span>
                   </button>
@@ -700,7 +1653,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       {/* Back to Top */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className={`fixed bottom-8 right-8 p-4 bg-white border border-gray-200 rounded-[5px] shadow-xl text-gray-400 hover:text-blue-600 transition-all z-50 ${scrollProgress > 20 ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}
+        className={`fixed bottom-8 right-8 p-4 bg-white border border-gray-200 rounded-[5px] shadow-xl text-gray-400 hover:text-palette-red transition-all z-50 ${scrollProgress > 20 ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}
       >
         <ChevronRight size={20} className="-rotate-90" />
       </button>

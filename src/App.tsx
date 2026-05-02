@@ -36,6 +36,52 @@ const CACHE_CONFIG = {
   }
 };
 
+const STORED_TEXT_ENTITY_MAP: Record<string, string> = {
+  amp: '&',
+  apos: "'",
+  Ccedil: 'Ç',
+  ccedil: 'ç',
+  Gbreve: 'Ğ',
+  gbreve: 'ğ',
+  hellip: '...',
+  Idot: 'İ',
+  imath: 'ı',
+  laquo: '"',
+  ldquo: '"',
+  lsquo: "'",
+  nbsp: ' ',
+  Ouml: 'Ö',
+  ouml: 'ö',
+  quot: '"',
+  raquo: '"',
+  rdquo: '"',
+  rsquo: "'",
+  Scedil: 'Ş',
+  scedil: 'ş',
+  Uuml: 'Ü',
+  uuml: 'ü',
+};
+
+const decodeStoredCodePoint = (value: string, radix: number, fallback: string) => {
+  const codePoint = Number.parseInt(value, radix);
+  if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+  if (codePoint === 60 || codePoint === 62) return fallback;
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return fallback;
+  }
+};
+
+const normalizeStoredPlainText = (value: unknown) => {
+  const decodeOnce = (input: string) => input
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => STORED_TEXT_ENTITY_MAP[entity] ?? match)
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeStoredCodePoint(hex, 16, match))
+    .replace(/&#(\d+);/g, (match, decimal: string) => decodeStoredCodePoint(decimal, 10, match));
+
+  return decodeOnce(decodeOnce(String(value ?? ''))).replace(/\u00a0/g, ' ').trim();
+};
+
 const ADMIN_TAB_LABEL_KEYS: Record<string, string> = {
   overview: 'admin.sidebar.overview',
   posts: 'admin.sidebar.posts',
@@ -274,9 +320,14 @@ const App: React.FC = () => {
         const mappedNews: NewsItem[] = postsData.map((item: any) => {
           const profile = item.profiles;
           const homepageItem = (item.items || []).find((i: any) => i.showOnHomepage === true);
+          const title = normalizeStoredPlainText(item.title);
+          const summary = normalizeStoredPlainText(item.summary);
+          const category = normalizeStoredPlainText(item.category);
+          const seoTitle = normalizeStoredPlainText(item.seo_title);
+          const seoDescription = normalizeStoredPlainText(item.seo_description);
           let cardType = item.type?.toUpperCase() || 'STANDARD';
           const coverThumbnail = item.thumbnail_url || 'https://picsum.photos/800/600';
-          const coverThumbnailAlt = item.thumbnail_alt || '';
+          const coverThumbnailAlt = normalizeStoredPlainText(item.thumbnail_alt);
           let extraData: any = { postType: item.type, coverThumbnail, coverThumbnailAlt };
           if (homepageItem) {
             const { id: _ignoreId, ...homepagePayload } = homepageItem;
@@ -285,7 +336,7 @@ const App: React.FC = () => {
             extraData = {
               ...extraData,
               ...homepagePayload,
-              summary: homepageItem.description || item.summary,
+              summary: homepageItem.description ? normalizeStoredPlainText(homepageItem.description) : summary,
               mediaUrl: homepageItem.mediaUrl || item.media_url || '',
               thumbnail: homepageItem.mediaUrl || item.thumbnail_url || 'https://picsum.photos/800/600'
             };
@@ -293,12 +344,12 @@ const App: React.FC = () => {
 
           return {
             id: item.id,
-            title: item.title,
-            summary: item.summary,
+            title,
+            summary,
             content: item.content,
-            category: item.category,
-            source: profile?.full_name || profile?.username || 'Editör',
-            author: profile?.full_name || 'Editör',
+            category,
+            source: normalizeStoredPlainText(profile?.full_name || profile?.username || 'Editör'),
+            author: normalizeStoredPlainText(profile?.full_name || 'Editör'),
             timestamp: item.published_at
               ? new Date(item.published_at).toLocaleDateString(currentLang.code === 'ar' ? 'ar-SA' : 'tr-TR', { hour: '2-digit', minute: '2-digit' })
               : new Date(item.created_at).toLocaleDateString(currentLang.code === 'ar' ? 'ar-SA' : 'tr-TR', { hour: '2-digit', minute: '2-digit' }),
@@ -317,13 +368,13 @@ const App: React.FC = () => {
             publisherId: item.publisher_id,
             ...extraData,
             ...(homepageItem?.type === 'poll'
-              ? { title: item.title, summary: item.summary, blockTitle: homepageItem.title, blockDescription: homepageItem.description }
+              ? { title, summary, blockTitle: normalizeStoredPlainText(homepageItem.title), blockDescription: homepageItem.description }
               : {}),
             type: cardType as any,
             // 🚀 Advanced SEO Mapping
-            seoTitle: item.seo_title,
-            seoDescription: item.seo_description,
-            keywords: item.keywords,
+            seoTitle,
+            seoDescription,
+            keywords: normalizeStoredPlainText(item.keywords),
             slug: item.slug,
             factChecked: item.fact_checked,
             schemaType: item.schema_type
@@ -356,9 +407,14 @@ const App: React.FC = () => {
       if (item) {
         const profile = item.profiles;
         const homepageItem = (item.items || []).find((i: any) => i.showOnHomepage === true);
+        const title = normalizeStoredPlainText(item.title);
+        const summary = normalizeStoredPlainText(item.summary);
+        const category = normalizeStoredPlainText(item.category);
+        const seoTitle = normalizeStoredPlainText(item.seo_title);
+        const seoDescription = normalizeStoredPlainText(item.seo_description);
         let cardType = item.type?.toUpperCase() || 'STANDARD';
         const coverThumbnail = item.thumbnail_url || 'https://picsum.photos/800/600';
-        const coverThumbnailAlt = item.thumbnail_alt || '';
+        const coverThumbnailAlt = normalizeStoredPlainText(item.thumbnail_alt);
         let extraData: any = { postType: item.type, coverThumbnail, coverThumbnailAlt };
         if (homepageItem) {
           const { id: _ignoreId, ...homepagePayload } = homepageItem;
@@ -369,12 +425,12 @@ const App: React.FC = () => {
 
         const mappedNews: NewsItem = {
           id: item.id,
-          title: item.title,
-          summary: item.summary,
+          title,
+          summary,
           content: item.content,
-          category: item.category,
-          source: profile?.full_name || profile?.username || 'Editör',
-          author: profile?.full_name || 'Editör',
+          category,
+          source: normalizeStoredPlainText(profile?.full_name || profile?.username || 'Editör'),
+          author: normalizeStoredPlainText(profile?.full_name || 'Editör'),
           timestamp: item.published_at
             ? new Date(item.published_at).toLocaleDateString(currentLang.code === 'ar' ? 'ar-SA' : 'tr-TR', { hour: '2-digit', minute: '2-digit' })
             : new Date(item.created_at).toLocaleDateString(currentLang.code === 'ar' ? 'ar-SA' : 'tr-TR', { hour: '2-digit', minute: '2-digit' }),
@@ -391,13 +447,13 @@ const App: React.FC = () => {
           publisherId: item.publisher_id,
           ...extraData,
           ...(homepageItem?.type === 'poll'
-            ? { title: item.title, summary: item.summary, blockTitle: homepageItem.title, blockDescription: homepageItem.description }
+            ? { title, summary, blockTitle: normalizeStoredPlainText(homepageItem.title), blockDescription: homepageItem.description }
             : {}),
           type: cardType as any,
           // 🚀 Advanced SEO Mapping
-          seoTitle: item.seo_title,
-          seoDescription: item.seo_description,
-          keywords: item.keywords,
+          seoTitle,
+          seoDescription,
+          keywords: normalizeStoredPlainText(item.keywords),
           slug: item.slug,
           factChecked: item.fact_checked,
           schemaType: item.schema_type

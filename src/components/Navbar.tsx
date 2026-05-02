@@ -5,6 +5,12 @@ import { prefetch } from 'astro:prefetch';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NavigationItem, type SiteSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
+import {
+  SPECIAL_CONTENT_FILTERS,
+  getSpecialContentConfig,
+  getSpecialContentUrl,
+  type SpecialContentConfig
+} from '@/utils/specialContent';
 import { searchSite } from '@/services/appActions';
 
 interface NavbarProps {
@@ -20,6 +26,12 @@ interface NavbarProps {
   user?: any;
   authLoading?: boolean;
 }
+
+const APPLE_NAV_FONT = '"PateezAppleText", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+const DESKTOP_NAV_ITEM_CLASS = 'relative h-full flex items-center gap-2.5 px-1 text-[13px] font-extrabold tracking-widest transition-all group text-gray-500 hover:text-palette-red';
+const MOBILE_NAV_ITEM_CLASS = 'w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[13px] font-black tracking-widest text-gray-500 hover:bg-palette-beige/10 hover:text-palette-red';
+const DESKTOP_NAV_ICON_SIZE = '20px';
+const MOBILE_NAV_ICON_SIZE = '19px';
 
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
@@ -46,9 +58,22 @@ const Navbar: React.FC<NavbarProps> = ({
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const headerItems = React.useMemo(() =>
-    navItems.filter(item => item.type === 'header'),
+    navItems.filter(item => item.type === 'header' && !getSpecialContentConfig(item.value, item.label)),
     [navItems]
   );
+
+  const specialHeaderItems = React.useMemo(() => (
+    SPECIAL_CONTENT_FILTERS.filter((config) => config.showInHeader !== false).map((config) => {
+      const source = navItems.find((item) => getSpecialContentConfig(item.value, item.label)?.key === config.key);
+      return {
+        id: source?.id || `special-${config.key}`,
+        label: config.label,
+        value: config.value,
+        icon: source?.icon || config.icon,
+        config,
+      };
+    })
+  ), [navItems]);
 
   const goHome = () => {
     if (onHomeClick) return onHomeClick();
@@ -69,6 +94,16 @@ const Navbar: React.FC<NavbarProps> = ({
     void navigate(`/kategori/${slugify(raw)}`);
   };
 
+  const navigateSpecialContent = (config: SpecialContentConfig) => {
+    const href = getSpecialContentUrl(config.value);
+    if (typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '')) {
+      window.history.pushState({}, '', href);
+      window.dispatchEvent(new CustomEvent('pateez:content-filter', { detail: { category: config.value } }));
+      return;
+    }
+    void navigate(href);
+  };
+
   const prefetchHeaderItem = (item: NavigationItem) => {
     const raw = (item.value || item.label || '').trim();
     if (!raw) return;
@@ -78,6 +113,10 @@ const Navbar: React.FC<NavbarProps> = ({
       return;
     }
     prefetch(`/kategori/${slugify(raw)}`);
+  };
+
+  const prefetchSpecialContent = (config: SpecialContentConfig) => {
+    prefetch(getSpecialContentUrl(config.value));
   };
 
   useEffect(() => {
@@ -190,25 +229,43 @@ const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={goHome}
               onMouseEnter={() => prefetch('/')}
-              className="relative h-full flex items-center gap-2.5 px-1 text-[12px] font-bold tracking-widest transition-all group text-palette-red"
+              className={DESKTOP_NAV_ITEM_CLASS}
+              style={{ fontFamily: APPLE_NAV_FONT }}
             >
               <span className="material-symbols-rounded transition-all duration-150 scale-110"
-                style={{ fontSize: '22px', fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
                 home
               </span>
               <span>{t('nav.home')}</span>
             </button>
+
+            {specialHeaderItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => navigateSpecialContent(item.config)}
+                onMouseEnter={() => prefetchSpecialContent(item.config)}
+                className={DESKTOP_NAV_ITEM_CLASS}
+                style={{ fontFamily: APPLE_NAV_FONT }}
+              >
+                <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
+                  style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
+                  {item.icon.toLowerCase()}
+                </span>
+                <span>{t(item.label)}</span>
+              </button>
+            ))}
 
             {headerItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => navigateHeaderItem(item)}
                 onMouseEnter={() => prefetchHeaderItem(item)}
-                className="relative h-full flex items-center gap-2.5 px-1 text-[12px] font-bold tracking-widest transition-all group text-palette-tan/60 hover:text-palette-red"
+                className={DESKTOP_NAV_ITEM_CLASS}
+                style={{ fontFamily: APPLE_NAV_FONT }}
               >
                 {item.icon && (
                   <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
-                    style={{ fontSize: '22px', fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
+                    style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
                     {item.icon.toLowerCase()}
                   </span>
                 )}
@@ -404,18 +461,31 @@ const Navbar: React.FC<NavbarProps> = ({
             <div className="grid gap-1">
               <button
                 onClick={() => { setIsMobileMenuOpen(false); goHome(); }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[12px] font-black tracking-widest text-palette-red hover:bg-palette-beige/10"
+                className={MOBILE_NAV_ITEM_CLASS}
+                style={{ fontFamily: APPLE_NAV_FONT }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>home</span>
+                <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>home</span>
                 {t('nav.home')}
               </button>
+              {specialHeaderItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => { setIsMobileMenuOpen(false); navigateSpecialContent(item.config); }}
+                  className={MOBILE_NAV_ITEM_CLASS}
+                  style={{ fontFamily: APPLE_NAV_FONT }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon}</span>
+                  {t(item.label)}
+                </button>
+              ))}
               {headerItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => { setIsMobileMenuOpen(false); navigateHeaderItem(item); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[12px] font-black tracking-widest text-palette-tan hover:bg-palette-beige/10 hover:text-palette-red"
+                  className={MOBILE_NAV_ITEM_CLASS}
+                  style={{ fontFamily: APPLE_NAV_FONT }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>{item.icon || 'chevron_right'}</span>
+                  <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon || 'chevron_right'}</span>
                   {t(item.label)}
                 </button>
               ))}
@@ -480,7 +550,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         {post.thumbnail_url ? <img src={post.thumbnail_url} className="w-full h-full object-cover" alt={post.title} /> : null}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[12px] font-black text-gray-900 truncate">{post.title}</p>
+                        <p className="news-title-font text-[12px] font-black text-gray-900 truncate">{post.title}</p>
                         <p className="text-[9px] font-bold text-palette-tan/40 uppercase tracking-widest truncate">{post.category}</p>
                       </div>
                     </button>

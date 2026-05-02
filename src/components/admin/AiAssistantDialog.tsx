@@ -3,10 +3,12 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import { neon } from '@/lib/neon';
 import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
+import { BUILTIN_EVENT_READY_FORMATS, BUILTIN_POLL_READY_FORMATS, BUILTIN_QUIZ_READY_FORMATS, BUILTIN_RECIPE_READY_FORMATS, BUILTIN_TOC_READY_FORMATS, BUILTIN_VIDEO_READY_FORMATS } from '@/lib/aiReadyFormats';
 
 interface AiAssistantDialogProps {
     isOpen: boolean;
     onClose: () => void;
+    contentType?: 'article' | 'quiz' | 'poll' | 'video' | 'toc' | 'recipe' | 'event';
     onApply?: (data: {
         title: string;
         summary: string;
@@ -17,6 +19,141 @@ interface AiAssistantDialogProps {
         slug: string;
         schemaType: string;
         faqs: { q: string, a: string }[];
+        quiz?: {
+            quizType?: 'personality' | 'trivia' | 'checklist';
+            title?: string;
+            description?: string;
+            questionSorting?: 'asc' | 'desc' | 'hidden';
+            allowMultiple?: boolean;
+            showResults?: boolean;
+            endDate?: string;
+            results?: {
+                key?: string;
+                title: string;
+                image?: string;
+                description: string;
+                minScore?: number;
+                maxScore?: number;
+                answerCount?: number;
+            }[];
+            questions?: {
+                title: string;
+                image?: string;
+                description?: string;
+                showOnCover?: boolean;
+                layout?: 'list' | 'grid2' | 'grid3';
+                answers: {
+                    text: string;
+                    image?: string;
+                    resultKey?: string;
+                    resultIndex?: number;
+                    isCorrect?: boolean;
+                }[];
+            }[];
+        };
+        poll?: {
+            title?: string;
+            description?: string;
+            mediaUrl?: string;
+            image?: string;
+            mainImage?: string;
+            imagePrompt?: string;
+            visualIdea?: string;
+            source?: string;
+            layout?: string;
+            answerLayout?: string;
+            answerFormat?: string;
+            isImagePoll?: boolean;
+            pollColumns?: 2 | 3 | number | string;
+            options?: {
+                text?: string;
+                title?: string;
+                label?: string;
+                image?: string;
+                votes?: number | string;
+            }[];
+            items?: any[];
+            polls?: any[];
+            questions?: any[];
+            closing?: string;
+            closingText?: string;
+            miniClosing?: string;
+            outro?: string;
+        };
+        video?: {
+            title?: string;
+            description?: string;
+            mediaUrl?: string;
+            videoUrl?: string;
+            url?: string;
+            youtubeUrl?: string;
+            embedUrl?: string;
+            embedCode?: string;
+            iframe?: string;
+            html?: string;
+            sourceUrl?: string;
+            source?: string;
+        };
+        toc?: {
+            title?: string;
+            optionalUrl?: string;
+            url?: string;
+            videoUrl?: string;
+            linkListStyle?: any;
+            items?: any[];
+            tocItems?: any[];
+            sections?: any[];
+            tableOfContents?: any[];
+        };
+        recipe?: {
+            title?: string;
+            description?: string;
+            optionalUrl?: string;
+            prepTime?: string;
+            cookTime?: string;
+            totalTime?: string;
+            serving?: string;
+            difficulty?: string;
+            imageAlt?: string;
+            ingredients?: any[];
+            nutrition?: any[];
+            directions?: any[];
+            steps?: any[];
+            tips?: any[];
+            video?: any;
+        };
+        event?: {
+            category?: string;
+            subCategory?: string;
+            language?: string;
+            startDateTime?: string;
+            endDateTime?: string;
+            organizer?: string;
+            venueName?: string;
+            address?: string;
+            latitude?: string;
+            longitude?: string;
+            registrationType?: string;
+            ticketUrl?: string;
+            ticketPrice?: string;
+            capacity?: string;
+            scheduleTitle?: string;
+            highlightsTitle?: string;
+            speakersTitle?: string;
+            schedule?: any[];
+            program?: any[];
+            sessions?: any[];
+            highlights?: any[];
+            notes?: any[];
+            speakers?: any[];
+            guests?: any[];
+            separateEventTitles?: any[];
+        };
+        requestedMedia?: {
+            image: boolean;
+            video: boolean;
+            audio: boolean;
+        };
     }) => void;
 }
 
@@ -72,11 +209,11 @@ Haberin tüm gövde metni (Anayasa kurallarına göre düzenlenmiş) buraya.
 [/CONTENT]
 `;
 
-const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, onApply }) => {
+const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, contentType = 'article', onApply }) => {
     const { t, currentLang } = useLanguage();
     const { showToast } = useToast();
     const [position, setPosition] = useState({ x: 100, y: 100 });
-    const [size, setSize] = useState({ width: 900, height: 600 });
+    const [size, setSize] = useState({ width: 1120, height: 600 });
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [content, setContent] = useState('');
@@ -94,13 +231,66 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 
     const dragOffset = useRef({ x: 0, y: 0 });
     const dialogRef = useRef<HTMLDivElement>(null);
+    const isQuizMode = contentType === 'quiz';
+    const isPollMode = contentType === 'poll';
+    const isVideoMode = contentType === 'video';
+    const isTocMode = contentType === 'toc';
+    const isRecipeMode = contentType === 'recipe';
+    const isEventMode = contentType === 'event';
+    const isStructuredMode = isQuizMode || isPollMode || isVideoMode || isTocMode || isRecipeMode || isEventMode;
+    const activeReadyFormats = isQuizMode
+        ? BUILTIN_QUIZ_READY_FORMATS
+        : isPollMode
+            ? BUILTIN_POLL_READY_FORMATS
+            : isVideoMode
+                ? BUILTIN_VIDEO_READY_FORMATS
+                : isTocMode
+                    ? BUILTIN_TOC_READY_FORMATS
+                    : isRecipeMode
+                        ? BUILTIN_RECIPE_READY_FORMATS
+                        : isEventMode
+                            ? BUILTIN_EVENT_READY_FORMATS
+                            : readyFormats;
+
+    const resetDialogState = useCallback(() => {
+        setContent('');
+        setResultContent('');
+        setIsCopied(false);
+        setIsGenerating(false);
+        setCanApply(false);
+        setApiNotice('');
+        setNewsMedia({ image: false, video: false, audio: false });
+    }, []);
+
+    const handleClose = useCallback(() => {
+        resetDialogState();
+        onClose();
+    }, [onClose, resetDialogState]);
 
     useEffect(() => {
         if (isOpen) {
             fetchSettings();
             fetchReadyFormats();
+        } else {
+            resetDialogState();
         }
-    }, [isOpen, currentLang.code]);
+    }, [isOpen, currentLang.code, contentType, resetDialogState]);
+
+    useEffect(() => {
+        if (isOpen && contentType === 'quiz') {
+            setSelectedFormat(BUILTIN_QUIZ_READY_FORMATS[0]?.id || '');
+        } else if (isOpen && contentType === 'poll') {
+            setSelectedFormat(BUILTIN_POLL_READY_FORMATS[0]?.id || '');
+        } else if (isOpen && contentType === 'video') {
+            setSelectedFormat(BUILTIN_VIDEO_READY_FORMATS[0]?.id || '');
+        } else if (isOpen && contentType === 'toc') {
+            setSelectedFormat(BUILTIN_TOC_READY_FORMATS[0]?.id || '');
+        } else if (isOpen && contentType === 'recipe') {
+            setSelectedFormat(BUILTIN_RECIPE_READY_FORMATS[0]?.id || '');
+        } else if (isOpen && contentType === 'event') {
+            setSelectedFormat(BUILTIN_EVENT_READY_FORMATS[0]?.id || '');
+        }
+    }, [isOpen, contentType]);
 
     const [apiKey, setApiKey] = useState('');
 
@@ -228,34 +418,69 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
         }
     };
 
-	    const fetchReadyFormats = async () => {
-	        try {
-	            const { data } = await neon
-	                .from('ai_ready_formats')
-	                .select('*')
-	                .eq('language_code', currentLang.code)
-	                .eq('is_active', true)
-	                .order('title');
-	            if (data) {
-	                setReadyFormats(data);
-	                setSelectedFormat((current) => {
-	                    const currentValue = String(current || '').trim();
-	                    if (currentValue && data.some((f: any) => String(f?.id) === currentValue)) return currentValue;
-	                    const firstId = data[0]?.id;
-	                    return firstId ? String(firstId) : '';
-	                });
-	            }
-	        } catch (err) {
-	            console.error('Error fetching ready formats:', err);
-	        }
-	    };
+    const fetchReadyFormats = async () => {
+        try {
+            const { data } = await neon
+                .from('ai_ready_formats')
+                .select('*')
+                .eq('language_code', currentLang.code)
+                .eq('is_active', true)
+                .order('title');
+            const formats = data || [];
+            setReadyFormats(formats);
+            setSelectedFormat((current) => {
+                if (contentType === 'quiz') {
+                    const currentValue = String(current || '').trim();
+                    if (BUILTIN_QUIZ_READY_FORMATS.some((format) => format.id === currentValue)) return currentValue;
+                    return BUILTIN_QUIZ_READY_FORMATS[0]?.id || '';
+                }
+
+                if (contentType === 'poll') {
+                    const currentValue = String(current || '').trim();
+                    if (BUILTIN_POLL_READY_FORMATS.some((format) => format.id === currentValue)) return currentValue;
+                    return BUILTIN_POLL_READY_FORMATS[0]?.id || '';
+                }
+
+                if (contentType === 'video') {
+                    const currentValue = String(current || '').trim();
+                    if (BUILTIN_VIDEO_READY_FORMATS.some((format) => format.id === currentValue)) return currentValue;
+                    return BUILTIN_VIDEO_READY_FORMATS[0]?.id || '';
+                }
+
+                if (contentType === 'toc') {
+                    const currentValue = String(current || '').trim();
+                    if (BUILTIN_TOC_READY_FORMATS.some((format) => format.id === currentValue)) return currentValue;
+                    return BUILTIN_TOC_READY_FORMATS[0]?.id || '';
+                }
+
+                if (contentType === 'recipe') {
+                    const currentValue = String(current || '').trim();
+                    if (BUILTIN_RECIPE_READY_FORMATS.some((format) => format.id === currentValue)) return currentValue;
+                    return BUILTIN_RECIPE_READY_FORMATS[0]?.id || '';
+                }
+
+                if (contentType === 'event') {
+                    const currentValue = String(current || '').trim();
+                    if (BUILTIN_EVENT_READY_FORMATS.some((format) => format.id === currentValue)) return currentValue;
+                    return BUILTIN_EVENT_READY_FORMATS[0]?.id || '';
+                }
+
+                const currentValue = String(current || '').trim();
+                if (currentValue && formats.some((f: any) => String(f?.id) === currentValue)) return currentValue;
+                const firstId = formats[0]?.id;
+                return firstId ? String(firstId) : '';
+            });
+        } catch (err) {
+            console.error('Error fetching ready formats:', err);
+        }
+    };
 
     // Update size to be wider by default if it's the first open
     useEffect(() => {
         if (isOpen) {
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
-            const defaultWidth = Math.min(1000, viewportWidth - 40);
+            const defaultWidth = Math.min(1160, viewportWidth - 40);
             const defaultHeight = Math.min(700, viewportHeight - 40);
 
             setSize({ width: defaultWidth, height: defaultHeight });
@@ -276,7 +501,22 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
     };
 
     const parseAiResult = (text: string) => {
-        const KNOWN_TAGS = ['TITLE', 'SUMMARY', 'SLUG', 'KEYWORDS', 'METATITLE', 'METADESC', 'SCHEMA', 'FAQ', 'CONTENT'] as const;
+        const KNOWN_TAGS = ['TITLE', 'SUMMARY', 'SLUG', 'KEYWORDS', 'METATITLE', 'METADESC', 'SCHEMA', 'FAQ', 'CONTENT', 'QUIZ', 'POLL', 'VIDEO', 'TOC', 'RECIPE', 'EVENT'] as const;
+        const stripLeakedAiTags = (value: string, preserveBlockWhitespace = false) => {
+            const withoutTags = String(value || '').replace(
+                /\s*\[\/?(?:TITLE|SUMMARY|SLUG|KEYWORDS|METATITLE|METADESC|SCHEMA|FAQ|CONTENT|QUIZ|POLL|VIDEO|TOC|RECIPE|EVENT)\]\s*/gi,
+                preserveBlockWhitespace ? '\n' : ' ',
+            );
+
+            return preserveBlockWhitespace
+                ? withoutTags
+                    .replace(/[ \t]{2,}/g, ' ')
+                    .replace(/\n{3,}/g, '\n\n')
+                    .trim()
+                : withoutTags
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
+        };
 
         const extract = (tag: typeof KNOWN_TAGS[number]) => {
             const open = `[${tag}]`;
@@ -287,17 +527,17 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 
             const afterOpen = start + open.length;
             const closeIdx = text.indexOf(close, afterOpen);
-            if (closeIdx !== -1) return text.slice(afterOpen, closeIdx).trim();
+            const preserveBlockWhitespace = tag === 'CONTENT' || tag === 'FAQ';
+            if (closeIdx !== -1) return stripLeakedAiTags(text.slice(afterOpen, closeIdx), preserveBlockWhitespace);
 
             // If the closing tag is missing (often due to token limit truncation),
             // fall back to reading until the next known tag (or end-of-text).
             const nextTagStarts = KNOWN_TAGS
-                .filter((t) => t !== tag)
                 .map((t) => text.indexOf(`[${t}]`, afterOpen))
                 .filter((idx) => idx !== -1);
 
             const nextIdx = nextTagStarts.length > 0 ? Math.min(...nextTagStarts) : -1;
-            return (nextIdx !== -1 ? text.slice(afterOpen, nextIdx) : text.slice(afterOpen)).trim();
+            return stripLeakedAiTags(nextIdx !== -1 ? text.slice(afterOpen, nextIdx) : text.slice(afterOpen), preserveBlockWhitespace);
         };
 
         const faqRaw = extract('FAQ');
@@ -322,6 +562,132 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
             });
         }
 
+        const parseTaggedJson = (tag: 'QUIZ' | 'POLL' | 'VIDEO' | 'TOC' | 'RECIPE' | 'EVENT') => {
+            const raw = extract(tag);
+            if (!raw) return undefined;
+
+            const withoutFence = String(raw || '')
+                .replace(/^```(?:json)?/i, '')
+                .replace(/```$/i, '')
+                .trim();
+
+            const sliceJsonValue = (value: string) => {
+                const firstObject = value.indexOf('{');
+                const firstArray = value.indexOf('[');
+                const starts = [firstObject, firstArray].filter((idx) => idx !== -1);
+                if (starts.length === 0) return value.trim();
+
+                const startIdx = Math.min(...starts);
+                const stack: string[] = [];
+                let inString = false;
+                let escaped = false;
+
+                for (let index = startIdx; index < value.length; index += 1) {
+                    const char = value[index];
+
+                    if (inString) {
+                        if (escaped) {
+                            escaped = false;
+                        } else if (char === '\\') {
+                            escaped = true;
+                        } else if (char === '"') {
+                            inString = false;
+                        }
+                        continue;
+                    }
+
+                    if (char === '"') {
+                        inString = true;
+                    } else if (char === '{') {
+                        stack.push('}');
+                    } else if (char === '[') {
+                        stack.push(']');
+                    } else if (char === '}') {
+                        if (stack[stack.length - 1] === '}') stack.pop();
+                        if (stack.length === 0) return value.slice(startIdx, index + 1).trim();
+                    } else if (char === ']') {
+                        if (stack[stack.length - 1] === ']') stack.pop();
+                        if (stack.length === 0) return value.slice(startIdx, index + 1).trim();
+                    }
+                }
+
+                return value.slice(startIdx).trim();
+            };
+
+            const escapeStringLineBreaks = (value: string) => {
+                let output = '';
+                let inString = false;
+                let escaped = false;
+
+                for (const char of value) {
+                    if (inString) {
+                        if (escaped) {
+                            output += char;
+                            escaped = false;
+                            continue;
+                        }
+
+                        if (char === '\\') {
+                            output += char;
+                            escaped = true;
+                            continue;
+                        }
+
+                        if (char === '"') {
+                            output += char;
+                            inString = false;
+                            continue;
+                        }
+
+                        if (char === '\n') {
+                            output += '\\n';
+                            continue;
+                        }
+
+                        if (char === '\r') {
+                            output += '\\r';
+                            continue;
+                        }
+
+                        output += char;
+                        continue;
+                    }
+
+                    output += char;
+                    if (char === '"') inString = true;
+                }
+
+                return output;
+            };
+
+            const normalizeJsonCandidate = (value: string, normalizeSmartQuotes = false) => {
+                const base = normalizeSmartQuotes
+                    ? value.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+                    : value;
+
+                return escapeStringLineBreaks(base)
+                    .replace(/,\s*([}\]])/g, '$1')
+                    .trim();
+            };
+
+            const jsonish = sliceJsonValue(withoutFence);
+            const candidates = [
+                jsonish,
+                normalizeJsonCandidate(jsonish),
+                normalizeJsonCandidate(jsonish, true),
+            ];
+
+            for (const candidate of candidates) {
+                try {
+                    return JSON.parse(candidate);
+                } catch {
+                    // Try the next tolerant candidate.
+                }
+            }
+
+            return undefined;
+        };
+
         return {
             title: extract('TITLE'),
             summary: extract('SUMMARY'),
@@ -331,14 +697,20 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
             metaDesc: extract('METADESC'),
             slug: extract('SLUG'),
             schemaType: extract('SCHEMA') || 'NewsArticle',
-            faqs: faqs
+            faqs: faqs,
+            quiz: parseTaggedJson('QUIZ'),
+            poll: parseTaggedJson('POLL'),
+            video: parseTaggedJson('VIDEO'),
+            toc: parseTaggedJson('TOC'),
+            recipe: parseTaggedJson('RECIPE'),
+            event: parseTaggedJson('EVENT')
         };
     };
 
     const handleGenerate = async (mode: 'organize' | 'make-ready') => {
         if (!content || isGenerating) return;
 
-        if (!selectedFormat) {
+        if (!isStructuredMode && !selectedFormat) {
             showToast('AI hazır formatı seçmelisiniz', 'error');
             return;
         }
@@ -355,9 +727,27 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
 
         try {
             // Determine system prompt: Default Constitution or Selected Format
-            let systemPrompt = mode === 'make-ready' ? NEWS_CONSTITUTION : 'Lütfen bu metni profesyonel bir haber diliyle düzenle.';
+            const quizFormat = BUILTIN_QUIZ_READY_FORMATS.find((format) => format.id === selectedFormat) || BUILTIN_QUIZ_READY_FORMATS[0];
+            const pollFormat = BUILTIN_POLL_READY_FORMATS.find((format) => format.id === selectedFormat) || BUILTIN_POLL_READY_FORMATS[0];
+            const videoFormat = BUILTIN_VIDEO_READY_FORMATS.find((format) => format.id === selectedFormat) || BUILTIN_VIDEO_READY_FORMATS[0];
+            const tocFormat = BUILTIN_TOC_READY_FORMATS.find((format) => format.id === selectedFormat) || BUILTIN_TOC_READY_FORMATS[0];
+            const recipeFormat = BUILTIN_RECIPE_READY_FORMATS.find((format) => format.id === selectedFormat) || BUILTIN_RECIPE_READY_FORMATS[0];
+            const eventFormat = BUILTIN_EVENT_READY_FORMATS.find((format) => format.id === selectedFormat) || BUILTIN_EVENT_READY_FORMATS[0];
+            let systemPrompt = isQuizMode
+                ? quizFormat.prompt
+                : isPollMode
+                    ? pollFormat.prompt
+                    : isVideoMode
+                        ? videoFormat.prompt
+                        : isTocMode
+                            ? tocFormat.prompt
+                            : isRecipeMode
+                                ? recipeFormat.prompt
+                                : isEventMode
+                                    ? eventFormat.prompt
+                                    : (mode === 'make-ready' ? NEWS_CONSTITUTION : 'Lütfen bu metni profesyonel bir haber diliyle düzenle.');
 
-            if (selectedFormat) {
+            if (!isStructuredMode && selectedFormat) {
                 const format = readyFormats.find(f => f.id === selectedFormat);
                 if (format) {
                     systemPrompt = format.prompt;
@@ -365,8 +755,8 @@ const AiAssistantDialog: React.FC<AiAssistantDialogProps> = ({ isOpen, onClose, 
             }
 
             // Force tags if mode is make-ready or a format is selected (as formats are usually for structured data)
-            const forceTags = mode === 'make-ready' || (selectedFormat && !systemPrompt.includes('[TITLE]'));
-            const outputInstruction = forceTags ? `
+            const forceTags = mode === 'make-ready' || (!!selectedFormat && !systemPrompt.includes('[TITLE]'));
+            const outputInstruction = isStructuredMode ? '' : (forceTags ? `
 ### ÇIKTI FORMATI (ZORUNLU):
 Yanıtını MUTLAKA aşağıdaki formatta ver, başka hiçbir ek metin veya yorum ekleme. Sadece etiketler arasındaki metni döndür:
 [TITLE]Haber Başlığı[/TITLE]
@@ -382,13 +772,41 @@ C: Cevap.
 [/FAQ]
 [CONTENT]
 Haber içeriği
-[/CONTENT]` : '';
+[/CONTENT]` : '');
 
-            const mediaLines: string[] = [];
-            if (newsMedia.image) mediaLines.push(t('admin.ai_assistant.media.image'));
-            if (newsMedia.video) mediaLines.push(t('admin.ai_assistant.media.video'));
-            if (newsMedia.audio) mediaLines.push(t('admin.ai_assistant.media.audio'));
-            const mediaSuffix = mediaLines.length > 0 ? `\n\n${mediaLines.join('\n')}` : '';
+            const mediaLabels: string[] = [];
+            if (newsMedia.image) mediaLabels.push(t('admin.ai_assistant.media.image'));
+            if (newsMedia.video) mediaLabels.push(t('admin.ai_assistant.media.video'));
+            if (newsMedia.audio) mediaLabels.push(t('admin.ai_assistant.media.audio'));
+
+            const mediaInstructions: string[] = [];
+            if (newsMedia.image) {
+                mediaInstructions.push(`Admin "${t('admin.ai_assistant.media.image')}" seçti. [CONTENT] içinde haber akışının en uygun noktasına şu formatta ayrı bir görsel item ekle:
+[İTEM: MEDYA GÖRSEL]
+Medya Başlığı: Haberle uyumlu, kısa görsel blok başlığı
+Alt Açıklama: Görselin altında kullanılacak 1 cümlelik açıklama
+Görsel Tasvir/Talimat: Görsel arama/üretim için haberin ana kişi, yer, konu ve atmosferini anlatan net alt metin
+Gerçek görsel URL'si, mediaUrl veya dosya yolu uydurma; bu işaret admin panelde boş görsel item oluşturmak içindir.`);
+            }
+            if (newsMedia.video && !isVideoMode) {
+                mediaInstructions.push(`Admin "${t('admin.ai_assistant.media.video')}" seçti. [CONTENT] içinde haber akışının en uygun noktasına şu formatta ayrı bir video item ekle:
+[İTEM: MEDYA VİDEO]
+Medya Başlığı: Haberle uyumlu, kısa video blok başlığı
+Alt Açıklama: Video altında kullanılacak 1 cümlelik açıklama
+Video URL verilmediyse URL uydurma; bu işaret admin panelde boş video item oluşturmak içindir.`);
+            }
+            if (newsMedia.audio) {
+                mediaInstructions.push(`Admin "${t('admin.ai_assistant.media.audio')}" seçti. [CONTENT] içinde haber akışının en uygun noktasına şu formatta ayrı bir ses item ekle:
+[İTEM: MEDYA SES]
+Medya Başlığı: Haberle uyumlu, kısa ses blok başlığı
+Alt Açıklama: Ses altında kullanılacak 1 cümlelik açıklama
+Ses dosyası URL'si verilmediyse URL uydurma; bu işaret admin panelde boş ses item oluşturmak içindir.`);
+            }
+
+            const shouldAttachMediaInstructions = mediaInstructions.length > 0;
+            const mediaSuffix = shouldAttachMediaInstructions
+                ? `\n\n### ADMIN MEDYA SEÇİMLERİ\n${mediaLabels.join('\n')}\n\n${mediaInstructions.join('\n\n')}`
+                : '';
 
             const finalPrompt = systemPrompt + outputInstruction + "\n\nKonu / İçerik:\n" + content + mediaSuffix;
 
@@ -402,7 +820,7 @@ Haber içeriği
                     temperature: 0.7,
                     topK: 40,
                     topP: 0.95,
-                    maxOutputTokens: 4096,
+                    maxOutputTokens: (isTocMode || isRecipeMode || isEventMode) ? 12000 : isStructuredMode ? 8192 : 4096,
                 }
             };
 
@@ -616,7 +1034,20 @@ Haber içeriği
             setResultContent(aiText);
 
             // Check if tags are present
-            if (aiText.includes('[TITLE]') && aiText.includes('[CONTENT]')) {
+            if (isQuizMode
+                ? (aiText.includes('[TITLE]') && aiText.includes('[QUIZ]'))
+                : isPollMode
+                    ? (aiText.includes('[TITLE]') && aiText.includes('[POLL]'))
+                    : isVideoMode
+                        ? (aiText.includes('[TITLE]') && aiText.includes('[VIDEO]'))
+                        : isTocMode
+                            ? (aiText.includes('[TITLE]') && aiText.includes('[TOC]'))
+                            : isRecipeMode
+                                ? (aiText.includes('[TITLE]') && aiText.includes('[RECIPE]'))
+                                : isEventMode
+                                    ? (aiText.includes('[TITLE]') && aiText.includes('[EVENT]'))
+                                    : (aiText.includes('[TITLE]') && aiText.includes('[CONTENT]'))
+            ) {
                 setCanApply(true);
             } else {
                 setCanApply(false);
@@ -632,8 +1063,35 @@ Haber içeriği
     const handleApplyData = () => {
         if (!onApply || !resultContent || !canApply) return;
         const parsed = parseAiResult(resultContent);
-        onApply(parsed);
-        onClose();
+        if (contentType === 'quiz' && !parsed.quiz) {
+            showToast('AI test verisi okunamadı. Lütfen tekrar üretin.', 'error');
+            return;
+        }
+        if (contentType === 'poll' && !parsed.poll) {
+            showToast('AI anket verisi okunamadı. Lütfen tekrar üretin.', 'error');
+            return;
+        }
+        if (contentType === 'video' && !parsed.video) {
+            showToast('AI video verisi okunamadı. Lütfen tekrar üretin.', 'error');
+            return;
+        }
+        if (contentType === 'toc' && !parsed.toc) {
+            showToast('AI içindekiler verisi okunamadı. Lütfen tekrar üretin.', 'error');
+            return;
+        }
+        if (contentType === 'recipe' && !parsed.recipe) {
+            showToast('AI tarif verisi okunamadı. Lütfen tekrar üretin.', 'error');
+            return;
+        }
+        if (contentType === 'event' && !parsed.event) {
+            showToast('AI etkinlik verisi okunamadı. Lütfen tekrar üretin.', 'error');
+            return;
+        }
+        onApply({
+            ...parsed,
+            requestedMedia: { ...newsMedia },
+        });
+        handleClose();
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -670,7 +1128,7 @@ Haber içeriği
 
         if (isResizing && dialogRef.current) {
             const rect = dialogRef.current.getBoundingClientRect();
-            const newWidth = Math.max(600, e.clientX - rect.left);
+            const newWidth = Math.max(760, e.clientX - rect.left);
             const newHeight = Math.max(400, e.clientY - rect.top);
 
             setSize({
@@ -730,14 +1188,14 @@ Haber içeriği
                             {t('admin.ai_assistant.title')}
                         </span>
                         <span className="text-[9px] font-bold text-palette-tan/40 uppercase tracking-widest mt-1 selection:bg-transparent">
-                            Professional News Engine v3.4
+                            {isQuizMode ? 'Professional Quiz Engine v3.4' : isPollMode ? 'Professional Poll Engine v3.4' : isVideoMode ? 'Professional Video Engine v3.4' : isTocMode ? 'Professional Contents Engine v3.4' : isRecipeMode ? 'Professional Recipe Engine v3.4' : isEventMode ? 'Professional Event Engine v3.4' : 'Professional News Engine v3.4'}
                         </span>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="h-6 w-[1px] bg-palette-maroon/10 mx-2" />
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-palette-red/10 text-palette-maroon/30 hover:text-palette-red transition-all duration-300 active:scale-90"
                     >
                         <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>close_fullscreen</span>
@@ -756,15 +1214,15 @@ Haber içeriği
                             </label>
                         </div>
 
-                        <div className="ml-auto flex items-center gap-2">
+                        <div className="ml-auto flex items-center gap-2 min-w-0">
                             {/* Premium Selects Wrapper */}
-                            <div className="flex items-center bg-palette-beige/20 p-1 rounded-[8px] border border-palette-maroon/5">
+                            <div className="flex items-center bg-palette-beige/20 p-1 rounded-[8px] border border-palette-maroon/5 shrink-0">
                                 {/* Model Select */}
                                 <div className="relative group">
                                     <select
                                         value={selectedModel}
                                         onChange={(e) => setSelectedModel(e.target.value)}
-                                        className="appearance-none bg-white/40 hover:bg-white border-none rounded-[6px] pl-8 pr-3 py-1.5 text-[10px] font-black text-palette-maroon outline-none cursor-pointer transition-all min-w-[140px] tracking-tight"
+                                        className="appearance-none bg-white/40 hover:bg-white border-none rounded-[6px] pl-8 pr-3 py-1.5 text-[10px] font-black text-palette-maroon outline-none cursor-pointer transition-all w-[160px] tracking-tight"
                                     >
                                         <option value="" disabled>Model Seçin</option>
                                         {models.map((m) => (
@@ -783,10 +1241,12 @@ Haber içeriği
                                     <select
                                         value={selectedFormat}
                                         onChange={(e) => setSelectedFormat(e.target.value)}
-                                        className="appearance-none bg-white/40 hover:bg-white border-none rounded-[6px] pl-8 pr-3 py-1.5 text-[10px] font-black text-palette-maroon outline-none cursor-pointer transition-all max-w-[160px] tracking-tight"
+                                        className="appearance-none bg-white/40 hover:bg-white border-none rounded-[6px] pl-8 pr-6 py-1.5 text-[10px] font-black text-palette-maroon outline-none cursor-pointer transition-all w-[260px] tracking-tight"
                                     >
-                                        <option value="">{t('ai_settings.tab.formats')}</option>
-                                        {readyFormats.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
+                                        <option value="" disabled>
+                                            {isQuizMode ? 'Test Hazırla Formatları' : isPollMode ? 'Anket Hazırla Formatları' : isVideoMode ? 'Video Hazırla Formatları' : isTocMode ? 'İçindekiler Hazırla Formatları' : isRecipeMode ? 'Tarif Hazırla Formatları' : isEventMode ? 'Etkinlik Hazırla Formatları' : t('ai_settings.tab.formats')}
+                                        </option>
+                                        {activeReadyFormats.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
                                     </select>
                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-rounded text-palette-maroon/40" style={{ fontSize: '14px' }}>format_list_bulleted</span>
                                 </div>

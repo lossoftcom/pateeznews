@@ -33,6 +33,7 @@ const ADMIN_TABS = new Set([
   'ai_settings',
   'duty_pharmacy_settings',
   'weather_settings',
+  'death_notice_settings',
   'languages',
   'my_profile',
   'hikaye-editor',
@@ -52,6 +53,7 @@ const ADMIN_TAB_SLUGS: Record<string, { default: string; tr?: string; en?: strin
   ai_settings: { default: 'ai-settings', tr: 'ai-ayarlari', en: 'ai-settings' },
   duty_pharmacy_settings: { default: 'duty-pharmacy-settings', tr: 'nobetci-eczane-ayarlari', en: 'duty-pharmacy-settings' },
   weather_settings: { default: 'weather-settings', tr: 'hava-durumu-ayarlari', en: 'weather-settings' },
+  death_notice_settings: { default: 'death-notice-settings', tr: 'olum-ilanlari-ayari', en: 'death-notice-settings' },
   languages: { default: 'languages', tr: 'dil-ayarlari', en: 'languages' },
   my_profile: { default: 'profile', tr: 'profilim', en: 'profile' },
   // Internal/special tabs

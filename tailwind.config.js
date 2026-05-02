@@ -1,3 +1,65 @@
+const deepOcean = '#2C3E50';
+const surface = '#F8F9FA';
+const actionRed = '#EA4335';
+const warmHorizon = '#F39C12';
+const coolGray = '#95A5A6';
+
+const neutralScale = {
+  50: surface,
+  100: surface,
+  200: surface,
+  300: coolGray,
+  400: coolGray,
+  500: coolGray,
+  600: deepOcean,
+  700: deepOcean,
+  800: deepOcean,
+  900: deepOcean,
+  950: deepOcean,
+};
+
+const actionScale = {
+  50: surface,
+  100: surface,
+  200: actionRed,
+  300: actionRed,
+  400: actionRed,
+  500: actionRed,
+  600: actionRed,
+  700: deepOcean,
+  800: deepOcean,
+  900: deepOcean,
+  950: deepOcean,
+};
+
+const accentScale = {
+  50: surface,
+  100: surface,
+  200: warmHorizon,
+  300: warmHorizon,
+  400: warmHorizon,
+  500: warmHorizon,
+  600: warmHorizon,
+  700: deepOcean,
+  800: deepOcean,
+  900: deepOcean,
+  950: deepOcean,
+};
+
+const supportScale = {
+  50: surface,
+  100: surface,
+  200: coolGray,
+  300: coolGray,
+  400: coolGray,
+  500: coolGray,
+  600: deepOcean,
+  700: deepOcean,
+  800: deepOcean,
+  900: deepOcean,
+  950: deepOcean,
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -10,20 +72,45 @@ export default {
         display: ['"Inter"', 'sans-serif'],
       },
       colors: {
+        white: surface,
+        black: deepOcean,
+        gray: neutralScale,
+        slate: neutralScale,
+        zinc: neutralScale,
+        neutral: neutralScale,
+        stone: neutralScale,
+        red: actionScale,
+        rose: actionScale,
+        pink: actionScale,
+        orange: accentScale,
+        amber: accentScale,
+        yellow: accentScale,
+        lime: accentScale,
+        green: accentScale,
+        emerald: accentScale,
+        teal: supportScale,
+        cyan: supportScale,
+        sky: supportScale,
+        blue: accentScale,
+        indigo: supportScale,
+        violet: supportScale,
+        purple: supportScale,
+        fuchsia: supportScale,
         palette: {
-          beige: '#F2F2F2',
-          tan: '#182540',
-          maroon: '#111827',
-          red: '#D92B3A',
-          black: '#182540',
+          beige: surface,
+          tan: coolGray,
+          maroon: deepOcean,
+          red: actionRed,
+          black: deepOcean,
+          accent: warmHorizon,
         },
         primary: {
-          DEFAULT: '#D92B3A',
-          50: '#fef1f2',
-          100: '#fee2e2',
-          500: '#D92B3A',
-          600: '#BF1111',
-          700: '#111827',
+          DEFAULT: actionRed,
+          50: surface,
+          100: surface,
+          500: actionRed,
+          600: actionRed,
+          700: deepOcean,
         }
       },
       animation: {

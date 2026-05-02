@@ -53,7 +53,7 @@ const VSCard: React.FC<VSCardProps> = ({ data }) => {
       {/* VS SUMMARY SECTION - StandardCard Style */}
       <div className="px-1 mb-3">
         <div
-          className="rich-text-content text-gray-600/80 text-[16px] leading-relaxed font-medium text-left [&>p]:mb-0"
+          className="news-subtitle-font rich-text-content text-gray-600/80 text-[16px] leading-relaxed font-medium text-left [&>p]:mb-0"
           dangerouslySetInnerHTML={{ __html: data.summary }}
         />
       </div>
@@ -181,7 +181,7 @@ const VSCard: React.FC<VSCardProps> = ({ data }) => {
                   {/* Inner Core */}
                   <div className="relative w-full h-full rounded-[8px] overflow-hidden flex items-center justify-center shadow-inner">
                     {/* Deep Metallic Background */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#1B2838] via-[#0F172A] to-[#020617]" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-palette-maroon via-palette-tan to-palette-maroon" />
 
                     {/* Subtle Lightning Icon Backdrop */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-15 transform -rotate-45">

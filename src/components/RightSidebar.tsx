@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TrendingUp, ArrowUpRight, ArrowDownRight, Sun, Cloud, CloudRain, CloudSun, CloudSnow, CloudFog, CloudLightning, DollarSign, Euro, Bitcoin, Coins, UserPlus, CheckCircle2, MapPin, Mail, Zap, Phone, Navigation, Clock3 } from 'lucide-react';
+import { TrendingUp, ArrowUpRight, ArrowDownRight, Sun, Cloud, CloudRain, CloudSun, CloudSnow, CloudFog, CloudLightning, DollarSign, Euro, Bitcoin, Coins, MapPin, Mail, Phone, Navigation, Clock3 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NewsItem, type SiteSettings } from '@/types';
 import Skeleton from '@/components/ui/Skeleton';
 import { navigate } from 'astro:transitions/client';
 import { prefetch } from 'astro:prefetch';
-import { postAction, subscribeNewsletter } from '@/services/appActions';
+import { subscribeNewsletter } from '@/services/appActions';
 import { useToast } from '@/context/ToastContext';
 
 interface RightSidebarProps {
@@ -30,6 +30,46 @@ type DutyPharmacy = {
    directionUrl: string;
    note?: string;
 };
+type DeathNotice = {
+   id: string;
+   name: string;
+   deathDate: string;
+   deathDateLabel: string;
+   prayerTime: string;
+   burialPlace: string;
+   description: string;
+};
+
+const MemorialDoveIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
+   <svg viewBox="0 0 64 64" aria-hidden="true" className={className} fill="none">
+      <path
+         d="M11 38.5c10.4-2.3 17.9-9.4 23.4-22.2 3.4 9.4 11.7 16.4 24.6 20.8-10.3 3.2-19.4 1.3-27.2-5.6-5 7.2-11.8 10.2-20.8 7z"
+         fill="currentColor"
+         opacity="0.96"
+      />
+      <path
+         d="M18.6 43.8c10.7-.5 20.4-5.2 29.1-14.3-1.2 10-7.1 17.5-17.8 22.3-5.7 2.5-11 1-15.9-4.3 2.5-.6 4-1.8 4.6-3.7z"
+         fill="currentColor"
+         opacity="0.72"
+      />
+      <path
+         d="M43.3 24.7c2.5-3.3 5.5-5 8.9-5.1-1.4 3.4-3.7 5.7-6.9 6.8"
+         stroke="currentColor"
+         strokeWidth="3"
+         strokeLinecap="round"
+         strokeLinejoin="round"
+         opacity="0.9"
+      />
+      <path d="M52.4 20.1l5.8-1.8-4.3 4.3" fill="#EA4335" />
+      <path
+         d="M16.5 52.5c9.8 1.4 18.6-.7 26.4-6.3"
+         stroke="currentColor"
+         strokeWidth="2.5"
+         strokeLinecap="round"
+         opacity="0.35"
+      />
+   </svg>
+);
 
 const weatherMotionKind = (code?: number, isDay?: boolean | number): WeatherMotionKind => {
    const value = Number(code ?? 2);
@@ -114,10 +154,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    const { showToast } = useToast();
    const [liveSidebar, setLiveSidebar] = useState<any>(initialSidebarData || null);
    const [livePharmacyData, setLivePharmacyData] = useState<any>(initialSidebarData?.dutyPharmacies || null);
+   const [liveDeathData, setLiveDeathData] = useState<any>(initialSidebarData?.deathNotices || null);
    const [activePharmacyDistrict, setActivePharmacyDistrict] = useState('MERKEZ');
    const [newsletterEmail, setNewsletterEmail] = useState('');
    const [newsletterLoading, setNewsletterLoading] = useState(false);
-   const [followedPublishers, setFollowedPublishers] = useState<Record<string, boolean>>({});
 
    useEffect(() => {
       let isMounted = true;
@@ -156,6 +196,28 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
 
       fetchPharmacies();
       const refreshTimer = window.setInterval(fetchPharmacies, 15 * 60 * 1000);
+
+      return () => {
+         isMounted = false;
+         window.clearInterval(refreshTimer);
+      };
+   }, []);
+
+   useEffect(() => {
+      let isMounted = true;
+      const fetchDeathNotices = () => {
+         fetch('/api/app/death-notices?city=nigde')
+            .then((res) => res.json())
+            .then((data) => {
+               if (isMounted) setLiveDeathData(data);
+            })
+            .catch(() => {
+               if (isMounted && !liveDeathData) setLiveDeathData(null);
+            });
+      };
+
+      fetchDeathNotices();
+      const refreshTimer = window.setInterval(fetchDeathNotices, 30 * 60 * 1000);
 
       return () => {
          isMounted = false;
@@ -203,17 +265,17 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    }, [fallbackTrending, newsData, t, currentLang.code]);
 
    const fallbackMarkets: MarketItem[] = [
-      { symbol: 'USDT', name: t('right.markets.usdt_try'), price: '34.42', change: '%0.45', isUp: true, icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+      { symbol: 'USDT', name: t('right.markets.usdt_try'), price: '34.42', change: '%0.45', isUp: true, icon: DollarSign, color: 'text-palette-red', bg: 'bg-palette-red/5' },
       { symbol: 'EUR', name: t('right.markets.eur_try'), price: '37.15', change: '%0.12', isUp: true, icon: Euro, color: 'text-palette-tan', bg: 'bg-palette-beige/50' },
-      { symbol: 'GA', name: t('right.markets.gold_gram'), price: '2.450', change: '%-0.23', isUp: false, icon: Coins, color: 'text-amber-600', bg: 'bg-amber-50' },
-      { symbol: 'BTC', name: t('right.markets.bitcoin'), price: '$64.200', change: '%1.85', isUp: true, icon: Bitcoin, color: 'text-orange-500', bg: 'bg-orange-50' },
+      { symbol: 'GA', name: t('right.markets.gold_gram'), price: '2.450', change: '%-0.23', isUp: false, icon: Coins, color: 'text-palette-accent', bg: 'bg-palette-accent/10' },
+      { symbol: 'BTC', name: t('right.markets.bitcoin'), price: '$64.200', change: '%1.85', isUp: true, icon: Bitcoin, color: 'text-palette-maroon', bg: 'bg-palette-maroon/5' },
    ];
 
    const marketStyle: Record<string, any> = {
-      USDT: { icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+      USDT: { icon: DollarSign, color: 'text-palette-red', bg: 'bg-palette-red/5' },
       EUR: { icon: Euro, color: 'text-palette-tan', bg: 'bg-palette-beige/50' },
-      GA: { icon: Coins, color: 'text-amber-600', bg: 'bg-amber-50' },
-      BTC: { icon: Bitcoin, color: 'text-orange-500', bg: 'bg-orange-50' },
+      GA: { icon: Coins, color: 'text-palette-accent', bg: 'bg-palette-accent/10' },
+      BTC: { icon: Bitcoin, color: 'text-palette-maroon', bg: 'bg-palette-maroon/5' },
    };
 
    const markets = useMemo<MarketItem[]>(() => {
@@ -307,38 +369,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    const pharmacyUpdatedAt = livePharmacyData?.fetchedAt
       ? new Intl.DateTimeFormat(currentLang.code || 'tr', { hour: '2-digit', minute: '2-digit' }).format(new Date(livePharmacyData.fetchedAt))
       : null;
-
-   const asImageSrc = (value?: string) => {
-      const raw = String(value || '').trim();
-      if (!raw || raw.includes('<')) return '';
-      if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/api/storage/file/') || raw.startsWith('/Upload/')) return raw;
-      return '';
-   };
-
-   const suggestions = useMemo(() => {
-      const unique = new Map<string, { name: string; handle: string; img: string; bg: string; href: string; publisherId?: string }>();
-
-      (newsData || []).forEach((item) => {
-         const name = (item.source || item.author || '').trim();
-         if (!name || unique.has(name)) return;
-         unique.set(name, {
-            name,
-            handle: `@${name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9_.-]/g, '') || 'pateez'}`,
-            img: item.publisherId || name,
-            bg: asImageSrc(item.coverThumbnail || item.thumbnail || item.mediaUrl) || `https://picsum.photos/seed/${encodeURIComponent(name)}/400`,
-            href: '',
-            publisherId: item.publisherId,
-         });
-      });
-
-      const liveSuggestions = Array.from(unique.values()).slice(0, 2);
-      if (liveSuggestions.length) return liveSuggestions;
-
-      return [
-         { name: t('right.suggestions.space_explorer'), handle: '@uzaykasifi', img: 'space', bg: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=400', href: '' },
-         { name: t('right.suggestions.gourmet_guide'), handle: '@gurmeist', img: 'food', bg: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=400', href: '' },
-      ];
-   }, [newsData, t]);
+   const deathNotices = Array.isArray(liveDeathData?.notices)
+      ? liveDeathData.notices as DeathNotice[]
+      : [];
+   const visibleDeathNotices = deathNotices.slice(0, 3);
+   const deathUpdatedAt = liveDeathData?.fetchedAt
+      ? new Intl.DateTimeFormat(currentLang.code || 'tr', { hour: '2-digit', minute: '2-digit' }).format(new Date(liveDeathData.fetchedAt))
+      : null;
 
    const openHref = (href?: string) => {
       if (!href) return;
@@ -362,17 +399,6 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
       }
    };
 
-   const handleSuggestionFollow = async (event: React.MouseEvent, publisherId?: string) => {
-      event.stopPropagation();
-      if (!publisherId) return;
-      try {
-         const result = await postAction<{ following: boolean }>('toggle_follow', { publisherId });
-         setFollowedPublishers((prev) => ({ ...prev, [publisherId]: result.following }));
-      } catch {
-         showToast(t('auth.login_required_follow'), 'info');
-      }
-   };
-
    if (loading) {
       return <RightSidebarSkeleton />;
    }
@@ -391,20 +417,20 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
                            <span className="w-1.5 h-1.5 rounded-[5px] bg-palette-red animate-pulse"></span>
-                           <h3 className="text-[13px] font-black text-palette-red uppercase tracking-[0.12em] truncate">{t('right.pharmacy_title')}</h3>
+                           <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-widest truncate">{t('right.pharmacy_title')}</h3>
                         </div>
-                        <p className="text-[10px] font-bold text-palette-tan/45 mt-1 truncate">
+                        <p className="text-[11px] font-medium text-palette-tan/60 mt-1 truncate">
                            {livePharmacyData?.city || 'Niğde'}{livePharmacyData?.serviceDateLabel ? ` · ${livePharmacyData.serviceDateLabel}` : ''}
                         </p>
                      </div>
                   </div>
-                  <span className="shrink-0 text-[9px] font-black text-palette-red bg-palette-red/5 border border-palette-red/10 px-2 py-1 rounded-[5px]">
+                  <span className="shrink-0 text-[10px] font-medium text-palette-red bg-palette-red/5 border border-palette-red/10 px-2 py-1 rounded-[5px]">
                      {t('right.pharmacy_update_15')}
                   </span>
                </div>
 
-               <div className="grid grid-cols-3 gap-1.5 pb-2">
-                  {pharmacyDistricts.map((district) => {
+               <div className="flex flex-wrap gap-1.5 pb-2">
+                  {pharmacyDistricts.map((district: string) => {
                      const count = dutyPharmacies.filter((pharmacy) => pharmacy.district === district).length;
                      const active = district === activeDistrict;
                      return (
@@ -412,9 +438,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                            key={district}
                            type="button"
                            onClick={() => setActivePharmacyDistrict(district)}
-                           className={`h-7 w-full min-w-0 px-2 rounded-[5px] border text-[9px] font-black transition-all flex items-center justify-center gap-1 ${active
-                              ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-900/10'
-                              : 'bg-palette-beige/10 text-palette-tan border-palette-beige/60 hover:bg-white hover:text-gray-900'
+                           className={`h-7 flex-auto basis-[28%] min-w-0 px-1 rounded-[5px] border text-[9px] font-semibold tracking-tight transition-all flex items-center justify-center gap-1 ${active
+                              ? 'bg-gray-800 text-white border-gray-800 shadow-lg shadow-gray-800/10'
+                              : 'bg-palette-beige/10 text-palette-tan border-palette-beige/60 hover:bg-white hover:text-gray-800'
                               }`}
                            title={district}
                         >
@@ -431,8 +457,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                   <div key={pharmacy.id} className="rounded-[5px] border border-palette-beige/60 bg-gradient-to-br from-palette-beige/10 via-white to-white p-4 shadow-sm">
                      <div className="flex items-start justify-between gap-3 mb-2">
                         <div className="min-w-0">
-                           <h4 className="text-[15px] font-black text-gray-900 tracking-tight truncate">{pharmacy.name}</h4>
-                           <div className="flex items-center gap-1.5 mt-1 text-[10px] font-black text-palette-red uppercase tracking-widest">
+                           <h4 className="text-[15px] font-semibold text-gray-800 tracking-tight truncate">{pharmacy.name}</h4>
+                           <div className="flex items-center gap-1.5 mt-1 text-[10px] font-medium text-palette-red uppercase tracking-widest">
                               <span className="w-1 h-1 rounded-[5px] bg-palette-red"></span>
                               {pharmacy.district}
                            </div>
@@ -441,19 +467,19 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                      </div>
 
                      {pharmacy.note && (
-                        <div className="mb-2 rounded-[5px] bg-palette-red/5 border border-palette-red/10 px-3 py-2 text-[10px] font-black text-palette-red leading-snug">
+                        <div className="mb-2 rounded-[5px] bg-palette-red/5 border border-palette-red/10 px-3 py-2 text-[11px] font-medium text-palette-red leading-relaxed">
                            {pharmacy.note}
                         </div>
                      )}
 
-                     <p className="text-[11px] font-bold text-palette-tan/70 leading-relaxed mb-3 line-clamp-2">
+                     <p className="text-[11px] font-medium text-palette-tan/80 leading-relaxed mb-3 line-clamp-2">
                         {pharmacy.address || t('right.pharmacy_address_empty')}
                      </p>
 
                      <div className="grid grid-cols-2 gap-2">
                         <a
                            href={pharmacy.phoneHref ? `tel:${pharmacy.phoneHref}` : undefined}
-                           className="h-9 rounded-[5px] bg-palette-beige/30 text-gray-900 border border-palette-beige/60 flex items-center justify-center gap-2 text-[10px] font-black hover:bg-white transition-colors"
+                           className="h-9 rounded-[5px] bg-palette-beige/30 text-gray-800 border border-palette-beige/60 flex items-center justify-center gap-2 text-[11px] font-medium hover:bg-white transition-colors"
                         >
                            <Phone size={13} />
                            {pharmacy.phone || t('right.pharmacy_call')}
@@ -462,7 +488,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                            href={pharmacy.directionUrl || pharmacy.mapUrl}
                            target="_blank"
                            rel="noreferrer"
-                           className="h-9 rounded-[5px] bg-emerald-600 text-white flex items-center justify-center gap-2 text-[10px] font-black shadow-lg shadow-emerald-600/15 hover:bg-emerald-700 transition-colors"
+                           className="h-9 rounded-[5px] bg-palette-accent text-palette-maroon flex items-center justify-center gap-2 text-[11px] font-medium shadow-lg shadow-palette-accent/20 hover:bg-palette-maroon hover:text-palette-beige transition-colors"
                         >
                            <Navigation size={13} />
                            {t('right.pharmacy_route')}
@@ -471,19 +497,19 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                   </div>
                )) : (
                   <div className="rounded-[5px] border border-dashed border-palette-beige/70 bg-palette-beige/10 p-4 text-center">
-                     <p className="text-[12px] font-black text-gray-900">{t('right.pharmacy_loading')}</p>
-                     <p className="text-[10px] font-bold text-palette-tan/50 mt-1">{t('right.pharmacy_empty')}</p>
+                     <p className="text-[12px] font-medium text-gray-800">{t('right.pharmacy_loading')}</p>
+                     <p className="text-[11px] font-medium text-palette-tan/60 mt-1">{t('right.pharmacy_empty')}</p>
                   </div>
                )}
             </div>
 
             <div className="border-t border-palette-beige/40 bg-palette-beige/5 px-5 py-3 flex items-center justify-between gap-3">
-               <div className="flex items-center gap-1.5 text-[9px] font-bold text-palette-tan/45 min-w-0">
+               <div className="flex items-center gap-1.5 text-[10px] font-medium text-palette-tan/50 min-w-0">
                   <Clock3 size={11} />
                   <span className="truncate">{t('right.pharmacy_midnight_guard')}</span>
                </div>
                {pharmacyUpdatedAt && (
-                  <span className="text-[9px] font-black text-palette-tan/35 shrink-0">{pharmacyUpdatedAt}</span>
+                  <span className="text-[10px] font-medium text-palette-tan/40 shrink-0">{pharmacyUpdatedAt}</span>
                )}
             </div>
          </div>
@@ -492,15 +518,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
          <div className="bg-white rounded-[5px] border border-palette-beige/60 shadow-sm overflow-hidden relative group">
             <div className="p-6 pb-0 flex items-start justify-between">
                <div>
-                  <div className="flex items-center gap-1.5 text-palette-tan/40 mb-2">
+                  <div className="flex items-center gap-1.5 text-palette-tan/50 mb-2">
                      <MapPin size={12} />
-                     <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{weatherLocation}</span>
+                     <span className="text-[10px] font-medium uppercase tracking-[0.15em]">{weatherLocation}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                     <span className="text-4xl font-[900] text-gray-900 tracking-tighter">{currentTemperature ?? '--'}°</span>
+                     <span className="text-5xl font-light text-gray-800 tracking-tighter">{currentTemperature ?? '--'}°</span>
                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-black text-palette-tan max-w-[130px] truncate">{weatherCondition}</span>
-                        <span className="text-[10px] text-palette-tan/40 font-bold">{t('right.weather_feels_like_26').replace('26', String(apparentTemperature ?? '--'))}</span>
+                        <span className="text-sm font-medium text-palette-tan max-w-[130px] truncate">{weatherCondition}</span>
+                        <span className="text-[11px] text-palette-tan/50 font-normal">{t('right.weather_feels_like_26').replace('26', String(apparentTemperature ?? '--'))}</span>
                      </div>
                   </div>
                </div>
@@ -512,9 +538,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             <div className="mt-8 grid grid-cols-5 border-t border-palette-beige/40 bg-palette-beige/5">
                {forecast.map((day, idx) => (
                   <div key={idx} className={`flex flex-col items-center justify-center py-4 gap-2 ${idx !== forecast.length - 1 ? 'border-r border-palette-beige/40' : ''} hover:bg-white transition-colors cursor-default`}>
-                     <span className="text-[9px] font-black text-palette-tan/30 uppercase">{day.day}</span>
+                     <span className="text-[10px] font-medium text-palette-tan/50 uppercase">{day.day}</span>
                      <day.icon size={16} className="text-palette-tan/60" />
-                     <span className="text-[11px] font-black text-gray-900">{day.temp}</span>
+                     <span className="text-sm font-medium text-gray-800">{day.temp}</span>
                   </div>
                ))}
             </div>
@@ -525,9 +551,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             <div className="p-6 pb-2 flex items-center justify-between">
                <div className="flex items-center gap-3">
                   <div className="w-1.5 h-1.5 bg-palette-red rounded-[5px]"></div>
-                  <h3 className="font-bold text-gray-900 uppercase tracking-[0.12em] text-[13px]">{t('right.agenda')}</h3>
+                  <h3 className="font-semibold text-gray-800 uppercase tracking-[0.1em] text-[13px]">{t('right.agenda')}</h3>
                </div>
-               <span className="text-[9px] font-black text-palette-red bg-palette-red/5 px-2 py-1 rounded-[5px] border border-palette-red/10 animate-pulse">{t('right.live')}</span>
+               <span className="text-[10px] font-medium text-palette-red bg-palette-red/5 px-2 py-1 rounded-[5px] border border-palette-red/10 animate-pulse">{t('right.live')}</span>
             </div>
 
             <div className="flex flex-col p-3 space-y-1">
@@ -539,24 +565,24 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                      className="group relative flex items-center gap-5 p-4 rounded-[5px] hover:bg-palette-beige/20 transition-all duration-100 cursor-pointer border border-transparent hover:border-palette-beige/50"
                   >
                      <div className="flex flex-col items-center">
-                        <span className="text-2xl font-[900] text-palette-tan/10 group-hover:text-palette-tan/30 transition-colors leading-none italic">
+                        <span className="text-3xl font-light text-palette-tan/20 group-hover:text-palette-tan/40 transition-colors leading-none italic">
                            {item.id}
                         </span>
                      </div>
 
                      <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                           <span className="text-[8px] font-black text-palette-tan/40 uppercase tracking-[0.2em]">{item.category}</span>
-                           <span className="text-[9px] font-bold text-palette-tan/30">{item.hits}</span>
+                           <span className="text-[9px] font-medium text-palette-tan/50 uppercase tracking-wider">{item.category}</span>
+                           <span className="text-[10px] font-medium text-palette-tan/40">{item.hits}</span>
                         </div>
-                        <h4 className="text-sm font-extrabold text-gray-900 leading-snug group-hover:text-palette-red transition-colors line-clamp-2 tracking-tight">
+                        <h4 className="news-title-font text-[15px] font-semibold text-gray-800 leading-snug group-hover:text-palette-red transition-colors line-clamp-2">
                            {item.title}
                         </h4>
                      </div>
 
                      {item.rising && (
                         <div className="flex-shrink-0 w-8 h-8 rounded-[5px] bg-palette-beige/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                           <TrendingUp size={14} className="text-emerald-500" />
+                           <TrendingUp size={14} className="text-palette-red" />
                         </div>
                      )}
                   </div>
@@ -568,7 +594,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                   const firstLiveHref = trending.find((item) => item.href)?.href;
                   openHref(firstLiveHref || '/');
                }}
-               className="w-full py-4 text-[10px] font-black text-palette-tan/40 uppercase tracking-[0.2em] hover:bg-palette-beige/20 hover:text-gray-900 transition-all border-t border-palette-beige/40"
+               className="w-full py-4 text-[11px] font-medium text-palette-tan/50 uppercase tracking-widest hover:bg-palette-beige/20 hover:text-gray-800 transition-all border-t border-palette-beige/40"
             >
                {t('right.explore_all_agenda')}
             </button>
@@ -579,9 +605,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             <div className="p-6 pb-2 flex items-center justify-between">
                <div className="flex items-center gap-3">
                   <div className="w-1.5 h-1.5 bg-palette-tan/20 rounded-[5px]"></div>
-                  <h3 className="font-bold text-gray-900 uppercase tracking-[0.12em] text-[13px]">{t('right.markets')}</h3>
+                  <h3 className="font-semibold text-gray-800 uppercase tracking-[0.1em] text-[13px]">{t('right.markets')}</h3>
                </div>
-               <button onClick={() => openHref('/kategori/ekonomi')} className="text-[10px] font-bold text-palette-tan/40 hover:text-palette-red uppercase tracking-widest transition-colors">{t('right.all')}</button>
+               <button onClick={() => openHref('/kategori/ekonomi')} className="text-[10px] font-medium text-palette-tan/50 hover:text-palette-red uppercase tracking-widest transition-colors">{t('right.all')}</button>
             </div>
             <div className="p-3 space-y-1.5">
                {markets.map((m, i) => (
@@ -591,14 +617,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                            <m.icon size={18} />
                         </div>
                         <div className="flex flex-col">
-                           <span className="text-[11px] font-black text-gray-900">{m.symbol}</span>
-                           <span className="text-[9px] font-bold text-palette-tan/30 uppercase tracking-tighter">{m.name}</span>
+                           <span className="text-[13px] font-semibold text-gray-800">{m.symbol}</span>
+                           <span className="text-[10px] font-medium text-palette-tan/40 uppercase tracking-tight">{m.name}</span>
                         </div>
                      </div>
                      <div className="flex flex-col items-end">
-                        <span className="text-xs font-black text-palette-tan">{m.price}</span>
-                        <span className={`text-[9px] font-black flex items-center gap-0.5 mt-0.5 ${m.isUp ? 'text-emerald-500' : 'text-palette-red'}`}>
-                           {m.isUp ? <ArrowUpRight size={10} strokeWidth={3} /> : <ArrowDownRight size={10} strokeWidth={3} />}
+                        <span className="text-[13px] font-semibold text-gray-800">{m.price}</span>
+                        <span className={`text-[10px] font-medium flex items-center gap-0.5 mt-0.5 ${m.isUp ? 'text-palette-red' : 'text-palette-accent'}`}>
+                           {m.isUp ? <ArrowUpRight size={10} strokeWidth={2.5} /> : <ArrowDownRight size={10} strokeWidth={2.5} />}
                            {m.change}
                         </span>
                      </div>
@@ -607,50 +633,83 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             </div>
          </div>
 
-         {/* 4. Keşfet (Suggestions) */}
-         <div>
-            <div className="flex items-center justify-between px-3 mb-4">
-               <div className="flex items-center gap-2">
-                  <Zap size={16} className="text-palette-red" />
-                  <h3 className="font-bold text-gray-900 uppercase tracking-[0.12em] text-[13px]">{t('right.discover')}</h3>
-               </div>
-               <button onClick={() => openHref(suggestions.find((item) => item.href)?.href || '')} className="text-[10px] font-bold text-palette-tan/40 hover:underline uppercase tracking-widest">{t('right.all')}</button>
+         {/* 4. Death Notices */}
+         <div className="relative overflow-hidden rounded-[5px] border border-white/10 bg-palette-maroon shadow-[0_28px_70px_-42px_rgba(44,62,80,0.95)]">
+            <div className="pointer-events-none absolute inset-0">
+               <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(248,249,250,0.16),transparent_34%),radial-gradient(circle_at_100%_18%,rgba(234,67,53,0.18),transparent_34%),linear-gradient(145deg,#2C3E50_0%,#95A5A6_54%,#2C3E50_100%)]"></div>
+               <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+               <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full border border-white/10"></div>
+               <div className="absolute -right-3 top-8 w-14 h-14 rounded-full bg-white/5 opacity-60 blur-sm"></div>
             </div>
 
-            <div className="space-y-4">
-               {suggestions.map((source, i) => (
-                  <div
-                     key={i}
-                     onClick={() => openHref(source.href)}
-                     className="group bg-white rounded-[5px] border border-palette-beige/60 p-4 shadow-sm hover:shadow-xl hover:border-palette-tan/10 transition-all duration-150 cursor-pointer relative overflow-hidden"
-                  >
-                     <div className="absolute top-0 left-0 w-full h-16 bg-palette-beige/10">
-                        <img src={source.bg} className="w-full h-full object-cover opacity-20 group-hover:opacity-40 transition-opacity duration-200" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/40 to-transparent"></div>
-                     </div>
+            <div className="relative p-5 pb-4 flex items-start gap-3">
+               <div className="w-12 h-12 rounded-[5px] bg-white text-gray-950 flex items-center justify-center shadow-[0_14px_32px_-18px_rgba(248,249,250,0.8)] ring-1 ring-white/20">
+                  <MemorialDoveIcon className="w-9 h-9" />
+               </div>
+               <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="flex items-center gap-2">
+                     <span className="w-1.5 h-1.5 rounded-[5px] bg-palette-red shadow-[0_0_0_4px_rgba(234,67,53,0.14)]"></span>
+                     <h3 className="font-semibold text-white uppercase tracking-[0.12em] text-[13px] truncate">{t('right.death_title')}</h3>
+                  </div>
+                  <p className="text-[11px] font-medium text-white/45 mt-1 truncate">
+                     {liveDeathData?.city || 'Niğde'}{liveDeathData?.serviceDateLabel ? ` · ${liveDeathData.serviceDateLabel}` : ''}
+                  </p>
+               </div>
+            </div>
 
-                     <div className="relative flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                           <div className="w-14 h-14 rounded-[5px] bg-white p-1 shadow-2xl border border-palette-beige relative z-10 group-hover:scale-105 transition-transform duration-150">
-                              <img src={`https://picsum.photos/seed/${source.img}/100`} alt={source.name} className="w-full h-full object-cover rounded-[5px]" />
-                           </div>
-                           <div className="mt-1">
-                              <div className="flex items-center gap-1.5">
-                                 <h5 className="text-sm font-black text-gray-900">{source.name}</h5>
-                                 <CheckCircle2 size={12} className="text-palette-tan fill-palette-tan/5" />
-                              </div>
-                              <p className="text-[10px] text-palette-tan/40 font-bold uppercase tracking-widest">{source.handle}</p>
-                           </div>
+            <div className="relative px-4 pb-4 space-y-2.5">
+               {visibleDeathNotices.length > 0 ? visibleDeathNotices.map((notice) => (
+                  <a
+                     key={notice.id}
+                     href={liveDeathData?.sourceUrl || 'https://nigde.bel.tr/vefat-edenler'}
+                     target="_blank"
+                     rel="noreferrer"
+                     className="block rounded-[5px] border border-white/10 bg-white/5 p-4 shadow-[inset_0_1px_0_rgba(248,249,250,0.07)] hover:bg-white/10 hover:border-white/20 hover:-translate-y-0.5 transition-all"
+                  >
+                     <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="min-w-0">
+                           <h4 className="text-[15px] font-semibold text-white tracking-tight truncate">{notice.name}</h4>
+                           <p className="text-[10px] font-semibold text-palette-accent uppercase tracking-widest mt-1 truncate">
+                              {notice.prayerTime || t('right.death_time_empty')}{notice.burialPlace ? ` · ${notice.burialPlace}` : ''}
+                           </p>
                         </div>
-                        <button
-                           onClick={(event) => handleSuggestionFollow(event, source.publisherId)}
-                           className={`w-10 h-10 rounded-[5px] flex items-center justify-center transition-all shadow-lg active:scale-90 ${source.publisherId && followedPublishers[source.publisherId] ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-palette-tan text-white hover:bg-gray-900 shadow-palette-tan/20'}`}
-                        >
-                           {source.publisherId && followedPublishers[source.publisherId] ? <CheckCircle2 size={16} strokeWidth={2.5} /> : <UserPlus size={16} strokeWidth={2.5} />}
-                        </button>
+                        <span className="text-[10px] font-medium text-white/35 shrink-0">{notice.deathDateLabel}</span>
+                     </div>
+                     <p className="text-[12px] font-medium text-white/60 leading-relaxed line-clamp-3">
+                        {notice.description}
+                     </p>
+                  </a>
+               )) : (
+                  <div className="rounded-[5px] border border-white/10 bg-white/5 p-4 shadow-[inset_0_1px_0_rgba(248,249,250,0.07)]">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-[5px] bg-black/40 border border-white/10 flex items-center justify-center text-white/70 shadow-inner">
+                           <span className="relative block w-4 h-6" aria-hidden="true">
+                              <span className="absolute left-1/2 top-0 w-2 h-2 -translate-x-1/2 rounded-full bg-palette-accent blur-[1px]"></span>
+                              <span className="absolute left-1/2 top-1.5 w-1.5 h-2 -translate-x-1/2 rounded-full bg-white"></span>
+                              <span className="absolute bottom-0 left-1/2 w-3 h-4 -translate-x-1/2 rounded-[3px] border border-white/35 bg-white/10"></span>
+                           </span>
+                        </div>
+                        <div className="min-w-0">
+                           <p className="text-[13px] font-semibold text-white">{t('right.death_empty_title')}</p>
+                           <p className="text-[11px] font-medium text-white/50 leading-relaxed">{t('right.death_empty_desc')}</p>
+                        </div>
                      </div>
                   </div>
-               ))}
+               )}
+            </div>
+
+            <div className="relative border-t border-white/10 bg-black/20 px-5 py-3 flex items-center justify-between gap-3">
+               <a
+                  href={liveDeathData?.sourceUrl || 'https://nigde.bel.tr/vefat-edenler'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] font-medium text-white/40 hover:text-white/75 transition-colors truncate"
+               >
+                  {t('right.death_source')}
+               </a>
+               {deathUpdatedAt && (
+                  <span className="text-[10px] font-medium text-white/30 shrink-0">{deathUpdatedAt}</span>
+               )}
             </div>
          </div>
 
@@ -661,17 +720,17 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                <div className="w-10 h-10 bg-white/10 rounded-[5px] flex items-center justify-center mb-5 border border-white/10">
                   <Mail size={20} />
                </div>
-               <h4 className="font-bold text-xl leading-tight mb-2 tracking-tighter">{t('right.newsletter_title')}</h4>
-               <p className="text-[11px] text-white/60 mb-6 font-bold uppercase tracking-widest leading-relaxed">{t('right.newsletter_desc')}</p>
+               <h4 className="font-semibold text-xl leading-tight mb-2 tracking-tight">{t('right.newsletter_title')}</h4>
+               <p className="text-[12px] text-white/70 mb-6 font-medium leading-relaxed">{t('right.newsletter_desc')}</p>
                <form onSubmit={handleNewsletterSubmit} className="flex flex-col gap-3">
                   <input
                      type="email"
                      value={newsletterEmail}
                      onChange={(event) => setNewsletterEmail(event.target.value)}
                      placeholder={t('common.email_address')}
-                     className="w-full bg-white/10 border border-white/20 rounded-[5px] px-5 py-3.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:bg-white/20 focus:border-white/40 transition-all font-bold"
+                     className="w-full bg-white/10 border border-white/20 rounded-[5px] px-5 py-3.5 text-sm text-white placeholder:text-white/40 focus:outline-none focus:bg-white/20 focus:border-white/40 transition-all font-medium"
                   />
-                  <button disabled={newsletterLoading} className="w-full bg-white text-gray-900 py-3.5 rounded-[5px] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-palette-beige transition-all shadow-xl active:scale-95 disabled:opacity-60">
+                  <button disabled={newsletterLoading} className="w-full bg-palette-accent text-palette-maroon py-3.5 rounded-[5px] font-semibold text-[11px] uppercase tracking-wider hover:bg-palette-beige transition-all shadow-xl active:scale-95 disabled:opacity-60">
                      {newsletterLoading ? '...' : t('right.subscribe')}
                   </button>
                </form>
@@ -727,18 +786,20 @@ export const RightSidebarSkeleton: React.FC = () => {
             </div>
          </div>
 
-         {/* Discover Skeleton */}
-         <div className="space-y-4">
-            <Skeleton className="w-24 h-4 ml-3" />
+         {/* Death Notices Skeleton */}
+         <div className="bg-palette-maroon rounded-[5px] border border-white/10 p-5 space-y-4">
+            <div className="flex items-center gap-3">
+               <Skeleton variant="rectangular" className="w-10 h-10" />
+               <div className="space-y-2 flex-1">
+                  <Skeleton className="w-28 h-3" />
+                  <Skeleton className="w-24 h-2" />
+               </div>
+            </div>
             {[1, 2].map(i => (
-               <div key={i} className="bg-white rounded-[5px] border border-palette-beige/60 p-4 space-y-3">
-                  <div className="flex items-center gap-4">
-                     <Skeleton variant="rectangular" className="w-14 h-14" />
-                     <div className="space-y-2">
-                        <Skeleton className="w-24 h-4" />
-                        <Skeleton className="w-16 h-3" />
-                     </div>
-                  </div>
+               <div key={i} className="rounded-[5px] border border-white/10 bg-white/5 p-4 space-y-3">
+                  <Skeleton className="w-32 h-4" />
+                  <Skeleton className="w-20 h-3" />
+                  <Skeleton className="w-full h-10" />
                </div>
             ))}
          </div>

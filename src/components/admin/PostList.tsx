@@ -23,6 +23,52 @@ interface PostRecord {
     } | null;
 }
 
+const TEXT_ENTITY_MAP: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    Ccedil: 'Ç',
+    ccedil: 'ç',
+    Gbreve: 'Ğ',
+    gbreve: 'ğ',
+    hellip: '...',
+    Idot: 'İ',
+    imath: 'ı',
+    laquo: '"',
+    ldquo: '"',
+    lsquo: "'",
+    nbsp: ' ',
+    Ouml: 'Ö',
+    ouml: 'ö',
+    quot: '"',
+    raquo: '"',
+    rdquo: '"',
+    rsquo: "'",
+    Scedil: 'Ş',
+    scedil: 'ş',
+    Uuml: 'Ü',
+    uuml: 'ü',
+};
+
+const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
+    const codePoint = Number.parseInt(value, radix);
+    if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+    if (codePoint === 60 || codePoint === 62) return fallback;
+    try {
+        return String.fromCodePoint(codePoint);
+    } catch {
+        return fallback;
+    }
+};
+
+const normalizeStoredPlainText = (value: unknown) => {
+    const decodeOnce = (input: string) => input
+        .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+        .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextCodePoint(hex, 16, match))
+        .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextCodePoint(decimal, 10, match));
+
+    return decodeOnce(decodeOnce(String(value ?? ''))).replace(/\u00a0/g, ' ').trim();
+};
+
 // 2025 Senkronizasyon Mimari: Memoized Row for zero-lag rendering
 const PostRow = React.memo(({
     post,
@@ -350,7 +396,14 @@ const PostList: React.FC<PostListProps> = ({ onEditPost, onAddPost }) => {
 
             if (error) throw error;
 
-            setPosts(data as any || []);
+            setPosts((data || []).map((post: any) => ({
+                ...post,
+                title: normalizeStoredPlainText(post.title),
+                category: normalizeStoredPlainText(post.category),
+                profiles: post.profiles
+                    ? { ...post.profiles, full_name: normalizeStoredPlainText(post.profiles.full_name) }
+                    : post.profiles,
+            })) as any);
             setTotalCount(count || 0);
         } catch (err: any) {
             console.error("Post fetch error:", err);

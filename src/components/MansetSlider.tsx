@@ -3,6 +3,31 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { NewsItem } from '@/types';
 
 const AUTOPLAY_DELAY = 5000;
+const TEXT_ENTITY_MAP: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    Ccedil: 'Ç',
+    ccedil: 'ç',
+    Gbreve: 'Ğ',
+    gbreve: 'ğ',
+    hellip: '...',
+    Idot: 'İ',
+    imath: 'ı',
+    laquo: '"',
+    ldquo: '"',
+    lsquo: "'",
+    nbsp: ' ',
+    Ouml: 'Ö',
+    ouml: 'ö',
+    quot: '"',
+    raquo: '"',
+    rdquo: '"',
+    rsquo: "'",
+    Scedil: 'Ş',
+    scedil: 'ş',
+    Uuml: 'Ü',
+    uuml: 'ü',
+};
 
 interface MansetSlide {
     id: string;
@@ -18,12 +43,33 @@ interface MansetSliderProps {
     onNewsSelect?: (id: string) => void;
 }
 
+const decodeTextEntityCodePoint = (value: string, radix: number, fallback: string) => {
+    const codePoint = Number.parseInt(value, radix);
+    if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+    try {
+        return String.fromCodePoint(codePoint);
+    } catch {
+        return fallback;
+    }
+};
+
+const decodeTextEntities = (value: string) => {
+    const decodeOnce = (input: string) => input
+        .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+        .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextEntityCodePoint(hex, 16, match))
+        .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextEntityCodePoint(decimal, 10, match));
+
+    return decodeOnce(decodeOnce(value));
+};
+
 const stripHtml = (value: string) => (
-    value
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
+    decodeTextEntities(
+        value
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+    )
 );
 
 const formatSlideDate = (value: string) => {
@@ -122,17 +168,17 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                                 className="w-full h-full object-cover transform transition-transform duration-[15000ms] ease-out scale-105 group-hover:scale-110"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
-                            <div className="absolute bottom-0 left-0 w-full p-6 sm:p-8 md:p-10 z-10 flex flex-col justify-end transform transition-transform duration-500 translate-y-1 group-hover:translate-y-0">
-                                <h2 className="text-white text-[28px] sm:text-[36px] md:text-[44px] font-black tracking-tight leading-[1.2] mb-3 drop-shadow-lg line-clamp-2 transition-colors duration-300 group-hover:text-palette-red">
+                            <div className="absolute bottom-0 left-0 w-full px-6 sm:px-8 md:px-10 pt-6 sm:pt-8 md:pt-10 pb-5 sm:pb-6 md:pb-7 z-10 flex flex-col justify-end transform transition-transform duration-500 translate-y-1 group-hover:translate-y-0">
+                                <h2 className="news-title-font text-white text-[23px] sm:text-[30px] md:text-[36px] font-black tracking-tight leading-[1.08] mb-2.5 drop-shadow-lg line-clamp-3 transition-colors duration-300 group-hover:text-palette-red">
                                     {slide.title}
                                 </h2>
                                 {slide.description && (
-                                    <p className="text-gray-200 text-base sm:text-lg line-clamp-3 max-w-4xl font-medium leading-relaxed drop-shadow-md mb-5">
+                                    <p className="news-subtitle-font text-gray-200 text-[14px] sm:text-[16px] line-clamp-3 max-w-4xl font-medium leading-snug drop-shadow-md mb-3.5">
                                         {slide.description}
                                     </p>
                                 )}
                                 {slide.date && (
-                                    <div className="flex items-center mb-2">
+                                    <div className="flex items-center mb-0">
                                         <span className="text-gray-400 text-xs font-light flex items-center gap-1.5 drop-shadow-md">
                                             <span className="material-symbols-rounded text-[14px] opacity-70">schedule</span>
                                             {slide.date}
