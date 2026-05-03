@@ -1,5 +1,12 @@
 
 export default {
+  "nav.mail": "Mail",
+  "nav.mail.inbox": "Inbox",
+  "nav.mail.send": "Send Mail",
+  "nav.mail.campaigns": "Campaigns",
+  "nav.mail.templates": "Templates",
+  "nav.mail.contacts": "Contact Lists",
+  "nav.mail.settings": "Settings",
   "admin.publisher_management": "PUBLISHERS",
   "admin.select_publisher": "Select Publisher",
   "admin.header.search": "Search...",

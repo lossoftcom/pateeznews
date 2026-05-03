@@ -72,7 +72,7 @@ export default {
         display: ['"Inter"', 'sans-serif'],
       },
       colors: {
-        white: surface,
+        white: '#FFFFFF',
         black: deepOcean,
         gray: neutralScale,
         slate: neutralScale,
@@ -97,7 +97,7 @@ export default {
         purple: supportScale,
         fuchsia: supportScale,
         palette: {
-          beige: surface,
+          beige: '#E5E7EB',
           tan: coolGray,
           maroon: deepOcean,
           red: actionRed,

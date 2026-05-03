@@ -53,13 +53,17 @@ const DEFAULT_LINK_STYLE: NonNullable<NonNullable<PostItem['tocData']>['linkList
     showLevel3InText: false,
 };
 
-export const createDefaultTocData = (): NonNullable<PostItem['tocData']> => ({
+type NormalizedTocData = Omit<NonNullable<PostItem['tocData']>, 'linkListStyle'> & {
+    linkListStyle: NonNullable<NonNullable<PostItem['tocData']>['linkListStyle']>;
+};
+
+export const createDefaultTocData = (): NormalizedTocData => ({
     optionalUrl: '',
     linkListStyle: { ...DEFAULT_LINK_STYLE },
     items: [makeTocListItem(1)],
 });
 
-const normalizeTocData = (value: PostItem['tocData']): NonNullable<PostItem['tocData']> => {
+const normalizeTocData = (value: PostItem['tocData']): NormalizedTocData => {
     const base = createDefaultTocData();
     const items = Array.isArray(value?.items) && value.items.length > 0
         ? value.items.map((entry, entryIndex) => ({
@@ -106,7 +110,7 @@ const PostTableOfContentsItem: React.FC<PostTableOfContentsItemProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const updateTocData = (nextData: NonNullable<PostItem['tocData']>) => {
+    const updateTocData = (nextData: NormalizedTocData) => {
         onUpdate(item.id, 'tocData', nextData);
     };
 

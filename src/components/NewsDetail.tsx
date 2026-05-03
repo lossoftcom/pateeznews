@@ -686,7 +686,7 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
             <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
               <h4 className="mb-4 text-lg font-black text-gray-900">{t('news.recipe.ingredients')}</h4>
               <ul className="space-y-3">
-                {ingredients.map((ingredient, index) => (
+                {ingredients.map((ingredient: string, index: number) => (
                   <li key={`${ingredient}-${index}`} className="flex items-start gap-3 text-sm font-bold text-gray-700">
                     <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-palette-red" />
                     <span>{ingredient}</span>
@@ -699,7 +699,7 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
             <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
               <h4 className="mb-4 text-lg font-black text-gray-900">{t('news.recipe.nutrition')}</h4>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {nutrition.map((entry, index) => (
+                {nutrition.map((entry: any, index: number) => (
                   <div key={`${entry.label}-${index}`} className="rounded-[4px] border border-gray-100 bg-gray-50 px-3 py-2">
                     <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{entry.label || t('news.recipe.nutrition_item')}</span>
                     <span className="mt-0.5 block text-sm font-black text-gray-900">{entry.value}</span>
@@ -714,7 +714,7 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
       {directions.length > 0 && (
         <div className="space-y-6">
           <h4 className="text-xl font-black text-gray-900">{t('news.recipe.directions')}</h4>
-          {directions.map((direction) => (
+          {directions.map((direction: any) => (
             <section key={direction.id} className="grid gap-5 rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm md:grid-cols-[48px_minmax(0,1fr)]">
               <span className="flex h-12 w-12 items-center justify-center rounded-[5px] bg-gray-900 text-base font-black text-white">
                 {direction.orderNumber}
@@ -749,7 +749,7 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
 const EventBlock: React.FC<{ item: any }> = ({ item }) => {
   const { t, currentLang } = useLanguage();
   const eventData = item?.eventData || {};
-  const locale = currentLang === 'tr' ? 'tr-TR' : currentLang === 'ar' ? 'ar' : 'en-US';
+  const locale = String(currentLang) === 'tr' ? 'tr-TR' : String(currentLang) === 'ar' ? 'ar' : 'en-US';
   const formatDateTime = (value: unknown) => {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -1495,6 +1495,8 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                       <ReviewCard data={{ ...data, reviewData: item.reviewData } as any} />
                     </div>;
                   case 'video':
+                    // Prevent duplicate video rendering at the end of the article if it matches the main media
+                    if (data.type === NewsType.VIDEO && (item.mediaUrl === data.mediaUrl || item.mediaUrl === (data as any).videoUrl)) return null;
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
                       <VideoCard data={{ ...data, mediaUrl: item.mediaUrl } as any} />

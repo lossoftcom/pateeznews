@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 
 type MediaType = 'image' | 'video' | 'audio' | 'file' | 'logo' | 'profile';
+type MediaRenameHandler = {
+    bivarianceHack(src: string, type: MediaType): Promise<string | null>;
+}['bivarianceHack'];
 
 interface MediaFilenameBadgeProps {
     src?: string;
     type?: MediaType;
-    onRename?: (src: string, type: MediaType) => Promise<string | null>;
+    onRename?: MediaRenameHandler;
     className?: string;
 }
 

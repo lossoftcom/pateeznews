@@ -54,23 +54,31 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent pointer-events-none" />
 
-            {/* Category Badge - Bottom Right */}
-            <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-palette-red px-3 py-1.5 rounded-[3px] shadow-lg">
-                <span className="material-symbols-rounded text-white" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>
+            {/* Category Badge - Bottom Right — 2026 Micro */}
+            <div className="absolute bottom-3 right-3 z-20 transition-all duration-400 hover:-translate-y-px cursor-default group/badge">
+              <div className="relative flex items-center gap-1.5 bg-black/50 backdrop-blur-xl px-2.5 py-[5px] rounded-[3px] shadow-[0_2px_12px_-2px_rgba(0,0,0,0.3)] overflow-hidden">
+                {/* Shimmer sweep on hover */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent -translate-x-full group-hover/badge:translate-x-full transition-transform duration-[800ms] ease-out pointer-events-none" />
+                
+                {/* Poll icon */}
+                <span 
+                  className="material-symbols-rounded text-white/80 relative z-10" 
+                  style={{ fontSize: '13px', fontVariationSettings: "'FILL' 1, 'wght' 400" }}
+                >
                   poll
                 </span>
-                <span className="text-[10px] font-black text-white uppercase tracking-widest">{t('poll.badge')}</span>
+                
+                {/* Thin divider */}
+                <div className="w-px h-3 bg-white/15 relative z-10" />
+                
+                {/* Badge text — capitalize only */}
+                <span className="text-[9.5px] font-[600] text-white/85 capitalize tracking-[0.08em] relative z-10 leading-none">
+                  {t('poll.badge').charAt(0).toUpperCase() + t('poll.badge').slice(1).toLowerCase()}
+                </span>
               </div>
             </div>
 
-            {/* Live Indicator - Top Left */}
-            <div className="absolute top-4 left-4 z-20">
-              <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/10">
-                <div className="w-2 h-2 bg-palette-accent rounded-full animate-pulse shadow-[0_0_8px_rgba(243,156,18,0.6)]" />
-                <span className="text-[9px] font-black text-white uppercase tracking-widest">{t('right.live')}</span>
-              </div>
-            </div>
+
           </div>
         )}
 
@@ -105,15 +113,20 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                     key={option.id}
                     disabled={hasVoted}
                     onClick={() => handleVote(option.id)}
-                    className={`group relative flex flex-col rounded-[5px] overflow-hidden transition-all duration-500 bg-palette-beige/5 border ${hasVoted
+                    className={`group relative flex flex-col text-left rounded-[6px] overflow-hidden transition-all duration-400 bg-white border ${hasVoted
                       ? isSelected
-                        ? 'ring-2 ring-palette-maroon shadow-xl z-10 border-palette-maroon/40'
+                        ? 'ring-2 ring-palette-maroon shadow-lg z-10 border-palette-maroon/40 bg-palette-beige/[0.02]'
                         : 'opacity-40 grayscale-[50%] scale-[0.98] border-palette-beige/30'
-                      : 'border-palette-beige/40 hover:shadow-xl hover:scale-[1.02] active:scale-[0.99]'
+                      : 'border-palette-tan/25 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.1)] hover:border-palette-tan/80 hover:shadow-lg hover:-translate-y-[2px] active:scale-[0.98] cursor-pointer'
                       }`}
                   >
+                    {/* Hover Accent Line (Top for images) */}
+                    {!hasVoted && (
+                      <div className="absolute top-0 left-0 right-0 h-[3px] bg-palette-tan/0 group-hover:bg-palette-tan/60 transition-colors duration-400 z-30 pointer-events-none" />
+                    )}
+
                     {/* Image Container - Fixed Height with Blurred Background */}
-                    <div className="relative w-full h-[240px] overflow-hidden">
+                    <div className="relative w-full h-[240px] overflow-hidden border-b border-palette-beige/20">
                       {/* Blurred Background Fill */}
                       <div
                         className="absolute inset-0 bg-center bg-cover blur-2xl opacity-50 scale-110"
@@ -162,8 +175,24 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                     </div>
 
                     {/* Option Label */}
-                    <div className={`px-4 py-3 transition-colors duration-300 ${hasVoted && isSelected ? 'bg-palette-maroon/5' : 'bg-white'}`}>
-                      <span className={`text-[13px] font-[800] text-left block line-clamp-1 ${isSelected && hasVoted ? 'text-palette-maroon' : 'text-palette-maroon/70'}`}>
+                    <div className={`px-4 py-3.5 w-full flex items-center gap-3 transition-colors duration-300 ${hasVoted && isSelected ? 'bg-palette-maroon/5' : 'bg-white'}`}>
+                      {/* Radio Circle */}
+                      <div className={`w-[18px] h-[18px] rounded-full border-[2px] flex items-center justify-center flex-shrink-0 transition-all duration-300 ${isSelected && hasVoted
+                        ? 'border-palette-maroon bg-palette-maroon shadow-sm shadow-palette-maroon/20'
+                        : hasVoted
+                          ? 'border-palette-beige/50'
+                          : 'border-palette-tan/40 group-hover:border-palette-tan group-hover:scale-110 bg-white'
+                        }`}>
+                        {isSelected && hasVoted && (
+                          <div className="w-1.5 h-1.5 bg-white rounded-full animate-in zoom-in duration-200" />
+                        )}
+                        {!hasVoted && (
+                          <div className="w-1 h-1 bg-palette-tan/0 group-hover:bg-palette-tan/30 rounded-full transition-colors duration-300" />
+                        )}
+                      </div>
+
+                      {/* Text */}
+                      <span className={`text-[14px] italic font-[600] text-left block line-clamp-2 leading-snug flex-1 ${isSelected && hasVoted ? 'text-palette-maroon font-[800]' : 'text-palette-maroon/85 group-hover:text-palette-maroon'}`}>
                         {option.text}
                       </span>
                     </div>
@@ -177,38 +206,46 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                   key={option.id}
                   disabled={hasVoted}
                   onClick={() => handleVote(option.id)}
-                  className={`group relative w-full rounded-[5px] transition-all duration-400 bg-white border overflow-hidden ${hasVoted
+                  className={`group relative w-full text-left rounded-[6px] transition-all duration-400 bg-white border overflow-hidden ${hasVoted
                     ? isSelected
-                      ? 'border-palette-maroon/50 shadow-sm'
+                      ? 'border-palette-maroon/40 shadow-md bg-palette-beige/[0.02]'
                       : 'border-palette-beige/30 opacity-60'
-                    : 'border-palette-beige/50 hover:border-palette-tan hover:bg-palette-beige/[0.03] active:scale-[0.99]'
+                    : 'border-palette-tan/25 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.1)] hover:border-palette-tan/80 hover:shadow-md hover:-translate-y-[2px] hover:bg-palette-beige/[0.03] active:scale-[0.98] cursor-pointer'
                     }`}
                 >
+                  {/* Hover Accent Line */}
+                  {!hasVoted && (
+                    <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-palette-tan/0 group-hover:bg-palette-tan/60 transition-colors duration-400 z-10" />
+                  )}
+
                   {/* Progress Bar Background */}
                   {hasVoted && (
                     <div
-                      className={`absolute left-0 top-0 bottom-0 transition-all duration-[1200ms] ease-out ${isSelected ? 'bg-palette-maroon/10' : 'bg-palette-beige/40'}`}
+                      className={`absolute left-0 top-0 bottom-0 transition-all duration-[1200ms] ease-out z-0 ${isSelected ? 'bg-palette-maroon/10' : 'bg-palette-beige/40'}`}
                       style={{ width: `${percentage}%` }}
                     />
                   )}
 
                   {/* Content */}
-                  <div className="relative px-5 py-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
+                  <div className="relative z-10 px-5 py-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1">
                       {/* Radio Circle */}
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${isSelected && hasVoted
-                        ? 'border-palette-maroon bg-palette-maroon'
+                      <div className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${isSelected && hasVoted
+                        ? 'border-palette-maroon bg-palette-maroon shadow-sm shadow-palette-maroon/20'
                         : hasVoted
                           ? 'border-palette-beige/50'
-                          : 'border-palette-beige group-hover:border-palette-tan'
+                          : 'border-palette-tan/40 group-hover:border-palette-tan group-hover:scale-110 bg-white'
                         }`}>
                         {isSelected && hasVoted && (
                           <div className="w-2 h-2 bg-white rounded-full animate-in zoom-in duration-200" />
                         )}
+                        {!hasVoted && (
+                          <div className="w-1.5 h-1.5 bg-palette-tan/0 group-hover:bg-palette-tan/30 rounded-full transition-colors duration-300" />
+                        )}
                       </div>
 
                       {/* Option Text */}
-                      <span className={`text-[15px] font-[700] tracking-tight transition-colors ${isSelected && hasVoted ? 'text-palette-maroon' : 'text-palette-maroon/70'
+                      <span className={`text-[15px] italic font-[600] text-left leading-relaxed tracking-tight transition-colors flex-1 ${isSelected && hasVoted ? 'text-palette-maroon font-[800]' : 'text-palette-maroon/85 group-hover:text-palette-maroon'
                         }`}>
                         {option.text}
                       </span>
@@ -218,15 +255,15 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                     {hasVoted && (
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <div className="text-right">
-                          <span className={`text-[14px] font-[900] tabular-nums block ${isSelected ? 'text-palette-maroon' : 'text-palette-tan/60'}`}>
+                          <span className={`text-[15px] font-[900] tabular-nums block ${isSelected ? 'text-palette-maroon' : 'text-palette-tan/70'}`}>
                             <AnimatedNumber value={percentage} suffix="%" />
                           </span>
-                          <span className="text-[10px] font-[600] text-palette-tan/50">
+                          <span className="text-[11px] font-[600] text-palette-tan/60">
                             {currentOptionVotes} {t('poll.vote_unit')}
                           </span>
                         </div>
                         {isSelected && (
-                          <CheckCircle2 size={18} className="text-palette-maroon animate-in zoom-in duration-300" />
+                          <CheckCircle2 size={20} className="text-palette-maroon animate-in zoom-in duration-300" />
                         )}
                       </div>
                     )}

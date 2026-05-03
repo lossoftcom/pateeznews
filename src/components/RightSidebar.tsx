@@ -42,31 +42,40 @@ type DeathNotice = {
 
 const MemorialDoveIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
    <svg viewBox="0 0 64 64" aria-hidden="true" className={className} fill="none">
+      {/* Dove body */}
       <path
-         d="M11 38.5c10.4-2.3 17.9-9.4 23.4-22.2 3.4 9.4 11.7 16.4 24.6 20.8-10.3 3.2-19.4 1.3-27.2-5.6-5 7.2-11.8 10.2-20.8 7z"
+         d="M14 40c2-8 8-14 16-18 2-1 4-1.5 6-1.5 3 0 5.5 1.5 7 4 1 1.8 1.5 3.8 1.5 6 0 3-1 5.5-3 7.5-2.5 2.5-5.5 3.5-9 3.5-4 0-8-1-12-2.5L14 40z"
          fill="currentColor"
-         opacity="0.96"
-      />
-      <path
-         d="M18.6 43.8c10.7-.5 20.4-5.2 29.1-14.3-1.2 10-7.1 17.5-17.8 22.3-5.7 2.5-11 1-15.9-4.3 2.5-.6 4-1.8 4.6-3.7z"
-         fill="currentColor"
-         opacity="0.72"
-      />
-      <path
-         d="M43.3 24.7c2.5-3.3 5.5-5 8.9-5.1-1.4 3.4-3.7 5.7-6.9 6.8"
-         stroke="currentColor"
-         strokeWidth="3"
-         strokeLinecap="round"
-         strokeLinejoin="round"
          opacity="0.9"
       />
-      <path d="M52.4 20.1l5.8-1.8-4.3 4.3" fill="#EA4335" />
+      {/* Dove wing */}
       <path
-         d="M16.5 52.5c9.8 1.4 18.6-.7 26.4-6.3"
-         stroke="currentColor"
-         strokeWidth="2.5"
+         d="M36 24.5c-3-4-7-6.5-12-7.5 6-2 11-1 15 3 3 3 4.5 6.5 4.5 10.5 0 1-.1 2-.3 3-1.5-3.5-4-6.5-7.2-9z"
+         fill="currentColor"
+         opacity="0.65"
+      />
+      {/* Dove head */}
+      <ellipse cx="42" cy="22" rx="4" ry="3.5" fill="currentColor" opacity="0.95" />
+      {/* Eye */}
+      <circle cx="43.5" cy="21.5" r="0.8" fill="#111" />
+      {/* Beak */}
+      <path d="M46 22l4-0.5-3.5 2" fill="#C9A96E" />
+      {/* Olive branch */}
+      <path
+         d="M18 44c6 2 12 3 18 2"
+         stroke="#5A7A5A"
+         strokeWidth="1.5"
          strokeLinecap="round"
-         opacity="0.35"
+         opacity="0.6"
+      />
+      <ellipse cx="22" cy="43" rx="2" ry="1" fill="#5A7A5A" opacity="0.5" transform="rotate(-20 22 43)" />
+      <ellipse cx="26" cy="44" rx="2" ry="1" fill="#5A7A5A" opacity="0.5" transform="rotate(-10 26 44)" />
+      <ellipse cx="30" cy="44.5" rx="2" ry="1" fill="#5A7A5A" opacity="0.4" transform="rotate(-5 30 44.5)" />
+      {/* Tail */}
+      <path
+         d="M14 40c-2 1-4 3-5 6 3-1 5-2.5 6.5-4.5"
+         fill="currentColor"
+         opacity="0.5"
       />
    </svg>
 );
@@ -407,7 +416,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
       <div className="flex flex-col gap-8 pt-0 pb-10">
 
          {/* 1. Duty Pharmacy Widget */}
-         <div className="bg-white rounded-[5px] border border-palette-beige/60 shadow-sm overflow-hidden relative group">
+         <div className="bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden relative group">
             <div className="p-5 pb-0">
                <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3 min-w-0">
@@ -454,7 +463,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
 
             <div className="px-4 pb-4 pt-2 space-y-3">
                {selectedPharmacies.length > 0 ? selectedPharmacies.map((pharmacy) => (
-                  <div key={pharmacy.id} className="rounded-[5px] border border-palette-beige/60 bg-gradient-to-br from-palette-beige/10 via-white to-white p-4 shadow-sm">
+                  <div key={pharmacy.id} className="rounded-[5px] border border-gray-200 bg-[#FFFFFF] p-4 shadow-sm">
                      <div className="flex items-start justify-between gap-3 mb-2">
                         <div className="min-w-0">
                            <h4 className="text-[15px] font-semibold text-gray-800 tracking-tight truncate">{pharmacy.name}</h4>
@@ -515,7 +524,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
          </div>
 
          {/* 2. Weather Widget */}
-         <div className="bg-white rounded-[5px] border border-palette-beige/60 shadow-sm overflow-hidden relative group">
+         <div className="bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden relative group">
             <div className="p-6 pb-0 flex items-start justify-between">
                <div>
                   <div className="flex items-center gap-1.5 text-palette-tan/50 mb-2">
@@ -547,7 +556,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
          </div>
 
          {/* 2. Gündem (Trending) */}
-         <div className="bg-white rounded-[5px] border border-palette-beige/60 shadow-sm overflow-hidden">
+         <div className="bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
             <div className="p-6 pb-2 flex items-center justify-between">
                <div className="flex items-center gap-3">
                   <div className="w-1.5 h-1.5 bg-palette-red rounded-[5px]"></div>
@@ -601,7 +610,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
          </div>
 
          {/* 3. Markets Widget */}
-         <div className="bg-white rounded-[5px] border border-palette-beige/60 shadow-sm overflow-hidden">
+         <div className="bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
             <div className="p-6 pb-2 flex items-center justify-between">
                <div className="flex items-center gap-3">
                   <div className="w-1.5 h-1.5 bg-palette-tan/20 rounded-[5px]"></div>
@@ -633,82 +642,77 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             </div>
          </div>
 
-         {/* 4. Death Notices */}
-         <div className="relative overflow-hidden rounded-[5px] border border-white/10 bg-palette-maroon shadow-[0_28px_70px_-42px_rgba(44,62,80,0.95)]">
+         {/* 4. Death Notices - 2026 Premium Black Memorial Design */}
+         <div className="relative overflow-hidden rounded-[5px] border border-neutral-800 bg-[#111111] shadow-[0_28px_70px_-42px_rgba(0,0,0,0.95)]">
+            {/* Subtle decorative elements */}
             <div className="pointer-events-none absolute inset-0">
-               <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(248,249,250,0.16),transparent_34%),radial-gradient(circle_at_100%_18%,rgba(234,67,53,0.18),transparent_34%),linear-gradient(145deg,#2C3E50_0%,#95A5A6_54%,#2C3E50_100%)]"></div>
-               <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
-               <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full border border-white/10"></div>
-               <div className="absolute -right-3 top-8 w-14 h-14 rounded-full bg-white/5 opacity-60 blur-sm"></div>
+               <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(201,169,110,0.06),transparent_40%),radial-gradient(circle_at_100%_100%,rgba(201,169,110,0.04),transparent_40%)]"></div>
+               <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#C9A96E]/20 to-transparent"></div>
             </div>
 
-            <div className="relative p-5 pb-4 flex items-start gap-3">
-               <div className="w-12 h-12 rounded-[5px] bg-white text-gray-950 flex items-center justify-center shadow-[0_14px_32px_-18px_rgba(248,249,250,0.8)] ring-1 ring-white/20">
-                  <MemorialDoveIcon className="w-9 h-9" />
+            {/* Header */}
+            <div className="relative px-5 pt-5 pb-4 flex items-start gap-3.5">
+               <div className="w-11 h-11 rounded-full bg-[#1a1a1a] text-[#C9A96E] flex items-center justify-center border border-[#C9A96E]/20 shadow-[0_0_20px_rgba(201,169,110,0.08)]">
+                  <MemorialDoveIcon className="w-7 h-7" />
                </div>
                <div className="min-w-0 flex-1 pt-0.5">
-                  <div className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 rounded-[5px] bg-palette-red shadow-[0_0_0_4px_rgba(234,67,53,0.14)]"></span>
-                     <h3 className="font-semibold text-white uppercase tracking-[0.12em] text-[13px] truncate">{t('right.death_title')}</h3>
-                  </div>
-                  <p className="text-[11px] font-medium text-white/45 mt-1 truncate">
+                  <h3 className="font-bold text-white/90 uppercase tracking-[0.15em] text-[12px]">{t('right.death_title')}</h3>
+                  <p className="text-[10px] font-medium text-[#C9A96E]/50 mt-1 tracking-wide truncate">
                      {liveDeathData?.city || 'Niğde'}{liveDeathData?.serviceDateLabel ? ` · ${liveDeathData.serviceDateLabel}` : ''}
                   </p>
                </div>
             </div>
 
-            <div className="relative px-4 pb-4 space-y-2.5">
+            {/* Notices list */}
+            <div className="relative px-4 pb-4 space-y-2">
                {visibleDeathNotices.length > 0 ? visibleDeathNotices.map((notice) => (
                   <a
                      key={notice.id}
                      href={liveDeathData?.sourceUrl || 'https://nigde.bel.tr/vefat-edenler'}
                      target="_blank"
                      rel="noreferrer"
-                     className="block rounded-[5px] border border-white/10 bg-white/5 p-4 shadow-[inset_0_1px_0_rgba(248,249,250,0.07)] hover:bg-white/10 hover:border-white/20 hover:-translate-y-0.5 transition-all"
+                     className="block rounded-[5px] border border-neutral-800 bg-[#1a1a1a] p-4 hover:bg-[#222] hover:border-[#C9A96E]/15 hover:-translate-y-0.5 transition-all duration-200"
                   >
-                     <div className="flex items-start justify-between gap-3 mb-2">
+                     <div className="flex items-start justify-between gap-3 mb-1.5">
                         <div className="min-w-0">
-                           <h4 className="text-[15px] font-semibold text-white tracking-tight truncate">{notice.name}</h4>
-                           <p className="text-[10px] font-semibold text-palette-accent uppercase tracking-widest mt-1 truncate">
+                           <h4 className="text-[14px] font-bold text-white/90 tracking-tight truncate">{notice.name}</h4>
+                           <p className="text-[10px] font-semibold text-[#C9A96E]/70 uppercase tracking-widest mt-1 truncate">
                               {notice.prayerTime || t('right.death_time_empty')}{notice.burialPlace ? ` · ${notice.burialPlace}` : ''}
                            </p>
                         </div>
-                        <span className="text-[10px] font-medium text-white/35 shrink-0">{notice.deathDateLabel}</span>
+                        <span className="text-[9px] font-medium text-white/25 shrink-0 bg-white/5 px-2 py-0.5 rounded">{notice.deathDateLabel}</span>
                      </div>
-                     <p className="text-[12px] font-medium text-white/60 leading-relaxed line-clamp-3">
+                     <p className="text-[11px] font-medium text-white/45 leading-relaxed line-clamp-2 mt-2">
                         {notice.description}
                      </p>
                   </a>
                )) : (
-                  <div className="rounded-[5px] border border-white/10 bg-white/5 p-4 shadow-[inset_0_1px_0_rgba(248,249,250,0.07)]">
+                  <div className="rounded-[5px] border border-neutral-800 bg-[#1a1a1a] p-5">
                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-[5px] bg-black/40 border border-white/10 flex items-center justify-center text-white/70 shadow-inner">
-                           <span className="relative block w-4 h-6" aria-hidden="true">
-                              <span className="absolute left-1/2 top-0 w-2 h-2 -translate-x-1/2 rounded-full bg-palette-accent blur-[1px]"></span>
-                              <span className="absolute left-1/2 top-1.5 w-1.5 h-2 -translate-x-1/2 rounded-full bg-white"></span>
-                              <span className="absolute bottom-0 left-1/2 w-3 h-4 -translate-x-1/2 rounded-[3px] border border-white/35 bg-white/10"></span>
-                           </span>
+                        <div className="w-10 h-10 rounded-full bg-[#222] border border-neutral-700 flex items-center justify-center text-[#C9A96E]/50">
+                           <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>candle</span>
                         </div>
                         <div className="min-w-0">
-                           <p className="text-[13px] font-semibold text-white">{t('right.death_empty_title')}</p>
-                           <p className="text-[11px] font-medium text-white/50 leading-relaxed">{t('right.death_empty_desc')}</p>
+                           <p className="text-[12px] font-semibold text-white/80">{t('right.death_empty_title')}</p>
+                           <p className="text-[10px] font-medium text-white/35 leading-relaxed">{t('right.death_empty_desc')}</p>
                         </div>
                      </div>
                   </div>
                )}
             </div>
 
-            <div className="relative border-t border-white/10 bg-black/20 px-5 py-3 flex items-center justify-between gap-3">
+            {/* Footer */}
+            <div className="relative border-t border-neutral-800 bg-[#0a0a0a] px-5 py-2.5 flex items-center justify-between gap-3">
                <a
                   href={liveDeathData?.sourceUrl || 'https://nigde.bel.tr/vefat-edenler'}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[10px] font-medium text-white/40 hover:text-white/75 transition-colors truncate"
+                  className="text-[10px] font-medium text-white/30 hover:text-[#C9A96E]/70 transition-colors truncate"
                >
                   {t('right.death_source')}
                </a>
                {deathUpdatedAt && (
-                  <span className="text-[10px] font-medium text-white/30 shrink-0">{deathUpdatedAt}</span>
+                  <span className="text-[9px] font-medium text-white/20 shrink-0">{deathUpdatedAt}</span>
                )}
             </div>
          </div>

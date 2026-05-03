@@ -28,20 +28,6 @@ import { storageService, type MediaItem } from '@/services/storageService';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import { SPECIAL_CONTENT_FILTERS, getSpecialContentConfig } from '@/utils/specialContent';
-import FilerobotImageEditor, { TABS, TOOLS } from 'react-filerobot-image-editor';
-import { StyleSheetManager } from 'styled-components';
-import isPropValid from '@emotion/is-prop-valid';
-import Popper from '@scaleflex/ui/core/popper';
-import { Emoji as EmojiIcon } from '@scaleflex/icons';
-import ToolsBarItemButton from 'react-filerobot-image-editor/lib/components/ToolsBar/ToolsBarItemButton';
-import useStore from 'react-filerobot-image-editor/lib/hooks/useStore';
-import { SET_ANNOTATION } from 'react-filerobot-image-editor/lib/actions';
-import { TOOLS_ITEMS as FIE_DEFAULT_TOOLS_ITEMS } from 'react-filerobot-image-editor/lib/components/tools/tools.constants';
-
-// Filerobot beta ships a few ESM files that call React.createElement without importing React.
-(globalThis as any).React = React;
-
-const FilerobotEditor: any = FilerobotImageEditor;
 
 const STORAGE_FILE_MARKER = '/api/storage/file/';
 const STORAGE_FILE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profile'] as const;
@@ -358,6 +344,68 @@ const FIE_EMOJI_TOGGLE_EVENT = 'fie:emoji-toggle';
 
 const FIE_EMOJI_STICKER_CACHE = new Map<string, string>();
 
+type FilerobotDeps = {
+    FilerobotEditor: any;
+    TABS: any;
+    TOOLS: any;
+    StyleSheetManager: React.ComponentType<any>;
+    isPropValid: (prop: string) => boolean;
+    Popper: React.ComponentType<any>;
+    EmojiIcon: React.ComponentType<any>;
+    ToolsBarItemButton: React.ComponentType<any>;
+    useStore: () => any;
+    SET_ANNOTATION: any;
+    FIE_DEFAULT_TOOLS_ITEMS: Record<string, any>;
+};
+
+let filerobotDepsPromise: Promise<FilerobotDeps> | null = null;
+
+const loadFilerobotDeps = () => {
+    if (!filerobotDepsPromise) {
+        filerobotDepsPromise = (async () => {
+            // Filerobot beta ships a few ESM files that call React.createElement without importing React.
+            (globalThis as any).React = React;
+
+            const [
+                editorModule,
+                styledComponentsModule,
+                isPropValidModule,
+                popperModule,
+                iconsModule,
+                toolsBarItemButtonModule,
+                useStoreModule,
+                actionsModule,
+                toolsConstantsModule,
+            ] = await Promise.all([
+                import('react-filerobot-image-editor'),
+                import('styled-components'),
+                import('@emotion/is-prop-valid'),
+                import('@scaleflex/ui/core/popper'),
+                import('@scaleflex/icons'),
+                import('react-filerobot-image-editor/lib/components/ToolsBar/ToolsBarItemButton'),
+                import('react-filerobot-image-editor/lib/hooks/useStore'),
+                import('react-filerobot-image-editor/lib/actions'),
+                import('react-filerobot-image-editor/lib/components/tools/tools.constants'),
+            ]);
+
+            return {
+                FilerobotEditor: (editorModule as any).default || editorModule,
+                TABS: (editorModule as any).TABS,
+                TOOLS: (editorModule as any).TOOLS,
+                StyleSheetManager: (styledComponentsModule as any).StyleSheetManager,
+                isPropValid: (isPropValidModule as any).default || isPropValidModule,
+                Popper: (popperModule as any).default || popperModule,
+                EmojiIcon: (iconsModule as any).Emoji,
+                ToolsBarItemButton: (toolsBarItemButtonModule as any).default || toolsBarItemButtonModule,
+                useStore: (useStoreModule as any).default || useStoreModule,
+                SET_ANNOTATION: (actionsModule as any).SET_ANNOTATION,
+                FIE_DEFAULT_TOOLS_ITEMS: (toolsConstantsModule as any).TOOLS_ITEMS || {},
+            };
+        })();
+    }
+    return filerobotDepsPromise;
+};
+
 const createEmojiStickerDataUrl = (emoji: string, sizePx = 128) => {
     if (typeof document === 'undefined') return '';
 
@@ -390,174 +438,180 @@ const createEmojiStickerDataUrl = (emoji: string, sizePx = 128) => {
     return url;
 };
 
-const FieEmojiToolButton = ({ selectTool, isSelected }: any) => (
-    <ToolsBarItemButton
-        className="FIE_emoji-tool-button"
-        id={FIE_EMOJI_TOOL_ID}
-        label="Emoji"
-        Icon={EmojiIcon}
-        onClick={(toolId: string) => {
-            selectTool(toolId);
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new Event(FIE_EMOJI_TOGGLE_EVENT));
-            }
-        }}
-        isSelected={isSelected}
-    />
-);
+const createFieEmojiComponents = (deps: FilerobotDeps) => {
+    const { EmojiIcon, Popper, SET_ANNOTATION, TOOLS, ToolsBarItemButton, useStore } = deps;
 
-const FieEmojiToolOptions = () => {
-    const { t } = useLanguage();
-    const store: any = useStore();
-    const dispatch = store?.dispatch;
-    const originalSource = store?.originalSource;
-    const shownImageDimensions = store?.shownImageDimensions;
-    const crop = store?.adjustments?.crop ?? {};
-
-    const [open, setOpen] = useState(true);
-    const [tab, setTab] = useState<'emoji' | 'flags'>('emoji');
-    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-
-    useEffect(() => {
-        if (typeof document === 'undefined') return;
-        const el = document.querySelector(
-            `[data-testid="FIE-tools-bar-item-button-${FIE_EMOJI_TOOL_ID.toLowerCase()}"]`
-        ) as HTMLElement | null;
-        setAnchorEl(el);
-    }, []);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const handler = () => setOpen(true);
-        window.addEventListener(FIE_EMOJI_TOGGLE_EVENT, handler);
-        return () => window.removeEventListener(FIE_EMOJI_TOGGLE_EVENT, handler);
-    }, []);
-
-    const items = tab === 'flags' ? FIE_FLAG_EMOJIS : (FIE_EMOJI_BASE as unknown as string[]);
-
-    const addSticker = React.useCallback((emoji: string) => {
-        const dataUrl = createEmojiStickerDataUrl(emoji, 128);
-        if (!dataUrl || typeof Image === 'undefined' || typeof dispatch !== 'function') return;
-
-        const img = new Image();
-        img.onload = () => {
-            const initialScale = shownImageDimensions?.originalSourceInitialScale || 1;
-            const baseWidth = (crop?.width ? crop.width / initialScale : undefined) || originalSource?.width || 0;
-            const baseHeight = (crop?.height ? crop.height / initialScale : undefined) || originalSource?.height || 0;
-            const baseX = (crop?.x ? crop.x / initialScale : undefined) || 0;
-            const baseY = (crop?.y ? crop.y / initialScale : undefined) || 0;
-
-            const spacing = 0.15;
-            const fitScale = Math.min(
-                1,
-                baseWidth / (img.width + img.width * spacing),
-                baseHeight / (img.height + img.height * spacing)
-            );
-
-            dispatch({
-                type: SET_ANNOTATION,
-                payload: {
-                    name: TOOLS.IMAGE,
-                    image: img,
-                    x: baseX + baseWidth / 2 - (img.width * fitScale) / 2,
-                    y: baseY + baseHeight / 2 - (img.height * fitScale) / 2,
-                    width: img.width * fitScale,
-                    height: img.height * fitScale,
-                    opacity: 1,
-                    selectOnSet: false,
-                },
-            });
-
-            setOpen(false);
-        };
-        img.src = dataUrl;
-    }, [dispatch, shownImageDimensions?.originalSourceInitialScale, crop?.width, crop?.height, crop?.x, crop?.y, originalSource?.width, originalSource?.height]);
-
-    return (
-        <div className="FIE_emoji-tool-options" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-                type="button"
-                onClick={() => { setTab('emoji'); setOpen(true); }}
-                style={{
-                    border: '1px solid rgba(0,0,0,0.12)',
-                    borderRadius: 4,
-                    padding: '6px 10px',
-                    background: tab === 'emoji' ? 'rgba(0,0,0,0.04)' : '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                }}
-            >
-                {t('admin.post.emoji_tab.emojis')}
-            </button>
-            <button
-                type="button"
-                onClick={() => { setTab('flags'); setOpen(true); }}
-                style={{
-                    border: '1px solid rgba(0,0,0,0.12)',
-                    borderRadius: 4,
-                    padding: '6px 10px',
-                    background: tab === 'flags' ? 'rgba(0,0,0,0.04)' : '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                }}
-            >
-                {t('admin.post.emoji_tab.flags')}
-            </button>
-            <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                style={{
-                    border: '1px solid rgba(0,0,0,0.12)',
-                    borderRadius: 4,
-                    padding: '6px 10px',
-                    background: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                }}
-            >
-                {open ? t('common.close_action') : t('common.open_action')}
-            </button>
-
-            <Popper
-                className="FIE_emoji-picker"
-                anchorEl={anchorEl}
-                open={open && !!anchorEl}
-                position="top"
-                overlay
-                onClick={() => setOpen(false)}
-                wrapperStyles={{ maxWidth: 520 }}
-            >
-                <div style={{ background: '#fff', borderRadius: 6, padding: 8, maxWidth: 520, maxHeight: 360, overflow: 'auto' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 6 }}>
-                        {items.map((emoji) => (
-                            <button
-                                key={`${tab}-${emoji}`}
-                                type="button"
-                                onClick={() => addSticker(emoji)}
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    border: '1px solid rgba(0,0,0,0.08)',
-                                    borderRadius: 6,
-                                    background: '#fff',
-                                    cursor: 'pointer',
-                                    fontSize: 20,
-                                    lineHeight: '32px',
-                                    padding: 0,
-                                }}
-                                aria-label={emoji}
-                            >
-                                {emoji}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </Popper>
-        </div>
+    const FieEmojiToolButton = ({ selectTool, isSelected }: any) => (
+        <ToolsBarItemButton
+            className="FIE_emoji-tool-button"
+            id={FIE_EMOJI_TOOL_ID}
+            label="Emoji"
+            Icon={EmojiIcon}
+            onClick={(toolId: string) => {
+                selectTool(toolId);
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new Event(FIE_EMOJI_TOGGLE_EVENT));
+                }
+            }}
+            isSelected={isSelected}
+        />
     );
+
+    const FieEmojiToolOptions = () => {
+        const { t } = useLanguage();
+        const store: any = useStore();
+        const dispatch = store?.dispatch;
+        const originalSource = store?.originalSource;
+        const shownImageDimensions = store?.shownImageDimensions;
+        const crop = store?.adjustments?.crop ?? {};
+
+        const [open, setOpen] = useState(true);
+        const [tab, setTab] = useState<'emoji' | 'flags'>('emoji');
+        const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+        useEffect(() => {
+            if (typeof document === 'undefined') return;
+            const el = document.querySelector(
+                `[data-testid="FIE-tools-bar-item-button-${FIE_EMOJI_TOOL_ID.toLowerCase()}"]`
+            ) as HTMLElement | null;
+            setAnchorEl(el);
+        }, []);
+
+        useEffect(() => {
+            if (typeof window === 'undefined') return;
+            const handler = () => setOpen(true);
+            window.addEventListener(FIE_EMOJI_TOGGLE_EVENT, handler);
+            return () => window.removeEventListener(FIE_EMOJI_TOGGLE_EVENT, handler);
+        }, []);
+
+        const items = tab === 'flags' ? FIE_FLAG_EMOJIS : (FIE_EMOJI_BASE as unknown as string[]);
+
+        const addSticker = React.useCallback((emoji: string) => {
+            const dataUrl = createEmojiStickerDataUrl(emoji, 128);
+            if (!dataUrl || typeof Image === 'undefined' || typeof dispatch !== 'function') return;
+
+            const img = new Image();
+            img.onload = () => {
+                const initialScale = shownImageDimensions?.originalSourceInitialScale || 1;
+                const baseWidth = (crop?.width ? crop.width / initialScale : undefined) || originalSource?.width || 0;
+                const baseHeight = (crop?.height ? crop.height / initialScale : undefined) || originalSource?.height || 0;
+                const baseX = (crop?.x ? crop.x / initialScale : undefined) || 0;
+                const baseY = (crop?.y ? crop.y / initialScale : undefined) || 0;
+
+                const spacing = 0.15;
+                const fitScale = Math.min(
+                    1,
+                    baseWidth / (img.width + img.width * spacing),
+                    baseHeight / (img.height + img.height * spacing)
+                );
+
+                dispatch({
+                    type: SET_ANNOTATION,
+                    payload: {
+                        name: TOOLS.IMAGE,
+                        image: img,
+                        x: baseX + baseWidth / 2 - (img.width * fitScale) / 2,
+                        y: baseY + baseHeight / 2 - (img.height * fitScale) / 2,
+                        width: img.width * fitScale,
+                        height: img.height * fitScale,
+                        opacity: 1,
+                        selectOnSet: false,
+                    },
+                });
+
+                setOpen(false);
+            };
+            img.src = dataUrl;
+        }, [dispatch, shownImageDimensions?.originalSourceInitialScale, crop?.width, crop?.height, crop?.x, crop?.y, originalSource?.width, originalSource?.height]);
+
+        return (
+            <div className="FIE_emoji-tool-options" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                    type="button"
+                    onClick={() => { setTab('emoji'); setOpen(true); }}
+                    style={{
+                        border: '1px solid rgba(0,0,0,0.12)',
+                        borderRadius: 4,
+                        padding: '6px 10px',
+                        background: tab === 'emoji' ? 'rgba(0,0,0,0.04)' : '#fff',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                    }}
+                >
+                    {t('admin.post.emoji_tab.emojis')}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => { setTab('flags'); setOpen(true); }}
+                    style={{
+                        border: '1px solid rgba(0,0,0,0.12)',
+                        borderRadius: 4,
+                        padding: '6px 10px',
+                        background: tab === 'flags' ? 'rgba(0,0,0,0.04)' : '#fff',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                    }}
+                >
+                    {t('admin.post.emoji_tab.flags')}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setOpen((v) => !v)}
+                    style={{
+                        border: '1px solid rgba(0,0,0,0.12)',
+                        borderRadius: 4,
+                        padding: '6px 10px',
+                        background: '#fff',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                    }}
+                >
+                    {open ? t('common.close_action') : t('common.open_action')}
+                </button>
+
+                <Popper
+                    className="FIE_emoji-picker"
+                    anchorEl={anchorEl}
+                    open={open && !!anchorEl}
+                    position="top"
+                    overlay
+                    onClick={() => setOpen(false)}
+                    wrapperStyles={{ maxWidth: 520 }}
+                >
+                    <div style={{ background: '#fff', borderRadius: 6, padding: 8, maxWidth: 520, maxHeight: 360, overflow: 'auto' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 6 }}>
+                            {items.map((emoji) => (
+                                <button
+                                    key={`${tab}-${emoji}`}
+                                    type="button"
+                                    onClick={() => addSticker(emoji)}
+                                    style={{
+                                        width: 34,
+                                        height: 34,
+                                        border: '1px solid rgba(0,0,0,0.08)',
+                                        borderRadius: 6,
+                                        background: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: 20,
+                                        lineHeight: '32px',
+                                        padding: 0,
+                                    }}
+                                    aria-label={emoji}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </Popper>
+            </div>
+        );
+    };
+
+    return { FieEmojiToolButton, FieEmojiToolOptions };
 };
 
 const SC_DOM_PROP_BLOCKLIST = new Set([
@@ -584,13 +638,14 @@ const SC_DOM_PROP_BLOCKLIST = new Set([
 ]);
 
 // SC v6 filter: only filter DOM props, forward all props to custom components.
-const shouldForwardProp = (prop: string, elementToBeRendered: unknown) => {
-    if (prop.startsWith('$')) return false; // transient props
-    if (typeof elementToBeRendered === 'string') {
-        return isPropValid(prop) && !SC_DOM_PROP_BLOCKLIST.has(prop);
-    }
-    return true;
-};
+const createShouldForwardProp = (isPropValidFn: (prop: string) => boolean) =>
+    (prop: string, elementToBeRendered: unknown) => {
+        if (prop.startsWith('$')) return false; // transient props
+        if (typeof elementToBeRendered === 'string') {
+            return isPropValidFn(prop) && !SC_DOM_PROP_BLOCKLIST.has(prop);
+        }
+        return true;
+    };
 
 // Premium Quill Overrides
 const QUILL_CUSTOM_STYLE = `
@@ -1933,7 +1988,7 @@ const buildVideoItemsFromAiVideo = (rawVideo: any): PostItem[] => {
         };
     };
 
-    const readEntries = () => {
+    const readEntries = (): { parent: any; entries: any[] } => {
         if (Array.isArray(rawVideo)) return { parent: {}, entries: rawVideo };
         if (!rawVideo || typeof rawVideo !== 'object') return { parent: {}, entries: [] as any[] };
 
@@ -2140,10 +2195,10 @@ const slugifyTocAnchor = (value: unknown) => {
         .replace(/^-|-$/g, '');
 };
 
-const normalizeAiTocContent = (value: unknown) => {
+const normalizeAiTocContent = (value: unknown): string => {
     if (Array.isArray(value)) {
         return value
-            .map((entry) => {
+            .map((entry: unknown) => {
                 if (entry && typeof entry === 'object') {
                     return normalizeAiTocContent((entry as any).content ?? (entry as any).body ?? (entry as any).text ?? (entry as any).description);
                 }
@@ -2432,10 +2487,10 @@ const makeAiRecipeDirection = (
     content,
 });
 
-const normalizeAiRecipeHtml = (value: unknown) => {
+const normalizeAiRecipeHtml = (value: unknown): string => {
     if (Array.isArray(value)) {
         return value
-            .map((entry) => normalizeAiRecipeHtml(entry))
+            .map((entry: unknown) => normalizeAiRecipeHtml(entry))
             .filter(Boolean)
             .join('');
     }
@@ -3166,6 +3221,8 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
     const [isUrlMode, setIsUrlMode] = useState(false);
     const [showFileManager, setShowFileManager] = useState(false);
     const [showImageEditor, setShowImageEditor] = useState(false);
+    const [imageEditorDeps, setImageEditorDeps] = useState<FilerobotDeps | null>(null);
+    const [imageEditorLoadError, setImageEditorLoadError] = useState<string | null>(null);
     const [isEditorSaving, setIsEditorSaving] = useState(false);
     const [isThumbnailLoading, setIsThumbnailLoading] = useState(false);
     const [isGeneratingThumbnailAlt, setIsGeneratingThumbnailAlt] = useState(false);
@@ -3851,7 +3908,7 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
 
             let file: File;
 
-            const mimeType = 'image/webp';
+            const mimeType: string = 'image/webp';
 
             const normalizeQuality = (q: unknown) => {
                 if (typeof q !== 'number' || Number.isNaN(q)) return undefined;
@@ -4008,55 +4065,88 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
         return false;
     }, []);
 
-    const editorConfig = React.useMemo(() => ({
-        annotationsCommon: { fill: '#ff0000' },
-        theme: {
-            typography: {
-                fontFamily: `${FIE_TEXT_FONTS.join(', ')}, sans-serif`
-            }
-        },
-        tools: {
-            ...FIE_DEFAULT_TOOLS_ITEMS,
-            [FIE_EMOJI_TOOL_ID]: {
-                id: FIE_EMOJI_TOOL_ID,
-                Item: FieEmojiToolButton,
-                ItemOptions: FieEmojiToolOptions,
-            },
-        },
-        Text: {
-            fonts: FIE_TEXT_FONT_OPTIONS,
-            fontSize: 120,
-            onFontChange: (fontFamily: string, reRenderCanvas: () => void) => {
-                if (typeof document === 'undefined' || !document.fonts?.load) {
-                    reRenderCanvas();
-                    return;
+    useEffect(() => {
+        if (!showImageEditor || imageEditorDeps) return;
+
+        let active = true;
+        setImageEditorLoadError(null);
+        loadFilerobotDeps()
+            .then((deps) => {
+                if (active) setImageEditorDeps(deps);
+            })
+            .catch((error: any) => {
+                if (!active) return;
+                setImageEditorLoadError(error?.message || 'Image editor could not be loaded');
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [imageEditorDeps, showImageEditor]);
+
+    const editorConfig = React.useMemo(() => {
+        if (!imageEditorDeps) return null;
+
+        const { FieEmojiToolButton, FieEmojiToolOptions } = createFieEmojiComponents(imageEditorDeps);
+        const { FIE_DEFAULT_TOOLS_ITEMS, TABS, TOOLS } = imageEditorDeps;
+
+        return {
+            annotationsCommon: { fill: '#ff0000' },
+            theme: {
+                typography: {
+                    fontFamily: `${FIE_TEXT_FONTS.join(', ')}, sans-serif`
                 }
-                const match = FIE_TEXT_FONTS.find((font) => font.toLowerCase() === fontFamily) || fontFamily;
-                document.fonts.load(`16px "${match}"`).finally(reRenderCanvas);
-            }
-        },
-        Rotate: { angle: 90, componentType: 'slider' },
-        tabsIds: [TABS.ADJUST, TABS.FILTERS, TABS.FINETUNE, TABS.ANNOTATE, TABS.WATERMARK],
-        defaultTabId: TABS.ANNOTATE,
-        defaultToolId: TOOLS.TEXT,
-        closeAfterSave: true,
-        defaultSavedImageType: 'webp',
-        defaultSavedImageQuality: 1,
-        onBeforeSave: handleEditorBeforeSave,
-        savingPixelRatio: 1,
-        previewPixelRatio: 1,
-        willReadFrequently: true,
-        tabsToolsIds: {
-            [TABS.ADJUST]: [TOOLS.CROP, TOOLS.ROTATE, TOOLS.FLIP_X, TOOLS.FLIP_Y],
-            [TABS.FINETUNE]: [TOOLS.BRIGHTNESS, TOOLS.CONTRAST, TOOLS.HSV, TOOLS.BLUR, TOOLS.WARMTH],
-            [TABS.FILTERS]: [TOOLS.FILTERS],
-            [TABS.WATERMARK]: [TOOLS.WATERMARK],
-            [TABS.ANNOTATE]: [TOOLS.TEXT, TOOLS.IMAGE, TOOLS.RECT, TOOLS.ELLIPSE, TOOLS.POLYGON, TOOLS.PEN, TOOLS.LINE, TOOLS.ARROW, FIE_EMOJI_TOOL_ID],
-        },
-        [TABS.ADJUST]: {
-            hideResize: true,
-        },
-    }), [handleEditorBeforeSave]);
+            },
+            tools: {
+                ...FIE_DEFAULT_TOOLS_ITEMS,
+                [FIE_EMOJI_TOOL_ID]: {
+                    id: FIE_EMOJI_TOOL_ID,
+                    Item: FieEmojiToolButton,
+                    ItemOptions: FieEmojiToolOptions,
+                },
+            },
+            Text: {
+                fonts: FIE_TEXT_FONT_OPTIONS,
+                fontSize: 120,
+                onFontChange: (fontFamily: string, reRenderCanvas: () => void) => {
+                    if (typeof document === 'undefined' || !document.fonts?.load) {
+                        reRenderCanvas();
+                        return;
+                    }
+                    const match = FIE_TEXT_FONTS.find((font) => font.toLowerCase() === fontFamily) || fontFamily;
+                    document.fonts.load(`16px "${match}"`).finally(reRenderCanvas);
+                }
+            },
+            Rotate: { angle: 90, componentType: 'slider' },
+            tabsIds: [TABS.ADJUST, TABS.FILTERS, TABS.FINETUNE, TABS.ANNOTATE, TABS.WATERMARK],
+            defaultTabId: TABS.ANNOTATE,
+            defaultToolId: TOOLS.TEXT,
+            closeAfterSave: true,
+            defaultSavedImageType: 'webp',
+            defaultSavedImageQuality: 1,
+            onBeforeSave: handleEditorBeforeSave,
+            savingPixelRatio: 1,
+            previewPixelRatio: 1,
+            willReadFrequently: true,
+            tabsToolsIds: {
+                [TABS.ADJUST]: [TOOLS.CROP, TOOLS.ROTATE, TOOLS.FLIP_X, TOOLS.FLIP_Y],
+                [TABS.FINETUNE]: [TOOLS.BRIGHTNESS, TOOLS.CONTRAST, TOOLS.HSV, TOOLS.BLUR, TOOLS.WARMTH],
+                [TABS.FILTERS]: [TOOLS.FILTERS],
+                [TABS.WATERMARK]: [TOOLS.WATERMARK],
+                [TABS.ANNOTATE]: [TOOLS.TEXT, TOOLS.IMAGE, TOOLS.RECT, TOOLS.ELLIPSE, TOOLS.POLYGON, TOOLS.PEN, TOOLS.LINE, TOOLS.ARROW, FIE_EMOJI_TOOL_ID],
+            },
+            [TABS.ADJUST]: {
+                hideResize: true,
+            },
+        };
+    }, [handleEditorBeforeSave, imageEditorDeps]);
+
+    const editorShouldForwardProp = React.useMemo(
+        () => imageEditorDeps ? createShouldForwardProp(imageEditorDeps.isPropValid) : undefined,
+        [imageEditorDeps]
+    );
+    const ImageEditorStyleSheetManager = imageEditorDeps?.StyleSheetManager;
+    const ImageEditorComponent = imageEditorDeps?.FilerobotEditor;
 
     useEffect(() => {
         if (selectedLanguage) {
@@ -6668,98 +6758,98 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                 <div className="flex flex-wrap pt-4 gap-3">
                                     <button
                                         onClick={handleAddItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-palette-maroon text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-palette-maroon/10 leading-none"
+                                        className="admin-add-button admin-add-button--text flex items-center justify-center gap-2 px-4 py-2 bg-palette-maroon text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-palette-maroon/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>title</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.text')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddImageItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--image flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>image</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.image')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddSliderItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--slider flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>gallery_thumbnail</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.slider')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddVideoItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--video flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>videocam</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.video')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddAudioItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-amber-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--audio flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-amber-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>mic</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.audio')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddFileItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--file flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>attach_file</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.file')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddSocialItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-500/10 leading-none"
+                                        className="admin-add-button admin-add-button--social flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-500/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>share</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.social')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddFlipCardItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-orange-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--flip flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-orange-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>sync</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.flip')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddBeforeAfterItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--before-after flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-blue-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>compare</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.before_after')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddPollItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--poll flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>poll</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.poll_alt')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddVSItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--vs flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-rose-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>swords</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.vs')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddReviewItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
+                                        className="admin-add-button admin-add-button--review flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-emerald-600/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>stars</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.review_alt')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddQuoteItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-800/10 leading-none"
+                                        className="admin-add-button admin-add-button--quote flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-800/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>format_quote</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.quote')}</span>
                                     </button>
                                     <button
                                         onClick={handleAddIframeItem}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-700 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-700/10 leading-none"
+                                        className="admin-add-button admin-add-button--iframe flex items-center justify-center gap-2 px-4 py-2 bg-indigo-700 text-white rounded-[3px] text-[11px] font-black tracking-[0.15em] hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-indigo-700/10 leading-none"
                                     >
                                         <span className="material-symbols-rounded shrink-0" style={{ fontSize: '18px' }}>public</span>
                                         <span className="leading-none mt-[1px]">{t('admin.post.add.iframe')}</span>
@@ -7164,18 +7254,46 @@ const PostManagement: React.FC<PostManagementProps> = ({ postId, onBack, onDirty
                                         </div>
                                     </div>
                                 )}
-                                {/* 
-                            StyleSheetManager reintroduced with aggressive filtering to fix "Unknown prop" errors.
-                            The filter ensures only valid HTML attributes are passed to the DOM.
-                        */}
-                                <StyleSheetManager shouldForwardProp={shouldForwardProp}>
-                                    <FilerobotEditor
-                                        {...editorConfig}
-                                        source={getActiveEditorSource()}
-                                        onSave={handleEditorSave}
-                                        onClose={handleEditorClose}
-                                    />
-                                </StyleSheetManager>
+                                {imageEditorLoadError ? (
+                                    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+                                        <span className="material-symbols-rounded text-palette-red" style={{ fontSize: '40px' }}>error</span>
+                                        <div>
+                                            <h3 className="text-sm font-black text-palette-maroon">{t('common.error')}</h3>
+                                            <p className="mt-2 text-xs font-bold text-palette-tan">{imageEditorLoadError}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                filerobotDepsPromise = null;
+                                                setImageEditorDeps(null);
+                                                setImageEditorLoadError(null);
+                                            }}
+                                            className="h-10 rounded-[3px] bg-palette-red px-5 text-[11px] font-black uppercase tracking-widest text-white"
+                                        >
+                                            {t('error_boundary.refresh')}
+                                        </button>
+                                    </div>
+                                ) : !ImageEditorStyleSheetManager || !ImageEditorComponent || !editorShouldForwardProp || !editorConfig ? (
+                                    <div className="flex flex-1 items-center justify-center">
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-[3px] bg-white shadow-md border border-palette-tan/20">
+                                            <span className="material-symbols-rounded animate-spin text-palette-maroon" style={{ fontSize: '18px' }}>progress_activity</span>
+                                            <span className="text-[11px] font-black tracking-widest text-palette-maroon uppercase">{t('common.loading_short')}</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /*
+                                    StyleSheetManager is loaded with the editor and keeps aggressive filtering to
+                                    prevent Filerobot/styled-components props from leaking to DOM nodes.
+                                    */
+                                    <ImageEditorStyleSheetManager shouldForwardProp={editorShouldForwardProp}>
+                                        <ImageEditorComponent
+                                            {...editorConfig}
+                                            source={getActiveEditorSource()}
+                                            onSave={handleEditorSave}
+                                            onClose={handleEditorClose}
+                                        />
+                                    </ImageEditorStyleSheetManager>
+                                )}
                             </div>
                         </div>
                     )

@@ -41,6 +41,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
   const ytCurrentTimeRef = useRef<number>(0);
   const ytPlayerReady = useRef<boolean>(false);
   const ytPlayerStateRef = useRef<number>(-1);
+  const hasUnmutedOnce = useRef(false);
 
   const ytInfo = youtubeParser(data.mediaUrl);
   const isYoutube = !!ytInfo;
@@ -212,6 +213,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
           const c = Number(info.currentTime);
           if (!isNaN(c) && c >= 0) {
             ytCurrentTimeRef.current = c;
+            ytLastUpdateTime.current = Date.now();
 
             const dur = ytDurationRef.current;
             if (dur > 0) {
@@ -235,6 +237,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
           const c = Number(info.currentTime);
           if (!isNaN(c) && c >= 0) {
             ytCurrentTimeRef.current = c;
+            ytLastUpdateTime.current = Date.now();
 
             const dur = ytDurationRef.current;
             if (dur > 0) {
@@ -250,7 +253,11 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
     return () => window.removeEventListener('message', handleMessage);
   }, [isYoutube]);
 
-  // Timer interval for smooth playback steps
+  // Timer interval for smooth playback display
+  // YouTube'dan gelen gerçek currentTime TEK doğru kaynaktır.
+  // Interval sadece YouTube'dan güncel bilgi ister ve ara kareleri pürüzsüz gösterir.
+  const ytLastUpdateTime = useRef<number>(0); // Son YouTube güncellemesinin yerel zaman damgası
+
   useEffect(() => {
     if (!isYoutube || !isPlaying) return;
 
@@ -267,23 +274,22 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
         );
       }
 
-      // Lokal tahmine dayalı increment (API gecikmelerinde yumuşak ilerleme için)
-      ytCurrentTimeRef.current = (ytCurrentTimeRef.current || 0) + 0.25;
-
       const dur = ytDurationRef.current;
-      const cur = ytCurrentTimeRef.current;
+      if (dur <= 0) return;
 
-      if (dur > 0) {
-        // Prevent visual overflow
-        const visualCur = Math.min(cur, dur);
+      // YouTube'dan son gelen gerçek currentTime'a, geçen süreyi ekleyerek pürüzsüz tahmin yap
+      const now = Date.now();
+      const elapsed = ytLastUpdateTime.current > 0
+        ? (now - ytLastUpdateTime.current) / 1000
+        : 0;
+      const estimatedCur = Math.min(ytCurrentTimeRef.current + elapsed, dur);
 
-        // Progress %
-        setProgress((visualCur / dur) * 100);
+      // Progress %
+      setProgress((estimatedCur / dur) * 100);
 
-        // Countdown
-        const remaining = Math.max(0, dur - visualCur);
-        setTimeDisplay(formatTime(remaining));
-      }
+      // Countdown (geriye doğru)
+      const remaining = Math.max(0, dur - estimatedCur);
+      setTimeDisplay(formatTime(remaining));
     }, 250);
 
     return () => clearInterval(interval);
@@ -367,6 +373,52 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
     };
   }, [isYoutube, isPlaying]);
 
+  // Auto-unmute: 2 saniye sonra sesi açmayı dene.
+  // Tarayıcı izin verirse ses açılır. Vermezse videoyu durdurmadan sessiz moda geri döner.
+  // SADECE ilk seferde çalışır, diğer özellikleri ETKİLEMEZ.
+  // Tüm video tipleri için çalışır: YouTube Normal, YouTube Shorts, Yerel Video.
+  useEffect(() => {
+    if (isPlaying && !hasUnmutedOnce.current) {
+      hasUnmutedOnce.current = true;
+
+      const timer = setTimeout(() => {
+        if (userHasPaused.current) return;
+
+        if (isYoutube) {
+          sendYoutubeCommand("unMute");
+          sendYoutubeCommand("playVideo");
+          setIsMuted(false);
+
+          // 300ms sonra kontrol et: tarayıcı videoyu durdurdu mu?
+          setTimeout(() => {
+            if (ytPlayerStateRef.current === 2 && !userHasPaused.current) {
+              // Tarayıcı engelledi → sessiz moda geri dön, videoyu devam ettir
+              sendYoutubeCommand("mute");
+              sendYoutubeCommand("playVideo");
+              setIsMuted(true);
+            }
+          }, 300);
+        } else if (videoRef.current) {
+          videoRef.current.muted = false;
+          setIsMuted(false);
+
+          // Eğer tarayıcı durdurduysa anında geri al
+          const checkAndRecover = () => {
+            if (videoRef.current?.paused && !userHasPaused.current) {
+              videoRef.current.muted = true;
+              setIsMuted(true);
+              videoRef.current.play().catch(() => {});
+            }
+          };
+          setTimeout(checkAndRecover, 100);
+          setTimeout(checkAndRecover, 300);
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isPlaying, isYoutube]);
+
   const toggleMute = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -395,7 +447,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
     if (videoRef.current) {
       const dur = videoRef.current.duration;
       const cur = videoRef.current.currentTime;
-      if (dur > 0) {
+      if (dur > 0 && !isNaN(dur) && dur !== Infinity) {
         setProgress((cur / dur) * 100);
         setTimeDisplay(formatTime(Math.max(0, dur - cur)));
       }
@@ -441,6 +493,14 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
           />
         )}
 
+        {/* Custom Poster Overlay for YouTube when not playing to hide YouTube UI */}
+        {isYoutube && !isPlaying && (data.optimizedThumbnail?.src || data.thumbnail) && (
+          <div
+            className="absolute inset-0 z-[15] bg-cover bg-center bg-no-repeat transition-opacity duration-300 pointer-events-none"
+            style={{ backgroundImage: `url(${data.optimizedThumbnail?.src || data.thumbnail})` }}
+          />
+        )}
+
         {/* Timer */}
         <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-[5px] border border-white/10 flex items-center gap-1.5 z-20 mb-1.5 pointer-events-none">
           <Clock size={12} className="text-white/80" />
@@ -448,7 +508,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
         </div>
 
         {/* Overlay Controls */}
-        <div className={`absolute inset-0 bg-black/10 transition-opacity duration-300 ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
+        <div className={`absolute inset-0 z-20 bg-black/10 transition-opacity duration-300 ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
           <button
             onClick={toggleMute}
             className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-[5px] bg-black/50 backdrop-blur-md border border-white/20 text-white z-20"
@@ -471,9 +531,34 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-800/30 z-30">
-          <div className="h-full bg-red-600 transition-all duration-100 ease-linear" style={{ width: `${progress}%` }} />
+        {/* Progress Bar - Clickable for seeking */}
+        <div
+          className="absolute bottom-0 left-0 w-full h-1.5 bg-gray-800/30 z-30 cursor-pointer group/progress"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const pct = Math.max(0, Math.min(1, clickX / rect.width));
+
+            if (isYoutube) {
+              const dur = ytDurationRef.current;
+              if (dur > 0) {
+                const seekTo = pct * dur;
+                ytCurrentTimeRef.current = seekTo;
+                setProgress(pct * 100);
+                setTimeDisplay(formatTime(Math.max(0, dur - seekTo)));
+                sendYoutubeCommand("seekTo", [seekTo, true]);
+              }
+            } else if (videoRef.current) {
+              const dur = videoRef.current.duration;
+              if (dur > 0 && !isNaN(dur) && dur !== Infinity) {
+                videoRef.current.currentTime = pct * dur;
+              }
+            }
+          }}
+        >
+          <div className="h-full bg-palette-red transition-all duration-100 ease-linear" style={{ width: `${progress}%` }} />
         </div>
       </div>
     </div>

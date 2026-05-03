@@ -36,6 +36,12 @@ const ADMIN_TABS = new Set([
   'death_notice_settings',
   'languages',
   'my_profile',
+  'mail_inbox',
+  'mail_send',
+  'mail_campaigns',
+  'mail_templates',
+  'mail_contacts',
+  'mail_settings',
   'hikaye-editor',
 ]);
 
@@ -56,6 +62,12 @@ const ADMIN_TAB_SLUGS: Record<string, { default: string; tr?: string; en?: strin
   death_notice_settings: { default: 'death-notice-settings', tr: 'olum-ilanlari-ayari', en: 'death-notice-settings' },
   languages: { default: 'languages', tr: 'dil-ayarlari', en: 'languages' },
   my_profile: { default: 'profile', tr: 'profilim', en: 'profile' },
+  mail_inbox: { default: 'posta/gelen-kutusu', tr: 'posta/gelen-kutusu', en: 'mail/inbox' },
+  mail_send: { default: 'posta/posta-gonder', tr: 'posta/posta-gonder', en: 'mail/send' },
+  mail_campaigns: { default: 'posta/kampanyalar', tr: 'posta/kampanyalar', en: 'mail/campaigns' },
+  mail_templates: { default: 'posta/sablonlar', tr: 'posta/sablonlar', en: 'mail/templates' },
+  mail_contacts: { default: 'posta/kisi-listeleri', tr: 'posta/kisi-listeleri', en: 'mail/contact-lists' },
+  mail_settings: { default: 'posta/ayarlar', tr: 'posta/ayarlar', en: 'mail/settings' },
   // Internal/special tabs
   edit_post: { default: 'posts', tr: 'haberler', en: 'posts' },
   edit_user: { default: 'users', tr: 'kullanicilar', en: 'users' },
@@ -84,6 +96,22 @@ const ADMIN_SLUG_TO_TAB: Record<string, string> = (() => {
 
   return map;
 })();
+
+const MAIL_ROUTE_SEGMENT_TO_TAB: Record<string, string> = {
+  'gelen-kutusu': 'mail_inbox',
+  inbox: 'mail_inbox',
+  'posta-gonder': 'mail_send',
+  send: 'mail_send',
+  kampanyalar: 'mail_campaigns',
+  campaigns: 'mail_campaigns',
+  sablonlar: 'mail_templates',
+  templates: 'mail_templates',
+  'kisi-listeleri': 'mail_contacts',
+  'contact-lists': 'mail_contacts',
+  contacts: 'mail_contacts',
+  ayarlar: 'mail_settings',
+  settings: 'mail_settings',
+};
 
 const normalizeLangCode = (code: string) => String(code || '').trim().toLowerCase().split(/[-_]/)[0] || '';
 
@@ -123,6 +151,12 @@ const parseAdminPathname = (pathname: string): AdminRouteState => {
   if (!segments[1]) return { tab: DEFAULT_ADMIN_TAB, userId: null };
 
   const tabKey = slugify(decodeURIComponent(segments[1]));
+  if (tabKey === 'posta' || tabKey === 'mail') {
+    const mailSegment = slugify(decodeURIComponent(segments[2] || 'gelen-kutusu'));
+    const mailTab = MAIL_ROUTE_SEGMENT_TO_TAB[mailSegment] || 'mail_inbox';
+    return { tab: ADMIN_TABS.has(mailTab) ? mailTab : DEFAULT_ADMIN_TAB, userId: null };
+  }
+
   const baseTab = ADMIN_SLUG_TO_TAB[tabKey];
   const resolvedBase = baseTab && ADMIN_TABS.has(baseTab) ? baseTab : DEFAULT_ADMIN_TAB;
 

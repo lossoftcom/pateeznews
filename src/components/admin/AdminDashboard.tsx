@@ -71,12 +71,29 @@ const UserProfileSettings = lazyWithRetry(() => import('./UserProfileSettings'))
 const NavigationSettings = lazyWithRetry(() => import('./NavigationSettings'));
 const StoryManagement = lazyWithRetry(() => import('./StoryManagement'));
 const WebStoryEditor = lazyWithRetry(() => import('./WebStoryEditor'));
-const PostManagement = lazyWithRetry(() => import('./PostManagement'));
+const importPostManagement = () => {
+  if ((import.meta as any)?.env?.DEV && typeof window !== 'undefined') {
+    return import(/* @vite-ignore */ `/src/components/admin/PostManagement.tsx?v=post-management-${Date.now()}`) as Promise<{ default: React.ComponentType<any> }>;
+  }
+  return import('./PostManagement');
+};
+const PostManagement = lazyWithRetry(importPostManagement);
 const PostList = lazyWithRetry(() => import('./PostList'));
 const PublisherManagement = lazyWithRetry(() => import('./PublisherManagement'));
 const PublisherProfileSettings = lazyWithRetry(() => import('./PublisherProfileSettings'));
 const Settings = lazyWithRetry(() => import('./Settings'));
 const CommentManagement = lazyWithRetry(() => import('./CommentManagement'));
+const MailModule = lazyWithRetry(() => import('./mail/MailModule'));
+
+type AdminMenuItem = {
+  id: string;
+  label: string;
+  icon: string;
+  perm: string;
+  group: string;
+  badge?: number;
+  children?: AdminMenuItem[];
+};
 
 const StoryEditorRoute: React.FC<{ storyId?: string | null; onBack: () => void }> = ({ storyId, onBack }) => {
   const { t } = useLanguage();
@@ -155,6 +172,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [adminSearchTerm, setAdminSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMailMenuOpen, setIsMailMenuOpen] = useState(() => String(initialTab || '').startsWith('mail_'));
+  const [mailUnreadCount, setMailUnreadCount] = useState(0);
 
   const [userRole, setUserRole] = useState<string>('member');
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
@@ -181,12 +200,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     return [parts[0], parts.slice(1).join(' ')];
   }, [brandName, t]);
 
-  const menuItems = useMemo(() => [
+  const menuItems = useMemo<AdminMenuItem[]>(() => [
     { id: 'overview', label: t('admin.sidebar.overview'), icon: 'dashboard', perm: 'view_overview', group: t('admin.management') },
     { id: 'posts', label: t('admin.sidebar.posts'), icon: 'add_circle', perm: 'manage_content', group: t('admin.management') },
     { id: 'news_list', label: t('admin.sidebar.news_list'), icon: 'description', perm: 'manage_content', group: t('admin.management') },
     { id: 'stories', label: t('admin.sidebar.stories'), icon: 'bolt', perm: 'manage_content', group: t('admin.management') },
     { id: 'comments', label: t('admin.sidebar.comments'), icon: 'comment', perm: 'manage_content', group: t('admin.management') },
+    {
+      id: 'mail',
+      label: t('nav.mail'),
+      icon: 'mail',
+      perm: 'manage_mail',
+      group: t('admin.management'),
+      badge: mailUnreadCount,
+      children: [
+        { id: 'mail_inbox', label: t('nav.mail.inbox'), icon: 'inbox', perm: 'manage_mail', group: t('admin.management'), badge: mailUnreadCount },
+        { id: 'mail_send', label: t('nav.mail.send'), icon: 'outgoing_mail', perm: 'manage_mail', group: t('admin.management') },
+        { id: 'mail_campaigns', label: t('nav.mail.campaigns'), icon: 'campaign', perm: 'manage_mail', group: t('admin.management') },
+        { id: 'mail_templates', label: t('nav.mail.templates'), icon: 'description', perm: 'manage_mail', group: t('admin.management') },
+        { id: 'mail_contacts', label: t('nav.mail.contacts'), icon: 'contacts', perm: 'manage_mail', group: t('admin.management') },
+        { id: 'mail_settings', label: t('nav.mail.settings'), icon: 'settings', perm: 'manage_mail', group: t('admin.management') },
+      ],
+    },
     { id: 'users', label: t('admin.sidebar.users'), icon: 'group', perm: 'manage_users', group: t('admin.management') },
     { id: 'navigation', label: t('admin.sidebar.navigation'), icon: 'account_tree', perm: 'manage_navigation', group: t('admin.management') },
     { id: 'roles', label: t('admin.sidebar.roles'), icon: 'verified_user', perm: 'view_roles', group: t('admin.management') },
@@ -197,7 +232,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     { id: 'weather_settings', label: t('admin.sidebar.weather_settings'), icon: 'partly_cloudy_day', perm: 'view_settings', group: t('admin.system') },
     { id: 'death_notice_settings', label: t('admin.sidebar.death_notice_settings'), icon: 'article', perm: 'view_settings', group: t('admin.system') },
     { id: 'languages', label: t('admin.sidebar.languages'), icon: 'language', perm: 'view_languages', group: t('admin.system') },
-  ], [t]);
+  ], [t, mailUnreadCount]);
+
+  const flatMenuItems = useMemo(() => menuItems.flatMap((item) => [item, ...(item.children || [])]), [menuItems]);
 
   useEffect(() => {
     fetchUserPermissions();
@@ -257,7 +294,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
       setUserRole(roleName);
       setCurrentUserAvatar(profile?.avatar_url || null);
       if (roleName === 'admin') {
-        setPermissions(['view_overview', 'view_settings', 'view_languages', 'view_roles', 'manage_content', 'manage_users', 'manage_navigation']);
+        setPermissions(['view_overview', 'view_settings', 'view_languages', 'view_roles', 'manage_content', 'manage_users', 'manage_navigation', 'manage_mail']);
       } else {
         const { data: roleData } = await neon.from('roles').select('id').eq('name', roleName).single();
         if (roleData) {
@@ -309,6 +346,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     if (userRole === 'admin') return true;
     return permissions.includes(key);
   };
+
+  const formatMailBadge = (count: number) => {
+    if (count >= 100) return '99+';
+    if (count >= 10) return '9+';
+    if (count > 0) return String(count);
+    return '';
+  };
+
+  const isMenuItemActive = (item: AdminMenuItem) => {
+    if (item.children?.some((child) => isMenuItemActive(child))) return true;
+    return (
+      activeTab === item.id ||
+      (item.id === 'news_list' && activeTab === 'edit_post') ||
+      (item.id === 'users' && (activeTab === 'edit_user' || activeTab === 'my_profile'))
+    );
+  };
+
+  useEffect(() => {
+    if (String(activeTab || '').startsWith('mail_')) setIsMailMenuOpen(true);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (permissionLoading || !hasPermission('manage_mail')) return;
+
+    let isMounted = true;
+    const fetchUnreadCount = async () => {
+      try {
+        const { data: { session } } = await neon.auth.getSession();
+        const response = await fetch('/api/admin/mail/inbox?unreadCount=1', {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        });
+        const payload = await response.json();
+        if (isMounted && typeof payload.unreadCount === 'number') setMailUnreadCount(payload.unreadCount);
+      } catch {
+        // Mail schema can be absent until first mail API call; keep the badge quiet.
+      }
+    };
+
+    const onUnreadCount = (event: Event) => {
+      const count = Number((event as CustomEvent).detail?.count || 0);
+      setMailUnreadCount(Number.isFinite(count) ? count : 0);
+    };
+
+    fetchUnreadCount();
+    window.addEventListener('pateez:mail-unread-count', onUnreadCount);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('pateez:mail-unread-count', onUnreadCount);
+    };
+  }, [permissionLoading, userRole, permissions]);
 
   const handleSeedData = async () => {
     try {
@@ -392,6 +479,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
     if (activeTab === 'stories' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'hikaye-editor' && !hasPermission('manage_content')) return <AccessDenied />;
     if (activeTab === 'comments' && !hasPermission('manage_content')) return <AccessDenied />;
+    if (activeTab.startsWith('mail_') && !hasPermission('manage_mail')) return <AccessDenied />;
     if (activeTab === 'navigation' && !hasPermission('manage_navigation')) return <AccessDenied />;
     if (activeTab === 'settings' && !hasPermission('view_settings')) return <AccessDenied />;
     if (activeTab === 'ai_settings' && !hasPermission('view_settings')) return <AccessDenied />;
@@ -436,6 +524,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
               case 'stories': return <StoryManagement onEditStory={(id: string) => handleTabChange('hikaye-editor', id)} />;
               case 'hikaye-editor': return <StoryEditorRoute storyId={editingUserId} onBack={() => handleTabChange('stories')} />;
               case 'comments': return <CommentManagement onNewsSelect={onNewsSelect} />;
+              case 'mail_inbox':
+              case 'mail_send':
+              case 'mail_campaigns':
+              case 'mail_templates':
+              case 'mail_contacts':
+              case 'mail_settings':
+                return <MailModule activeTab={activeTab as any} onNavigate={handleTabChange} onUnreadCountChange={setMailUnreadCount} />;
               case 'navigation': return <NavigationSettings />;
               case 'languages': return <LanguageSettings />;
               case 'roles': return <RoleSettings />;
@@ -521,28 +616,95 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
           ) : (
             <nav className="px-4 space-y-9">
               {Array.from(new Set(menuItems.map(i => i.group))).map(group => {
-                const itemsInGroup = menuItems.filter(i => i.group === group && hasPermission(i.perm));
+                const itemsInGroup = menuItems.filter(i => {
+                  if (i.group !== group) return false;
+                  if (i.children?.length) return i.children.some(child => hasPermission(child.perm));
+                  return hasPermission(i.perm);
+                });
                 if (itemsInGroup.length === 0) return null;
 
                 return (
                   <div key={group} className="space-y-1.5">
                     <p className={`px-4 text-[11px] font-bold text-palette-tan/60 mb-4 transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>{group}</p>
-                    {itemsInGroup.map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          handleTabChange(item.id);
-                        }}
-                        className={`w-full group flex items-center gap-4 px-4 py-3 rounded-[5px] transition-all duration-300 ${(activeTab === item.id || (item.id === 'news_list' && activeTab === 'edit_post') || (item.id === 'users' && (activeTab === 'edit_user' || activeTab === 'my_profile')))
-                          ? 'bg-palette-maroon text-white shadow-xl shadow-palette-maroon/20'
-                          : 'text-palette-tan hover:bg-palette-beige hover:text-palette-maroon'
-                          }`}
-                      >
-                        <span className={`material-symbols-rounded flex-shrink-0 transition-transform ${(activeTab === item.id || (item.id === 'news_list' && activeTab === 'edit_post') || (item.id === 'users' && (activeTab === 'edit_user' || activeTab === 'my_profile'))) ? 'scale-110' : 'group-hover:scale-110'}`} style={{ fontSize: '20px' }}>{item.icon}</span>
-                        <span className={`text-base font-semibold tracking-tight whitespace-nowrap transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`}>{item.label}</span>
-                        {(activeTab === item.id || (item.id === 'news_list' && activeTab === 'edit_post') || (item.id === 'users' && (activeTab === 'edit_user' || activeTab === 'my_profile'))) && isSidebarOpen && <div className="ml-auto w-1 h-3 rounded-[5px] bg-white/40" />}
-                      </button>
-                    ))}
+                    {itemsInGroup.map(item => {
+                      const itemActive = isMenuItemActive(item);
+                      const badgeText = formatMailBadge(Number(item.badge || 0));
+                      if (item.children?.length) {
+                        const visibleChildren = item.children.filter(child => hasPermission(child.perm));
+                        const isOpen = item.id === 'mail' ? isMailMenuOpen : itemActive;
+                        return (
+                          <div key={item.id} className="space-y-1">
+                            <button
+                              onClick={() => {
+                                if (!isSidebarOpen && visibleChildren[0]) {
+                                  handleTabChange(visibleChildren[0].id);
+                                  return;
+                                }
+                                if (item.id === 'mail') setIsMailMenuOpen(prev => !prev);
+                              }}
+                              className={`w-full group flex items-center gap-4 px-4 py-3 rounded-[5px] transition-all duration-300 ${itemActive
+                                ? 'bg-palette-maroon text-white shadow-xl shadow-palette-maroon/20'
+                                : 'text-palette-tan hover:bg-palette-beige hover:text-palette-maroon'
+                                }`}
+                            >
+                              <span className={`material-symbols-rounded flex-shrink-0 transition-transform ${itemActive ? 'scale-110' : 'group-hover:scale-110'}`} style={{ fontSize: '20px' }}>{item.icon}</span>
+                              <span className={`text-base font-semibold tracking-tight whitespace-nowrap transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`}>{item.label}</span>
+                              {badgeText && (
+                                <span className={`ml-auto min-w-6 h-5 px-1.5 rounded-full text-[10px] font-black leading-5 text-center ${itemActive ? 'bg-white/20 text-white' : 'bg-palette-red text-white'}`}>
+                                  {badgeText}
+                                </span>
+                              )}
+                              {isSidebarOpen && (
+                                <span className={`material-symbols-rounded ml-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} style={{ fontSize: '18px' }}>expand_more</span>
+                              )}
+                            </button>
+                            {isSidebarOpen && isOpen && (
+                              <div className="space-y-1 pl-4">
+                                {visibleChildren.map(child => {
+                                  const childActive = isMenuItemActive(child);
+                                  const childBadge = formatMailBadge(Number(child.badge || 0));
+                                  return (
+                                    <button
+                                      key={child.id}
+                                      onClick={() => handleTabChange(child.id)}
+                                      className={`w-full group flex items-center gap-3 px-4 py-2.5 rounded-[5px] transition-all duration-300 ${childActive
+                                        ? 'bg-palette-red text-white shadow-lg shadow-palette-red/15'
+                                        : 'text-palette-tan hover:bg-palette-beige hover:text-palette-maroon'
+                                        }`}
+                                    >
+                                      <span className={`material-symbols-rounded flex-shrink-0 transition-transform ${childActive ? 'scale-105' : 'group-hover:scale-105'}`} style={{ fontSize: '18px' }}>{child.icon}</span>
+                                      <span className="text-[14px] font-semibold tracking-tight whitespace-nowrap">{child.label}</span>
+                                      {childBadge && (
+                                        <span className={`ml-auto min-w-6 h-5 px-1.5 rounded-full text-[10px] font-black leading-5 text-center ${childActive ? 'bg-white/20 text-white' : 'bg-palette-red text-white'}`}>
+                                          {childBadge}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            handleTabChange(item.id);
+                          }}
+                          className={`w-full group flex items-center gap-4 px-4 py-3 rounded-[5px] transition-all duration-300 ${itemActive
+                            ? 'bg-palette-maroon text-white shadow-xl shadow-palette-maroon/20'
+                            : 'text-palette-tan hover:bg-palette-beige hover:text-palette-maroon'
+                            }`}
+                        >
+                          <span className={`material-symbols-rounded flex-shrink-0 transition-transform ${itemActive ? 'scale-110' : 'group-hover:scale-110'}`} style={{ fontSize: '20px' }}>{item.icon}</span>
+                          <span className={`text-base font-semibold tracking-tight whitespace-nowrap transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`}>{item.label}</span>
+                          {itemActive && isSidebarOpen && <div className="ml-auto w-1 h-3 rounded-[5px] bg-white/40" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -559,7 +721,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
                 activeTab === 'edit_publisher' ? t('publishers.form.edit_title') :
                   activeTab === 'edit_post' ? t('admin.post.edit_title') :
                     activeTab === 'hikaye-editor' ? t('admin.story.editor.title') :
-                    (menuItems.find(i => i.id === activeTab)?.label || t('admin.sidebar.overview'))}
+                    (flatMenuItems.find(i => i.id === activeTab)?.label || t('admin.sidebar.overview'))}
             </h1>
             <p className="text-[13px] text-palette-tan font-bold mt-0.5">
               {new Date().toLocaleDateString(t('admin.date_format'), { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -701,7 +863,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, initialTab = 
           </div>
         </header>
 
-        <div className="p-10 max-w-[1400px] mx-auto">
+        <div className={`p-10 ${String(activeTab).startsWith('mail_') ? 'max-w-none mx-0' : 'max-w-[1400px] mx-auto'}`}>
           {activeTab === 'overview' && permissionLoading ? (
             <div className="h-full flex items-center justify-center p-20">
               <span className="material-symbols-rounded animate-spin text-palette-tan" style={{ fontSize: '40px' }}>progress_activity</span>

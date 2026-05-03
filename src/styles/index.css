@@ -227,7 +227,124 @@ body.admin-scrollbar-visible::-webkit-scrollbar-thumb:hover {
 .admin-font {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    --admin-deep-ocean: #2C3E50;
+    --admin-deep-ocean-soft: rgba(44, 62, 80, 0.16);
+    --admin-deep-ocean-line: rgba(44, 62, 80, 0.22);
+    --admin-deep-ocean-strong-line: rgba(44, 62, 80, 0.34);
+    --admin-deep-ocean-muted: rgba(44, 62, 80, 0.68);
+    --admin-readable-muted: #718081;
 }
+
+/* Admin-only clarity pass: keep the public frontend untouched. */
+.admin-font :is(.border, .border-t, .border-r, .border-b, .border-l, .border-2, .border-t-2, .border-r-2, .border-b-2, .border-l-2) {
+    border-color: var(--admin-deep-ocean-soft) !important;
+}
+
+.admin-font :is(
+    [class~="border-palette-tan"],
+    [class~="border-palette-tan/5"],
+    [class~="border-palette-tan/10"],
+    [class~="border-palette-tan/15"],
+    [class~="border-palette-tan/20"],
+    [class~="border-palette-tan/25"],
+    [class~="border-palette-tan/30"],
+    [class~="border-palette-beige"],
+    [class~="border-palette-beige/60"],
+    [class~="border-palette-beige/70"],
+    [class~="border-gray-100"],
+    [class~="border-gray-200"],
+    [class~="border-slate-100"],
+    [class~="border-slate-200"],
+    [class~="border-neutral-100"],
+    [class~="border-neutral-200"]
+) {
+    border-color: var(--admin-deep-ocean-line) !important;
+}
+
+.admin-font :is(
+    [class~="border-palette-maroon"],
+    [class~="border-palette-maroon/10"],
+    [class~="border-palette-maroon/15"],
+    [class~="border-palette-maroon/20"],
+    [class~="border-palette-maroon/30"]
+) {
+    border-color: var(--admin-deep-ocean-strong-line) !important;
+}
+
+.admin-font :is(
+    [class~="border-palette-red"],
+    [class~="border-palette-red/10"],
+    [class~="border-palette-red/15"],
+    [class~="border-palette-red/20"],
+    [class~="border-red-100"],
+    [class~="border-red-200"],
+    [class~="border-rose-100"],
+    [class~="border-rose-200"]
+) {
+    border-color: rgba(234, 67, 53, 0.24) !important;
+}
+
+.admin-font :is(
+    [class~="border-orange-100"],
+    [class~="border-orange-200"],
+    [class~="border-amber-100"],
+    [class~="border-amber-200"],
+    [class~="border-yellow-100"],
+    [class~="border-yellow-200"]
+) {
+    border-color: rgba(243, 156, 18, 0.28) !important;
+}
+
+.admin-font :is(h1, h2, h3, h4, h5, h6, label, legend) {
+    color: var(--admin-deep-ocean) !important;
+    opacity: 1 !important;
+}
+
+.admin-font :is([class*="text-palette-tan"], [class*="text-gray"], [class*="text-slate"], [class*="text-zinc"], [class*="text-neutral"]) {
+    color: var(--admin-deep-ocean-muted) !important;
+}
+
+.admin-font :is([class*="font-bold"], [class*="font-black"], [class*="font-semibold"]):is([class*="text-palette-tan"], [class*="text-gray"], [class*="text-slate"], [class*="text-zinc"], [class*="text-neutral"]) {
+    color: var(--admin-deep-ocean) !important;
+    opacity: 1 !important;
+}
+
+.admin-font :is(input, textarea, select)::placeholder {
+    color: var(--admin-readable-muted) !important;
+    opacity: 0.92 !important;
+}
+
+.admin-font .ql-editor.ql-blank::before {
+    color: var(--admin-readable-muted) !important;
+    opacity: 0.85 !important;
+    font-weight: 700;
+}
+
+.admin-font .admin-add-button {
+    border-color: transparent !important;
+    color: #F8F9FA !important;
+    box-shadow: 0 12px 24px -14px rgba(44, 62, 80, 0.55) !important;
+}
+
+.admin-font .admin-add-button:hover {
+    opacity: 0.94;
+    transform: translateY(-1px);
+}
+
+.admin-font .admin-add-button--text { background: #2C3E50 !important; }
+.admin-font .admin-add-button--image { background: #0E9F6E !important; }
+.admin-font .admin-add-button--slider { background: #5B5FC7 !important; }
+.admin-font .admin-add-button--video { background: #EA4335 !important; }
+.admin-font .admin-add-button--audio { background: #F39C12 !important; }
+.admin-font .admin-add-button--file { background: #536A7A !important; }
+.admin-font .admin-add-button--social { background: #1677C8 !important; }
+.admin-font .admin-add-button--flip { background: #D66B00 !important; }
+.admin-font .admin-add-button--before-after { background: #008B8B !important; }
+.admin-font .admin-add-button--poll { background: #7B3FB5 !important; }
+.admin-font .admin-add-button--vs { background: #C02942 !important; }
+.admin-font .admin-add-button--review { background: #12805C !important; }
+.admin-font .admin-add-button--quote { background: #1B2A38 !important; }
+.admin-font .admin-add-button--iframe { background: #4C6272 !important; }
 
 /* Remove forced uppercase for admin */
 .admin-font .uppercase,

@@ -365,10 +365,11 @@ const fetchFresh = async (): Promise<DutyPharmacyPayload> => {
 export const GET: APIRoute = async ({ url }) => {
   const forceRefresh = url.searchParams.get('refresh') === '1';
   const now = Date.now();
+  const currentMemoryCache = memoryCache;
 
-  if (!forceRefresh && memoryCache?.expiresAt > now && cacheMatchesToday(memoryCache.payload)) {
+  if (!forceRefresh && currentMemoryCache && currentMemoryCache.expiresAt > now && cacheMatchesToday(currentMemoryCache.payload)) {
     return json({
-      ...memoryCache.payload,
+      ...currentMemoryCache.payload,
       cache: { hit: true, stale: false, source: 'memory', refreshIntervalMinutes: 15 },
     });
   }

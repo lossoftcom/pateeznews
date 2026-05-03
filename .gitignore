@@ -5,3 +5,4 @@ dist/
 .vercel/
 migration/*.sql
 !migration/2026-04-27-add-manset-slider.sql
+!migration/2026-05-02-add-mail-module.sql
