@@ -8,7 +8,11 @@ import 'package:pateeznews_admin/features/mail/presentation/contact_lists_screen
 import 'package:pateeznews_admin/features/mail/presentation/mail_inbox_screen.dart';
 import 'package:pateeznews_admin/features/mail/presentation/mail_settings_screen.dart';
 import 'package:pateeznews_admin/features/mail/presentation/mail_templates_screen.dart';
+import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_bulk_screen.dart';
+import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_contact_lists_screen.dart';
 import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_messaging_screen.dart';
+import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_settings_screen.dart';
+import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_templates_screen.dart';
 import 'package:pateeznews_admin/features/navigation/data/admin_navigation_repository.dart';
 import 'package:pateeznews_admin/features/navigation/presentation/navigation_screen.dart';
 import 'package:pateeznews_admin/features/news/data/admin_news_repository.dart';
@@ -19,6 +23,7 @@ import 'package:pateeznews_admin/features/settings/presentation/general_settings
 import 'package:pateeznews_admin/features/settings/presentation/language_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/pharmacy_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/weather_settings_screen.dart';
+import 'package:pateeznews_admin/features/social/presentation/social_publish_screen.dart';
 import 'package:pateeznews_admin/features/auth/data/admin_auth_models.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
@@ -169,7 +174,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'posts_access',
         'news_access',
       ]),
-      _DashboardPage.whatsappMessaging => _hasAny([
+      _DashboardPage.whatsappMessaging ||
+      _DashboardPage.whatsappBulk ||
+      _DashboardPage.whatsappTemplates ||
+      _DashboardPage.whatsappContacts ||
+      _DashboardPage.whatsappSettings ||
+      _DashboardPage.socialPublish => _hasAny([
         'manage_content',
         'posts_access',
         'news_access',
@@ -259,6 +269,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _openPage(_DashboardPage.whatsappMessaging);
   }
 
+  void _openWhatsappBulk() {
+    _openPage(_DashboardPage.whatsappBulk);
+  }
+
+  void _openWhatsappTemplates() {
+    _openPage(_DashboardPage.whatsappTemplates);
+  }
+
+  void _openWhatsappContacts() {
+    _openPage(_DashboardPage.whatsappContacts);
+  }
+
+  void _openWhatsappSettings() {
+    _openPage(_DashboardPage.whatsappSettings);
+  }
+
+  void _openSocialPublish() {
+    _openPage(_DashboardPage.socialPublish);
+  }
+
   void _openLanguageSettings() {
     _openPage(_DashboardPage.languageSettings);
   }
@@ -305,6 +335,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final mailSettingsSelected = _selectedPage == _DashboardPage.mailSettings;
     final whatsappMessagingSelected =
         _selectedPage == _DashboardPage.whatsappMessaging;
+    final whatsappBulkSelected = _selectedPage == _DashboardPage.whatsappBulk;
+    final whatsappTemplatesSelected =
+        _selectedPage == _DashboardPage.whatsappTemplates;
+    final whatsappContactsSelected =
+        _selectedPage == _DashboardPage.whatsappContacts;
+    final whatsappSettingsSelected =
+        _selectedPage == _DashboardPage.whatsappSettings;
+    final socialPublishSelected = _selectedPage == _DashboardPage.socialPublish;
     final navigationSelected = _selectedPage == _DashboardPage.navigation;
     final accountSettingsSelected =
         _selectedPage == _DashboardPage.accountSettings;
@@ -330,7 +368,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final mailTemplatesVisible = _canOpen(_DashboardPage.mailTemplates);
         final contactListsVisible = _canOpen(_DashboardPage.contactLists);
         final mailSettingsVisible = _canOpen(_DashboardPage.mailSettings);
-        final whatsappVisible = _canOpen(_DashboardPage.whatsappMessaging);
+        final whatsappVisible =
+            _canOpen(_DashboardPage.whatsappMessaging) ||
+            _canOpen(_DashboardPage.whatsappBulk) ||
+            _canOpen(_DashboardPage.whatsappTemplates) ||
+            _canOpen(_DashboardPage.whatsappContacts) ||
+            _canOpen(_DashboardPage.whatsappSettings);
+        final socialMediaVisible = _canOpen(_DashboardPage.socialPublish);
         final navigationVisible = _canOpen(_DashboardPage.navigation);
         final usersVisible = _canOpen(_DashboardPage.users);
         final rolesPermissionsVisible = _canOpen(
@@ -362,6 +406,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   contactListsVisible: contactListsVisible,
                   mailSettingsVisible: mailSettingsVisible,
                   whatsappVisible: whatsappVisible,
+                  socialMediaVisible: socialMediaVisible,
                   navigationVisible: navigationVisible,
                   usersVisible: usersVisible,
                   rolesPermissionsVisible: rolesPermissionsVisible,
@@ -381,6 +426,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !contactListsSelected &&
                       !mailSettingsSelected &&
                       !whatsappMessagingSelected &&
+                      !whatsappBulkSelected &&
+                      !whatsappTemplatesSelected &&
+                      !whatsappContactsSelected &&
+                      !whatsappSettingsSelected &&
+                      !socialPublishSelected &&
                       !navigationSelected &&
                       !usersSelected &&
                       !rolesPermissionsSelected &&
@@ -396,6 +446,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   contactListsSelected: contactListsSelected,
                   mailSettingsSelected: mailSettingsSelected,
                   whatsappMessagingSelected: whatsappMessagingSelected,
+                  whatsappBulkSelected: whatsappBulkSelected,
+                  whatsappTemplatesSelected: whatsappTemplatesSelected,
+                  whatsappContactsSelected: whatsappContactsSelected,
+                  whatsappSettingsSelected: whatsappSettingsSelected,
+                  socialPublishSelected: socialPublishSelected,
                   navigationSelected: navigationSelected,
                   usersSelected: usersSelected,
                   rolesPermissionsSelected: rolesPermissionsSelected,
@@ -414,6 +469,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onContactListsSelected: _openContactLists,
                   onMailSettingsSelected: _openMailSettings,
                   onWhatsappMessagingSelected: _openWhatsappMessaging,
+                  onWhatsappBulkSelected: _openWhatsappBulk,
+                  onWhatsappTemplatesSelected: _openWhatsappTemplates,
+                  onWhatsappContactsSelected: _openWhatsappContacts,
+                  onWhatsappSettingsSelected: _openWhatsappSettings,
+                  onSocialPublishSelected: _openSocialPublish,
                   onNavigationSelected: _openNavigation,
                   onUsersSelected: _openUsers,
                   onRolesPermissionsSelected: _openRolesPermissions,
@@ -440,6 +500,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     contactListsVisible: contactListsVisible,
                     mailSettingsVisible: mailSettingsVisible,
                     whatsappVisible: whatsappVisible,
+                    socialMediaVisible: socialMediaVisible,
                     navigationVisible: navigationVisible,
                     usersVisible: usersVisible,
                     rolesPermissionsVisible: rolesPermissionsVisible,
@@ -459,6 +520,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !contactListsSelected &&
                         !mailSettingsSelected &&
                         !whatsappMessagingSelected &&
+                        !whatsappBulkSelected &&
+                        !whatsappTemplatesSelected &&
+                        !whatsappContactsSelected &&
+                        !whatsappSettingsSelected &&
+                        !socialPublishSelected &&
                         !navigationSelected &&
                         !usersSelected &&
                         !rolesPermissionsSelected &&
@@ -474,6 +540,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     contactListsSelected: contactListsSelected,
                     mailSettingsSelected: mailSettingsSelected,
                     whatsappMessagingSelected: whatsappMessagingSelected,
+                    whatsappBulkSelected: whatsappBulkSelected,
+                    whatsappTemplatesSelected: whatsappTemplatesSelected,
+                    whatsappContactsSelected: whatsappContactsSelected,
+                    whatsappSettingsSelected: whatsappSettingsSelected,
+                    socialPublishSelected: socialPublishSelected,
                     navigationSelected: navigationSelected,
                     usersSelected: usersSelected,
                     rolesPermissionsSelected: rolesPermissionsSelected,
@@ -492,6 +563,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onContactListsSelected: _openContactLists,
                     onMailSettingsSelected: _openMailSettings,
                     onWhatsappMessagingSelected: _openWhatsappMessaging,
+                    onWhatsappBulkSelected: _openWhatsappBulk,
+                    onWhatsappTemplatesSelected: _openWhatsappTemplates,
+                    onWhatsappContactsSelected: _openWhatsappContacts,
+                    onWhatsappSettingsSelected: _openWhatsappSettings,
+                    onSocialPublishSelected: _openSocialPublish,
                     onNavigationSelected: _openNavigation,
                     onUsersSelected: _openUsers,
                     onRolesPermissionsSelected: _openRolesPermissions,
@@ -538,6 +614,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   const MailSettingsScreen(),
                                 _DashboardPage.whatsappMessaging =>
                                   const WhatsappMessagingScreen(),
+                                _DashboardPage.whatsappBulk =>
+                                  const WhatsappBulkScreen(),
+                                _DashboardPage.whatsappTemplates =>
+                                  const WhatsappTemplatesScreen(),
+                                _DashboardPage.whatsappContacts =>
+                                  const WhatsappContactListsScreen(),
+                                _DashboardPage.whatsappSettings =>
+                                  const WhatsappSettingsScreen(),
+                                _DashboardPage.socialPublish =>
+                                  SocialPublishScreen(
+                                    newsRepository: widget.newsRepository,
+                                  ),
                                 _DashboardPage.navigation => NavigationScreen(
                                   repository: widget.navigationRepository,
                                 ),
@@ -653,6 +741,11 @@ enum _DashboardPage {
   contactLists,
   mailSettings,
   whatsappMessaging,
+  whatsappBulk,
+  whatsappTemplates,
+  whatsappContacts,
+  whatsappSettings,
+  socialPublish,
   navigation,
   users,
   accountSettings,

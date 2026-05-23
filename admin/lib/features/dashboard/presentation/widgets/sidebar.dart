@@ -22,6 +22,7 @@ class AdminDrawer extends StatelessWidget {
     required this.contactListsVisible,
     required this.mailSettingsVisible,
     required this.whatsappVisible,
+    required this.socialMediaVisible,
     required this.navigationVisible,
     required this.usersVisible,
     required this.rolesPermissionsVisible,
@@ -40,6 +41,11 @@ class AdminDrawer extends StatelessWidget {
     required this.contactListsSelected,
     required this.mailSettingsSelected,
     required this.whatsappMessagingSelected,
+    required this.whatsappBulkSelected,
+    required this.whatsappTemplatesSelected,
+    required this.whatsappContactsSelected,
+    required this.whatsappSettingsSelected,
+    required this.socialPublishSelected,
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
@@ -58,6 +64,11 @@ class AdminDrawer extends StatelessWidget {
     required this.onContactListsSelected,
     required this.onMailSettingsSelected,
     required this.onWhatsappMessagingSelected,
+    required this.onWhatsappBulkSelected,
+    required this.onWhatsappTemplatesSelected,
+    required this.onWhatsappContactsSelected,
+    required this.onWhatsappSettingsSelected,
+    required this.onSocialPublishSelected,
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
@@ -79,6 +90,7 @@ class AdminDrawer extends StatelessWidget {
   final bool contactListsVisible;
   final bool mailSettingsVisible;
   final bool whatsappVisible;
+  final bool socialMediaVisible;
   final bool navigationVisible;
   final bool usersVisible;
   final bool rolesPermissionsVisible;
@@ -97,6 +109,11 @@ class AdminDrawer extends StatelessWidget {
   final bool contactListsSelected;
   final bool mailSettingsSelected;
   final bool whatsappMessagingSelected;
+  final bool whatsappBulkSelected;
+  final bool whatsappTemplatesSelected;
+  final bool whatsappContactsSelected;
+  final bool whatsappSettingsSelected;
+  final bool socialPublishSelected;
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
@@ -115,6 +132,11 @@ class AdminDrawer extends StatelessWidget {
   final VoidCallback onContactListsSelected;
   final VoidCallback onMailSettingsSelected;
   final VoidCallback onWhatsappMessagingSelected;
+  final VoidCallback onWhatsappBulkSelected;
+  final VoidCallback onWhatsappTemplatesSelected;
+  final VoidCallback onWhatsappContactsSelected;
+  final VoidCallback onWhatsappSettingsSelected;
+  final VoidCallback onSocialPublishSelected;
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
@@ -148,6 +170,7 @@ class AdminDrawer extends StatelessWidget {
           contactListsVisible: contactListsVisible,
           mailSettingsVisible: mailSettingsVisible,
           whatsappVisible: whatsappVisible,
+          socialMediaVisible: socialMediaVisible,
           navigationVisible: navigationVisible,
           usersVisible: usersVisible,
           rolesPermissionsVisible: rolesPermissionsVisible,
@@ -166,6 +189,11 @@ class AdminDrawer extends StatelessWidget {
           contactListsSelected: contactListsSelected,
           mailSettingsSelected: mailSettingsSelected,
           whatsappMessagingSelected: whatsappMessagingSelected,
+          whatsappBulkSelected: whatsappBulkSelected,
+          whatsappTemplatesSelected: whatsappTemplatesSelected,
+          whatsappContactsSelected: whatsappContactsSelected,
+          whatsappSettingsSelected: whatsappSettingsSelected,
+          socialPublishSelected: socialPublishSelected,
           navigationSelected: navigationSelected,
           usersSelected: usersSelected,
           rolesPermissionsSelected: rolesPermissionsSelected,
@@ -184,6 +212,11 @@ class AdminDrawer extends StatelessWidget {
           onContactListsSelected: onContactListsSelected,
           onMailSettingsSelected: onMailSettingsSelected,
           onWhatsappMessagingSelected: onWhatsappMessagingSelected,
+          onWhatsappBulkSelected: onWhatsappBulkSelected,
+          onWhatsappTemplatesSelected: onWhatsappTemplatesSelected,
+          onWhatsappContactsSelected: onWhatsappContactsSelected,
+          onWhatsappSettingsSelected: onWhatsappSettingsSelected,
+          onSocialPublishSelected: onSocialPublishSelected,
           onNavigationSelected: onNavigationSelected,
           onUsersSelected: onUsersSelected,
           onRolesPermissionsSelected: onRolesPermissionsSelected,
@@ -212,6 +245,7 @@ class Sidebar extends StatefulWidget {
     required this.contactListsVisible,
     required this.mailSettingsVisible,
     required this.whatsappVisible,
+    required this.socialMediaVisible,
     required this.navigationVisible,
     required this.usersVisible,
     required this.rolesPermissionsVisible,
@@ -230,6 +264,11 @@ class Sidebar extends StatefulWidget {
     required this.contactListsSelected,
     required this.mailSettingsSelected,
     required this.whatsappMessagingSelected,
+    required this.whatsappBulkSelected,
+    required this.whatsappTemplatesSelected,
+    required this.whatsappContactsSelected,
+    required this.whatsappSettingsSelected,
+    required this.socialPublishSelected,
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
@@ -248,6 +287,11 @@ class Sidebar extends StatefulWidget {
     required this.onContactListsSelected,
     required this.onMailSettingsSelected,
     required this.onWhatsappMessagingSelected,
+    required this.onWhatsappBulkSelected,
+    required this.onWhatsappTemplatesSelected,
+    required this.onWhatsappContactsSelected,
+    required this.onWhatsappSettingsSelected,
+    required this.onSocialPublishSelected,
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
@@ -270,6 +314,7 @@ class Sidebar extends StatefulWidget {
   final bool contactListsVisible;
   final bool mailSettingsVisible;
   final bool whatsappVisible;
+  final bool socialMediaVisible;
   final bool navigationVisible;
   final bool usersVisible;
   final bool rolesPermissionsVisible;
@@ -288,6 +333,11 @@ class Sidebar extends StatefulWidget {
   final bool contactListsSelected;
   final bool mailSettingsSelected;
   final bool whatsappMessagingSelected;
+  final bool whatsappBulkSelected;
+  final bool whatsappTemplatesSelected;
+  final bool whatsappContactsSelected;
+  final bool whatsappSettingsSelected;
+  final bool socialPublishSelected;
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
@@ -306,6 +356,11 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onContactListsSelected;
   final VoidCallback onMailSettingsSelected;
   final VoidCallback onWhatsappMessagingSelected;
+  final VoidCallback onWhatsappBulkSelected;
+  final VoidCallback onWhatsappTemplatesSelected;
+  final VoidCallback onWhatsappContactsSelected;
+  final VoidCallback onWhatsappSettingsSelected;
+  final VoidCallback onSocialPublishSelected;
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
@@ -324,6 +379,7 @@ class Sidebar extends StatefulWidget {
 class _SidebarState extends State<Sidebar> {
   static const _mailGroup = 'mail';
   static const _whatsappGroup = 'whatsapp';
+  static const _socialGroup = 'social';
   static const _modulesGroup = 'modules';
   static const _settingsGroup = 'settings';
 
@@ -365,8 +421,15 @@ class _SidebarState extends State<Sidebar> {
         data.mailSettingsSelected) {
       return _mailGroup;
     }
-    if (data.whatsappMessagingSelected) {
+    if (data.whatsappMessagingSelected ||
+        data.whatsappBulkSelected ||
+        data.whatsappTemplatesSelected ||
+        data.whatsappContactsSelected ||
+        data.whatsappSettingsSelected) {
       return _whatsappGroup;
+    }
+    if (data.socialPublishSelected) {
+      return _socialGroup;
     }
     if (data.aiSettingsSelected ||
         data.pharmacySettingsSelected ||
@@ -424,7 +487,13 @@ class _SidebarState extends State<Sidebar> {
         widget.mailTemplatesSelected ||
         widget.contactListsSelected ||
         widget.mailSettingsSelected;
-    final whatsappSelected = widget.whatsappMessagingSelected;
+    final whatsappSelected =
+        widget.whatsappMessagingSelected ||
+        widget.whatsappBulkSelected ||
+        widget.whatsappTemplatesSelected ||
+        widget.whatsappContactsSelected ||
+        widget.whatsappSettingsSelected;
+    final socialSelected = widget.socialPublishSelected;
     final modulesSelected =
         widget.aiSettingsSelected ||
         widget.pharmacySettingsSelected ||
@@ -541,6 +610,48 @@ class _SidebarState extends State<Sidebar> {
                           context,
                           widget.onWhatsappMessagingSelected,
                         ),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.whatsapp.bulk'),
+                        selected: widget.whatsappBulkSelected,
+                        onTap: () =>
+                            _select(context, widget.onWhatsappBulkSelected),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.whatsapp.templates'),
+                        selected: widget.whatsappTemplatesSelected,
+                        onTap: () => _select(
+                          context,
+                          widget.onWhatsappTemplatesSelected,
+                        ),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.whatsapp.contacts'),
+                        selected: widget.whatsappContactsSelected,
+                        onTap: () =>
+                            _select(context, widget.onWhatsappContactsSelected),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.whatsapp.settings'),
+                        selected: widget.whatsappSettingsSelected,
+                        onTap: () =>
+                            _select(context, widget.onWhatsappSettingsSelected),
+                      ),
+                    ],
+                  ),
+                if (widget.socialMediaVisible)
+                  SidebarExpandableItem(
+                    icon: Symbols.alternate_email,
+                    label: context.t('nav.socialMedia'),
+                    selected: socialSelected,
+                    expanded: _openExpandable == _socialGroup,
+                    onTap: () => _handleExpandableTap(_socialGroup),
+                    children: [
+                      SidebarSubItem(
+                        label: context.t('nav.socialPublish'),
+                        selected: widget.socialPublishSelected,
+                        onTap: () =>
+                            _select(context, widget.onSocialPublishSelected),
                       ),
                     ],
                   ),

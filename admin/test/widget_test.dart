@@ -2339,6 +2339,41 @@ void main() {
     expect(find.text('Yeni Menü'), findsOneWidget);
   });
 
+  testWidgets('Sosyal medya paylaşım menüsü editör ekranını açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sosyal Medya'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Paylaşım Yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sosyal medya paylaşımı'), findsOneWidget);
+    expect(find.text('Paylaşım editörü'), findsOneWidget);
+    expect(find.text('Canlı önizleme'), findsOneWidget);
+    expect(
+      find.text(
+        'Niğde Ruhun Yüzde Kaç? Patates, Gazoz ve Şöyle Bi Merkeze İneyim Enerjini Ölçüyoruz!',
+      ),
+      findsWidgets,
+    );
+    expect(find.text('Facebook'), findsWidgets);
+  });
+
   testWidgets('Kullanıcı ekleme düzenleme silme modalları çalışır', (
     tester,
   ) async {
