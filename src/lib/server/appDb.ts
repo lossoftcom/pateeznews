@@ -90,6 +90,53 @@ export async function ensureAppSchema() {
         CREATE INDEX IF NOT EXISTS posts_manset_feed_idx
           ON public.posts (language_code, status, published_at DESC)
           WHERE show_in_manset IS TRUE;
+
+        CREATE TABLE IF NOT EXISTS public.languages (
+          code text PRIMARY KEY,
+          name text NOT NULL,
+          direction text DEFAULT 'ltr',
+          status text DEFAULT 'active',
+          flag_code text,
+          is_default boolean DEFAULT false,
+          created_at timestamptz DEFAULT now(),
+          updated_at timestamptz DEFAULT now()
+        );
+
+        ALTER TABLE public.languages ADD COLUMN IF NOT EXISTS direction text DEFAULT 'ltr';
+        ALTER TABLE public.languages ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';
+        ALTER TABLE public.languages ADD COLUMN IF NOT EXISTS flag_code text;
+        ALTER TABLE public.languages ADD COLUMN IF NOT EXISTS is_default boolean DEFAULT false;
+        ALTER TABLE public.languages ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+        ALTER TABLE public.languages ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
+        INSERT INTO public.languages (code, name, direction, status, flag_code, is_default)
+        VALUES
+          ('tr', 'Türkçe', 'ltr', 'active', 'tr', true),
+          ('en', 'English', 'ltr', 'active', 'us', false),
+          ('ar', 'العربية', 'rtl', 'active', 'sa', false)
+        ON CONFLICT (code) DO NOTHING;
+
+        UPDATE public.languages
+        SET status = 'active', updated_at = now()
+        WHERE code IN ('tr', 'en', 'ar') AND status <> 'active';
+
+        UPDATE public.languages
+        SET is_default = true, updated_at = now()
+        WHERE code = 'tr'
+          AND NOT EXISTS (
+            SELECT 1 FROM public.languages WHERE is_default IS TRUE
+          );
+
+        CREATE TABLE IF NOT EXISTS public.language_translations (
+          language_code text NOT NULL REFERENCES public.languages(code) ON DELETE CASCADE,
+          key text NOT NULL,
+          value text NOT NULL DEFAULT '',
+          updated_at timestamptz DEFAULT now(),
+          PRIMARY KEY (language_code, key)
+        );
+
+        CREATE INDEX IF NOT EXISTS language_translations_language_idx
+          ON public.language_translations (language_code);
       `);
     })();
   }

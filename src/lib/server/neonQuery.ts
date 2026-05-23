@@ -316,6 +316,7 @@ function getConflictColumns(table: string, options?: Record<string, any>) {
 
   const fallback: Record<string, string[]> = {
     languages: ['code'],
+    language_translations: ['language_code', 'key'],
     profiles: ['id'],
     posts: ['id'],
     site_settings: ['language_code'],

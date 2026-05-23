@@ -158,6 +158,7 @@ export interface NavigationMenu {
 export interface NavigationItem {
   id: string;
   menu_id: string;
+  menu_code?: string;
   parent_id: string | null;
   label: string;
   type: 'link' | 'header' | 'dropdown' | 'category' | 'trends' | 'district';

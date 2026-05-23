@@ -61,6 +61,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   loading
 }) => {
   const { t } = useLanguage();
+  const sidebarItems = useMemo(() => {
+    const scoped = items.filter((item) => item.menu_code === 'sidebar_main');
+    return scoped.length > 0 ? scoped : items.filter((item) => item.menu_code !== 'top_navbar');
+  }, [items]);
 
   const navigateToCategory = (category: string | null) => {
     if (onCategoryItemClick) {
@@ -76,25 +80,25 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // 1. Root items are considered "Ana Kategoriler"
   const rootItems = useMemo(() => {
-    return items.filter(i => !i.parent_id || i.parent_id === 'root')
+    return sidebarItems.filter(i => !i.parent_id || i.parent_id === 'root')
       .sort((a, b) => a.order_index - b.order_index);
-  }, [items]);
+  }, [sidebarItems]);
 
   // 2. Detect selected item and its root ancestor
   const selectedItem = useMemo(() => {
     if (!activeCategory) return null;
     const normalizedSlug = slugify(activeCategory);
-    return items.find(i =>
+    return sidebarItems.find(i =>
       i.value === activeCategory ||
       i.label === activeCategory ||
       (i.value && slugify(i.value) === normalizedSlug) ||
       (i.label && slugify(i.label) === normalizedSlug)
     );
-  }, [activeCategory, items]);
+  }, [activeCategory, sidebarItems]);
 
   const findRootId = (itemId: string | null): string | null => {
     if (!itemId) return null;
-    const item = items.find(i => i.id === itemId);
+    const item = sidebarItems.find(i => i.id === itemId);
     if (!item) return null;
     if (!item.parent_id || item.parent_id === 'root') return item.id;
     return findRootId(item.parent_id);
@@ -106,13 +110,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       return getDefaultRootItem(rootItems)?.id || null;
     }
     return getDefaultRootItem(rootItems)?.id || null;
-  }, [activeCategory, rootItems, selectedItem, items]);
+  }, [activeCategory, rootItems, selectedItem, sidebarItems]);
 
   // 3. Group children of the selected root category
   const children = useMemo(() => {
     if (!selectedRootId) return [];
-    return items.filter(i => i.parent_id === selectedRootId).sort((a, b) => a.order_index - b.order_index);
-  }, [selectedRootId, items]);
+    return sidebarItems.filter(i => i.parent_id === selectedRootId).sort((a, b) => a.order_index - b.order_index);
+  }, [selectedRootId, sidebarItems]);
 
   const districts = children.filter(c => c.type === 'district');
   const rawCategoryItems = children

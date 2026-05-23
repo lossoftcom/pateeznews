@@ -287,18 +287,37 @@ export const dataService = {
 
     async getNavigationItems(lang: string): Promise<NavigationItem[]> {
         return withCache(`nav_${lang}`, CACHE_TTL.NAV, async () => {
-            const { data, error } = await neon
+            const [{ data: menuData, error: menuError }, { data, error }] = await Promise.all([
+              neon
+                .from('navigation_menus')
+                .select('id, code'),
+              neon
                 .from('navigation_items')
                 .select('*')
                 .eq('language_code', lang)
                 .eq('is_active', true)
-                .order('order_index', { ascending: true });
+                .order('order_index', { ascending: true })
+            ]);
 
+            if (menuError) {
+                console.error('Error fetching navigation menus:', menuError);
+            }
             if (error) {
                 console.error('Error fetching navigation items:', error);
                 return [];
             }
-            return data || [];
+            const menuCodeById = new Map(
+                (menuData || []).map((menu: any) => [String(menu.id), String(menu.code || '')])
+            );
+            const items = (data || []).map((item: any) => ({
+                ...item,
+                menu_code: menuCodeById.get(String(item.menu_id)) || '',
+            }));
+            const menuRank = (code: string) => code === 'sidebar_main' ? 0 : code === 'top_navbar' ? 2 : 1;
+            return items.sort((a: any, b: any) => {
+                const rank = menuRank(a.menu_code).valueOf() - menuRank(b.menu_code).valueOf();
+                return rank || ((a.order_index || 0) - (b.order_index || 0));
+            });
         });
     },
 

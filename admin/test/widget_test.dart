@@ -1,0 +1,3447 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:pateeznews_admin/app/pateeznews_admin_app.dart';
+import 'package:pateeznews_admin/core/localization/admin_translations.dart';
+import 'package:pateeznews_admin/core/theme/app_colors.dart';
+import 'package:pateeznews_admin/features/account/data/admin_account_settings_repository.dart';
+import 'package:pateeznews_admin/features/auth/data/admin_auth_models.dart';
+import 'package:pateeznews_admin/features/auth/data/admin_auth_repository.dart';
+import 'package:pateeznews_admin/features/comments/data/admin_comments_repository.dart';
+import 'package:pateeznews_admin/features/comments/presentation/comments_models.dart';
+import 'package:pateeznews_admin/features/navigation/data/admin_navigation_repository.dart';
+import 'package:pateeznews_admin/features/navigation/presentation/navigation_models.dart';
+import 'package:pateeznews_admin/features/news/data/admin_news_repository.dart';
+import 'package:pateeznews_admin/features/news/presentation/news_models.dart';
+import 'package:pateeznews_admin/features/auth/data/neon_auth_client.dart';
+import 'package:pateeznews_admin/features/auth/data/remembered_login_store.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_language_models.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_languages_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_module_settings_repository.dart';
+import 'package:pateeznews_admin/features/users/data/admin_roles_repository.dart';
+import 'package:pateeznews_admin/features/users/data/admin_users_repository.dart';
+import 'package:pateeznews_admin/features/users/presentation/users_models.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
+
+const _testUser = AdminUser(
+  id: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
+  email: 'demo.user@gmail.com',
+  role: 'authenticated',
+  aud: 'authenticated',
+  userMetadata: {},
+  appMetadata: {},
+);
+
+const _testSession = AdminSession(
+  accessToken: 'test-token',
+  tokenType: 'bearer',
+  expiresAt: 4102444800,
+  user: _testUser,
+);
+
+const _testProfile = AdminProfile(
+  id: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
+  username: 'nigdejournal',
+  fullName: 'Pateez Niğde',
+  avatarUrl: '',
+  role: 'admin',
+  email: 'demo.user@gmail.com',
+);
+
+class _FakeAdminAuthRepository implements AdminAuthRepository {
+  _FakeAdminAuthRepository({this.signInException});
+
+  final AdminAuthException? signInException;
+
+  @override
+  Future<AdminAuthState?> restoreSession() async => null;
+
+  @override
+  Future<AdminAuthState> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    final exception = signInException;
+    if (exception != null) throw exception;
+    return const AdminAuthState(session: _testSession, profile: _testProfile);
+  }
+
+  @override
+  Future<void> signOut() async {}
+}
+
+class _FakeAdminAccountSettingsRepository
+    implements AdminAccountSettingsRepository {
+  _FakeAdminAccountSettingsRepository();
+
+  var profile = AdminAccountProfile(
+    id: _testUser.id,
+    fullName: 'Pateez Niğde',
+    username: 'nigdejournal',
+    email: 'demo.user@gmail.com',
+    phone: '+90 5XX XXX XX XX',
+    expertise: 'Yerel haber',
+    foundationDate: '2026',
+    address: 'Niğde',
+    website: 'https://www.pateez.com',
+    aboutMe: 'Pateez admin hesabı',
+    slug: 'nigdejournal',
+    metaTitle: 'Pateez Niğde',
+    metaKeywords: 'niğde, haber',
+    metaDescription: 'Pateez Niğde admin profili',
+    canonicalUrl: 'https://www.pateez.com/yazar/nigdejournal',
+    avatarUrl: '',
+    coverUrl: '',
+    socialLinks: const {'facebook': 'pateez', 'twitter': 'pateez'},
+    rewardSystem: false,
+    showEmail: true,
+    rssFeeds: true,
+    supportsShowEmail: true,
+    supportsRssFeeds: true,
+  );
+
+  AdminAccountProfile? savedProfile;
+  var passwordUpdated = false;
+  var accountDeleted = false;
+
+  @override
+  Future<AdminAccountProfile> fetchProfile(AdminSession session) async {
+    return profile;
+  }
+
+  @override
+  Future<AdminAccountProfile> saveProfile({
+    required AdminSession session,
+    required AdminAccountProfile profile,
+  }) async {
+    savedProfile = profile;
+    this.profile = profile;
+    return profile;
+  }
+
+  @override
+  Future<String> uploadProfileImage({
+    required AdminSession session,
+    required AccountProfileImageKind kind,
+    required String fileName,
+    required List<int> bytes,
+  }) async {
+    return '/api/storage/file/profile/${session.user.id}-${kind.name}.png';
+  }
+
+  @override
+  Future<void> updatePassword({
+    required AdminSession session,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    passwordUpdated = true;
+  }
+
+  @override
+  Future<void> deleteAccount({
+    required AdminSession session,
+    required String currentPassword,
+  }) async {
+    accountDeleted = true;
+  }
+
+  @override
+  String publicUrl(String value) {
+    if (value.startsWith('/')) return 'http://localhost:4321$value';
+    return value;
+  }
+}
+
+class _FakeAdminUsersRepository implements AdminUsersRepository {
+  _FakeAdminUsersRepository();
+
+  static const _roles = [
+    AdminUserRole(id: 'admin', name: 'admin', label: 'Süper Yönetici'),
+    AdminUserRole(id: 'editor', name: 'editor', label: 'Editör'),
+    AdminUserRole(id: 'member', name: 'member', label: 'Standart Üye'),
+  ];
+
+  final _users = <ManagedUser>[
+    ManagedUser(
+      id: '39740358-88fa-4150-acd0-523b751a68bd',
+      rowNumber: 1,
+      fullName: 'Pateez Niğde',
+      username: 'nigdejournal',
+      email: 'pateezcom@gmail.com',
+      role: 'admin',
+      roleLabel: 'Süper Yönetici',
+      status: 'Aktif',
+      rewardEnabled: false,
+      createdAt: DateTime.utc(2026, 1, 16, 12, 47),
+      avatarUrl: '',
+    ),
+    ManagedUser(
+      id: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
+      rowNumber: 2,
+      fullName: 'Nasip Gündoğu',
+      username: 'nasip',
+      email: 'demo.user@gmail.com',
+      role: 'admin',
+      roleLabel: 'Süper Yönetici',
+      status: 'Aktif',
+      rewardEnabled: false,
+      createdAt: DateTime.utc(2026, 1, 4, 8, 36),
+      avatarUrl: '',
+    ),
+  ];
+  UserFormData? createdUser;
+  UserFormData? updatedUser;
+  String? updatedUserId;
+  List<String>? deletedUserIds;
+
+  @override
+  Future<void> createUser({
+    required AdminSession session,
+    required UserFormData data,
+  }) async {
+    createdUser = data;
+    _users.add(
+      ManagedUser(
+        id: 'created-user-id',
+        rowNumber: _users.length + 1,
+        fullName: data.fullName,
+        username: data.username,
+        email: data.email,
+        role: data.role,
+        roleLabel: roleLabelFor(data.role, _roles),
+        status: data.status,
+        rewardEnabled: data.rewardEnabled,
+        createdAt: DateTime.utc(2026, 5, 22, 9, 0),
+        avatarUrl: '',
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteUser({
+    required AdminSession session,
+    required String userId,
+  }) async {
+    _users.removeWhere((user) => user.id == userId);
+  }
+
+  @override
+  Future<void> deleteUsers({
+    required AdminSession session,
+    required List<String> userIds,
+  }) async {
+    deletedUserIds = userIds;
+    _users.removeWhere((user) => userIds.contains(user.id));
+  }
+
+  @override
+  Future<UserMetrics> fetchMetrics() async {
+    return UserMetrics(
+      total: _users.length,
+      rewardEnabled: _users.where((user) => user.rewardEnabled).length,
+      active: _users.where((user) => user.active).length,
+      pending: _users.where((user) => !user.active).length,
+    );
+  }
+
+  @override
+  Future<List<AdminUserRole>> fetchRoles() async => _roles;
+
+  @override
+  Future<UsersPageResult> fetchUsers({
+    required String search,
+    required String role,
+    required String reward,
+    required String status,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
+    final term = search.trim().toLowerCase();
+    var rows = _users.where((user) {
+      final matchesSearch =
+          term.isEmpty ||
+          user.fullName.toLowerCase().contains(term) ||
+          user.username.toLowerCase().contains(term) ||
+          user.email.toLowerCase().contains(term);
+      final matchesRole = role == 'Tümü' || user.role == role;
+      final matchesReward =
+          reward == 'Tümü' ||
+          (reward == 'Aktif' && user.rewardEnabled) ||
+          (reward == 'Pasif' && !user.rewardEnabled);
+      final matchesStatus = status == 'Tümü' || user.status == status;
+      return matchesSearch && matchesRole && matchesReward && matchesStatus;
+    }).toList();
+    rows.sort((a, b) => _compareUsers(a, b, sortKey, sortAscending));
+
+    final total = rows.length;
+    final from = (page - 1) * pageSize;
+    rows = from >= rows.length
+        ? const <ManagedUser>[]
+        : rows.skip(from).take(pageSize).toList(growable: false);
+    return UsersPageResult(users: rows, totalCount: total);
+  }
+
+  int _compareUsers(
+    ManagedUser a,
+    ManagedUser b,
+    String sortKey,
+    bool ascending,
+  ) {
+    final result = switch (sortKey) {
+      'id' => a.rowNumber.compareTo(b.rowNumber),
+      'user' => a.displayName.toLowerCase().compareTo(
+        b.displayName.toLowerCase(),
+      ),
+      'role' => a.roleLabel.toLowerCase().compareTo(b.roleLabel.toLowerCase()),
+      'reward' =>
+        a.rewardEnabled == b.rewardEnabled
+            ? 0
+            : a.rewardEnabled
+            ? -1
+            : 1,
+      'status' => a.status.toLowerCase().compareTo(b.status.toLowerCase()),
+      'created' =>
+        (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+          b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      _ => 0,
+    };
+    return ascending ? result : -result;
+  }
+
+  @override
+  Future<void> updateUser({
+    required AdminSession session,
+    required String userId,
+    required UserFormData data,
+  }) async {
+    updatedUserId = userId;
+    updatedUser = data;
+    final index = _users.indexWhere((user) => user.id == userId);
+    if (index == -1) return;
+    final current = _users[index];
+    _users[index] = ManagedUser(
+      id: current.id,
+      rowNumber: current.rowNumber,
+      fullName: data.fullName,
+      username: data.username,
+      email: data.email,
+      role: data.role,
+      roleLabel: roleLabelFor(data.role, _roles),
+      status: data.status,
+      rewardEnabled: data.rewardEnabled,
+      createdAt: current.createdAt,
+      avatarUrl: current.avatarUrl,
+    );
+  }
+}
+
+class _FakeAdminRolesRepository implements AdminRolesRepository {
+  _FakeAdminRolesRepository();
+
+  final _permissions = const <AdminPermission>[
+    AdminPermission(
+      id: 'perm-users',
+      key: 'manage_users',
+      label: 'Kullanıcı Yönetimi',
+      groupName: 'system',
+      description: 'Kullanıcı hesaplarını yönetme yetkisi.',
+    ),
+    AdminPermission(
+      id: 'perm-roles',
+      key: 'view_roles',
+      label: 'Rol & Yetki Yönetimi',
+      groupName: 'sidebar',
+      description: 'Rol düzenleme sayfasını görme yetkisi.',
+    ),
+  ];
+
+  final _roles = <ManagedRole>[
+    ManagedRole(
+      id: 'role-admin',
+      rowNumber: 1,
+      name: 'admin',
+      label: 'Süper Yönetici',
+      description: 'Tüm yetkilere sahip sistem yöneticisi.',
+      color: '#EA4335',
+      memberCount: 1,
+      permissionKeys: ['manage_users', 'view_roles'],
+      permissionLabels: ['Kullanıcı Yönetimi', 'Rol & Yetki Yönetimi'],
+      createdAt: DateTime.utc(2026, 1, 1),
+    ),
+    ManagedRole(
+      id: 'role-editor',
+      rowNumber: 2,
+      name: 'editor',
+      label: 'Editör',
+      description: 'İçerik üreticisi.',
+      color: '#2C3E50',
+      memberCount: 0,
+      permissionKeys: const [],
+      permissionLabels: const [],
+      createdAt: DateTime.utc(2026, 1, 2),
+    ),
+  ];
+
+  RoleFormData? createdRole;
+  RoleFormData? updatedRole;
+  String? updatedRoleId;
+  String? deletedRoleId;
+  String? savedPermissionsRoleId;
+  List<String>? savedPermissionKeys;
+
+  @override
+  Future<void> createRole({
+    required AdminSession session,
+    required RoleFormData data,
+  }) async {
+    createdRole = data;
+    _roles.add(
+      ManagedRole(
+        id: 'role-created',
+        rowNumber: _roles.length + 1,
+        name: data.name,
+        label: data.label,
+        description: data.description,
+        color: data.color,
+        memberCount: 0,
+        permissionKeys: const [],
+        permissionLabels: const [],
+        createdAt: DateTime.utc(2026, 5, 22),
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteRole({
+    required AdminSession session,
+    required String roleId,
+  }) async {
+    deletedRoleId = roleId;
+    _roles.removeWhere((role) => role.id == roleId);
+  }
+
+  @override
+  Future<Set<String>> fetchPermissionKeysForRole(String roleName) async {
+    if (roleName == 'admin') return {'*'};
+    final role = _roles.where((item) => item.name == roleName).firstOrNull;
+    return role?.permissionKeys.toSet() ?? const {};
+  }
+
+  @override
+  Future<RolesPermissionsPageResult> fetchRolesPermissions({
+    required String search,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
+    final term = search.trim().toLowerCase();
+    final rows =
+        (term.isEmpty
+                ? _roles
+                : _roles
+                      .where(
+                        (role) =>
+                            role.name.contains(term) ||
+                            role.label.toLowerCase().contains(term),
+                      )
+                      .toList(growable: false))
+            .toList()
+          ..sort((a, b) => _compareRoles(a, b, sortKey, sortAscending));
+    return RolesPermissionsPageResult(
+      roles: rows.take(pageSize).toList(growable: false),
+      permissions: _permissions,
+      totalCount: rows.length,
+    );
+  }
+
+  int _compareRoles(
+    ManagedRole a,
+    ManagedRole b,
+    String sortKey,
+    bool ascending,
+  ) {
+    final result = switch (sortKey) {
+      'order' => a.rowNumber.compareTo(b.rowNumber),
+      'name' => a.label.toLowerCase().compareTo(b.label.toLowerCase()),
+      'slug' => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      'permissions' => a.permissionLabels.length.compareTo(
+        b.permissionLabels.length,
+      ),
+      'status' =>
+        a.systemLocked == b.systemLocked
+            ? 0
+            : a.systemLocked
+            ? -1
+            : 1,
+      _ => a.rowNumber.compareTo(b.rowNumber),
+    };
+    final normalized = result == 0
+        ? a.rowNumber.compareTo(b.rowNumber)
+        : result;
+    return ascending ? normalized : -normalized;
+  }
+
+  @override
+  Future<void> saveRolePermissions({
+    required AdminSession session,
+    required String roleId,
+    required List<String> permissionKeys,
+  }) async {
+    savedPermissionsRoleId = roleId;
+    savedPermissionKeys = permissionKeys;
+    final index = _roles.indexWhere((role) => role.id == roleId);
+    if (index == -1) return;
+    final role = _roles[index];
+    _roles[index] = ManagedRole(
+      id: role.id,
+      rowNumber: role.rowNumber,
+      name: role.name,
+      label: role.label,
+      description: role.description,
+      color: role.color,
+      memberCount: role.memberCount,
+      permissionKeys: permissionKeys,
+      permissionLabels: [
+        for (final permission in _permissions)
+          if (permissionKeys.contains(permission.key)) permission.label,
+      ],
+      createdAt: role.createdAt,
+    );
+  }
+
+  @override
+  Future<void> updateRole({
+    required AdminSession session,
+    required String roleId,
+    required RoleFormData data,
+  }) async {
+    updatedRoleId = roleId;
+    updatedRole = data;
+    final index = _roles.indexWhere((role) => role.id == roleId);
+    if (index == -1) return;
+    final role = _roles[index];
+    _roles[index] = ManagedRole(
+      id: role.id,
+      rowNumber: role.rowNumber,
+      name: data.name,
+      label: data.label,
+      description: data.description,
+      color: data.color,
+      memberCount: role.memberCount,
+      permissionKeys: role.permissionKeys,
+      permissionLabels: role.permissionLabels,
+      createdAt: role.createdAt,
+    );
+  }
+}
+
+class _FakeAdminCommentsRepository implements AdminCommentsRepository {
+  _FakeAdminCommentsRepository();
+
+  final _comments = <AdminComment>[
+    AdminComment(
+      id: '1',
+      rowNumber: 1,
+      content: 'İlk yorum onay bekliyor.',
+      postId: '12',
+      userId: '39740358-88fa-4150-acd0-523b751a68bd',
+      status: 'pending',
+      createdAt: DateTime.utc(2026, 5, 22, 19, 5),
+      updatedAt: DateTime.utc(2026, 5, 22, 19, 5),
+      likesCount: 2,
+      repliesCount: 0,
+      reportsCount: 1,
+      isPinned: false,
+      postTitle: 'Deneme haberi',
+      userName: 'Pateez Niğde',
+      userAvatar: '',
+      guestName: '',
+      guestEmail: '',
+    ),
+    AdminComment(
+      id: '2',
+      rowNumber: 2,
+      content: 'Sabit onaylı yorum.',
+      postId: '13',
+      userId: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
+      status: 'approved',
+      createdAt: DateTime.utc(2026, 5, 21, 10, 15),
+      updatedAt: DateTime.utc(2026, 5, 21, 10, 15),
+      likesCount: 5,
+      repliesCount: 1,
+      reportsCount: 0,
+      isPinned: true,
+      postTitle: 'Onaylı haber',
+      userName: 'Nasip Gündoğu',
+      userAvatar: '',
+      guestName: '',
+      guestEmail: '',
+    ),
+  ];
+
+  String? approvedCommentId;
+  String? rejectedCommentId;
+  String? toggledPinnedCommentId;
+  bool? toggledPinnedValue;
+  String? deletedCommentId;
+  List<String>? deletedCommentIds;
+  String? replyParentId;
+  String? replyContent;
+
+  @override
+  Future<void> approveComment(String commentId) async {
+    approvedCommentId = commentId;
+    _updateStatus(commentId, 'approved');
+  }
+
+  @override
+  Future<void> rejectComment(String commentId) async {
+    rejectedCommentId = commentId;
+    _updateStatus(commentId, 'rejected');
+  }
+
+  @override
+  Future<void> deleteComment(String commentId) async {
+    deletedCommentId = commentId;
+    _comments.removeWhere((comment) => comment.id == commentId);
+  }
+
+  @override
+  Future<void> deleteComments(List<String> commentIds) async {
+    deletedCommentIds = commentIds;
+    _comments.removeWhere((comment) => commentIds.contains(comment.id));
+  }
+
+  @override
+  Future<AdminCommentsPageResult> fetchComments({
+    required String search,
+    required String status,
+    required String postId,
+    required String userId,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
+    final term = search.trim().toLowerCase();
+    var rows = _comments
+        .where((comment) {
+          final matchesSearch =
+              term.isEmpty ||
+              comment.content.toLowerCase().contains(term) ||
+              comment.postTitle.toLowerCase().contains(term) ||
+              comment.userName.toLowerCase().contains(term);
+          final matchesStatus =
+              status == 'Tümü' ||
+              (status == 'Reported' && comment.reportsCount > 0) ||
+              comment.status == status;
+          final matchesPost = postId == 'Tümü' || comment.postId == postId;
+          final matchesUser = userId == 'Tümü' || comment.userId == userId;
+          return matchesSearch && matchesStatus && matchesPost && matchesUser;
+        })
+        .toList(growable: false);
+    rows.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      final compare = switch (sortKey) {
+        'id' => _numericId(a.id).compareTo(_numericId(b.id)),
+        'comment' => a.content.compareTo(b.content),
+        'post' => a.postTitle.compareTo(b.postTitle),
+        'status' => a.status.compareTo(b.status),
+        'likes' => a.likesCount.compareTo(b.likesCount),
+        'replies' => a.repliesCount.compareTo(b.repliesCount),
+        'date' =>
+          (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+            b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+          ),
+        _ => (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+          b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      };
+      return sortAscending ? compare : -compare;
+    });
+
+    final total = rows.length;
+    final from = (page - 1) * pageSize;
+    rows = from >= rows.length
+        ? const <AdminComment>[]
+        : rows.skip(from).take(pageSize).toList(growable: false);
+    return AdminCommentsPageResult(
+      comments: [
+        for (var index = 0; index < rows.length; index++)
+          _copyComment(rows[index], rowNumber: from + index + 1),
+      ],
+      totalCount: total,
+    );
+  }
+
+  @override
+  Future<AdminCommentFilterOptions> fetchFilterOptions() async {
+    return AdminCommentFilterOptions(
+      posts: [
+        for (final comment in _comments)
+          AdminCommentFilterItem(id: comment.postId, label: comment.postTitle),
+      ],
+      users: [
+        for (final comment in _comments)
+          AdminCommentFilterItem(id: comment.userId, label: comment.userName),
+      ],
+    );
+  }
+
+  @override
+  Future<AdminCommentMetricData> fetchMetrics() async {
+    return AdminCommentMetricData(
+      total: _comments.length,
+      approved: _comments
+          .where((comment) => comment.status == 'approved')
+          .length,
+      pending: _comments.where((comment) => comment.status == 'pending').length,
+      rejected: _comments
+          .where((comment) => comment.status == 'rejected')
+          .length,
+      totalChange: '+0%',
+      approvedChange: '+0%',
+      pendingChange: '+0%',
+      rejectedChange: '+0%',
+    );
+  }
+
+  @override
+  Future<void> replyToComment({
+    required AdminSession session,
+    required AdminComment comment,
+    required String content,
+  }) async {
+    replyParentId = comment.id;
+    replyContent = content;
+    _comments.add(
+      AdminComment(
+        id: 'reply-${_comments.length + 1}',
+        rowNumber: _comments.length + 1,
+        content: content,
+        postId: comment.postId,
+        userId: session.user.id,
+        status: 'approved',
+        createdAt: DateTime.utc(2026, 5, 22, 20),
+        updatedAt: DateTime.utc(2026, 5, 22, 20),
+        likesCount: 0,
+        repliesCount: 0,
+        reportsCount: 0,
+        isPinned: false,
+        postTitle: comment.postTitle,
+        userName: 'Nasip Gündoğu',
+        userAvatar: '',
+        guestName: '',
+        guestEmail: '',
+      ),
+    );
+  }
+
+  @override
+  Future<void> togglePinned({
+    required String commentId,
+    required bool pinned,
+  }) async {
+    toggledPinnedCommentId = commentId;
+    toggledPinnedValue = pinned;
+    final index = _comments.indexWhere((comment) => comment.id == commentId);
+    if (index == -1) return;
+    _comments[index] = _copyComment(_comments[index], isPinned: pinned);
+  }
+
+  void _updateStatus(String commentId, String status) {
+    final index = _comments.indexWhere((comment) => comment.id == commentId);
+    if (index == -1) return;
+    _comments[index] = _copyComment(_comments[index], status: status);
+  }
+
+  int _numericId(String value) => int.tryParse(value) ?? 0;
+
+  AdminComment _copyComment(
+    AdminComment comment, {
+    int? rowNumber,
+    String? status,
+    bool? isPinned,
+  }) {
+    return AdminComment(
+      id: comment.id,
+      rowNumber: rowNumber ?? comment.rowNumber,
+      content: comment.content,
+      postId: comment.postId,
+      userId: comment.userId,
+      status: status ?? comment.status,
+      createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt,
+      likesCount: comment.likesCount,
+      repliesCount: comment.repliesCount,
+      reportsCount: comment.reportsCount,
+      isPinned: isPinned ?? comment.isPinned,
+      postTitle: comment.postTitle,
+      userName: comment.userName,
+      userAvatar: comment.userAvatar,
+      guestName: comment.guestName,
+      guestEmail: comment.guestEmail,
+    );
+  }
+}
+
+class _FakeAdminNewsRepository implements AdminNewsRepository {
+  _FakeAdminNewsRepository();
+
+  final _posts = <AdminNewsPost>[
+    AdminNewsPost(
+      id: '23',
+      rowNumber: 1,
+      title:
+          'Niğde Ruhun Yüzde Kaç? Patates, Gazoz ve Şöyle Bi Merkeze İneyim Enerjini Ölçüyoruz!',
+      category: 'Anketler',
+      type: 'poll',
+      status: 'published',
+      slug: 'nigde-ruhun-yuzde-kac',
+      createdAt: DateTime.utc(2026, 5, 1, 14, 33),
+      thumbnailUrl: '',
+      likesCount: 0,
+      commentsCount: 0,
+      languageCode: 'tr',
+      isPinned: true,
+      publisherId: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
+      publisherName: 'Nasip Gündoğu',
+      publisherUsername: 'nasip',
+      publisherEmail: 'demo.user@gmail.com',
+      parentCategory: 'Niğde',
+    ),
+    AdminNewsPost(
+      id: '27',
+      rowNumber: 2,
+      title: 'Niğde Belediyesi 3. Tiyatro Festivali Başlıyor',
+      category: 'Yaşam',
+      type: 'article',
+      status: 'draft',
+      slug: 'nigde-belediyesi-tiyatro-festivali',
+      createdAt: DateTime.utc(2026, 5, 1, 15, 33),
+      thumbnailUrl: '',
+      likesCount: 4,
+      commentsCount: 2,
+      languageCode: 'tr',
+      isPinned: false,
+      publisherId: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
+      publisherName: 'Nasip Gündoğu',
+      publisherUsername: 'nasip',
+      publisherEmail: 'demo.user@gmail.com',
+      parentCategory: 'Niğde',
+    ),
+  ];
+
+  String? toggledStatusPostId;
+  String? toggledPinnedPostId;
+  String? deletedPostId;
+  List<String>? deletedPostIds;
+
+  @override
+  Future<void> deletePost(String postId) async {
+    deletedPostId = postId;
+    _posts.removeWhere((post) => post.id == postId);
+  }
+
+  @override
+  Future<void> deletePosts(List<String> postIds) async {
+    deletedPostIds = postIds;
+    _posts.removeWhere((post) => postIds.contains(post.id));
+  }
+
+  @override
+  Future<AdminNewsFilterOptions> fetchFilterOptions() async {
+    return const AdminNewsFilterOptions(
+      languages: [AdminNewsFilterItem(id: 'tr', label: 'Türkçe')],
+      categories: [
+        AdminNewsFilterItem(
+          id: 'Anketler',
+          label: 'Anketler',
+          parentLabel: 'Niğde',
+        ),
+        AdminNewsFilterItem(id: 'Yaşam', label: 'Yaşam', parentLabel: 'Niğde'),
+      ],
+      types: [
+        AdminNewsFilterItem(id: 'poll', label: 'poll'),
+        AdminNewsFilterItem(id: 'article', label: 'article'),
+      ],
+      publishers: [
+        AdminNewsFilterItem(
+          id: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
+          label: 'Nasip Gündoğu',
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<AdminNewsMetricData> fetchMetrics() async {
+    return AdminNewsMetricData(
+      total: _posts.length,
+      published: _posts.where((post) => post.published).length,
+      views: _posts.fold<int>(0, (sum, post) => sum + post.likesCount),
+      scheduled: 0,
+    );
+  }
+
+  @override
+  Future<AdminNewsPageResult> fetchPosts({
+    required String search,
+    required String language,
+    required String category,
+    required String type,
+    required String status,
+    required String publisher,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
+    final term = search.trim().toLowerCase();
+    var rows = _posts
+        .where((post) {
+          final matchesSearch =
+              term.isEmpty ||
+              post.title.toLowerCase().contains(term) ||
+              post.slug.toLowerCase().contains(term) ||
+              post.category.toLowerCase().contains(term);
+          final matchesLanguage =
+              language == 'Tümü' || post.languageCode == language;
+          final matchesCategory =
+              category == 'Tümü' || post.category == category;
+          final matchesType = type == 'Tümü' || post.type == type;
+          final matchesStatus = status == 'Tümü' || post.status == status;
+          final matchesPublisher =
+              publisher == 'Tümü' || post.publisherId == publisher;
+          return matchesSearch &&
+              matchesLanguage &&
+              matchesCategory &&
+              matchesType &&
+              matchesStatus &&
+              matchesPublisher;
+        })
+        .toList(growable: false);
+    rows.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      final compare = switch (sortKey) {
+        'id' => _numericId(a.id).compareTo(_numericId(b.id)),
+        'post' => a.title.compareTo(b.title),
+        'category' => a.category.compareTo(b.category),
+        'status' => a.status.compareTo(b.status),
+        'language' => a.languageCode.compareTo(b.languageCode),
+        'author' => a.publisherName.compareTo(b.publisherName),
+        'views' => a.likesCount.compareTo(b.likesCount),
+        'comments' => a.commentsCount.compareTo(b.commentsCount),
+        'date' =>
+          (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+            b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+          ),
+        _ => (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+          b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      };
+      return sortAscending ? compare : -compare;
+    });
+
+    final total = rows.length;
+    final from = (page - 1) * pageSize;
+    rows = from >= rows.length
+        ? const <AdminNewsPost>[]
+        : rows.skip(from).take(pageSize).toList(growable: false);
+    return AdminNewsPageResult(
+      posts: [
+        for (var index = 0; index < rows.length; index++)
+          _copyPost(rows[index], rowNumber: from + index + 1),
+      ],
+      totalCount: total,
+    );
+  }
+
+  @override
+  Future<void> togglePinned(AdminNewsPost post) async {
+    toggledPinnedPostId = post.id;
+    final index = _posts.indexWhere((item) => item.id == post.id);
+    if (index == -1) return;
+    _posts[index] = _copyPost(post, isPinned: !post.isPinned);
+  }
+
+  @override
+  Future<void> toggleStatus(AdminNewsPost post) async {
+    toggledStatusPostId = post.id;
+    final index = _posts.indexWhere((item) => item.id == post.id);
+    if (index == -1) return;
+    _posts[index] = _copyPost(
+      post,
+      status: post.published ? 'draft' : 'published',
+    );
+  }
+
+  int _numericId(String value) => int.tryParse(value) ?? 0;
+
+  AdminNewsPost _copyPost(
+    AdminNewsPost post, {
+    int? rowNumber,
+    String? status,
+    bool? isPinned,
+  }) {
+    return AdminNewsPost(
+      id: post.id,
+      rowNumber: rowNumber ?? post.rowNumber,
+      title: post.title,
+      category: post.category,
+      type: post.type,
+      status: status ?? post.status,
+      slug: post.slug,
+      createdAt: post.createdAt,
+      thumbnailUrl: post.thumbnailUrl,
+      likesCount: post.likesCount,
+      commentsCount: post.commentsCount,
+      languageCode: post.languageCode,
+      isPinned: isPinned ?? post.isPinned,
+      publisherId: post.publisherId,
+      publisherName: post.publisherName,
+      publisherUsername: post.publisherUsername,
+      publisherEmail: post.publisherEmail,
+      parentCategory: post.parentCategory,
+    );
+  }
+}
+
+class _FakeAdminNavigationRepository implements AdminNavigationRepository {
+  _FakeAdminNavigationRepository();
+
+  final _menus = <AdminNavigationMenu>[
+    const AdminNavigationMenu(
+      id: 'menu-sidebar',
+      code: 'sidebar_main',
+      name: 'Ana Sidebar',
+      description: 'Sol taraftaki ana navigasyon menüsü.',
+    ),
+    const AdminNavigationMenu(
+      id: 'menu-top-navbar',
+      code: 'top_navbar',
+      name: 'Üst Navbar',
+      description: 'Önyüz üst navigasyon menüsü.',
+    ),
+  ];
+
+  final _items = <AdminNavigationItem>[
+    const AdminNavigationItem(
+      id: 'item-nigde',
+      menuId: 'menu-sidebar',
+      parentId: null,
+      label: 'Niğde',
+      type: 'dropdown',
+      value: 'nigde',
+      icon: 'location_on',
+      orderIndex: 0,
+      isActive: true,
+      languageCode: 'tr',
+    ),
+    const AdminNavigationItem(
+      id: 'item-trends',
+      menuId: 'menu-sidebar',
+      parentId: 'item-nigde',
+      label: 'Haftanın Trendleri',
+      type: 'trends',
+      value: 'weekly_trends',
+      icon: 'trending_up',
+      orderIndex: 1,
+      isActive: true,
+      languageCode: 'tr',
+    ),
+    const AdminNavigationItem(
+      id: 'item-polls',
+      menuId: 'menu-sidebar',
+      parentId: 'item-nigde',
+      label: 'Anketler',
+      type: 'category',
+      value: 'anketler',
+      icon: 'poll',
+      orderIndex: 2,
+      isActive: true,
+      languageCode: 'tr',
+    ),
+    const AdminNavigationItem(
+      id: 'item-home',
+      menuId: 'menu-top-navbar',
+      parentId: null,
+      label: 'Ana Sayfa',
+      type: 'link',
+      value: '/',
+      icon: 'home',
+      orderIndex: 0,
+      isActive: true,
+      languageCode: 'tr',
+    ),
+    const AdminNavigationItem(
+      id: 'item-poll-top',
+      menuId: 'menu-top-navbar',
+      parentId: null,
+      label: 'Anket',
+      type: 'category',
+      value: 'anketler',
+      icon: 'poll',
+      orderIndex: 1,
+      isActive: true,
+      languageCode: 'tr',
+    ),
+  ];
+
+  NavigationItemFormData? createdItem;
+  String? createdMenuId;
+  String? updatedItemId;
+  List<String>? deletedItemIds;
+  List<String>? reorderedItemIds;
+
+  @override
+  Future<AdminNavigationMenu> createDefaultMenu() async {
+    return _menus.first;
+  }
+
+  @override
+  Future<AdminNavigationMenu> ensureDefaultMenu(String code) async {
+    return _menus.firstWhere((menu) => menu.code == code);
+  }
+
+  @override
+  Future<void> createItem({
+    required String menuId,
+    required NavigationItemFormData data,
+    required int orderIndex,
+  }) async {
+    createdItem = data;
+    createdMenuId = menuId;
+    _items.add(
+      AdminNavigationItem(
+        id: 'created-navigation-item',
+        menuId: menuId,
+        parentId: data.parentId,
+        label: data.label,
+        type: data.type,
+        value: data.value,
+        icon: data.icon,
+        orderIndex: orderIndex,
+        isActive: true,
+        languageCode: data.languageCode,
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteItems(List<String> itemIds) async {
+    deletedItemIds = itemIds;
+    _items.removeWhere((item) => itemIds.contains(item.id));
+  }
+
+  @override
+  Future<AdminNavigationInitialData> fetchInitialData() async {
+    return AdminNavigationInitialData(
+      menus: _menus,
+      languages: const [
+        AdminNavigationLanguage(code: 'tr', name: 'Türkçe'),
+        AdminNavigationLanguage(code: 'en', name: 'English'),
+      ],
+    );
+  }
+
+  @override
+  Future<List<AdminNavigationItem>> fetchItems(String menuId) async {
+    return (_items.where((item) => item.menuId == menuId).toList()
+          ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex)))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> reorderItems(List<AdminNavigationItem> items) async {
+    reorderedItemIds = [for (final item in items) item.id];
+    for (final item in items) {
+      final index = _items.indexWhere((row) => row.id == item.id);
+      if (index == -1) continue;
+      _items[index] = _items[index].copyWith(orderIndex: item.orderIndex);
+    }
+  }
+
+  @override
+  Future<void> updateItem({
+    required String itemId,
+    required String menuId,
+    required int orderIndex,
+    required NavigationItemFormData data,
+  }) async {
+    updatedItemId = itemId;
+    final index = _items.indexWhere((item) => item.id == itemId);
+    if (index == -1) return;
+    _items[index] = AdminNavigationItem(
+      id: itemId,
+      menuId: menuId,
+      parentId: data.parentId,
+      label: data.label,
+      type: data.type,
+      value: data.value,
+      icon: data.icon,
+      orderIndex: orderIndex,
+      isActive: true,
+      languageCode: data.languageCode,
+    );
+  }
+}
+
+class _FakeAdminLanguagesRepository implements AdminLanguagesRepository {
+  _FakeAdminLanguagesRepository();
+
+  final _languages = <AdminLanguage>[...fallbackAdminLanguages];
+  final _translations = <String, Map<String, String>>{
+    'tr': defaultTranslationsFor('tr'),
+    'en': defaultTranslationsFor('en'),
+    'ar': defaultTranslationsFor('ar'),
+  };
+
+  LanguageFormData? upsertedLanguage;
+  String? deletedLanguageCode;
+  String? defaultLanguageCode;
+  String? savedTranslationsCode;
+  Map<String, String>? savedTranslations;
+  String? importedLanguageCode;
+  String? exportedLanguageCode;
+
+  @override
+  Future<List<AdminLanguage>> fetchActiveLanguages() async {
+    return _renumber(
+      _languages.where((language) => language.active).toList(growable: false),
+      0,
+    );
+  }
+
+  @override
+  Future<LanguagesPageResult> fetchLanguages({
+    required String search,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
+    final term = search.trim().toLowerCase();
+    final filtered =
+        (term.isEmpty
+                ? _languages
+                : _languages
+                      .where(
+                        (language) =>
+                            language.code.contains(term) ||
+                            language.name.toLowerCase().contains(term),
+                      )
+                      .toList(growable: false))
+            .toList()
+          ..sort((a, b) => _compareLanguages(a, b, sortKey, sortAscending));
+    final from = (page - 1) * pageSize;
+    final rows = from >= filtered.length
+        ? const <AdminLanguage>[]
+        : filtered.skip(from).take(pageSize).toList(growable: false);
+    return LanguagesPageResult(
+      languages: _renumber(rows, from),
+      totalCount: filtered.length,
+    );
+  }
+
+  int _compareLanguages(
+    AdminLanguage a,
+    AdminLanguage b,
+    String sortKey,
+    bool ascending,
+  ) {
+    final result = switch (sortKey) {
+      'order' => a.rowNumber.compareTo(b.rowNumber),
+      'name' => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      'default' =>
+        a.isDefault == b.isDefault
+            ? 0
+            : a.isDefault
+            ? -1
+            : 1,
+      'status' => a.status.compareTo(b.status),
+      _ => a.rowNumber.compareTo(b.rowNumber),
+    };
+    final normalized = result == 0
+        ? a.rowNumber.compareTo(b.rowNumber)
+        : result;
+    return ascending ? normalized : -normalized;
+  }
+
+  @override
+  Future<void> upsertLanguage({
+    required AdminSession session,
+    required LanguageFormData data,
+  }) async {
+    upsertedLanguage = data;
+    final index = _languages.indexWhere(
+      (language) => language.code == data.code,
+    );
+    final status = coreAdminLanguageCodes.contains(data.code)
+        ? 'active'
+        : data.status;
+    if (index == -1) {
+      _languages.add(
+        AdminLanguage(
+          code: data.code,
+          name: data.name,
+          direction: data.direction,
+          status: status,
+          flagCode: data.flagCode,
+          isDefault: false,
+          rowNumber: _languages.length + 1,
+        ),
+      );
+      _translations[data.code] = defaultTranslationsFor(data.code);
+      return;
+    }
+    final current = _languages[index];
+    _languages[index] = current.copyWith(
+      name: data.name,
+      direction: data.direction,
+      status: status,
+      flagCode: data.flagCode,
+    );
+  }
+
+  @override
+  Future<void> deleteLanguage({
+    required AdminSession session,
+    required String code,
+  }) async {
+    if (coreAdminLanguageCodes.contains(code)) {
+      throw const AdminLanguagesException('Çekirdek dil silinemez');
+    }
+    deletedLanguageCode = code;
+    _languages.removeWhere((language) => language.code == code);
+    _translations.remove(code);
+  }
+
+  @override
+  Future<void> setDefaultLanguage({
+    required AdminSession session,
+    required String code,
+  }) async {
+    defaultLanguageCode = code;
+    for (var index = 0; index < _languages.length; index++) {
+      final language = _languages[index];
+      _languages[index] = language.copyWith(isDefault: language.code == code);
+    }
+  }
+
+  @override
+  Future<Map<String, String>> fetchTranslations(String code) async {
+    return normalizeAdminTranslationMapKeys({
+      ...defaultTranslationsFor(code),
+      ...?_translations[code],
+    });
+  }
+
+  @override
+  Future<void> saveTranslations({
+    required AdminSession session,
+    required String code,
+    required Map<String, String> translations,
+  }) async {
+    savedTranslationsCode = code;
+    savedTranslations = translations;
+    _translations[code] = normalizeAdminTranslationMapKeys(translations);
+  }
+
+  @override
+  Future<String> exportLanguagePack(AdminLanguage language) async {
+    exportedLanguageCode = language.code;
+    const encoder = JsonEncoder.withIndent('  ');
+    return encoder.convert({
+      'meta': language.toJson(),
+      'translations': await fetchTranslations(language.code),
+    });
+  }
+
+  @override
+  Future<void> importLanguagePack({
+    required AdminSession session,
+    required String jsonContent,
+  }) async {
+    final decoded = jsonDecode(jsonContent) as Map<String, dynamic>;
+    final meta = decoded['meta'] as Map<String, dynamic>;
+    final code = meta['code'].toString();
+    importedLanguageCode = code;
+    await upsertLanguage(
+      session: session,
+      data: LanguageFormData(
+        code: code,
+        name: meta['name'].toString(),
+        direction: meta['direction']?.toString() == 'rtl' ? 'rtl' : 'ltr',
+        status: meta['status']?.toString() == 'passive' ? 'passive' : 'active',
+        flagCode: meta['flag_code']?.toString() ?? code,
+      ),
+    );
+    final translations = decoded['translations'];
+    if (translations is Map) {
+      _translations[code] = translations.map(
+        (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
+      );
+    }
+  }
+
+  List<AdminLanguage> _renumber(List<AdminLanguage> rows, int offset) {
+    return [
+      for (var index = 0; index < rows.length; index++)
+        rows[index].copyWith(rowNumber: offset + index + 1),
+    ];
+  }
+}
+
+class _FakeAdminGeneralSettingsRepository
+    implements AdminGeneralSettingsRepository {
+  _FakeAdminGeneralSettingsRepository();
+
+  final _settingsByLanguage = <String, GeneralSettingsData>{
+    'tr': GeneralSettingsData.empty('tr').copyWith(
+      siteName: 'Pateeznews.com',
+      timezone: 'Europe/Istanbul',
+      footerAbout: 'Pateeznews footer metni',
+      optionalUrlButtonName: '',
+      copyrightText: '2026 Pateez',
+      logoUrl: '',
+      footerLogoUrl: '',
+      darkLogoUrl: '',
+      emailLogoUrl: '',
+      faviconUrl: '',
+      homeTitle: 'Pateez: İç Anadolu Haber',
+      metaDescription: 'Pateez meta açıklaması',
+      metaKeywords: 'pateez, haber',
+      canonicalUrl: 'https://www.pateez.com/',
+      ogImageUrl: '',
+      twitterUsername: '@pateezcom',
+      robotsTxt: 'User-agent: *\nDisallow: /admin/\nAllow: /',
+    ),
+  };
+
+  GeneralSettingsData? savedSettings;
+  GeneralSettingsLogoField? uploadedLogoField;
+
+  @override
+  Future<GeneralSettingsData> fetchSettings(String languageCode) async {
+    return _settingsByLanguage[languageCode] ??
+        GeneralSettingsData.empty(languageCode);
+  }
+
+  @override
+  Future<GeneralSettingsData> saveSettings({
+    required AdminSession session,
+    required GeneralSettingsData settings,
+  }) async {
+    savedSettings = settings;
+    _settingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<String> uploadLogo({
+    required String languageCode,
+    required GeneralSettingsLogoField field,
+    required String fileName,
+    required List<int> bytes,
+  }) async {
+    uploadedLogoField = field;
+    return '/api/storage/file/logo/$languageCode/${field.uploadFilename}';
+  }
+
+  @override
+  String publicUrl(String value) {
+    if (value.startsWith('http')) return value;
+    return 'http://localhost:4321$value';
+  }
+}
+
+class _FakeAdminAiSettingsRepository implements AdminAiSettingsRepository {
+  _FakeAdminAiSettingsRepository();
+
+  final _settingsByLanguage = <String, AdminAiSettingsData>{
+    'tr': const AdminAiSettingsData(
+      languageCode: 'tr',
+      googleAiApiKey: 'test-gemini-key',
+      googleAiModel: 'gemini-3-pro-preview',
+      googleAiActive: true,
+    ),
+  };
+  final _promptsByLanguage = <String, List<AdminAiPrompt>>{
+    'tr': [
+      AdminAiPrompt(
+        id: 'format-1',
+        title: 'Haber Hazırla 1',
+        prompt: 'Canlı veritabanından gelen haber hazırlama promptu.',
+        languageCode: 'tr',
+        isActive: true,
+      ),
+    ],
+  };
+
+  AdminAiSettingsData? savedSettings;
+  AiPromptFormData? savedPrompt;
+  String? savedPromptId;
+  String? deletedPromptId;
+  String? testedApiKey;
+
+  @override
+  Future<AdminAiSettingsData> fetchSettings(String languageCode) async {
+    return _settingsByLanguage[languageCode] ??
+        AdminAiSettingsData.empty(languageCode);
+  }
+
+  @override
+  Future<AdminAiSettingsData> saveSettings({
+    required AdminSession session,
+    required AdminAiSettingsData settings,
+  }) async {
+    savedSettings = settings;
+    _settingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<List<AdminAiPrompt>> fetchPrompts(String languageCode) async {
+    return [...?_promptsByLanguage[languageCode]];
+  }
+
+  @override
+  Future<AdminAiPrompt> savePrompt({
+    required AdminSession session,
+    required String languageCode,
+    required AiPromptFormData data,
+    String? id,
+  }) async {
+    savedPrompt = data;
+    savedPromptId = id;
+    final prompts = _promptsByLanguage.putIfAbsent(languageCode, () => []);
+    final prompt = AdminAiPrompt(
+      id: id?.trim().isNotEmpty == true ? id! : 'format-created',
+      title: data.title,
+      prompt: data.prompt,
+      languageCode: languageCode,
+      isActive: true,
+    );
+    final index = prompts.indexWhere((item) => item.id == prompt.id);
+    if (index == -1) {
+      prompts.insert(0, prompt);
+    } else {
+      prompts[index] = prompt;
+    }
+    return prompt;
+  }
+
+  @override
+  Future<void> deletePrompt({
+    required AdminSession session,
+    required String id,
+  }) async {
+    deletedPromptId = id;
+    for (final prompts in _promptsByLanguage.values) {
+      prompts.removeWhere((prompt) => prompt.id == id);
+    }
+  }
+
+  @override
+  Future<List<String>> fetchGeminiModels(String apiKey) async {
+    testedApiKey = apiKey;
+    return const ['gemini-2.5-flash', 'gemini-3-pro-preview'];
+  }
+}
+
+class _FakeAdminModuleSettingsRepository
+    implements AdminModuleSettingsRepository {
+  WeatherSettingsData weatherSettings = const WeatherSettingsData(
+    languageCode: 'tr',
+    enabled: true,
+    locationName: 'Niğde',
+    locationCountry: 'Türkiye',
+    latitude: 37.96583,
+    longitude: 34.67935,
+    timezone: 'Europe/Istanbul',
+    updateIntervalMinutes: 30,
+  );
+
+  WeatherSettingsData? savedWeatherSettings;
+  var dutyRefreshCount = 0;
+  var deathRefreshCount = 0;
+
+  @override
+  Future<WeatherSettingsData> fetchWeatherSettings(String languageCode) async {
+    return weatherSettings;
+  }
+
+  @override
+  Future<WeatherSettingsData> saveWeatherSettings({
+    required AdminSession session,
+    required WeatherSettingsData settings,
+  }) async {
+    savedWeatherSettings = settings;
+    weatherSettings = settings;
+    return settings;
+  }
+
+  @override
+  Future<List<WeatherLocationSearchResult>> searchWeatherLocations({
+    required String query,
+    required String languageCode,
+  }) async {
+    return const [
+      WeatherLocationSearchResult(
+        name: 'Niğde',
+        latitude: 37.96583,
+        longitude: 34.67935,
+        timezone: 'Europe/Istanbul',
+        country: 'Türkiye',
+      ),
+    ];
+  }
+
+  @override
+  Future<DutyPharmacyPreviewData> fetchDutyPharmacyPreview({
+    bool forceRefresh = false,
+  }) async {
+    if (forceRefresh) dutyRefreshCount++;
+    return const DutyPharmacyPreviewData(
+      city: 'Niğde',
+      source: 'Niğde Eczacı Odası',
+      sourceUrl: 'https://www.neo.org.tr/nobetci-eczaneler',
+      serviceDateLabel: '22 Mayıs 2026',
+      updateIntervalMinutes: 15,
+      districts: ['MERKEZ', 'BOR'],
+      pharmacies: [
+        DutyPharmacyItem(
+          id: 'deva',
+          name: 'DEVA ECZANESİ',
+          district: 'MERKEZ',
+          address: 'Selçuk Mah. Ethem Onbaşı Cad. Niğde',
+          phone: '0388 213 53 04',
+          directionUrl: 'https://www.google.com/maps',
+          note: '!! GECE 00:00’A KADAR NÖBETÇİDİR !!',
+        ),
+        DutyPharmacyItem(
+          id: 'ozturk',
+          name: 'ÖZTÜRK ECZANESİ',
+          district: 'MERKEZ',
+          address: 'Hastaneler Cad. Niğde',
+          phone: '0388 221 02 03',
+          directionUrl: 'https://www.google.com/maps',
+        ),
+      ],
+      total: 2,
+      cache: ModuleCacheInfo(source: 'database', hit: true, stale: false),
+    );
+  }
+
+  @override
+  Future<DeathNoticePreviewData> fetchDeathNoticePreview({
+    bool forceRefresh = false,
+  }) async {
+    if (forceRefresh) deathRefreshCount++;
+    return const DeathNoticePreviewData(
+      city: 'Niğde',
+      source: 'Niğde Belediyesi',
+      sourceUrl: 'https://nigde.bel.tr/vefat-edenler',
+      serviceDateLabel: '22 Mayıs 2026',
+      updateIntervalMinutes: 30,
+      notices: [
+        DeathNoticeItem(
+          id: 'notice-1',
+          name: 'ŞABAN EFE ÇAVUŞ',
+          deathDateLabel: '22 Mayıs 2026',
+          prayerTime: 'ÖĞLE',
+          burialPlace: 'HIDIRLIK',
+          description:
+              'Çavuşoğulları Mobilya Sahiplerinden Mehmet Çavuş’un Oğlu Şaban Efe Çavuş Vefat Etmiştir.',
+        ),
+      ],
+      total: 1,
+      cache: ModuleCacheInfo(source: 'database', hit: true, stale: false),
+    );
+  }
+}
+
+Future<void> _pumpAdminApp(
+  WidgetTester tester, {
+  AdminAuthRepository? authRepository,
+  AdminNewsRepository? newsRepository,
+  AdminCommentsRepository? commentsRepository,
+  AdminNavigationRepository? navigationRepository,
+  AdminUsersRepository? usersRepository,
+  AdminRolesRepository? rolesRepository,
+  AdminLanguagesRepository? languagesRepository,
+  AdminGeneralSettingsRepository? generalSettingsRepository,
+  AdminAiSettingsRepository? aiSettingsRepository,
+  AdminModuleSettingsRepository? moduleSettingsRepository,
+  AdminAccountSettingsRepository? accountSettingsRepository,
+}) async {
+  await tester.pumpWidget(
+    PateeznewsAdminApp(
+      authRepository: authRepository ?? _FakeAdminAuthRepository(),
+      newsRepository: newsRepository ?? _FakeAdminNewsRepository(),
+      commentsRepository: commentsRepository ?? _FakeAdminCommentsRepository(),
+      navigationRepository:
+          navigationRepository ?? _FakeAdminNavigationRepository(),
+      usersRepository: usersRepository ?? _FakeAdminUsersRepository(),
+      rolesRepository: rolesRepository ?? _FakeAdminRolesRepository(),
+      languagesRepository:
+          languagesRepository ?? _FakeAdminLanguagesRepository(),
+      generalSettingsRepository:
+          generalSettingsRepository ?? _FakeAdminGeneralSettingsRepository(),
+      aiSettingsRepository:
+          aiSettingsRepository ?? _FakeAdminAiSettingsRepository(),
+      moduleSettingsRepository:
+          moduleSettingsRepository ?? _FakeAdminModuleSettingsRepository(),
+      accountSettingsRepository:
+          accountSettingsRepository ?? _FakeAdminAccountSettingsRepository(),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+bool _isTextAbove(WidgetTester tester, String upperText, String lowerText) {
+  final upper = tester.getTopLeft(find.text(upperText).first).dy;
+  final lower = tester.getTopLeft(find.text(lowerText).first).dy;
+  return upper < lower;
+}
+
+void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
+  test('Desktop auth client localhost API adresini kullanır', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    final requestedUrls = <String>[];
+    final client = NeonAuthClient(
+      httpClient: MockClient((request) async {
+        requestedUrls.add(request.url.toString());
+        if (request.url.path == '/api/neon/auth') {
+          return http.Response(
+            jsonEncode({
+              'data': {'session': _testSession.toJson()},
+              'error': null,
+            }),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        return http.Response(
+          jsonEncode({'data': _testProfile.toJson(), 'error': null}),
+          200,
+          headers: {'Content-Type': 'application/json'},
+        );
+      }),
+    );
+
+    final authState = await client.signInWithPassword(
+      email: 'demo.user@gmail.com',
+      password: '123456',
+    );
+
+    expect(authState.session.user.email, 'demo.user@gmail.com');
+    expect(
+      requestedUrls,
+      containsAllInOrder([
+        'http://localhost:4321/api/neon/auth',
+        'http://localhost:4321/api/neon/query',
+      ]),
+    );
+  });
+
+  test('Android auth client emulator API adresini kullanır', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    final requestedUrls = <String>[];
+    final client = NeonAuthClient(
+      httpClient: MockClient((request) async {
+        requestedUrls.add(request.url.toString());
+        if (request.url.path == '/api/neon/auth') {
+          return http.Response(
+            jsonEncode({
+              'data': {'session': _testSession.toJson()},
+              'error': null,
+            }),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        return http.Response(
+          jsonEncode({'data': _testProfile.toJson(), 'error': null}),
+          200,
+          headers: {'Content-Type': 'application/json'},
+        );
+      }),
+    );
+
+    await client.signInWithPassword(
+      email: 'demo.user@gmail.com',
+      password: '123456',
+    );
+
+    expect(
+      requestedUrls,
+      containsAllInOrder([
+        'http://10.0.2.2:4321/api/neon/auth',
+        'http://10.0.2.2:4321/api/neon/query',
+      ]),
+    );
+  });
+
+  test(
+    'Auth client verilen API adresini platformdan bağımsız kullanır',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+      });
+
+      final requestedUrls = <String>[];
+      final client = NeonAuthClient(
+        apiBaseUrl: 'https://example.com',
+        httpClient: MockClient((request) async {
+          requestedUrls.add(request.url.toString());
+          if (request.url.path == '/api/neon/auth') {
+            return http.Response(
+              jsonEncode({
+                'data': {'session': _testSession.toJson()},
+                'error': null,
+              }),
+              200,
+              headers: {'Content-Type': 'application/json'},
+            );
+          }
+          return http.Response(
+            jsonEncode({'data': _testProfile.toJson(), 'error': null}),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }),
+      );
+
+      await client.signInWithPassword(
+        email: 'demo.user@gmail.com',
+        password: '123456',
+      );
+
+      expect(
+        requestedUrls,
+        containsAllInOrder([
+          'https://example.com/api/neon/auth',
+          'https://example.com/api/neon/query',
+        ]),
+      );
+    },
+  );
+
+  testWidgets('Giriş ekranı temel alanları gösterir', (tester) async {
+    await _pumpAdminApp(tester);
+
+    expect(find.text('Pateeznews admin'), findsOneWidget);
+    expect(find.text('Yönetim girişi'), findsOneWidget);
+    expect(find.text('E-posta adresi'), findsOneWidget);
+    expect(find.text('Şifre'), findsOneWidget);
+    expect(find.text('Giriş yap'), findsOneWidget);
+    expect(find.text('Şifremi unuttum'), findsNothing);
+  });
+
+  testWidgets('Input örnekleri placeholder, yazılan metin koyu renktir', (
+    tester,
+  ) async {
+    await _pumpAdminApp(tester);
+
+    final emailField = tester.widget<TextField>(
+      find.descendant(
+        of: find.byType(TextFormField).at(0),
+        matching: find.byType(TextField),
+      ),
+    );
+    final passwordField = tester.widget<TextField>(
+      find.descendant(
+        of: find.byType(TextFormField).at(1),
+        matching: find.byType(TextField),
+      ),
+    );
+
+    expect(emailField.decoration?.hintText, 'editor@pateeznews.com');
+    expect(passwordField.decoration?.hintText, 'Güvenli şifreniz');
+    expect(emailField.style?.color, AppColors.deepOcean);
+    expect(passwordField.style?.color, AppColors.deepOcean);
+  });
+
+  testWidgets('Boş form doğrulama mesajı üretir', (tester) async {
+    await _pumpAdminApp(tester);
+
+    await tester.ensureVisible(find.text('Giriş yap'));
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pump();
+
+    expect(find.text('Geçerli bir e-posta adresi girin'), findsOneWidget);
+    expect(find.text('Şifre en az 6 karakter olmalı'), findsOneWidget);
+  });
+
+  testWidgets('Hatalı giriş mesajı inputların altında gösterilir', (
+    tester,
+  ) async {
+    await _pumpAdminApp(
+      tester,
+      authRepository: _FakeAdminAuthRepository(
+        signInException: const AdminAuthException('Invalid login credentials'),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'admin@gmail.com');
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Giriş yapılamadı. Lütfen tekrar deneyin.'), findsNothing);
+    expect(find.text('Şifremi unuttum'), findsNothing);
+    expect(
+      find.text('E-posta veya şifre bulunamadı ya da hatalı.'),
+      findsNWidgets(2),
+    );
+  });
+
+  testWidgets('Geçerli giriş dashboard ekranını açar', (tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ana Sayfa'), findsWidgets);
+    expect(find.text('Ayarlar'), findsOneWidget);
+    expect(find.text('Ana Sayfa Menüsü'), findsNothing);
+    expect(find.text('Dil Ayarları'), findsNothing);
+    expect(find.text('Yayın akışı'), findsOneWidget);
+    expect(find.text('Son durum'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Sidebar açılır menüleri tek açık grup ve seçili alt menüyü korur',
+    (tester) async {
+      tester.view.physicalSize = const Size(1366, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pumpAdminApp(tester);
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'editor@pateeznews.com',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+      await tester.tap(find.text('Giriş yap'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ayarlar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Genel Ayarlar'), findsOneWidget);
+      expect(find.text('Dil Ayarları'), findsOneWidget);
+
+      await tester.tap(find.text('Modüller'));
+      await tester.pumpAndSettle();
+      expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
+      expect(find.text('Genel Ayarlar'), findsNothing);
+      expect(find.text('Dil Ayarları'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 20));
+      await tester.pumpAndSettle();
+      expect(find.text('Yapay Zeka Ayarları'), findsNothing);
+
+      await tester.tap(find.text('Ayarlar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dil Ayarları'));
+      await tester.pumpAndSettle();
+      expect(find.text('Dil Ayarları'), findsNWidgets(2));
+
+      await tester.tap(find.text('Modüller'));
+      await tester.pumpAndSettle();
+      expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
+      expect(find.text('Genel Ayarlar'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 20));
+      await tester.pumpAndSettle();
+      expect(find.text('Yapay Zeka Ayarları'), findsNothing);
+      expect(find.text('Genel Ayarlar'), findsOneWidget);
+      expect(find.text('Dil Ayarları'), findsNWidgets(2));
+    },
+  );
+
+  testWidgets('Kullanıcılar ana menüsü tablo ekranını açar', (tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Kullanıcılar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kullanıcılar'), findsWidgets);
+    expect(find.text('Oturum'), findsOneWidget);
+    expect(find.text('Toplam kullanıcı sayısı'), findsOneWidget);
+    expect(find.text('Ödül Sistemi'), findsWidgets);
+    expect(find.text('Aktif Kullanıcılar'), findsOneWidget);
+    expect(find.text('Onay Bekleyenler'), findsOneWidget);
+    expect(find.text('Rol'), findsWidgets);
+    expect(find.text('Durum'), findsWidgets);
+    expect(find.text('Tümü'), findsWidgets);
+    expect(find.text('Kullanıcı ara...'), findsOneWidget);
+    expect(find.text('Kullanıcı Ekle'), findsOneWidget);
+    expect(find.text('ID'), findsOneWidget);
+    expect(find.text('Kullanıcı'), findsOneWidget);
+    expect(find.text('Oluşturma'), findsOneWidget);
+    expect(find.text('İşlem'), findsOneWidget);
+    expect(find.text('1'), findsWidgets);
+    expect(find.text('Pateez Niğde'), findsOneWidget);
+    expect(find.text('@nigdejournal'), findsOneWidget);
+    expect(find.text('pateezcom@gmail.com'), findsOneWidget);
+    expect(find.text('2'), findsWidgets);
+    expect(find.text('Nasip Gündoğu'), findsOneWidget);
+    expect(find.text('@nasip'), findsOneWidget);
+    expect(find.text('demo.user@gmail.com'), findsOneWidget);
+    expect(find.text('Süper Yönetici'), findsWidgets);
+    expect(find.text('Aktif'), findsNWidgets(2));
+    expect(find.text('16 Ocak 2026 Cuma'), findsOneWidget);
+    expect(find.text('4 Ocak 2026 Pazar'), findsOneWidget);
+    expect(find.text('1 - 2 / 2 kayıt gösteriliyor'), findsOneWidget);
+    expect(find.byTooltip('Kullanıcı işlemleri'), findsNWidgets(2));
+
+    await tester.tap(find.text('Kullanıcı'));
+    await tester.pumpAndSettle();
+    expect(_isTextAbove(tester, 'Nasip Gündoğu', 'Pateez Niğde'), isTrue);
+
+    await tester.tap(find.text('Kullanıcı'));
+    await tester.pumpAndSettle();
+    expect(_isTextAbove(tester, 'Pateez Niğde', 'Nasip Gündoğu'), isTrue);
+
+    await tester.tap(find.text('...').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Düzenle'), findsOneWidget);
+    expect(find.text('Pasifleştir'), findsOneWidget);
+    expect(find.text('Ödülü aç'), findsOneWidget);
+    expect(find.text('Sil'), findsOneWidget);
+
+    await tester.tap(find.text('Kullanıcılar').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pateez Niğde'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seçili 1 kaydı sil'), findsOneWidget);
+
+    await tester.tap(find.text('Seçili 1 kaydı sil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seçili kullanıcılar silinsin mi?'), findsOneWidget);
+    expect(find.text('1 kullanıcı kalıcı olarak silinecek.'), findsOneWidget);
+  });
+
+  testWidgets('Avatar menüsü hesap ayarları sayfasını açar', (tester) async {
+    tester.view.physicalSize = const Size(1366, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final accountRepository = _FakeAdminAccountSettingsRepository();
+    await _pumpAdminApp(tester, accountSettingsRepository: accountRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Pateez Niğde'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Profil'), findsOneWidget);
+    expect(find.text('Hesap Ayarları'), findsOneWidget);
+    expect(find.text('Çıkış'), findsOneWidget);
+
+    await tester.tap(find.text('Hesap Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hesap Ayarları'), findsWidgets);
+    expect(find.text('Profil Bilgileri'), findsWidgets);
+    expect(find.text('Sosyal Hesaplar'), findsOneWidget);
+    expect(find.text('Tercihler'), findsOneWidget);
+    expect(find.text('Şifre Değiştir'), findsOneWidget);
+    expect(find.text('Hesabı Sil'), findsOneWidget);
+    expect(find.text('Ayarların Dili'), findsNothing);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'Pateez Niğde Güncel',
+    );
+    await tester.tap(find.text('Değişiklikleri Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(accountRepository.savedProfile?.fullName, 'Pateez Niğde Güncel');
+    expect(accountRepository.savedProfile?.socialLinks['facebook'], 'pateez');
+  });
+
+  testWidgets('Yorumlar menüsü kullanıcıların üzerinde yorum yönetimini açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final commentsRepository = _FakeAdminCommentsRepository();
+    await _pumpAdminApp(tester, commentsRepository: commentsRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yorumlar'), findsOneWidget);
+    expect(_isTextAbove(tester, 'Yorumlar', 'Kullanıcılar'), isTrue);
+
+    await tester.tap(find.text('Yorumlar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yorumlar'), findsWidgets);
+    expect(find.text('Toplam Yorumlar'), findsOneWidget);
+    expect(find.text('Onaylanan'), findsOneWidget);
+    expect(find.text('Beklemede'), findsWidgets);
+    expect(find.text('Reddedilen'), findsOneWidget);
+    expect(find.text('Durum'), findsWidgets);
+    expect(find.text('Haber'), findsWidgets);
+    expect(find.text('Kullanıcı'), findsOneWidget);
+    expect(find.text('Yorum ara...'), findsOneWidget);
+    expect(find.text('ID'), findsOneWidget);
+    expect(find.text('Yorum'), findsOneWidget);
+    expect(find.text('Beğeni'), findsOneWidget);
+    expect(find.text('Yanıt'), findsOneWidget);
+    expect(find.text('Tarih'), findsOneWidget);
+    expect(find.text('İşlem'), findsOneWidget);
+    expect(find.text('Sabit onaylı yorum.'), findsOneWidget);
+    expect(find.text('İlk yorum onay bekliyor.'), findsOneWidget);
+    expect(find.text('Onaylı haber'), findsOneWidget);
+    expect(find.text('Deneme haberi'), findsOneWidget);
+    expect(find.text('1 Şikayet'), findsOneWidget);
+    expect(find.text('1 - 2 / 2 kayıt gösteriliyor'), findsOneWidget);
+    expect(find.byTooltip('Yorum işlemleri'), findsNWidgets(2));
+
+    await tester.tap(find.text('...').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Onayla'), findsOneWidget);
+    expect(find.text('Reddet'), findsOneWidget);
+    expect(find.text('Sabitlemeyi kaldır'), findsOneWidget);
+    expect(find.text('Yanıtla'), findsOneWidget);
+    expect(find.text('Sil'), findsOneWidget);
+
+    await tester.tap(find.text('Reddet'));
+    await tester.pumpAndSettle();
+
+    expect(commentsRepository.rejectedCommentId, '2');
+    expect(find.text('Reddedildi'), findsOneWidget);
+
+    await tester.tap(find.byType(Checkbox).at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('Seçili 1 yorumu sil'), findsOneWidget);
+
+    await tester.tap(find.text('Seçili 1 yorumu sil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seçili yorumlar silinsin mi?'), findsOneWidget);
+    expect(find.text('1 yorum kalıcı olarak silinecek.'), findsOneWidget);
+  });
+
+  testWidgets('Haberler menüsü yorumların üzerinde haber yönetimini açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final newsRepository = _FakeAdminNewsRepository();
+    await _pumpAdminApp(tester, newsRepository: newsRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Haberler'), findsOneWidget);
+    expect(_isTextAbove(tester, 'Haberler', 'Yorumlar'), isTrue);
+
+    await tester.tap(find.text('Haberler'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Haberler'), findsWidgets);
+    expect(find.text('İzlenme'), findsWidgets);
+    expect(find.text('Dil'), findsWidgets);
+    expect(find.text('Kategori'), findsWidgets);
+    expect(find.text('Tür'), findsOneWidget);
+    expect(find.text('Yayıncı'), findsOneWidget);
+    expect(find.text('Haberleri ara...'), findsOneWidget);
+    expect(find.text('Haber Ekle'), findsOneWidget);
+    expect(find.text('Durum'), findsWidgets);
+    expect(find.text('Ekleyen'), findsOneWidget);
+    expect(find.text('Yorum'), findsOneWidget);
+    expect(
+      find.text(
+        'Niğde Ruhun Yüzde Kaç? Patates, Gazoz ve Şöyle Bi Merkeze İneyim Enerjini Ölçüyoruz!',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Niğde Belediyesi 3. Tiyatro Festivali Başlıyor'),
+      findsOneWidget,
+    );
+    expect(find.text('Anket'), findsOneWidget);
+    expect(find.text('Makale'), findsOneWidget);
+    expect(find.text('Yayında'), findsOneWidget);
+    expect(find.text('Taslak'), findsWidgets);
+    expect(find.text('@nasip'), findsNWidgets(2));
+    expect(find.text('demo.user@gmail.com'), findsNWidgets(2));
+    expect(find.byTooltip('Haber işlemleri'), findsNWidgets(2));
+
+    await tester.tap(find.text('...').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Düzenle'), findsOneWidget);
+    expect(find.text('Yayından kaldır'), findsOneWidget);
+    expect(find.text('Sabitlemeyi kaldır'), findsOneWidget);
+    expect(find.text('Sil'), findsOneWidget);
+
+    await tester.tap(find.text('Yayından kaldır'));
+    await tester.pumpAndSettle();
+
+    expect(newsRepository.toggledStatusPostId, '23');
+  });
+
+  testWidgets('Navigasyon menüsü modüllerin üzerinde yönetimi açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final navigationRepository = _FakeAdminNavigationRepository();
+    await _pumpAdminApp(tester, navigationRepository: navigationRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Navigasyon'), findsOneWidget);
+    expect(_isTextAbove(tester, 'Navigasyon', 'Modüller'), isTrue);
+
+    await tester.tap(find.text('Navigasyon'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Navigasyon Yönetimi'), findsOneWidget);
+    expect(find.text('Sol Sidebar'), findsOneWidget);
+    expect(find.text('Üst Navbar'), findsOneWidget);
+    expect(find.text('Öğe Ekle'), findsOneWidget);
+    expect(find.text('Niğde'), findsWidgets);
+    expect(find.text('Haftanın Trendleri'), findsWidgets);
+    expect(find.text('Anketler'), findsOneWidget);
+    expect(find.text('Haftanın Genel Trendleri (Karma)'), findsOneWidget);
+    expect(find.text('Kategori Filtresi'), findsOneWidget);
+    expect(find.byTooltip('Düzenle'), findsNWidgets(3));
+    expect(find.byTooltip('Sil'), findsNWidgets(3));
+
+    await tester.tap(find.text('Üst Navbar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ana Sayfa'), findsWidgets);
+    expect(find.text('Anket'), findsWidgets);
+    expect(find.byTooltip('Düzenle'), findsNWidgets(2));
+
+    await tester.tap(find.text('Öğe Ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Görünen Ad'), findsOneWidget);
+    expect(find.text('Konum'), findsOneWidget);
+    expect(find.text('Türkçe'), findsWidgets);
+    await tester.enterText(
+      find.ancestor(
+        of: find.text('Görünen Ad'),
+        matching: find.byType(TextFormField),
+      ),
+      'Yeni Menü',
+    );
+    expect(find.text('Yeni Menü'), findsOneWidget);
+    await tester.tap(find.text('Örn: location_on, poll, quiz'));
+    await tester.pumpAndSettle();
+    expect(find.text('İkon Adı (Material Symbols)'), findsOneWidget);
+    await tester.tapAt(tester.getCenter(find.text('home').last));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Görünen ad zorunlu'), findsNothing);
+    expect(find.text('Görünen Ad'), findsNothing);
+    expect(navigationRepository.createdItem?.label, 'Yeni Menü');
+    expect(navigationRepository.createdMenuId, 'menu-top-navbar');
+    expect(find.text('Yeni Menü'), findsOneWidget);
+  });
+
+  testWidgets('Kullanıcı ekleme düzenleme silme modalları çalışır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final usersRepository = _FakeAdminUsersRepository();
+    await _pumpAdminApp(tester, usersRepository: usersRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kullanıcılar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Kullanıcı Ekle'));
+    await tester.pumpAndSettle();
+    final addDialogFields = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(TextFormField),
+    );
+    final addNameField = tester.widget<TextField>(
+      find.descendant(
+        of: addDialogFields.at(0),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(addNameField.mouseCursor, SystemMouseCursors.text);
+    await tester.enterText(find.byType(TextFormField).at(0), 'Can Test');
+    await tester.enterText(find.byType(TextFormField).at(1), 'can_test');
+    await tester.enterText(find.byType(TextFormField).at(2), 'gizli123');
+    await tester.enterText(
+      find.byType(TextFormField).at(3),
+      'can.test@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(4), 'gizli123');
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(usersRepository.createdUser?.email, 'can.test@pateeznews.com');
+    expect(find.text('Can Test'), findsOneWidget);
+
+    await tester.tap(find.text('...').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Düzenle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Can Test Güncel');
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(usersRepository.updatedUserId, 'created-user-id');
+    expect(usersRepository.updatedUser?.fullName, 'Can Test Güncel');
+
+    await tester.tap(find.text('Can Test Güncel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Seçili 1 kaydı sil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Seçili kullanıcılar silinsin mi?'), findsOneWidget);
+    await tester.tap(find.text('Sil').last);
+    await tester.pumpAndSettle();
+
+    expect(usersRepository.deletedUserIds, contains('created-user-id'));
+    expect(find.text('Can Test Güncel'), findsNothing);
+  });
+
+  testWidgets('Rol ve izin modalları repository akışını çalıştırır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final rolesRepository = _FakeAdminRolesRepository();
+    await _pumpAdminApp(tester, rolesRepository: rolesRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rol & İzinler'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Süper Yönetici'), findsOneWidget);
+    expect(find.text('Editör'), findsOneWidget);
+
+    await tester.tap(find.text('Rol Adı'));
+    await tester.pumpAndSettle();
+    expect(_isTextAbove(tester, 'Editör', 'Süper Yönetici'), isTrue);
+
+    await tester.tap(find.text('Sıra No'));
+    await tester.pumpAndSettle();
+    expect(_isTextAbove(tester, 'Süper Yönetici', 'Editör'), isTrue);
+
+    await tester.tap(find.text('Rol Ekle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Test Rolü');
+    await tester.enterText(find.byType(TextFormField).at(1), 'test_rolu');
+    await tester.enterText(find.byType(TextFormField).at(2), '#2C3E50');
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(rolesRepository.createdRole?.name, 'test_rolu');
+    expect(find.text('Test Rolü'), findsOneWidget);
+
+    await tester.tap(find.text('...').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Düzenle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'Test Rolü Güncel',
+    );
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(rolesRepository.updatedRoleId, 'role-created');
+    expect(rolesRepository.updatedRole?.label, 'Test Rolü Güncel');
+
+    await tester.tap(find.text('...').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yetkileri Yönet'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kullanıcı Yönetimi').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(rolesRepository.savedPermissionsRoleId, 'role-created');
+    expect(rolesRepository.savedPermissionKeys, contains('manage_users'));
+
+    await tester.tap(find.text('...').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sil').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Rol silinsin mi?'), findsOneWidget);
+    await tester.tap(find.text('Sil').last);
+    await tester.pumpAndSettle();
+
+    expect(rolesRepository.deletedRoleId, 'role-created');
+    expect(find.text('Test Rolü Güncel'), findsNothing);
+  });
+
+  testWidgets('Dil ayarları alt menüsü ekranı açar', (tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ayarlar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dil Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dil Ayarları'), findsNWidgets(2));
+    expect(find.text('Listeyi Yazdır'), findsOneWidget);
+    expect(find.text('Dil indir'), findsOneWidget);
+    expect(find.text('İçe Aktar'), findsOneWidget);
+    expect(find.text('Dil Ekle'), findsOneWidget);
+    expect(find.text('Ara...'), findsOneWidget);
+    expect(find.text('Sıra No'), findsOneWidget);
+    expect(find.text('Dil Adı'), findsOneWidget);
+    expect(find.text('Varsayılan'), findsNWidgets(2));
+    expect(find.text('İşlemler'), findsOneWidget);
+    expect(find.text('Durum'), findsOneWidget);
+    expect(find.text('İşlem'), findsOneWidget);
+    expect(find.text('Türkçe'), findsWidgets);
+    expect(find.text('English'), findsOneWidget);
+    expect(find.text('العربية'), findsOneWidget);
+    expect(find.text('Varsayılan yap'), findsNWidgets(2));
+    expect(find.text('Çevirileri Düzenle'), findsNWidgets(3));
+    expect(find.text('Dili Dışa Aktar'), findsNWidgets(3));
+    expect(find.text('Aktif'), findsNWidgets(3));
+    expect(find.text('1 - 3 / 3 kayıt gösteriliyor'), findsOneWidget);
+    expect(find.text('Seçili 1 kaydı sil'), findsNothing);
+
+    await tester.tap(find.text('Dil Adı'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.text('English').first).dy <
+          tester.getTopLeft(find.text('Türkçe').last).dy,
+      isTrue,
+    );
+
+    await tester.tap(find.text('Sıra No'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.text('Türkçe').last).dy <
+          tester.getTopLeft(find.text('English').first).dy,
+      isTrue,
+    );
+
+    await tester.tap(find.text('Türkçe').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seçili 1 kaydı sil'), findsOneWidget);
+
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seçili 3 kaydı sil'), findsOneWidget);
+
+    await tester.tap(find.text('...').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Düzenle'), findsOneWidget);
+    expect(find.text('Pasifleştir'), findsOneWidget);
+    expect(find.text('Sil'), findsOneWidget);
+  });
+
+  testWidgets('Dil ayarları repository modalları çalışır', (tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final languagesRepository = _FakeAdminLanguagesRepository();
+    await _pumpAdminApp(tester, languagesRepository: languagesRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ayarlar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dil Ayarları'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Dil Ekle'));
+    await tester.pumpAndSettle();
+    var dialogFields = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(dialogFields.at(0), 'Testçe');
+    await tester.enterText(dialogFields.at(1), 'tt');
+    await tester.enterText(dialogFields.at(3), 'tt');
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(languagesRepository.upsertedLanguage?.code, 'tt');
+    expect(find.text('Testçe'), findsOneWidget);
+
+    await tester.tap(find.text('...').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Düzenle'));
+    await tester.pumpAndSettle();
+    dialogFields = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(dialogFields.at(0), 'Testçe Güncel');
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(languagesRepository.upsertedLanguage?.name, 'Testçe Güncel');
+
+    await tester.tap(find.text('Varsayılan yap').last);
+    await tester.pumpAndSettle();
+    expect(languagesRepository.defaultLanguageCode, 'tt');
+
+    await tester.tap(find.text('Çevirileri Düzenle').last);
+    await tester.pumpAndSettle();
+    dialogFields = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(dialogFields.at(1), 'Test panel');
+    await tester.tap(find.text('Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(languagesRepository.savedTranslationsCode, 'tt');
+    expect(languagesRepository.savedTranslations, isNotEmpty);
+
+    await tester.tap(find.text('Dili Dışa Aktar').last);
+    await tester.pumpAndSettle();
+    expect(languagesRepository.exportedLanguageCode, 'tt');
+    expect(find.text('Dili Dışa Aktar'), findsWidgets);
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(Dialog),
+            matching: find.byIcon(Symbols.close),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İçe Aktar'));
+    await tester.pumpAndSettle();
+    final importJson = jsonEncode({
+      'meta': {
+        'code': 'de',
+        'name': 'Deutsch',
+        'direction': 'ltr',
+        'status': 'active',
+        'flag_code': 'de',
+      },
+      'translations': {'login.title': 'Admin Login'},
+    });
+    await tester.enterText(
+      find
+          .descendant(of: find.byType(Dialog), matching: find.byType(TextField))
+          .first,
+      importJson,
+    );
+    await tester.tap(find.text('Yükle'));
+    await tester.pumpAndSettle();
+
+    expect(languagesRepository.importedLanguageCode, 'de');
+    expect(find.text('Deutsch'), findsOneWidget);
+
+    await tester.tap(find.text('...').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sil').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Dil silinsin mi?'), findsOneWidget);
+    await tester.tap(find.text('Sil').last);
+    await tester.pumpAndSettle();
+
+    expect(languagesRepository.deletedLanguageCode, 'de');
+    expect(find.text('Deutsch'), findsNothing);
+  });
+
+  testWidgets('Genel ayarlar alt menüsü tablı ekranı açar', (tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final generalSettingsRepository = _FakeAdminGeneralSettingsRepository();
+    await _pumpAdminApp(
+      tester,
+      generalSettingsRepository: generalSettingsRepository,
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ayarlar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Genel Ayarlar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Genel Ayarlar'), findsNWidgets(2));
+    expect(find.text('Ayarları Dili'), findsOneWidget);
+    expect(find.text('Genel & Logo'), findsNWidgets(2));
+    expect(find.text('SEO Ayarları'), findsOneWidget);
+    expect(find.text('Kurumsal (EEAT)'), findsOneWidget);
+    expect(find.text('Google & Servisler'), findsOneWidget);
+    expect(find.text('Özel Kodlar'), findsOneWidget);
+    expect(find.text('Robots & Teknik'), findsOneWidget);
+    expect(find.text('Site Adı'), findsOneWidget);
+    expect(find.text('Pateeznews.com'), findsOneWidget);
+    expect(find.text('Logo Ayarları'), findsOneWidget);
+    expect(find.text('Logo Değiştir'), findsNWidgets(5));
+    expect(find.text('Değişiklikleri Kaydet'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Pateeznews.com'),
+      'Pateeznews Test',
+    );
+    await tester.ensureVisible(find.text('Değişiklikleri Kaydet').last);
+    await tester.tap(find.text('Değişiklikleri Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      generalSettingsRepository.savedSettings?.siteName,
+      'Pateeznews Test',
+    );
+    expect(find.text('Ayarlar başarıyla kaydedildi'), findsOneWidget);
+
+    await tester.ensureVisible(find.widgetWithText(TextButton, 'SEO Ayarları'));
+    await tester.tap(find.widgetWithText(TextButton, 'SEO Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ana Sayfa Başlığı (SEO Title)'), findsOneWidget);
+    expect(find.text('Global Paylaşım Görseli (OG Image)'), findsOneWidget);
+
+    await tester.ensureVisible(
+      find.widgetWithText(TextButton, 'Kurumsal (EEAT)'),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Kurumsal (EEAT)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Resmi Kurum/Şirket Adı'), findsOneWidget);
+    expect(find.text('Resmi Adres'), findsOneWidget);
+
+    await tester.ensureVisible(
+      find.widgetWithText(TextButton, 'Google & Servisler'),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Google & Servisler'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Google Analytics (GA4) ID'), findsOneWidget);
+    expect(find.text('Google Search Console Doğrulama Kodu'), findsOneWidget);
+
+    await tester.ensureVisible(find.widgetWithText(TextButton, 'Özel Kodlar'));
+    await tester.tap(find.widgetWithText(TextButton, 'Özel Kodlar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Header Özel Kodlar (<head> içine)'), findsOneWidget);
+    expect(find.text('Footer Özel Kodlar (</body> öncesi)'), findsOneWidget);
+
+    await tester.ensureVisible(
+      find.widgetWithText(TextButton, 'Robots & Teknik'),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Robots & Teknik'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Robots.txt İçeriği'), findsOneWidget);
+  });
+
+  testWidgets('Yapay zeka ayarları sayfası ve promt modalı açılır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final aiRepository = _FakeAdminAiSettingsRepository();
+    await _pumpAdminApp(tester, aiSettingsRepository: aiRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yapay Zeka Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yapay Zeka Ayarları'), findsNWidgets(2));
+    expect(find.text('Ayarları Dili'), findsNothing);
+    expect(
+      find.text(
+        'Yapay zeka modellerini ve API anahtarlarınızı buradan yapılandırın.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Google AI (Gemini)'), findsNWidgets(2));
+    expect(find.text('Yapay Zeka Hazır Promtlar'), findsOneWidget);
+    expect(find.text('Google AI Aktif'), findsOneWidget);
+    expect(find.text('Google AI API Key'), findsOneWidget);
+    expect(find.text('API Bağlantısını Test Et'), findsOneWidget);
+    expect(find.text('Google AI Modeli'), findsOneWidget);
+    expect(find.text('gemini-3-pro-preview'), findsOneWidget);
+    expect(find.text('Değişiklikleri Kaydet'), findsOneWidget);
+
+    final apiKeyField = find.byType(TextFormField).last;
+    final testConnectionButton = find.widgetWithText(
+      OutlinedButton,
+      'API Bağlantısını Test Et',
+    );
+    expect(
+      tester.getSize(apiKeyField).height,
+      tester.getSize(testConnectionButton).height,
+    );
+    final apiKeyEditable = find.descendant(
+      of: apiKeyField,
+      matching: find.byType(EditableText),
+    );
+    expect(find.byTooltip('API anahtarını göster'), findsOneWidget);
+    expect(tester.widget<EditableText>(apiKeyEditable).obscureText, isTrue);
+
+    await tester.tap(find.byTooltip('API anahtarını göster'));
+    await tester.pump();
+
+    expect(find.byTooltip('API anahtarını gizle'), findsOneWidget);
+    expect(tester.widget<EditableText>(apiKeyEditable).obscureText, isFalse);
+
+    await tester.enterText(apiKeyField, 'updated-api-key');
+    await tester.tap(find.text('API Bağlantısını Test Et'));
+    await tester.pumpAndSettle();
+
+    expect(aiRepository.testedApiKey, 'updated-api-key');
+    expect(find.text('gemini-3-pro-preview'), findsOneWidget);
+
+    await tester.tap(find.text('Değişiklikleri Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(aiRepository.savedSettings?.googleAiApiKey, 'updated-api-key');
+    expect(aiRepository.savedSettings?.googleAiModel, 'gemini-3-pro-preview');
+
+    await tester.tap(
+      find.widgetWithText(TextButton, 'Yapay Zeka Hazır Promtlar'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yapay Zeka Hazır Promtlar'), findsNWidgets(2));
+    expect(find.text('Yeni Promt Ekle'), findsOneWidget);
+    expect(find.text('Testi Geliştirerek Hazırla'), findsOneWidget);
+    expect(find.text('Testi Metne Sadık Yerleştir'), findsOneWidget);
+    expect(find.text('Anketi Geliştirerek Hazırla'), findsOneWidget);
+    expect(find.text('Anketi Metne Sadık Yerleştir'), findsOneWidget);
+    expect(find.text('Videoyu Geliştirerek Hazırla'), findsOneWidget);
+    expect(find.text('Haber Hazırla 1'), findsOneWidget);
+    expect(find.byTooltip('Promtu düzenle'), findsOneWidget);
+    expect(find.byTooltip('Promtu sil'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Haber Hazırla 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Promtu düzenle').first);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.text('Promt Düzenle'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Promt Başlığı'), findsOneWidget);
+    expect(find.text('Sistem Komutu (Promt)'), findsOneWidget);
+    expect(find.text('İptal'), findsOneWidget);
+    expect(find.text('Kaydet'), findsOneWidget);
+
+    final dialogFields = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(dialogFields.at(0), 'Düzenlenmiş Promt');
+    await tester.enterText(dialogFields.at(1), 'Düzenlenmiş sistem talimatı.');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.widgetWithText(TextButton, 'Kaydet'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Düzenlenmiş Promt'), findsOneWidget);
+    expect(aiRepository.savedPromptId, 'format-1');
+    expect(aiRepository.savedPrompt?.prompt, 'Düzenlenmiş sistem talimatı.');
+
+    await tester.tap(find.byTooltip('Promtu sil').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Düzenlenmiş Promt'), findsNothing);
+    expect(find.byTooltip('Promtu sil'), findsNothing);
+    expect(aiRepository.deletedPromptId, 'format-1');
+
+    await tester.ensureVisible(find.text('Yeni Promt Ekle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yeni Promt Ekle'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.text('Yeni Promt Ekle'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Promt Başlığı'), findsOneWidget);
+    expect(find.text('Sistem Komutu (Promt)'), findsOneWidget);
+    expect(find.text('İptal'), findsOneWidget);
+    expect(find.text('Kaydet'), findsOneWidget);
+
+    final addDialogFields = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(addDialogFields.at(0), 'Yeni Canlı Promt');
+    await tester.enterText(
+      addDialogFields.at(1),
+      'Yeni canlı sistem talimatı.',
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.widgetWithText(TextButton, 'Kaydet'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yeni Canlı Promt'), findsOneWidget);
+    expect(aiRepository.savedPromptId, isNull);
+    expect(aiRepository.savedPrompt?.title, 'Yeni Canlı Promt');
+
+    expect(find.byType(Dialog), findsNothing);
+  });
+
+  testWidgets('Nöbetçi eczane ayarları bölge ve önizleme ekranlarını açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nöbetçi Eczane Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nöbetçi Eczane Ayarları'), findsNWidgets(2));
+    expect(find.text('Ayarları Dili'), findsNothing);
+    expect(find.text('Genel Ayarlar'), findsNothing);
+    expect(find.text('Şehir Yönetimi'), findsNWidgets(2));
+    expect(find.text('Canlı Önizleme'), findsOneWidget);
+    expect(find.text('Nöbetçi Eczane Aktif'), findsOneWidget);
+    expect(find.text('Varsayılan Bölge'), findsNothing);
+    expect(find.text('Türkiye / Niğde'), findsOneWidget);
+    expect(find.text('Open cache • 15 dk'), findsOneWidget);
+    expect(find.text('Gece 00:00 Koruması'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Türkiye / Niğde')).dx,
+      greaterThan(tester.getTopLeft(find.text('Veri Kaynağı')).dx),
+    );
+    expect(
+      tester.getTopLeft(find.text('Cache Süresi')).dy,
+      greaterThan(tester.getTopLeft(find.text('Veri Kaynağı')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Open cache • 15 dk')).dy,
+      greaterThan(tester.getTopLeft(find.text('Cache Süresi')).dy),
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, 'Şehir Yönetimi'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bölge Ekle'), findsOneWidget);
+    expect(find.text('Türkiye / Niğde'), findsWidgets);
+    expect(find.text('Türkiye / İstanbul'), findsNothing);
+    expect(find.text('Almanya / Berlin'), findsNothing);
+    expect(find.text('Varsayılan konum'), findsOneWidget);
+    expect(find.text('Aktif'), findsWidgets);
+    expect(find.byTooltip('Bölgeyi düzenle'), findsOneWidget);
+    expect(find.byTooltip('Bölgeyi sil'), findsOneWidget);
+
+    await tester.tap(find.text('Bölge Ekle'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bölge Ekle'), findsNWidgets(2));
+    expect(find.text('Ülke'), findsOneWidget);
+    expect(find.text('Şehir'), findsOneWidget);
+    expect(find.text('İlçeler / Bölgeler'), findsWidgets);
+    expect(find.text('Semt / Mahalle'), findsNothing);
+    expect(find.text('Tümünü seç'), findsOneWidget);
+    expect(find.text('Bölge Aktif'), findsOneWidget);
+    expect(find.text('Varsayılan Bölge'), findsOneWidget);
+
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(Dialog),
+            matching: find.byIcon(Symbols.close),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Canlı Önizleme'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Veriyi Yenile'), findsOneWidget);
+    expect(find.text('Niğde Canlı Önizleme'), findsOneWidget);
+    expect(find.text('database'), findsOneWidget);
+    expect(find.text('İstanbul'), findsNothing);
+    expect(find.text('Berlin'), findsNothing);
+    expect(find.text('MERKEZ'), findsWidgets);
+    expect(find.text('DEVA ECZANESİ'), findsOneWidget);
+    expect(find.text('ÖZTÜRK ECZANESİ'), findsOneWidget);
+    expect(find.text('Yol Tarifi'), findsNWidgets(2));
+  });
+
+  testWidgets(
+    'Hava durumu ayarları şehir yönetimi ve önizleme ekranlarını açar',
+    (tester) async {
+      tester.view.physicalSize = const Size(1366, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pumpAdminApp(tester);
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'editor@pateeznews.com',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+      await tester.tap(find.text('Giriş yap'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Modüller'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hava Durumu Ayarları'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hava Durumu Ayarları'), findsNWidgets(2));
+      expect(find.text('Ayarları Dili'), findsNothing);
+      expect(find.text('Genel Ayarlar'), findsNothing);
+      expect(find.text('Şehir Yönetimi'), findsNWidgets(2));
+      expect(find.text('Canlı Önizleme'), findsOneWidget);
+      expect(find.text('Hava Durumu Aktif'), findsOneWidget);
+      expect(find.text('Şehir Ara'), findsNothing);
+      expect(find.text('Varsayılan Şehir'), findsNothing);
+      expect(find.text('Veri Kaynağı'), findsNothing);
+      expect(find.text('Enlem'), findsNothing);
+      expect(find.text('Boylam'), findsNothing);
+      expect(find.text('Saat Dilimi'), findsNothing);
+      expect(find.text('Open-Meteo'), findsNothing);
+      expect(find.text('Europe/Istanbul'), findsNothing);
+      expect(find.text('Yenileme Aralığı'), findsOneWidget);
+      expect(find.text('Türkiye / Niğde'), findsOneWidget);
+      expect(find.text('Değişiklikleri Kaydet'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Türkiye / Niğde')).dx,
+        greaterThan(tester.getTopLeft(find.text('Yenileme Aralığı')).dx),
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Şehir Yönetimi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Şehir Ekle'), findsOneWidget);
+      expect(find.text('Türkiye / Niğde'), findsOneWidget);
+      expect(find.text('Türkiye / İstanbul'), findsNothing);
+      expect(find.text('Almanya / Berlin'), findsNothing);
+      expect(find.text('Varsayılan şehir'), findsOneWidget);
+      expect(find.byTooltip('Şehri düzenle'), findsOneWidget);
+      expect(find.byTooltip('Şehri sil'), findsOneWidget);
+
+      await tester.tap(find.text('Şehir Ekle'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Şehir Ekle'), findsNWidgets(2));
+      expect(find.text('Ülke'), findsOneWidget);
+      expect(find.text('Şehir'), findsOneWidget);
+      expect(find.text('Enlem'), findsWidgets);
+      expect(find.text('Boylam'), findsWidgets);
+      expect(find.text('Saat Dilimi'), findsWidgets);
+      expect(find.text('Kaynak'), findsOneWidget);
+      expect(find.text('Şehir Aktif'), findsOneWidget);
+      expect(find.text('Varsayılan Şehir'), findsOneWidget);
+      expect(find.text('İptal'), findsOneWidget);
+      expect(find.text('Kaydet'), findsOneWidget);
+
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(Dialog),
+              matching: find.byIcon(Symbols.close),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Canlı Önizleme'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Niğde Canlı Önizleme'), findsOneWidget);
+      expect(find.text('22°'), findsOneWidget);
+      expect(find.text('Parçalı bulutlu'), findsOneWidget);
+      expect(find.text('Yenileme Aralığı'), findsOneWidget);
+      expect(
+        find.text('Open-Meteo isteği 30 dakikada bir yenilenir.'),
+        findsOneWidget,
+      );
+      expect(find.text('İstanbul'), findsNothing);
+      expect(find.text('Berlin'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Ölüm ilanları ayarı konum yönetimi ve önizleme ekranlarını açar',
+    (tester) async {
+      tester.view.physicalSize = const Size(1366, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pumpAdminApp(tester);
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'editor@pateeznews.com',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+      await tester.tap(find.text('Giriş yap'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Modüller'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ölüm İlanları Ayarı'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ölüm İlanları Ayarı'), findsNWidgets(2));
+      expect(find.text('Ayarları Dili'), findsNothing);
+      expect(find.text('Genel Ayarlar'), findsNothing);
+      expect(find.text('Şehir Yönetimi'), findsNWidgets(2));
+      expect(find.text('Canlı Önizleme'), findsOneWidget);
+      expect(find.text('Ölüm İlanları Aktif'), findsOneWidget);
+      expect(find.text('Varsayılan Konum'), findsNothing);
+      expect(find.text('Türkiye / Niğde'), findsOneWidget);
+      expect(find.text('nigde.bel.tr/vefat-edenler'), findsWidgets);
+      expect(find.text('Open cache • 30 dk'), findsOneWidget);
+      expect(find.text('Gün Tarihi Koruması'), findsOneWidget);
+      expect(find.text('Değişiklikleri Kaydet'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Türkiye / Niğde')).dx,
+        greaterThan(tester.getTopLeft(find.text('Veri Kaynağı')).dx),
+      );
+      expect(
+        tester.getTopLeft(find.text('Cache Süresi')).dy,
+        greaterThan(tester.getTopLeft(find.text('Veri Kaynağı')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('Open cache • 30 dk')).dy,
+        greaterThan(tester.getTopLeft(find.text('Cache Süresi')).dy),
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Şehir Yönetimi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Konum Ekle'), findsOneWidget);
+      expect(find.text('Türkiye / Niğde'), findsWidgets);
+      expect(find.text('Türkiye / İstanbul'), findsNothing);
+      expect(find.text('Almanya / Berlin'), findsNothing);
+      expect(find.text('Varsayılan konum'), findsOneWidget);
+      expect(find.byTooltip('Konumu düzenle'), findsOneWidget);
+      expect(find.byTooltip('Konumu sil'), findsOneWidget);
+      expect(find.text('Hıdırlık'), findsWidgets);
+      expect(find.text('Merkez'), findsNothing);
+
+      await tester.tap(find.text('Konum Ekle'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Konum Ekle'), findsNWidgets(2));
+      expect(find.text('Ülke'), findsOneWidget);
+      expect(find.text('Şehir'), findsOneWidget);
+      expect(find.text('Kaynak'), findsOneWidget);
+      expect(find.text('İlçeler'), findsWidgets);
+      expect(find.text('Tümünü seç'), findsOneWidget);
+      expect(find.text('Konum Aktif'), findsOneWidget);
+      expect(find.text('Varsayılan Konum'), findsOneWidget);
+      expect(find.text('İptal'), findsOneWidget);
+      expect(find.text('Kaydet'), findsOneWidget);
+
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(Dialog),
+              matching: find.byIcon(Symbols.close),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Canlı Önizleme'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Veriyi Yenile'), findsOneWidget);
+      expect(find.text('Niğde Canlı Önizleme'), findsOneWidget);
+      expect(find.text('database'), findsOneWidget);
+      expect(find.text('İstanbul'), findsNothing);
+      expect(find.text('Berlin'), findsNothing);
+      expect(find.text('ŞABAN EFE ÇAVUŞ'), findsOneWidget);
+      expect(find.text('22 Mayıs 2026'), findsWidgets);
+      expect(find.text('ÖĞLE - HIDIRLIK'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Beni hatırla giriş bilgilerini kaydeder', (tester) async {
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    final rememberedLogin = await const RememberedLoginStore().read();
+    expect(rememberedLogin.enabled, isTrue);
+    expect(rememberedLogin.email, 'editor@pateeznews.com');
+    expect(rememberedLogin.password, 'gizli123');
+  });
+
+  testWidgets('Kayıtlı giriş bilgilerini forma yükler', (tester) async {
+    await const RememberedLoginStore().save(
+      email: 'editor@pateeznews.com',
+      password: 'gizli123',
+    );
+
+    await _pumpAdminApp(tester);
+    await tester.pumpAndSettle();
+
+    final emailField = tester.widget<TextFormField>(
+      find.byType(TextFormField).at(0),
+    );
+    final passwordField = tester.widget<TextFormField>(
+      find.byType(TextFormField).at(1),
+    );
+
+    expect(emailField.controller?.text, 'editor@pateeznews.com');
+    expect(passwordField.controller?.text, 'gizli123');
+  });
+
+  testWidgets('Enter giriş butonunu çalıştırır', (tester) async {
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.tap(find.byType(TextFormField).at(1));
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yayın akışı'), findsOneWidget);
+  });
+
+  testWidgets('Üst bar dil seçiciyi site önizleme yanında gösterir', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DropdownButton<String>), findsOneWidget);
+    expect(find.text('Türkçe'), findsOneWidget);
+    expect(find.text('Siteyi Görüntüle'), findsOneWidget);
+
+    final searchField = find.byType(TextField).first;
+    final searchRight = tester.getTopRight(searchField).dx;
+    final languageLeft = tester.getTopLeft(find.text('Türkçe')).dx;
+    final languageRight = tester.getTopRight(find.text('Türkçe')).dx;
+    final sitePreviewLeft = tester.getTopLeft(find.text('Siteyi Görüntüle')).dx;
+
+    expect(tester.getSize(searchField).width, greaterThan(320));
+    expect(tester.getSize(searchField).height, lessThan(40));
+    expect(searchRight < languageLeft, isTrue);
+    expect(languageRight < sitePreviewLeft, isTrue);
+  });
+
+  testWidgets(
+    'Çevirileri Düzenle modal penceresini açar, satır ekler ve kapatır',
+    (tester) async {
+      tester.view.physicalSize = const Size(1366, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pumpAdminApp(tester);
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'editor@pateeznews.com',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+      await tester.tap(find.text('Giriş yap'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ayarlar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dil Ayarları'));
+      await tester.pumpAndSettle();
+
+      // Click "Çevirileri Düzenle" on the first row
+      await tester.tap(find.text('Çevirileri Düzenle').first);
+      await tester.pumpAndSettle();
+
+      // Verify modal is open and has correct text
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text('Çevirileri Düzenle'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Seçilen dil için metin çevirilerini güncelleyin.'),
+        findsOneWidget,
+      );
+      expect(find.text('Türkçe (tr)'), findsOneWidget);
+      expect(find.text('Anahtar / İngilizce'), findsOneWidget);
+      expect(find.text('Çeviri'), findsOneWidget);
+
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(TextFormField),
+        ),
+        findsWidgets,
+      );
+
+      // Tap "Çeviri satırı ekle"
+      await tester.tap(find.text('Çeviri satırı ekle'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsWidgets);
+
+      // Close the dialog using Cancel
+      await tester.tap(find.widgetWithText(TextButton, 'İptal'));
+      await tester.pumpAndSettle();
+
+      // Verify modal is closed
+      expect(
+        find.text('Seçilen dil için metin çevirilerini güncelleyin.'),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('Dil İçe Aktar modal penceresini açar ve kapatır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ayarlar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dil Ayarları'));
+    await tester.pumpAndSettle();
+
+    // Click "İçe Aktar" in toolbar
+    await tester.tap(find.text('İçe Aktar'));
+    await tester.pumpAndSettle();
+
+    // Verify modal is open and has correct text
+    expect(find.text('Dil İçe Aktar'), findsOneWidget);
+    expect(
+      find.text('JSON dil dosyasını yapıştırın veya bir dosya seçin.'),
+      findsOneWidget,
+    );
+    expect(find.text('JSON İçeriği'), findsOneWidget);
+    expect(find.text('{}'), findsOneWidget);
+    expect(find.text('Dosya Seç'), findsOneWidget);
+    expect(find.text('Örnek JSON indir'), findsOneWidget);
+
+    // Close using close icon at top right
+    await tester.tap(find.byIcon(Symbols.close));
+    await tester.pumpAndSettle();
+
+    // Verify modal is closed
+    expect(find.text('Dil İçe Aktar'), findsNothing);
+  });
+}

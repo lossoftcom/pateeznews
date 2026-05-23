@@ -57,13 +57,43 @@ const Navbar: React.FC<NavbarProps> = ({
   const langMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const headerItems = React.useMemo(() =>
-    navItems.filter(item => item.type === 'header' && !getSpecialContentConfig(item.value, item.label)),
+  const explicitTopNavItems = React.useMemo(
+    () => navItems.filter((item) => item.menu_code === 'top_navbar'),
     [navItems]
   );
+  const hasExplicitTopNav = explicitTopNavItems.length > 0;
 
-  const specialHeaderItems = React.useMemo(() => (
-    SPECIAL_CONTENT_FILTERS.filter((config) => config.showInHeader !== false).map((config) => {
+  const headerItems = React.useMemo(() => {
+    const sourceItems = hasExplicitTopNav ? explicitTopNavItems : navItems;
+    return sourceItems.filter(item => {
+      const isSpecial = !!getSpecialContentConfig(item.value, item.label);
+      return hasExplicitTopNav ? !isSpecial : item.type === 'header' && !isSpecial;
+    });
+  }, [hasExplicitTopNav, explicitTopNavItems, navItems]);
+
+  const specialHeaderItems = React.useMemo(() => {
+    if (hasExplicitTopNav) {
+      return explicitTopNavItems
+        .map((item) => {
+          const config = getSpecialContentConfig(item.value, item.label);
+          if (!config) return null;
+          return {
+            id: item.id,
+            label: item.label || config.label,
+            value: item.value || config.value,
+            icon: item.icon || config.icon,
+            config,
+          };
+        })
+        .filter((item): item is {
+          id: string;
+          label: string;
+          value: string;
+          icon: string;
+          config: SpecialContentConfig;
+        } => item !== null);
+    }
+    return SPECIAL_CONTENT_FILTERS.filter((config) => config.showInHeader !== false).map((config) => {
       const source = navItems.find((item) => getSpecialContentConfig(item.value, item.label)?.key === config.key);
       return {
         id: source?.id || `special-${config.key}`,
@@ -72,8 +102,8 @@ const Navbar: React.FC<NavbarProps> = ({
         icon: source?.icon || config.icon,
         config,
       };
-    })
-  ), [navItems]);
+    });
+  }, [hasExplicitTopNav, explicitTopNavItems, navItems]);
 
   const goHome = () => {
     if (onHomeClick) return onHomeClick();
@@ -226,52 +256,78 @@ const Navbar: React.FC<NavbarProps> = ({
 
           {/* NAV */}
           <nav className="hidden lg:flex items-center gap-8 h-full px-10 flex-1">
-            <button
-              onClick={goHome}
-              onMouseEnter={() => prefetch('/')}
-              className={DESKTOP_NAV_ITEM_CLASS}
-              style={{ fontFamily: APPLE_NAV_FONT }}
-            >
-              <span className="material-symbols-rounded transition-all duration-150 scale-110"
-                style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
-                home
-              </span>
-              <span>{t('nav.home')}</span>
-            </button>
-
-            {specialHeaderItems.map((item) => (
+            {!hasExplicitTopNav && (
               <button
-                key={item.id}
-                onClick={() => navigateSpecialContent(item.config)}
-                onMouseEnter={() => prefetchSpecialContent(item.config)}
+                onClick={goHome}
+                onMouseEnter={() => prefetch('/')}
                 className={DESKTOP_NAV_ITEM_CLASS}
                 style={{ fontFamily: APPLE_NAV_FONT }}
               >
-                <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
-                  style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
-                  {item.icon.toLowerCase()}
+                <span className="material-symbols-rounded transition-all duration-150 scale-110"
+                  style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                  home
                 </span>
-                <span>{t(item.label)}</span>
+                <span>{t('nav.home')}</span>
               </button>
-            ))}
+            )}
 
-            {headerItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => navigateHeaderItem(item)}
-                onMouseEnter={() => prefetchHeaderItem(item)}
-                className={DESKTOP_NAV_ITEM_CLASS}
-                style={{ fontFamily: APPLE_NAV_FONT }}
-              >
-                {item.icon && (
-                  <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
-                    style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
-                    {item.icon.toLowerCase()}
-                  </span>
-                )}
-                <span>{t(item.label)}</span>
-              </button>
-            ))}
+            {hasExplicitTopNav ? explicitTopNavItems.map((item) => {
+              const config = getSpecialContentConfig(item.value, item.label);
+              const icon = item.icon || config?.icon || '';
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => config ? navigateSpecialContent(config) : navigateHeaderItem(item)}
+                  onMouseEnter={() => config ? prefetchSpecialContent(config) : prefetchHeaderItem(item)}
+                  className={DESKTOP_NAV_ITEM_CLASS}
+                  style={{ fontFamily: APPLE_NAV_FONT }}
+                >
+                  {icon && (
+                    <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
+                      style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
+                      {icon.toLowerCase()}
+                    </span>
+                  )}
+                  <span>{t(item.label || config?.label || '')}</span>
+                </button>
+              );
+            }) : (
+              <>
+                {specialHeaderItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => navigateSpecialContent(item.config)}
+                    onMouseEnter={() => prefetchSpecialContent(item.config)}
+                    className={DESKTOP_NAV_ITEM_CLASS}
+                    style={{ fontFamily: APPLE_NAV_FONT }}
+                  >
+                    <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
+                      style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
+                      {item.icon.toLowerCase()}
+                    </span>
+                    <span>{t(item.label)}</span>
+                  </button>
+                ))}
+
+                {headerItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => navigateHeaderItem(item)}
+                    onMouseEnter={() => prefetchHeaderItem(item)}
+                    className={DESKTOP_NAV_ITEM_CLASS}
+                    style={{ fontFamily: APPLE_NAV_FONT }}
+                  >
+                    {item.icon && (
+                      <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
+                        style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
+                        {item.icon.toLowerCase()}
+                      </span>
+                    )}
+                    <span>{t(item.label)}</span>
+                  </button>
+                ))}
+              </>
+            )}
           </nav>
 
           <div className="flex items-center gap-1 ml-auto z-20">
@@ -459,36 +515,59 @@ const Navbar: React.FC<NavbarProps> = ({
         <div className="lg:hidden absolute top-[64px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl z-[252] animate-in slide-in-from-top-2">
           <div className="max-w-[1280px] mx-auto px-4 py-3">
             <div className="grid gap-1">
-              <button
-                onClick={() => { setIsMobileMenuOpen(false); goHome(); }}
-                className={MOBILE_NAV_ITEM_CLASS}
-                style={{ fontFamily: APPLE_NAV_FONT }}
-              >
-                <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>home</span>
-                {t('nav.home')}
-              </button>
-              {specialHeaderItems.map((item) => (
+              {!hasExplicitTopNav && (
                 <button
-                  key={item.id}
-                  onClick={() => { setIsMobileMenuOpen(false); navigateSpecialContent(item.config); }}
+                  onClick={() => { setIsMobileMenuOpen(false); goHome(); }}
                   className={MOBILE_NAV_ITEM_CLASS}
                   style={{ fontFamily: APPLE_NAV_FONT }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon}</span>
-                  {t(item.label)}
+                  <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>home</span>
+                  {t('nav.home')}
                 </button>
-              ))}
-              {headerItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => { setIsMobileMenuOpen(false); navigateHeaderItem(item); }}
-                  className={MOBILE_NAV_ITEM_CLASS}
-                  style={{ fontFamily: APPLE_NAV_FONT }}
-                >
-                  <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon || 'chevron_right'}</span>
-                  {t(item.label)}
-                </button>
-              ))}
+              )}
+              {hasExplicitTopNav ? explicitTopNavItems.map((item) => {
+                const config = getSpecialContentConfig(item.value, item.label);
+                const icon = item.icon || config?.icon || 'chevron_right';
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      config ? navigateSpecialContent(config) : navigateHeaderItem(item);
+                    }}
+                    className={MOBILE_NAV_ITEM_CLASS}
+                    style={{ fontFamily: APPLE_NAV_FONT }}
+                  >
+                    <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{icon}</span>
+                    {t(item.label || config?.label || '')}
+                  </button>
+                );
+              }) : (
+                <>
+                  {specialHeaderItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setIsMobileMenuOpen(false); navigateSpecialContent(item.config); }}
+                      className={MOBILE_NAV_ITEM_CLASS}
+                      style={{ fontFamily: APPLE_NAV_FONT }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon}</span>
+                      {t(item.label)}
+                    </button>
+                  ))}
+                  {headerItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setIsMobileMenuOpen(false); navigateHeaderItem(item); }}
+                      className={MOBILE_NAV_ITEM_CLASS}
+                      style={{ fontFamily: APPLE_NAV_FONT }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon || 'chevron_right'}</span>
+                      {t(item.label)}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         </div>
