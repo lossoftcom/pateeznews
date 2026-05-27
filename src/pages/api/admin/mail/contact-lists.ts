@@ -14,11 +14,12 @@ const LIST_SELECT = `
     FROM public.mail_contact_list_memberships m
     WHERE m.list_id = mail_contact_lists.id
   ) AS contact_count,
+  kaynak AS source,
   otomatik_sync AS auto_sync,
   COALESCE(NULLIF(sync_filtresi_json, ''), '{}')::jsonb AS sync_filter,
   aktif_mi AS is_active,
   olusturma_tarihi AS created_at,
-  olusturma_tarihi AS updated_at,
+  guncelleme_tarihi AS updated_at,
   kullanici AS created_by
 `;
 
@@ -103,12 +104,15 @@ export const POST: APIRoute = async ({ request }) => {
     const payload: Record<string, any> = {};
     if (Object.prototype.hasOwnProperty.call(body, 'list_name')) payload.liste_adi = body.list_name;
     if (Object.prototype.hasOwnProperty.call(body, 'description')) payload.aciklama = body.description;
+    if (Object.prototype.hasOwnProperty.call(body, 'source')) payload.kaynak = body.source;
     if (Object.prototype.hasOwnProperty.call(body, 'auto_sync')) payload.otomatik_sync = body.auto_sync;
     if (Object.prototype.hasOwnProperty.call(body, 'sync_filter')) payload.sync_filtresi_json = JSON.stringify(body.sync_filter || {});
     if (Object.prototype.hasOwnProperty.call(body, 'is_active')) payload.aktif_mi = body.is_active;
     payload.liste_adi = String(payload.liste_adi || '').trim();
+    payload.kaynak = String(payload.kaynak || 'csv').trim() || 'csv';
     if (!payload.liste_adi) return json({ error: { message: 'List name is required' } }, 400);
     payload.kullanici = access.session!.user.id;
+    payload.guncelleme_tarihi = new Date().toISOString();
 
     const keys = Object.keys(payload);
     const result = await dbQuery(
@@ -136,9 +140,11 @@ export const PATCH: APIRoute = async ({ request }) => {
     const update: Record<string, any> = {};
     if (Object.prototype.hasOwnProperty.call(body, 'list_name')) update.liste_adi = body.list_name;
     if (Object.prototype.hasOwnProperty.call(body, 'description')) update.aciklama = body.description;
+    if (Object.prototype.hasOwnProperty.call(body, 'source')) update.kaynak = body.source;
     if (Object.prototype.hasOwnProperty.call(body, 'auto_sync')) update.otomatik_sync = body.auto_sync;
     if (Object.prototype.hasOwnProperty.call(body, 'sync_filter')) update.sync_filtresi_json = JSON.stringify(body.sync_filter || {});
     if (Object.prototype.hasOwnProperty.call(body, 'is_active')) update.aktif_mi = body.is_active;
+    update.guncelleme_tarihi = new Date().toISOString();
     const set = sqlSetClause(update);
     if (!set.keys.length) return json({ error: { message: 'No changes' } }, 400);
 

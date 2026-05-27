@@ -34,7 +34,8 @@ class SocialNewsSourcePicker extends StatefulWidget {
     required String keywords,
     required String category,
     required String type,
-  }) onNewsSelected;
+  })
+  onNewsSelected;
   final ValueChanged<String> onManualLinkChanged;
 
   @override
@@ -73,14 +74,16 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
       if (!mounted) return;
       setState(() {
         _newsList = result.posts
-            .map((p) => <String, dynamic>{
-                  'id': p.id,
-                  'title': p.title,
-                  'slug': p.slug,
-                  'cover_image': p.thumbnailUrl,
-                  'category': p.category,
-                  'type': p.type,
-                })
+            .map(
+              (p) => <String, dynamic>{
+                'id': p.id,
+                'title': p.title,
+                'slug': p.slug,
+                'cover_image': p.thumbnailUrl,
+                'category': p.category,
+                'type': p.type,
+              },
+            )
             .toList();
         _loading = false;
       });
@@ -132,7 +135,8 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
             body: jsonEncode({
               'table': 'posts',
               'method': 'select',
-              'select': 'summary,keywords,thumbnail_url,title,slug,category,type',
+              'select':
+                  'summary,keywords,thumbnail_url,title,slug,category,type',
               'filters': [
                 {
                   'type': 'comparison',
@@ -153,7 +157,8 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
           if (!mounted) return;
           widget.onNewsSelected(
             title: (row['title'] ?? news['title'] ?? '').toString(),
-            imageUrl: (row['thumbnail_url'] ?? news['cover_image'] ?? '').toString(),
+            imageUrl: (row['thumbnail_url'] ?? news['cover_image'] ?? '')
+                .toString(),
             link: (row['slug'] ?? news['slug'] ?? '').toString(),
             summary: (row['summary'] ?? '').toString(),
             keywords: (row['keywords'] ?? '').toString(),
@@ -207,11 +212,19 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.refresh_rounded, size: 14, color: AppColors.iconMuted),
+                        const Icon(
+                          Icons.refresh_rounded,
+                          size: 14,
+                          color: AppColors.iconMuted,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           context.t('social.publish.refreshNews'),
-                          style: const TextStyle(fontSize: 11, color: AppColors.iconMuted, letterSpacing: 0),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.iconMuted,
+                            letterSpacing: 0,
+                          ),
                         ),
                       ],
                     ),
@@ -232,7 +245,11 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
               border: Border.all(color: AppColors.line),
             ),
             alignment: Alignment.center,
-            child: const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            child: const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
           )
         else if (_error != null)
           Container(
@@ -241,12 +258,18 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
             decoration: BoxDecoration(
               color: AppColors.actionRed.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(AppRadius.value * 2),
-              border: Border.all(color: AppColors.actionRed.withValues(alpha: 0.2)),
+              border: Border.all(
+                color: AppColors.actionRed.withValues(alpha: 0.2),
+              ),
             ),
             alignment: Alignment.center,
             child: Text(
               context.t('social.publish.newsError'),
-              style: const TextStyle(fontSize: 12, color: AppColors.actionRed, letterSpacing: 0),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.actionRed,
+                letterSpacing: 0,
+              ),
             ),
           )
         else
@@ -264,21 +287,31 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
                 isExpanded: true,
                 hint: Text(
                   context.t('social.publish.newsSourceHint'),
-                  style: const TextStyle(fontSize: 13, color: AppColors.placeholder, letterSpacing: 0),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.placeholder,
+                    letterSpacing: 0,
+                  ),
                 ),
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.deepOcean,
-                  fontFamily: 'PateezInter',
+                  fontFamily: 'PateezSans',
                   letterSpacing: 0,
                 ),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.iconMuted),
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.iconMuted,
+                ),
                 items: _newsList.map((news) {
                   final title = (news['title'] ?? '') as String;
                   final slug = (news['slug'] ?? '') as String;
                   return DropdownMenuItem<String>(
                     value: slug,
-                    child: Text(title.isEmpty ? slug : title, overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      title.isEmpty ? slug : title,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                 }).toList(),
                 onChanged: (slug) {
@@ -297,21 +330,41 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
         const SizedBox(height: 14),
         Text(
           context.t('social.publish.manualLink'),
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.deepOcean, letterSpacing: 0),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.deepOcean,
+            letterSpacing: 0,
+          ),
         ),
         const SizedBox(height: 8),
         SizedBox(
           height: 42,
           child: TextField(
             onChanged: widget.onManualLinkChanged,
-            style: const TextStyle(fontSize: 13, color: AppColors.deepOcean, letterSpacing: 0),
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.deepOcean,
+              letterSpacing: 0,
+            ),
             decoration: InputDecoration(
               hintText: context.t('social.publish.manualLinkHint'),
-              hintStyle: const TextStyle(color: AppColors.placeholder, fontSize: 13, letterSpacing: 0),
-              prefixIcon: const Icon(Icons.link_rounded, size: 18, color: AppColors.iconMuted),
+              hintStyle: const TextStyle(
+                color: AppColors.placeholder,
+                fontSize: 13,
+                letterSpacing: 0,
+              ),
+              prefixIcon: const Icon(
+                Icons.link_rounded,
+                size: 18,
+                color: AppColors.iconMuted,
+              ),
               filled: true,
               fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.value * 2),
                 borderSide: const BorderSide(color: AppColors.line),

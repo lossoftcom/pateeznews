@@ -63,6 +63,9 @@ extension AdminBulkMailStatusLabel on AdminBulkMailStatus {
 class AdminBulkMailCampaign {
   const AdminBulkMailCampaign({
     required this.id,
+    this.accountId = '',
+    this.templateId = '',
+    this.contactListId = '',
     required this.name,
     required this.subject,
     required this.preview,
@@ -83,6 +86,9 @@ class AdminBulkMailCampaign {
   });
 
   final int id;
+  final String accountId;
+  final String templateId;
+  final String contactListId;
   final String name;
   final String subject;
   final String preview;
@@ -120,6 +126,9 @@ class AdminBulkMailCampaign {
   DateTime get tableDate => scheduledAt ?? startedAt ?? createdAt;
 
   AdminBulkMailCampaign copyWith({
+    String? accountId,
+    String? templateId,
+    String? contactListId,
     String? name,
     String? subject,
     String? preview,
@@ -140,6 +149,9 @@ class AdminBulkMailCampaign {
   }) {
     return AdminBulkMailCampaign(
       id: id,
+      accountId: accountId ?? this.accountId,
+      templateId: templateId ?? this.templateId,
+      contactListId: contactListId ?? this.contactListId,
       name: name ?? this.name,
       subject: subject ?? this.subject,
       preview: preview ?? this.preview,
@@ -162,81 +174,3 @@ class AdminBulkMailCampaign {
 }
 
 const bulkMailFilterAll = 'all';
-
-final List<AdminBulkMailCampaign> sampleAdminBulkMailCampaigns = [
-  AdminBulkMailCampaign(
-    id: 301,
-    name: 'Haftalik Haber Bulteni',
-    subject: 'Bu haftanin one cikan Pateez haberleri',
-    preview: 'Bolgenin gundemini ve en cok okunan haberlerini derledik.',
-    templateName: 'Haftalik Bulten',
-    templateCategory: 'Kampanya',
-    senderAccount: 'Pateez Ana Mail',
-    senderEmail: 'haber@pateez.com',
-    recipientList: 'Aktif Okurlar',
-    recipientCount: 1280,
-    sentCount: 1280,
-    openCount: 612,
-    clickCount: 184,
-    bounceCount: 18,
-    status: AdminBulkMailStatus.completed,
-    createdAt: DateTime(2026, 5, 19, 9, 15),
-    startedAt: DateTime(2026, 5, 19, 10),
-  ),
-  AdminBulkMailCampaign(
-    id: 302,
-    name: 'Yerel Etkinlik Duyurusu',
-    subject: 'Nigde kultur sanat etkinlikleri basliyor',
-    preview: 'Hafta sonu etkinliklerini kacirmayin.',
-    templateName: 'Etkinlik Duyurusu',
-    templateCategory: 'Kampanya',
-    senderAccount: 'Iletisim Mail',
-    senderEmail: 'iletisim@pateez.com',
-    recipientList: 'Etkinlik Takipcileri',
-    recipientCount: 740,
-    sentCount: 260,
-    openCount: 91,
-    clickCount: 28,
-    bounceCount: 4,
-    status: AdminBulkMailStatus.sending,
-    createdAt: DateTime(2026, 5, 23, 8, 45),
-    startedAt: DateTime(2026, 5, 23, 12, 10),
-  ),
-  AdminBulkMailCampaign(
-    id: 303,
-    name: 'Reklam Bilgilendirme',
-    subject: 'Mayis reklam paketleri ve yayin alanlari',
-    preview: 'Sponsorlu icerik ve banner alanlari icin guncel bilgiler.',
-    templateName: 'Reklam Teklifi',
-    templateCategory: 'Kurumsal',
-    senderAccount: 'Pateez Ana Mail',
-    senderEmail: 'reklam@pateez.com',
-    recipientList: 'Reklamverenler',
-    recipientCount: 96,
-    sentCount: 0,
-    openCount: 0,
-    clickCount: 0,
-    bounceCount: 0,
-    status: AdminBulkMailStatus.draft,
-    createdAt: DateTime(2026, 5, 22, 14, 30),
-  ),
-  AdminBulkMailCampaign(
-    id: 304,
-    name: 'Sabah Ozet Bulteni',
-    subject: 'Gune baslarken bilmeniz gerekenler',
-    preview: 'Sabah ozet bulteni belirlenen saatte gonderilecek.',
-    templateName: 'Sabah Ozeti',
-    templateCategory: 'Bulten',
-    senderAccount: 'Pateez Ana Mail',
-    senderEmail: 'bulten@pateez.com',
-    recipientList: 'Gunluk Bulten',
-    recipientCount: 2100,
-    sentCount: 0,
-    openCount: 0,
-    clickCount: 0,
-    bounceCount: 0,
-    status: AdminBulkMailStatus.scheduled,
-    createdAt: DateTime(2026, 5, 23, 7, 20),
-    scheduledAt: DateTime(2026, 5, 24, 8),
-  ),
-];

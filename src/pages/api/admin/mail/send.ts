@@ -66,6 +66,7 @@ export const POST: APIRoute = async ({ request }) => {
     const templateId = String(body.template_id || '').trim() || null;
     const campaignId = String(body.campaign_id || '').trim() || null;
     const scheduledAt = String(body.scheduled_at || '').trim() || null;
+    const saveAsDraft = body.draft === true;
 
     if (!subject) return json({ error: { message: 'Subject is required' } }, 400);
     if (!contentHtml && !contentText) return json({ error: { message: 'Content is required' } }, 400);
@@ -107,16 +108,16 @@ export const POST: APIRoute = async ({ request }) => {
           contentText,
           JSON.stringify(attachments),
           templateId || null,
-          scheduledAt ? 'queued' : 'queued',
-          scheduledAt,
+	          saveAsDraft ? 'draft' : 'queued',
+	          scheduledAt,
           access.session!.user.id,
         ]
       );
 
-      if (scheduledAt) {
-        sent.push({ recipient, id: outbox.rows[0]?.id, scheduled: true });
-        continue;
-      }
+	      if (saveAsDraft || scheduledAt) {
+	        sent.push({ recipient, id: outbox.rows[0]?.id, draft: saveAsDraft, scheduled: Boolean(scheduledAt) });
+	        continue;
+	      }
 
       try {
         const result = await sendMailWithAccount(account, {
@@ -153,8 +154,8 @@ export const POST: APIRoute = async ({ request }) => {
            son_hata_mesaji = $3,
            guncelleme_tarihi = now()
        WHERE id = $4::bigint`,
-      [sent.filter((item) => !item.scheduled).length, failed.length ? 'partial_error' : 'ok', failed[0]?.error || null, account.id]
-    );
+	      [sent.filter((item) => !item.scheduled && !item.draft).length, failed.length ? 'partial_error' : 'ok', failed[0]?.error || null, account.id]
+	    );
 
     if (campaignId) {
       await dbQuery(

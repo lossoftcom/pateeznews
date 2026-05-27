@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -10,10 +13,19 @@ import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_whatsapp_repository.dart';
 import 'whatsapp_contact_list_models.dart';
 
 class WhatsappContactListsScreen extends StatefulWidget {
-  const WhatsappContactListsScreen({super.key});
+  const WhatsappContactListsScreen({
+    super.key,
+    required this.session,
+    this.repository = const NeonAdminWhatsappRepository(),
+  });
+
+  final AdminSession session;
+  final AdminWhatsappRepository repository;
 
   @override
   State<WhatsappContactListsScreen> createState() =>
@@ -24,18 +36,49 @@ class _WhatsappContactListsScreenState
     extends State<WhatsappContactListsScreen> {
   final _searchController = TextEditingController();
   final _selectedIds = <int>{};
-  var _lists = List<AdminWhatsappContactList>.of(
-    sampleAdminWhatsappContactLists,
-  );
+  var _lists = <AdminWhatsappContactList>[];
   var _searchQuery = '';
   var _page = 1;
   var _pageSize = 25;
   var _sortState = const TableSortState(key: 'date', ascending: false);
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadLists());
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadLists() async {
+    setState(() => _loading = true);
+    try {
+      final lists = await widget.repository.fetchContactLists(widget.session);
+      if (!mounted) return;
+      setState(() {
+        _lists = lists;
+        _loading = false;
+        _resetListState();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showWhatsappError(error);
+    }
+  }
+
+  void _showWhatsappError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error.toString()),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   List<AdminWhatsappContactList> get _filteredLists {
@@ -150,12 +193,30 @@ class _WhatsappContactListsScreenState
     });
   }
 
-  void _toggleActive(AdminWhatsappContactList list) {
-    _replaceList(list.copyWith(active: !list.active));
+  Future<void> _toggleActive(AdminWhatsappContactList list) async {
+    try {
+      final updated = await widget.repository.updateContactList(
+        widget.session,
+        list,
+        {'is_active': !list.active},
+      );
+      if (mounted) _replaceList(updated);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
-  void _toggleSync(AdminWhatsappContactList list) {
-    _replaceList(list.copyWith(syncEnabled: !list.syncEnabled));
+  Future<void> _toggleSync(AdminWhatsappContactList list) async {
+    try {
+      final updated = await widget.repository.updateContactList(
+        widget.session,
+        list,
+        {'auto_sync': !list.syncEnabled},
+      );
+      if (mounted) _replaceList(updated);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   Future<void> _deleteList(AdminWhatsappContactList list) async {
@@ -167,12 +228,18 @@ class _WhatsappContactListsScreenState
       danger: true,
     );
     if (!confirmed || !mounted) return;
-    setState(() {
-      _lists = _lists
-          .where((current) => current.id != list.id)
-          .toList(growable: false);
-      _selectedIds.remove(list.id);
-    });
+    try {
+      await widget.repository.deleteContactLists(widget.session, [list.id]);
+      if (!mounted) return;
+      setState(() {
+        _lists = _lists
+            .where((current) => current.id != list.id)
+            .toList(growable: false);
+        _selectedIds.remove(list.id);
+      });
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   Future<void> _deleteSelectedLists() async {
@@ -188,16 +255,23 @@ class _WhatsappContactListsScreenState
       danger: true,
     );
     if (!confirmed || !mounted) return;
-    setState(() {
-      _lists = _lists
-          .where((list) => !_selectedIds.contains(list.id))
-          .toList(growable: false);
-      _selectedIds.clear();
-    });
+    try {
+      final ids = _selectedIds.toList(growable: false);
+      await widget.repository.deleteContactLists(widget.session, ids);
+      if (!mounted) return;
+      setState(() {
+        _lists = _lists
+            .where((list) => !ids.contains(list.id))
+            .toList(growable: false);
+        _selectedIds.clear();
+      });
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   Future<void> _showListDialog({AdminWhatsappContactList? list}) async {
-    final result = await showDialog<AdminWhatsappContactList>(
+    final result = await showDialog<_WhatsappContactListDialogResult>(
       context: context,
       barrierDismissible: true,
       builder: (context) {
@@ -220,14 +294,36 @@ class _WhatsappContactListsScreenState
     );
 
     if (result == null || !mounted) return;
+    late AdminWhatsappContactList saved;
+    try {
+      saved = await widget.repository.saveContactList(
+        widget.session,
+        id: list?.id,
+        list: result.list,
+      );
+      final importText = result.importText?.trim();
+      if (result.importContacts &&
+          importText != null &&
+          importText.isNotEmpty) {
+        saved = await widget.repository.importContacts(
+          widget.session,
+          saved,
+          importText,
+        );
+      }
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+      return;
+    }
+    if (!mounted) return;
     setState(() {
-      final index = _lists.indexWhere((current) => current.id == result.id);
+      final index = _lists.indexWhere((current) => current.id == saved.id);
       if (index == -1) {
-        _lists = [result, ..._lists];
+        _lists = [saved, ..._lists];
       } else {
         _lists = [
           for (final current in _lists)
-            if (current.id == result.id) result else current,
+            if (current.id == saved.id) saved else current,
         ];
       }
       _resetListState();
@@ -271,6 +367,7 @@ class _WhatsappContactListsScreenState
                 onDelete: _deleteList,
               ),
             ),
+            if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
 
@@ -493,7 +590,7 @@ class _WhatsappContactListsToolbar extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SizedBox(
-              width: compact ? constraints.maxWidth : 300,
+              width: compact ? constraints.maxWidth : 280,
               child: _SearchField(
                 controller: searchController,
                 query: searchQuery,
@@ -504,7 +601,6 @@ class _WhatsappContactListsToolbar extends StatelessWidget {
             _PrimaryActionButton(
               icon: Symbols.add,
               label: context.t('whatsapp.contacts.newList'),
-              shortcut: 'F1',
               onPressed: onCreate,
             ),
           ],
@@ -541,11 +637,11 @@ class _WhatsappContactListTableHeader extends StatelessWidget {
     required this.onSort,
   });
 
-  static const _selectWidth = 48.0;
+  static const _selectWidth = 42.0;
   static const _personWidth = 118.0;
   static const _syncWidth = 116.0;
   static const _statusWidth = 116.0;
-  static const _actionsWidth = 74.0;
+  static const _actionsWidth = 76.0;
   static const _nameFlex = 3;
   static const _descriptionFlex = 4;
   static const _dateFlex = 3;
@@ -558,9 +654,12 @@ class _WhatsappContactListTableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.softLine)),
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
       ),
       child: Row(
         children: [
@@ -632,7 +731,6 @@ class _WhatsappContactListTableHeader extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.inkSoft,
-                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
                 ),
@@ -661,7 +759,7 @@ class _WhatsappContactListSortableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle.merge(
-      style: const TextStyle(fontSize: 12, letterSpacing: 0),
+      style: const TextStyle(letterSpacing: 0),
       child: SortableTableHeader(
         label: label,
         sortKey: sortKey,
@@ -695,8 +793,11 @@ class _WhatsappContactListTableRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.softLine)),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
       ),
       child: Row(
         children: [
@@ -734,9 +835,9 @@ class _WhatsappContactListTableRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.deepOcean,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.22,
                       letterSpacing: 0,
                     ),
                   ),
@@ -851,6 +952,18 @@ class _WhatsappContactListDialog extends StatefulWidget {
       _WhatsappContactListDialogState();
 }
 
+class _WhatsappContactListDialogResult {
+  const _WhatsappContactListDialogResult({
+    required this.list,
+    required this.importContacts,
+    this.importText,
+  });
+
+  final AdminWhatsappContactList list;
+  final bool importContacts;
+  final String? importText;
+}
+
 class _WhatsappContactListDialogState
     extends State<_WhatsappContactListDialog> {
   late final TextEditingController _nameController;
@@ -858,6 +971,7 @@ class _WhatsappContactListDialogState
   late AdminContactImportSource _source;
   late bool _active;
   String? _selectedFileName;
+  String? _importText;
   var _readyCount = 0;
   var _nameHasError = false;
 
@@ -885,22 +999,55 @@ class _WhatsappContactListDialogState
     setState(() {
       _source = source;
       _selectedFileName = null;
+      _importText = null;
       _readyCount = widget.list?.source == source
           ? widget.list?.contactCount ?? 0
           : 0;
     });
   }
 
-  void _chooseFile() {
-    setState(() {
-      if (_source == AdminContactImportSource.csv) {
-        _selectedFileName = 'pateez_kisiler.csv';
-        _readyCount = 128;
-      } else {
-        _selectedFileName = 'pateez_kisiler.xlsx';
-        _readyCount = 96;
+  Future<void> _chooseFile() async {
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(
+            label: 'Delimited contacts',
+            extensions: ['csv', 'txt', 'tsv'],
+          ),
+        ],
+      );
+      if (file == null || !mounted) return;
+      final text = await file.readAsString();
+      if (!mounted) return;
+      setState(() {
+        _selectedFileName = file.name;
+        _importText = text;
+        _readyCount = _countValidContacts(text);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  int _countValidContacts(String text) {
+    final phonePattern = RegExp(r'^\+?[0-9][0-9\s().-]{6,}$');
+    final seen = <String>{};
+    for (final rawLine in text.split(RegExp(r'\r?\n'))) {
+      final columns = rawLine
+          .split(RegExp(r'[;,|\t]'))
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty);
+      for (final column in columns) {
+        if (phonePattern.hasMatch(column)) {
+          seen.add(column.replaceAll(RegExp(r'[^0-9+]'), ''));
+          break;
+        }
       }
-    });
+    }
+    return seen.length;
   }
 
   void _submit({required bool importContacts}) {
@@ -915,15 +1062,20 @@ class _WhatsappContactListDialogState
         ? (_readyCount > 0 ? _readyCount : existing?.contactCount ?? 0)
         : existing?.contactCount ?? 0;
     Navigator.of(context).pop(
-      AdminWhatsappContactList(
-        id: existing?.id ?? DateTime.now().millisecondsSinceEpoch,
-        name: name,
-        description: _descriptionController.text.trim(),
-        contactCount: contactCount,
-        syncEnabled: existing?.syncEnabled ?? false,
-        active: _active,
-        createdAt: existing?.createdAt ?? DateTime.now(),
-        source: _source,
+      _WhatsappContactListDialogResult(
+        importContacts:
+            importContacts && (_importText?.trim().isNotEmpty ?? false),
+        importText: _importText,
+        list: AdminWhatsappContactList(
+          id: existing?.id ?? DateTime.now().millisecondsSinceEpoch,
+          name: name,
+          description: _descriptionController.text.trim(),
+          contactCount: contactCount,
+          syncEnabled: existing?.syncEnabled ?? false,
+          active: _active,
+          createdAt: existing?.createdAt ?? DateTime.now(),
+          source: _source,
+        ),
       ),
     );
   }
@@ -2318,44 +2470,7 @@ class _PageSizeSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.value),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.82)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: value,
-          isExpanded: true,
-          icon: const SymbolIcon(
-            Symbols.keyboard_arrow_down,
-            color: AppColors.iconMuted,
-            size: 18,
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          items: const [10, 25, 50, 100]
-              .map(
-                (item) => DropdownMenuItem<int>(
-                  value: item,
-                  child: Text(
-                    '$item',
-                    style: TextStyle(
-                      color: AppColors.deepOcean,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
+    return AdminTablePageSizeSelect(value: value, onChanged: onChanged);
   }
 }
 
@@ -2374,62 +2489,12 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        textAlignVertical: TextAlignVertical.center,
-        style: const TextStyle(
-          color: AppColors.deepOcean,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
-        decoration: InputDecoration(
-          prefixIcon: const Padding(
-            padding: EdgeInsets.only(left: 14, right: 8),
-            child: SymbolIcon(
-              Symbols.search,
-              color: AppColors.iconMuted,
-              size: 18,
-            ),
-          ),
-          suffixIcon: query.isEmpty
-              ? null
-              : IconButton(
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                  icon: const SymbolIcon(
-                    Symbols.close,
-                    color: AppColors.iconMuted,
-                    size: 16,
-                  ),
-                ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 40),
-          hintText: hint,
-          hintStyle: const TextStyle(
-            color: AppColors.support,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            borderSide: BorderSide(
-              color: AppColors.line.withValues(alpha: 0.7),
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            borderSide: const BorderSide(color: AppColors.deepOcean),
-          ),
-        ),
-      ),
+    return AdminTableSearchField(
+      controller: controller,
+      query: query,
+      hintText: hint,
+      showClearButton: true,
+      onChanged: onChanged,
     );
   }
 }
@@ -2439,14 +2504,12 @@ class _PrimaryActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.shortcut,
     this.backgroundColor = AppColors.actionRed,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
-  final String? shortcut;
   final Color backgroundColor;
 
   @override
@@ -2480,27 +2543,6 @@ class _PrimaryActionButton extends StatelessWidget {
             SymbolIcon(icon, color: Colors.white, size: 17),
             const SizedBox(width: 8),
             Flexible(child: Text(label)),
-            if (shortcut != null) ...[
-              const SizedBox(width: 8),
-              Container(
-                height: 22,
-                padding: const EdgeInsets.symmetric(horizontal: 7),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-                child: Text(
-                  shortcut!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -2750,23 +2792,7 @@ class _Pagination extends StatelessWidget {
           onTap: () => onPageChanged(page - 1),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 36,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.deepOcean,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Text(
-            '$page',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
+        AdminTablePageButton(label: '$page', selected: true),
         const SizedBox(width: 8),
         _PagerButton(
           label: '>',
@@ -2797,29 +2823,10 @@ class _PagerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      height: 34,
-      child: TextButton(
-        onPressed: enabled ? onTap : null,
-        style: TextButton.styleFrom(
-          backgroundColor: Colors.white,
-          disabledBackgroundColor: Colors.white,
-          foregroundColor: AppColors.deepOcean,
-          disabledForegroundColor: AppColors.placeholder,
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            side: const BorderSide(color: AppColors.line),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-        child: Text(label),
-      ),
+    return AdminTablePageButton(
+      label: label,
+      enabled: enabled,
+      onPressed: onTap,
     );
   }
 }

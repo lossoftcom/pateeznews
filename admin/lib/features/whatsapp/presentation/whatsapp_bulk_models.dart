@@ -63,6 +63,9 @@ extension AdminWhatsappBulkStatusLabel on AdminWhatsappBulkStatus {
 class AdminWhatsappBulkCampaign {
   const AdminWhatsappBulkCampaign({
     required this.id,
+    this.accountId = '',
+    this.templateId = '',
+    this.contactListId = '',
     required this.name,
     required this.subject,
     required this.preview,
@@ -83,6 +86,9 @@ class AdminWhatsappBulkCampaign {
   });
 
   final int id;
+  final String accountId;
+  final String templateId;
+  final String contactListId;
   final String name;
   final String subject;
   final String preview;
@@ -121,6 +127,9 @@ class AdminWhatsappBulkCampaign {
 
   AdminWhatsappBulkCampaign copyWith({
     String? name,
+    String? accountId,
+    String? templateId,
+    String? contactListId,
     String? subject,
     String? preview,
     String? templateName,
@@ -140,6 +149,9 @@ class AdminWhatsappBulkCampaign {
   }) {
     return AdminWhatsappBulkCampaign(
       id: id,
+      accountId: accountId ?? this.accountId,
+      templateId: templateId ?? this.templateId,
+      contactListId: contactListId ?? this.contactListId,
       name: name ?? this.name,
       subject: subject ?? this.subject,
       preview: preview ?? this.preview,
@@ -162,81 +174,3 @@ class AdminWhatsappBulkCampaign {
 }
 
 const whatsappBulkFilterAll = 'all';
-
-final List<AdminWhatsappBulkCampaign> sampleAdminWhatsappBulkCampaigns = [
-  AdminWhatsappBulkCampaign(
-    id: 301,
-    name: 'Haftalik WhatsApp Bulteni',
-    subject: 'haftalik_haber_ozeti',
-    preview: 'Bolgenin gundemini WhatsApp sablonu ile gonder.',
-    templateName: 'Haftalik Haber Ozeti',
-    templateCategory: 'Kampanya',
-    senderAccount: 'Pateez Ana WhatsApp',
-    senderEmail: '+90 555 010 2026',
-    recipientList: 'Aktif Okurlar',
-    recipientCount: 1280,
-    sentCount: 1280,
-    openCount: 612,
-    clickCount: 184,
-    bounceCount: 18,
-    status: AdminWhatsappBulkStatus.completed,
-    createdAt: DateTime(2026, 5, 19, 9, 15),
-    startedAt: DateTime(2026, 5, 19, 10),
-  ),
-  AdminWhatsappBulkCampaign(
-    id: 302,
-    name: 'Yerel Etkinlik WhatsApp Duyurusu',
-    subject: 'yerel_etkinlik_duyurusu',
-    preview: 'Hafta sonu etkinliklerini WhatsApp uzerinden bildir.',
-    templateName: 'Etkinlik Duyurusu',
-    templateCategory: 'Kampanya',
-    senderAccount: 'Pateez Destek WhatsApp',
-    senderEmail: '+90 555 010 2027',
-    recipientList: 'Etkinlik Takipcileri',
-    recipientCount: 740,
-    sentCount: 260,
-    openCount: 91,
-    clickCount: 28,
-    bounceCount: 4,
-    status: AdminWhatsappBulkStatus.sending,
-    createdAt: DateTime(2026, 5, 23, 8, 45),
-    startedAt: DateTime(2026, 5, 23, 12, 10),
-  ),
-  AdminWhatsappBulkCampaign(
-    id: 303,
-    name: 'Reklam WhatsApp Bilgilendirme',
-    subject: 'reklam_paket_bilgilendirme',
-    preview: 'Sponsorlu icerik ve reklam paketlerini onayli sablonla duyur.',
-    templateName: 'Reklam Teklifi',
-    templateCategory: 'Kurumsal',
-    senderAccount: 'Reklam WhatsApp',
-    senderEmail: '+90 555 010 2028',
-    recipientList: 'Reklamverenler',
-    recipientCount: 96,
-    sentCount: 0,
-    openCount: 0,
-    clickCount: 0,
-    bounceCount: 0,
-    status: AdminWhatsappBulkStatus.draft,
-    createdAt: DateTime(2026, 5, 22, 14, 30),
-  ),
-  AdminWhatsappBulkCampaign(
-    id: 304,
-    name: 'Sabah WhatsApp Ozeti',
-    subject: 'sabah_haber_ozeti',
-    preview: 'Sabah ozet mesajlari belirlenen saatte gonderilecek.',
-    templateName: 'Sabah Ozeti',
-    templateCategory: 'Bulten',
-    senderAccount: 'Pateez Ana WhatsApp',
-    senderEmail: '+90 555 010 2026',
-    recipientList: 'Gunluk Bulten',
-    recipientCount: 2100,
-    sentCount: 0,
-    openCount: 0,
-    clickCount: 0,
-    bounceCount: 0,
-    status: AdminWhatsappBulkStatus.scheduled,
-    createdAt: DateTime(2026, 5, 23, 7, 20),
-    scheduledAt: DateTime(2026, 5, 24, 8),
-  ),
-];

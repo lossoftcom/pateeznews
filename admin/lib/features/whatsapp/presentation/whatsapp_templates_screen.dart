@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -10,10 +12,19 @@ import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_whatsapp_repository.dart';
 import 'whatsapp_template_models.dart';
 
 class WhatsappTemplatesScreen extends StatefulWidget {
-  const WhatsappTemplatesScreen({super.key});
+  const WhatsappTemplatesScreen({
+    super.key,
+    required this.session,
+    this.repository = const NeonAdminWhatsappRepository(),
+  });
+
+  final AdminSession session;
+  final AdminWhatsappRepository repository;
 
   @override
   State<WhatsappTemplatesScreen> createState() =>
@@ -21,7 +32,7 @@ class WhatsappTemplatesScreen extends StatefulWidget {
 }
 
 class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
-  var _templates = List<AdminWhatsappTemplate>.of(sampleAdminWhatsappTemplates);
+  var _templates = <AdminWhatsappTemplate>[];
   final _selectedTemplateIds = <int>{};
   final _searchController = TextEditingController();
   var _categoryFilter = whatsappTemplateFilterAll;
@@ -31,11 +42,44 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
   var _sortState = const TableSortState(key: 'date', ascending: false);
   AdminWhatsappTemplate? _editorTemplate;
   var _creatingTemplate = false;
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadTemplates());
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadTemplates() async {
+    setState(() => _loading = true);
+    try {
+      final templates = await widget.repository.fetchTemplates(widget.session);
+      if (!mounted) return;
+      setState(() {
+        _templates = templates;
+        _loading = false;
+        _resetListState();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showWhatsappError(error);
+    }
+  }
+
+  void _showWhatsappError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error.toString()),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   List<AdminWhatsappTemplate> get _filteredTemplates {
@@ -163,17 +207,27 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
     });
   }
 
-  void _saveTemplate(AdminWhatsappTemplate template) {
-    setState(() {
-      final index = _templates.indexWhere(
-        (current) => current.id == template.id,
+  Future<void> _saveTemplate(AdminWhatsappTemplate template) async {
+    late final AdminWhatsappTemplate saved;
+    try {
+      saved = await widget.repository.saveTemplate(
+        widget.session,
+        id: _editorTemplate?.id,
+        template: template,
       );
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      final index = _templates.indexWhere((current) => current.id == saved.id);
       if (index == -1) {
-        _templates = [template, ..._templates];
+        _templates = [saved, ..._templates];
       } else {
         _templates = [
           for (final current in _templates)
-            if (current.id == template.id) template else current,
+            if (current.id == saved.id) saved else current,
         ];
       }
       _editorTemplate = null;
@@ -182,12 +236,30 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
     });
   }
 
-  void _toggleActive(AdminWhatsappTemplate template) {
-    _replaceTemplate(template.copyWith(active: !template.active));
+  Future<void> _toggleActive(AdminWhatsappTemplate template) async {
+    try {
+      final updated = await widget.repository.updateTemplate(
+        widget.session,
+        template,
+        {'is_active': !template.active},
+      );
+      if (mounted) _replaceTemplate(updated);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
-  void _toggleReady(AdminWhatsappTemplate template) {
-    _replaceTemplate(template.copyWith(ready: !template.ready));
+  Future<void> _toggleReady(AdminWhatsappTemplate template) async {
+    try {
+      final updated = await widget.repository.updateTemplate(
+        widget.session,
+        template,
+        {'is_ready': !template.ready},
+      );
+      if (mounted) _replaceTemplate(updated);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   void _replaceTemplate(AdminWhatsappTemplate template) {
@@ -208,12 +280,18 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
       danger: true,
     );
     if (!confirmed) return;
-    setState(() {
-      _templates = _templates
-          .where((current) => current.id != template.id)
-          .toList(growable: false);
-      _selectedTemplateIds.remove(template.id);
-    });
+    try {
+      await widget.repository.deleteTemplates(widget.session, [template.id]);
+      if (!mounted) return;
+      setState(() {
+        _templates = _templates
+            .where((current) => current.id != template.id)
+            .toList(growable: false);
+        _selectedTemplateIds.remove(template.id);
+      });
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   Future<void> _deleteSelectedTemplates() async {
@@ -229,12 +307,19 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
       danger: true,
     );
     if (!confirmed) return;
-    setState(() {
-      _templates = _templates
-          .where((template) => !_selectedTemplateIds.contains(template.id))
-          .toList(growable: false);
-      _selectedTemplateIds.clear();
-    });
+    try {
+      final ids = _selectedTemplateIds.toList(growable: false);
+      await widget.repository.deleteTemplates(widget.session, ids);
+      if (!mounted) return;
+      setState(() {
+        _templates = _templates
+            .where((template) => !ids.contains(template.id))
+            .toList(growable: false);
+        _selectedTemplateIds.clear();
+      });
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   void _showTemplateDetail(AdminWhatsappTemplate template) {
@@ -280,7 +365,7 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
       return WhatsappTemplateEditorView(
         template: _editorTemplate,
         onCancel: _closeEditor,
-        onSaved: _saveTemplate,
+        onSaved: (template) => unawaited(_saveTemplate(template)),
       );
     }
 
@@ -326,6 +411,7 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
                 onDelete: _deleteTemplate,
               ),
             ),
+            if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
 
@@ -672,40 +758,7 @@ class _PageSizeSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.line),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: value,
-          isExpanded: true,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          icon: const SymbolIcon(
-            Symbols.keyboard_arrow_down,
-            color: AppColors.iconMuted,
-            size: 18,
-          ),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.deepOcean,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-          onChanged: onChanged,
-          items: const [10, 25, 50, 100]
-              .map(
-                (value) =>
-                    DropdownMenuItem(value: value, child: Text('$value')),
-              )
-              .toList(growable: false),
-        ),
-      ),
-    );
+    return AdminTablePageSizeSelect(value: value, onChanged: onChanged);
   }
 }
 
@@ -725,58 +778,13 @@ class _TemplateSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 300,
-      height: 38,
-      child: TextField(
+      width: 280,
+      child: AdminTableSearchField(
         controller: controller,
+        query: query,
+        hintText: hint,
+        showClearButton: true,
         onChanged: onChanged,
-        textAlignVertical: TextAlignVertical.center,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: AppColors.deepOcean,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
-            color: AppColors.placeholder,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0,
-          ),
-          prefixIcon: const Padding(
-            padding: EdgeInsets.only(left: 12, right: 6),
-            child: SymbolIcon(
-              Symbols.search,
-              color: AppColors.iconMuted,
-              size: 18,
-            ),
-          ),
-          suffixIcon: query.isEmpty
-              ? null
-              : IconButton(
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                  icon: const SymbolIcon(
-                    Symbols.close,
-                    color: AppColors.iconMuted,
-                    size: 16,
-                  ),
-                ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 34),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(AppRadius.value)),
-            borderSide: BorderSide(color: AppColors.line),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(AppRadius.value)),
-            borderSide: BorderSide(color: AppColors.deepOcean),
-          ),
-        ),
       ),
     );
   }
@@ -795,31 +803,10 @@ class _TemplatePrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: TextButton.icon(
-        onPressed: onTap,
-        icon: SymbolIcon(icon, color: Colors.white, size: 18),
-        label: Text(label),
-        style:
-            TextButton.styleFrom(
-              backgroundColor: AppColors.actionRed,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
-            ),
-      ),
+    return AdminTablePrimaryActionButton(
+      icon: icon,
+      label: label,
+      onPressed: onTap,
     );
   }
 }
@@ -832,12 +819,12 @@ class _TemplateTableHeader extends StatelessWidget {
     required this.onSort,
   });
 
-  static const _selectWidth = 48.0;
+  static const _selectWidth = 42.0;
   static const _categoryWidth = 170.0;
   static const _variableWidth = 118.0;
   static const _readyWidth = 126.0;
   static const _statusWidth = 126.0;
-  static const _actionsWidth = 74.0;
+  static const _actionsWidth = 76.0;
   static const _nameFlex = 4;
   static const _dateFlex = 3;
 
@@ -849,9 +836,12 @@ class _TemplateTableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.softLine)),
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
       ),
       child: Row(
         children: [
@@ -923,7 +913,6 @@ class _TemplateTableHeader extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.inkSoft,
-                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
                 ),
@@ -952,7 +941,7 @@ class _TemplateSortableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle.merge(
-      style: const TextStyle(fontSize: 12, letterSpacing: 0),
+      style: const TextStyle(letterSpacing: 0),
       child: SortableTableHeader(
         label: label,
         sortKey: sortKey,
@@ -990,8 +979,11 @@ class _TemplateTableRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.softLine)),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
       ),
       child: Row(
         children: [
@@ -1009,9 +1001,9 @@ class _TemplateTableRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.deepOcean,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                height: 1.2,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.22,
                 letterSpacing: 0,
               ),
             ),
@@ -1515,23 +1507,7 @@ class _TemplatePagination extends StatelessWidget {
           onTap: () => onPageChanged(page - 1),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 36,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.deepOcean,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Text(
-            '$page',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
+        AdminTablePageButton(label: '$page', selected: true),
         const SizedBox(width: 8),
         _PagerButton(
           label: '>',
@@ -1562,29 +1538,10 @@ class _PagerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      height: 34,
-      child: TextButton(
-        onPressed: enabled ? onTap : null,
-        style: TextButton.styleFrom(
-          backgroundColor: Colors.white,
-          disabledBackgroundColor: Colors.white,
-          foregroundColor: AppColors.deepOcean,
-          disabledForegroundColor: AppColors.placeholder,
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            side: const BorderSide(color: AppColors.line),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-        child: Text(label),
-      ),
+    return AdminTablePageButton(
+      label: label,
+      enabled: enabled,
+      onPressed: onTap,
     );
   }
 }
@@ -2087,51 +2044,114 @@ class _WhatsappTemplateEditorViewState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.template == null
-                              ? context.t('whatsapp.template.editor.titleNew')
-                              : context.t(widget.template!.nameKey),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                color: AppColors.deepOcean,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0,
-                              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: AppColors.line)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF25D366).withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(
+                          AppRadius.value * 2,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          context.t('whatsapp.template.composer.subtitle'),
-                          style: const TextStyle(
-                            color: AppColors.inkSoft,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0,
+                      ),
+                      child: const Icon(
+                        Icons.description_rounded,
+                        size: 18,
+                        color: Color(0xFF25D366),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.template == null
+                                ? context.t('whatsapp.template.editor.titleNew')
+                                : context.t(widget.template!.nameKey),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.deepOcean,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            context.t('whatsapp.template.composer.subtitle'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.support,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: widget.onCancel,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.deepOcean,
+                        side: const BorderSide(color: AppColors.line),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        minimumSize: const Size(0, 36),
+                        maximumSize: const Size(double.infinity, 36),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppRadius.value * 2,
                           ),
                         ),
-                      ],
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'PateezSans',
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      child: Text(context.t('common.cancel')),
                     ),
-                  ),
-                  _TemplateSecondaryButton(
-                    label: context.t('common.cancel'),
-                    onTap: widget.onCancel,
-                  ),
-                  const SizedBox(width: 12),
-                  _TemplatePrimaryButton(
-                    icon: Symbols.save,
-                    label: widget.template == null
-                        ? context.t('whatsapp.template.editor.save')
-                        : context.t('whatsapp.template.editor.update'),
-                    onTap: _save,
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    FilledButton.icon(
+                      onPressed: _save,
+                      icon: const Icon(Icons.save_rounded, size: 16),
+                      label: Text(
+                        widget.template == null
+                            ? context.t('whatsapp.template.editor.save')
+                            : context.t('whatsapp.template.editor.update'),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.actionRed,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        minimumSize: const Size(0, 36),
+                        maximumSize: const Size(double.infinity, 36),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppRadius.value * 2,
+                          ),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'PateezSans',
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 18),
               Expanded(
@@ -2772,7 +2792,7 @@ class _ComposerTabBar extends StatelessWidget {
   }
 }
 
-class _ComposerTabButton extends StatelessWidget {
+class _ComposerTabButton extends StatefulWidget {
   const _ComposerTabButton({
     required this.label,
     required this.selected,
@@ -2784,28 +2804,44 @@ class _ComposerTabButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_ComposerTabButton> createState() => _ComposerTabButtonState();
+}
+
+class _ComposerTabButtonState extends State<_ComposerTabButton> {
+  var _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
+    final bgColor = widget.selected
+        ? AppColors.deepOcean
+        : _hovered
+        ? AppColors.deepOcean.withValues(alpha: 0.06)
+        : Colors.white;
+    final fgColor = widget.selected ? Colors.white : AppColors.inkSoft;
+    final borderColor = widget.selected ? AppColors.deepOcean : AppColors.line;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           height: 34,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? AppColors.actionRed : Colors.white,
-            border: Border.all(
-              color: selected ? AppColors.actionRed : AppColors.line,
-            ),
+            color: bgColor,
+            border: Border.all(color: borderColor),
             borderRadius: BorderRadius.circular(AppRadius.value),
           ),
           child: Text(
-            label,
+            widget.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: selected ? Colors.white : AppColors.inkSoft,
+              color: fgColor,
               fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -4152,209 +4188,397 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
         .where((button) => button.hasLabel)
         .toList(growable: false);
 
+    // Phone-frame bezel
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE9F5EE),
-        border: Border.all(color: AppColors.line),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF075E54),
-              borderRadius: BorderRadius.circular(AppRadius.value),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: const Text(
-                    'P',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        safeName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      Text(
-                        context.t('whatsapp.template.composer.businessLine'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.76),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 292),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (mediaType != _WhatsAppMediaType.none) ...[
-                    _WhatsAppPreviewMedia(
-                      mediaType: mediaType,
-                      mediaLabel: mediaLabel,
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  Text(
-                    safeHeader,
-                    style: const TextStyle(
-                      color: AppColors.deepOcean,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      height: 1.25,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _WhatsAppPreviewRichText(text: safeBody),
-                  const SizedBox(height: 10),
-                  Text(
-                    safeFooter,
-                    style: const TextStyle(
-                      color: AppColors.placeholder,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (showSurvey) ...[
-                    Text(
-                      allowMultipleAnswers
-                          ? context.t(
-                              'whatsapp.template.composer.surveyMultiplePreview',
-                            )
-                          : context.t(
-                              'whatsapp.template.composer.surveySinglePreview',
-                            ),
-                      style: const TextStyle(
-                        color: AppColors.placeholder,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF6FAF8),
-                        borderRadius: BorderRadius.circular(AppRadius.value),
-                        border: Border.all(color: AppColors.softLine),
-                      ),
-                      child: Text(
-                        _whatsAppPreviewText(surveyQuestion),
-                        style: const TextStyle(
-                          color: AppColors.deepOcean,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          height: 1.35,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ),
-                    for (final label in visibleSurveyOptions) ...[
-                      const SizedBox(height: 6),
-                      _WhatsAppPreviewButton(
-                        label: _whatsAppPreviewText(label),
-                      ),
-                    ],
-                    if (showSurveyResults &&
-                        visibleSurveyOptions.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      _WhatsAppSurveyResultPreview(
-                        options: visibleSurveyOptions,
-                        showRespondents: showSurveyRespondents,
-                      ),
-                    ],
-                  ] else ...[
-                    for (final button in visibleButtons) ...[
-                      _WhatsAppPreviewButton(
-                        label: button.label,
-                        meta: button.hasUrl
-                            ? button.url
-                            : button.hasPhone
-                            ? button.phone
-                            : null,
-                      ),
-                      if (button != visibleButtons.last)
-                        const SizedBox(height: 6),
-                    ],
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '17:29',
-              style: TextStyle(
-                color: AppColors.deepOcean.withValues(alpha: 0.48),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ),
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
+      padding: const EdgeInsets.all(6),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: const Color(0xFFECE5DD),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // WhatsApp header bar
+            Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: const BoxDecoration(color: Color(0xFF128C7E)),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white.withValues(alpha: 0.92),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF25D366),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Text(
+                      'P',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          safeName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        Text(
+                          context.t('whatsapp.template.composer.businessLine'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.70),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.videocam_outlined,
+                    color: Colors.white.withValues(alpha: 0.86),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 14),
+                  Icon(
+                    Icons.call_outlined,
+                    color: Colors.white.withValues(alpha: 0.86),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 14),
+                  Icon(
+                    Icons.more_vert_rounded,
+                    color: Colors.white.withValues(alpha: 0.86),
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+            // Chat content area
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Message bubble with tail
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: -6,
+                        top: 0,
+                        child: CustomPaint(
+                          size: const Size(10, 12),
+                          painter: _WhatsAppBubbleTailPainter(),
+                        ),
+                      ),
+                      Container(
+                        constraints: const BoxConstraints(maxWidth: 282),
+                        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(
+                            8,
+                          ).copyWith(topLeft: Radius.zero),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (mediaType != _WhatsAppMediaType.none) ...[
+                              _WhatsAppPreviewMedia(
+                                mediaType: mediaType,
+                                mediaLabel: mediaLabel,
+                              ),
+                              const SizedBox(height: 6),
+                            ],
+                            Text(
+                              safeHeader,
+                              style: const TextStyle(
+                                color: Color(0xFF111B21),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                height: 1.28,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            _WhatsAppPreviewRichText(text: safeBody),
+                            const SizedBox(height: 6),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    safeFooter,
+                                    style: TextStyle(
+                                      color: const Color(
+                                        0xFF111B21,
+                                      ).withValues(alpha: 0.45),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '17:29',
+                                  style: TextStyle(
+                                    color: const Color(
+                                      0xFF111B21,
+                                    ).withValues(alpha: 0.40),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                                const SizedBox(width: 3),
+                                Icon(
+                                  Icons.done_all_rounded,
+                                  size: 14,
+                                  color: const Color(0xFF53BDEB),
+                                ),
+                              ],
+                            ),
+                            if (showSurvey) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                allowMultipleAnswers
+                                    ? context.t(
+                                        'whatsapp.template.composer.surveyMultiplePreview',
+                                      )
+                                    : context.t(
+                                        'whatsapp.template.composer.surveySinglePreview',
+                                      ),
+                                style: TextStyle(
+                                  color: const Color(
+                                    0xFF111B21,
+                                  ).withValues(alpha: 0.45),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF0F2F5),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  _whatsAppPreviewText(surveyQuestion),
+                                  style: const TextStyle(
+                                    color: Color(0xFF111B21),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ),
+                              for (final label in visibleSurveyOptions) ...[
+                                const SizedBox(height: 4),
+                                _WhatsAppPreviewButton(
+                                  label: _whatsAppPreviewText(label),
+                                ),
+                              ],
+                              if (showSurveyResults &&
+                                  visibleSurveyOptions.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _WhatsAppSurveyResultPreview(
+                                  options: visibleSurveyOptions,
+                                  showRespondents: showSurveyRespondents,
+                                ),
+                              ],
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // CTA buttons outside the bubble (WhatsApp style)
+                  if (!showSurvey && visibleButtons.isNotEmpty) ...[
+                    for (final button in visibleButtons) ...[
+                      const SizedBox(height: 3),
+                      Container(
+                        constraints: const BoxConstraints(maxWidth: 282),
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 2,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              button.hasUrl
+                                  ? Icons.open_in_new_rounded
+                                  : button.hasPhone
+                                  ? Icons.call_outlined
+                                  : Icons.reply_rounded,
+                              size: 14,
+                              color: const Color(0xFF00A884),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              button.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF00A884),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+            // Bottom input bar
+            Container(
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              color: const Color(0xFFF0F2F5),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.emoji_emotions_outlined,
+                    color: const Color(0xFF54656F),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        context.t(
+                          'whatsapp.template.composer.inputPlaceholder',
+                        ),
+                        style: TextStyle(
+                          color: const Color(
+                            0xFF54656F,
+                          ).withValues(alpha: 0.56),
+                          fontSize: 12,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.attach_file_rounded,
+                    color: const Color(0xFF54656F),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00A884),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(
+                      Icons.mic_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
+
+/// Custom painter for WhatsApp message bubble tail
+class _WhatsAppBubbleTailPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white;
+    final path = Path()
+      ..moveTo(size.width, 0)
+      ..lineTo(0, 0)
+      ..quadraticBezierTo(
+        size.width * 0.6,
+        size.height * 0.3,
+        size.width,
+        size.height,
+      )
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _WhatsAppPreviewMedia extends StatelessWidget {
@@ -4572,16 +4796,15 @@ class _WhatsAppSurveyResultBar extends StatelessWidget {
 }
 
 class _WhatsAppPreviewButton extends StatelessWidget {
-  const _WhatsAppPreviewButton({required this.label, this.meta});
+  const _WhatsAppPreviewButton({required this.label});
 
   final String label;
-  final String? meta;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(minHeight: 34),
-      padding: EdgeInsets.symmetric(vertical: meta == null ? 0 : 6),
+      padding: EdgeInsets.zero,
       alignment: Alignment.center,
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.softLine)),
@@ -4600,20 +4823,6 @@ class _WhatsAppPreviewButton extends StatelessWidget {
               letterSpacing: 0,
             ),
           ),
-          if (meta != null && meta!.trim().isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              meta!.trim(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.placeholder,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0,
-              ),
-            ),
-          ],
         ],
       ),
     );

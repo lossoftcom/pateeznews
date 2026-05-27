@@ -1,0 +1,568 @@
+import 'package:flutter/material.dart';
+
+/// Ana sayfa için sade mock veri katmanı.
+///
+/// Gerçek API entegrasyonu yapıldığında bu dosya `repository` ile değiştirilir;
+/// widget'lar veri modellerine bağlı kalır.
+
+@immutable
+class StoryHighlight {
+  const StoryHighlight({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.isLive,
+    required this.isUnviewed,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final bool isLive;
+  final bool isUnviewed;
+}
+
+@immutable
+class FeaturedNews {
+  const FeaturedNews({
+    required this.id,
+    required this.category,
+    required this.title,
+    required this.summary,
+    required this.imageUrl,
+    required this.publishedAt,
+    required this.source,
+    this.isBreaking = false,
+    this.isLive = false,
+  });
+
+  final String id;
+  final String category;
+  final String title;
+  final String summary;
+  final String imageUrl;
+  final DateTime publishedAt;
+  final String source;
+  final bool isBreaking;
+  final bool isLive;
+}
+
+@immutable
+class NewsAuthor {
+  const NewsAuthor({
+    required this.name,
+    required this.avatarUrl,
+    this.handle,
+    this.isVerified = false,
+    this.isOfficial = false,
+  });
+
+  final String name;
+  final String avatarUrl;
+  final String? handle;
+  final bool isVerified;
+  final bool isOfficial;
+}
+
+@immutable
+class NewsComment {
+  const NewsComment({
+    required this.author,
+    required this.body,
+    required this.publishedAt,
+    this.likes = 0,
+    this.replies = const [],
+  });
+
+  final NewsAuthor author;
+  final String body;
+  final DateTime publishedAt;
+  final int likes;
+  final List<NewsComment> replies;
+}
+
+@immutable
+class NewsArticle {
+  const NewsArticle({
+    required this.id,
+    required this.author,
+    required this.region,
+    required this.category,
+    required this.title,
+    required this.summary,
+    required this.imageUrl,
+    required this.publishedAt,
+    required this.readMinutes,
+    required this.likes,
+    required this.dislikes,
+    required this.comments,
+    required this.shares,
+  });
+
+  final String id;
+  final NewsAuthor author;
+  final String region;
+  final String category;
+  final String title;
+  final String summary;
+  final String imageUrl;
+  final DateTime publishedAt;
+  final int readMinutes;
+  final int likes;
+  final int dislikes;
+  final int comments;
+  final int shares;
+
+  /// Mock için hesaplanan görüntülenme. Gerçek API entegrasyonunda bu alan
+  /// constructor'a taşınır.
+  int get views => likes * 10 + comments * 5;
+}
+
+class _Authors {
+  const _Authors._();
+
+  static const nasip = NewsAuthor(
+    name: 'Nasip Gündoğu',
+    avatarUrl: 'https://picsum.photos/seed/pateez-author-nasip/200/200',
+    handle: '@nasipgundogu',
+    isVerified: true,
+  );
+
+  static const aylin = NewsAuthor(
+    name: 'Aylin Yılmaz',
+    avatarUrl: 'https://picsum.photos/seed/pateez-author-aylin/200/200',
+    handle: '@aylinyilmaz',
+    isVerified: true,
+  );
+
+  static const mehmet = NewsAuthor(
+    name: 'Mehmet Demir',
+    avatarUrl: 'https://picsum.photos/seed/pateez-author-mehmet/200/200',
+    handle: '@mehmetdemir',
+  );
+
+  static const ece = NewsAuthor(
+    name: 'Ece Türkmen',
+    avatarUrl: 'https://picsum.photos/seed/pateez-author-ece/200/200',
+    handle: '@eceturkmen',
+    isVerified: true,
+  );
+
+  static const burak = NewsAuthor(
+    name: 'Burak Şahin',
+    avatarUrl: 'https://picsum.photos/seed/pateez-author-burak/200/200',
+    handle: '@buraksahin',
+  );
+
+  static const selin = NewsAuthor(
+    name: 'Selin Kaya',
+    avatarUrl: 'https://picsum.photos/seed/pateez-author-selin/200/200',
+    handle: '@selinkaya',
+    isVerified: true,
+  );
+
+  static const pateezEkonomi = NewsAuthor(
+    name: 'Pateez Ekonomi',
+    avatarUrl: 'https://picsum.photos/seed/pateez-desk-eco/200/200',
+    handle: '@pateezekonomi',
+    isOfficial: true,
+  );
+
+  static const pateezBilim = NewsAuthor(
+    name: 'Pateez Bilim',
+    avatarUrl: 'https://picsum.photos/seed/pateez-desk-sci/200/200',
+    handle: '@pateezbilim',
+    isOfficial: true,
+  );
+
+  static const pateezSaglik = NewsAuthor(
+    name: 'Pateez Sağlık',
+    avatarUrl: 'https://picsum.photos/seed/pateez-desk-health/200/200',
+    handle: '@pateezsaglik',
+    isOfficial: true,
+  );
+
+  static const pateezKultur = NewsAuthor(
+    name: 'Pateez Kültür',
+    avatarUrl: 'https://picsum.photos/seed/pateez-desk-culture/200/200',
+    handle: '@pateezkultur',
+    isOfficial: true,
+  );
+
+  // Okuyucu yorumcuları (preview yorumlar için)
+  static const ahmet = NewsAuthor(
+    name: 'Ahmet K.',
+    avatarUrl: 'https://picsum.photos/seed/pateez-cm-ahmet/200/200',
+    handle: '@ahmetk',
+  );
+
+  static const zeynep = NewsAuthor(
+    name: 'Zeynep T.',
+    avatarUrl: 'https://picsum.photos/seed/pateez-cm-zeynep/200/200',
+    handle: '@zeynept',
+    isVerified: true,
+  );
+
+  static const emre = NewsAuthor(
+    name: 'Emre A.',
+    avatarUrl: 'https://picsum.photos/seed/pateez-cm-emre/200/200',
+    handle: '@emrea',
+  );
+
+  // Composer için temsili oturum açmış kullanıcı
+  static const currentUser = NewsAuthor(
+    name: 'Sen',
+    avatarUrl: 'https://picsum.photos/seed/pateez-me/200/200',
+  );
+}
+
+class HomeMockData {
+  const HomeMockData._();
+
+  static final DateTime _now = DateTime(2026, 5, 26, 13, 20);
+
+  /// Composer'da gösterilecek oturum kullanıcısı.
+  static NewsAuthor get currentUser => _Authors.currentUser;
+
+  /// Tüm haber kartlarında gösterilen örnek yorum önizlemesi.
+  /// Üstte iki yorum + ikincisinin altında bir alt yorum.
+  static final List<NewsComment> samplePreviewComments = [
+    NewsComment(
+      author: _Authors.ahmet,
+      body: 'Konuyu farklı bir açıdan ele almışsınız, kalemine sağlık.',
+      publishedAt: _now.subtract(const Duration(minutes: 28)),
+      likes: 24,
+    ),
+    NewsComment(
+      author: _Authors.zeynep,
+      body: 'Veriler net, tarafsız bir özet olmuş. Pateez böyle devam.',
+      publishedAt: _now.subtract(const Duration(minutes: 42)),
+      likes: 11,
+      replies: [
+        NewsComment(
+          author: _Authors.emre,
+          body: 'Grafikler özellikle çok aydınlatıcı oldu.',
+          publishedAt: _now.subtract(const Duration(minutes: 18)),
+          likes: 3,
+        ),
+      ],
+    ),
+  ];
+
+  static List<StoryHighlight> stories = [
+    StoryHighlight(
+      id: 'live',
+      label: 'Canlı',
+      icon: Icons.podcasts_rounded,
+      isLive: true,
+      isUnviewed: true,
+    ),
+    StoryHighlight(
+      id: 'agenda',
+      label: 'Gündem',
+      icon: Icons.bolt_rounded,
+      isLive: false,
+      isUnviewed: true,
+    ),
+    StoryHighlight(
+      id: 'sport',
+      label: 'Spor',
+      icon: Icons.sports_soccer_rounded,
+      isLive: false,
+      isUnviewed: true,
+    ),
+    StoryHighlight(
+      id: 'economy',
+      label: 'Ekonomi',
+      icon: Icons.trending_up_rounded,
+      isLive: false,
+      isUnviewed: true,
+    ),
+    StoryHighlight(
+      id: 'tech',
+      label: 'Teknoloji',
+      icon: Icons.memory_rounded,
+      isLive: false,
+      isUnviewed: false,
+    ),
+    StoryHighlight(
+      id: 'culture',
+      label: 'Kültür',
+      icon: Icons.theater_comedy_rounded,
+      isLive: false,
+      isUnviewed: false,
+    ),
+    StoryHighlight(
+      id: 'health',
+      label: 'Sağlık',
+      icon: Icons.favorite_rounded,
+      isLive: false,
+      isUnviewed: false,
+    ),
+    StoryHighlight(
+      id: 'world',
+      label: 'Dünya',
+      icon: Icons.public_rounded,
+      isLive: false,
+      isUnviewed: false,
+    ),
+    StoryHighlight(
+      id: 'science',
+      label: 'Bilim',
+      icon: Icons.science_rounded,
+      isLive: false,
+      isUnviewed: false,
+    ),
+  ];
+
+  static List<FeaturedNews> featured = [
+    FeaturedNews(
+      id: 'f1',
+      category: 'Teknoloji',
+      title: 'Yapay Zeka Türkiye\'de Yeni Bir Dönem Başlatıyor',
+      summary:
+          'Yerli geliştirilen yeni nesil dil modeli, Türkçe içerik üretiminde bağımsızlık vaat ediyor.',
+      imageUrl: 'https://picsum.photos/seed/pateez-ai/1200/720',
+      publishedAt: _now.subtract(const Duration(hours: 2)),
+      source: 'Pateeznews',
+      isBreaking: true,
+    ),
+    FeaturedNews(
+      id: 'f2',
+      category: 'Spor',
+      title: 'Süper Lig\'de Şampiyonluk Yarışı Son Hafta Belirlenecek',
+      summary:
+          'Lider takım deplasmandan üç puanla dönerek farkı korumayı başardı.',
+      imageUrl: 'https://picsum.photos/seed/pateez-sport/1200/720',
+      publishedAt: _now.subtract(const Duration(hours: 4)),
+      source: 'Pateeznews Spor',
+      isLive: true,
+    ),
+    FeaturedNews(
+      id: 'f3',
+      category: 'Kültür',
+      title: 'Niğde Belediyesi 3. Tiyatro Festivali Perdelerini Açıyor',
+      summary:
+          'On günlük programda yerli ve uluslararası toplulukların sahne aldığı festival sanatseverleri bekliyor.',
+      imageUrl: 'https://picsum.photos/seed/pateez-culture/1200/720',
+      publishedAt: _now.subtract(const Duration(days: 1)),
+      source: 'Niğde Belediyesi',
+    ),
+  ];
+
+  static List<NewsArticle> feed = [
+    NewsArticle(
+      id: 'n1',
+      author: _Authors.pateezEkonomi,
+      region: 'Türkiye',
+      category: 'Ekonomi',
+      title: 'Merkez Bankası faiz kararını açıkladı, piyasada hareketlilik var',
+      summary:
+          'Politika faizinde değişikliğe gidilmedi; yıl sonu enflasyon beklentisi güncellendi.',
+      imageUrl: 'https://picsum.photos/seed/pateez-eco/1200/800',
+      publishedAt: _now.subtract(const Duration(minutes: 12)),
+      readMinutes: 3,
+      likes: 1240,
+      dislikes: 82,
+      comments: 214,
+      shares: 96,
+    ),
+    NewsArticle(
+      id: 'n2',
+      author: _Authors.nasip,
+      region: 'Niğde',
+      category: 'Kültür',
+      title:
+          'Niğde\'de yeni nesil sanat galerisi sanatseverleri ağırlamaya başladı',
+      summary:
+          'Galeri, genç sanatçılar için açık çağrı dönemini de bugün itibarıyla başlatıyor.',
+      imageUrl: 'https://picsum.photos/seed/pateez-gallery/1200/800',
+      publishedAt: _now.subtract(const Duration(minutes: 45)),
+      readMinutes: 4,
+      likes: 326,
+      dislikes: 5,
+      comments: 41,
+      shares: 28,
+    ),
+    NewsArticle(
+      id: 'n3',
+      author: _Authors.aylin,
+      region: 'Ankara',
+      category: 'Eğitim',
+      title: 'Üniversite sınav sonuçları açıklandı, tercih dönemi başlıyor',
+      summary:
+          'Bu yıl rekor sayıda aday tercih ekranını bekliyor; uzmanlar sabırlı olunmasını öneriyor.',
+      imageUrl: 'https://picsum.photos/seed/pateez-edu/1200/800',
+      publishedAt: _now.subtract(const Duration(hours: 1)),
+      readMinutes: 5,
+      likes: 4820,
+      dislikes: 312,
+      comments: 1230,
+      shares: 412,
+    ),
+    NewsArticle(
+      id: 'n4',
+      author: _Authors.mehmet,
+      region: 'Antalya',
+      category: 'Yaşam',
+      title:
+          'Sahil turizminde sezon rekoru, doluluk oranları yüzde 90\'a koştu',
+      summary:
+          'Erken rezervasyon kampanyaları ve yurt içi talebi destinasyonları erkenden hareketlendirdi.',
+      imageUrl: 'https://picsum.photos/seed/pateez-life/1200/800',
+      publishedAt: _now.subtract(const Duration(hours: 2)),
+      readMinutes: 3,
+      likes: 612,
+      dislikes: 24,
+      comments: 88,
+      shares: 53,
+    ),
+    NewsArticle(
+      id: 'n5',
+      author: _Authors.pateezBilim,
+      region: 'İstanbul',
+      category: 'Bilim',
+      title: 'Türk bilim insanı Nobel ödülüne aday gösterildi',
+      summary:
+          'Genetik araştırmalar alanında yıllardır yürüttüğü çalışmalar uluslararası takdir gördü.',
+      imageUrl: 'https://picsum.photos/seed/pateez-science/1200/800',
+      publishedAt: _now.subtract(const Duration(hours: 3)),
+      readMinutes: 6,
+      likes: 9210,
+      dislikes: 73,
+      comments: 1840,
+      shares: 1102,
+    ),
+    NewsArticle(
+      id: 'n6',
+      author: _Authors.ece,
+      region: 'Niğde',
+      category: 'Gündem',
+      title: 'Yeni köprü törenle açıldı, bölge ulaşımına can suyu olacak',
+      summary:
+          'Bölge esnafı yıl sonuna kadar trafik yoğunluğunun yüzde 40 azalmasını bekliyor.',
+      imageUrl: 'https://picsum.photos/seed/pateez-bridge/1200/800',
+      publishedAt: _now.subtract(const Duration(hours: 5)),
+      readMinutes: 2,
+      likes: 412,
+      dislikes: 18,
+      comments: 64,
+      shares: 22,
+    ),
+    NewsArticle(
+      id: 'n7',
+      author: _Authors.pateezSaglik,
+      region: 'Türkiye',
+      category: 'Sağlık',
+      title: 'Sağlık Bakanlığı koruyucu sağlık programını güncelledi',
+      summary:
+          'Aile hekimliği muayenelerinde yıllık tarama paketi kapsamı genişletildi.',
+      imageUrl: 'https://picsum.photos/seed/pateez-health/1200/800',
+      publishedAt: _now.subtract(const Duration(hours: 8)),
+      readMinutes: 4,
+      likes: 1840,
+      dislikes: 47,
+      comments: 312,
+      shares: 188,
+    ),
+    NewsArticle(
+      id: 'n8',
+      author: _Authors.burak,
+      region: 'İstanbul',
+      category: 'Ekonomi',
+      title: 'Borsa İstanbul rekor seviyeden günü kapattı',
+      summary:
+          'Bankacılık endeksi öncülüğünde yükseliş, yabancı yatırımcı ilgisini de canlandırdı.',
+      imageUrl: 'https://picsum.photos/seed/pateez-borsa/1200/800',
+      publishedAt: _now.subtract(const Duration(hours: 10)),
+      readMinutes: 3,
+      likes: 2105,
+      dislikes: 96,
+      comments: 488,
+      shares: 240,
+    ),
+    NewsArticle(
+      id: 'n9',
+      author: _Authors.pateezKultur,
+      region: 'Niğde',
+      category: 'Kültür',
+      title:
+          'Anadolu Tarih Müzesi modern restorasyonla yeniden ziyarete açıldı',
+      summary:
+          'Dijital deneyim alanları ve sanal rehber ile müze artık daha erişilebilir.',
+      imageUrl: 'https://picsum.photos/seed/pateez-museum/1200/800',
+      publishedAt: _now.subtract(const Duration(hours: 14)),
+      readMinutes: 5,
+      likes: 782,
+      dislikes: 9,
+      comments: 124,
+      shares: 92,
+    ),
+    NewsArticle(
+      id: 'n10',
+      author: _Authors.selin,
+      region: 'İstanbul',
+      category: 'Teknoloji',
+      title: 'İstanbul Yapay Zeka Konferansı global isimleri bir araya getirdi',
+      summary:
+          'Üç günlük programda etik, regülasyon ve üretken yapay zeka ana başlıkları konuşuldu.',
+      imageUrl: 'https://picsum.photos/seed/pateez-aiconf/1200/800',
+      publishedAt: _now.subtract(const Duration(days: 1)),
+      readMinutes: 7,
+      likes: 5630,
+      dislikes: 142,
+      comments: 920,
+      shares: 612,
+    ),
+  ];
+}
+
+/// Zaman damgalarını "12 dk", "2 sa", "1 g" gibi kısa, okunaklı biçimde
+/// sunan yardımcı.
+class RelativeTime {
+  const RelativeTime._();
+
+  static String format(DateTime time, {DateTime? now}) {
+    final reference = now ?? DateTime.now();
+    final diff = reference.difference(time);
+    if (diff.inMinutes < 1) return 'şimdi';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} dk';
+    if (diff.inHours < 24) return '${diff.inHours} sa';
+    if (diff.inDays < 7) return '${diff.inDays} g';
+    final weeks = (diff.inDays / 7).floor();
+    if (weeks < 5) return '$weeks hf';
+    return '${(diff.inDays / 30).floor()} ay';
+  }
+}
+
+/// Etkileşim sayılarını Türkçeye uygun, kompakt biçimde formatlar.
+///
+/// Örnek:
+///   942      → "942"
+///   1.240    → "1,2B"
+///   12.400   → "12B"
+///   1.250.000 → "1,3M"
+class CountFormat {
+  const CountFormat._();
+
+  static String compact(int value) {
+    if (value < 1000) return value.toString();
+    if (value < 10000) {
+      final n = (value / 1000);
+      return '${_trim(n.toStringAsFixed(1))}B';
+    }
+    if (value < 1000000) {
+      return '${(value / 1000).round()}B';
+    }
+    if (value < 10000000) {
+      return '${_trim((value / 1000000).toStringAsFixed(1))}M';
+    }
+    return '${(value / 1000000).round()}M';
+  }
+
+  static String _trim(String s) {
+    // 1.0 → 1, 1.2 → 1,2 (TR ondalık ayracı)
+    if (s.endsWith('.0')) return s.substring(0, s.length - 2);
+    return s.replaceAll('.', ',');
+  }
+}

@@ -53,11 +53,12 @@ async function ensureList(body: Record<string, any>, userId: string) {
   if (listId) return listId;
 
   const listName = String(body.list_name || 'İçe Aktarılan Kişiler').trim();
+  const source = String(body.source || 'csv').trim() || 'csv';
   const result = await dbQuery(
-    `INSERT INTO public.mail_contact_lists (liste_adi, aciklama, kullanici)
-     VALUES ($1, $2, $3)
+    `INSERT INTO public.mail_contact_lists (liste_adi, aciklama, kaynak, kullanici)
+     VALUES ($1, $2, $3, $4)
      RETURNING id`,
-    [listName, String(body.description || '').trim(), userId]
+    [listName, String(body.description || '').trim(), source, userId]
   );
   return result.rows[0].id;
 }

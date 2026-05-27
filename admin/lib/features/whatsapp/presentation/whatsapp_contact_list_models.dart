@@ -77,49 +77,6 @@ class AdminWhatsappContactList {
   }
 }
 
-final sampleAdminWhatsappContactLists = <AdminWhatsappContactList>[
-  AdminWhatsappContactList(
-    id: 701,
-    name: 'Aktif Okurlar',
-    description: 'Son 30 gunde haber bulteni acan uyeler',
-    contactCount: 1280,
-    syncEnabled: false,
-    active: true,
-    createdAt: DateTime(2026, 5, 23, 12, 20),
-    source: AdminContactImportSource.csv,
-  ),
-  AdminWhatsappContactList(
-    id: 702,
-    name: 'Gunluk Bulten',
-    description: 'Gundem ve son dakika aboneleri',
-    contactCount: 2100,
-    syncEnabled: false,
-    active: true,
-    createdAt: DateTime(2026, 5, 22, 16, 45),
-    source: AdminContactImportSource.excel,
-  ),
-  AdminWhatsappContactList(
-    id: 703,
-    name: 'Reklamverenler',
-    description: 'Reklam teklifleri icin hedef liste',
-    contactCount: 96,
-    syncEnabled: false,
-    active: true,
-    createdAt: DateTime(2026, 5, 21, 10, 30),
-    source: AdminContactImportSource.csv,
-  ),
-  AdminWhatsappContactList(
-    id: 704,
-    name: 'Etkinlik Takipcileri',
-    description: 'Yerel etkinlik duyurularini alan uyeler',
-    contactCount: 740,
-    syncEnabled: false,
-    active: false,
-    createdAt: DateTime(2026, 5, 19, 9, 10),
-    source: AdminContactImportSource.excel,
-  ),
-];
-
 Color contactListSourceColor(AdminContactImportSource source) {
   return switch (source) {
     AdminContactImportSource.csv => AppColors.deepOcean,

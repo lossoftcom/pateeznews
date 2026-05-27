@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 
 import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
@@ -956,45 +957,7 @@ class _PageSizeSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Container(
-        height: MailInboxTableCard.toolbarHeight,
-        padding: const EdgeInsets.only(left: 12, right: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<int>(
-            value: value,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            dropdownColor: Colors.white,
-            focusColor: Colors.transparent,
-            mouseCursor: SystemMouseCursors.click,
-            dropdownMenuItemMouseCursor: SystemMouseCursors.click,
-            icon: const SymbolIcon(
-              Symbols.keyboard_arrow_down,
-              color: AppColors.iconMuted,
-              size: 18,
-            ),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.deepOcean,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0,
-            ),
-            items: const [
-              DropdownMenuItem(value: 10, child: Text('10')),
-              DropdownMenuItem(value: 25, child: Text('25')),
-              DropdownMenuItem(value: 50, child: Text('50')),
-              DropdownMenuItem(value: 100, child: Text('100')),
-            ],
-            onChanged: onChanged,
-          ),
-        ),
-      ),
-    );
+    return AdminTablePageSizeSelect(value: value, onChanged: onChanged);
   }
 }
 
@@ -2402,23 +2365,7 @@ class _MailPagination extends StatelessWidget {
           onPressed: () => onPageChanged(page - 1),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 38,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.deepOcean,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Text(
-            page.toString(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
+        AdminTablePageButton(label: page.toString(), selected: true),
         const SizedBox(width: 8),
         _PagerButton(
           label: '>',

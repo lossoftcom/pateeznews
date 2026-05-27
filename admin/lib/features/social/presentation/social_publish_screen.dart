@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../auth/data/admin_auth_models.dart';
 import '../../news/data/admin_news_repository.dart';
+import '../data/admin_social_repository.dart';
 import 'social_platform_data.dart';
 import 'widgets/social_platform_selector.dart';
 import 'widgets/social_post_type_selector.dart';
@@ -15,9 +17,16 @@ import 'widgets/social_preview_panel.dart';
 
 /// Professional social media bulk publish screen.
 class SocialPublishScreen extends StatefulWidget {
-  const SocialPublishScreen({super.key, required this.newsRepository});
+  const SocialPublishScreen({
+    super.key,
+    required this.session,
+    required this.newsRepository,
+    required this.socialRepository,
+  });
 
+  final AdminSession session;
   final AdminNewsRepository newsRepository;
+  final AdminSocialRepository socialRepository;
 
   @override
   State<SocialPublishScreen> createState() => _SocialPublishScreenState();
@@ -26,6 +35,7 @@ class SocialPublishScreen extends StatefulWidget {
 class _SocialPublishScreenState extends State<SocialPublishScreen>
     with SingleTickerProviderStateMixin {
   final _captionController = TextEditingController();
+  var _submitting = false;
 
   SocialPublishData _data = const SocialPublishData(
     selectedPlatforms: {SocialPlatform.instagram, SocialPlatform.facebook},
@@ -41,11 +51,78 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
     setState(() => _data = updater(_data));
   }
 
+  Future<void> _submitPost({DateTime? scheduledAt}) async {
+    if (_data.selectedPlatforms.isEmpty || _submitting) return;
+    setState(() => _submitting = true);
+    try {
+      final result = await widget.socialRepository.publishPost(
+        widget.session,
+        data: _data.copyWith(caption: _captionController.text),
+        scheduledAt: scheduledAt,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.t(
+              scheduledAt == null
+                  ? 'social.publish.publishSuccess'
+                  : 'social.publish.scheduleSuccess',
+              values: {
+                'id': result.bundlePostId.isEmpty
+                    ? result.id
+                    : result.bundlePostId,
+              },
+            ),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _schedulePost() async {
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+        DateTime.now().add(const Duration(hours: 1)),
+      ),
+    );
+    if (time == null || !mounted) return;
+    await _submitPost(
+      scheduledAt: DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      ),
+    );
+  }
+
   /// Compute available post types from selected platforms.
   List<SocialPostType> get _availableTypes {
     if (_data.selectedPlatforms.isEmpty) return [SocialPostType.feed];
-    final sets = _data.selectedPlatforms
-        .map((p) => platformInfoFor(p).supportedTypes.toSet());
+    final sets = _data.selectedPlatforms.map(
+      (p) => platformInfoFor(p).supportedTypes.toSet(),
+    );
     var intersection = sets.first;
     for (final s in sets.skip(1)) {
       intersection = intersection.intersection(s);
@@ -149,7 +226,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
 
           // Schedule button
           OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: _submitting ? null : _schedulePost,
             icon: const Icon(Icons.schedule_rounded, size: 16),
             label: isCompact
                 ? const SizedBox.shrink()
@@ -166,7 +243,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
               textStyle: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                fontFamily: 'PateezInter',
+                fontFamily: 'PateezSans',
                 letterSpacing: 0,
               ),
             ),
@@ -176,15 +253,18 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
 
           // Publish button
           FilledButton.icon(
-            onPressed: _data.selectedPlatforms.isEmpty ? null : () {},
+            onPressed: _data.selectedPlatforms.isEmpty || _submitting
+                ? null
+                : () => _submitPost(),
             icon: const Icon(Icons.send_rounded, size: 16),
             label: isCompact
                 ? const SizedBox.shrink()
                 : Text(context.t('social.publish.publishNow')),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.actionRed,
-              disabledBackgroundColor:
-                  AppColors.actionRed.withValues(alpha: 0.4),
+              disabledBackgroundColor: AppColors.actionRed.withValues(
+                alpha: 0.4,
+              ),
               foregroundColor: Colors.white,
               padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 18),
               minimumSize: const Size(0, 36),
@@ -195,7 +275,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
               textStyle: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                fontFamily: 'PateezInter',
+                fontFamily: 'PateezSans',
                 letterSpacing: 0,
               ),
             ),
@@ -210,16 +290,10 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Editor panel
-        Expanded(
-          flex: 55,
-          child: _buildEditorPanel(context),
-        ),
+        Expanded(flex: 55, child: _buildEditorPanel(context)),
 
         // Divider
-        Container(
-          width: 1,
-          color: AppColors.line,
-        ),
+        Container(width: 1, color: AppColors.line),
 
         // Preview panel
         Expanded(
@@ -251,7 +325,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
               labelStyle: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                fontFamily: 'PateezInter',
+                fontFamily: 'PateezSans',
                 letterSpacing: 0,
               ),
               indicatorColor: AppColors.actionRed,
@@ -308,8 +382,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
           SocialPostTypeSelector(
             current: _data.postType,
             available: availableTypes,
-            onChanged: (type) =>
-                _updateData((d) => d.copyWith(postType: type)),
+            onChanged: (type) => _updateData((d) => d.copyWith(postType: type)),
           ),
 
           if (availableTypes.length > 1) const SizedBox(height: 22),
@@ -319,49 +392,56 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
             newsRepository: widget.newsRepository,
             selectedLink: _data.newsLink,
             manualLink: _data.manualLink,
-            onNewsSelected: ({
-              required String title,
-              required String imageUrl,
-              required String link,
-              required String summary,
-              required String keywords,
-              required String category,
-              required String type,
-            }) {
-              // Auto-fill caption with summary if caption is empty
-              if (summary.isNotEmpty && _captionController.text.trim().isEmpty) {
-                _captionController.text = summary;
-              }
+            onNewsSelected:
+                ({
+                  required String title,
+                  required String imageUrl,
+                  required String link,
+                  required String summary,
+                  required String keywords,
+                  required String category,
+                  required String type,
+                }) {
+                  // Auto-fill caption with summary if caption is empty
+                  if (summary.isNotEmpty &&
+                      _captionController.text.trim().isEmpty) {
+                    _captionController.text = summary;
+                  }
 
-              // Auto-fill hashtags from keywords (comma-separated)
-              List<String> parsedTags = _data.hashtags;
-              if (keywords.isNotEmpty && _data.hashtags.isEmpty) {
-                parsedTags = keywords
-                    .split(RegExp(r'[,;،]'))
-                    .map((k) => k.trim().replaceAll('#', '').replaceAll(' ', '_'))
-                    .where((k) => k.isNotEmpty)
-                    .toList();
-              }
+                  // Auto-fill hashtags from keywords (comma-separated)
+                  List<String> parsedTags = _data.hashtags;
+                  if (keywords.isNotEmpty && _data.hashtags.isEmpty) {
+                    parsedTags = keywords
+                        .split(RegExp(r'[,;،]'))
+                        .map(
+                          (k) =>
+                              k.trim().replaceAll('#', '').replaceAll(' ', '_'),
+                        )
+                        .where((k) => k.isNotEmpty)
+                        .toList();
+                  }
 
-              // Auto-fill media with news thumbnail
-              List<String> mediaList = _data.mediaUrls;
-              if (imageUrl.isNotEmpty && _data.mediaUrls.isEmpty) {
-                mediaList = [imageUrl];
-              }
+                  // Auto-fill media with news thumbnail
+                  List<String> mediaList = _data.mediaUrls;
+                  if (imageUrl.isNotEmpty && _data.mediaUrls.isEmpty) {
+                    mediaList = [imageUrl];
+                  }
 
-              _updateData((d) => d.copyWith(
-                    newsTitle: title,
-                    newsImageUrl: imageUrl,
-                    newsLink: link,
-                    newsSummary: summary,
-                    newsKeywords: keywords,
-                    newsCategory: category,
-                    newsType: type,
-                    caption: _captionController.text,
-                    hashtags: parsedTags,
-                    mediaUrls: mediaList,
-                  ));
-            },
+                  _updateData(
+                    (d) => d.copyWith(
+                      newsTitle: title,
+                      newsImageUrl: imageUrl,
+                      newsLink: link,
+                      newsSummary: summary,
+                      newsKeywords: keywords,
+                      newsCategory: category,
+                      newsType: type,
+                      caption: _captionController.text,
+                      hashtags: parsedTags,
+                      mediaUrls: mediaList,
+                    ),
+                  );
+                },
             onManualLinkChanged: (link) =>
                 _updateData((d) => d.copyWith(manualLink: link)),
           ),
@@ -372,8 +452,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
           SocialCaptionEditor(
             controller: _captionController,
             selectedPlatforms: _data.selectedPlatforms,
-            onChanged: (text) =>
-                _updateData((d) => d.copyWith(caption: text)),
+            onChanged: (text) => _updateData((d) => d.copyWith(caption: text)),
           ),
 
           const SizedBox(height: 22),
@@ -384,8 +463,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
             onPickMedia: () {
               _showMediaUrlDialog(context);
             },
-            onClearMedia: () =>
-                _updateData((d) => d.copyWith(mediaUrls: [])),
+            onClearMedia: () => _updateData((d) => d.copyWith(mediaUrls: [])),
             onRemoveMedia: (index) {
               final urls = List<String>.from(_data.mediaUrls);
               if (index < urls.length) {
@@ -400,8 +478,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
           // Hashtags
           SocialHashtagInput(
             hashtags: _data.hashtags,
-            onChanged: (tags) =>
-                _updateData((d) => d.copyWith(hashtags: tags)),
+            onChanged: (tags) => _updateData((d) => d.copyWith(hashtags: tags)),
           ),
 
           const SizedBox(height: 30),
@@ -421,9 +498,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
       decoration: BoxDecoration(
         color: AppColors.deepOcean.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(AppRadius.value * 2),
-        border: Border.all(
-          color: AppColors.deepOcean.withValues(alpha: 0.08),
-        ),
+        border: Border.all(color: AppColors.deepOcean.withValues(alpha: 0.08)),
       ),
       child: Row(
         children: [
@@ -493,9 +568,7 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(urlController.text),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.actionRed,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.actionRed),
             child: Text(
               context.t('social.publish.add'),
               style: const TextStyle(color: Colors.white),

@@ -91,7 +91,11 @@ class InstagramPreview extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.more_horiz, size: 20, color: Color(0xFF262626)),
+                const Icon(
+                  Icons.more_horiz,
+                  size: 20,
+                  color: Color(0xFF262626),
+                ),
               ],
             ),
           ),
@@ -105,7 +109,7 @@ class InstagramPreview extends StatelessWidget {
                   ? Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                      errorBuilder: (_, _, _) => _imagePlaceholder(),
                     )
                   : _imagePlaceholder(),
             ),
@@ -116,13 +120,29 @@ class InstagramPreview extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                const Icon(Icons.favorite_border_rounded, size: 24, color: Color(0xFF262626)),
+                const Icon(
+                  Icons.favorite_border_rounded,
+                  size: 24,
+                  color: Color(0xFF262626),
+                ),
                 const SizedBox(width: 14),
-                const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: Color(0xFF262626)),
+                const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 22,
+                  color: Color(0xFF262626),
+                ),
                 const SizedBox(width: 14),
-                const Icon(Icons.send_outlined, size: 22, color: Color(0xFF262626)),
+                const Icon(
+                  Icons.send_outlined,
+                  size: 22,
+                  color: Color(0xFF262626),
+                ),
                 const Spacer(),
-                const Icon(Icons.bookmark_border_rounded, size: 24, color: Color(0xFF262626)),
+                const Icon(
+                  Icons.bookmark_border_rounded,
+                  size: 24,
+                  color: Color(0xFF262626),
+                ),
               ],
             ),
           ),

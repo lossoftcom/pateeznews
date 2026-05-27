@@ -9,6 +9,8 @@ const TEMPLATE_SELECT = `
   id::text AS id,
   sablon_adi AS template_name,
   kategori AS category,
+  konu AS subject,
+  onizleme_metni AS preview_text,
   icerik_html AS content_html,
   icerik_mjml AS content_mjml,
   COALESCE(NULLIF(tasarim_json, ''), '{}')::jsonb AS design_json,
@@ -17,13 +19,15 @@ const TEMPLATE_SELECT = `
   hazir_mi AS is_ready,
   aktif_mi AS is_active,
   olusturma_tarihi AS created_at,
-  olusturma_tarihi AS updated_at,
+  guncelleme_tarihi AS updated_at,
   kullanici AS created_by
 `;
 
 const FIELD_MAP: Record<string, string> = {
   template_name: 'sablon_adi',
   category: 'kategori',
+  subject: 'konu',
+  preview_text: 'onizleme_metni',
   content_html: 'icerik_html',
   content_mjml: 'icerik_mjml',
   design_json: 'tasarim_json',
@@ -40,6 +44,7 @@ function normalizePayload(body: Record<string, any>, userId?: string) {
   }
   if (Object.prototype.hasOwnProperty.call(payload, 'degiskenler_json')) payload.degiskenler_json = JSON.stringify(payload.degiskenler_json || []);
   if (Object.prototype.hasOwnProperty.call(payload, 'tasarim_json')) payload.tasarim_json = JSON.stringify(payload.tasarim_json || {});
+  payload.guncelleme_tarihi = new Date().toISOString();
   if (userId) payload.kullanici = userId;
   return payload;
 }
@@ -111,6 +116,8 @@ export const POST: APIRoute = async ({ request }) => {
     const payload = normalizePayload(body, access.session!.user.id);
     payload.sablon_adi = String(payload.sablon_adi || '').trim();
     payload.kategori = String(payload.kategori || 'kampanya').trim() || 'kampanya';
+    payload.konu = String(payload.konu || payload.sablon_adi).trim();
+    payload.onizleme_metni = String(payload.onizleme_metni || '').trim();
     payload.icerik_html = String(payload.icerik_html || '').trim();
     if (!payload.sablon_adi || !payload.icerik_html) return json({ error: { message: 'Template name and content are required' } }, 400);
 

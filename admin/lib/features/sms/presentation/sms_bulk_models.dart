@@ -1,0 +1,174 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/app_colors.dart';
+
+enum AdminSmsBulkStatus {
+  draft,
+  sending,
+  completed,
+  scheduled,
+  paused,
+  cancelled,
+}
+
+extension AdminSmsBulkStatusLabel on AdminSmsBulkStatus {
+  String get value {
+    return switch (this) {
+      AdminSmsBulkStatus.draft => 'draft',
+      AdminSmsBulkStatus.sending => 'sending',
+      AdminSmsBulkStatus.completed => 'completed',
+      AdminSmsBulkStatus.scheduled => 'scheduled',
+      AdminSmsBulkStatus.paused => 'paused',
+      AdminSmsBulkStatus.cancelled => 'cancelled',
+    };
+  }
+
+  String get labelKey {
+    return switch (this) {
+      AdminSmsBulkStatus.draft => 'sms.bulk.status.draft',
+      AdminSmsBulkStatus.sending => 'sms.bulk.status.sending',
+      AdminSmsBulkStatus.completed => 'sms.bulk.status.completed',
+      AdminSmsBulkStatus.scheduled => 'sms.bulk.status.scheduled',
+      AdminSmsBulkStatus.paused => 'sms.bulk.status.paused',
+      AdminSmsBulkStatus.cancelled => 'sms.bulk.status.cancelled',
+    };
+  }
+
+  Color get dotColor {
+    return switch (this) {
+      AdminSmsBulkStatus.draft => AppColors.support,
+      AdminSmsBulkStatus.sending => const Color(0xFF3B82F6),
+      AdminSmsBulkStatus.completed => const Color(0xFF198754),
+      AdminSmsBulkStatus.scheduled => AppColors.warmHorizon,
+      AdminSmsBulkStatus.paused => const Color(0xFFF59E0B),
+      AdminSmsBulkStatus.cancelled => AppColors.actionRed,
+    };
+  }
+
+  Color get backgroundColor => dotColor.withValues(alpha: 0.12);
+
+  bool get canStart =>
+      this == AdminSmsBulkStatus.draft || this == AdminSmsBulkStatus.scheduled;
+
+  bool get canPause => this == AdminSmsBulkStatus.sending;
+
+  bool get canResume => this == AdminSmsBulkStatus.paused;
+
+  bool get canSchedule =>
+      this == AdminSmsBulkStatus.draft || this == AdminSmsBulkStatus.scheduled;
+}
+
+class AdminSmsBulkCampaign {
+  const AdminSmsBulkCampaign({
+    required this.id,
+    this.accountId = '',
+    this.templateId = '',
+    this.contactListId = '',
+    required this.name,
+    required this.subject,
+    required this.preview,
+    required this.templateName,
+    required this.templateCategory,
+    required this.senderAccount,
+    required this.senderEmail,
+    required this.recipientList,
+    required this.recipientCount,
+    required this.sentCount,
+    required this.openCount,
+    required this.clickCount,
+    required this.bounceCount,
+    required this.status,
+    required this.createdAt,
+    this.startedAt,
+    this.scheduledAt,
+  });
+
+  final int id;
+  final String accountId;
+  final String templateId;
+  final String contactListId;
+  final String name;
+  final String subject;
+  final String preview;
+  final String templateName;
+  final String templateCategory;
+  final String senderAccount;
+  final String senderEmail;
+  final String recipientList;
+  final int recipientCount;
+  final int sentCount;
+  final int openCount;
+  final int clickCount;
+  final int bounceCount;
+  final AdminSmsBulkStatus status;
+  final DateTime createdAt;
+  final DateTime? startedAt;
+  final DateTime? scheduledAt;
+
+  double get progress {
+    if (recipientCount <= 0) return 0;
+    return (sentCount / recipientCount).clamp(0, 1).toDouble();
+  }
+
+  double get openRate => sentCount == 0 ? 0 : openCount / sentCount;
+
+  double get clickRate => sentCount == 0 ? 0 : clickCount / sentCount;
+
+  double get bounceRate => sentCount == 0 ? 0 : bounceCount / sentCount;
+
+  int get remainingCount {
+    final remaining = recipientCount - sentCount;
+    return remaining < 0 ? 0 : remaining;
+  }
+
+  DateTime get tableDate => scheduledAt ?? startedAt ?? createdAt;
+
+  AdminSmsBulkCampaign copyWith({
+    String? name,
+    String? accountId,
+    String? templateId,
+    String? contactListId,
+    String? subject,
+    String? preview,
+    String? templateName,
+    String? templateCategory,
+    String? senderAccount,
+    String? senderEmail,
+    String? recipientList,
+    int? recipientCount,
+    int? sentCount,
+    int? openCount,
+    int? clickCount,
+    int? bounceCount,
+    AdminSmsBulkStatus? status,
+    DateTime? startedAt,
+    DateTime? scheduledAt,
+    bool clearScheduledAt = false,
+  }) {
+    return AdminSmsBulkCampaign(
+      id: id,
+      accountId: accountId ?? this.accountId,
+      templateId: templateId ?? this.templateId,
+      contactListId: contactListId ?? this.contactListId,
+      name: name ?? this.name,
+      subject: subject ?? this.subject,
+      preview: preview ?? this.preview,
+      templateName: templateName ?? this.templateName,
+      templateCategory: templateCategory ?? this.templateCategory,
+      senderAccount: senderAccount ?? this.senderAccount,
+      senderEmail: senderEmail ?? this.senderEmail,
+      recipientList: recipientList ?? this.recipientList,
+      recipientCount: recipientCount ?? this.recipientCount,
+      sentCount: sentCount ?? this.sentCount,
+      openCount: openCount ?? this.openCount,
+      clickCount: clickCount ?? this.clickCount,
+      bounceCount: bounceCount ?? this.bounceCount,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      startedAt: startedAt ?? this.startedAt,
+      scheduledAt: clearScheduledAt ? null : scheduledAt ?? this.scheduledAt,
+    );
+  }
+}
+
+const smsBulkFilterAll = 'all';

@@ -15,12 +15,16 @@ class AdminDrawer extends StatelessWidget {
     required this.onLogout,
     required this.homeVisible,
     required this.newsVisible,
+    required this.storiesVisible,
+    required this.pagesVisible,
     required this.commentsVisible,
+    required this.subscribersVisible,
     required this.mailInboxVisible,
     required this.bulkMailVisible,
     required this.mailTemplatesVisible,
     required this.contactListsVisible,
     required this.mailSettingsVisible,
+    required this.smsVisible,
     required this.whatsappVisible,
     required this.socialMediaVisible,
     required this.navigationVisible,
@@ -33,19 +37,30 @@ class AdminDrawer extends StatelessWidget {
     required this.generalSettingsVisible,
     required this.languageSettingsVisible,
     required this.homeSelected,
+    required this.newsAddSelected,
     required this.newsSelected,
+    required this.storiesSelected,
+    required this.pagesSelected,
     required this.commentsSelected,
+    required this.subscribersSelected,
     required this.mailInboxSelected,
     required this.bulkMailSelected,
     required this.mailTemplatesSelected,
     required this.contactListsSelected,
     required this.mailSettingsSelected,
+    required this.smsOutboxSelected,
+    required this.smsBulkSelected,
+    required this.smsTemplatesSelected,
+    required this.smsContactsSelected,
+    required this.smsSettingsSelected,
     required this.whatsappMessagingSelected,
     required this.whatsappBulkSelected,
     required this.whatsappTemplatesSelected,
     required this.whatsappContactsSelected,
     required this.whatsappSettingsSelected,
     required this.socialPublishSelected,
+    required this.socialAccountsSelected,
+    required this.socialSettingsSelected,
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
@@ -56,19 +71,30 @@ class AdminDrawer extends StatelessWidget {
     required this.generalSettingsSelected,
     required this.languageSettingsSelected,
     required this.onHomeSelected,
+    required this.onNewsAddSelected,
     required this.onNewsSelected,
+    required this.onStoriesSelected,
+    required this.onPagesSelected,
     required this.onCommentsSelected,
+    required this.onSubscribersSelected,
     required this.onMailInboxSelected,
     required this.onBulkMailSelected,
     required this.onMailTemplatesSelected,
     required this.onContactListsSelected,
     required this.onMailSettingsSelected,
+    required this.onSmsOutboxSelected,
+    required this.onSmsBulkSelected,
+    required this.onSmsTemplatesSelected,
+    required this.onSmsContactsSelected,
+    required this.onSmsSettingsSelected,
     required this.onWhatsappMessagingSelected,
     required this.onWhatsappBulkSelected,
     required this.onWhatsappTemplatesSelected,
     required this.onWhatsappContactsSelected,
     required this.onWhatsappSettingsSelected,
     required this.onSocialPublishSelected,
+    required this.onSocialAccountsSelected,
+    required this.onSocialSettingsSelected,
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
@@ -83,12 +109,16 @@ class AdminDrawer extends StatelessWidget {
   final VoidCallback onLogout;
   final bool homeVisible;
   final bool newsVisible;
+  final bool storiesVisible;
+  final bool pagesVisible;
   final bool commentsVisible;
+  final bool subscribersVisible;
   final bool mailInboxVisible;
   final bool bulkMailVisible;
   final bool mailTemplatesVisible;
   final bool contactListsVisible;
   final bool mailSettingsVisible;
+  final bool smsVisible;
   final bool whatsappVisible;
   final bool socialMediaVisible;
   final bool navigationVisible;
@@ -101,19 +131,30 @@ class AdminDrawer extends StatelessWidget {
   final bool generalSettingsVisible;
   final bool languageSettingsVisible;
   final bool homeSelected;
+  final bool newsAddSelected;
   final bool newsSelected;
+  final bool storiesSelected;
+  final bool pagesSelected;
   final bool commentsSelected;
+  final bool subscribersSelected;
   final bool mailInboxSelected;
   final bool bulkMailSelected;
   final bool mailTemplatesSelected;
   final bool contactListsSelected;
   final bool mailSettingsSelected;
+  final bool smsOutboxSelected;
+  final bool smsBulkSelected;
+  final bool smsTemplatesSelected;
+  final bool smsContactsSelected;
+  final bool smsSettingsSelected;
   final bool whatsappMessagingSelected;
   final bool whatsappBulkSelected;
   final bool whatsappTemplatesSelected;
   final bool whatsappContactsSelected;
   final bool whatsappSettingsSelected;
   final bool socialPublishSelected;
+  final bool socialAccountsSelected;
+  final bool socialSettingsSelected;
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
@@ -124,19 +165,30 @@ class AdminDrawer extends StatelessWidget {
   final bool generalSettingsSelected;
   final bool languageSettingsSelected;
   final VoidCallback onHomeSelected;
+  final VoidCallback onNewsAddSelected;
   final VoidCallback onNewsSelected;
+  final VoidCallback onStoriesSelected;
+  final VoidCallback onPagesSelected;
   final VoidCallback onCommentsSelected;
+  final VoidCallback onSubscribersSelected;
   final VoidCallback onMailInboxSelected;
   final VoidCallback onBulkMailSelected;
   final VoidCallback onMailTemplatesSelected;
   final VoidCallback onContactListsSelected;
   final VoidCallback onMailSettingsSelected;
+  final VoidCallback onSmsOutboxSelected;
+  final VoidCallback onSmsBulkSelected;
+  final VoidCallback onSmsTemplatesSelected;
+  final VoidCallback onSmsContactsSelected;
+  final VoidCallback onSmsSettingsSelected;
   final VoidCallback onWhatsappMessagingSelected;
   final VoidCallback onWhatsappBulkSelected;
   final VoidCallback onWhatsappTemplatesSelected;
   final VoidCallback onWhatsappContactsSelected;
   final VoidCallback onWhatsappSettingsSelected;
   final VoidCallback onSocialPublishSelected;
+  final VoidCallback onSocialAccountsSelected;
+  final VoidCallback onSocialSettingsSelected;
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
@@ -163,12 +215,16 @@ class AdminDrawer extends StatelessWidget {
           drawerMode: true,
           homeVisible: homeVisible,
           newsVisible: newsVisible,
+          storiesVisible: storiesVisible,
+          pagesVisible: pagesVisible,
           commentsVisible: commentsVisible,
+          subscribersVisible: subscribersVisible,
           mailInboxVisible: mailInboxVisible,
           bulkMailVisible: bulkMailVisible,
           mailTemplatesVisible: mailTemplatesVisible,
           contactListsVisible: contactListsVisible,
           mailSettingsVisible: mailSettingsVisible,
+          smsVisible: smsVisible,
           whatsappVisible: whatsappVisible,
           socialMediaVisible: socialMediaVisible,
           navigationVisible: navigationVisible,
@@ -181,19 +237,30 @@ class AdminDrawer extends StatelessWidget {
           generalSettingsVisible: generalSettingsVisible,
           languageSettingsVisible: languageSettingsVisible,
           homeSelected: homeSelected,
+          newsAddSelected: newsAddSelected,
           newsSelected: newsSelected,
+          storiesSelected: storiesSelected,
+          pagesSelected: pagesSelected,
           commentsSelected: commentsSelected,
+          subscribersSelected: subscribersSelected,
           mailInboxSelected: mailInboxSelected,
           bulkMailSelected: bulkMailSelected,
           mailTemplatesSelected: mailTemplatesSelected,
           contactListsSelected: contactListsSelected,
           mailSettingsSelected: mailSettingsSelected,
+          smsOutboxSelected: smsOutboxSelected,
+          smsBulkSelected: smsBulkSelected,
+          smsTemplatesSelected: smsTemplatesSelected,
+          smsContactsSelected: smsContactsSelected,
+          smsSettingsSelected: smsSettingsSelected,
           whatsappMessagingSelected: whatsappMessagingSelected,
           whatsappBulkSelected: whatsappBulkSelected,
           whatsappTemplatesSelected: whatsappTemplatesSelected,
           whatsappContactsSelected: whatsappContactsSelected,
           whatsappSettingsSelected: whatsappSettingsSelected,
           socialPublishSelected: socialPublishSelected,
+          socialAccountsSelected: socialAccountsSelected,
+          socialSettingsSelected: socialSettingsSelected,
           navigationSelected: navigationSelected,
           usersSelected: usersSelected,
           rolesPermissionsSelected: rolesPermissionsSelected,
@@ -204,19 +271,30 @@ class AdminDrawer extends StatelessWidget {
           generalSettingsSelected: generalSettingsSelected,
           languageSettingsSelected: languageSettingsSelected,
           onHomeSelected: onHomeSelected,
+          onNewsAddSelected: onNewsAddSelected,
           onNewsSelected: onNewsSelected,
+          onStoriesSelected: onStoriesSelected,
+          onPagesSelected: onPagesSelected,
           onCommentsSelected: onCommentsSelected,
+          onSubscribersSelected: onSubscribersSelected,
           onMailInboxSelected: onMailInboxSelected,
           onBulkMailSelected: onBulkMailSelected,
           onMailTemplatesSelected: onMailTemplatesSelected,
           onContactListsSelected: onContactListsSelected,
           onMailSettingsSelected: onMailSettingsSelected,
+          onSmsOutboxSelected: onSmsOutboxSelected,
+          onSmsBulkSelected: onSmsBulkSelected,
+          onSmsTemplatesSelected: onSmsTemplatesSelected,
+          onSmsContactsSelected: onSmsContactsSelected,
+          onSmsSettingsSelected: onSmsSettingsSelected,
           onWhatsappMessagingSelected: onWhatsappMessagingSelected,
           onWhatsappBulkSelected: onWhatsappBulkSelected,
           onWhatsappTemplatesSelected: onWhatsappTemplatesSelected,
           onWhatsappContactsSelected: onWhatsappContactsSelected,
           onWhatsappSettingsSelected: onWhatsappSettingsSelected,
           onSocialPublishSelected: onSocialPublishSelected,
+          onSocialAccountsSelected: onSocialAccountsSelected,
+          onSocialSettingsSelected: onSocialSettingsSelected,
           onNavigationSelected: onNavigationSelected,
           onUsersSelected: onUsersSelected,
           onRolesPermissionsSelected: onRolesPermissionsSelected,
@@ -238,12 +316,16 @@ class Sidebar extends StatefulWidget {
     required this.onLogout,
     required this.homeVisible,
     required this.newsVisible,
+    required this.storiesVisible,
+    required this.pagesVisible,
     required this.commentsVisible,
+    required this.subscribersVisible,
     required this.mailInboxVisible,
     required this.bulkMailVisible,
     required this.mailTemplatesVisible,
     required this.contactListsVisible,
     required this.mailSettingsVisible,
+    required this.smsVisible,
     required this.whatsappVisible,
     required this.socialMediaVisible,
     required this.navigationVisible,
@@ -256,19 +338,30 @@ class Sidebar extends StatefulWidget {
     required this.generalSettingsVisible,
     required this.languageSettingsVisible,
     required this.homeSelected,
+    required this.newsAddSelected,
     required this.newsSelected,
+    required this.storiesSelected,
+    required this.pagesSelected,
     required this.commentsSelected,
+    required this.subscribersSelected,
     required this.mailInboxSelected,
     required this.bulkMailSelected,
     required this.mailTemplatesSelected,
     required this.contactListsSelected,
     required this.mailSettingsSelected,
+    required this.smsOutboxSelected,
+    required this.smsBulkSelected,
+    required this.smsTemplatesSelected,
+    required this.smsContactsSelected,
+    required this.smsSettingsSelected,
     required this.whatsappMessagingSelected,
     required this.whatsappBulkSelected,
     required this.whatsappTemplatesSelected,
     required this.whatsappContactsSelected,
     required this.whatsappSettingsSelected,
     required this.socialPublishSelected,
+    required this.socialAccountsSelected,
+    required this.socialSettingsSelected,
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
@@ -279,19 +372,30 @@ class Sidebar extends StatefulWidget {
     required this.generalSettingsSelected,
     required this.languageSettingsSelected,
     required this.onHomeSelected,
+    required this.onNewsAddSelected,
     required this.onNewsSelected,
+    required this.onStoriesSelected,
+    required this.onPagesSelected,
     required this.onCommentsSelected,
+    required this.onSubscribersSelected,
     required this.onMailInboxSelected,
     required this.onBulkMailSelected,
     required this.onMailTemplatesSelected,
     required this.onContactListsSelected,
     required this.onMailSettingsSelected,
+    required this.onSmsOutboxSelected,
+    required this.onSmsBulkSelected,
+    required this.onSmsTemplatesSelected,
+    required this.onSmsContactsSelected,
+    required this.onSmsSettingsSelected,
     required this.onWhatsappMessagingSelected,
     required this.onWhatsappBulkSelected,
     required this.onWhatsappTemplatesSelected,
     required this.onWhatsappContactsSelected,
     required this.onWhatsappSettingsSelected,
     required this.onSocialPublishSelected,
+    required this.onSocialAccountsSelected,
+    required this.onSocialSettingsSelected,
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
@@ -307,12 +411,16 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onLogout;
   final bool homeVisible;
   final bool newsVisible;
+  final bool storiesVisible;
+  final bool pagesVisible;
   final bool commentsVisible;
+  final bool subscribersVisible;
   final bool mailInboxVisible;
   final bool bulkMailVisible;
   final bool mailTemplatesVisible;
   final bool contactListsVisible;
   final bool mailSettingsVisible;
+  final bool smsVisible;
   final bool whatsappVisible;
   final bool socialMediaVisible;
   final bool navigationVisible;
@@ -325,19 +433,30 @@ class Sidebar extends StatefulWidget {
   final bool generalSettingsVisible;
   final bool languageSettingsVisible;
   final bool homeSelected;
+  final bool newsAddSelected;
   final bool newsSelected;
+  final bool storiesSelected;
+  final bool pagesSelected;
   final bool commentsSelected;
+  final bool subscribersSelected;
   final bool mailInboxSelected;
   final bool bulkMailSelected;
   final bool mailTemplatesSelected;
   final bool contactListsSelected;
   final bool mailSettingsSelected;
+  final bool smsOutboxSelected;
+  final bool smsBulkSelected;
+  final bool smsTemplatesSelected;
+  final bool smsContactsSelected;
+  final bool smsSettingsSelected;
   final bool whatsappMessagingSelected;
   final bool whatsappBulkSelected;
   final bool whatsappTemplatesSelected;
   final bool whatsappContactsSelected;
   final bool whatsappSettingsSelected;
   final bool socialPublishSelected;
+  final bool socialAccountsSelected;
+  final bool socialSettingsSelected;
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
@@ -348,19 +467,30 @@ class Sidebar extends StatefulWidget {
   final bool generalSettingsSelected;
   final bool languageSettingsSelected;
   final VoidCallback onHomeSelected;
+  final VoidCallback onNewsAddSelected;
   final VoidCallback onNewsSelected;
+  final VoidCallback onStoriesSelected;
+  final VoidCallback onPagesSelected;
   final VoidCallback onCommentsSelected;
+  final VoidCallback onSubscribersSelected;
   final VoidCallback onMailInboxSelected;
   final VoidCallback onBulkMailSelected;
   final VoidCallback onMailTemplatesSelected;
   final VoidCallback onContactListsSelected;
   final VoidCallback onMailSettingsSelected;
+  final VoidCallback onSmsOutboxSelected;
+  final VoidCallback onSmsBulkSelected;
+  final VoidCallback onSmsTemplatesSelected;
+  final VoidCallback onSmsContactsSelected;
+  final VoidCallback onSmsSettingsSelected;
   final VoidCallback onWhatsappMessagingSelected;
   final VoidCallback onWhatsappBulkSelected;
   final VoidCallback onWhatsappTemplatesSelected;
   final VoidCallback onWhatsappContactsSelected;
   final VoidCallback onWhatsappSettingsSelected;
   final VoidCallback onSocialPublishSelected;
+  final VoidCallback onSocialAccountsSelected;
+  final VoidCallback onSocialSettingsSelected;
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
@@ -378,6 +508,7 @@ class Sidebar extends StatefulWidget {
 
 class _SidebarState extends State<Sidebar> {
   static const _mailGroup = 'mail';
+  static const _smsGroup = 'sms';
   static const _whatsappGroup = 'whatsapp';
   static const _socialGroup = 'social';
   static const _modulesGroup = 'modules';
@@ -421,6 +552,13 @@ class _SidebarState extends State<Sidebar> {
         data.mailSettingsSelected) {
       return _mailGroup;
     }
+    if (data.smsOutboxSelected ||
+        data.smsBulkSelected ||
+        data.smsTemplatesSelected ||
+        data.smsContactsSelected ||
+        data.smsSettingsSelected) {
+      return _smsGroup;
+    }
     if (data.whatsappMessagingSelected ||
         data.whatsappBulkSelected ||
         data.whatsappTemplatesSelected ||
@@ -428,7 +566,9 @@ class _SidebarState extends State<Sidebar> {
         data.whatsappSettingsSelected) {
       return _whatsappGroup;
     }
-    if (data.socialPublishSelected) {
+    if (data.socialPublishSelected ||
+        data.socialAccountsSelected ||
+        data.socialSettingsSelected) {
       return _socialGroup;
     }
     if (data.aiSettingsSelected ||
@@ -487,13 +627,22 @@ class _SidebarState extends State<Sidebar> {
         widget.mailTemplatesSelected ||
         widget.contactListsSelected ||
         widget.mailSettingsSelected;
+    final smsSelected =
+        widget.smsOutboxSelected ||
+        widget.smsBulkSelected ||
+        widget.smsTemplatesSelected ||
+        widget.smsContactsSelected ||
+        widget.smsSettingsSelected;
     final whatsappSelected =
         widget.whatsappMessagingSelected ||
         widget.whatsappBulkSelected ||
         widget.whatsappTemplatesSelected ||
         widget.whatsappContactsSelected ||
         widget.whatsappSettingsSelected;
-    final socialSelected = widget.socialPublishSelected;
+    final socialSelected =
+        widget.socialPublishSelected ||
+        widget.socialAccountsSelected ||
+        widget.socialSettingsSelected;
     final modulesSelected =
         widget.aiSettingsSelected ||
         widget.pharmacySettingsSelected ||
@@ -534,10 +683,24 @@ class _SidebarState extends State<Sidebar> {
                   ),
                 if (widget.newsVisible)
                   SidebarItem(
+                    icon: Symbols.add,
+                    label: context.t('nav.newsAdd'),
+                    selected: widget.newsAddSelected,
+                    onTap: () => _select(context, widget.onNewsAddSelected),
+                  ),
+                if (widget.newsVisible)
+                  SidebarItem(
                     icon: Symbols.article,
                     label: context.t('nav.news'),
                     selected: widget.newsSelected,
                     onTap: () => _select(context, widget.onNewsSelected),
+                  ),
+                if (widget.storiesVisible)
+                  SidebarItem(
+                    icon: Symbols.photo_camera,
+                    label: context.t('nav.stories'),
+                    selected: widget.storiesSelected,
+                    onTap: () => _select(context, widget.onStoriesSelected),
                   ),
                 if (widget.commentsVisible)
                   SidebarItem(
@@ -545,6 +708,13 @@ class _SidebarState extends State<Sidebar> {
                     label: context.t('nav.comments'),
                     selected: widget.commentsSelected,
                     onTap: () => _select(context, widget.onCommentsSelected),
+                  ),
+                if (widget.subscribersVisible)
+                  SidebarItem(
+                    icon: Symbols.group,
+                    label: context.t('nav.subscribers'),
+                    selected: widget.subscribersSelected,
+                    onTap: () => _select(context, widget.onSubscribersSelected),
                   ),
                 if (widget.mailInboxVisible ||
                     widget.bulkMailVisible ||
@@ -653,7 +823,65 @@ class _SidebarState extends State<Sidebar> {
                         onTap: () =>
                             _select(context, widget.onSocialPublishSelected),
                       ),
+                      SidebarSubItem(
+                        label: context.t('nav.socialAccountsAdd'),
+                        selected: widget.socialAccountsSelected,
+                        onTap: () =>
+                            _select(context, widget.onSocialAccountsSelected),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.socialSettings'),
+                        selected: widget.socialSettingsSelected,
+                        onTap: () =>
+                            _select(context, widget.onSocialSettingsSelected),
+                      ),
                     ],
+                  ),
+                if (widget.smsVisible)
+                  SidebarExpandableItem(
+                    icon: Icons.sms_outlined,
+                    label: context.t('nav.sms'),
+                    selected: smsSelected,
+                    expanded: _openExpandable == _smsGroup,
+                    onTap: () => _handleExpandableTap(_smsGroup),
+                    children: [
+                      SidebarSubItem(
+                        label: context.t('nav.sms.outbox'),
+                        selected: widget.smsOutboxSelected,
+                        onTap: () =>
+                            _select(context, widget.onSmsOutboxSelected),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.sms.bulk'),
+                        selected: widget.smsBulkSelected,
+                        onTap: () => _select(context, widget.onSmsBulkSelected),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.sms.templates'),
+                        selected: widget.smsTemplatesSelected,
+                        onTap: () =>
+                            _select(context, widget.onSmsTemplatesSelected),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.sms.contacts'),
+                        selected: widget.smsContactsSelected,
+                        onTap: () =>
+                            _select(context, widget.onSmsContactsSelected),
+                      ),
+                      SidebarSubItem(
+                        label: context.t('nav.sms.settings'),
+                        selected: widget.smsSettingsSelected,
+                        onTap: () =>
+                            _select(context, widget.onSmsSettingsSelected),
+                      ),
+                    ],
+                  ),
+                if (widget.pagesVisible)
+                  SidebarItem(
+                    icon: Symbols.draft,
+                    label: context.t('nav.pages'),
+                    selected: widget.pagesSelected,
+                    onTap: () => _select(context, widget.onPagesSelected),
                   ),
                 if (widget.navigationVisible)
                   SidebarItem(

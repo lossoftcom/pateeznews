@@ -21,8 +21,8 @@ class SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.deepOcean : AppColors.inkSoft;
-    final background = selected ? AppColors.surface : Colors.transparent;
+    final color = selected ? Colors.white : AppColors.inkSoft;
+    final background = selected ? AppColors.deepOcean : Colors.transparent;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -32,17 +32,26 @@ class SidebarItem extends StatelessWidget {
         onTap: onTap ?? () {},
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: background,
             borderRadius: BorderRadius.circular(AppRadius.value),
             border: Border.all(
-              color: selected ? AppColors.line : Colors.transparent,
+              color: selected ? AppColors.deepOcean : Colors.transparent,
             ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppColors.deepOcean.withValues(alpha: 0.22),
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             children: [
-              SymbolIcon(icon, color: color, size: 20),
+              SymbolIcon(icon, color: color, size: 21),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -52,10 +61,22 @@ class SidebarItem extends StatelessWidget {
                   style: TextStyle(
                     color: color,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 15,
                     letterSpacing: 0,
                   ),
                 ),
               ),
+              if (selected) ...[
+                const SizedBox(width: 10),
+                Container(
+                  width: 4,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.52),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -85,8 +106,8 @@ class SidebarExpandableItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasChildren = children.isNotEmpty;
-    final color = selected ? AppColors.deepOcean : AppColors.inkSoft;
-    final background = selected ? AppColors.surface : Colors.transparent;
+    final color = selected ? Colors.white : AppColors.inkSoft;
+    final background = selected ? AppColors.deepOcean : Colors.transparent;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -99,19 +120,26 @@ class SidebarExpandableItem extends StatelessWidget {
             onTap: onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               decoration: BoxDecoration(
                 color: background,
                 borderRadius: BorderRadius.circular(AppRadius.value),
                 border: Border.all(
-                  color: selected
-                      ? AppColors.line.withValues(alpha: 0.8)
-                      : Colors.transparent,
+                  color: selected ? AppColors.deepOcean : Colors.transparent,
                 ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.deepOcean.withValues(alpha: 0.22),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
+                        ),
+                      ]
+                    : null,
               ),
               child: Row(
                 children: [
-                  SymbolIcon(icon, color: color, size: 18),
+                  SymbolIcon(icon, color: color, size: 19),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -123,6 +151,7 @@ class SidebarExpandableItem extends StatelessWidget {
                         fontWeight: selected
                             ? FontWeight.w600
                             : FontWeight.w500,
+                        fontSize: 15,
                         letterSpacing: 0,
                       ),
                     ),
@@ -133,7 +162,7 @@ class SidebarExpandableItem extends StatelessWidget {
                     child: SymbolIcon(
                       Symbols.keyboard_arrow_down,
                       color: color,
-                      size: 16,
+                      size: 17,
                     ),
                   ),
                 ],
@@ -181,7 +210,7 @@ class SidebarSubItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.value),
         onTap: onTap ?? () {},
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.value),
@@ -206,6 +235,7 @@ class SidebarSubItem extends StatelessWidget {
                   style: TextStyle(
                     color: color,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    fontSize: 15,
                     letterSpacing: 0,
                   ),
                 ),

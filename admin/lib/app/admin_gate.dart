@@ -9,20 +9,27 @@ import '../features/auth/data/admin_auth_repository.dart';
 import '../features/comments/data/admin_comments_repository.dart';
 import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
+import '../features/pages/data/admin_pages_repository.dart';
 import '../features/settings/data/admin_ai_settings_repository.dart';
 import '../features/settings/data/admin_general_settings_repository.dart';
 import '../features/settings/data/admin_module_settings_repository.dart';
+import '../features/sms/data/admin_sms_repository.dart';
+import '../features/social/data/admin_social_repository.dart';
+import '../features/stories/data/admin_stories_repository.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/settings/data/admin_languages_repository.dart';
 import '../features/users/data/admin_roles_repository.dart';
 import '../features/users/data/admin_users_repository.dart';
+import '../features/subscribers/data/admin_subscribers_repository.dart';
 
 class AdminGate extends StatefulWidget {
   const AdminGate({
     super.key,
     required this.authRepository,
     required this.newsRepository,
+    required this.storiesRepository,
+    required this.pagesRepository,
     required this.commentsRepository,
     required this.navigationRepository,
     required this.usersRepository,
@@ -32,10 +39,15 @@ class AdminGate extends StatefulWidget {
     required this.aiSettingsRepository,
     required this.moduleSettingsRepository,
     required this.accountSettingsRepository,
+    required this.subscribersRepository,
+    required this.smsRepository,
+    required this.socialRepository,
   });
 
   final AdminAuthRepository authRepository;
   final AdminNewsRepository newsRepository;
+  final AdminStoriesRepository storiesRepository;
+  final AdminPagesRepository pagesRepository;
   final AdminCommentsRepository commentsRepository;
   final AdminNavigationRepository navigationRepository;
   final AdminUsersRepository usersRepository;
@@ -45,6 +57,9 @@ class AdminGate extends StatefulWidget {
   final AdminAiSettingsRepository aiSettingsRepository;
   final AdminModuleSettingsRepository moduleSettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
+  final AdminSubscribersRepository subscribersRepository;
+  final AdminSmsRepository smsRepository;
+  final AdminSocialRepository socialRepository;
 
   @override
   State<AdminGate> createState() => _AdminGateState();
@@ -125,6 +140,8 @@ class _AdminGateState extends State<AdminGate> {
             profile: _profile,
             onLogout: () => unawaited(_logout()),
             newsRepository: widget.newsRepository,
+            storiesRepository: widget.storiesRepository,
+            pagesRepository: widget.pagesRepository,
             commentsRepository: widget.commentsRepository,
             navigationRepository: widget.navigationRepository,
             usersRepository: widget.usersRepository,
@@ -134,6 +151,9 @@ class _AdminGateState extends State<AdminGate> {
             aiSettingsRepository: widget.aiSettingsRepository,
             moduleSettingsRepository: widget.moduleSettingsRepository,
             accountSettingsRepository: widget.accountSettingsRepository,
+            subscribersRepository: widget.subscribersRepository,
+            smsRepository: widget.smsRepository,
+            socialRepository: widget.socialRepository,
           )
         : LoginScreen(onLogin: _login);
   }

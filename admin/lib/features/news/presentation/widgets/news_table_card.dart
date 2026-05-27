@@ -85,57 +85,117 @@ class NewsTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _NewsFilters(
-          filterOptions: filterOptions,
-          languageFilter: languageFilter,
-          categoryFilter: categoryFilter,
-          typeFilter: typeFilter,
-          statusFilter: statusFilter,
-          publisherFilter: publisherFilter,
-          onLanguageChanged: onLanguageChanged,
-          onCategoryChanged: onCategoryChanged,
-          onTypeChanged: onTypeChanged,
-          onStatusChanged: onStatusChanged,
-          onPublisherChanged: onPublisherChanged,
-        ),
-        const SizedBox(height: 28),
-        _NewsToolbar(
-          pageSize: pageSize,
-          searchQuery: searchQuery,
-          selectedCount: selectedPostIds.length,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onAddPost: onAddPost,
-          onDeleteSelected: onDeleteSelected,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: _NewsDataTable(
-            posts: posts,
-            loading: loading,
-            selectedPostIds: selectedPostIds,
-            sortState: sortState,
-            onTogglePost: onTogglePost,
-            onToggleAllPosts: onToggleAllPosts,
-            onSort: onSort,
-            onEditPost: onEditPost,
-            onToggleStatus: onToggleStatus,
-            onTogglePinned: onTogglePinned,
-            onDeletePost: onDeletePost,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _NewsFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          loading: loading,
-          onPageChanged: onPageChanged,
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 800;
+
+        if (mobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _NewsMobileToolbarCard(
+                searchQuery: searchQuery,
+                pageSize: pageSize,
+                selectedCount: selectedPostIds.length,
+                totalCount: totalCount,
+                filterOptions: filterOptions,
+                languageFilter: languageFilter,
+                categoryFilter: categoryFilter,
+                typeFilter: typeFilter,
+                statusFilter: statusFilter,
+                publisherFilter: publisherFilter,
+                onSearchChanged: onSearchChanged,
+                onPageSizeChanged: onPageSizeChanged,
+                onLanguageChanged: onLanguageChanged,
+                onCategoryChanged: onCategoryChanged,
+                onTypeChanged: onTypeChanged,
+                onStatusChanged: onStatusChanged,
+                onPublisherChanged: onPublisherChanged,
+                onDeleteSelected: onDeleteSelected,
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _AddPostButton(onPressed: onAddPost),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _NewsMobileList(
+                  posts: posts,
+                  loading: loading,
+                  selectedPostIds: selectedPostIds,
+                  onTogglePost: onTogglePost,
+                  onEditPost: onEditPost,
+                  onToggleStatus: onToggleStatus,
+                  onTogglePinned: onTogglePinned,
+                  onDeletePost: onDeletePost,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _NewsFooter(
+                page: page,
+                pageSize: pageSize,
+                totalCount: totalCount,
+                loading: loading,
+                onPageChanged: onPageChanged,
+              ),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _NewsFilters(
+              filterOptions: filterOptions,
+              languageFilter: languageFilter,
+              categoryFilter: categoryFilter,
+              typeFilter: typeFilter,
+              statusFilter: statusFilter,
+              publisherFilter: publisherFilter,
+              onLanguageChanged: onLanguageChanged,
+              onCategoryChanged: onCategoryChanged,
+              onTypeChanged: onTypeChanged,
+              onStatusChanged: onStatusChanged,
+              onPublisherChanged: onPublisherChanged,
+            ),
+            const SizedBox(height: 28),
+            _NewsToolbar(
+              pageSize: pageSize,
+              searchQuery: searchQuery,
+              selectedCount: selectedPostIds.length,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onAddPost: onAddPost,
+              onDeleteSelected: onDeleteSelected,
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: _NewsDataTable(
+                posts: posts,
+                loading: loading,
+                selectedPostIds: selectedPostIds,
+                sortState: sortState,
+                onTogglePost: onTogglePost,
+                onToggleAllPosts: onToggleAllPosts,
+                onSort: onSort,
+                onEditPost: onEditPost,
+                onToggleStatus: onToggleStatus,
+                onTogglePinned: onTogglePinned,
+                onDeletePost: onDeletePost,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _NewsFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              loading: loading,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1837,15 +1897,17 @@ class _NewsFooter extends StatelessWidget {
     final to = totalCount == 0
         ? 0
         : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 800;
         final compact = constraints.maxWidth < 640;
         final summary = Text(
-          context.t(
-            'common.recordRange',
-            values: {'from': from, 'to': to, 'total': totalCount},
-          ),
+          rangeText,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.inkSoft,
             fontWeight: FontWeight.w500,
@@ -1857,6 +1919,47 @@ class _NewsFooter extends StatelessWidget {
           loading: loading,
           onPageChanged: onPageChanged,
         );
+
+        if (mobile) {
+          final hasPrevious = page > 1 && !loading;
+          final hasNext = page < lastPage && !loading;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
+                icon: const Icon(Icons.chevron_left),
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                visualDensity: VisualDensity.compact,
+              ),
+              Expanded(
+                child: Text(
+                  rangeText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+              IconButton(
+                onPressed: hasNext ? () => onPageChanged(page + 1) : null,
+                icon: const Icon(Icons.chevron_right),
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          );
+        }
 
         if (compact) {
           return Column(
@@ -1971,6 +2074,509 @@ class _PageButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _NewsMobileToolbarCard extends StatefulWidget {
+  const _NewsMobileToolbarCard({
+    required this.searchQuery,
+    required this.pageSize,
+    required this.selectedCount,
+    required this.totalCount,
+    required this.filterOptions,
+    required this.languageFilter,
+    required this.categoryFilter,
+    required this.typeFilter,
+    required this.statusFilter,
+    required this.publisherFilter,
+    required this.onSearchChanged,
+    required this.onPageSizeChanged,
+    required this.onLanguageChanged,
+    required this.onCategoryChanged,
+    required this.onTypeChanged,
+    required this.onStatusChanged,
+    required this.onPublisherChanged,
+    required this.onDeleteSelected,
+  });
+
+  final String searchQuery;
+  final int pageSize;
+  final int selectedCount;
+  final int totalCount;
+  final AdminNewsFilterOptions filterOptions;
+  final String languageFilter;
+  final String categoryFilter;
+  final String typeFilter;
+  final String statusFilter;
+  final String publisherFilter;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String?> onLanguageChanged;
+  final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String?> onTypeChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final ValueChanged<String?> onPublisherChanged;
+  final VoidCallback onDeleteSelected;
+
+  @override
+  State<_NewsMobileToolbarCard> createState() => _NewsMobileToolbarCardState();
+}
+
+class _NewsMobileToolbarCardState extends State<_NewsMobileToolbarCard> {
+  late TextEditingController _searchController;
+  bool _expanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NewsMobileToolbarCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != _searchController.text) {
+      _searchController.value = TextEditingValue(
+        text: widget.searchQuery,
+        selection: TextSelection.collapsed(offset: widget.searchQuery.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  int _activeFilterCount() {
+    var count = 0;
+    if (widget.languageFilter != 'Tümü') count++;
+    if (widget.categoryFilter != 'Tümü') count++;
+    if (widget.typeFilter != 'Tümü') count++;
+    if (widget.statusFilter != 'Tümü') count++;
+    if (widget.publisherFilter != 'Tümü') count++;
+    return count;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activeFilterCount = _activeFilterCount();
+    final hasSelection = widget.selectedCount > 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: widget.onSearchChanged,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: context.t('Search posts...'),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Colors.grey,
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear,
+                                size: 18,
+                                color: Colors.grey,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                widget.onSearchChanged('');
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 34,
+                        minHeight: 34,
+                      ),
+                      border: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF2C3E50)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      isDense: true,
+                      filled: false,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                InkWell(
+                  mouseCursor: WidgetStateMouseCursor.clickable,
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    setState(() => _expanded = !_expanded);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    child: SizedBox(
+                      width: 64,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _expanded ? 'Gizle' : 'Göster',
+                                style: const TextStyle(
+                                  color: Color(0xFF2C3E50),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              AnimatedRotation(
+                                turns: _expanded ? 0.5 : 0,
+                                duration: const Duration(milliseconds: 220),
+                                child: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 18,
+                                  color: Color(0xFF2C3E50),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            '${widget.totalCount} kayıt',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            activeFilterCount == 0
+                                ? 'Filtre yok'
+                                : '$activeFilterCount aktif filtre',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOut,
+            child: !_expanded
+                ? const SizedBox.shrink()
+                : Column(
+                    children: [
+                      Divider(height: 1, color: Colors.grey.shade200),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _PageSizeSelect(
+                                  value: widget.pageSize,
+                                  onChanged: widget.onPageSizeChanged,
+                                ),
+                                if (hasSelection) ...[
+                                  const SizedBox(width: 12),
+                                  Flexible(
+                                    child: _BulkDeleteButton(
+                                      selectedCount: widget.selectedCount,
+                                      onPressed: widget.onDeleteSelected,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _NewsFilters(
+                              filterOptions: widget.filterOptions,
+                              languageFilter: widget.languageFilter,
+                              categoryFilter: widget.categoryFilter,
+                              typeFilter: widget.typeFilter,
+                              statusFilter: widget.statusFilter,
+                              publisherFilter: widget.publisherFilter,
+                              onLanguageChanged: widget.onLanguageChanged,
+                              onCategoryChanged: widget.onCategoryChanged,
+                              onTypeChanged: widget.onTypeChanged,
+                              onStatusChanged: widget.onStatusChanged,
+                              onPublisherChanged: widget.onPublisherChanged,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsMobileList extends StatelessWidget {
+  const _NewsMobileList({
+    required this.posts,
+    required this.loading,
+    required this.selectedPostIds,
+    required this.onTogglePost,
+    required this.onEditPost,
+    required this.onToggleStatus,
+    required this.onTogglePinned,
+    required this.onDeletePost,
+  });
+
+  final List<AdminNewsPost> posts;
+  final bool loading;
+  final Set<String> selectedPostIds;
+  final ValueChanged<String> onTogglePost;
+  final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onToggleStatus;
+  final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onDeletePost;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading && posts.isEmpty) {
+      return const _NewsLoading();
+    }
+    if (posts.isEmpty) {
+      return const _NewsEmpty();
+    }
+    return ListView.separated(
+      itemCount: posts.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final post = posts[index];
+        final selected = selectedPostIds.contains(post.id);
+        return _NewsMobileCard(
+          post: post,
+          selected: selected,
+          onToggle: () => onTogglePost(post.id),
+          onEditPost: onEditPost,
+          onToggleStatus: onToggleStatus,
+          onTogglePinned: onTogglePinned,
+          onDeletePost: onDeletePost,
+        );
+      },
+    );
+  }
+}
+
+class _NewsMobileCard extends StatelessWidget {
+  const _NewsMobileCard({
+    required this.post,
+    required this.selected,
+    required this.onToggle,
+    required this.onEditPost,
+    required this.onToggleStatus,
+    required this.onTogglePinned,
+    required this.onDeletePost,
+  });
+
+  final AdminNewsPost post;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onToggleStatus;
+  final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onDeletePost;
+
+  static const _accent = Color(0xFF2C3E50);
+  static const _activeBg = Color(0xFFE6F4EA);
+  static const _activeText = Color(0xFF1E7E34);
+  static const _passiveBg = Color(0xFFF5F5F5);
+  static const _passiveText = Color(0xFF757575);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: selected ? _accent.withValues(alpha: 0.04) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selected
+              ? _accent.withValues(alpha: 0.3)
+              : Colors.grey.shade200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: selected
+                ? _accent.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.05),
+            blurRadius: selected ? 12 : 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  side: const BorderSide(color: Color(0xFFD1D1D1)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _PostThumbnail(post: post),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _RowSelectTapTarget(
+                  onTap: onToggle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (post.isPinned) ...[
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: SymbolIcon(
+                                Symbols.push_pin,
+                                color: AppColors.warmHorizon,
+                                size: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              post.displayTitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.black87,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${post.id} • ${post.displayCategory}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: _TypeBadge(
+                              label: context.t(_typeLabel(post.displayType)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _NewsRowMenu(
+                post: post,
+                onEditPost: onEditPost,
+                onToggleStatus: onToggleStatus,
+                onTogglePinned: onTogglePinned,
+                onDeletePost: onDeletePost,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: post.published ? _activeBg : _passiveBg,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  post.published
+                      ? context.t('Published')
+                      : context.t('Draft'),
+                  style: TextStyle(
+                    color: post.published ? _activeText : _passiveText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  formatAdminFullDate(context, post.createdAt),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

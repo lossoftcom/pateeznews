@@ -1,7 +1,11 @@
 import type { APIRoute } from 'astro';
+import { spawn } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import ffmpegStaticPath from 'ffmpeg-static';
 import sharp from 'sharp';
+import { setStorageUploadProgress } from '../../../lib/server/storageUploadProgress';
 
 const STORAGE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profile'] as const;
 type StorageType = typeof STORAGE_TYPES[number];
@@ -9,9 +13,16 @@ type StorageType = typeof STORAGE_TYPES[number];
 const IMAGE_STORAGE_TYPES = new Set<StorageType>(['image', 'logo', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
 const MAX_IMAGE_DIMENSION = 7680;
-const WEBP_QUALITY = 86;
+const WEBP_QUALITY = 92;
 const WEBP_ALPHA_QUALITY = 95;
 const WEBP_EFFORT = 6;
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.avi', '.m4v', '.mkv']);
+const VIDEO_CRF = 21;
+const VIDEO_PRESET = 'slow';
+const VIDEO_THUMB_WIDTH = 1280;
+const VIDEO_THUMB_QUALITY = 86;
+
+const ffmpegPath = process.env.FFMPEG_PATH || process.env.FFMPEG_BIN || ffmpegStaticPath || 'ffmpeg';
 
 const safeDecode = (value: string) => {
     let decoded = value;
@@ -61,6 +72,11 @@ const shouldOptimizeImage = (type: StorageType, file: File) => {
     return IMAGE_STORAGE_TYPES.has(type) && (file.type.startsWith('image/') || IMAGE_EXTENSIONS.has(ext));
 };
 
+const shouldOptimizeVideo = (type: StorageType, file: File) => {
+    const ext = path.extname(file.name || '').toLowerCase();
+    return type === 'video' && (file.type.startsWith('video/') || VIDEO_EXTENSIONS.has(ext));
+};
+
 const optimizeImageToWebp = async (input: Buffer) => {
     const image = sharp(input, { animated: true });
     const metadata = await image.metadata();
@@ -86,7 +102,203 @@ const optimizeImageToWebp = async (input: Buffer) => {
         .toBuffer();
 };
 
+const durationPattern = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/;
+
+const secondsFromDurationText = (value: string) => {
+    const match = durationPattern.exec(value);
+    if (!match) return null;
+    const [, hours, minutes, seconds] = match;
+    return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+};
+
+const secondsFromOutTimeText = (value: string) => {
+    const parts = value.trim().split(':');
+    if (parts.length !== 3) return null;
+    return Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
+};
+
+const getVideoDurationSeconds = (inputPath: string) => new Promise<number | null>((resolve) => {
+    const child = spawn(ffmpegPath, ['-hide_banner', '-i', inputPath], { windowsHide: true });
+    const stderr: Buffer[] = [];
+
+    child.stderr.on('data', (chunk) => {
+        stderr.push(Buffer.from(chunk));
+    });
+
+    child.on('error', () => resolve(null));
+    child.on('close', () => {
+        resolve(secondsFromDurationText(Buffer.concat(stderr).toString('utf8')));
+    });
+});
+
+const runFfmpeg = (
+    args: string[],
+    options: { onProgress?: (seconds: number) => void } = {}
+) => new Promise<void>((resolve, reject) => {
+    const child = spawn(ffmpegPath, args, { windowsHide: true });
+    const stderr: Buffer[] = [];
+    let stdoutBuffer = '';
+
+    child.stderr.on('data', (chunk) => {
+        if (stderr.reduce((sum, item) => sum + item.length, 0) < 12000) {
+            stderr.push(Buffer.from(chunk));
+        }
+    });
+
+    child.stdout.on('data', (chunk) => {
+        if (!options.onProgress) return;
+        stdoutBuffer += Buffer.from(chunk).toString('utf8');
+        const lines = stdoutBuffer.split(/\r?\n/);
+        stdoutBuffer = lines.pop() ?? '';
+        for (const line of lines) {
+            const [key, rawValue] = line.split('=');
+            const value = rawValue?.trim();
+            if (!key || !value) continue;
+            if (key === 'out_time_us' || key === 'out_time_ms') {
+                const numeric = Number(value);
+                if (Number.isFinite(numeric)) options.onProgress(numeric / 1_000_000);
+            } else if (key === 'out_time') {
+                const seconds = secondsFromOutTimeText(value);
+                if (seconds !== null && Number.isFinite(seconds)) options.onProgress(seconds);
+            } else if (key === 'progress' && value === 'end') {
+                options.onProgress(Number.POSITIVE_INFINITY);
+            }
+        }
+    });
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+        if (code === 0) {
+            resolve();
+            return;
+        }
+        const message = Buffer.concat(stderr).toString('utf8').trim();
+        reject(new Error(message || `FFmpeg exited with code ${code}`));
+    });
+});
+
+const optimizeVideoToMp4 = async (
+    inputPath: string,
+    outputPath: string,
+    uploadId: string | null
+) => {
+    const durationSeconds = await getVideoDurationSeconds(inputPath);
+    const startedAt = Date.now();
+
+    await runFfmpeg([
+        '-y',
+        '-hide_banner',
+        '-loglevel', 'error',
+        '-nostats',
+        '-progress', 'pipe:1',
+        '-i', inputPath,
+        '-map', '0:v:0',
+        '-map', '0:a?',
+        '-map_metadata', '-1',
+        '-vf', "scale='min(3840,iw)':'min(2160,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+        '-c:v', 'libx264',
+        '-preset', VIDEO_PRESET,
+        '-crf', String(VIDEO_CRF),
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
+        '-level:v', '5.2',
+        '-movflags', '+faststart',
+        '-c:a', 'aac',
+        '-b:a', '160k',
+        '-ar', '48000',
+        '-ac', '2',
+        outputPath
+    ], {
+        onProgress: (seconds) => {
+            if (!uploadId || !durationSeconds || durationSeconds <= 0) return;
+            const done = seconds === Number.POSITIVE_INFINITY;
+            const progress = done ? 0.98 : Math.min(Math.max(seconds / durationSeconds, 0), 0.98);
+            const elapsedSeconds = (Date.now() - startedAt) / 1000;
+            const etaSeconds = progress > 0 && !done
+                ? (elapsedSeconds / progress) * (1 - progress)
+                : null;
+
+            setStorageUploadProgress(uploadId, {
+                phase: 'processing',
+                progress,
+                etaSeconds,
+            });
+        },
+    });
+};
+
+const createVideoThumbnailWebp = async (videoPath: string, thumbPath: string) => {
+    const tempPng = path.join(
+        os.tmpdir(),
+        `pateez-thumb-${Date.now()}-${Math.random().toString(16).slice(2)}.png`
+    );
+
+    const hasUsableFrame = () => fs.existsSync(tempPng) && fs.statSync(tempPng).size > 0;
+
+    try {
+        try {
+            await runFfmpeg([
+                '-y',
+                '-hide_banner',
+                '-loglevel', 'error',
+                '-i', videoPath,
+                '-ss', '00:00:01.000',
+                '-frames:v', '1',
+                '-vf', `scale='min(${VIDEO_THUMB_WIDTH},iw)':-2`,
+                tempPng
+            ]);
+        } catch {
+            // Short or unusual videos can fail at the 1s seek point; retry from the first frame below.
+        }
+
+        if (!hasUsableFrame()) {
+            await runFfmpeg([
+                '-y',
+                '-hide_banner',
+                '-loglevel', 'error',
+                '-i', videoPath,
+                '-frames:v', '1',
+                '-vf', `scale='min(${VIDEO_THUMB_WIDTH},iw)':-2`,
+                tempPng
+            ]);
+        }
+
+        if (!hasUsableFrame()) {
+            throw new Error('Video thumbnail frame could not be generated');
+        }
+
+        const thumbBuffer = await sharp(tempPng)
+            .rotate()
+            .resize({
+                width: VIDEO_THUMB_WIDTH,
+                fit: 'inside',
+                withoutEnlargement: true,
+                kernel: 'lanczos3',
+            })
+            .webp({
+                quality: VIDEO_THUMB_QUALITY,
+                effort: WEBP_EFFORT,
+                smartSubsample: true,
+                smartDeblock: true,
+                preset: 'photo',
+            })
+            .toBuffer();
+
+        fs.writeFileSync(thumbPath, thumbBuffer);
+    } finally {
+        if (fs.existsSync(tempPng)) {
+            fs.unlinkSync(tempPng);
+        }
+    }
+};
+
+const videoThumbPathFor = (videoPath: string) => {
+    const parsed = path.parse(videoPath);
+    return path.join(parsed.dir, `${parsed.name}_thumb.webp`);
+};
+
 export const POST: APIRoute = async ({ request }) => {
+    let activeUploadId: string | null = null;
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
@@ -96,8 +308,11 @@ export const POST: APIRoute = async ({ request }) => {
         }
 
         const type = getStorageType(formData.get('type'));
+        const uploadId = (formData.get('uploadId') as string | null)?.trim() || null;
+        activeUploadId = uploadId;
         const replaceIdRaw = formData.get('replaceId') as string | null;
         const optimizeAsImage = shouldOptimizeImage(type, file);
+        const optimizeAsVideo = shouldOptimizeVideo(type, file);
 
         let customPath = formData.get('customPath') as string;
         if (!customPath) {
@@ -132,13 +347,17 @@ export const POST: APIRoute = async ({ request }) => {
 
             const parsed = path.parse(replaceId);
             targetDir = path.resolve(typeDir, parsed.dir);
-            finalFilename = optimizeAsImage
+            finalFilename = optimizeAsVideo
+                ? withExtension(parsed.base, '.mp4')
+                : optimizeAsImage
                 ? withExtension(parsed.base, '.webp')
                 : sanitizeFilename(parsed.base);
             oldPathToRemove = oldFullPath;
         } else if (customFilename) {
             customFilename = sanitizeFilename(customFilename);
-            if (optimizeAsImage) {
+            if (optimizeAsVideo) {
+                finalFilename = customFilename;
+            } else if (optimizeAsImage) {
                 finalFilename = customFilename;
             } else {
                 const ext = path.extname(file.name);
@@ -150,6 +369,8 @@ export const POST: APIRoute = async ({ request }) => {
 
         if (optimizeAsImage) {
             finalFilename = withExtension(finalFilename, '.webp');
+        } else if (optimizeAsVideo) {
+            finalFilename = withExtension(finalFilename, '.mp4');
         }
 
         if (!isInside(typeDir, targetDir)) {
@@ -167,25 +388,80 @@ export const POST: APIRoute = async ({ request }) => {
 
         const arrayBuffer = await file.arrayBuffer();
         const inputBuffer = Buffer.from(arrayBuffer);
-        const outputBuffer = optimizeAsImage
-            ? await optimizeImageToWebp(inputBuffer)
-            : inputBuffer;
+        let outputSize = inputBuffer.length;
+        let thumbRelativeId: string | null = null;
 
-        fs.writeFileSync(fullPath, outputBuffer);
+        if (optimizeAsVideo) {
+            setStorageUploadProgress(uploadId, {
+                phase: 'processing',
+                progress: 0,
+                etaSeconds: null,
+            });
+            const tempInputPath = path.join(
+                os.tmpdir(),
+                `pateez-video-${Date.now()}-${Math.random().toString(16).slice(2)}${path.extname(file.name) || '.video'}`
+            );
+            fs.writeFileSync(tempInputPath, inputBuffer);
+            try {
+                await optimizeVideoToMp4(tempInputPath, fullPath, uploadId);
+                setStorageUploadProgress(uploadId, {
+                    phase: 'processing',
+                    progress: 0.99,
+                    etaSeconds: null,
+                });
+                const thumbPath = videoThumbPathFor(fullPath);
+                await createVideoThumbnailWebp(fullPath, thumbPath);
+                outputSize = fs.statSync(fullPath).size;
+                thumbRelativeId = path.relative(typeDir, thumbPath).split(path.sep).join('/');
+            } catch (err) {
+                const thumbPath = videoThumbPathFor(fullPath);
+                if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+                    fs.unlinkSync(fullPath);
+                }
+                if (fs.existsSync(thumbPath) && fs.statSync(thumbPath).isFile()) {
+                    fs.unlinkSync(thumbPath);
+                }
+                throw err;
+            } finally {
+                if (fs.existsSync(tempInputPath)) {
+                    fs.unlinkSync(tempInputPath);
+                }
+            }
+        } else {
+            const outputBuffer = optimizeAsImage
+                ? await optimizeImageToWebp(inputBuffer)
+                : inputBuffer;
+
+            fs.writeFileSync(fullPath, outputBuffer);
+            outputSize = outputBuffer.length;
+        }
 
         if (oldPathToRemove && oldPathToRemove !== fullPath && fs.existsSync(oldPathToRemove) && fs.statSync(oldPathToRemove).isFile()) {
             fs.unlinkSync(oldPathToRemove);
         }
 
+        if (oldPathToRemove && oldPathToRemove !== fullPath) {
+            const oldThumbPath = videoThumbPathFor(oldPathToRemove);
+            if (fs.existsSync(oldThumbPath) && fs.statSync(oldThumbPath).isFile()) {
+                fs.unlinkSync(oldThumbPath);
+            }
+        }
+
         const relativeId = path.relative(typeDir, fullPath).split(path.sep).join('/');
+
+        setStorageUploadProgress(uploadId, {
+            phase: 'done',
+            progress: 1,
+            etaSeconds: 0,
+        });
 
         return new Response(JSON.stringify({
             id: relativeId,
             value: finalFilename,
             src: `/api/storage/file/${type}/${relativeId}`,
-            thumb: `/api/storage/file/${type}/${relativeId}`,
+            thumb: `/api/storage/file/${type}/${thumbRelativeId || relativeId}`,
             type,
-            size: outputBuffer.length
+            size: outputSize
         }), {
             status: 200,
             headers: {
@@ -195,6 +471,12 @@ export const POST: APIRoute = async ({ request }) => {
 
     } catch (err: any) {
         console.error('Upload Error:', err);
+        setStorageUploadProgress(activeUploadId, {
+            phase: 'error',
+            progress: null,
+            etaSeconds: null,
+            message: err.message || 'Server Error',
+        });
         return new Response(err.message || 'Server Error', { status: 500 });
     }
 };

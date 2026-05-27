@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -10,17 +12,26 @@ import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_mail_repository.dart';
 import 'mail_template_models.dart';
 
 class MailTemplatesScreen extends StatefulWidget {
-  const MailTemplatesScreen({super.key});
+  const MailTemplatesScreen({
+    super.key,
+    required this.session,
+    this.repository = const NeonAdminMailRepository(),
+  });
+
+  final AdminSession session;
+  final AdminMailRepository repository;
 
   @override
   State<MailTemplatesScreen> createState() => _MailTemplatesScreenState();
 }
 
 class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
-  var _templates = List<AdminMailTemplate>.of(sampleAdminMailTemplates);
+  var _templates = <AdminMailTemplate>[];
   final _selectedTemplateIds = <int>{};
   final _searchController = TextEditingController();
   var _categoryFilter = mailTemplateFilterAll;
@@ -30,11 +41,44 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
   var _sortState = const TableSortState(key: 'date', ascending: false);
   AdminMailTemplate? _editorTemplate;
   var _creatingTemplate = false;
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadTemplates());
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadTemplates() async {
+    setState(() => _loading = true);
+    try {
+      final templates = await widget.repository.fetchTemplates(widget.session);
+      if (!mounted) return;
+      setState(() {
+        _templates = templates;
+        _loading = false;
+        _resetListState();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showMailError(error);
+    }
+  }
+
+  void _showMailError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error.toString()),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   List<AdminMailTemplate> get _filteredTemplates {
@@ -162,17 +206,27 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
     });
   }
 
-  void _saveTemplate(AdminMailTemplate template) {
-    setState(() {
-      final index = _templates.indexWhere(
-        (current) => current.id == template.id,
+  Future<void> _saveTemplate(AdminMailTemplate template) async {
+    late final AdminMailTemplate saved;
+    try {
+      saved = await widget.repository.saveTemplate(
+        widget.session,
+        id: _editorTemplate?.id,
+        template: template,
       );
+    } catch (error) {
+      if (mounted) _showMailError(error);
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      final index = _templates.indexWhere((current) => current.id == saved.id);
       if (index == -1) {
-        _templates = [template, ..._templates];
+        _templates = [saved, ..._templates];
       } else {
         _templates = [
           for (final current in _templates)
-            if (current.id == template.id) template else current,
+            if (current.id == saved.id) saved else current,
         ];
       }
       _editorTemplate = null;
@@ -181,12 +235,30 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
     });
   }
 
-  void _toggleActive(AdminMailTemplate template) {
-    _replaceTemplate(template.copyWith(active: !template.active));
+  Future<void> _toggleActive(AdminMailTemplate template) async {
+    try {
+      final updated = await widget.repository.updateTemplate(
+        widget.session,
+        template,
+        {'is_active': !template.active},
+      );
+      if (mounted) _replaceTemplate(updated);
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
-  void _toggleReady(AdminMailTemplate template) {
-    _replaceTemplate(template.copyWith(ready: !template.ready));
+  Future<void> _toggleReady(AdminMailTemplate template) async {
+    try {
+      final updated = await widget.repository.updateTemplate(
+        widget.session,
+        template,
+        {'is_ready': !template.ready},
+      );
+      if (mounted) _replaceTemplate(updated);
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
   void _replaceTemplate(AdminMailTemplate template) {
@@ -207,12 +279,18 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
       danger: true,
     );
     if (!confirmed) return;
-    setState(() {
-      _templates = _templates
-          .where((current) => current.id != template.id)
-          .toList(growable: false);
-      _selectedTemplateIds.remove(template.id);
-    });
+    try {
+      await widget.repository.deleteTemplates(widget.session, [template.id]);
+      if (!mounted) return;
+      setState(() {
+        _templates = _templates
+            .where((current) => current.id != template.id)
+            .toList(growable: false);
+        _selectedTemplateIds.remove(template.id);
+      });
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
   Future<void> _deleteSelectedTemplates() async {
@@ -228,12 +306,19 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
       danger: true,
     );
     if (!confirmed) return;
-    setState(() {
-      _templates = _templates
-          .where((template) => !_selectedTemplateIds.contains(template.id))
-          .toList(growable: false);
-      _selectedTemplateIds.clear();
-    });
+    try {
+      final ids = _selectedTemplateIds.toList(growable: false);
+      await widget.repository.deleteTemplates(widget.session, ids);
+      if (!mounted) return;
+      setState(() {
+        _templates = _templates
+            .where((template) => !ids.contains(template.id))
+            .toList(growable: false);
+        _selectedTemplateIds.clear();
+      });
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
   void _showTemplateDetail(AdminMailTemplate template) {
@@ -279,7 +364,7 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
       return MailTemplateEditorView(
         template: _editorTemplate,
         onCancel: _closeEditor,
-        onSaved: _saveTemplate,
+        onSaved: (template) => unawaited(_saveTemplate(template)),
       );
     }
 
@@ -320,11 +405,13 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
                 onCreate: () => _openEditor(),
                 onEdit: _openEditor,
                 onPreview: _showTemplateDetail,
-                onToggleActive: _toggleActive,
-                onToggleReady: _toggleReady,
+                onToggleActive: (template) =>
+                    unawaited(_toggleActive(template)),
+                onToggleReady: (template) => unawaited(_toggleReady(template)),
                 onDelete: _deleteTemplate,
               ),
             ),
+            if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
 
@@ -671,40 +758,7 @@ class _PageSizeSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.line),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: value,
-          isExpanded: true,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          icon: const SymbolIcon(
-            Symbols.keyboard_arrow_down,
-            color: AppColors.iconMuted,
-            size: 18,
-          ),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.deepOcean,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-          onChanged: onChanged,
-          items: const [10, 25, 50, 100]
-              .map(
-                (value) =>
-                    DropdownMenuItem(value: value, child: Text('$value')),
-              )
-              .toList(growable: false),
-        ),
-      ),
-    );
+    return AdminTablePageSizeSelect(value: value, onChanged: onChanged);
   }
 }
 
@@ -724,58 +778,13 @@ class _TemplateSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 300,
-      height: 38,
-      child: TextField(
+      width: 280,
+      child: AdminTableSearchField(
         controller: controller,
+        query: query,
+        hintText: hint,
+        showClearButton: true,
         onChanged: onChanged,
-        textAlignVertical: TextAlignVertical.center,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: AppColors.deepOcean,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
-            color: AppColors.placeholder,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0,
-          ),
-          prefixIcon: const Padding(
-            padding: EdgeInsets.only(left: 12, right: 6),
-            child: SymbolIcon(
-              Symbols.search,
-              color: AppColors.iconMuted,
-              size: 18,
-            ),
-          ),
-          suffixIcon: query.isEmpty
-              ? null
-              : IconButton(
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                  icon: const SymbolIcon(
-                    Symbols.close,
-                    color: AppColors.iconMuted,
-                    size: 16,
-                  ),
-                ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 34),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(AppRadius.value)),
-            borderSide: BorderSide(color: AppColors.line),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(AppRadius.value)),
-            borderSide: BorderSide(color: AppColors.deepOcean),
-          ),
-        ),
       ),
     );
   }
@@ -794,31 +803,10 @@ class _TemplatePrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: TextButton.icon(
-        onPressed: onTap,
-        icon: SymbolIcon(icon, color: Colors.white, size: 18),
-        label: Text(label),
-        style:
-            TextButton.styleFrom(
-              backgroundColor: AppColors.actionRed,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
-            ),
-      ),
+    return AdminTablePrimaryActionButton(
+      icon: icon,
+      label: label,
+      onPressed: onTap,
     );
   }
 }
@@ -831,12 +819,12 @@ class _TemplateTableHeader extends StatelessWidget {
     required this.onSort,
   });
 
-  static const _selectWidth = 48.0;
+  static const _selectWidth = 42.0;
   static const _categoryWidth = 170.0;
   static const _variableWidth = 118.0;
   static const _readyWidth = 126.0;
   static const _statusWidth = 126.0;
-  static const _actionsWidth = 74.0;
+  static const _actionsWidth = 76.0;
   static const _nameFlex = 4;
   static const _dateFlex = 3;
 
@@ -848,9 +836,12 @@ class _TemplateTableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.softLine)),
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
       ),
       child: Row(
         children: [
@@ -922,7 +913,6 @@ class _TemplateTableHeader extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.inkSoft,
-                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
                 ),
@@ -951,7 +941,7 @@ class _TemplateSortableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle.merge(
-      style: const TextStyle(fontSize: 12, letterSpacing: 0),
+      style: const TextStyle(letterSpacing: 0),
       child: SortableTableHeader(
         label: label,
         sortKey: sortKey,
@@ -989,8 +979,11 @@ class _TemplateTableRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.softLine)),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
       ),
       child: Row(
         children: [
@@ -1008,9 +1001,9 @@ class _TemplateTableRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.deepOcean,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                height: 1.2,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.22,
                 letterSpacing: 0,
               ),
             ),
@@ -1514,23 +1507,7 @@ class _TemplatePagination extends StatelessWidget {
           onTap: () => onPageChanged(page - 1),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 36,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.deepOcean,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Text(
-            '$page',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
+        AdminTablePageButton(label: '$page', selected: true),
         const SizedBox(width: 8),
         _PagerButton(
           label: '>',
@@ -1561,29 +1538,10 @@ class _PagerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      height: 34,
-      child: TextButton(
-        onPressed: enabled ? onTap : null,
-        style: TextButton.styleFrom(
-          backgroundColor: Colors.white,
-          disabledBackgroundColor: Colors.white,
-          foregroundColor: AppColors.deepOcean,
-          disabledForegroundColor: AppColors.placeholder,
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            side: const BorderSide(color: AppColors.line),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-        child: Text(label),
-      ),
+    return AdminTablePageButton(
+      label: label,
+      enabled: enabled,
+      onPressed: onTap,
     );
   }
 }

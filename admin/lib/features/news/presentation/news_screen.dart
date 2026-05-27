@@ -17,9 +17,13 @@ class NewsScreen extends StatefulWidget {
   const NewsScreen({
     super.key,
     this.repository = const NeonAdminNewsRepository(),
+    this.onAddPost,
+    this.onEditPost,
   });
 
   final AdminNewsRepository repository;
+  final VoidCallback? onAddPost;
+  final ValueChanged<String>? onEditPost;
 
   @override
   State<NewsScreen> createState() => _NewsScreenState();
@@ -282,6 +286,19 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   void _openPostEditor([String? postId]) {
+    if (postId == null) {
+      final callback = widget.onAddPost;
+      if (callback != null) {
+        callback();
+        return;
+      }
+    } else {
+      final callback = widget.onEditPost;
+      if (callback != null) {
+        callback(postId);
+        return;
+      }
+    }
     final path = postId == null
         ? '/admin/posts'
         : '/admin/haberler/${Uri.encodeComponent(postId)}';
@@ -293,6 +310,7 @@ class _NewsScreenState extends State<NewsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < 800;
         final compact = constraints.maxWidth < 900;
 
         final content = Column(
@@ -341,6 +359,18 @@ class _NewsScreenState extends State<NewsScreen> {
             ),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              28,
+              horizontalPadding,
+              28,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(

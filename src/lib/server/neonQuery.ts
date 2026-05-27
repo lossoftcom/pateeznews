@@ -59,6 +59,7 @@ interface RelationDefinition {
 const PUBLIC_SCHEMA = 'public';
 const JSON_COLUMNS: Record<string, Set<string>> = {
   posts: new Set(['card_data', 'items', 'faq_data']),
+  pages: new Set(['content_delta']),
   profiles: new Set(['social_links']),
   stories: new Set(['story_data']),
 };

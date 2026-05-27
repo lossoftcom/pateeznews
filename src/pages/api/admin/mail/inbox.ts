@@ -179,3 +179,27 @@ export const PATCH: APIRoute = async ({ request }) => {
     return json({ error: { message: error.message || 'Inbox action failed' } }, 500);
   }
 };
+
+export const DELETE: APIRoute = async ({ request, url }) => {
+  const body = await readJsonBody(request);
+  try {
+    const access = await requireMailAccess(request, body);
+    if (access.response) return access.response;
+
+    const ids = Array.isArray(body.ids)
+      ? body.ids.map(String).filter(Boolean)
+      : [String(body.id || url.searchParams.get('id') || '').trim()].filter(Boolean);
+    if (!ids.length) return json({ error: { message: 'Mail id required' } }, 400);
+
+    await dbQuery('DELETE FROM public.mail_inbox WHERE id = ANY($1::bigint[])', [ids]);
+    const count = await dbQuery<{ count: string }>(
+      `SELECT COUNT(*)::bigint AS count
+       FROM public.mail_inbox
+       WHERE okundu IS NOT TRUE AND klasor NOT IN ('trash', 'spam')`
+    );
+
+    return json({ ok: true, unreadCount: Number(count.rows[0]?.count || 0) });
+  } catch (error: any) {
+    return json({ error: { message: error.message || 'Mail could not be deleted' } }, 500);
+  }
+};

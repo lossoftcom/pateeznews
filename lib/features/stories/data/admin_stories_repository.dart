@@ -1,0 +1,308 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+import '../../auth/data/admin_auth_models.dart';
+import '../presentation/stories_models.dart';
+
+abstract class AdminStoriesRepository {
+  Future<AdminStoriesPageResult> fetchStories({
+    required String search,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  });
+
+  Future<void> upsertStory({
+    required AdminSession session,
+    required StoryFormData data,
+    String? storyId,
+  });
+
+  Future<void> toggleStatus(AdminStory story);
+
+  Future<void> deleteStory(String storyId);
+
+  Future<void> deleteStories(List<String> storyIds);
+}
+
+class NeonAdminStoriesRepository implements AdminStoriesRepository {
+  const NeonAdminStoriesRepository({this.httpClient, this.apiBaseUrl});
+
+  static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
+  static const _requestTimeout = Duration(seconds: 12);
+
+  final http.Client? httpClient;
+  final String? apiBaseUrl;
+
+  @override
+  Future<AdminStoriesPageResult> fetchStories({
+    required String search,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
+    final filters = <Map<String, Object?>>[];
+    final term = _safeSearchTerm(search);
+    if (term.isNotEmpty) {
+      final pattern = '%$term%';
+      filters.add({
+        'type': 'or',
+        'value':
+            'title.ilike.$pattern,source_name.ilike.$pattern,media_type.ilike.$pattern',
+      });
+    }
+
+    final safePage = page < 1 ? 1 : page;
+    final from = (safePage - 1) * pageSize;
+    final to = from + pageSize - 1;
+    final result = await _postJson('/api/neon/query', {
+      'table': 'stories',
+      'method': 'select',
+      'select':
+          'id,title,media_url,media_type,source_name,publisher_id,created_at,expires_at,is_active,view_count',
+      'filters': filters,
+      'orders': _storyOrders(sortKey, sortAscending),
+      'range': {'from': from, 'to': to},
+      'count': 'exact',
+    });
+    _throwIfApiError(result, fallbackMessage: 'Hikayeler alınamadı');
+
+    final data = result['data'];
+    final rows = data is List ? data.whereType<Map>().toList() : const <Map>[];
+    return AdminStoriesPageResult(
+      stories: [
+        for (var index = 0; index < rows.length; index++)
+          _storyFromJson(rows[index], from + index + 1),
+      ],
+      totalCount: _asInt(result['count']),
+    );
+  }
+
+  @override
+  Future<void> upsertStory({
+    required AdminSession session,
+    required StoryFormData data,
+    String? storyId,
+  }) async {
+    final values = <String, Object?>{
+      'title': data.title.trim(),
+      'media_url': data.mediaUrl.trim(),
+      'media_type': data.mediaType.trim().isEmpty ? 'image' : data.mediaType,
+      'source_name': data.sourceName.trim().isEmpty
+          ? null
+          : data.sourceName.trim(),
+      'expires_at': data.expiresAt?.toUtc().toIso8601String(),
+      'is_active': data.isActive,
+    };
+
+    final result = await _postJson('/api/neon/query', {
+      'table': 'stories',
+      'method': storyId == null ? 'insert' : 'update',
+      'values': storyId == null
+          ? {...values, 'publisher_id': session.user.id}
+          : values,
+      if (storyId != null) 'filters': [_idFilter(storyId)],
+    });
+    _throwIfApiError(
+      result,
+      fallbackMessage: storyId == null
+          ? 'Hikaye eklenemedi'
+          : 'Hikaye güncellenemedi',
+    );
+  }
+
+  @override
+  Future<void> toggleStatus(AdminStory story) async {
+    final result = await _postJson('/api/neon/query', {
+      'table': 'stories',
+      'method': 'update',
+      'values': {'is_active': !story.isActive},
+      'filters': [_idFilter(story.id)],
+    });
+    _throwIfApiError(result, fallbackMessage: 'Hikaye durumu güncellenemedi');
+  }
+
+  @override
+  Future<void> deleteStory(String storyId) async {
+    final result = await _postJson('/api/neon/query', {
+      'table': 'stories',
+      'method': 'delete',
+      'filters': [_idFilter(storyId)],
+    });
+    _throwIfApiError(result, fallbackMessage: 'Hikaye silinemedi');
+  }
+
+  @override
+  Future<void> deleteStories(List<String> storyIds) async {
+    if (storyIds.isEmpty) return;
+    final result = await _postJson('/api/neon/query', {
+      'table': 'stories',
+      'method': 'delete',
+      'filters': [
+        {
+          'type': 'comparison',
+          'op': 'in',
+          'column': 'id',
+          'value': storyIds,
+        },
+      ],
+    });
+    _throwIfApiError(result, fallbackMessage: 'Seçili hikayeler silinemedi');
+  }
+
+  List<Map<String, Object?>> _storyOrders(String sortKey, bool ascending) {
+    final column = switch (sortKey) {
+      'id' => 'created_at',
+      'story' => 'title',
+      'views' => 'view_count',
+      'expires' => 'expires_at',
+      'status' => 'is_active',
+      'date' => 'created_at',
+      _ => 'created_at',
+    };
+    return [
+      {'column': column, 'ascending': ascending},
+    ];
+  }
+
+  AdminStory _storyFromJson(Map<dynamic, dynamic> json, int rowNumber) {
+    return AdminStory(
+      id: json['id']?.toString() ?? '',
+      rowNumber: rowNumber,
+      title: _decodeText(json['title']),
+      mediaUrl: json['media_url']?.toString() ?? '',
+      mediaType: json['media_type']?.toString() ?? 'image',
+      sourceName: _decodeText(json['source_name']),
+      publisherId: json['publisher_id']?.toString() ?? '',
+      createdAt: _parseDate(json['created_at']),
+      expiresAt: _parseDate(json['expires_at']),
+      isActive: json['is_active'] != false,
+      viewCount: _asInt(json['view_count']),
+    );
+  }
+
+  Future<Map<String, dynamic>> _postJson(
+    String path,
+    Map<String, Object?> body,
+  ) async {
+    final client = httpClient ?? http.Client();
+    final closeClient = httpClient == null;
+    try {
+      final response = await client
+          .post(
+            _resolveUri(path),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(_requestTimeout);
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      throw const AdminStoriesException('Geçersiz sunucu yanıtı');
+    } on TimeoutException {
+      throw const AdminStoriesException('Sunucu yanıtı zaman aşımına uğradı');
+    } finally {
+      if (closeClient) client.close();
+    }
+  }
+
+  Uri _resolveUri(String path) {
+    final configured = (apiBaseUrl ?? _apiBaseUrl).trim();
+    if (configured.isNotEmpty) {
+      return Uri.parse(configured).resolve(path);
+    }
+    if (!kIsWeb) {
+      final host = defaultTargetPlatform == TargetPlatform.android
+          ? 'http://10.0.2.2:4321'
+          : 'http://localhost:4321';
+      return Uri.parse(host).resolve(path);
+    }
+    return Uri.base.resolve(path);
+  }
+
+  Map<String, Object?> _idFilter(String storyId) {
+    return {'type': 'comparison', 'op': 'eq', 'column': 'id', 'value': storyId};
+  }
+
+  String _safeSearchTerm(String value) {
+    return value
+        .trim()
+        .replaceAll('%', r'\%')
+        .replaceAll(',', ' ')
+        .replaceAll('\n', ' ')
+        .replaceAll('\r', ' ');
+  }
+
+  DateTime? _parseDate(Object? value) {
+    final raw = value?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw)?.toLocal();
+  }
+
+  String _decodeText(Object? value) {
+    return _decodeHtmlEntities(
+      value?.toString() ?? '',
+    ).replaceAll('\u00a0', ' ').trim();
+  }
+
+  String _decodeHtmlEntities(String input) {
+    const entities = {
+      'amp': '&',
+      'apos': "'",
+      'Ccedil': 'Ç',
+      'ccedil': 'ç',
+      'Gbreve': 'Ğ',
+      'gbreve': 'ğ',
+      'hellip': '...',
+      'Idot': 'İ',
+      'imath': 'ı',
+      'nbsp': ' ',
+      'Ouml': 'Ö',
+      'ouml': 'ö',
+      'quot': '"',
+      'Scedil': 'Ş',
+      'scedil': 'ş',
+      'Uuml': 'Ü',
+      'uuml': 'ü',
+    };
+    String decodeOnce(String value) {
+      return value.replaceAllMapped(
+        RegExp(r'&([a-zA-Z][a-zA-Z0-9]+);'),
+        (match) => entities[match.group(1)] ?? match.group(0)!,
+      );
+    }
+
+    return decodeOnce(decodeOnce(input));
+  }
+
+  int _asInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  void _throwIfApiError(
+    Map<String, dynamic> response, {
+    required String fallbackMessage,
+  }) {
+    final error = response['error'];
+    if (error == null) return;
+    if (error is Map && error['message'] != null) {
+      throw AdminStoriesException(error['message'].toString());
+    }
+    throw AdminStoriesException(fallbackMessage);
+  }
+}
+
+class AdminStoriesException implements Exception {
+  const AdminStoriesException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}

@@ -277,6 +277,38 @@ Sitemap: https://yourdomain.com/sitemap.xml'::text,
   weather_update_interval_minutes integer DEFAULT 30,
   CONSTRAINT site_settings_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.pages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text NOT NULL DEFAULT ''::text,
+  slug text,
+  language_code text DEFAULT 'tr'::text,
+  category_id uuid,
+  category text DEFAULT ''::text,
+  page_type text DEFAULT 'custom'::text,
+  status text DEFAULT 'active'::text,
+  location text DEFAULT 'top_menu'::text,
+  parent_page_id uuid,
+  show_title boolean DEFAULT true,
+  show_breadcrumb boolean DEFAULT true,
+  show_sidebar boolean DEFAULT true,
+  registered_only boolean DEFAULT false,
+  menu_order integer DEFAULT 1,
+  content_delta jsonb DEFAULT '[{"insert":"\\n"}]'::jsonb,
+  content_plain text DEFAULT ''::text,
+  meta_title text DEFAULT ''::text,
+  meta_keywords text DEFAULT ''::text,
+  meta_description text DEFAULT ''::text,
+  canonical_url text DEFAULT ''::text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pages_pkey PRIMARY KEY (id),
+  CONSTRAINT pages_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.navigation_items(id) ON DELETE SET NULL,
+  CONSTRAINT pages_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.languages(code) ON DELETE SET DEFAULT,
+  CONSTRAINT pages_parent_page_id_fkey FOREIGN KEY (parent_page_id) REFERENCES public.pages(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX pages_language_slug_unique ON public.pages USING btree (language_code, slug) WHERE ((slug IS NOT NULL) AND (slug <> ''::text));
+CREATE INDEX pages_status_created_idx ON public.pages USING btree (status, created_at DESC);
+CREATE INDEX pages_category_idx ON public.pages USING btree (category);
 CREATE TABLE public.app_cache (
   key text NOT NULL,
   payload jsonb NOT NULL,

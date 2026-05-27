@@ -5,10 +5,17 @@ import 'package:pateeznews_admin/features/comments/data/admin_comments_repositor
 import 'package:pateeznews_admin/features/comments/presentation/comments_screen.dart';
 import 'package:pateeznews_admin/features/mail/presentation/bulk_mail_screen.dart';
 import 'package:pateeznews_admin/features/mail/presentation/contact_lists_screen.dart';
+import 'package:pateeznews_admin/features/mail/data/admin_mail_repository.dart';
 import 'package:pateeznews_admin/features/mail/presentation/mail_inbox_screen.dart';
 import 'package:pateeznews_admin/features/mail/presentation/mail_settings_screen.dart';
 import 'package:pateeznews_admin/features/mail/presentation/mail_templates_screen.dart';
+import 'package:pateeznews_admin/features/sms/presentation/sms_bulk_screen.dart';
+import 'package:pateeznews_admin/features/sms/presentation/sms_contact_lists_screen.dart';
+import 'package:pateeznews_admin/features/sms/presentation/sms_outbox_screen.dart';
+import 'package:pateeznews_admin/features/sms/presentation/sms_settings_screen.dart';
+import 'package:pateeznews_admin/features/sms/presentation/sms_templates_screen.dart';
 import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_bulk_screen.dart';
+import 'package:pateeznews_admin/features/whatsapp/data/admin_whatsapp_repository.dart';
 import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_contact_lists_screen.dart';
 import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_messaging_screen.dart';
 import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_settings_screen.dart';
@@ -16,14 +23,25 @@ import 'package:pateeznews_admin/features/whatsapp/presentation/whatsapp_templat
 import 'package:pateeznews_admin/features/navigation/data/admin_navigation_repository.dart';
 import 'package:pateeznews_admin/features/navigation/presentation/navigation_screen.dart';
 import 'package:pateeznews_admin/features/news/data/admin_news_repository.dart';
+import 'package:pateeznews_admin/features/news/presentation/news_add_screen.dart';
 import 'package:pateeznews_admin/features/news/presentation/news_screen.dart';
+import 'package:pateeznews_admin/features/pages/data/admin_pages_repository.dart';
+import 'package:pateeznews_admin/features/pages/presentation/pages_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/ai_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/death_notice_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/general_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/language_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/pharmacy_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/weather_settings_screen.dart';
+import 'package:pateeznews_admin/features/sms/data/admin_sms_repository.dart';
+import 'package:pateeznews_admin/features/social/data/admin_social_repository.dart';
+import 'package:pateeznews_admin/features/social/presentation/social_accounts_screen.dart';
 import 'package:pateeznews_admin/features/social/presentation/social_publish_screen.dart';
+import 'package:pateeznews_admin/features/social/presentation/social_settings_screen.dart';
+import 'package:pateeznews_admin/features/subscribers/data/admin_subscribers_repository.dart';
+import 'package:pateeznews_admin/features/subscribers/presentation/subscribers_screen.dart';
+import 'package:pateeznews_admin/features/stories/data/admin_stories_repository.dart';
+import 'package:pateeznews_admin/features/stories/presentation/stories_screen.dart';
 import 'package:pateeznews_admin/features/auth/data/admin_auth_models.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
@@ -47,6 +65,8 @@ class DashboardScreen extends StatefulWidget {
     required this.profile,
     required this.onLogout,
     this.newsRepository = const NeonAdminNewsRepository(),
+    this.storiesRepository = const NeonAdminStoriesRepository(),
+    this.pagesRepository = const NeonAdminPagesRepository(),
     this.commentsRepository = const NeonAdminCommentsRepository(),
     this.navigationRepository = const NeonAdminNavigationRepository(),
     this.usersRepository = const NeonAdminUsersRepository(),
@@ -56,12 +76,19 @@ class DashboardScreen extends StatefulWidget {
     this.aiSettingsRepository = const NeonAdminAiSettingsRepository(),
     this.moduleSettingsRepository = const NeonAdminModuleSettingsRepository(),
     this.accountSettingsRepository = const NeonAdminAccountSettingsRepository(),
+    this.subscribersRepository = const NeonAdminSubscribersRepository(),
+    this.mailRepository = const NeonAdminMailRepository(),
+    this.smsRepository = const NeonAdminSmsRepository(),
+    this.whatsappRepository = const NeonAdminWhatsappRepository(),
+    this.socialRepository = const NeonAdminSocialRepository(),
   });
 
   final AdminSession session;
   final AdminProfile? profile;
   final VoidCallback onLogout;
   final AdminNewsRepository newsRepository;
+  final AdminStoriesRepository storiesRepository;
+  final AdminPagesRepository pagesRepository;
   final AdminCommentsRepository commentsRepository;
   final AdminNavigationRepository navigationRepository;
   final AdminUsersRepository usersRepository;
@@ -71,6 +98,11 @@ class DashboardScreen extends StatefulWidget {
   final AdminAiSettingsRepository aiSettingsRepository;
   final AdminModuleSettingsRepository moduleSettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
+  final AdminSubscribersRepository subscribersRepository;
+  final AdminMailRepository mailRepository;
+  final AdminSmsRepository smsRepository;
+  final AdminWhatsappRepository whatsappRepository;
+  final AdminSocialRepository socialRepository;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -81,6 +113,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   var _permissionLoading = true;
   String? _permissionError;
   Set<String> _permissionKeys = const {};
+  String? _editingNewsPostId;
 
   @override
   void initState() {
@@ -153,12 +186,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _canOpen(_DashboardPage page) {
     return switch (page) {
       _DashboardPage.home => _hasAny(['view_overview', 'dashboard_access']),
-      _DashboardPage.news => _hasAny([
+      _DashboardPage.newsAdd ||
+      _DashboardPage.news ||
+      _DashboardPage.stories ||
+      _DashboardPage.pages => _hasAny([
         'manage_content',
         'posts_access',
         'news_access',
       ]),
       _DashboardPage.comments => _hasAny(['comments_manage']),
+      _DashboardPage.subscribers => _hasAny([
+        'manage_content',
+        'mail_access',
+        'posts_access',
+        'news_access',
+      ]),
       _DashboardPage.mailInbox ||
       _DashboardPage.bulkMail ||
       _DashboardPage.mailTemplates ||
@@ -174,12 +216,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'posts_access',
         'news_access',
       ]),
+      _DashboardPage.smsBulk ||
+      _DashboardPage.smsOutbox ||
+      _DashboardPage.smsTemplates ||
+      _DashboardPage.smsContacts ||
+      _DashboardPage.smsSettings => _hasAny([
+        'manage_sms',
+        'manage_content',
+        'posts_access',
+        'news_access',
+      ]),
       _DashboardPage.whatsappMessaging ||
       _DashboardPage.whatsappBulk ||
       _DashboardPage.whatsappTemplates ||
       _DashboardPage.whatsappContacts ||
-      _DashboardPage.whatsappSettings ||
-      _DashboardPage.socialPublish => _hasAny([
+      _DashboardPage.whatsappSettings => _hasAny([
+        'manage_whatsapp',
+        'manage_content',
+        'posts_access',
+        'news_access',
+      ]),
+      _DashboardPage.socialPublish ||
+      _DashboardPage.socialAccounts ||
+      _DashboardPage.socialSettings => _hasAny([
+        'manage_social',
         'manage_content',
         'posts_access',
         'news_access',
@@ -226,7 +286,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openNews() {
-    _openPage(_DashboardPage.news);
+    setState(() {
+      _editingNewsPostId = null;
+      _selectedPage = _DashboardPage.news;
+    });
+  }
+
+  void _openNewsAdd() {
+    setState(() {
+      _editingNewsPostId = null;
+      _selectedPage = _DashboardPage.newsAdd;
+    });
+  }
+
+  void _openNewsEdit(String postId) {
+    if (!_canOpen(_DashboardPage.newsAdd)) return;
+    setState(() {
+      _editingNewsPostId = postId;
+      _selectedPage = _DashboardPage.newsAdd;
+    });
+  }
+
+  void _openStories() {
+    _openPage(_DashboardPage.stories);
+  }
+
+  void _openPages() {
+    _openPage(_DashboardPage.pages);
   }
 
   void _openUsers() {
@@ -239,6 +325,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openComments() {
     _openPage(_DashboardPage.comments);
+  }
+
+  void _openSubscribers() {
+    _openPage(_DashboardPage.subscribers);
   }
 
   void _openMailInbox() {
@@ -259,6 +349,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openMailSettings() {
     _openPage(_DashboardPage.mailSettings);
+  }
+
+  void _openSmsBulk() {
+    _openPage(_DashboardPage.smsBulk);
+  }
+
+  void _openSmsOutbox() {
+    _openPage(_DashboardPage.smsOutbox);
+  }
+
+  void _openSmsTemplates() {
+    _openPage(_DashboardPage.smsTemplates);
+  }
+
+  void _openSmsContacts() {
+    _openPage(_DashboardPage.smsContacts);
+  }
+
+  void _openSmsSettings() {
+    _openPage(_DashboardPage.smsSettings);
   }
 
   void _openNavigation() {
@@ -287,6 +397,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openSocialPublish() {
     _openPage(_DashboardPage.socialPublish);
+  }
+
+  void _openSocialAccounts() {
+    _openPage(_DashboardPage.socialAccounts);
+  }
+
+  void _openSocialSettings() {
+    _openPage(_DashboardPage.socialSettings);
   }
 
   void _openLanguageSettings() {
@@ -326,13 +444,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _selectedPage == _DashboardPage.weatherSettings;
     final deathNoticeSettingsSelected =
         _selectedPage == _DashboardPage.deathNoticeSettings;
+    final newsAddSelected = _selectedPage == _DashboardPage.newsAdd;
     final newsSelected = _selectedPage == _DashboardPage.news;
+    final storiesSelected = _selectedPage == _DashboardPage.stories;
+    final pagesSelected = _selectedPage == _DashboardPage.pages;
     final commentsSelected = _selectedPage == _DashboardPage.comments;
+    final subscribersSelected = _selectedPage == _DashboardPage.subscribers;
     final mailInboxSelected = _selectedPage == _DashboardPage.mailInbox;
     final bulkMailSelected = _selectedPage == _DashboardPage.bulkMail;
     final mailTemplatesSelected = _selectedPage == _DashboardPage.mailTemplates;
     final contactListsSelected = _selectedPage == _DashboardPage.contactLists;
     final mailSettingsSelected = _selectedPage == _DashboardPage.mailSettings;
+    final smsOutboxSelected = _selectedPage == _DashboardPage.smsOutbox;
+    final smsBulkSelected = _selectedPage == _DashboardPage.smsBulk;
+    final smsTemplatesSelected = _selectedPage == _DashboardPage.smsTemplates;
+    final smsContactsSelected = _selectedPage == _DashboardPage.smsContacts;
+    final smsSettingsSelected = _selectedPage == _DashboardPage.smsSettings;
     final whatsappMessagingSelected =
         _selectedPage == _DashboardPage.whatsappMessaging;
     final whatsappBulkSelected = _selectedPage == _DashboardPage.whatsappBulk;
@@ -343,6 +470,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final whatsappSettingsSelected =
         _selectedPage == _DashboardPage.whatsappSettings;
     final socialPublishSelected = _selectedPage == _DashboardPage.socialPublish;
+    final socialAccountsSelected =
+        _selectedPage == _DashboardPage.socialAccounts;
+    final socialSettingsSelected =
+        _selectedPage == _DashboardPage.socialSettings;
     final navigationSelected = _selectedPage == _DashboardPage.navigation;
     final accountSettingsSelected =
         _selectedPage == _DashboardPage.accountSettings;
@@ -362,19 +493,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final isCompact = constraints.maxWidth < 900;
         final homeVisible = _canOpen(_DashboardPage.home);
         final newsVisible = _canOpen(_DashboardPage.news);
+        final storiesVisible = _canOpen(_DashboardPage.stories);
+        final pagesVisible = _canOpen(_DashboardPage.pages);
         final commentsVisible = _canOpen(_DashboardPage.comments);
+        final subscribersVisible = _canOpen(_DashboardPage.subscribers);
         final mailInboxVisible = _canOpen(_DashboardPage.mailInbox);
         final bulkMailVisible = _canOpen(_DashboardPage.bulkMail);
         final mailTemplatesVisible = _canOpen(_DashboardPage.mailTemplates);
         final contactListsVisible = _canOpen(_DashboardPage.contactLists);
         final mailSettingsVisible = _canOpen(_DashboardPage.mailSettings);
+        final smsVisible =
+            _canOpen(_DashboardPage.smsOutbox) ||
+            _canOpen(_DashboardPage.smsBulk) ||
+            _canOpen(_DashboardPage.smsTemplates) ||
+            _canOpen(_DashboardPage.smsContacts) ||
+            _canOpen(_DashboardPage.smsSettings);
         final whatsappVisible =
             _canOpen(_DashboardPage.whatsappMessaging) ||
             _canOpen(_DashboardPage.whatsappBulk) ||
             _canOpen(_DashboardPage.whatsappTemplates) ||
             _canOpen(_DashboardPage.whatsappContacts) ||
             _canOpen(_DashboardPage.whatsappSettings);
-        final socialMediaVisible = _canOpen(_DashboardPage.socialPublish);
+        final socialMediaVisible =
+            _canOpen(_DashboardPage.socialPublish) ||
+            _canOpen(_DashboardPage.socialAccounts) ||
+            _canOpen(_DashboardPage.socialSettings);
         final navigationVisible = _canOpen(_DashboardPage.navigation);
         final usersVisible = _canOpen(_DashboardPage.users);
         final rolesPermissionsVisible = _canOpen(
@@ -399,12 +542,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onLogout: widget.onLogout,
                   homeVisible: homeVisible,
                   newsVisible: newsVisible,
+                  storiesVisible: storiesVisible,
+                  pagesVisible: pagesVisible,
                   commentsVisible: commentsVisible,
+                  subscribersVisible: subscribersVisible,
                   mailInboxVisible: mailInboxVisible,
                   bulkMailVisible: bulkMailVisible,
                   mailTemplatesVisible: mailTemplatesVisible,
                   contactListsVisible: contactListsVisible,
                   mailSettingsVisible: mailSettingsVisible,
+                  smsVisible: smsVisible,
                   whatsappVisible: whatsappVisible,
                   socialMediaVisible: socialMediaVisible,
                   navigationVisible: navigationVisible,
@@ -418,19 +565,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   languageSettingsVisible: languageSettingsVisible,
                   homeSelected:
                       !settingsSelected &&
+                      !newsAddSelected &&
                       !newsSelected &&
+                      !storiesSelected &&
+                      !pagesSelected &&
                       !commentsSelected &&
+                      !subscribersSelected &&
                       !mailInboxSelected &&
                       !bulkMailSelected &&
                       !mailTemplatesSelected &&
                       !contactListsSelected &&
                       !mailSettingsSelected &&
+                      !smsOutboxSelected &&
+                      !smsBulkSelected &&
+                      !smsTemplatesSelected &&
+                      !smsContactsSelected &&
+                      !smsSettingsSelected &&
                       !whatsappMessagingSelected &&
                       !whatsappBulkSelected &&
                       !whatsappTemplatesSelected &&
                       !whatsappContactsSelected &&
                       !whatsappSettingsSelected &&
                       !socialPublishSelected &&
+                      !socialAccountsSelected &&
+                      !socialSettingsSelected &&
                       !navigationSelected &&
                       !usersSelected &&
                       !rolesPermissionsSelected &&
@@ -438,19 +596,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !pharmacySettingsSelected &&
                       !weatherSettingsSelected &&
                       !deathNoticeSettingsSelected,
+                  newsAddSelected: newsAddSelected,
                   newsSelected: newsSelected,
+                  storiesSelected: storiesSelected,
+                  pagesSelected: pagesSelected,
                   commentsSelected: commentsSelected,
+                  subscribersSelected: subscribersSelected,
                   mailInboxSelected: mailInboxSelected,
                   bulkMailSelected: bulkMailSelected,
                   mailTemplatesSelected: mailTemplatesSelected,
                   contactListsSelected: contactListsSelected,
                   mailSettingsSelected: mailSettingsSelected,
+                  smsBulkSelected: smsBulkSelected,
+                  smsOutboxSelected: smsOutboxSelected,
+                  smsTemplatesSelected: smsTemplatesSelected,
+                  smsContactsSelected: smsContactsSelected,
+                  smsSettingsSelected: smsSettingsSelected,
                   whatsappMessagingSelected: whatsappMessagingSelected,
                   whatsappBulkSelected: whatsappBulkSelected,
                   whatsappTemplatesSelected: whatsappTemplatesSelected,
                   whatsappContactsSelected: whatsappContactsSelected,
                   whatsappSettingsSelected: whatsappSettingsSelected,
                   socialPublishSelected: socialPublishSelected,
+                  socialAccountsSelected: socialAccountsSelected,
+                  socialSettingsSelected: socialSettingsSelected,
                   navigationSelected: navigationSelected,
                   usersSelected: usersSelected,
                   rolesPermissionsSelected: rolesPermissionsSelected,
@@ -461,19 +630,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   generalSettingsSelected: generalSettingsSelected,
                   languageSettingsSelected: languageSettingsSelected,
                   onHomeSelected: _openHome,
+                  onNewsAddSelected: _openNewsAdd,
                   onNewsSelected: _openNews,
+                  onStoriesSelected: _openStories,
+                  onPagesSelected: _openPages,
                   onCommentsSelected: _openComments,
+                  onSubscribersSelected: _openSubscribers,
                   onMailInboxSelected: _openMailInbox,
                   onBulkMailSelected: _openBulkMail,
                   onMailTemplatesSelected: _openMailTemplates,
                   onContactListsSelected: _openContactLists,
                   onMailSettingsSelected: _openMailSettings,
+                  onSmsOutboxSelected: _openSmsOutbox,
+                  onSmsBulkSelected: _openSmsBulk,
+                  onSmsTemplatesSelected: _openSmsTemplates,
+                  onSmsContactsSelected: _openSmsContacts,
+                  onSmsSettingsSelected: _openSmsSettings,
                   onWhatsappMessagingSelected: _openWhatsappMessaging,
                   onWhatsappBulkSelected: _openWhatsappBulk,
                   onWhatsappTemplatesSelected: _openWhatsappTemplates,
                   onWhatsappContactsSelected: _openWhatsappContacts,
                   onWhatsappSettingsSelected: _openWhatsappSettings,
                   onSocialPublishSelected: _openSocialPublish,
+                  onSocialAccountsSelected: _openSocialAccounts,
+                  onSocialSettingsSelected: _openSocialSettings,
                   onNavigationSelected: _openNavigation,
                   onUsersSelected: _openUsers,
                   onRolesPermissionsSelected: _openRolesPermissions,
@@ -493,12 +673,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onLogout: widget.onLogout,
                     homeVisible: homeVisible,
                     newsVisible: newsVisible,
+                    storiesVisible: storiesVisible,
+                    pagesVisible: pagesVisible,
                     commentsVisible: commentsVisible,
+                    subscribersVisible: subscribersVisible,
                     mailInboxVisible: mailInboxVisible,
                     bulkMailVisible: bulkMailVisible,
                     mailTemplatesVisible: mailTemplatesVisible,
                     contactListsVisible: contactListsVisible,
                     mailSettingsVisible: mailSettingsVisible,
+                    smsVisible: smsVisible,
                     whatsappVisible: whatsappVisible,
                     socialMediaVisible: socialMediaVisible,
                     navigationVisible: navigationVisible,
@@ -512,19 +696,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     languageSettingsVisible: languageSettingsVisible,
                     homeSelected:
                         !settingsSelected &&
+                        !newsAddSelected &&
                         !newsSelected &&
+                        !storiesSelected &&
+                        !pagesSelected &&
                         !commentsSelected &&
+                        !subscribersSelected &&
                         !mailInboxSelected &&
                         !bulkMailSelected &&
                         !mailTemplatesSelected &&
                         !contactListsSelected &&
                         !mailSettingsSelected &&
+                        !smsOutboxSelected &&
+                        !smsBulkSelected &&
+                        !smsTemplatesSelected &&
+                        !smsContactsSelected &&
+                        !smsSettingsSelected &&
                         !whatsappMessagingSelected &&
                         !whatsappBulkSelected &&
                         !whatsappTemplatesSelected &&
                         !whatsappContactsSelected &&
                         !whatsappSettingsSelected &&
                         !socialPublishSelected &&
+                        !socialAccountsSelected &&
+                        !socialSettingsSelected &&
                         !navigationSelected &&
                         !usersSelected &&
                         !rolesPermissionsSelected &&
@@ -532,19 +727,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !pharmacySettingsSelected &&
                         !weatherSettingsSelected &&
                         !deathNoticeSettingsSelected,
+                    newsAddSelected: newsAddSelected,
                     newsSelected: newsSelected,
+                    storiesSelected: storiesSelected,
+                    pagesSelected: pagesSelected,
                     commentsSelected: commentsSelected,
+                    subscribersSelected: subscribersSelected,
                     mailInboxSelected: mailInboxSelected,
                     bulkMailSelected: bulkMailSelected,
                     mailTemplatesSelected: mailTemplatesSelected,
                     contactListsSelected: contactListsSelected,
                     mailSettingsSelected: mailSettingsSelected,
+                    smsBulkSelected: smsBulkSelected,
+                    smsOutboxSelected: smsOutboxSelected,
+                    smsTemplatesSelected: smsTemplatesSelected,
+                    smsContactsSelected: smsContactsSelected,
+                    smsSettingsSelected: smsSettingsSelected,
                     whatsappMessagingSelected: whatsappMessagingSelected,
                     whatsappBulkSelected: whatsappBulkSelected,
                     whatsappTemplatesSelected: whatsappTemplatesSelected,
                     whatsappContactsSelected: whatsappContactsSelected,
                     whatsappSettingsSelected: whatsappSettingsSelected,
                     socialPublishSelected: socialPublishSelected,
+                    socialAccountsSelected: socialAccountsSelected,
+                    socialSettingsSelected: socialSettingsSelected,
                     navigationSelected: navigationSelected,
                     usersSelected: usersSelected,
                     rolesPermissionsSelected: rolesPermissionsSelected,
@@ -555,19 +761,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     generalSettingsSelected: generalSettingsSelected,
                     languageSettingsSelected: languageSettingsSelected,
                     onHomeSelected: _openHome,
+                    onNewsAddSelected: _openNewsAdd,
                     onNewsSelected: _openNews,
+                    onStoriesSelected: _openStories,
+                    onPagesSelected: _openPages,
                     onCommentsSelected: _openComments,
+                    onSubscribersSelected: _openSubscribers,
                     onMailInboxSelected: _openMailInbox,
                     onBulkMailSelected: _openBulkMail,
                     onMailTemplatesSelected: _openMailTemplates,
                     onContactListsSelected: _openContactLists,
                     onMailSettingsSelected: _openMailSettings,
+                    onSmsOutboxSelected: _openSmsOutbox,
+                    onSmsBulkSelected: _openSmsBulk,
+                    onSmsTemplatesSelected: _openSmsTemplates,
+                    onSmsContactsSelected: _openSmsContacts,
+                    onSmsSettingsSelected: _openSmsSettings,
                     onWhatsappMessagingSelected: _openWhatsappMessaging,
                     onWhatsappBulkSelected: _openWhatsappBulk,
                     onWhatsappTemplatesSelected: _openWhatsappTemplates,
                     onWhatsappContactsSelected: _openWhatsappContacts,
                     onWhatsappSettingsSelected: _openWhatsappSettings,
                     onSocialPublishSelected: _openSocialPublish,
+                    onSocialAccountsSelected: _openSocialAccounts,
+                    onSocialSettingsSelected: _openSocialSettings,
                     onNavigationSelected: _openNavigation,
                     onUsersSelected: _openUsers,
                     onRolesPermissionsSelected: _openRolesPermissions,
@@ -595,36 +812,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ? _DashboardAccessDenied(error: _permissionError)
                             : switch (_selectedPage) {
                                 _DashboardPage.home => const DashboardContent(),
+                                _DashboardPage.newsAdd => NewsAddScreen(
+                                  session: widget.session,
+                                  profile: widget.profile,
+                                  repository: widget.newsRepository,
+                                  postId: _editingNewsPostId,
+                                  onBackToNews: _openNews,
+                                ),
                                 _DashboardPage.news => NewsScreen(
                                   repository: widget.newsRepository,
+                                  onAddPost: _openNewsAdd,
+                                  onEditPost: _openNewsEdit,
+                                ),
+                                _DashboardPage.stories => StoriesScreen(
+                                  session: widget.session,
+                                  repository: widget.storiesRepository,
+                                ),
+                                _DashboardPage.pages => PagesScreen(
+                                  repository: widget.pagesRepository,
                                 ),
                                 _DashboardPage.comments => CommentsScreen(
                                   session: widget.session,
                                   repository: widget.commentsRepository,
                                 ),
-                                _DashboardPage.mailInbox =>
-                                  const MailInboxScreen(),
-                                _DashboardPage.bulkMail =>
-                                  const BulkMailScreen(),
+                                _DashboardPage.subscribers => SubscribersScreen(
+                                  repository: widget.subscribersRepository,
+                                ),
+                                _DashboardPage.mailInbox => MailInboxScreen(
+                                  session: widget.session,
+                                  repository: widget.mailRepository,
+                                ),
+                                _DashboardPage.bulkMail => BulkMailScreen(
+                                  session: widget.session,
+                                  repository: widget.mailRepository,
+                                ),
                                 _DashboardPage.mailTemplates =>
-                                  const MailTemplatesScreen(),
+                                  MailTemplatesScreen(
+                                    session: widget.session,
+                                    repository: widget.mailRepository,
+                                  ),
                                 _DashboardPage.contactLists =>
-                                  const ContactListsScreen(),
+                                  ContactListsScreen(
+                                    session: widget.session,
+                                    repository: widget.mailRepository,
+                                  ),
                                 _DashboardPage.mailSettings =>
-                                  const MailSettingsScreen(),
+                                  MailSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.mailRepository,
+                                  ),
+                                _DashboardPage.smsOutbox => SmsOutboxScreen(
+                                  session: widget.session,
+                                  repository: widget.smsRepository,
+                                ),
+                                _DashboardPage.smsBulk => SmsBulkScreen(
+                                  session: widget.session,
+                                  repository: widget.smsRepository,
+                                ),
+                                _DashboardPage.smsTemplates =>
+                                  SmsTemplatesScreen(
+                                    session: widget.session,
+                                    repository: widget.smsRepository,
+                                  ),
+                                _DashboardPage.smsContacts =>
+                                  SmsContactListsScreen(
+                                    session: widget.session,
+                                    repository: widget.smsRepository,
+                                  ),
+                                _DashboardPage.smsSettings => SmsSettingsScreen(
+                                  session: widget.session,
+                                  repository: widget.smsRepository,
+                                ),
                                 _DashboardPage.whatsappMessaging =>
-                                  const WhatsappMessagingScreen(),
+                                  WhatsappMessagingScreen(
+                                    session: widget.session,
+                                    repository: widget.whatsappRepository,
+                                  ),
                                 _DashboardPage.whatsappBulk =>
-                                  const WhatsappBulkScreen(),
+                                  WhatsappBulkScreen(
+                                    session: widget.session,
+                                    repository: widget.whatsappRepository,
+                                  ),
                                 _DashboardPage.whatsappTemplates =>
-                                  const WhatsappTemplatesScreen(),
+                                  WhatsappTemplatesScreen(
+                                    session: widget.session,
+                                    repository: widget.whatsappRepository,
+                                  ),
                                 _DashboardPage.whatsappContacts =>
-                                  const WhatsappContactListsScreen(),
+                                  WhatsappContactListsScreen(
+                                    session: widget.session,
+                                    repository: widget.whatsappRepository,
+                                  ),
                                 _DashboardPage.whatsappSettings =>
-                                  const WhatsappSettingsScreen(),
+                                  WhatsappSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.whatsappRepository,
+                                  ),
                                 _DashboardPage.socialPublish =>
                                   SocialPublishScreen(
+                                    session: widget.session,
                                     newsRepository: widget.newsRepository,
+                                    socialRepository: widget.socialRepository,
+                                  ),
+                                _DashboardPage.socialAccounts =>
+                                  SocialAccountsScreen(
+                                    session: widget.session,
+                                    repository: widget.socialRepository,
+                                  ),
+                                _DashboardPage.socialSettings =>
+                                  SocialSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.socialRepository,
                                   ),
                                 _DashboardPage.navigation => NavigationScreen(
                                   repository: widget.navigationRepository,
@@ -733,19 +1031,30 @@ class _DashboardAccessDenied extends StatelessWidget {
 
 enum _DashboardPage {
   home,
+  newsAdd,
   news,
+  stories,
+  pages,
   comments,
+  subscribers,
   mailInbox,
   bulkMail,
   mailTemplates,
   contactLists,
   mailSettings,
+  smsOutbox,
+  smsBulk,
+  smsTemplates,
+  smsContacts,
+  smsSettings,
   whatsappMessaging,
   whatsappBulk,
   whatsappTemplates,
   whatsappContacts,
   whatsappSettings,
   socialPublish,
+  socialAccounts,
+  socialSettings,
   navigation,
   users,
   accountSettings,

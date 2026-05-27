@@ -482,6 +482,7 @@ class _LanguageSettingsToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 800;
         final compact = constraints.maxWidth < 1160;
         final pageSizeSelect = _PageSizeSelect(
           value: pageSize,
@@ -519,11 +520,12 @@ class _LanguageSettingsToolbar extends StatelessWidget {
           runSpacing: 10,
           alignment: compact ? WrapAlignment.start : WrapAlignment.end,
           children: [
-            _ToolbarButton(
-              icon: Symbols.article,
-              label: context.t('language.printList'),
-              variant: _ToolbarButtonVariant.outlined,
-            ),
+            if (!mobile)
+              _ToolbarButton(
+                icon: Symbols.article,
+                label: context.t('language.printList'),
+                variant: _ToolbarButtonVariant.outlined,
+              ),
             _ToolbarButton(
               icon: Symbols.open_in_new,
               label: context.t('language.download'),
@@ -543,6 +545,24 @@ class _LanguageSettingsToolbar extends StatelessWidget {
             ),
           ],
         );
+
+        if (mobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  leftControls,
+                  const SizedBox(width: 12),
+                  Expanded(child: search),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Align(alignment: Alignment.centerRight, child: actions),
+            ],
+          );
+        }
 
         if (compact) {
           return Column(
@@ -855,11 +875,15 @@ class _LanguageSettingsFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
     final to = totalCount == 0 ? 0 : from + visibleCount - 1;
+    final maxPage = totalCount == 0 ? 1 : (totalCount / pageSize).ceil();
+    final hasPrevious = page > 1;
+    final hasNext = page < maxPage;
+    final rangeText = context.t(
+      'language.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
     final text = Text(
-      context.t(
-        'language.recordRange',
-        values: {'from': from, 'to': to, 'total': totalCount},
-      ),
+      rangeText,
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
         color: AppColors.inkSoft,
         fontWeight: FontWeight.w500,
@@ -875,7 +899,48 @@ class _LanguageSettingsFooter extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 800;
         final compact = constraints.maxWidth < 640;
+
+        if (mobile) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: hasPrevious ? onPrevious : null,
+                icon: const Icon(Icons.chevron_left),
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                visualDensity: VisualDensity.compact,
+              ),
+              Expanded(
+                child: Text(
+                  rangeText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+              IconButton(
+                onPressed: hasNext ? onNext : null,
+                icon: const Icon(Icons.chevron_right),
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          );
+        }
+
         if (compact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,

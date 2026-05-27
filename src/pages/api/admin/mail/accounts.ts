@@ -12,8 +12,10 @@ const ACCOUNT_COLUMNS = `
   hesap_adi AS account_name,
   gonderen_adi AS sender_name,
   gonderen_eposta AS sender_email,
+  domain,
   servis_tipi AS service_type,
   gonderim_modu AS sending_mode,
+  api_base_url,
   smtp_sunucu AS smtp_host,
   smtp_port,
   smtp_kullanici AS smtp_username,
@@ -34,6 +36,7 @@ const ACCOUNT_COLUMNS = `
   bu_ay_gonderilen AS sent_this_month,
   varsayilan_imza AS default_signature,
   varsayilan_reply_to AS default_reply_to,
+  takip_domain AS tracking_domain,
   aktif_mi AS is_active,
   baglanti_durumu AS connection_status,
   son_hata_mesaji AS last_error_message,
@@ -73,8 +76,10 @@ function normalizeAccountPayload(body: Record<string, any>, userId?: string) {
     account_name: 'hesap_adi',
     sender_name: 'gonderen_adi',
     sender_email: 'gonderen_eposta',
+    domain: 'domain',
     service_type: 'servis_tipi',
     sending_mode: 'gonderim_modu',
+    api_base_url: 'api_base_url',
     smtp_host: 'smtp_sunucu',
     smtp_port: 'smtp_port',
     smtp_username: 'smtp_kullanici',
@@ -92,6 +97,7 @@ function normalizeAccountPayload(body: Record<string, any>, userId?: string) {
     hourly_limit: 'saatlik_limit',
     default_signature: 'varsayilan_imza',
     default_reply_to: 'varsayilan_reply_to',
+    tracking_domain: 'takip_domain',
     is_active: 'aktif_mi',
     connection_status: 'baglanti_durumu',
     last_error_message: 'son_hata_mesaji',
@@ -182,7 +188,7 @@ export const PATCH: APIRoute = async ({ request }) => {
       const result = await dbQuery(`SELECT ${ACCOUNT_COLUMNS} FROM public.mail_accounts WHERE id = $1::bigint LIMIT 1`, [id]);
       const account = result.rows[0];
       if (!account) return json({ error: { message: 'Account not found' } }, 404);
-      const domain = String(account.sender_email || '').split('@')[1] || '';
+      const domain = String(account.domain || '').trim() || String(account.sender_email || '').split('@')[1] || '';
       const checklist = dnsChecklist(domain, account.service_type);
       await dbQuery('UPDATE public.mail_accounts SET dns_son_kontrol = now(), guncelleme_tarihi = now() WHERE id = $1::bigint', [id]);
       return json({ checklist });

@@ -35,6 +35,10 @@ export async function ensureAppSchema() {
         CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           email text NOT NULL,
+          full_name text DEFAULT '',
+          phone text DEFAULT '',
+          ip_address text DEFAULT '',
+          city text DEFAULT '',
           language_code text DEFAULT 'tr',
           source text DEFAULT 'site',
           status text DEFAULT 'active',
@@ -42,8 +46,17 @@ export async function ensureAppSchema() {
           updated_at timestamptz DEFAULT now()
         );
 
+        ALTER TABLE public.newsletter_subscribers ADD COLUMN IF NOT EXISTS full_name text DEFAULT '';
+        ALTER TABLE public.newsletter_subscribers ADD COLUMN IF NOT EXISTS phone text DEFAULT '';
+        ALTER TABLE public.newsletter_subscribers ADD COLUMN IF NOT EXISTS ip_address text DEFAULT '';
+        ALTER TABLE public.newsletter_subscribers ADD COLUMN IF NOT EXISTS city text DEFAULT '';
+
         CREATE UNIQUE INDEX IF NOT EXISTS newsletter_subscribers_email_unique
           ON public.newsletter_subscribers (lower(email));
+        CREATE INDEX IF NOT EXISTS newsletter_subscribers_created_at_idx
+          ON public.newsletter_subscribers (created_at DESC);
+        CREATE INDEX IF NOT EXISTS newsletter_subscribers_status_created_idx
+          ON public.newsletter_subscribers (status, created_at DESC);
 
         CREATE TABLE IF NOT EXISTS public.password_reset_requests (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -137,6 +150,50 @@ export async function ensureAppSchema() {
 
         CREATE INDEX IF NOT EXISTS language_translations_language_idx
           ON public.language_translations (language_code);
+
+        CREATE TABLE IF NOT EXISTS public.pages (
+          id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+          title text NOT NULL DEFAULT '',
+          slug text,
+          language_code text DEFAULT 'tr' REFERENCES public.languages(code) ON DELETE SET DEFAULT,
+          category_id uuid REFERENCES public.navigation_items(id) ON DELETE SET NULL,
+          category text DEFAULT '',
+          page_type text DEFAULT 'custom',
+          status text DEFAULT 'active',
+          location text DEFAULT 'top_menu',
+          parent_page_id uuid REFERENCES public.pages(id) ON DELETE SET NULL,
+          show_title boolean DEFAULT true,
+          show_breadcrumb boolean DEFAULT true,
+          show_sidebar boolean DEFAULT true,
+          registered_only boolean DEFAULT false,
+          menu_order integer DEFAULT 1,
+          content_delta jsonb DEFAULT '[{"insert":"\\n"}]'::jsonb,
+          content_plain text DEFAULT '',
+          meta_title text DEFAULT '',
+          meta_keywords text DEFAULT '',
+          meta_description text DEFAULT '',
+          canonical_url text DEFAULT '',
+          created_at timestamptz DEFAULT now(),
+          updated_at timestamptz DEFAULT now()
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS pages_language_slug_unique
+          ON public.pages (language_code, slug)
+          WHERE slug IS NOT NULL AND slug <> '';
+
+        CREATE INDEX IF NOT EXISTS pages_status_created_idx
+          ON public.pages (status, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS pages_category_idx
+          ON public.pages (category);
+        CREATE INDEX IF NOT EXISTS pages_category_id_idx
+          ON public.pages (category_id);
+        CREATE INDEX IF NOT EXISTS pages_parent_page_id_idx
+          ON public.pages (parent_page_id);
+        CREATE INDEX IF NOT EXISTS pages_language_code_idx
+          ON public.pages (language_code);
+        CREATE INDEX IF NOT EXISTS pages_location_order_idx
+          ON public.pages (location, menu_order, created_at DESC);
       `);
     })();
   }

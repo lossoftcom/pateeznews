@@ -10,11 +10,12 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       scaffoldBackgroundColor: AppColors.surface,
-      fontFamily: 'PateezInter',
+      fontFamily: 'PateezSans',
       fontFamilyFallback: const [
         'SF Pro Display',
         'SF Pro Text',
         'San Francisco',
+        'Segoe UI',
         'Roboto',
         'Arial',
         'sans-serif',

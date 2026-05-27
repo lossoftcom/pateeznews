@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -10,10 +12,19 @@ import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_whatsapp_repository.dart';
 import 'whatsapp_settings_models.dart';
 
 class WhatsappSettingsScreen extends StatefulWidget {
-  const WhatsappSettingsScreen({super.key});
+  const WhatsappSettingsScreen({
+    super.key,
+    required this.session,
+    this.repository = const NeonAdminWhatsappRepository(),
+  });
+
+  final AdminSession session;
+  final AdminWhatsappRepository repository;
 
   @override
   State<WhatsappSettingsScreen> createState() => _WhatsappSettingsScreenState();
@@ -22,17 +33,54 @@ class WhatsappSettingsScreen extends StatefulWidget {
 class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
   final _searchController = TextEditingController();
   final _selectedIds = <int>{};
-  var _accounts = List<AdminWhatsappAccount>.of(sampleAdminWhatsappAccounts);
+  var _accounts = <AdminWhatsappAccount>[];
   var _searchQuery = '';
   var _page = 1;
   var _pageSize = 25;
   var _sortState = const TableSortState(key: 'date', ascending: false);
-  int? _activeAccountId = sampleAdminWhatsappAccounts.firstOrNull?.id;
+  int? _activeAccountId;
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadAccounts());
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAccounts() async {
+    setState(() => _loading = true);
+    try {
+      final accounts = await widget.repository.fetchAccounts(widget.session);
+      if (!mounted) return;
+      setState(() {
+        _accounts = accounts;
+        _activeAccountId =
+            accounts.any((account) => account.id == _activeAccountId)
+            ? _activeAccountId
+            : accounts.firstOrNull?.id;
+        _loading = false;
+        _resetListState();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showWhatsappError(error);
+    }
+  }
+
+  void _showWhatsappError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error.toString()),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   List<AdminWhatsappAccount> get _filteredAccounts {
@@ -173,14 +221,29 @@ class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
     });
   }
 
-  void _toggleActive(AdminWhatsappAccount account) {
-    _replaceAccount(account.copyWith(active: !account.active));
+  Future<void> _toggleActive(AdminWhatsappAccount account) async {
+    try {
+      final updated = await widget.repository.updateAccount(
+        widget.session,
+        account,
+        {'is_active': !account.active},
+      );
+      if (mounted) _replaceAccount(updated);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
-  void _markDnsReady(AdminWhatsappAccount account) {
-    _replaceAccount(
-      account.copyWith(spfReady: true, dkimReady: true, dmarcReady: true),
-    );
+  Future<void> _markDnsReady(AdminWhatsappAccount account) async {
+    try {
+      final updated = await widget.repository.checkAccount(
+        widget.session,
+        account.id,
+      );
+      if (mounted) _replaceAccount(updated);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   Future<void> _deleteAccount(AdminWhatsappAccount account) async {
@@ -192,15 +255,21 @@ class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
       danger: true,
     );
     if (!confirmed || !mounted) return;
-    setState(() {
-      _accounts = _accounts
-          .where((current) => current.id != account.id)
-          .toList(growable: false);
-      _selectedIds.remove(account.id);
-      if (_activeAccountId == account.id) {
-        _activeAccountId = _accounts.firstOrNull?.id;
-      }
-    });
+    try {
+      await widget.repository.deleteAccounts(widget.session, [account.id]);
+      if (!mounted) return;
+      setState(() {
+        _accounts = _accounts
+            .where((current) => current.id != account.id)
+            .toList(growable: false);
+        _selectedIds.remove(account.id);
+        if (_activeAccountId == account.id) {
+          _activeAccountId = _accounts.firstOrNull?.id;
+        }
+      });
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   Future<void> _deleteSelectedAccounts() async {
@@ -216,16 +285,23 @@ class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
       danger: true,
     );
     if (!confirmed || !mounted) return;
-    setState(() {
-      _accounts = _accounts
-          .where((account) => !_selectedIds.contains(account.id))
-          .toList(growable: false);
-      _selectedIds.clear();
-      if (_activeAccountId != null &&
-          !_accounts.any((account) => account.id == _activeAccountId)) {
-        _activeAccountId = _accounts.firstOrNull?.id;
-      }
-    });
+    try {
+      final ids = _selectedIds.toList(growable: false);
+      await widget.repository.deleteAccounts(widget.session, ids);
+      if (!mounted) return;
+      setState(() {
+        _accounts = _accounts
+            .where((account) => !ids.contains(account.id))
+            .toList(growable: false);
+        _selectedIds.clear();
+        if (_activeAccountId != null &&
+            !_accounts.any((account) => account.id == _activeAccountId)) {
+          _activeAccountId = _accounts.firstOrNull?.id;
+        }
+      });
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
   }
 
   Future<void> _openProviderPicker() async {
@@ -291,17 +367,29 @@ class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
     );
 
     if (result == null || !mounted) return;
+    late final AdminWhatsappAccount saved;
+    try {
+      saved = await widget.repository.saveAccount(
+        widget.session,
+        id: account?.id,
+        account: result,
+      );
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+      return;
+    }
+    if (!mounted) return;
     setState(() {
-      final index = _accounts.indexWhere((current) => current.id == result.id);
+      final index = _accounts.indexWhere((current) => current.id == saved.id);
       if (index == -1) {
-        _accounts = [result, ..._accounts];
+        _accounts = [saved, ..._accounts];
       } else {
         _accounts = [
           for (final current in _accounts)
-            if (current.id == result.id) result else current,
+            if (current.id == saved.id) saved else current,
         ];
       }
-      _activeAccountId = result.id;
+      _activeAccountId = saved.id;
       _resetListState();
     });
   }
@@ -347,7 +435,7 @@ class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
                 onToggleAccount: _toggleAccount,
                 onToggleAllAccounts: _toggleAllAccounts,
                 onSort: _changeSort,
-                onRefresh: () => setState(() {}),
+                onRefresh: () => unawaited(_loadAccounts()),
                 onSettings: _openSelectedSettings,
                 onCreate: _openProviderPicker,
                 onSelectRow: (account) =>
@@ -358,6 +446,7 @@ class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
                 onDelete: _deleteAccount,
               ),
             ),
+            if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
 
@@ -694,7 +783,7 @@ class _WhatsappSettingsToolbar extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SizedBox(
-              width: compact ? constraints.maxWidth : 300,
+              width: compact ? constraints.maxWidth : 280,
               child: _SearchField(
                 controller: searchController,
                 query: searchQuery,
@@ -715,7 +804,6 @@ class _WhatsappSettingsToolbar extends StatelessWidget {
             _PrimaryActionButton(
               icon: Symbols.add,
               label: context.t('whatsapp.settings.addAccount'),
-              shortcut: 'F1',
               onPressed: onCreate,
             ),
           ],
@@ -752,12 +840,12 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
     required this.onSort,
   });
 
-  static const _selectWidth = 50.0;
+  static const _selectWidth = 42.0;
   static const _serviceWidth = 160.0;
   static const _limitWidth = 132.0;
   static const _dnsWidth = 148.0;
   static const _statusWidth = 126.0;
-  static const _actionsWidth = 74.0;
+  static const _actionsWidth = 76.0;
   static const _accountFlex = 3;
   static const _senderFlex = 4;
   static const _domainFlex = 3;
@@ -771,9 +859,12 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.softLine)),
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
       ),
       child: Row(
         children: [
@@ -863,7 +954,6 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.inkSoft,
-                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
                 ),
@@ -892,7 +982,7 @@ class _WhatsappSettingsSortableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle.merge(
-      style: const TextStyle(fontSize: 12, letterSpacing: 0),
+      style: const TextStyle(letterSpacing: 0),
       child: SortableTableHeader(
         label: label,
         sortKey: sortKey,
@@ -936,11 +1026,16 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
         onTap: onSelect,
         child: Container(
           height: 72,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: active
                 ? AppColors.deepOcean.withValues(alpha: 0.03)
                 : Colors.white,
-            border: const Border(bottom: BorderSide(color: AppColors.softLine)),
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.softLine.withValues(alpha: 0.86),
+              ),
+            ),
           ),
           child: Row(
             children: [
@@ -979,8 +1074,8 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.deepOcean,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                               letterSpacing: 0,
                             ),
                           ),
@@ -1016,8 +1111,8 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.deepOcean,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: 0,
                       ),
                     ),
@@ -1048,8 +1143,8 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.deepOcean,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: 0,
                       ),
                     ),
@@ -1070,8 +1165,8 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.deepOcean,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: 0,
                       ),
                     ),
@@ -1548,6 +1643,8 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
       security: _security,
       smtpUser: _smtpUser.text.trim(),
       apiBaseUrl: _apiBaseUrl.text.trim(),
+      apiKey: _apiKey.text.trim(),
+      apiSecret: _apiSecret.text.trim(),
       dailyLimit: int.tryParse(_dailyLimit.text.trim()) ?? 5000,
       monthlyLimit: int.tryParse(_monthlyLimit.text.trim()) ?? 150000,
       hourlyLimit: int.tryParse(_hourlyLimit.text.trim()) ?? 700,
@@ -2777,44 +2874,7 @@ class _PageSizeSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.value),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.82)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: value,
-          isExpanded: true,
-          icon: const SymbolIcon(
-            Symbols.keyboard_arrow_down,
-            color: AppColors.iconMuted,
-            size: 18,
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          items: const [10, 25, 50, 100]
-              .map(
-                (item) => DropdownMenuItem<int>(
-                  value: item,
-                  child: Text(
-                    '$item',
-                    style: TextStyle(
-                      color: AppColors.deepOcean,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
+    return AdminTablePageSizeSelect(value: value, onChanged: onChanged);
   }
 }
 
@@ -2833,62 +2893,12 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        textAlignVertical: TextAlignVertical.center,
-        style: const TextStyle(
-          color: AppColors.deepOcean,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
-        decoration: InputDecoration(
-          prefixIcon: const Padding(
-            padding: EdgeInsets.only(left: 14, right: 8),
-            child: SymbolIcon(
-              Symbols.search,
-              color: AppColors.iconMuted,
-              size: 18,
-            ),
-          ),
-          suffixIcon: query.isEmpty
-              ? null
-              : IconButton(
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                  icon: const SymbolIcon(
-                    Symbols.close,
-                    color: AppColors.iconMuted,
-                    size: 16,
-                  ),
-                ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 40),
-          hintText: hint,
-          hintStyle: const TextStyle(
-            color: AppColors.support,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            borderSide: BorderSide(
-              color: AppColors.line.withValues(alpha: 0.7),
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            borderSide: const BorderSide(color: AppColors.deepOcean),
-          ),
-        ),
-      ),
+    return AdminTableSearchField(
+      controller: controller,
+      query: query,
+      hintText: hint,
+      showClearButton: true,
+      onChanged: onChanged,
     );
   }
 }
@@ -2898,14 +2908,12 @@ class _PrimaryActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.shortcut,
     this.backgroundColor = AppColors.actionRed,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
-  final String? shortcut;
   final Color backgroundColor;
 
   @override
@@ -2925,7 +2933,7 @@ class _PrimaryActionButton extends StatelessWidget {
               ),
               textStyle: const TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 0,
               ),
             ).copyWith(
@@ -2937,29 +2945,8 @@ class _PrimaryActionButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SymbolIcon(icon, color: Colors.white, size: 17),
-            const SizedBox(width: 8),
+            const SizedBox(width: 7),
             Flexible(child: Text(label)),
-            if (shortcut != null) ...[
-              const SizedBox(width: 8),
-              Container(
-                height: 22,
-                padding: const EdgeInsets.symmetric(horizontal: 7),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-                child: Text(
-                  shortcut!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -2994,7 +2981,7 @@ class _SecondaryActionButton extends StatelessWidget {
           ),
           textStyle: const TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             letterSpacing: 0,
           ),
         ),
@@ -3002,7 +2989,7 @@ class _SecondaryActionButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: AppColors.deepOcean, size: 17),
-            const SizedBox(width: 8),
+            const SizedBox(width: 7),
             Text(label),
           ],
         ),
@@ -3105,23 +3092,7 @@ class _WhatsappSettingsFooter extends StatelessWidget {
           onTap: () => onPageChanged(page - 1),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 36,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.deepOcean,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Text(
-            '$page',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
+        AdminTablePageButton(label: '$page', selected: true),
         const SizedBox(width: 8),
         _PaginationButton(
           label: '>',
@@ -3152,30 +3123,10 @@ class _PaginationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      height: 34,
-      child: TextButton(
-        onPressed: enabled ? onTap : null,
-        style: TextButton.styleFrom(
-          padding: EdgeInsets.zero,
-          foregroundColor: AppColors.deepOcean,
-          disabledForegroundColor: AppColors.line,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            side: BorderSide(
-              color: enabled
-                  ? AppColors.line.withValues(alpha: 0.9)
-                  : AppColors.softLine,
-            ),
-          ),
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-        child: Text(label),
-      ),
+    return AdminTablePageButton(
+      label: label,
+      enabled: enabled,
+      onPressed: onTap,
     );
   }
 }

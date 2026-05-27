@@ -18,14 +18,37 @@ enum SocialPlatform {
   slack,
 }
 
-/// Post format types.
-enum SocialPostType {
-  feed,
-  story,
-  reels,
-  thread,
-  shortVideo,
+extension SocialPlatformBundleData on SocialPlatform {
+  String get bundleSocialType {
+    return switch (this) {
+      SocialPlatform.instagram => 'INSTAGRAM',
+      SocialPlatform.facebook => 'FACEBOOK',
+      SocialPlatform.twitter => 'TWITTER',
+      SocialPlatform.linkedin => 'LINKEDIN',
+      SocialPlatform.tiktok => 'TIKTOK',
+      SocialPlatform.youtube => 'YOUTUBE',
+      SocialPlatform.pinterest => 'PINTEREST',
+      SocialPlatform.reddit => 'REDDIT',
+      SocialPlatform.threads => 'THREADS',
+      SocialPlatform.bluesky => 'BLUESKY',
+      SocialPlatform.mastodon => 'MASTODON',
+      SocialPlatform.googleBusiness => 'GOOGLE_BUSINESS',
+      SocialPlatform.discord => 'DISCORD',
+      SocialPlatform.slack => 'SLACK',
+    };
+  }
 }
+
+SocialPlatform socialPlatformFromBundleType(String type) {
+  final normalized = type.trim().toUpperCase();
+  return SocialPlatform.values.firstWhere(
+    (platform) => platform.bundleSocialType == normalized,
+    orElse: () => SocialPlatform.instagram,
+  );
+}
+
+/// Post format types.
+enum SocialPostType { feed, story, reels, thread, shortVideo }
 
 /// Data holder for the social publish editor state.
 class SocialPublishData {
@@ -61,8 +84,7 @@ class SocialPublishData {
   final String newsCategory;
   final String newsType;
 
-  String get effectiveLink =>
-      manualLink.isNotEmpty ? manualLink : newsLink;
+  String get effectiveLink => manualLink.isNotEmpty ? manualLink : newsLink;
 
   /// First available image for previews.
   String get effectiveImage {
@@ -127,7 +149,7 @@ class SocialPlatformInfo {
     required this.platform,
     required this.label,
     required this.color,
-    required this.icon,
+    required this.logoAsset,
     required this.charLimit,
     required this.supportedTypes,
     this.gradientColors,
@@ -136,7 +158,7 @@ class SocialPlatformInfo {
   final SocialPlatform platform;
   final String label;
   final Color color;
-  final IconData icon;
+  final String logoAsset;
   final int charLimit;
   final List<SocialPostType> supportedTypes;
   final List<Color>? gradientColors;
@@ -148,7 +170,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.instagram,
     label: 'Instagram',
     color: Color(0xFFE1306C),
-    icon: Icons.camera_alt_rounded,
+    logoAsset: 'assets/images/social/instagram.svg',
     charLimit: 2200,
     supportedTypes: [
       SocialPostType.feed,
@@ -167,7 +189,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.facebook,
     label: 'Facebook',
     color: Color(0xFF1877F2),
-    icon: Icons.facebook_rounded,
+    logoAsset: 'assets/images/social/facebook.svg',
     charLimit: 63206,
     supportedTypes: [
       SocialPostType.feed,
@@ -179,18 +201,15 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.twitter,
     label: 'X',
     color: Color(0xFF000000),
-    icon: Icons.alternate_email,
+    logoAsset: 'assets/images/social/x.svg',
     charLimit: 280,
-    supportedTypes: [
-      SocialPostType.feed,
-      SocialPostType.thread,
-    ],
+    supportedTypes: [SocialPostType.feed, SocialPostType.thread],
   ),
   SocialPlatformInfo(
     platform: SocialPlatform.linkedin,
     label: 'LinkedIn',
     color: Color(0xFF0A66C2),
-    icon: Icons.work_rounded,
+    logoAsset: 'assets/images/social/linkedin.svg',
     charLimit: 3000,
     supportedTypes: [SocialPostType.feed],
   ),
@@ -198,7 +217,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.tiktok,
     label: 'TikTok',
     color: Color(0xFF000000),
-    icon: Icons.music_note_rounded,
+    logoAsset: 'assets/images/social/tiktok.svg',
     charLimit: 2200,
     supportedTypes: [SocialPostType.shortVideo],
   ),
@@ -206,18 +225,15 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.youtube,
     label: 'YouTube',
     color: Color(0xFFFF0000),
-    icon: Icons.play_circle_filled_rounded,
+    logoAsset: 'assets/images/social/youtube.svg',
     charLimit: 5000,
-    supportedTypes: [
-      SocialPostType.feed,
-      SocialPostType.shortVideo,
-    ],
+    supportedTypes: [SocialPostType.feed, SocialPostType.shortVideo],
   ),
   SocialPlatformInfo(
     platform: SocialPlatform.pinterest,
     label: 'Pinterest',
     color: Color(0xFFE60023),
-    icon: Icons.push_pin_rounded,
+    logoAsset: 'assets/images/social/pinterest.svg',
     charLimit: 500,
     supportedTypes: [SocialPostType.feed],
   ),
@@ -225,7 +241,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.reddit,
     label: 'Reddit',
     color: Color(0xFFFF4500),
-    icon: Icons.reddit,
+    logoAsset: 'assets/images/social/reddit.svg',
     charLimit: 40000,
     supportedTypes: [SocialPostType.feed],
   ),
@@ -233,18 +249,15 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.threads,
     label: 'Threads',
     color: Color(0xFF000000),
-    icon: Icons.tag_rounded,
+    logoAsset: 'assets/images/social/threads.svg',
     charLimit: 500,
-    supportedTypes: [
-      SocialPostType.feed,
-      SocialPostType.thread,
-    ],
+    supportedTypes: [SocialPostType.feed, SocialPostType.thread],
   ),
   SocialPlatformInfo(
     platform: SocialPlatform.bluesky,
     label: 'Bluesky',
     color: Color(0xFF0085FF),
-    icon: Icons.cloud_rounded,
+    logoAsset: 'assets/images/social/bluesky.svg',
     charLimit: 300,
     supportedTypes: [SocialPostType.feed],
   ),
@@ -252,7 +265,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.mastodon,
     label: 'Mastodon',
     color: Color(0xFF6364FF),
-    icon: Icons.public_rounded,
+    logoAsset: 'assets/images/social/mastodon.svg',
     charLimit: 500,
     supportedTypes: [SocialPostType.feed],
   ),
@@ -260,7 +273,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.googleBusiness,
     label: 'Google Business',
     color: Color(0xFF4285F4),
-    icon: Icons.store_rounded,
+    logoAsset: 'assets/images/social/google_business.svg',
     charLimit: 1500,
     supportedTypes: [SocialPostType.feed],
   ),
@@ -268,7 +281,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.discord,
     label: 'Discord',
     color: Color(0xFF5865F2),
-    icon: Icons.forum_rounded,
+    logoAsset: 'assets/images/social/discord.svg',
     charLimit: 2000,
     supportedTypes: [SocialPostType.feed],
   ),
@@ -276,7 +289,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     platform: SocialPlatform.slack,
     label: 'Slack',
     color: Color(0xFF4A154B),
-    icon: Icons.tag_rounded,
+    logoAsset: 'assets/images/social/slack.svg',
     charLimit: 40000,
     supportedTypes: [SocialPostType.feed],
   ),

@@ -40,6 +40,16 @@ dependencies:
   http: ^1.6.0
   file_selector: ^1.0.4
   web: ^1.1.1
+  flutter_svg: ^2.3.0
+  flutter_quill: ^11.5.1
+  flutter_quill_delta_from_html: ^1.5.3
+  pro_image_editor: ^12.4.4
+  video_player: ^2.11.1
+  webview_flutter: ^4.13.1
+  url_launcher: ^6.3.2
+  youtube_player_iframe: ^6.0.0
+  pateeznews_frontend:
+    path: ../frontend
 
 dev_dependencies:
   flutter_test:
@@ -69,17 +79,31 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   fonts:
-    - family: PateezInter
+    - family: PateezSans
       fonts:
-        - asset: assets/fonts/inter/InterVariable.ttf
+        - asset: assets/fonts/google_sans_flex/GoogleSansFlex-400.ttf
+          weight: 400
+        - asset: assets/fonts/google_sans_flex/GoogleSansFlex-500.ttf
+          weight: 500
+        - asset: assets/fonts/google_sans_flex/GoogleSansFlex-600.ttf
+          weight: 600
+        - asset: assets/fonts/google_sans_flex/GoogleSansFlex-700.ttf
+          weight: 700
+        - asset: assets/fonts/google_sans_flex/GoogleSansFlex-800.ttf
+          weight: 800
+        - asset: assets/fonts/google_sans_flex/GoogleSansFlex-900.ttf
+          weight: 900
     - family: MaterialSymbolsOutlined
       fonts:
         - asset: assets/fonts/material_symbols/MaterialSymbolsOutlinedSubset.ttf
+    - family: PateezInter
+      fonts:
+        - asset: assets/fonts/inter/InterVariable.ttf
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/images/
+    - assets/images/social/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

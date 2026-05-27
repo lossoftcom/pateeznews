@@ -78,15 +78,29 @@ class FacebookPreview extends StatelessWidget {
                             ),
                           ),
                           SizedBox(width: 4),
-                          Text('•', style: TextStyle(color: Color(0xFF65676B), fontSize: 12)),
+                          Text(
+                            '•',
+                            style: TextStyle(
+                              color: Color(0xFF65676B),
+                              fontSize: 12,
+                            ),
+                          ),
                           SizedBox(width: 4),
-                          Icon(Icons.public, size: 12, color: Color(0xFF65676B)),
+                          Icon(
+                            Icons.public,
+                            size: 12,
+                            color: Color(0xFF65676B),
+                          ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.more_horiz, color: Color(0xFF65676B), size: 22),
+                const Icon(
+                  Icons.more_horiz,
+                  color: Color(0xFF65676B),
+                  size: 22,
+                ),
               ],
             ),
           ),
@@ -120,7 +134,7 @@ class FacebookPreview extends StatelessWidget {
                       ? Image.network(
                           imageUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                          errorBuilder: (_, _, _) => _imagePlaceholder(),
                         )
                       : _imagePlaceholder(),
                 ),
@@ -147,7 +161,11 @@ class FacebookPreview extends StatelessWidget {
                         color: const Color(0xFFE4E6EB),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(Icons.link, size: 20, color: Color(0xFF65676B)),
+                      child: const Icon(
+                        Icons.link,
+                        size: 20,
+                        color: Color(0xFF65676B),
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -188,28 +206,42 @@ class FacebookPreview extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  width: 18, height: 18,
+                  width: 18,
+                  height: 18,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: Color(0xFF1877F2),
                   ),
-                  child: const Icon(Icons.thumb_up, size: 10, color: Colors.white),
+                  child: const Icon(
+                    Icons.thumb_up,
+                    size: 10,
+                    color: Colors.white,
+                  ),
                 ),
                 Transform.translate(
                   offset: const Offset(-4, 0),
                   child: Container(
-                    width: 18, height: 18,
+                    width: 18,
+                    height: 18,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: Color(0xFFED4956),
                     ),
-                    child: const Icon(Icons.favorite, size: 10, color: Colors.white),
+                    child: const Icon(
+                      Icons.favorite,
+                      size: 10,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 2),
                 const Text(
                   '24',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF65676B), letterSpacing: 0),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF65676B),
+                    letterSpacing: 0,
+                  ),
                 ),
               ],
             ),
@@ -227,8 +259,14 @@ class FacebookPreview extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _ActionButton(icon: Icons.thumb_up_alt_outlined, label: 'Beğen'),
-                _ActionButton(icon: Icons.chat_bubble_outline_rounded, label: 'Yorum'),
+                _ActionButton(
+                  icon: Icons.thumb_up_alt_outlined,
+                  label: 'Beğen',
+                ),
+                _ActionButton(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Yorum',
+                ),
                 _ActionButton(icon: Icons.reply_rounded, label: 'Paylaş'),
               ],
             ),

@@ -142,3 +142,190 @@ class AdminNewsPageResult {
   final List<AdminNewsPost> posts;
   final int totalCount;
 }
+
+class AdminNewsEditorLanguage {
+  const AdminNewsEditorLanguage({required this.code, required this.name});
+
+  final String code;
+  final String name;
+
+  factory AdminNewsEditorLanguage.fromJson(Map<dynamic, dynamic> json) {
+    return AdminNewsEditorLanguage(
+      code: json['code']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+    );
+  }
+}
+
+class AdminNewsEditorCategory {
+  const AdminNewsEditorCategory({
+    required this.id,
+    required this.label,
+    required this.parentId,
+    required this.languageCode,
+    required this.orderIndex,
+  });
+
+  final String id;
+  final String label;
+  final String parentId;
+  final String languageCode;
+  final int orderIndex;
+
+  factory AdminNewsEditorCategory.fromJson(Map<dynamic, dynamic> json) {
+    return AdminNewsEditorCategory(
+      id: json['id']?.toString() ?? '',
+      label: json['label']?.toString() ?? '',
+      parentId: json['parent_id']?.toString() ?? '',
+      languageCode: json['language_code']?.toString() ?? '',
+      orderIndex: _modelAsInt(json['order_index']),
+    );
+  }
+}
+
+class AdminNewsEditorPublisher {
+  const AdminNewsEditorPublisher({required this.id, required this.name});
+
+  final String id;
+  final String name;
+
+  factory AdminNewsEditorPublisher.fromJson(Map<dynamic, dynamic> json) {
+    final fullName = json['full_name']?.toString().trim() ?? '';
+    final username = json['username']?.toString().trim() ?? '';
+    final email = json['email']?.toString().trim() ?? '';
+    return AdminNewsEditorPublisher(
+      id: json['id']?.toString() ?? '',
+      name: fullName.isNotEmpty
+          ? fullName
+          : username.isNotEmpty
+          ? username
+          : email,
+    );
+  }
+}
+
+class AdminNewsEditorBootstrap {
+  const AdminNewsEditorBootstrap({
+    required this.languages,
+    required this.categories,
+    required this.publishers,
+  });
+
+  final List<AdminNewsEditorLanguage> languages;
+  final List<AdminNewsEditorCategory> categories;
+  final List<AdminNewsEditorPublisher> publishers;
+}
+
+class AdminNewsEditorPost {
+  const AdminNewsEditorPost({
+    required this.id,
+    required this.title,
+    required this.summary,
+    required this.category,
+    required this.type,
+    required this.thumbnailUrl,
+    required this.thumbnailAlt,
+    required this.seoTitle,
+    required this.seoDescription,
+    required this.keywords,
+    required this.slug,
+    required this.status,
+    required this.languageCode,
+    required this.publisherId,
+    required this.isPinned,
+    required this.showInManset,
+    required this.factChecked,
+    required this.schemaType,
+    required this.publishedAt,
+    required this.cardData,
+    required this.items,
+    required this.faqData,
+  });
+
+  final String id;
+  final String title;
+  final String summary;
+  final String category;
+  final String type;
+  final String thumbnailUrl;
+  final String thumbnailAlt;
+  final String seoTitle;
+  final String seoDescription;
+  final String keywords;
+  final String slug;
+  final String status;
+  final String languageCode;
+  final String publisherId;
+  final bool isPinned;
+  final bool showInManset;
+  final bool factChecked;
+  final String schemaType;
+  final DateTime? publishedAt;
+  final Map<String, Object?> cardData;
+  final List<Map<String, Object?>> items;
+  final List<Map<String, Object?>> faqData;
+
+  factory AdminNewsEditorPost.fromJson(Map<dynamic, dynamic> json) {
+    return AdminNewsEditorPost(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      summary: json['summary']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      type: json['type']?.toString() ?? 'article',
+      thumbnailUrl: json['thumbnail_url']?.toString() ?? '',
+      thumbnailAlt: json['thumbnail_alt']?.toString() ?? '',
+      seoTitle: json['seo_title']?.toString() ?? '',
+      seoDescription: json['seo_description']?.toString() ?? '',
+      keywords: json['keywords']?.toString() ?? '',
+      slug: json['slug']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'draft',
+      languageCode: json['language_code']?.toString() ?? 'tr',
+      publisherId: json['publisher_id']?.toString() ?? '',
+      isPinned: json['is_pinned'] == true,
+      showInManset: json['show_in_manset'] == true,
+      factChecked: json['fact_checked'] == true,
+      schemaType: json['schema_type']?.toString() ?? 'NewsArticle',
+      publishedAt: _modelParseDate(json['published_at']),
+      cardData: _modelAsMap(json['card_data']),
+      items: _modelAsMapList(json['items']),
+      faqData: _modelAsMapList(json['faq_data']),
+    );
+  }
+}
+
+class AdminNewsEditorSavePayload {
+  const AdminNewsEditorSavePayload({required this.values});
+
+  final Map<String, Object?> values;
+}
+
+int _modelAsInt(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+DateTime? _modelParseDate(Object? value) {
+  final raw = value?.toString();
+  if (raw == null || raw.isEmpty) return null;
+  return DateTime.tryParse(raw)?.toLocal();
+}
+
+Map<String, Object?> _modelAsMap(Object? value) {
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) {
+    return value.map(
+      (key, nestedValue) => MapEntry(key.toString(), nestedValue),
+    );
+  }
+  return const {};
+}
+
+List<Map<String, Object?>> _modelAsMapList(Object? value) {
+  if (value is! List) return const [];
+  return [
+    for (final item in value)
+      if (item is Map)
+        item.map((key, nestedValue) => MapEntry(key.toString(), nestedValue)),
+  ];
+}

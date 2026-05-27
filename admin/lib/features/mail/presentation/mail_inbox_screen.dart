@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
@@ -8,18 +10,31 @@ import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_mail_repository.dart';
+import 'mail_settings_models.dart';
+import 'mail_template_models.dart';
 import 'mail_inbox_models.dart';
 import 'widgets/mail_inbox_table_card.dart';
 
 class MailInboxScreen extends StatefulWidget {
-  const MailInboxScreen({super.key});
+  const MailInboxScreen({
+    super.key,
+    required this.session,
+    this.repository = const NeonAdminMailRepository(),
+  });
+
+  final AdminSession session;
+  final AdminMailRepository repository;
 
   @override
   State<MailInboxScreen> createState() => _MailInboxScreenState();
 }
 
 class _MailInboxScreenState extends State<MailInboxScreen> {
-  var _messages = List<AdminMailMessage>.of(sampleAdminMailMessages);
+  var _messages = <AdminMailMessage>[];
+  var _accounts = <AdminMailAccount>[];
+  var _templates = <AdminMailTemplate>[];
   final _selectedMessageIds = <int>{};
   var _quickFilter = mailQuickInbox;
   var _folderFilter = mailFilterAll;
@@ -29,6 +44,45 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   var _page = 1;
   var _pageSize = 25;
   var _sortState = const TableSortState(key: 'date', ascending: false);
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadInbox());
+  }
+
+  Future<void> _loadInbox() async {
+    setState(() => _loading = true);
+    try {
+      final results = await Future.wait([
+        widget.repository.fetchInbox(widget.session),
+        widget.repository.fetchAccounts(widget.session),
+        widget.repository.fetchTemplates(widget.session),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _messages = results[0] as List<AdminMailMessage>;
+        _accounts = results[1] as List<AdminMailAccount>;
+        _templates = results[2] as List<AdminMailTemplate>;
+        _loading = false;
+        _resetListState();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showMailError(error);
+    }
+  }
+
+  void _showMailError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error.toString()),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   List<AdminMailMessage> get _filteredMessages {
     final query = _searchQuery.trim().toLowerCase();
@@ -217,17 +271,41 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
     });
   }
 
-  void _markRead(AdminMailMessage message, bool read) {
-    _updateMessage(message, message.copyWith(read: read));
+  Future<void> _markRead(AdminMailMessage message, bool read) async {
+    try {
+      await widget.repository.updateInboxMessages(widget.session, [
+        message.id,
+      ], read ? 'read' : 'unread');
+      if (mounted) _updateMessage(message, message.copyWith(read: read));
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
-  void _toggleStar(AdminMailMessage message) {
-    _updateMessage(message, message.copyWith(starred: !message.starred));
+  Future<void> _toggleStar(AdminMailMessage message) async {
+    try {
+      await widget.repository.updateInboxMessages(widget.session, [
+        message.id,
+      ], message.starred ? 'unstar' : 'star');
+      if (mounted) {
+        _updateMessage(message, message.copyWith(starred: !message.starred));
+      }
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
-  void _moveMessage(AdminMailMessage message, String folder) {
-    _updateMessage(message, message.copyWith(folder: folder));
-    _selectedMessageIds.remove(message.id);
+  Future<void> _moveMessage(AdminMailMessage message, String folder) async {
+    try {
+      await widget.repository.updateInboxMessages(widget.session, [
+        message.id,
+      ], folder);
+      if (!mounted) return;
+      _updateMessage(message, message.copyWith(folder: folder));
+      _selectedMessageIds.remove(message.id);
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
   Future<void> _deleteMessage(AdminMailMessage message) async {
@@ -239,12 +317,18 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
       danger: true,
     );
     if (!confirmed) return;
-    setState(() {
-      _messages = _messages
-          .where((current) => current.id != message.id)
-          .toList(growable: false);
-      _selectedMessageIds.remove(message.id);
-    });
+    try {
+      await widget.repository.deleteInboxMessages(widget.session, [message.id]);
+      if (!mounted) return;
+      setState(() {
+        _messages = _messages
+            .where((current) => current.id != message.id)
+            .toList(growable: false);
+        _selectedMessageIds.remove(message.id);
+      });
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
   Future<void> _deleteSelectedMessages() async {
@@ -260,16 +344,23 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
       danger: true,
     );
     if (!confirmed) return;
-    setState(() {
-      _messages = _messages
-          .where((message) => !_selectedMessageIds.contains(message.id))
-          .toList(growable: false);
-      _selectedMessageIds.clear();
-    });
+    try {
+      final ids = _selectedMessageIds.toList(growable: false);
+      await widget.repository.deleteInboxMessages(widget.session, ids);
+      if (!mounted) return;
+      setState(() {
+        _messages = _messages
+            .where((message) => !ids.contains(message.id))
+            .toList(growable: false);
+        _selectedMessageIds.clear();
+      });
+    } catch (error) {
+      if (mounted) _showMailError(error);
+    }
   }
 
   void _openMessage(AdminMailMessage message) {
-    _markRead(message, true);
+    unawaited(_markRead(message, true));
     showDialog<void>(
       context: context,
       builder: (context) =>
@@ -311,7 +402,14 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
                     ),
                   ],
                 ),
-                child: const _MailComposeDrawer(),
+                child: _MailComposeDrawer(
+                  session: widget.session,
+                  repository: widget.repository,
+                  accounts: _accounts,
+                  templates: _templates,
+                  onSaved: _loadInbox,
+                  onError: _showMailError,
+                ),
               ),
             ),
           ),
@@ -330,9 +428,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   }
 
   void _refreshDesign() {
-    setState(() {
-      _selectedMessageIds.clear();
-    });
+    unawaited(_loadInbox());
   }
 
   @override
@@ -372,21 +468,24 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
                 onToggleAllMessages: _toggleAllMessages,
                 onSort: _changeSort,
                 onOpenMessage: _openMessage,
-                onMarkRead: _markRead,
-                onToggleStar: _toggleStar,
+                onMarkRead: (message, read) =>
+                    unawaited(_markRead(message, read)),
+                onToggleStar: (message) => unawaited(_toggleStar(message)),
                 onArchive: (message) =>
-                    _moveMessage(message, mailFolderArchive),
-                onMoveSpam: (message) => _moveMessage(message, mailFolderSpam),
+                    unawaited(_moveMessage(message, mailFolderArchive)),
+                onMoveSpam: (message) =>
+                    unawaited(_moveMessage(message, mailFolderSpam)),
                 onMoveTrash: (message) =>
-                    _moveMessage(message, mailFolderTrash),
+                    unawaited(_moveMessage(message, mailFolderTrash)),
                 onRestoreInbox: (message) =>
-                    _moveMessage(message, mailFolderInbox),
+                    unawaited(_moveMessage(message, mailFolderInbox)),
                 onDelete: (message) => _deleteMessage(message),
                 onDeleteSelected: () => _deleteSelectedMessages(),
                 onRefresh: _refreshDesign,
                 onCompose: _showComposeDrawer,
               ),
             ),
+            if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
 
@@ -669,8 +768,88 @@ class _MailDetailItem extends StatelessWidget {
   }
 }
 
-class _MailComposeDrawer extends StatelessWidget {
-  const _MailComposeDrawer();
+class _MailComposeDrawer extends StatefulWidget {
+  const _MailComposeDrawer({
+    required this.session,
+    required this.repository,
+    required this.accounts,
+    required this.templates,
+    required this.onSaved,
+    required this.onError,
+  });
+
+  final AdminSession session;
+  final AdminMailRepository repository;
+  final List<AdminMailAccount> accounts;
+  final List<AdminMailTemplate> templates;
+  final Future<void> Function() onSaved;
+  final ValueChanged<Object> onError;
+
+  @override
+  State<_MailComposeDrawer> createState() => _MailComposeDrawerState();
+}
+
+class _MailComposeDrawerState extends State<_MailComposeDrawer> {
+  late final TextEditingController _recipientsController;
+  late final TextEditingController _subjectController;
+  late final TextEditingController _contentController;
+  String? _accountValue;
+  String? _templateValue;
+  var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _recipientsController = TextEditingController();
+    _subjectController = TextEditingController();
+    _contentController = TextEditingController();
+    _accountValue = widget.accounts.firstOrNull?.id.toString();
+    _templateValue = widget.templates.firstOrNull?.id.toString();
+  }
+
+  @override
+  void dispose() {
+    _recipientsController.dispose();
+    _subjectController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit({bool draft = false, bool schedule = false}) async {
+    if (_saving) return;
+    final recipients = _recipientsController.text.trim();
+    final subject = _subjectController.text.trim();
+    final content = _contentController.text.trim();
+    if (recipients.isEmpty || subject.isEmpty || content.isEmpty) {
+      widget.onError(
+        const AdminMailException('Alıcı, konu ve içerik zorunludur'),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await widget.repository.sendMail(
+        widget.session,
+        AdminMailComposePayload(
+          accountId: int.tryParse(_accountValue ?? ''),
+          templateId: int.tryParse(_templateValue ?? ''),
+          recipients: recipients,
+          subject: subject,
+          content: content,
+          draft: draft,
+          scheduledAt: schedule
+              ? DateTime.now().add(const Duration(days: 1))
+              : null,
+        ),
+      );
+      await widget.onSaved();
+      if (mounted) Navigator.of(context).pop();
+    } catch (error) {
+      widget.onError(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -700,14 +879,46 @@ class _MailComposeDrawer extends StatelessWidget {
                     ),
                   ),
                   child: mobile
-                      ? const SingleChildScrollView(
-                          child: _MailComposeForm(mobile: true),
+                      ? SingleChildScrollView(
+                          child: _MailComposeForm(
+                            mobile: true,
+                            accounts: widget.accounts,
+                            templates: widget.templates,
+                            selectedAccount: _accountValue,
+                            selectedTemplate: _templateValue,
+                            recipientsController: _recipientsController,
+                            subjectController: _subjectController,
+                            contentController: _contentController,
+                            onAccountChanged: (value) =>
+                                setState(() => _accountValue = value),
+                            onTemplateChanged: (value) =>
+                                setState(() => _templateValue = value),
+                          ),
                         )
-                      : const _MailComposeForm(mobile: false),
+                      : _MailComposeForm(
+                          mobile: false,
+                          accounts: widget.accounts,
+                          templates: widget.templates,
+                          selectedAccount: _accountValue,
+                          selectedTemplate: _templateValue,
+                          recipientsController: _recipientsController,
+                          subjectController: _subjectController,
+                          contentController: _contentController,
+                          onAccountChanged: (value) =>
+                              setState(() => _accountValue = value),
+                          onTemplateChanged: (value) =>
+                              setState(() => _templateValue = value),
+                        ),
                 ),
               ),
               const SizedBox(height: 16),
-              _MailComposeActions(mobile: mobile),
+              _MailComposeActions(
+                mobile: mobile,
+                saving: _saving,
+                onDraft: () => unawaited(_submit(draft: true)),
+                onSchedule: () => unawaited(_submit(schedule: true)),
+                onSend: () => unawaited(_submit()),
+              ),
             ],
           ),
         );
@@ -777,25 +988,56 @@ class _MailComposeHeader extends StatelessWidget {
 }
 
 class _MailComposeForm extends StatelessWidget {
-  const _MailComposeForm({required this.mobile});
+  const _MailComposeForm({
+    required this.mobile,
+    required this.accounts,
+    required this.templates,
+    required this.selectedAccount,
+    required this.selectedTemplate,
+    required this.recipientsController,
+    required this.subjectController,
+    required this.contentController,
+    required this.onAccountChanged,
+    required this.onTemplateChanged,
+  });
 
   final bool mobile;
+  final List<AdminMailAccount> accounts;
+  final List<AdminMailTemplate> templates;
+  final String? selectedAccount;
+  final String? selectedTemplate;
+  final TextEditingController recipientsController;
+  final TextEditingController subjectController;
+  final TextEditingController contentController;
+  final ValueChanged<String?> onAccountChanged;
+  final ValueChanged<String?> onTemplateChanged;
 
   @override
   Widget build(BuildContext context) {
     final accountField = _ComposeSelectField(
       label: 'mail.account',
       hint: 'mail.account',
-      items: const ['Pateez Ana Mail', 'Teknik Mail', 'Iletisim Mail'],
+      value: selectedAccount,
+      items: [
+        for (final account in accounts)
+          _ComposeOption(account.id.toString(), account.accountName),
+      ],
+      onChanged: onAccountChanged,
     );
     final templateField = _ComposeSelectField(
       label: 'mail.compose.template',
       hint: 'mail.compose.template',
-      items: const ['Standart Cevap', 'Haber Bilgilendirme', 'Bulten Taslagi'],
+      value: selectedTemplate,
+      items: [
+        for (final template in templates)
+          _ComposeOption(template.id.toString(), template.nameKey),
+      ],
+      onChanged: onTemplateChanged,
     );
     final recipientField = _ComposeTextField(
       label: 'mail.send.to',
       hint: 'mail.compose.recipientsHint',
+      controller: recipientsController,
       action: TextButton.icon(
         onPressed: () {},
         style:
@@ -818,9 +1060,10 @@ class _MailComposeForm extends StatelessWidget {
         label: Text(context.t('mail.compose.addContact')),
       ),
     );
-    final subjectField = const _ComposeTextField(
+    final subjectField = _ComposeTextField(
       label: 'mail.subject',
       hint: 'mail.compose.subjectHint',
+      controller: subjectController,
     );
 
     final formFields = <Widget>[
@@ -867,7 +1110,10 @@ class _MailComposeForm extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ...formFields,
-          const SizedBox(height: 350, child: _MailRichEditorPreview()),
+          SizedBox(
+            height: 350,
+            child: _MailRichEditorPreview(controller: contentController),
+          ),
           const SizedBox(height: 14),
           const _MailAttachmentPicker(),
         ],
@@ -878,7 +1124,7 @@ class _MailComposeForm extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ...formFields,
-        const Expanded(child: _MailRichEditorPreview()),
+        Expanded(child: _MailRichEditorPreview(controller: contentController)),
         const SizedBox(height: 14),
         const _MailAttachmentPicker(),
       ],
@@ -886,16 +1132,27 @@ class _MailComposeForm extends StatelessWidget {
   }
 }
 
+class _ComposeOption {
+  const _ComposeOption(this.value, this.label);
+
+  final String value;
+  final String label;
+}
+
 class _ComposeSelectField extends StatelessWidget {
   const _ComposeSelectField({
     required this.label,
     required this.hint,
+    required this.value,
     required this.items,
+    required this.onChanged,
   });
 
   final String label;
   final String hint;
-  final List<String> items;
+  final String? value;
+  final List<_ComposeOption> items;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -912,7 +1169,7 @@ class _ComposeSelectField extends StatelessWidget {
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             isExpanded: true,
-            value: null,
+            value: items.any((item) => item.value == value) ? value : null,
             hint: Text(context.t(hint)),
             borderRadius: BorderRadius.circular(AppRadius.value),
             dropdownColor: Colors.white,
@@ -931,9 +1188,9 @@ class _ComposeSelectField extends StatelessWidget {
             ),
             items: [
               for (final item in items)
-                DropdownMenuItem(value: item, child: Text(item)),
+                DropdownMenuItem(value: item.value, child: Text(item.label)),
             ],
-            onChanged: (_) {},
+            onChanged: onChanged,
           ),
         ),
       ),
@@ -945,11 +1202,13 @@ class _ComposeTextField extends StatelessWidget {
   const _ComposeTextField({
     required this.label,
     required this.hint,
+    required this.controller,
     this.action,
   });
 
   final String label;
   final String hint;
+  final TextEditingController controller;
   final Widget? action;
 
   @override
@@ -958,6 +1217,7 @@ class _ComposeTextField extends StatelessWidget {
       label: label,
       action: action,
       child: TextField(
+        controller: controller,
         minLines: 1,
         maxLines: 2,
         cursorColor: AppColors.support,
@@ -1037,7 +1297,9 @@ InputDecoration _composeInputDecoration(BuildContext context, {String? hint}) {
 }
 
 class _MailRichEditorPreview extends StatelessWidget {
-  const _MailRichEditorPreview();
+  const _MailRichEditorPreview({required this.controller});
+
+  final TextEditingController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -1052,6 +1314,7 @@ class _MailRichEditorPreview extends StatelessWidget {
           const _MailEditorToolbar(),
           Expanded(
             child: TextField(
+              controller: controller,
               expands: true,
               maxLines: null,
               minLines: null,
@@ -1315,27 +1578,37 @@ class _MailAttachmentPicker extends StatelessWidget {
 }
 
 class _MailComposeActions extends StatelessWidget {
-  const _MailComposeActions({required this.mobile});
+  const _MailComposeActions({
+    required this.mobile,
+    required this.saving,
+    required this.onDraft,
+    required this.onSchedule,
+    required this.onSend,
+  });
 
   final bool mobile;
+  final bool saving;
+  final VoidCallback onDraft;
+  final VoidCallback onSchedule;
+  final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
     final draft = _ComposeFooterButton(
       label: 'mail.compose.draftSave',
       icon: Symbols.draft,
-      onPressed: () => Navigator.of(context).pop(),
+      onPressed: saving ? null : onDraft,
     );
     final schedule = _ComposeFooterButton(
       label: 'mail.compose.schedule',
       icon: Symbols.schedule,
-      onPressed: () => Navigator.of(context).pop(),
+      onPressed: saving ? null : onSchedule,
     );
     final send = _ComposeFooterButton(
       label: 'mail.compose.send',
       icon: Symbols.schedule_send,
       primary: true,
-      onPressed: () => Navigator.of(context).pop(),
+      onPressed: saving ? null : onSend,
     );
 
     if (mobile) {
@@ -1373,7 +1646,7 @@ class _ComposeFooterButton extends StatelessWidget {
 
   final String label;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool primary;
 
   @override
@@ -1400,8 +1673,10 @@ class _ComposeFooterButton extends StatelessWidget {
                 letterSpacing: 0,
               ),
             ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
+              mouseCursor: WidgetStatePropertyAll(
+                onPressed == null
+                    ? SystemMouseCursors.basic
+                    : SystemMouseCursors.click,
               ),
             ),
         child: Row(

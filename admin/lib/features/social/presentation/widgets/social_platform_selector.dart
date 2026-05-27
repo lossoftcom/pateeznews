@@ -4,6 +4,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../social_platform_data.dart';
+import 'social_brand_logo.dart';
 
 /// Horizontal chip-based platform selector.
 class SocialPlatformSelector extends StatelessWidget {
@@ -115,9 +116,10 @@ class _PlatformChipState extends State<_PlatformChip>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -148,9 +150,7 @@ class _PlatformChipState extends State<_PlatformChip>
             curve: Curves.easeInOut,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: active
-                  ? brandColor.withValues(alpha: 0.10)
-                  : Colors.white,
+              color: active ? brandColor.withValues(alpha: 0.10) : Colors.white,
               borderRadius: BorderRadius.circular(AppRadius.value * 2),
               border: Border.all(
                 color: active ? brandColor : AppColors.line,
@@ -173,11 +173,7 @@ class _PlatformChipState extends State<_PlatformChip>
                 ),
                 if (active) ...[
                   const SizedBox(width: 6),
-                  Icon(
-                    Icons.check_circle_rounded,
-                    size: 14,
-                    color: brandColor,
-                  ),
+                  Icon(Icons.check_circle_rounded, size: 14, color: brandColor),
                 ],
               ],
             ),
@@ -196,25 +192,12 @@ class _PlatformIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? info.color : AppColors.iconMuted;
-
-    // Special gradient for Instagram
-    if (info.platform == SocialPlatform.instagram && active) {
-      return ShaderMask(
-        shaderCallback: (bounds) => const LinearGradient(
-          colors: [
-            Color(0xFFFCAF45),
-            Color(0xFFF77737),
-            Color(0xFFE1306C),
-            Color(0xFFC13584),
-          ],
-          begin: Alignment.bottomLeft,
-          end: Alignment.topRight,
-        ).createShader(bounds),
-        child: Icon(info.icon, size: 16, color: Colors.white),
-      );
-    }
-
-    return Icon(info.icon, size: 16, color: color);
+    return SocialBrandLogo(
+      info: info,
+      size: 16,
+      iconSize: 16,
+      active: active,
+      showBackground: false,
+    );
   }
 }

@@ -850,125 +850,216 @@ class _LanguageSettingsCardList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.separated(
       itemCount: languages.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
         final language = languages[index];
         final selected = selectedCodes.contains(language.code);
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.surface : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: selected
-                  ? AppColors.deepOcean.withValues(alpha: 0.3)
-                  : AppColors.line.withValues(alpha: 0.72),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.deepOcean.withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _LanguageCheckbox(
-                    value: selected,
-                    onChanged: (_) => onToggleCode(language.code),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _RowSelectTapTarget(
-                      onTap: () => onToggleCode(language.code),
-                      child: _LanguageIdentity(language: language),
-                    ),
-                  ),
-                  _LanguageRowMenu(
-                    language: language,
-                    onEdit: () => onEdit(language),
-                    onToggleStatus: () => onToggleStatus(language),
-                    onDelete: () => onDelete(language),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(color: AppColors.softLine),
-              const SizedBox(height: 16),
-              _MobileMetaRow(
-                label: context.t('language.status'),
-                value: _StatusBadge(
-                  label: language.active
-                      ? context.t('common.active')
-                      : context.t('common.passive'),
-                  color: language.active
-                      ? LanguageSettingsTable._activeGreen
-                      : LanguageSettingsTable._passiveGray,
-                  dot: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _MobileMetaRow(
-                label: context.t('language.default'),
-                value: language.isDefault
-                    ? _StatusBadge(label: context.t('language.default'))
-                    : _SmallActionButton(
-                        label: context.t('language.defaultMake'),
-                        onPressed: language.active
-                            ? () => onMakeDefault(language)
-                            : null,
-                      ),
-              ),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _SmallActionButton(
-                    label: context.t('language.translations'),
-                    onPressed: () => onTranslations(language),
-                  ),
-                  _SmallActionButton(
-                    label: context.t('language.exportShort'),
-                    color: AppColors.warmHorizon,
-                    onPressed: () => onExport(language),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        return _LanguageMobileCard(
+          language: language,
+          selected: selected,
+          onToggle: () => onToggleCode(language.code),
+          onMakeDefault: () => onMakeDefault(language),
+          onEdit: () => onEdit(language),
+          onToggleStatus: () => onToggleStatus(language),
+          onDelete: () => onDelete(language),
+          onTranslations: () => onTranslations(language),
+          onExport: () => onExport(language),
         );
       },
     );
   }
 }
 
-class _MobileMetaRow extends StatelessWidget {
-  const _MobileMetaRow({required this.label, required this.value});
+class _LanguageMobileCard extends StatelessWidget {
+  const _LanguageMobileCard({
+    required this.language,
+    required this.selected,
+    required this.onToggle,
+    required this.onMakeDefault,
+    required this.onEdit,
+    required this.onToggleStatus,
+    required this.onDelete,
+    required this.onTranslations,
+    required this.onExport,
+  });
 
-  final String label;
-  final Widget value;
+  final AdminLanguage language;
+  final bool selected;
+  final VoidCallback onToggle;
+  final VoidCallback onMakeDefault;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleStatus;
+  final VoidCallback onDelete;
+  final VoidCallback onTranslations;
+  final VoidCallback onExport;
+
+  static const _accent = Color(0xFF2C3E50);
+  static const _activeBg = Color(0xFFE6F4EA);
+  static const _activeText = Color(0xFF1E7E34);
+  static const _passiveBg = Color(0xFFF5F5F5);
+  static const _passiveText = Color(0xFF757575);
+  static const _defaultBg = Color(0xFFE8F4FF);
+  static const _defaultText = Color(0xFF0B5FBF);
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: selected ? _accent.withValues(alpha: 0.04) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selected
+              ? _accent.withValues(alpha: 0.3)
+              : Colors.grey.shade200,
         ),
-        value,
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: selected
+                ? _accent.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.05),
+            blurRadius: selected ? 12 : 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  side: const BorderSide(color: Color(0xFFD1D1D1)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _RowSelectTapTarget(
+                  onTap: onToggle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        language.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        language.code,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _LanguageRowMenu(
+                language: language,
+                onEdit: onEdit,
+                onToggleStatus: onToggleStatus,
+                onDelete: onDelete,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: language.active ? _activeBg : _passiveBg,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  language.active
+                      ? context.t('common.active')
+                      : context.t('common.passive'),
+                  style: TextStyle(
+                    color: language.active ? _activeText : _passiveText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _SmallActionButton(
+                      label: context.t('language.translations'),
+                      onPressed: onTranslations,
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (language.isDefault)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _defaultBg,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              context.t('language.default'),
+                              style: const TextStyle(
+                                color: _defaultText,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                              ),
+                            ),
+                          )
+                        else
+                          _SmallActionButton(
+                            label: context.t('language.defaultMake'),
+                            onPressed: language.active ? onMakeDefault : null,
+                          ),
+                        const SizedBox(height: 6),
+                        _SmallActionButton(
+                          label: context.t('language.exportShort'),
+                          color: AppColors.warmHorizon,
+                          onPressed: onExport,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

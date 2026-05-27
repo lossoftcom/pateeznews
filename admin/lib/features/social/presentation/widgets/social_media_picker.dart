@@ -41,12 +41,13 @@ class SocialMediaPicker extends StatelessWidget {
               if (mediaUrls.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.deepOcean.withValues(alpha: 0.08),
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.value * 1.5),
+                    borderRadius: BorderRadius.circular(AppRadius.value * 1.5),
                   ),
                   child: Text(
                     '${mediaUrls.length}',
@@ -68,8 +69,11 @@ class SocialMediaPicker extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.delete_outline_rounded,
-                            size: 14, color: AppColors.actionRed),
+                        const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 14,
+                          color: AppColors.actionRed,
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           context.t('social.publish.clearAll'),
@@ -117,8 +121,7 @@ class SocialMediaPicker extends StatelessWidget {
                 height: 100,
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.value * 2),
+                  borderRadius: BorderRadius.circular(AppRadius.value * 2),
                   border: Border.all(
                     color: AppColors.line,
                     style: BorderStyle.solid,
@@ -194,7 +197,7 @@ class _MediaThumbState extends State<_MediaThumb> {
               image: DecorationImage(
                 image: NetworkImage(widget.url),
                 fit: BoxFit.cover,
-                onError: (_, __) {},
+                onError: (_, _) {},
               ),
               color: AppColors.surface,
             ),
@@ -208,8 +211,7 @@ class _MediaThumbState extends State<_MediaThumb> {
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.4),
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.value * 1.5),
+                  borderRadius: BorderRadius.circular(AppRadius.value * 1.5),
                 ),
                 child: Center(
                   child: GestureDetector(
@@ -221,8 +223,11 @@ class _MediaThumbState extends State<_MediaThumb> {
                         color: Colors.white.withValues(alpha: 0.9),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.close_rounded,
-                          size: 16, color: AppColors.actionRed),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: AppColors.actionRed,
+                      ),
                     ),
                   ),
                 ),
@@ -277,8 +282,11 @@ class _AddMediaButton extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_rounded,
-                  size: 22, color: AppColors.iconMuted.withValues(alpha: 0.6)),
+              Icon(
+                Icons.add_rounded,
+                size: 22,
+                color: AppColors.iconMuted.withValues(alpha: 0.6),
+              ),
               const SizedBox(height: 2),
               Text(
                 context.t('social.publish.addMedia'),

@@ -8,16 +8,18 @@ export async function ensureMailSchema() {
     mailSchemaReady = (async () => {
       await ensureAppSchema();
       await dbQuery(`
-        CREATE TABLE IF NOT EXISTS public.mail_accounts (
-          id bigserial PRIMARY KEY,
-          hesap_adi text NOT NULL,
-          gonderen_adi text DEFAULT '',
-          gonderen_eposta text NOT NULL,
-          servis_tipi text NOT NULL DEFAULT 'smtp_generic',
-          gonderim_modu text NOT NULL DEFAULT 'smtp',
-          api_anahtari text,
-          api_sifresi text,
-          api_token text,
+	        CREATE TABLE IF NOT EXISTS public.mail_accounts (
+	          id bigserial PRIMARY KEY,
+	          hesap_adi text NOT NULL,
+	          gonderen_adi text DEFAULT '',
+	          gonderen_eposta text NOT NULL,
+	          domain text DEFAULT '',
+	          servis_tipi text NOT NULL DEFAULT 'smtp_generic',
+	          gonderim_modu text NOT NULL DEFAULT 'smtp',
+	          api_base_url text DEFAULT '',
+	          api_anahtari text,
+	          api_sifresi text,
+	          api_token text,
           smtp_sunucu text,
           smtp_port integer,
           smtp_kullanici text,
@@ -40,11 +42,12 @@ export async function ensureMailSchema() {
           bu_gun_gonderilen integer DEFAULT 0,
           bu_gun_tarih timestamptz DEFAULT now(),
           bu_ay_gonderilen integer DEFAULT 0,
-          bu_ay_tarih timestamptz DEFAULT now(),
-          varsayilan_imza text,
-          varsayilan_reply_to text,
-          aktif_mi boolean DEFAULT true,
-          baglanti_durumu text DEFAULT 'not_tested',
+	          bu_ay_tarih timestamptz DEFAULT now(),
+	          varsayilan_imza text,
+	          varsayilan_reply_to text,
+	          takip_domain text DEFAULT '',
+	          aktif_mi boolean DEFAULT true,
+	          baglanti_durumu text DEFAULT 'not_tested',
           son_hata_mesaji text,
           olusturma_tarihi timestamptz DEFAULT now(),
           guncelleme_tarihi timestamptz DEFAULT now(),
@@ -73,31 +76,36 @@ export async function ensureMailSchema() {
           olusturma_tarihi timestamptz DEFAULT now()
         );
 
-        CREATE TABLE IF NOT EXISTS public.mail_templates (
-          id bigserial PRIMARY KEY,
-          sablon_adi text NOT NULL,
-          kategori text NOT NULL DEFAULT 'kampanya',
-          icerik_html text NOT NULL DEFAULT '',
-          icerik_mjml text,
+	        CREATE TABLE IF NOT EXISTS public.mail_templates (
+	          id bigserial PRIMARY KEY,
+	          sablon_adi text NOT NULL,
+	          kategori text NOT NULL DEFAULT 'kampanya',
+	          konu text DEFAULT '',
+	          onizleme_metni text DEFAULT '',
+	          icerik_html text NOT NULL DEFAULT '',
+	          icerik_mjml text,
           tasarim_json text DEFAULT '{}',
           degiskenler_json text DEFAULT '[]',
           onizleme_gorseli text,
-          hazir_mi boolean DEFAULT false,
-          aktif_mi boolean DEFAULT true,
-          olusturma_tarihi timestamptz DEFAULT now(),
-          kullanici text
-        );
+	          hazir_mi boolean DEFAULT false,
+	          aktif_mi boolean DEFAULT true,
+	          olusturma_tarihi timestamptz DEFAULT now(),
+	          guncelleme_tarihi timestamptz DEFAULT now(),
+	          kullanici text
+	        );
 
         CREATE TABLE IF NOT EXISTS public.mail_contact_lists (
           id bigserial PRIMARY KEY,
           liste_adi text NOT NULL,
-          aciklama text DEFAULT '',
-          otomatik_sync boolean DEFAULT false,
-          sync_filtresi_json text DEFAULT '{}',
-          aktif_mi boolean DEFAULT true,
-          olusturma_tarihi timestamptz DEFAULT now(),
-          kullanici text
-        );
+	          aciklama text DEFAULT '',
+	          kaynak text DEFAULT 'csv',
+	          otomatik_sync boolean DEFAULT false,
+	          sync_filtresi_json text DEFAULT '{}',
+	          aktif_mi boolean DEFAULT true,
+	          olusturma_tarihi timestamptz DEFAULT now(),
+	          guncelleme_tarihi timestamptz DEFAULT now(),
+	          kullanici text
+	        );
 
         CREATE TABLE IF NOT EXISTS public.mail_contacts (
           id bigserial PRIMARY KEY,
@@ -141,11 +149,12 @@ export async function ensureMailSchema() {
           bouncelar integer DEFAULT 0,
           sikayetler integer DEFAULT 0,
           iptaller integer DEFAULT 0,
-          unsubscribe_linki_ekle boolean DEFAULT true,
-          takip_pikseli_ekle boolean DEFAULT true,
-          olusturma_tarihi timestamptz DEFAULT now(),
-          kullanici text
-        );
+	          unsubscribe_linki_ekle boolean DEFAULT true,
+	          takip_pikseli_ekle boolean DEFAULT true,
+	          olusturma_tarihi timestamptz DEFAULT now(),
+	          guncelleme_tarihi timestamptz DEFAULT now(),
+	          kullanici text
+	        );
 
         CREATE TABLE IF NOT EXISTS public.mail_outbox (
           id bigserial PRIMARY KEY,
@@ -172,14 +181,31 @@ export async function ensureMailSchema() {
           kullanici text
         );
 
-        CREATE TABLE IF NOT EXISTS public.mail_contact_list_memberships (
-          list_id bigint NOT NULL REFERENCES public.mail_contact_lists(id) ON DELETE CASCADE,
-          contact_id bigint NOT NULL REFERENCES public.mail_contacts(id) ON DELETE CASCADE,
-          PRIMARY KEY (list_id, contact_id)
-        );
+	        CREATE TABLE IF NOT EXISTS public.mail_contact_list_memberships (
+	          list_id bigint NOT NULL REFERENCES public.mail_contact_lists(id) ON DELETE CASCADE,
+	          contact_id bigint NOT NULL REFERENCES public.mail_contacts(id) ON DELETE CASCADE,
+	          PRIMARY KEY (list_id, contact_id)
+	        );
 
-        CREATE UNIQUE INDEX IF NOT EXISTS mail_inbox_account_message_unique
-          ON public.mail_inbox (hesap_id, message_id)
+	        ALTER TABLE public.mail_accounts
+	          ADD COLUMN IF NOT EXISTS domain text DEFAULT '',
+	          ADD COLUMN IF NOT EXISTS api_base_url text DEFAULT '',
+	          ADD COLUMN IF NOT EXISTS takip_domain text DEFAULT '';
+
+	        ALTER TABLE public.mail_templates
+	          ADD COLUMN IF NOT EXISTS konu text DEFAULT '',
+	          ADD COLUMN IF NOT EXISTS onizleme_metni text DEFAULT '',
+	          ADD COLUMN IF NOT EXISTS guncelleme_tarihi timestamptz DEFAULT now();
+
+	        ALTER TABLE public.mail_contact_lists
+	          ADD COLUMN IF NOT EXISTS kaynak text DEFAULT 'csv',
+	          ADD COLUMN IF NOT EXISTS guncelleme_tarihi timestamptz DEFAULT now();
+
+	        ALTER TABLE public.mail_campaigns
+	          ADD COLUMN IF NOT EXISTS guncelleme_tarihi timestamptz DEFAULT now();
+
+	        CREATE UNIQUE INDEX IF NOT EXISTS mail_inbox_account_message_unique
+	          ON public.mail_inbox (hesap_id, message_id)
           WHERE message_id IS NOT NULL;
         CREATE INDEX IF NOT EXISTS idx_mail_campaigns_created_at
           ON public.mail_campaigns (olusturma_tarihi DESC);
@@ -193,8 +219,18 @@ export async function ensureMailSchema() {
           ON public.mail_contacts (lower(eposta));
         CREATE INDEX IF NOT EXISTS idx_mail_contact_memberships_contact
           ON public.mail_contact_list_memberships (contact_id);
-        CREATE INDEX IF NOT EXISTS idx_mail_contact_memberships_list
-          ON public.mail_contact_list_memberships (list_id);
+	        CREATE INDEX IF NOT EXISTS idx_mail_contact_memberships_list
+	          ON public.mail_contact_list_memberships (list_id);
+	        CREATE INDEX IF NOT EXISTS idx_mail_accounts_active_created
+	          ON public.mail_accounts (aktif_mi, olusturma_tarihi DESC);
+	        CREATE INDEX IF NOT EXISTS idx_mail_templates_active_category
+	          ON public.mail_templates (aktif_mi, kategori, sablon_adi);
+	        CREATE INDEX IF NOT EXISTS idx_mail_contact_lists_active_created
+	          ON public.mail_contact_lists (aktif_mi, olusturma_tarihi DESC);
+	        CREATE INDEX IF NOT EXISTS idx_mail_campaigns_status_created
+	          ON public.mail_campaigns (durum, olusturma_tarihi DESC);
+	        CREATE INDEX IF NOT EXISTS idx_mail_inbox_folder_date
+	          ON public.mail_inbox (klasor, mail_tarihi DESC);
 
         INSERT INTO public.permissions (key, label, group_name, description)
         VALUES ('manage_mail', 'Posta Modülü', 'content', 'Posta modülü, kampanyalar, şablonlar ve posta ayarlarını yönetme yetkisi.')
@@ -210,31 +246,8 @@ export async function ensureMailSchema() {
         ON CONFLICT DO NOTHING;
       `);
 
-      await seedDefaultMailTemplates();
     })();
   }
 
   return mailSchemaReady;
-}
-
-async function seedDefaultMailTemplates() {
-  const result = await dbQuery<{ count: string }>('SELECT COUNT(*)::bigint AS count FROM public.mail_templates');
-  if (Number(result.rows[0]?.count || 0) > 0) return;
-
-  const templates = [
-    ['Hoş Geldiniz Kampanyası', 'kampanya', '<h1>Merhaba {{ad}}</h1><p>Pateeznews bültenine hoş geldiniz.</p>', [{ key: 'ad', label: 'Ad', fallback: 'Değerli okur' }]],
-    ['Bilgilendirme Duyurusu', 'bilgi', '<h1>{{baslik}}</h1><p>Bu e-posta bilgilendirme amacıyla gönderilmiştir.</p>', [{ key: 'baslik', label: 'Başlık', fallback: 'Duyuru' }]],
-    ['Davet Maili', 'davet', '<h1>{{etkinlik}}</h1><p>Sizi aramızda görmek isteriz.</p>', [{ key: 'etkinlik', label: 'Etkinlik', fallback: 'Etkinliğimiz' }]],
-    ['Sipariş Bilgilendirme', 'siparis', '<h1>Sipariş Bilgilendirme</h1><p>Kod: {{kod}}</p>', [{ key: 'kod', label: 'Kod', fallback: '-' }]],
-    ['Teklif Paylaşımı', 'teklif', '<h1>{{teklif}}</h1><p>Detayları incelemeniz için bilgilerinize sunarız.</p>', [{ key: 'teklif', label: 'Teklif', fallback: 'Teklifiniz' }]],
-  ];
-
-  for (const [name, category, html, variables] of templates) {
-    await dbQuery(
-      `INSERT INTO public.mail_templates (sablon_adi, kategori, icerik_html, degiskenler_json, hazir_mi, aktif_mi)
-       VALUES ($1, $2, $3, $4, true, true)
-       ON CONFLICT DO NOTHING`,
-      [name, category, html, JSON.stringify(variables)]
-    );
-  }
 }

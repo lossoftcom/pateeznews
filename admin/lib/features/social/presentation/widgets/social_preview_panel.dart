@@ -17,6 +17,7 @@ import '../previews/mastodon_preview.dart';
 import '../previews/google_business_preview.dart';
 import '../previews/discord_preview.dart';
 import '../previews/slack_preview.dart';
+import 'social_brand_logo.dart';
 
 /// Right-side preview panel with platform tab bar.
 class SocialPreviewPanel extends StatefulWidget {
@@ -41,8 +42,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
   void didUpdateWidget(SocialPreviewPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Reset tab if current is no longer selected
-    if (_activeTab != null &&
-        !widget.selectedPlatforms.contains(_activeTab)) {
+    if (_activeTab != null && !widget.selectedPlatforms.contains(_activeTab)) {
       _activeTab = widget.selectedPlatforms.isNotEmpty
           ? widget.selectedPlatforms.first
           : null;
@@ -69,9 +69,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(8),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
             border: Border.all(color: AppColors.line),
           ),
           child: SingleChildScrollView(
@@ -97,8 +95,9 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                           color: active
                               ? info.color.withValues(alpha: 0.10)
                               : Colors.transparent,
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.value * 1.5),
+                          borderRadius: BorderRadius.circular(
+                            AppRadius.value * 1.5,
+                          ),
                           border: active
                               ? Border.all(
                                   color: info.color.withValues(alpha: 0.3),
@@ -108,12 +107,12 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              info.icon,
+                            SocialBrandLogo(
+                              info: info,
                               size: 16,
-                              color: active
-                                  ? info.color
-                                  : AppColors.iconMuted,
+                              iconSize: 16,
+                              active: active,
+                              showBackground: false,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -123,9 +122,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                                 fontWeight: active
                                     ? FontWeight.w600
                                     : FontWeight.w500,
-                                color: active
-                                    ? info.color
-                                    : AppColors.inkSoft,
+                                color: active ? info.color : AppColors.inkSoft,
                                 letterSpacing: 0,
                               ),
                             ),
@@ -157,9 +154,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
             ),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
-              child: Center(
-                child: _buildPreviewWithFormat(_activeTab!),
-              ),
+              child: Center(child: _buildPreviewWithFormat(_activeTab!)),
             ),
           ),
         ),
@@ -176,40 +171,97 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
 
     return switch (platform) {
       SocialPlatform.instagram => InstagramPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.facebook => FacebookPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.twitter => TwitterPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.linkedin => LinkedinPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.tiktok => TiktokPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.youtube => YoutubePreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.pinterest => PinterestPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.reddit => RedditPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.threads => ThreadsPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.bluesky => BlueskyPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.mastodon => MastodonPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.googleBusiness => GoogleBusinessPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.discord => DiscordPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
       SocialPlatform.slack => SlackPreview(
-          caption: caption, imageUrl: image, linkUrl: link, linkTitle: title),
+        caption: caption,
+        imageUrl: image,
+        linkUrl: link,
+        linkTitle: title,
+      ),
     };
   }
 
   /// Wraps the preview in an appropriate frame based on post type.
   Widget _buildPreviewWithFormat(SocialPlatform platform) {
     final postType = widget.data.postType;
-    final isVertical = postType == SocialPostType.story ||
+    final isVertical =
+        postType == SocialPostType.story ||
         postType == SocialPostType.reels ||
         postType == SocialPostType.shortVideo;
 
@@ -237,7 +289,10 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
       SocialPostType.story => ('Hikaye', Icons.amp_stories_rounded),
       SocialPostType.reels => ('Reels', Icons.movie_filter_rounded),
       SocialPostType.thread => ('Thread', Icons.forum_rounded),
-      SocialPostType.shortVideo => ('Kısa Video', Icons.slow_motion_video_rounded),
+      SocialPostType.shortVideo => (
+        'Kısa Video',
+        Icons.slow_motion_video_rounded,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -248,7 +303,11 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.deepOcean.withValues(alpha: 0.6)),
+          Icon(
+            icon,
+            size: 14,
+            color: AppColors.deepOcean.withValues(alpha: 0.6),
+          ),
           const SizedBox(width: 6),
           Text(
             label,
@@ -300,7 +359,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                   Image.network(
                     d.effectiveImage,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
@@ -326,8 +385,11 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                       ),
                     ),
                     child: const Center(
-                      child: Icon(Icons.add_photo_alternate_outlined,
-                          size: 48, color: Colors.white54),
+                      child: Icon(
+                        Icons.add_photo_alternate_outlined,
+                        size: 48,
+                        color: Colors.white54,
+                      ),
                     ),
                   ),
 
@@ -348,11 +410,14 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                           color: info.color,
                         ),
                         child: const Center(
-                          child: Text('P',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700)),
+                          child: Text(
+                            'P',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -365,13 +430,18 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                             fontWeight: FontWeight.w600,
                             shadows: [
                               Shadow(
-                                  blurRadius: 4,
-                                  color: Colors.black.withValues(alpha: 0.5)),
+                                blurRadius: 4,
+                                color: Colors.black.withValues(alpha: 0.5),
+                              ),
                             ],
                           ),
                         ),
                       ),
-                      const Icon(Icons.more_horiz, color: Colors.white, size: 20),
+                      const Icon(
+                        Icons.more_horiz,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ],
                   ),
                 ),
@@ -407,9 +477,9 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                               height: 1.4,
                               shadows: [
                                 Shadow(
-                                    blurRadius: 4,
-                                    color:
-                                        Colors.black.withValues(alpha: 0.5)),
+                                  blurRadius: 4,
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                ),
                               ],
                             ),
                           ),
@@ -418,14 +488,19 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.music_note_rounded,
-                                  color: Colors.white70, size: 14),
+                              const Icon(
+                                Icons.music_note_rounded,
+                                color: Colors.white70,
+                                size: 14,
+                              ),
                               const SizedBox(width: 4),
                               const Expanded(
                                 child: Text(
                                   'Orijinal ses — pateeznews',
                                   style: TextStyle(
-                                      color: Colors.white70, fontSize: 11),
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -468,9 +543,14 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
           Icon(icon, color: Colors.white, size: 24),
           if (label.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ],
       ),

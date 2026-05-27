@@ -5,10 +5,19 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_whatsapp_repository.dart';
 import 'whatsapp_models.dart';
 
 class WhatsappMessagingScreen extends StatefulWidget {
-  const WhatsappMessagingScreen({super.key});
+  const WhatsappMessagingScreen({
+    super.key,
+    required this.session,
+    this.repository = const NeonAdminWhatsappRepository(),
+  });
+
+  final AdminSession session;
+  final AdminWhatsappRepository repository;
 
   @override
   State<WhatsappMessagingScreen> createState() =>
@@ -16,19 +25,21 @@ class WhatsappMessagingScreen extends StatefulWidget {
 }
 
 class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
-  final List<WhatsappChat> _chats = List<WhatsappChat>.from(
-    sampleWhatsappChats,
-  );
+  var _chats = <WhatsappChat>[];
   int? _selectedChatId;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
-  bool _isTypingSimulation = false;
+  bool _isSendingMessage = false;
   bool _showAiHelper = false;
+  bool _loading = true;
 
   WhatsappChat? get _selectedChat {
     if (_selectedChatId == null) return null;
-    return _chats.firstWhere((chat) => chat.id == _selectedChatId);
+    for (final chat in _chats) {
+      if (chat.id == _selectedChatId) return chat;
+    }
+    return null;
   }
 
   List<WhatsappChat> get _filteredChats {
@@ -43,11 +54,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   @override
   void initState() {
     super.initState();
-    // Default select the first chat to present a populated screen on startup
-    if (_chats.isNotEmpty) {
-      _selectedChatId = _chats.first.id;
-      _markSelectedChatAsRead();
-    }
+    unawaited(_loadChats());
   }
 
   @override
@@ -57,15 +64,57 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     super.dispose();
   }
 
-  void _markSelectedChatAsRead() {
-    if (_selectedChatId == null) return;
-    final index = _chats.indexWhere((chat) => chat.id == _selectedChatId);
+  Future<void> _loadChats() async {
+    setState(() => _loading = true);
+    try {
+      final chats = await widget.repository.fetchChats(widget.session);
+      if (!mounted) return;
+      setState(() {
+        _chats = chats;
+        _selectedChatId = chats.any((chat) => chat.id == _selectedChatId)
+            ? _selectedChatId
+            : chats.firstOrNull?.id;
+        _loading = false;
+      });
+      if (_selectedChatId != null) unawaited(_markSelectedChatAsRead());
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showWhatsappError(error);
+    }
+  }
+
+  void _showWhatsappError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error.toString()),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _markSelectedChatAsRead() async {
+    final selectedId = _selectedChatId;
+    if (selectedId == null) return;
+    final index = _chats.indexWhere((chat) => chat.id == selectedId);
     if (index != -1 && _chats[index].unreadCount > 0) {
+      List<WhatsappMessage>? liveMessages;
+      try {
+        liveMessages = await widget.repository.markChatRead(
+          widget.session,
+          selectedId,
+        );
+      } catch (error) {
+        if (mounted) _showWhatsappError(error);
+      }
+      if (!mounted) return;
       setState(() {
         final currentChat = _chats[index];
-        final updatedMessages = currentChat.messages.map((msg) {
-          return msg.isOutgoing ? msg : msg.copyWith(isRead: true);
-        }).toList();
+        final updatedMessages =
+            liveMessages ??
+            currentChat.messages.map((msg) {
+              return msg.isOutgoing ? msg : msg.copyWith(isRead: true);
+            }).toList();
 
         _chats[index] = currentChat.copyWith(
           unreadCount: 0,
@@ -80,7 +129,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
       _selectedChatId = id;
       _showAiHelper = false;
     });
-    _markSelectedChatAsRead();
+    unawaited(_markSelectedChatAsRead());
     _scrollToBottom();
   }
 
@@ -96,7 +145,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     });
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _selectedChatId == null) return;
 
@@ -104,92 +153,35 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     if (chatIndex == -1) return;
 
     final currentChat = _chats[chatIndex];
-    final newMessage = WhatsappMessage(
-      id: DateTime.now().millisecondsSinceEpoch,
-      text: text,
-      timestamp: DateTime.now(),
-      isOutgoing: true,
-      isRead: false,
-    );
-
     setState(() {
-      final updatedMessages = List<WhatsappMessage>.from(currentChat.messages)
-        ..add(newMessage);
-      _chats[chatIndex] = currentChat.copyWith(
-        lastMessage: text,
-        time: DateTime.now(),
-        messages: updatedMessages,
-      );
       _messageController.clear();
       _showAiHelper = false;
+      _isSendingMessage = true;
     });
 
-    _scrollToBottom();
-
-    // Trigger simulated response
-    _simulateResponse(newMessage.text, currentChat.id);
-  }
-
-  void _simulateResponse(String userMsg, int chatId) {
-    // Stage 1: Trigger typing indicator after a short delay
-    Timer(const Duration(milliseconds: 1000), () {
-      if (!mounted || _selectedChatId != chatId) return;
-      setState(() {
-        _isTypingSimulation = true;
-      });
-      _scrollToBottom();
-    });
-
-    // Stage 2: Deliver simulated response
-    Timer(const Duration(milliseconds: 2800), () {
-      if (!mounted) return;
-
-      final chatIndex = _chats.indexWhere((chat) => chat.id == chatId);
-      if (chatIndex == -1) return;
-
-      final currentChat = _chats[chatIndex];
-      String replyText =
-          "Mesajınız alındı. Pateeznews ekibi en kısa sürede size dönüş yapacaktır.";
-
-      // Custom context replies for premium demo fidelity!
-      if (currentChat.name.contains("Kemal")) {
-        replyText =
-            "Harika! Reklam listemizi inceledikten sonra telefonla görüşelim Kemal Bey, uygun olduğunuzda çaldırın lütfen.";
-      } else if (currentChat.name.contains("Ailem")) {
-        replyText = "Yoldayken yavaş sür oğlum, baban da bekliyor.";
-      } else if (currentChat.name.contains("Haluk")) {
-        replyText =
-            "Teşekkür ederim, e-postayı kontrol edeceğim. Soruları bugün yanıtlarım.";
-      } else if (currentChat.name.contains("Destek")) {
-        replyText =
-            "Hızlı yanıtınız için teşekkürler. Onaylandığı zaman sitemde yorumu görebileceğim o halde, iyi çalışmalar.";
-      }
-
-      final incomingMessage = WhatsappMessage(
-        id: DateTime.now().millisecondsSinceEpoch + 1,
-        text: replyText,
-        timestamp: DateTime.now(),
-        isOutgoing: false,
-        isRead: _selectedChatId == chatId,
+    try {
+      final updated = await widget.repository.sendMessage(
+        widget.session,
+        chatId: currentChat.id,
+        text: text,
       );
-
+      if (!mounted) return;
       setState(() {
-        _isTypingSimulation = false;
-        final updatedMessages = List<WhatsappMessage>.from(currentChat.messages)
-          ..add(incomingMessage);
-
-        _chats[chatIndex] = currentChat.copyWith(
-          lastMessage: replyText,
-          time: DateTime.now(),
-          messages: updatedMessages,
-          unreadCount: _selectedChatId == chatId
-              ? 0
-              : currentChat.unreadCount + 1,
-        );
+        _chats = [
+          for (final chat in _chats)
+            if (chat.id == updated.id) updated else chat,
+        ];
+        _isSendingMessage = false;
       });
-
       _scrollToBottom();
-    });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _messageController.text = text;
+        _isSendingMessage = false;
+      });
+      _showWhatsappError(error);
+    }
   }
 
   void _applyAiSuggestion(String text) {
@@ -206,7 +198,6 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
         final isCompact = constraints.maxWidth < 800;
         final selectedChat = _selectedChat;
 
-        // If compact view and a chat is selected, show only the chat window (with a back option)
         if (isCompact && selectedChat != null) {
           return _buildChatWindow(selectedChat, isCompact: true);
         }
@@ -228,16 +219,13 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Left Column: Chat list
               SizedBox(
                 width: isCompact ? constraints.maxWidth : 340,
                 child: _buildChatListPanel(),
               ),
 
-              // Divider line
               if (!isCompact) Container(width: 1, color: AppColors.line),
 
-              // Right Column: Chat Window
               if (!isCompact)
                 Expanded(
                   child: selectedChat == null
@@ -299,6 +287,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
             ],
           ),
         ),
+        if (_loading) const LinearProgressIndicator(minHeight: 2),
 
         // Search Bar
         Padding(
@@ -520,7 +509,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                           width: 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: _isTypingSimulation
+                            color: _isSendingMessage
                                 ? Colors.amber
                                 : chat.isOnline
                                 ? const Color(0xFF25D366)
@@ -530,13 +519,13 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          _isTypingSimulation
+                          _isSendingMessage
                               ? context.t('whatsapp.typing')
                               : chat.isOnline
                               ? context.t('whatsapp.online')
                               : 'Çevrim dışı',
                           style: TextStyle(
-                            color: _isTypingSimulation
+                            color: _isSendingMessage
                                 ? Colors.amber[800]
                                 : chat.isOnline
                                 ? const Color(0xFF25D366)
@@ -579,9 +568,9 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount: chat.messages.length + (_isTypingSimulation ? 1 : 0),
+              itemCount: chat.messages.length + (_isSendingMessage ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index == chat.messages.length && _isTypingSimulation) {
+                if (index == chat.messages.length && _isSendingMessage) {
                   return _buildTypingIndicatorBubble();
                 }
 

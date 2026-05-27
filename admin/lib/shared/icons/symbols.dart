@@ -127,7 +127,7 @@ class Symbols {
     fontFamily: 'MaterialSymbolsOutlined',
   );
   static const warning = IconData(
-    0xe002,
+    0xf083,
     fontFamily: 'MaterialSymbolsOutlined',
   );
 }

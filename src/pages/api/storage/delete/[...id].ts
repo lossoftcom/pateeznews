@@ -43,6 +43,11 @@ const normalizeId = (value: string) => {
 
 const unique = <T,>(items: T[]) => Array.from(new Set(items));
 
+const videoThumbPathFor = (videoPath: string) => {
+    const parsed = path.parse(videoPath);
+    return path.join(parsed.dir, `${parsed.name}_thumb.webp`);
+};
+
 export const DELETE: APIRoute = async ({ params, request }) => {
     try {
         const url = new URL(request.url);
@@ -109,6 +114,12 @@ export const DELETE: APIRoute = async ({ params, request }) => {
                 }
 
                 fs.unlinkSync(fullPath);
+                if (type === 'video') {
+                    const thumbPath = videoThumbPathFor(fullPath);
+                    if (fs.existsSync(thumbPath) && fs.statSync(thumbPath).isFile()) {
+                        fs.unlinkSync(thumbPath);
+                    }
+                }
 
                 return new Response(JSON.stringify({ success: true, id: candidateId, type }), {
                     status: 200,

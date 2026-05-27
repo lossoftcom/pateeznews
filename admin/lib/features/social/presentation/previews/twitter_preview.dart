@@ -65,7 +65,11 @@ class TwitterPreview extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 2),
-                    const Icon(Icons.verified, size: 16, color: Color(0xFF1D9BF0)),
+                    const Icon(
+                      Icons.verified,
+                      size: 16,
+                      color: Color(0xFF1D9BF0),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       handle,
@@ -116,8 +120,12 @@ class TwitterPreview extends StatelessWidget {
                           child: Image.network(
                             imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Center(
-                              child: Icon(Icons.image_outlined, size: 40, color: Color(0xFFCFD9DE)),
+                            errorBuilder: (_, _, _) => const Center(
+                              child: Icon(
+                                Icons.image_outlined,
+                                size: 40,
+                                color: Color(0xFFCFD9DE),
+                              ),
                             ),
                           ),
                         ),
@@ -142,13 +150,19 @@ class TwitterPreview extends StatelessWidget {
                             height: 100,
                             color: const Color(0xFFF7F9F9),
                             child: const Center(
-                              child: Icon(Icons.link, size: 32, color: Color(0xFFCFD9DE)),
+                              child: Icon(
+                                Icons.link,
+                                size: 32,
+                                color: Color(0xFFCFD9DE),
+                              ),
                             ),
                           ),
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: const BoxDecoration(
-                              border: Border(top: BorderSide(color: Color(0xFFCFD9DE))),
+                              border: Border(
+                                top: BorderSide(color: Color(0xFFCFD9DE)),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,7 +177,9 @@ class TwitterPreview extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  linkTitle.isNotEmpty ? linkTitle : 'Pateeznews',
+                                  linkTitle.isNotEmpty
+                                      ? linkTitle
+                                      : 'Pateeznews',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     color: Color(0xFF0F1419),
@@ -186,16 +202,40 @@ class TwitterPreview extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _ActionIcon(icon: Icons.chat_bubble_outline_rounded, count: '2', color: const Color(0xFF536471)),
-                      _ActionIcon(icon: Icons.repeat_rounded, count: '5', color: const Color(0xFF00BA7C)),
-                      _ActionIcon(icon: Icons.favorite_border_rounded, count: '18', color: const Color(0xFFF91880)),
-                      _ActionIcon(icon: Icons.bar_chart_rounded, count: '1.2K', color: const Color(0xFF536471)),
+                      _ActionIcon(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        count: '2',
+                        color: const Color(0xFF536471),
+                      ),
+                      _ActionIcon(
+                        icon: Icons.repeat_rounded,
+                        count: '5',
+                        color: const Color(0xFF00BA7C),
+                      ),
+                      _ActionIcon(
+                        icon: Icons.favorite_border_rounded,
+                        count: '18',
+                        color: const Color(0xFFF91880),
+                      ),
+                      _ActionIcon(
+                        icon: Icons.bar_chart_rounded,
+                        count: '1.2K',
+                        color: const Color(0xFF536471),
+                      ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.bookmark_border_rounded, size: 18, color: const Color(0xFF536471)),
+                          Icon(
+                            Icons.bookmark_border_rounded,
+                            size: 18,
+                            color: const Color(0xFF536471),
+                          ),
                           const SizedBox(width: 12),
-                          Icon(Icons.ios_share_rounded, size: 18, color: const Color(0xFF536471)),
+                          Icon(
+                            Icons.ios_share_rounded,
+                            size: 18,
+                            color: const Color(0xFF536471),
+                          ),
                         ],
                       ),
                     ],

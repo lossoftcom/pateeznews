@@ -31,10 +31,13 @@ const CAMPAIGN_SELECT = `
   mc.unsubscribe_linki_ekle AS add_unsubscribe_link,
   mc.takip_pikseli_ekle AS add_tracking_pixel,
   mc.olusturma_tarihi AS created_at,
-  mc.olusturma_tarihi AS updated_at,
+  mc.guncelleme_tarihi AS updated_at,
   mc.kullanici AS created_by,
   ma.hesap_adi AS account_name,
-  mcl.liste_adi AS contact_list_name
+  ma.gonderen_eposta AS account_email,
+  mcl.liste_adi AS contact_list_name,
+  mt.sablon_adi AS template_name,
+  mt.kategori AS template_category
 `;
 
 const FIELD_MAP: Record<string, string> = {
@@ -116,10 +119,11 @@ export const GET: APIRoute = async ({ request, url }) => {
     const [items, total, stats] = await Promise.all([
       dbQuery(
         `SELECT ${CAMPAIGN_SELECT}
-         FROM public.mail_campaigns mc
-         LEFT JOIN public.mail_accounts ma ON ma.id = mc.hesap_id
-         LEFT JOIN public.mail_contact_lists mcl ON mcl.id = mc.kisi_listesi_id
-         ${whereSql}
+	         FROM public.mail_campaigns mc
+	         LEFT JOIN public.mail_accounts ma ON ma.id = mc.hesap_id
+	         LEFT JOIN public.mail_contact_lists mcl ON mcl.id = mc.kisi_listesi_id
+	         LEFT JOIN public.mail_templates mt ON mt.id = mc.sablon_id
+	         ${whereSql}
          ORDER BY mc.olusturma_tarihi DESC
          LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
         [...values, limit, offset]
@@ -168,6 +172,7 @@ export const POST: APIRoute = async ({ request }) => {
     payload.konu = String(payload.konu || '').trim();
     payload.alici_sayisi = Number(payload.alici_sayisi || await contactCount(payload.kisi_listesi_id)) || 0;
     payload.kullanici = access.session!.user.id;
+    payload.guncelleme_tarihi = new Date().toISOString();
 
     if (!payload.kampanya_adi || !payload.konu) return json({ error: { message: 'Campaign name and subject are required' } }, 400);
 
@@ -179,7 +184,17 @@ export const POST: APIRoute = async ({ request }) => {
       keys.map((key) => payload[key])
     );
 
-    return json({ campaign: result.rows[0] });
+    const saved = await dbQuery(
+      `SELECT ${CAMPAIGN_SELECT}
+       FROM public.mail_campaigns mc
+       LEFT JOIN public.mail_accounts ma ON ma.id = mc.hesap_id
+       LEFT JOIN public.mail_contact_lists mcl ON mcl.id = mc.kisi_listesi_id
+       LEFT JOIN public.mail_templates mt ON mt.id = mc.sablon_id
+       WHERE mc.id = $1::bigint`,
+      [result.rows[0]?.id]
+    );
+
+    return json({ campaign: saved.rows[0] });
   } catch (error: any) {
     return json({ error: { message: error.message || 'Campaign could not be saved' } }, 500);
   }
@@ -208,9 +223,9 @@ export const PATCH: APIRoute = async ({ request }) => {
       if (action === 'schedule') {
         const scheduled = String(body.scheduled_start_at || '').trim();
         if (!scheduled) return json({ error: { message: 'Schedule date required' } }, 400);
-        await dbQuery("UPDATE public.mail_campaigns SET durum = 'scheduled', zamanlanmis_baslangic = $1 WHERE id = $2::bigint", [scheduled, id]);
+        await dbQuery("UPDATE public.mail_campaigns SET durum = 'scheduled', zamanlanmis_baslangic = $1, guncelleme_tarihi = now() WHERE id = $2::bigint", [scheduled, id]);
       } else if (actionSql[action]) {
-        await dbQuery(`UPDATE public.mail_campaigns SET ${actionSql[action]} WHERE id = $1::bigint`, [id]);
+        await dbQuery(`UPDATE public.mail_campaigns SET ${actionSql[action]}, guncelleme_tarihi = now() WHERE id = $1::bigint`, [id]);
       } else {
         return json({ error: { message: 'Unsupported campaign action' } }, 400);
       }
@@ -219,6 +234,7 @@ export const PATCH: APIRoute = async ({ request }) => {
       if (Object.prototype.hasOwnProperty.call(update, 'kisi_listesi_id')) {
         update.alici_sayisi = Number(update.alici_sayisi || await contactCount(update.kisi_listesi_id)) || 0;
       }
+      update.guncelleme_tarihi = new Date().toISOString();
       const set = sqlSetClause(update);
       if (!set.keys.length) return json({ error: { message: 'No changes' } }, 400);
       await dbQuery(`UPDATE public.mail_campaigns SET ${set.clause} WHERE id = $${set.values.length + 1}::bigint`, [...set.values, id]);
@@ -229,6 +245,7 @@ export const PATCH: APIRoute = async ({ request }) => {
        FROM public.mail_campaigns mc
        LEFT JOIN public.mail_accounts ma ON ma.id = mc.hesap_id
        LEFT JOIN public.mail_contact_lists mcl ON mcl.id = mc.kisi_listesi_id
+       LEFT JOIN public.mail_templates mt ON mt.id = mc.sablon_id
        WHERE mc.id = $1::bigint`,
       [id]
     );

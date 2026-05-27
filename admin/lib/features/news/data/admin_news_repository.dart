@@ -31,6 +31,17 @@ abstract class AdminNewsRepository {
   Future<void> deletePost(String postId);
 
   Future<void> deletePosts(List<String> postIds);
+
+  Future<AdminNewsEditorBootstrap> fetchEditorBootstrap();
+
+  Future<AdminNewsEditorPost> fetchEditorPost(String postId);
+
+  Future<int> countPinnedPosts({String? excludingPostId});
+
+  Future<AdminNewsEditorPost> saveEditorPost({
+    required String? postId,
+    required AdminNewsEditorSavePayload payload,
+  });
 }
 
 class NeonAdminNewsRepository implements AdminNewsRepository {
@@ -310,6 +321,155 @@ class NeonAdminNewsRepository implements AdminNewsRepository {
     _throwIfApiError(result, fallbackMessage: 'Seçili haberler silinemedi');
   }
 
+  @override
+  Future<AdminNewsEditorBootstrap> fetchEditorBootstrap() async {
+    final responses = await Future.wait([
+      _postJson('/api/neon/query', {
+        'table': 'languages',
+        'method': 'select',
+        'select': 'code,name',
+        'orders': [
+          {'column': 'name', 'ascending': true},
+        ],
+      }),
+      _postJson('/api/neon/query', {
+        'table': 'navigation_items',
+        'method': 'select',
+        'select': 'id,label,parent_id,language_code,order_index',
+        'orders': [
+          {'column': 'order_index', 'ascending': true},
+          {'column': 'label', 'ascending': true},
+        ],
+      }),
+      _postJson('/api/neon/query', {
+        'table': 'profiles',
+        'method': 'select',
+        'select': 'id,full_name,username,email,role',
+        'orders': [
+          {'column': 'full_name', 'ascending': true},
+        ],
+      }),
+    ]);
+
+    for (final response in responses) {
+      _throwIfApiError(
+        response,
+        fallbackMessage: 'Haber editör verileri alınamadı',
+      );
+    }
+
+    final languageRows = responses[0]['data'] is List
+        ? (responses[0]['data'] as List).whereType<Map>().toList()
+        : const <Map>[];
+    final categoryRows = responses[1]['data'] is List
+        ? (responses[1]['data'] as List).whereType<Map>().toList()
+        : const <Map>[];
+    final publisherRows = responses[2]['data'] is List
+        ? (responses[2]['data'] as List).whereType<Map>().toList()
+        : const <Map>[];
+
+    return AdminNewsEditorBootstrap(
+      languages: [
+        for (final row in languageRows)
+          if ((row['code']?.toString().trim() ?? '').isNotEmpty)
+            AdminNewsEditorLanguage.fromJson({
+              ...row,
+              'name': _decodeText(row['name']),
+            }),
+      ],
+      categories: [
+        for (final row in categoryRows)
+          if ((row['label']?.toString().trim() ?? '').isNotEmpty)
+            AdminNewsEditorCategory.fromJson({
+              ...row,
+              'label': _decodeText(row['label']),
+            }),
+      ],
+      publishers: [
+        for (final row in publisherRows)
+          if ((row['id']?.toString().trim() ?? '').isNotEmpty)
+            AdminNewsEditorPublisher.fromJson({
+              ...row,
+              'full_name': _decodeText(row['full_name']),
+              'username': _decodeText(row['username']),
+              'email': _decodeText(row['email']),
+            }),
+      ],
+    );
+  }
+
+  @override
+  Future<AdminNewsEditorPost> fetchEditorPost(String postId) async {
+    final result = await _postJson('/api/neon/query', {
+      'table': 'posts',
+      'method': 'select',
+      'select': '*',
+      'filters': [_idFilter(postId)],
+      'single': 'single',
+    });
+    _throwIfApiError(result, fallbackMessage: 'Haber detayı alınamadı');
+    final data = result['data'];
+    if (data is! Map) {
+      throw const AdminNewsException('Haber detayı bulunamadı');
+    }
+    return AdminNewsEditorPost.fromJson(data);
+  }
+
+  @override
+  Future<int> countPinnedPosts({String? excludingPostId}) async {
+    final filters = <Map<String, Object?>>[_eqFilter('is_pinned', true)];
+    if (excludingPostId != null && excludingPostId.trim().isNotEmpty) {
+      filters.add({
+        'type': 'comparison',
+        'op': 'neq',
+        'column': 'id',
+        'value': int.tryParse(excludingPostId) ?? excludingPostId,
+      });
+    }
+    final result = await _postJson('/api/neon/query', {
+      'table': 'posts',
+      'method': 'select',
+      'select': 'id',
+      'filters': filters,
+      'count': 'exact',
+      'head': true,
+    });
+    _throwIfApiError(result, fallbackMessage: 'Sabit haberler alınamadı');
+    return _asInt(result['count']);
+  }
+
+  @override
+  Future<AdminNewsEditorPost> saveEditorPost({
+    required String? postId,
+    required AdminNewsEditorSavePayload payload,
+  }) async {
+    final editing = postId != null && postId.trim().isNotEmpty;
+    final values = Map<String, Object?>.from(payload.values);
+    values['updated_at'] = DateTime.now().toUtc().toIso8601String();
+    if (!editing) {
+      values.putIfAbsent('likes_count', () => 0);
+      values.putIfAbsent('shares_count', () => 0);
+      values.putIfAbsent('comments_count', () => 0);
+    }
+
+    final result = await _postJson('/api/neon/query', {
+      'table': 'posts',
+      'method': editing ? 'update' : 'insert',
+      'values': values,
+      if (editing) 'filters': [_idFilter(postId)],
+      'single': 'single',
+    });
+    _throwIfApiError(
+      result,
+      fallbackMessage: editing ? 'Haber güncellenemedi' : 'Haber eklenemedi',
+    );
+    final data = result['data'];
+    if (data is! Map) {
+      throw const AdminNewsException('Haber kaydı döndürülemedi');
+    }
+    return AdminNewsEditorPost.fromJson(data);
+  }
+
   Future<Map<String, String>> _categoryParentsFor(List<Map> rows) async {
     final labels = rows
         .map((row) => row['category']?.toString().trim() ?? '')
@@ -480,7 +640,18 @@ class NeonAdminNewsRepository implements AdminNewsRepository {
           )
           .timeout(_requestTimeout);
       final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map<String, dynamic>) {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          final error = decoded['error'];
+          if (error is Map && error['message'] != null) {
+            throw AdminNewsException(error['message'].toString());
+          }
+          throw AdminNewsException(
+            'Sunucu yanıtı başarısız: ${response.statusCode}',
+          );
+        }
+        return decoded;
+      }
       throw const AdminNewsException('Geçersiz sunucu yanıtı');
     } on TimeoutException {
       throw const AdminNewsException('Sunucu yanıtı zaman aşımına uğradı');
