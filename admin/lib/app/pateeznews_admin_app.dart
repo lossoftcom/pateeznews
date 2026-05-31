@@ -8,7 +8,7 @@ import '../core/localization/admin_language_controller.dart';
 import '../core/theme/app_theme.dart';
 import '../features/account/data/admin_account_settings_repository.dart';
 import '../features/auth/data/admin_auth_repository.dart';
-import '../features/auth/data/neon_auth_client.dart';
+import '../features/auth/data/supabase_auth_client.dart';
 import '../features/comments/data/admin_comments_repository.dart';
 import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
@@ -77,7 +77,7 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
   void initState() {
     super.initState();
     _languagesRepository =
-        widget.languagesRepository ?? const NeonAdminLanguagesRepository();
+        widget.languagesRepository ?? const SupabaseAdminLanguagesRepository();
     _languageController =
         widget.languageController ??
         AdminLanguageController(repository: _languagesRepository);
@@ -104,44 +104,49 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
             ],
             theme: AppTheme.light(),
             home: AdminGate(
-              authRepository: widget.authRepository ?? const NeonAuthClient(),
+              authRepository:
+                  widget.authRepository ?? const SupabaseAuthClient(),
               newsRepository:
-                  widget.newsRepository ?? const NeonAdminNewsRepository(),
+                  widget.newsRepository ?? const SupabaseAdminNewsRepository(),
               storiesRepository:
                   widget.storiesRepository ??
-                  const NeonAdminStoriesRepository(),
+                  const SupabaseAdminStoriesRepository(),
               pagesRepository:
-                  widget.pagesRepository ?? const NeonAdminPagesRepository(),
+                  widget.pagesRepository ??
+                  const SupabaseAdminPagesRepository(),
               commentsRepository:
                   widget.commentsRepository ??
-                  const NeonAdminCommentsRepository(),
+                  const SupabaseAdminCommentsRepository(),
               navigationRepository:
                   widget.navigationRepository ??
-                  const NeonAdminNavigationRepository(),
+                  const SupabaseAdminNavigationRepository(),
               usersRepository:
-                  widget.usersRepository ?? const NeonAdminUsersRepository(),
+                  widget.usersRepository ??
+                  const SupabaseAdminUsersRepository(),
               rolesRepository:
-                  widget.rolesRepository ?? const NeonAdminRolesRepository(),
+                  widget.rolesRepository ??
+                  const SupabaseAdminRolesRepository(),
               languagesRepository: _languagesRepository,
               generalSettingsRepository:
                   widget.generalSettingsRepository ??
-                  const NeonAdminGeneralSettingsRepository(),
+                  const SupabaseAdminGeneralSettingsRepository(),
               aiSettingsRepository:
                   widget.aiSettingsRepository ??
-                  const NeonAdminAiSettingsRepository(),
+                  const SupabaseAdminAiSettingsRepository(),
               moduleSettingsRepository:
                   widget.moduleSettingsRepository ??
-                  const NeonAdminModuleSettingsRepository(),
+                  const SupabaseAdminModuleSettingsRepository(),
               accountSettingsRepository:
                   widget.accountSettingsRepository ??
-                  const NeonAdminAccountSettingsRepository(),
+                  const SupabaseAdminAccountSettingsRepository(),
               subscribersRepository:
                   widget.subscribersRepository ??
-                  const NeonAdminSubscribersRepository(),
+                  const SupabaseAdminSubscribersRepository(),
               smsRepository:
-                  widget.smsRepository ?? const NeonAdminSmsRepository(),
+                  widget.smsRepository ?? const SupabaseAdminSmsRepository(),
               socialRepository:
-                  widget.socialRepository ?? const NeonAdminSocialRepository(),
+                  widget.socialRepository ??
+                  const SupabaseAdminSocialRepository(),
             ),
           );
         },

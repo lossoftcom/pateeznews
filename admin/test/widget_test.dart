@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -23,7 +24,7 @@ import 'package:pateeznews_admin/features/pages/data/admin_pages_repository.dart
 import 'package:pateeznews_admin/features/pages/presentation/pages_models.dart';
 import 'package:pateeznews_admin/features/stories/data/admin_stories_repository.dart';
 import 'package:pateeznews_admin/features/stories/presentation/stories_models.dart';
-import 'package:pateeznews_admin/features/auth/data/neon_auth_client.dart';
+import 'package:pateeznews_admin/features/auth/data/supabase_auth_client.dart';
 import 'package:pateeznews_admin/features/auth/data/remembered_login_store.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
@@ -64,6 +65,37 @@ const _testProfile = AdminProfile(
   role: 'admin',
   email: 'demo.user@gmail.com',
 );
+
+const _secureStorageChannel = MethodChannel(
+  'plugins.it_nomads.com/flutter_secure_storage',
+);
+final _secureStorageValues = <String, String>{};
+
+Future<Object?> _handleSecureStorageCall(MethodCall call) async {
+  final args = call.arguments is Map
+      ? Map<Object?, Object?>.from(call.arguments as Map)
+      : <Object?, Object?>{};
+  final key = args['key']?.toString() ?? '';
+
+  switch (call.method) {
+    case 'read':
+      return _secureStorageValues[key];
+    case 'write':
+      _secureStorageValues[key] = args['value']?.toString() ?? '';
+      return null;
+    case 'delete':
+      _secureStorageValues.remove(key);
+      return null;
+    case 'deleteAll':
+      _secureStorageValues.clear();
+      return null;
+    case 'readAll':
+      return Map<String, String>.from(_secureStorageValues);
+    case 'containsKey':
+      return _secureStorageValues.containsKey(key);
+  }
+  return null;
+}
 
 class _FakeAdminAuthRepository implements AdminAuthRepository {
   _FakeAdminAuthRepository({this.signInException});
@@ -2513,6 +2545,12 @@ bool _isTextAbove(WidgetTester tester, String upperText, String lowerText) {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    _secureStorageValues.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _secureStorageChannel,
+          _handleSecureStorageCall,
+        );
   });
 
   test('Desktop auth client localhost API adresini kullanır', () async {
@@ -2522,10 +2560,10 @@ void main() {
     });
 
     final requestedUrls = <String>[];
-    final client = NeonAuthClient(
+    final client = SupabaseAuthClient(
       httpClient: MockClient((request) async {
         requestedUrls.add(request.url.toString());
-        if (request.url.path == '/api/neon/auth') {
+        if (request.url.path == '/api/supabase/auth') {
           return http.Response(
             jsonEncode({
               'data': {'session': _testSession.toJson()},
@@ -2552,8 +2590,8 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'http://localhost:4321/api/neon/auth',
-        'http://localhost:4321/api/neon/query',
+        'http://localhost:4321/api/supabase/auth',
+        'http://localhost:4321/api/admin/query',
       ]),
     );
   });
@@ -2565,10 +2603,10 @@ void main() {
     });
 
     final requestedUrls = <String>[];
-    final client = NeonAuthClient(
+    final client = SupabaseAuthClient(
       httpClient: MockClient((request) async {
         requestedUrls.add(request.url.toString());
-        if (request.url.path == '/api/neon/auth') {
+        if (request.url.path == '/api/supabase/auth') {
           return http.Response(
             jsonEncode({
               'data': {'session': _testSession.toJson()},
@@ -2594,8 +2632,8 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'http://10.0.2.2:4321/api/neon/auth',
-        'http://10.0.2.2:4321/api/neon/query',
+        'http://10.0.2.2:4321/api/supabase/auth',
+        'http://10.0.2.2:4321/api/admin/query',
       ]),
     );
   });
@@ -2609,11 +2647,11 @@ void main() {
       });
 
       final requestedUrls = <String>[];
-      final client = NeonAuthClient(
+      final client = SupabaseAuthClient(
         apiBaseUrl: 'https://example.com',
         httpClient: MockClient((request) async {
           requestedUrls.add(request.url.toString());
-          if (request.url.path == '/api/neon/auth') {
+          if (request.url.path == '/api/supabase/auth') {
             return http.Response(
               jsonEncode({
                 'data': {'session': _testSession.toJson()},
@@ -2639,8 +2677,8 @@ void main() {
       expect(
         requestedUrls,
         containsAllInOrder([
-          'https://example.com/api/neon/auth',
-          'https://example.com/api/neon/query',
+          'https://example.com/api/supabase/auth',
+          'https://example.com/api/admin/query',
         ]),
       );
     },
@@ -2991,7 +3029,7 @@ void main() {
     expect(find.text('1 yorum kalıcı olarak silinecek.'), findsOneWidget);
   });
 
-  testWidgets('Aboneler sayfası Neon repository CRUD akışını kullanır', (
+  testWidgets('Aboneler sayfası Supabase repository CRUD akışını kullanır', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1920, 1080);

@@ -1,0 +1,255 @@
+import type { APIRoute } from 'astro';
+import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { executeQuerySpec, executeRpc, type QuerySpec } from '@/lib/server/supabaseQuery';
+
+type QueryMethod = QuerySpec['method'];
+
+interface AccessRule {
+  select: string;
+  mutate: string;
+}
+
+const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const CONTENT: AccessRule = { select: 'posts_access', mutate: 'manage_content' };
+const COMMENTS: AccessRule = { select: 'comments_manage', mutate: 'comments_manage' };
+const NAVIGATION: AccessRule = { select: 'navigation_access', mutate: 'manage_navigation' };
+const SETTINGS: AccessRule = { select: 'view_settings', mutate: 'settings_access' };
+const USERS: AccessRule = { select: 'users_access', mutate: 'manage_users' };
+const ROLES: AccessRule = { select: 'roles_access', mutate: 'manage_users' };
+const LANGUAGES: AccessRule = { select: 'view_languages', mutate: 'view_languages' };
+
+const TABLE_RULES: Record<string, AccessRule> = {
+  admin_comment_details: COMMENTS,
+  ai_ready_formats: SETTINGS,
+  app_cache: SETTINGS,
+  comments: COMMENTS,
+  language_translations: LANGUAGES,
+  languages: LANGUAGES,
+  navigation_items: NAVIGATION,
+  navigation_menus: NAVIGATION,
+  newsletter_subscribers: CONTENT,
+  pages: CONTENT,
+  permissions: ROLES,
+  posts: CONTENT,
+  profiles: USERS,
+  role_permissions: ROLES,
+  roles: ROLES,
+  site_settings: SETTINGS,
+  stories: CONTENT,
+};
+
+const RPC_RULES: Record<string, string> = {
+  get_admin_comment_stats: 'comments_manage',
+};
+
+const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
+  Object.entries({
+    admin_comment_details: [
+      'id', 'post_id', 'user_id', 'guest_name', 'guest_email', 'parent_id',
+      'content', 'status', 'is_pinned', 'likes_count', 'created_at',
+      'updated_at', 'post_title', 'user_name', 'user_avatar',
+      'replies_count', 'reports_count',
+    ],
+    ai_ready_formats: [
+      'id', 'title', 'prompt', 'language_code', 'is_active', 'created_at',
+      'updated_at',
+    ],
+    app_cache: ['key', 'payload', 'expires_at', 'updated_at'],
+    comments: [
+      'id', 'post_id', 'user_id', 'parent_id', 'content', 'status',
+      'is_pinned', 'likes_count', 'created_at', 'updated_at', 'guest_name',
+      'guest_email', 'post_title', 'user_name',
+    ],
+    language_translations: ['language_code', 'key', 'value', 'updated_at'],
+    languages: [
+      'code', 'name', 'direction', 'status', 'flag_code', 'is_default',
+      'created_at', 'updated_at',
+    ],
+    navigation_items: [
+      'id', 'menu_id', 'parent_id', 'label', 'type', 'value', 'icon',
+      'order_index', 'is_active', 'created_at', 'language_code',
+    ],
+    navigation_menus: ['id', 'code', 'name', 'description', 'created_at'],
+    newsletter_subscribers: [
+      'id', 'email', 'full_name', 'phone', 'ip_address', 'city', 'status',
+      'language_code', 'source', 'created_at', 'updated_at',
+    ],
+    pages: [
+      'id', 'title', 'slug', 'language_code', 'category_id', 'category',
+      'page_type', 'status', 'location', 'parent_page_id', 'show_title',
+      'show_breadcrumb', 'show_sidebar', 'registered_only', 'menu_order',
+      'content_delta', 'content_plain', 'meta_title', 'meta_keywords',
+      'meta_description', 'canonical_url', 'created_at', 'updated_at',
+    ],
+    permissions: ['id', 'key', 'label', 'group_name', 'description', 'created_at'],
+    posts: [
+      'id', 'created_at', 'updated_at', 'publisher_id', 'title', 'summary',
+      'content', 'category', 'type', 'thumbnail_url', 'thumbnail_alt',
+      'media_url', 'likes_count', 'dislikes_count', 'comments_count',
+      'shares_count', 'views_count', 'saves_count', 'card_data', 'slug',
+      'items', 'status', 'seo_title', 'seo_description', 'keywords',
+      'language_code', 'published_at', 'is_pinned', 'show_in_manset',
+      'fact_checked', 'schema_type', 'faq_data',
+    ],
+    profiles: [
+      'id', 'username', 'full_name', 'avatar_url', 'updated_at', 'role',
+      'slug', 'about_me', 'social_links', 'balance', 'pageviews', 'status',
+      'reward_system', 'phone', 'expertise', 'foundation_date', 'website',
+      'address', 'meta_title', 'meta_keywords', 'meta_description',
+      'canonical_url', 'email', 'created_at', 'show_email', 'rss_feeds',
+    ],
+    role_permissions: ['role_id', 'permission_key'],
+    roles: ['id', 'name', 'label', 'description', 'color', 'created_at'],
+    site_settings: [
+      'id', 'language_code', 'site_name', 'timezone', 'footer_about',
+      'optional_url_button_name', 'copyright_text', 'logo_url',
+      'footer_logo_url', 'dark_logo_url', 'email_logo_url', 'favicon_url',
+      'home_title', 'meta_description', 'meta_keywords', 'canonical_url',
+      'og_image_url', 'google_analytics_id', 'google_search_console_code',
+      'bing_verification_code', 'twitter_username', 'fb_app_id',
+      'organization_legal_name', 'organization_phone', 'organization_address',
+      'robots_txt', 'header_custom_codes', 'footer_custom_codes',
+      'google_ai_api_key', 'google_ai_model', 'google_ai_active',
+      'weather_enabled', 'weather_location_name', 'weather_location_country',
+      'weather_latitude', 'weather_longitude', 'weather_timezone',
+      'weather_update_interval_minutes', 'created_at', 'updated_at',
+    ],
+    stories: [
+      'id', 'created_at', 'publisher_id', 'title', 'media_url', 'media_type',
+      'source_name', 'expires_at', 'is_active', 'view_count', 'story_data',
+      'story_markup',
+    ],
+  }).map(([table, columns]) => [table, new Set(columns)])
+);
+
+function assertIdentifier(value: string, context: string) {
+  if (!IDENTIFIER_PATTERN.test(value)) {
+    throw Object.assign(new Error(`Unsafe ${context}: ${value}`), { status: 400 });
+  }
+}
+
+function assertColumnAllowed(table: string, column: string, context: string) {
+  assertIdentifier(column, context);
+  if (!TABLE_COLUMNS[table]?.has(column)) {
+    throw Object.assign(new Error(`Admin query column is not allowed: ${table}.${column}`), { status: 403 });
+  }
+}
+
+function validateSelect(spec: QuerySpec) {
+  if (spec.select == null) return;
+  const select = String(spec.select || '').trim();
+  if (!select || select === '*') {
+    throw Object.assign(new Error('Admin query must request explicit columns'), { status: 400 });
+  }
+  for (const rawColumn of select.split(',')) {
+    const column = rawColumn.trim();
+    if (!column) continue;
+    assertColumnAllowed(spec.table, column, 'select column');
+  }
+}
+
+function validateFilters(spec: QuerySpec) {
+  for (const filter of spec.filters || []) {
+    if (filter.type === 'comparison' || filter.type === 'not') {
+      assertColumnAllowed(spec.table, filter.column, 'filter column');
+    }
+    if (filter.type === 'or') {
+      for (const item of String(filter.value || '').split(',')) {
+        const column = item.trim().split('.')[0];
+        if (column) assertColumnAllowed(spec.table, column, 'or filter column');
+      }
+    }
+  }
+}
+
+function validateOrders(spec: QuerySpec) {
+  for (const order of spec.orders || []) {
+    assertColumnAllowed(spec.table, order.column, 'order column');
+  }
+}
+
+function validateMutationValues(spec: QuerySpec) {
+  if (!['insert', 'update', 'upsert'].includes(String(spec.method))) return;
+  const rows = Array.isArray(spec.values) ? spec.values : [spec.values];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    for (const column of Object.keys(row)) {
+      assertColumnAllowed(spec.table, column, 'mutation column');
+    }
+  }
+}
+
+function validateOptions(spec: QuerySpec) {
+  const onConflict = spec.options?.onConflict;
+  if (typeof onConflict === 'string') {
+    for (const column of onConflict.split(',').map((value) => value.trim()).filter(Boolean)) {
+      assertColumnAllowed(spec.table, column, 'conflict column');
+    }
+  }
+}
+
+function validateSpec(spec: QuerySpec) {
+  if (spec.schema && spec.schema !== 'public') {
+    throw Object.assign(new Error('Admin query schema is not allowed'), { status: 403 });
+  }
+  if (!TABLE_RULES[spec.table]) {
+    throw Object.assign(new Error(`Admin query table is not allowed: ${spec.table}`), { status: 403 });
+  }
+  if (!['select', 'insert', 'update', 'delete', 'upsert'].includes(String(spec.method))) {
+    throw Object.assign(new Error(`Unsupported admin query method: ${String(spec.method)}`), { status: 400 });
+  }
+  if (['update', 'delete'].includes(String(spec.method)) && !(spec.filters || []).length) {
+    throw Object.assign(new Error('Admin update/delete requires at least one filter'), { status: 400 });
+  }
+  if (typeof spec.limit === 'number' && spec.limit > 500) {
+    throw Object.assign(new Error('Admin query limit exceeds 500 rows'), { status: 400 });
+  }
+  if (spec.range && spec.range.to - spec.range.from + 1 > 500) {
+    throw Object.assign(new Error('Admin query range exceeds 500 rows'), { status: 400 });
+  }
+
+  validateSelect(spec);
+  validateFilters(spec);
+  validateOrders(spec);
+  validateMutationValues(spec);
+  validateOptions(spec);
+}
+
+function permissionForSpec(spec: QuerySpec) {
+  const table = String(spec?.table || '').trim();
+  const rule = TABLE_RULES[table];
+  if (!rule) {
+    throw Object.assign(new Error(`Admin query table is not allowed: ${table}`), { status: 403 });
+  }
+
+  const method = String(spec?.method || '') as QueryMethod;
+  return method === 'select' ? rule.select : rule.mutate;
+}
+
+function permissionForRpc(name: string) {
+  const permission = RPC_RULES[String(name || '').trim()];
+  if (!permission) {
+    throw Object.assign(new Error(`Admin RPC is not allowed: ${name}`), { status: 403 });
+  }
+  return permission;
+}
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    const body = await request.json();
+    if (body?.kind !== 'rpc') validateSpec(body as QuerySpec);
+    const permission = body?.kind === 'rpc'
+      ? permissionForRpc(body.name)
+      : permissionForSpec(body as QuerySpec);
+
+    await requireAdminRequest(request, permission);
+
+    const result = body?.kind === 'rpc'
+      ? await executeRpc(body.name, body.args || {})
+      : await executeQuerySpec(body);
+
+    return adminJson(result, result.error ? 400 : 200);
+  } catch (error) {
+    return adminError(error);
+  }
+};

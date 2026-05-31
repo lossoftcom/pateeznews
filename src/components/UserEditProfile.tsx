@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Camera, Check, Globe, LayoutGrid, Link as LinkIcon, Save, Sparkles, User, X, Mail, Phone, MapPin, Briefcase, Calendar, Shield, Lock, Trash2, Smartphone } from 'lucide-react';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { storageService } from '@/services/storageService';
 import { useLanguage } from '@/context/LanguageContext';
 import { accountAction } from '@/services/appActions';
@@ -76,7 +76,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
       setLoading(true);
       try {
         await accountAction('ensure-schema').catch(() => null);
-        const { data, error } = await neon
+        const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', userId)
@@ -200,7 +200,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
       if (prefColumnsRef.current.show_email) updatePayload.show_email = formData.show_email;
       if (prefColumnsRef.current.rss_feeds) updatePayload.rss_feeds = formData.rss_feeds;
 
-      const { error } = await neon
+      const { error } = await supabase
         .from('profiles')
         .update(updatePayload)
         .eq('id', userId);
@@ -250,7 +250,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
     setFormMessage(null);
     try {
       await accountAction('delete-self', { currentPassword: deletePassword });
-      await neon.auth.signOut();
+      await supabase.auth.signOut();
       window.location.href = '/';
     } catch (error: any) {
       setFormMessage(error.message || t('common.action_failed'));

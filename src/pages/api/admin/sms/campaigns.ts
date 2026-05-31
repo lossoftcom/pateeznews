@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { numericLimit, numericOffset, readJsonBody, requireSmsAccess, sqlSetClause } from '@/lib/server/sms/api';
 
 export const prerender = false;

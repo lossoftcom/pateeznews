@@ -29,11 +29,10 @@ const lang = resolveLangCode({
 
 const langMeta = seoAlternates.find((entry) => entry.code === lang);
 
-const [initialTranslations, siteSettings, navigationItems, storiesItems] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
-  dataService.getNavigationItems(lang),
-  dataService.getStories(lang)
+  dataService.getNavigationItems(lang)
 ]);
 
 const initialLang = {
@@ -209,7 +208,6 @@ const newsItemsWithOptimized = await Promise.all(
     siteSettings={siteSettings}
     navigationItems={navigationItems}
     newsItems={newsItemsWithOptimized}
-    storiesItems={storiesItems}
     categoryPagination={{
       category: String(resolvedCategory || slug || ''),
       limit: categoryNewsPage.limit,

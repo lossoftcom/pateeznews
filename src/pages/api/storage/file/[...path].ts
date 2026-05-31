@@ -1,213 +1,166 @@
-import type { APIRoute } from "astro";
-import fs from "fs";
-import path from "path";
-import sharp from "sharp";
+import type { APIRoute } from 'astro';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {
+  contentTypeForFilename,
+  getStorageType,
+  publicStorageUrl,
+  type StorageType,
+  storageObjectPath,
+} from '@/lib/server/supabaseStorage';
 
-const RESIZABLE_IMAGE_EXTENSIONS = new Set([
-  ".webp",
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".avif",
-  ".tif",
-  ".tiff",
-]);
+const LOCAL_FALLBACKS: Partial<Record<StorageType, string[]>> = {
+  image: [
+    'image/2026-05-24/1779656233738-d-s-c02472.webp',
+    'image/2026-05-24/1779656103320-Ekran_Resmi_2026-05-24_23.39.03.webp',
+  ],
+  logo: [
+    'logo/tr/pateezlogoson.png',
+    'logo/tr/pateezlogowhite.png',
+    'logo/tr/pateezlogoicon.png',
+  ],
+  profile: [
+    'profile/6c1a27d3-ce8e-4c42-bec1-fc092139e3ee-avatar.webp',
+    'profile/nasip-avatar.webp',
+  ],
+};
+
 const RANGEABLE_MEDIA_EXTENSIONS = new Set([
-  ".mp4",
-  ".m4v",
-  ".webm",
-  ".mov",
-  ".avi",
-  ".mkv",
-  ".mp3",
-  ".wav",
-  ".ogg",
-  ".oga",
-  ".m4a",
-  ".aac",
+  '.mp4',
+  '.m4v',
+  '.webm',
+  '.mov',
+  '.mp3',
+  '.wav',
+  '.ogg',
+  '.oga',
+  '.m4a',
+  '.aac',
 ]);
 
-const parseBoundedInt = (value: string | null, min: number, max: number) => {
+function parseBoundedInt(value: string | null, min: number, max: number) {
   if (!value) return null;
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return null;
   return Math.min(Math.max(parsed, min), max);
-};
+}
 
-export const GET: APIRoute = async ({ params, request }) => {
-  const filePath = params.path;
+function isLocalUploadFallbackEnabled() {
+  return import.meta.env.DEV || process.env.NODE_ENV !== 'production';
+}
 
-  if (!filePath) {
-    return new Response("Path is required", { status: 400 });
+function localUploadPath(objectPath: string) {
+  const uploadRoot = path.resolve(process.cwd(), 'Upload');
+  const candidate = path.resolve(uploadRoot, objectPath);
+  if (!candidate.startsWith(`${uploadRoot}${path.sep}`)) return null;
+  return candidate;
+}
+
+async function existingLocalUploadPath(objectPath: string) {
+  const candidate = localUploadPath(objectPath);
+  if (!candidate) return null;
+  try {
+    const stats = await fs.stat(candidate);
+    return stats.isFile() ? candidate : null;
+  } catch {
+    return null;
   }
+}
 
-  const uploadRootDir = path.resolve(process.cwd(), "Upload");
-  const imageBaseDir = path.join(uploadRootDir, "image");
-  const videoBaseDir = path.join(uploadRootDir, "video");
-  const audioBaseDir = path.join(uploadRootDir, "audio");
-  const fileBaseDir = path.join(uploadRootDir, "file");
-  const logoBaseDir = path.join(uploadRootDir, "logo");
-  const profileBaseDir = path.join(uploadRootDir, "profile");
-
-  let fullPath = "";
-
-  if (filePath.startsWith("video/")) {
-    fullPath = path.join(videoBaseDir, filePath.replace("video/", ""));
-  } else if (filePath.startsWith("audio/")) {
-    fullPath = path.join(audioBaseDir, filePath.replace("audio/", ""));
-  } else if (filePath.startsWith("file/")) {
-    fullPath = path.join(fileBaseDir, filePath.replace("file/", ""));
-  } else if (filePath.startsWith("image/")) {
-    fullPath = path.join(imageBaseDir, filePath.replace("image/", ""));
-  } else if (filePath.startsWith("logo/")) {
-    fullPath = path.join(logoBaseDir, filePath.replace("logo/", ""));
-  } else if (filePath.startsWith("profile/")) {
-    fullPath = path.join(profileBaseDir, filePath.replace("profile/", ""));
-  } else {
-    fullPath = path.join(imageBaseDir, filePath);
+async function existingFallbackPath(type: StorageType) {
+  for (const fallback of LOCAL_FALLBACKS[type] || []) {
+    const candidate = await existingLocalUploadPath(fallback);
+    if (candidate) return candidate;
   }
+  return null;
+}
 
-  console.log(`[Storage API] Requested: ${filePath}, Resolved: ${fullPath}`);
+async function localFileResponse(filePath: string, request: Request) {
+  const stats = await fs.stat(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const headers: Record<string, string> = {
+    'Content-Type': contentTypeForFilename(filePath),
+    'Cache-Control': 'public, max-age=60',
+    'Access-Control-Allow-Origin': '*',
+  };
 
-  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
-    const stats = fs.statSync(fullPath);
-    const fileContent = fs.readFileSync(fullPath);
-    const ext = path.extname(fullPath).toLowerCase();
-
-    const mimeTypes: Record<string, string> = {
-      ".webp": "image/webp",
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".png": "image/png",
-      ".gif": "image/gif",
-      ".svg": "image/svg+xml",
-      ".mp4": "video/mp4",
-      ".m4v": "video/mp4",
-      ".webm": "video/webm",
-      ".mov": "video/quicktime",
-      ".avi": "video/x-msvideo",
-      ".mkv": "video/x-matroska",
-      ".mp3": "audio/mpeg",
-      ".wav": "audio/wav",
-      ".ogg": "audio/ogg",
-      ".oga": "audio/ogg",
-      ".m4a": "audio/mp4",
-      ".aac": "audio/aac",
-      ".pdf": "application/pdf",
-    };
-
-    const contentType = mimeTypes[ext] || "application/octet-stream";
-    const url = new URL(request.url);
-    const previewWidth = parseBoundedInt(url.searchParams.get("w"), 64, 2400);
-    const commonHeaders = {
-      "Content-Type": contentType,
-      "Cache-Control": "public, max-age=31536000, immutable",
-      "Access-Control-Allow-Origin": "*",
-    };
-
-    if (previewWidth && RESIZABLE_IMAGE_EXTENSIONS.has(ext)) {
-      try {
-        const previewQuality =
-          parseBoundedInt(url.searchParams.get("q"), 40, 100) ?? 88;
-        const previewContent = await sharp(fileContent)
-          .rotate()
-          .resize({
-            width: previewWidth,
-            fit: "inside",
-            withoutEnlargement: true,
-            kernel: "lanczos3",
-          })
-          .webp({
-            quality: previewQuality,
-            effort: 5,
-            smartSubsample: true,
-            smartDeblock: true,
-          })
-          .toBuffer();
-
-        return new Response(previewContent, {
-          status: 200,
+  if (RANGEABLE_MEDIA_EXTENSIONS.has(ext)) {
+    headers['Accept-Ranges'] = 'bytes';
+    const range = request.headers.get('range');
+    if (range) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+      if (!match) {
+        return new Response('Invalid Range', {
+          status: 416,
           headers: {
-            "Content-Type": "image/webp",
-            "Cache-Control": "public, max-age=31536000, immutable",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err) {
-        console.error("[Storage API] Preview resize failed:", err);
-      }
-    }
-
-    if (RANGEABLE_MEDIA_EXTENSIONS.has(ext)) {
-      const range = request.headers.get("range");
-      if (range) {
-        const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-        if (!match) {
-          return new Response("Invalid Range", {
-            status: 416,
-            headers: {
-              ...commonHeaders,
-              "Accept-Ranges": "bytes",
-              "Content-Range": `bytes */${stats.size}`,
-            },
-          });
-        }
-
-        const [, startRaw, endRaw] = match;
-        let start = startRaw ? Number.parseInt(startRaw, 10) : 0;
-        let end = endRaw ? Number.parseInt(endRaw, 10) : stats.size - 1;
-
-        if (!startRaw && endRaw) {
-          const suffixLength = Number.parseInt(endRaw, 10);
-          start = Math.max(stats.size - suffixLength, 0);
-          end = stats.size - 1;
-        }
-
-        if (
-          !Number.isFinite(start) ||
-          !Number.isFinite(end) ||
-          start < 0 ||
-          end < start ||
-          start >= stats.size
-        ) {
-          return new Response("Range Not Satisfiable", {
-            status: 416,
-            headers: {
-              ...commonHeaders,
-              "Accept-Ranges": "bytes",
-              "Content-Range": `bytes */${stats.size}`,
-            },
-          });
-        }
-
-        end = Math.min(end, stats.size - 1);
-        const chunk = fileContent.subarray(start, end + 1);
-        return new Response(chunk, {
-          status: 206,
-          headers: {
-            ...commonHeaders,
-            "Accept-Ranges": "bytes",
-            "Content-Range": `bytes ${start}-${end}/${stats.size}`,
-            "Content-Length": String(chunk.length),
+            ...headers,
+            'Content-Range': `bytes */${stats.size}`,
           },
         });
       }
 
-      return new Response(fileContent, {
-        status: 200,
+      const [, startRaw, endRaw] = match;
+      let start = startRaw ? Number.parseInt(startRaw, 10) : 0;
+      let end = endRaw ? Number.parseInt(endRaw, 10) : stats.size - 1;
+
+      if (!startRaw && endRaw) {
+        const suffixLength = Number.parseInt(endRaw, 10);
+        start = Math.max(stats.size - suffixLength, 0);
+        end = stats.size - 1;
+      }
+
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= stats.size) {
+        return new Response('Range Not Satisfiable', {
+          status: 416,
+          headers: {
+            ...headers,
+            'Content-Range': `bytes */${stats.size}`,
+          },
+        });
+      }
+
+      end = Math.min(end, stats.size - 1);
+      const fileContent = await fs.readFile(filePath);
+      const chunk = fileContent.subarray(start, end + 1);
+      return new Response(chunk, {
+        status: 206,
         headers: {
-          ...commonHeaders,
-          "Accept-Ranges": "bytes",
-          "Content-Length": String(stats.size),
+          ...headers,
+          'Content-Range': `bytes ${start}-${end}/${stats.size}`,
+          'Content-Length': String(chunk.length),
         },
       });
     }
-
-    return new Response(fileContent, {
-      status: 200,
-      headers: commonHeaders,
-    });
   }
 
-  return new Response("Not Found", { status: 404 });
+  const fileContent = await fs.readFile(filePath);
+  return new Response(fileContent, {
+    status: 200,
+    headers: {
+      ...headers,
+      'Content-Length': String(stats.size),
+    },
+  });
+}
+
+export const GET: APIRoute = async ({ params, request }) => {
+  const filePath = params.path;
+  if (!filePath) return new Response('Path is required', { status: 400 });
+
+  const [firstSegment, ...rest] = filePath.split('/');
+  const type = getStorageType(firstSegment);
+  const objectPath = storageObjectPath(type, rest.length ? rest.join('/') : filePath);
+  const url = new URL(request.url);
+  const width = parseBoundedInt(url.searchParams.get('w'), 64, 2400);
+  const quality = parseBoundedInt(url.searchParams.get('q'), 40, 100);
+
+  if (isLocalUploadFallbackEnabled()) {
+    const localPath = await existingLocalUploadPath(objectPath);
+    if (localPath) return localFileResponse(localPath, request);
+
+    const fallbackPath = await existingFallbackPath(type);
+    if (fallbackPath) return localFileResponse(fallbackPath, request);
+  }
+
+  return Response.redirect(publicStorageUrl(objectPath, request, { width, quality }), 302);
 };

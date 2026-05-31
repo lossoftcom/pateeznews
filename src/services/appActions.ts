@@ -1,4 +1,4 @@
-const AUTH_STORAGE_KEY = 'neon-auth-token';
+const AUTH_STORAGE_KEY = 'supabase-auth-token';
 
 function readAccessToken() {
   if (typeof window === 'undefined') return null;
@@ -49,10 +49,6 @@ export function subscribeNewsletter(email: string, source: string, languageCode:
     source,
     languageCode,
   });
-}
-
-export function trackStoryView(storyId: string) {
-  return postJson<{ ok: boolean; viewCount: number }>('/api/app/story-view', { storyId });
 }
 
 export function searchSite(query: string, languageCode: string) {

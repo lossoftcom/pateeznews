@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/stories_models.dart';
@@ -29,11 +30,11 @@ abstract class AdminStoriesRepository {
   Future<void> deleteStories(List<String> storyIds);
 }
 
-class NeonAdminStoriesRepository implements AdminStoriesRepository {
-  const NeonAdminStoriesRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminStoriesRepository implements AdminStoriesRepository {
+  const SupabaseAdminStoriesRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -60,7 +61,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'select',
       'select':
@@ -101,7 +102,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
       'is_active': data.isActive,
     };
     final isUpdate = storyId != null && storyId.trim().isNotEmpty;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': isUpdate ? 'update' : 'insert',
       'values': values,
@@ -115,7 +116,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
 
   @override
   Future<void> toggleStatus(AdminStory story) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'update',
       'values': {'is_active': !story.isActive},
@@ -126,7 +127,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
 
   @override
   Future<void> deleteStory(String storyId) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'delete',
       'filters': [_idFilter(storyId)],
@@ -137,7 +138,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
   @override
   Future<void> deleteStories(List<String> storyIds) async {
     if (storyIds.isEmpty) return;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'delete',
       'filters': [
@@ -182,16 +183,12 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
     String path,
     Map<String, Object?> body,
   ) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final uri = _resolveUri(path);
       final response = await client
-          .post(
-            uri,
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
+          .post(uri, headers: await adminJsonHeaders(), body: jsonEncode(body))
           .timeout(_requestTimeout);
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) return decoded;

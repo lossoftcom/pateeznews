@@ -1,6 +1,6 @@
 import { dataService as sharedDataService } from './dataService';
 import { ensureAppSchema } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import type { NewsItem } from '@/types';
 import { slugify } from '@/utils/helpers';
 

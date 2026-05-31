@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 
@@ -237,12 +238,15 @@ abstract class AdminAccountSettingsRepository {
   String publicUrl(String value);
 }
 
-class NeonAdminAccountSettingsRepository
+class SupabaseAdminAccountSettingsRepository
     implements AdminAccountSettingsRepository {
-  const NeonAdminAccountSettingsRepository({this.httpClient, this.apiBaseUrl});
+  const SupabaseAdminAccountSettingsRepository({
+    this.httpClient,
+    this.apiBaseUrl,
+  });
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -250,10 +254,11 @@ class NeonAdminAccountSettingsRepository
   @override
   Future<AdminAccountProfile> fetchProfile(AdminSession session) async {
     await _ensureSchema(session);
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'profiles',
       'method': 'select',
-      'select': '*',
+      'select':
+          'id,full_name,username,email,phone,expertise,foundation_date,address,website,about_me,slug,meta_title,meta_keywords,meta_description,canonical_url,avatar_url,social_links,reward_system,show_email,rss_feeds',
       'filters': [_idFilter(session.user.id)],
       'single': 'maybeSingle',
     });
@@ -272,7 +277,7 @@ class NeonAdminAccountSettingsRepository
   }) async {
     final username = profile.username.trim();
     if (username.isNotEmpty) {
-      final conflict = await _postJson('/api/neon/query', {
+      final conflict = await _postJson('/api/admin/query', {
         'table': 'profiles',
         'method': 'select',
         'select': 'id',
@@ -301,7 +306,7 @@ class NeonAdminAccountSettingsRepository
       }
     }
 
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'profiles',
       'method': 'update',
       'values': profile.toProfileUpdateJson(),
@@ -332,13 +337,16 @@ class NeonAdminAccountSettingsRepository
       request.headers['Origin'] =
           '${uploadUri.scheme}://${uploadUri.authority}';
     }
+    request.headers.addAll(await adminAuthHeaders(token: session.accessToken));
     request.fields['type'] = 'profile';
     request.fields['customFilename'] = '${session.user.id}-${kind.name}';
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: fileName),
     );
 
-    final streamedResponse = await (httpClient?.send(request) ?? request.send())
+    final uploadClient = httpClient ?? adminHttpClient;
+    final streamedResponse = await uploadClient
+        .send(request)
         .timeout(const Duration(seconds: 120));
     final response = await http.Response.fromStream(
       streamedResponse,
@@ -427,18 +435,18 @@ class NeonAdminAccountSettingsRepository
     Map<String, Object?> body, {
     String? token,
   }) async {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json; charset=UTF-8',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
+    final headers = await adminJsonHeaders(token: token);
     final response =
         await (httpClient?.post(
                   _uri(path),
                   headers: headers,
                   body: jsonEncode(body),
                 ) ??
-                http.post(_uri(path), headers: headers, body: jsonEncode(body)))
+                adminHttpClient.post(
+                  _uri(path),
+                  headers: headers,
+                  body: jsonEncode(body),
+                ))
             .timeout(_requestTimeout);
     final decoded = response.body.isEmpty
         ? <String, Object?>{}

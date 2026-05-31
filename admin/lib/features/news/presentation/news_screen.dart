@@ -16,7 +16,7 @@ import 'widgets/news_table_card.dart';
 class NewsScreen extends StatefulWidget {
   const NewsScreen({
     super.key,
-    this.repository = const NeonAdminNewsRepository(),
+    this.repository = const SupabaseAdminNewsRepository(),
     this.onAddPost,
     this.onEditPost,
   });

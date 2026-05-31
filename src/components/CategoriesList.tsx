@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   ArrowLeft, Search, Zap, Flame, LayoutGrid, Eye, Heart, Share2, TrendingUp
@@ -48,7 +48,7 @@ const CategoriesList: React.FC<CategoriesListProps> = ({ onBack, onCategorySelec
       try {
         setLoading(true);
         // 1. Fetch Categories from Nav Items
-        const { data: navData, error: navError } = await neon
+        const { data: navData, error: navError } = await supabase
           .from('navigation_items')
           .select('*')
           .eq('type', 'category')
@@ -59,7 +59,7 @@ const CategoriesList: React.FC<CategoriesListProps> = ({ onBack, onCategorySelec
         if (navError) throw navError;
 
         // 2. Fetch Post Metrics
-        const { data: postMetrics, error: metricsError } = await neon
+        const { data: postMetrics, error: metricsError } = await supabase
           .from('posts')
           .select('category, likes_count, comments_count, shares_count')
           .eq('status', 'published')

@@ -16,7 +16,7 @@ class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminGeneralSettingsRepository(),
+    this.repository = const SupabaseAdminGeneralSettingsRepository(),
   });
 
   final AdminSession session;

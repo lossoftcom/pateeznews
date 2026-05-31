@@ -29,8 +29,8 @@ abstract class AdminStoriesRepository {
   Future<void> deleteStories(List<String> storyIds);
 }
 
-class NeonAdminStoriesRepository implements AdminStoriesRepository {
-  const NeonAdminStoriesRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminStoriesRepository implements AdminStoriesRepository {
+  const SupabaseAdminStoriesRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 12);
@@ -60,7 +60,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'select',
       'select':
@@ -100,7 +100,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
       'is_active': data.isActive,
     };
 
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': storyId == null ? 'insert' : 'update',
       'values': storyId == null
@@ -118,7 +118,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
 
   @override
   Future<void> toggleStatus(AdminStory story) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'update',
       'values': {'is_active': !story.isActive},
@@ -129,7 +129,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
 
   @override
   Future<void> deleteStory(String storyId) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'delete',
       'filters': [_idFilter(storyId)],
@@ -140,7 +140,7 @@ class NeonAdminStoriesRepository implements AdminStoriesRepository {
   @override
   Future<void> deleteStories(List<String> storyIds) async {
     if (storyIds.isEmpty) return;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'stories',
       'method': 'delete',
       'filters': [

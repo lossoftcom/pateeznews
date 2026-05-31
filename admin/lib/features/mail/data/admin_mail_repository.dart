@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/bulk_mail_models.dart';
@@ -127,8 +128,8 @@ abstract class AdminMailRepository {
   Future<void> sendMail(AdminSession session, AdminMailComposePayload payload);
 }
 
-class NeonAdminMailRepository implements AdminMailRepository {
-  const NeonAdminMailRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminMailRepository implements AdminMailRepository {
+  const SupabaseAdminMailRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 15);
@@ -647,8 +648,8 @@ class NeonAdminMailRepository implements AdminMailRepository {
     AdminSession session, [
     Map<String, String>? query,
   ]) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final response = await client
           .get(
@@ -673,8 +674,8 @@ class NeonAdminMailRepository implements AdminMailRepository {
     AdminSession session,
     Map<String, Object?> body,
   ) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final request = http.Request(method, _uri(path))
         ..headers.addAll({

@@ -16,7 +16,6 @@ import { searchSite } from '@/services/appActions';
 interface NavbarProps {
   onHomeClick?: () => void;
   onProfileClick?: () => void;
-  onAdminClick?: () => void;
   onProfileViewClick?: () => void;
   onEditProfileClick?: () => void;
   onLogout?: () => void;
@@ -36,7 +35,6 @@ const MOBILE_NAV_ICON_SIZE = '19px';
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
   onProfileClick,
-  onAdminClick,
   onProfileViewClick,
   onEditProfileClick,
   onLogout,
@@ -455,16 +453,6 @@ const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div className="px-1.5 space-y-0.5">
-                    {onAdminClick && (
-                      <button
-                        onClick={() => { onAdminClick(); setShowUserMenu(false); }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group"
-                      >
-                        <span className="material-symbols-rounded text-[20px] opacity-60 group-hover:opacity-100" style={{ fontVariationSettings: "'FILL' 0" }}>dashboard</span>
-                        <span className="text-[12px] font-bold tracking-tight">{t('nav.panel')}</span>
-                      </button>
-                    )}
-
                     {onProfileViewClick && (
                       <button
                         onClick={() => { onProfileViewClick(); setShowUserMenu(false); }}

@@ -1,5 +1,5 @@
 -- Pateeznews admin Posta module schema.
--- Uses the Lospos-compatible Turkish mail_* schema already present in the target Neon DB.
+-- Uses the Lospos-compatible Turkish mail_* schema already present in the target Supabase DB.
 
 CREATE TABLE IF NOT EXISTS public.mail_accounts (
   id bigserial PRIMARY KEY,

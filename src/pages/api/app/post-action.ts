@@ -5,7 +5,7 @@ import {
   json,
   withTransaction,
 } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 
 const numericPostId = (value: unknown) => {
   const id = Number(value);

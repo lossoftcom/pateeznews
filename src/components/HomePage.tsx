@@ -27,7 +27,6 @@ interface HomePageProps {
     siteSettings: SiteSettings | null;
     navigationItems: NavigationItem[];
     newsItems: NewsItem[];
-    storiesItems?: any[];
     sidebarSnapshot?: any;
     categoryPagination?: {
         category: string;
@@ -47,7 +46,6 @@ const HomePage: React.FC<HomePageProps> = ({
     siteSettings,
     navigationItems,
     newsItems: initialNews,
-    storiesItems,
     sidebarSnapshot,
     categoryPagination,
     selectedCategory: initialCategory,
@@ -279,7 +277,6 @@ const HomePage: React.FC<HomePageProps> = ({
                                     ) : (
                                         <Feed
                                             newsData={displayNews}
-                                            storiesData={storiesItems}
                                             siteSettings={siteSettings}
                                             navItems={navigationItems}
                                             selectedCategory={activeCat || undefined}

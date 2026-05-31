@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 
@@ -322,9 +323,12 @@ abstract class AdminModuleSettingsRepository {
   });
 }
 
-class NeonAdminModuleSettingsRepository
+class SupabaseAdminModuleSettingsRepository
     implements AdminModuleSettingsRepository {
-  const NeonAdminModuleSettingsRepository({this.httpClient, this.apiBaseUrl});
+  const SupabaseAdminModuleSettingsRepository({
+    this.httpClient,
+    this.apiBaseUrl,
+  });
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 18);
@@ -335,7 +339,7 @@ class NeonAdminModuleSettingsRepository
   @override
   Future<WeatherSettingsData> fetchWeatherSettings(String languageCode) async {
     final normalizedCode = _cleanLanguageCode(languageCode);
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
       'method': 'select',
       'select':
@@ -371,7 +375,7 @@ class NeonAdminModuleSettingsRepository
       timezone: settings.timezone,
       updateIntervalMinutes: settings.updateIntervalMinutes,
     );
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
       'method': 'upsert',
       'values': normalizedSettings.toJson(),
@@ -438,7 +442,7 @@ class NeonAdminModuleSettingsRepository
 
   Future<void> _deleteCacheKey(String key) async {
     try {
-      final result = await _postJson('/api/neon/query', {
+      final result = await _postJson('/api/admin/query', {
         'table': 'app_cache',
         'method': 'delete',
         'filters': [
@@ -507,18 +511,12 @@ class NeonAdminModuleSettingsRepository
     final response =
         await (httpClient?.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ) ??
-                http.post(
+                adminHttpClient.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ))
             .timeout(_requestTimeout);

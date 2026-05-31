@@ -20,7 +20,7 @@ class WhatsappTemplatesScreen extends StatefulWidget {
   const WhatsappTemplatesScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminWhatsappRepository(),
+    this.repository = const SupabaseAdminWhatsappRepository(),
   });
 
   final AdminSession session;

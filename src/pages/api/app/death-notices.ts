@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import * as parse5 from 'parse5';
 import { ensureAppSchema, json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 
 const SOURCE_URL = 'https://nigde.bel.tr/vefat-edenler';
 const FETCH_URL = 'https://vefatedenler.nigde.bel.tr/vefatedenler.php';

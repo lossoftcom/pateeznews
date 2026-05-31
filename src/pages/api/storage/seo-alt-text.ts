@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
+import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
 import { buildAltTextFallback, cleanAiScalarText, extractJsonStringField, htmlToPlainText, isBoilerplateAiText } from '@/lib/mediaSeoText';
 
@@ -269,6 +270,7 @@ export const POST: APIRoute = async ({ request }) => {
         const body = await request.json().catch(() => ({}));
         const src = String(body?.src || '').trim();
         if (!src) return json({ error: 'Image source required' }, 400);
+        await requireStorageAdminRequest(request, 'image');
 
         const languageCode = String(body?.languageCode || 'tr').trim() || 'tr';
         const settings = await fetchAiSettings(languageCode);
@@ -312,6 +314,6 @@ export const POST: APIRoute = async ({ request }) => {
         });
     } catch (error: any) {
         console.error('SEO Alt Text Error:', error);
-        return json({ error: error.message || 'SEO alt text failed' }, 500);
+        return json({ error: error.message || 'SEO alt text failed' }, error?.status || 500);
     }
 };

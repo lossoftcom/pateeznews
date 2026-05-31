@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Login from '@/components/auth/Login';
 import type { SiteSettings, NavigationItem } from '@/types';
-import { useNeonSession } from '@/hooks/useNeonSession';
-import { neon } from '@/lib/neon';
+import { useSupabaseSession } from '@/hooks/useSupabaseSession';
+import { supabase } from '@/lib/supabase';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { navigate } from 'astro:transitions/client';
@@ -22,21 +22,16 @@ const GlobalNavigation: React.FC<GlobalNavigationProps> = ({
     navigationItems
 }) => {
     // 2026 LIGHT-SPEED SESSION
-    const { user, profile, loading } = useNeonSession();
+    const { user, profile, loading } = useSupabaseSession();
     const [isLoginOpen, setIsLoginOpen] = useState(false);
-    const canOpenAdmin = !!profile && !['member', 'user'].includes(String(profile.role || 'member').toLowerCase());
 
     const handleHomeClick = () => {
         void navigate('/');
     };
 
-    const handleAdminClick = () => {
-        void navigate('/admin');
-    };
-
     const handleLogout = async () => {
         document.cookie = "pateez_active_cat=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
-        await neon.auth.signOut();
+        await supabase.auth.signOut();
         await navigate('/');
     };
 
@@ -49,7 +44,6 @@ const GlobalNavigation: React.FC<GlobalNavigationProps> = ({
                         navItems={navigationItems}
                         onHomeClick={handleHomeClick}
                         onProfileClick={() => setIsLoginOpen(true)}
-                        onAdminClick={canOpenAdmin ? handleAdminClick : undefined}
                         onProfileViewClick={() => { void navigate('/profil'); }}
                         onEditProfileClick={() => { void navigate('/profil-duzenle'); }}
                         onLogout={handleLogout}

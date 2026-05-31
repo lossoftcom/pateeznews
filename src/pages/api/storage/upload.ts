@@ -6,9 +6,18 @@ import path from 'path';
 import ffmpegStaticPath from 'ffmpeg-static';
 import sharp from 'sharp';
 import { setStorageUploadProgress } from '../../../lib/server/storageUploadProgress';
-
-const STORAGE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profile'] as const;
-type StorageType = typeof STORAGE_TYPES[number];
+import {
+    MEDIA_BUCKET,
+    STORAGE_TYPES,
+    contentTypeForFilename,
+    getStorageType,
+    normalizeStoragePath,
+    relativeStorageId,
+    adminStorageClient,
+    storageObjectPath,
+    type StorageType,
+} from '@/lib/server/supabaseStorage';
+import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 
 const IMAGE_STORAGE_TYPES = new Set<StorageType>(['image', 'logo', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
@@ -24,56 +33,24 @@ const VIDEO_THUMB_QUALITY = 86;
 
 const ffmpegPath = process.env.FFMPEG_PATH || process.env.FFMPEG_BIN || ffmpegStaticPath || 'ffmpeg';
 
-const safeDecode = (value: string) => {
-    let decoded = value;
-    for (let i = 0; i < 3; i++) {
-        try {
-            const next = decodeURIComponent(decoded);
-            if (next === decoded) break;
-            decoded = next;
-        } catch {
-            break;
-        }
-    }
-    return decoded;
-};
-
-const normalizeRelativePath = (value: string) => {
-    return safeDecode(value)
-        .replace(/\\/g, '/')
-        .replace(/^\/+/, '')
-        .replace(/^Upload\//i, '');
-};
-
-const getStorageType = (value: unknown): StorageType => {
-    return typeof value === 'string' && STORAGE_TYPES.includes(value as StorageType)
-        ? value as StorageType
-        : 'image';
-};
-
-const isInside = (baseDir: string, targetPath: string) => {
-    const relative = path.relative(baseDir, targetPath);
-    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-};
-
 const sanitizeFilename = (filename: string) => {
     const normalized = filename.normalize('NFC').replace(/[^a-zA-Z0-9._-]/g, '_');
     return normalized || `upload-${Date.now()}`;
 };
 
 const withExtension = (filename: string, extension: string) => {
-    const parsed = path.parse(filename);
+    const parsed = path.posix.parse(filename);
     const base = parsed.name || 'image';
     return `${base}${extension}`;
 };
 
 const shouldOptimizeImage = (type: StorageType, file: File) => {
-    const ext = path.extname(file.name || '').toLowerCase();
+    const ext = path.posix.extname(file.name || '').toLowerCase();
     return IMAGE_STORAGE_TYPES.has(type) && (file.type.startsWith('image/') || IMAGE_EXTENSIONS.has(ext));
 };
 
 const shouldOptimizeVideo = (type: StorageType, file: File) => {
-    const ext = path.extname(file.name || '').toLowerCase();
+    const ext = path.posix.extname(file.name || '').toLowerCase();
     return type === 'video' && (file.type.startsWith('video/') || VIDEO_EXTENSIONS.has(ext));
 };
 
@@ -286,19 +263,33 @@ const createVideoThumbnailWebp = async (videoPath: string, thumbPath: string) =>
 
         fs.writeFileSync(thumbPath, thumbBuffer);
     } finally {
-        if (fs.existsSync(tempPng)) {
-            fs.unlinkSync(tempPng);
-        }
+        if (fs.existsSync(tempPng)) fs.unlinkSync(tempPng);
     }
 };
 
-const videoThumbPathFor = (videoPath: string) => {
-    const parsed = path.parse(videoPath);
-    return path.join(parsed.dir, `${parsed.name}_thumb.webp`);
+const videoThumbObjectPathFor = (objectPath: string) => {
+    const parsed = path.posix.parse(objectPath);
+    return `${parsed.dir ? `${parsed.dir}/` : ''}${parsed.name}_thumb.webp`;
 };
+
+async function uploadObject(
+    client: ReturnType<typeof adminStorageClient>,
+    objectPath: string,
+    buffer: Buffer,
+    contentType: string
+) {
+    const { error } = await client.storage.from(MEDIA_BUCKET).upload(objectPath, buffer, {
+        cacheControl: '31536000',
+        contentType,
+        upsert: true,
+    });
+    if (error) throw error;
+}
 
 export const POST: APIRoute = async ({ request }) => {
     let activeUploadId: string | null = null;
+    const tempFiles: string[] = [];
+
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
@@ -308,6 +299,8 @@ export const POST: APIRoute = async ({ request }) => {
         }
 
         const type = getStorageType(formData.get('type'));
+        await requireStorageAdminRequest(request, type);
+        const client = adminStorageClient();
         const uploadId = (formData.get('uploadId') as string | null)?.trim() || null;
         activeUploadId = uploadId;
         const replaceIdRaw = formData.get('replaceId') as string | null;
@@ -319,48 +312,36 @@ export const POST: APIRoute = async ({ request }) => {
             const today = new Date();
             customPath = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         }
-        customPath = normalizeRelativePath(customPath);
-
-        const uploadRootDir = path.resolve(process.cwd(), 'Upload');
-        const typeDir = path.resolve(uploadRootDir, type);
-        let targetDir = path.resolve(typeDir, customPath);
+        customPath = normalizeStoragePath(customPath);
 
         let customFilename = formData.get('customFilename') as string;
         let finalFilename = sanitizeFilename(file.name);
-        let oldPathToRemove: string | null = null;
+        let targetPrefix = customPath;
+        let oldObjectPathToRemove: string | null = null;
 
         if (replaceIdRaw) {
-            let replaceId = normalizeRelativePath(replaceIdRaw);
+            let replaceId = normalizeStoragePath(replaceIdRaw);
             const firstSegment = replaceId.split('/')[0];
             if (STORAGE_TYPES.includes(firstSegment as StorageType)) {
                 replaceId = replaceId.split('/').slice(1).join('/');
             }
 
-            if (!replaceId || replaceId.includes('\0')) {
-                return new Response('Invalid replacement file ID', { status: 400 });
-            }
+            if (!replaceId) return new Response('Invalid replacement file ID', { status: 400 });
 
-            const oldFullPath = path.resolve(typeDir, replaceId);
-            if (!isInside(typeDir, oldFullPath)) {
-                return new Response('Invalid replacement path', { status: 400 });
-            }
-
-            const parsed = path.parse(replaceId);
-            targetDir = path.resolve(typeDir, parsed.dir);
+            const parsed = path.posix.parse(replaceId);
+            targetPrefix = parsed.dir;
             finalFilename = optimizeAsVideo
                 ? withExtension(parsed.base, '.mp4')
                 : optimizeAsImage
-                ? withExtension(parsed.base, '.webp')
-                : sanitizeFilename(parsed.base);
-            oldPathToRemove = oldFullPath;
+                    ? withExtension(parsed.base, '.webp')
+                    : sanitizeFilename(parsed.base);
+            oldObjectPathToRemove = storageObjectPath(type, replaceId);
         } else if (customFilename) {
             customFilename = sanitizeFilename(customFilename);
-            if (optimizeAsVideo) {
-                finalFilename = customFilename;
-            } else if (optimizeAsImage) {
+            if (optimizeAsVideo || optimizeAsImage) {
                 finalFilename = customFilename;
             } else {
-                const ext = path.extname(file.name);
+                const ext = path.posix.extname(file.name);
                 finalFilename = customFilename.endsWith(ext) ? customFilename : `${customFilename}${ext}`;
             }
         } else {
@@ -373,18 +354,8 @@ export const POST: APIRoute = async ({ request }) => {
             finalFilename = withExtension(finalFilename, '.mp4');
         }
 
-        if (!isInside(typeDir, targetDir)) {
-            return new Response('Invalid upload path', { status: 400 });
-        }
-
-        if (!fs.existsSync(targetDir)) {
-            fs.mkdirSync(targetDir, { recursive: true });
-        }
-
-        const fullPath = path.resolve(targetDir, finalFilename);
-        if (!isInside(typeDir, fullPath)) {
-            return new Response('Invalid file path', { status: 400 });
-        }
+        const relativeId = [targetPrefix, finalFilename].filter(Boolean).join('/');
+        const objectPath = storageObjectPath(type, relativeId);
 
         const arrayBuffer = await file.arrayBuffer();
         const inputBuffer = Buffer.from(arrayBuffer);
@@ -399,55 +370,53 @@ export const POST: APIRoute = async ({ request }) => {
             });
             const tempInputPath = path.join(
                 os.tmpdir(),
-                `pateez-video-${Date.now()}-${Math.random().toString(16).slice(2)}${path.extname(file.name) || '.video'}`
+                `pateez-video-${Date.now()}-${Math.random().toString(16).slice(2)}${path.posix.extname(file.name) || '.video'}`
             );
+            const tempOutputPath = path.join(
+                os.tmpdir(),
+                `pateez-video-output-${Date.now()}-${Math.random().toString(16).slice(2)}.mp4`
+            );
+            const tempThumbPath = path.join(
+                os.tmpdir(),
+                `pateez-video-thumb-${Date.now()}-${Math.random().toString(16).slice(2)}.webp`
+            );
+            tempFiles.push(tempInputPath, tempOutputPath, tempThumbPath);
             fs.writeFileSync(tempInputPath, inputBuffer);
-            try {
-                await optimizeVideoToMp4(tempInputPath, fullPath, uploadId);
-                setStorageUploadProgress(uploadId, {
-                    phase: 'processing',
-                    progress: 0.99,
-                    etaSeconds: null,
-                });
-                const thumbPath = videoThumbPathFor(fullPath);
-                await createVideoThumbnailWebp(fullPath, thumbPath);
-                outputSize = fs.statSync(fullPath).size;
-                thumbRelativeId = path.relative(typeDir, thumbPath).split(path.sep).join('/');
-            } catch (err) {
-                const thumbPath = videoThumbPathFor(fullPath);
-                if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
-                    fs.unlinkSync(fullPath);
-                }
-                if (fs.existsSync(thumbPath) && fs.statSync(thumbPath).isFile()) {
-                    fs.unlinkSync(thumbPath);
-                }
-                throw err;
-            } finally {
-                if (fs.existsSync(tempInputPath)) {
-                    fs.unlinkSync(tempInputPath);
-                }
-            }
+
+            await optimizeVideoToMp4(tempInputPath, tempOutputPath, uploadId);
+            setStorageUploadProgress(uploadId, {
+                phase: 'processing',
+                progress: 0.99,
+                etaSeconds: null,
+            });
+            await createVideoThumbnailWebp(tempOutputPath, tempThumbPath);
+
+            const videoBuffer = fs.readFileSync(tempOutputPath);
+            const thumbBuffer = fs.readFileSync(tempThumbPath);
+            outputSize = videoBuffer.length;
+            const thumbObjectPath = videoThumbObjectPathFor(objectPath);
+            thumbRelativeId = relativeStorageId(type, thumbObjectPath);
+
+            await uploadObject(client, objectPath, videoBuffer, 'video/mp4');
+            await uploadObject(client, thumbObjectPath, thumbBuffer, 'image/webp');
         } else {
             const outputBuffer = optimizeAsImage
                 ? await optimizeImageToWebp(inputBuffer)
                 : inputBuffer;
-
-            fs.writeFileSync(fullPath, outputBuffer);
             outputSize = outputBuffer.length;
+            await uploadObject(
+                client,
+                objectPath,
+                outputBuffer,
+                optimizeAsImage ? 'image/webp' : file.type || contentTypeForFilename(finalFilename)
+            );
         }
 
-        if (oldPathToRemove && oldPathToRemove !== fullPath && fs.existsSync(oldPathToRemove) && fs.statSync(oldPathToRemove).isFile()) {
-            fs.unlinkSync(oldPathToRemove);
+        if (oldObjectPathToRemove && oldObjectPathToRemove !== objectPath) {
+            const paths = [oldObjectPathToRemove];
+            if (type === 'video') paths.push(videoThumbObjectPathFor(oldObjectPathToRemove));
+            await client.storage.from(MEDIA_BUCKET).remove(paths);
         }
-
-        if (oldPathToRemove && oldPathToRemove !== fullPath) {
-            const oldThumbPath = videoThumbPathFor(oldPathToRemove);
-            if (fs.existsSync(oldThumbPath) && fs.statSync(oldThumbPath).isFile()) {
-                fs.unlinkSync(oldThumbPath);
-            }
-        }
-
-        const relativeId = path.relative(typeDir, fullPath).split(path.sep).join('/');
 
         setStorageUploadProgress(uploadId, {
             phase: 'done',
@@ -477,6 +446,10 @@ export const POST: APIRoute = async ({ request }) => {
             etaSeconds: null,
             message: err.message || 'Server Error',
         });
-        return new Response(err.message || 'Server Error', { status: 500 });
+        return new Response(err.message || 'Server Error', { status: err?.status || 500 });
+    } finally {
+        for (const filePath of tempFiles) {
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        }
     }
 };

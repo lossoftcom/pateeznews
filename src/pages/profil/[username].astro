@@ -4,7 +4,7 @@ import PublicProfileApp from '@/components/PublicProfileApp';
 import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { resolveLangCode } from '@/utils/lang';
-import { neon } from '@/lib/neon';
+import { createAstroSupabaseClient } from '@/lib/server/supabaseSsr';
 
 export const prerender = false;
 
@@ -54,15 +54,16 @@ const initialLang = {
 };
 
 const selectProfileFields = 'id, username, slug, full_name, avatar_url, about_me, expertise, website, social_links, meta_title, meta_description, meta_keywords, canonical_url, role, created_at, updated_at';
+const supabase = createAstroSupabaseClient(Astro);
 
-let profileRes = await neon
+let profileRes = await supabase
   .from('profiles')
   .select(selectProfileFields)
   .eq('username', rawUsername)
   .maybeSingle();
 
 if (!profileRes.data) {
-  profileRes = await neon
+  profileRes = await supabase
     .from('profiles')
     .select(selectProfileFields)
     .eq('slug', rawUsername)

@@ -1,8 +1,15 @@
 
 import React, { useEffect, useState } from 'react';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import { type SiteSettings } from '@/types';
+
+const SITE_PUBLIC_COLUMNS = [
+    'language_code',
+    'site_name',
+    'logo_url',
+    'home_title',
+].join(',');
 
 const MainLoading: React.FC = () => {
     const { currentLang } = useLanguage();
@@ -22,9 +29,9 @@ const MainLoading: React.FC = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const { data, error } = await neon
+                const { data, error } = await supabase
                     .from('site_settings')
-                    .select('*')
+                    .select(SITE_PUBLIC_COLUMNS)
                     .eq('language_code', currentLang.code)
                     .maybeSingle();
 

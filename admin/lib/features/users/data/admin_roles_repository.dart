@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/users_models.dart';
@@ -41,11 +42,11 @@ abstract class AdminRolesRepository {
   });
 }
 
-class NeonAdminRolesRepository implements AdminRolesRepository {
-  const NeonAdminRolesRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminRolesRepository implements AdminRolesRepository {
+  const SupabaseAdminRolesRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -59,7 +60,7 @@ class NeonAdminRolesRepository implements AdminRolesRepository {
     required bool sortAscending,
   }) async {
     final responses = await Future.wait([
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'roles',
         'method': 'select',
         'select': 'id,name,label,description,color,created_at',
@@ -67,7 +68,7 @@ class NeonAdminRolesRepository implements AdminRolesRepository {
           {'column': 'created_at', 'ascending': true},
         ],
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'permissions',
         'method': 'select',
         'select': 'id,key,label,group_name,description',
@@ -76,12 +77,12 @@ class NeonAdminRolesRepository implements AdminRolesRepository {
           {'column': 'label', 'ascending': true},
         ],
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'role_permissions',
         'method': 'select',
         'select': 'role_id,permission_key',
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'profiles',
         'method': 'select',
         'select': 'role',
@@ -150,7 +151,7 @@ class NeonAdminRolesRepository implements AdminRolesRepository {
       return {'*'};
     }
 
-    final roleResult = await _postJson('/api/neon/query', {
+    final roleResult = await _postJson('/api/admin/query', {
       'table': 'roles',
       'method': 'select',
       'select': 'id',
@@ -170,7 +171,7 @@ class NeonAdminRolesRepository implements AdminRolesRepository {
     final roleId = roleData['id']?.toString() ?? '';
     if (roleId.isEmpty) return const {};
 
-    final permissionResult = await _postJson('/api/neon/query', {
+    final permissionResult = await _postJson('/api/admin/query', {
       'table': 'role_permissions',
       'method': 'select',
       'select': 'permission_key',
@@ -263,11 +264,7 @@ class NeonAdminRolesRepository implements AdminRolesRepository {
     Map<String, Object?> body, {
     String? token,
   }) async {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json; charset=UTF-8',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
+    final headers = await adminJsonHeaders(token: token);
 
     final response =
         await (httpClient?.post(
@@ -275,7 +272,11 @@ class NeonAdminRolesRepository implements AdminRolesRepository {
                   headers: headers,
                   body: jsonEncode(body),
                 ) ??
-                http.post(_uri(path), headers: headers, body: jsonEncode(body)))
+                adminHttpClient.post(
+                  _uri(path),
+                  headers: headers,
+                  body: jsonEncode(body),
+                ))
             .timeout(_requestTimeout);
 
     final decoded = response.body.isEmpty

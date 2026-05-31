@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { NavigationItem, SiteSettings } from '@/types';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
-import { useNeonSession } from '@/hooks/useNeonSession';
-import { neon } from '@/lib/neon';
+import { useSupabaseSession } from '@/hooks/useSupabaseSession';
+import { supabase } from '@/lib/supabase';
 import { navigate } from 'astro:transitions/client';
 // import Navbar from '@/components/Navbar'; // Removed - Global
 import Login from '@/components/auth/Login';
@@ -18,7 +18,7 @@ interface ProfileEditAppProps {
 }
 
 const ProfileEditApp: React.FC<ProfileEditAppProps> = ({ initialLang, initialTranslations, siteSettings, navigationItems }) => {
-  const { user, profile, loading } = useNeonSession();
+  const { user, profile, loading } = useSupabaseSession();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
@@ -27,10 +27,6 @@ const ProfileEditApp: React.FC<ProfileEditAppProps> = ({ initialLang, initialTra
 
   const goHome = useCallback(() => {
     void navigate('/');
-  }, []);
-
-  const goAdmin = useCallback(() => {
-    void navigate('/admin');
   }, []);
 
   const goProfile = useCallback(() => {
@@ -42,7 +38,7 @@ const ProfileEditApp: React.FC<ProfileEditAppProps> = ({ initialLang, initialTra
   }, []);
 
   const handleLogout = useCallback(async () => {
-    await neon.auth.signOut();
+    await supabase.auth.signOut();
     await navigate('/');
   }, []);
 

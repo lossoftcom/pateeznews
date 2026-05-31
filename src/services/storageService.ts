@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabase';
+
 export interface MediaItem {
     id: string;
     value: string;
@@ -44,6 +46,15 @@ export interface GenerateMediaAltTextResult {
 }
 
 export const storageService = {
+    async authHeaders(): Promise<Record<string, string>> {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+        } catch {
+            return {};
+        }
+    },
+
     async getFiles(type: 'image' | 'video' | 'audio' | 'file' | 'profile' = 'image'): Promise<MediaItem[]> {
         try {
             const response = await fetch(`/api/storage/list?type=${type}`);
@@ -83,6 +94,7 @@ export const storageService = {
             const response = await fetch('/api/storage/upload', {
                 method: 'POST',
                 body: formData,
+                headers: await this.authHeaders(),
                 signal: controller.signal
             }).finally(() => clearTimeout(timeoutId));
 
@@ -121,6 +133,7 @@ export const storageService = {
             const response = await fetch('/api/storage/upload', {
                 method: 'POST',
                 body: formData,
+                headers: await this.authHeaders(),
                 signal: controller.signal
             }).finally(() => clearTimeout(timeoutId));
 
@@ -152,6 +165,7 @@ export const storageService = {
             const response = await fetch('/api/storage/delete', {
                 method: 'DELETE',
                 headers: {
+                    ...(await this.authHeaders()),
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ id: fileId, type })
@@ -172,6 +186,7 @@ export const storageService = {
             const response = await fetch('/api/storage/seo-rename', {
                 method: 'POST',
                 headers: {
+                    ...(await this.authHeaders()),
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
@@ -194,6 +209,7 @@ export const storageService = {
             const response = await fetch('/api/storage/seo-alt-text', {
                 method: 'POST',
                 headers: {
+                    ...(await this.authHeaders()),
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)

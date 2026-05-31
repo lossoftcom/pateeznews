@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../../shared/widgets/admin_rich_text_editor.dart';
 import '../presentation/pages_models.dart';
@@ -28,11 +29,11 @@ abstract class AdminPagesRepository {
   Future<void> deletePage(String pageId);
 }
 
-class NeonAdminPagesRepository implements AdminPagesRepository {
-  const NeonAdminPagesRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminPagesRepository implements AdminPagesRepository {
+  const SupabaseAdminPagesRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
   static const _all = 'Tümü';
 
   final http.Client? httpClient;
@@ -41,7 +42,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
   @override
   Future<AdminPagesFilterOptions> fetchFilterOptions() async {
     final responses = await Future.wait([
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'languages',
         'method': 'select',
         'select': 'code,name,status',
@@ -50,7 +51,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
           {'column': 'name', 'ascending': true},
         ],
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'navigation_menus',
         'method': 'select',
         'select': 'id,code,name',
@@ -58,7 +59,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
           {'column': 'created_at', 'ascending': true},
         ],
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'navigation_items',
         'method': 'select',
         'select':
@@ -69,7 +70,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
           {'column': 'label', 'ascending': true},
         ],
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'pages',
         'method': 'select',
         'select': 'id,title,page_type,language_code',
@@ -141,7 +142,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'pages',
       'method': 'select',
       'select':
@@ -182,7 +183,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
     if (method == 'update') {
       body['filters'] = [_eqFilter('id', pageId)];
     }
-    final result = await _postJson('/api/neon/query', body);
+    final result = await _postJson('/api/admin/query', body);
     _throwIfApiError(result, fallbackMessage: 'Sayfa kaydedilemedi');
     final row = result['data'];
     if (row is Map) {
@@ -193,7 +194,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
 
   @override
   Future<void> toggleStatus(AdminPage page) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'pages',
       'method': 'update',
       'values': {
@@ -207,7 +208,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
 
   @override
   Future<void> deletePage(String pageId) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'pages',
       'method': 'delete',
       'filters': [_eqFilter('id', pageId)],
@@ -289,7 +290,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
       });
     }
 
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'select',
       'select': 'id,label,parent_id',
@@ -305,7 +306,7 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
         .toSet();
     if (parentIds.isEmpty) return const {};
 
-    final parentResult = await _postJson('/api/neon/query', {
+    final parentResult = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'select',
       'select': 'id,label',
@@ -475,16 +476,12 @@ class NeonAdminPagesRepository implements AdminPagesRepository {
     String path,
     Map<String, Object?> body,
   ) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final uri = _resolveUri(path);
       final response = await client
-          .post(
-            uri,
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
+          .post(uri, headers: await adminJsonHeaders(), body: jsonEncode(body))
           .timeout(_requestTimeout);
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) return decoded;

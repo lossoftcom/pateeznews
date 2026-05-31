@@ -18,7 +18,7 @@ class UsersScreen extends StatefulWidget {
   const UsersScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminUsersRepository(),
+    this.repository = const SupabaseAdminUsersRepository(),
   });
 
   final AdminSession session;

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 
@@ -272,9 +273,12 @@ abstract class AdminGeneralSettingsRepository {
   String publicUrl(String value);
 }
 
-class NeonAdminGeneralSettingsRepository
+class SupabaseAdminGeneralSettingsRepository
     implements AdminGeneralSettingsRepository {
-  const NeonAdminGeneralSettingsRepository({this.httpClient, this.apiBaseUrl});
+  const SupabaseAdminGeneralSettingsRepository({
+    this.httpClient,
+    this.apiBaseUrl,
+  });
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 18);
@@ -285,7 +289,7 @@ class NeonAdminGeneralSettingsRepository
   @override
   Future<GeneralSettingsData> fetchSettings(String languageCode) async {
     final normalizedCode = _cleanLanguageCode(languageCode);
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
       'method': 'select',
       'select': _settingsSelect,
@@ -313,7 +317,7 @@ class NeonAdminGeneralSettingsRepository
     final normalizedSettings = settings.copyWith(
       languageCode: _cleanLanguageCode(settings.languageCode),
     );
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
       'method': 'upsert',
       'values': normalizedSettings.toJson(),
@@ -342,6 +346,7 @@ class NeonAdminGeneralSettingsRepository
       request.headers['Origin'] =
           '${uploadUri.scheme}://${uploadUri.authority}';
     }
+    request.headers.addAll(await adminAuthHeaders());
     request.fields['type'] = 'logo';
     request.fields['lang'] = _cleanLanguageCode(languageCode);
     request.fields['customFilename'] = field.uploadFilename;
@@ -349,7 +354,9 @@ class NeonAdminGeneralSettingsRepository
       http.MultipartFile.fromBytes('file', bytes, filename: fileName),
     );
 
-    final streamedResponse = await (httpClient?.send(request) ?? request.send())
+    final uploadClient = httpClient ?? adminHttpClient;
+    final streamedResponse = await uploadClient
+        .send(request)
         .timeout(const Duration(seconds: 120));
     final response = await http.Response.fromStream(
       streamedResponse,
@@ -388,18 +395,12 @@ class NeonAdminGeneralSettingsRepository
     final response =
         await (httpClient?.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ) ??
-                http.post(
+                adminHttpClient.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ))
             .timeout(_requestTimeout);

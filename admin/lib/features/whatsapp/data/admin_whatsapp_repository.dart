@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/whatsapp_bulk_models.dart';
@@ -110,8 +111,8 @@ abstract class AdminWhatsappRepository {
   });
 }
 
-class NeonAdminWhatsappRepository implements AdminWhatsappRepository {
-  const NeonAdminWhatsappRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
+  const SupabaseAdminWhatsappRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 15);
@@ -674,8 +675,8 @@ class NeonAdminWhatsappRepository implements AdminWhatsappRepository {
     AdminSession session, [
     Map<String, String>? query,
   ]) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final response = await client
           .get(
@@ -700,8 +701,8 @@ class NeonAdminWhatsappRepository implements AdminWhatsappRepository {
     AdminSession session,
     Map<String, Object?> body,
   ) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final request = http.Request(method, _uri(path))
         ..headers.addAll({

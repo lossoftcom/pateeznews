@@ -12,7 +12,7 @@ import '../data/admin_module_settings_repository.dart';
 class DeathNoticeSettingsScreen extends StatefulWidget {
   const DeathNoticeSettingsScreen({
     super.key,
-    this.repository = const NeonAdminModuleSettingsRepository(),
+    this.repository = const SupabaseAdminModuleSettingsRepository(),
   });
 
   final AdminModuleSettingsRepository repository;

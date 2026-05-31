@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
 
@@ -115,7 +115,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const fetchSettings = async (languageCode: string) => {
-    const { data } = await neon
+    const { data } = await supabase
       .from('site_settings')
       .select('site_name, meta_description, canonical_url')
       .eq('language_code', languageCode)
@@ -132,7 +132,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const selfUrl = applyLangParam(new URL('/rss.xml', requestUrl.origin), lang, shouldUseLangParam, defaultLangCode).toString();
 
-  const { data: posts } = await neon
+  const { data: posts } = await supabase
     .from('posts')
     .select('id, slug, title, summary, seo_description, published_at, updated_at')
     .eq('status', 'published')

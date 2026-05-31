@@ -19,7 +19,7 @@ class CommentsScreen extends StatefulWidget {
   const CommentsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminCommentsRepository(),
+    this.repository = const SupabaseAdminCommentsRepository(),
   });
 
   final AdminSession session;

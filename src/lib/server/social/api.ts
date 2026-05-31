@@ -1,5 +1,5 @@
 import { getProfileRole, getSessionFromRequest, json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { ensureSocialSchema } from './schema';
 
 export async function readJsonBody(request: Request) {

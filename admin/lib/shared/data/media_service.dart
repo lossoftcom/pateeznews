@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 class MediaItem {
   const MediaItem({
@@ -67,7 +68,7 @@ class MediaService {
     final uri = _resolve(
       '/api/storage/list',
     ).replace(queryParameters: {'type': type});
-    final response = await _get(uri);
+    final response = await _get(uri, headers: await adminAuthHeaders());
     if (response.statusCode < 200 || response.statusCode >= 300) return [];
 
     final decoded = jsonDecode(response.body);
@@ -98,6 +99,7 @@ class MediaService {
     if (!kIsWeb) {
       request.headers['Origin'] = '${uri.scheme}://${uri.authority}';
     }
+    request.headers.addAll(await adminAuthHeaders());
     request.fields['type'] = type;
     _addMultipartField(request, 'uploadId', uploadId);
     _addMultipartField(request, 'customPath', customPath);
@@ -107,8 +109,8 @@ class MediaService {
       http.MultipartFile.fromBytes('file', bytes, filename: fileName),
     );
 
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     late final http.Response response;
     var stopPolling = false;
     Future<void>? pollProgress;
@@ -281,7 +283,7 @@ class MediaService {
     required ValueChanged<MediaTransferProgress>? onProgress,
   }) async {
     if (onProgress == null) return;
-    final client = http.Client();
+    final client = adminHttpClient;
     try {
       while (!shouldStop()) {
         await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -309,8 +311,6 @@ class MediaService {
       }
     } catch (_) {
       // Polling is a UI aid; the upload request response remains authoritative.
-    } finally {
-      client.close();
     }
   }
 
@@ -331,7 +331,7 @@ class MediaService {
       'DELETE',
       uri,
       body: jsonEncode(body),
-      headers: {'Content-Type': 'application/json'},
+      headers: await adminJsonHeaders(),
     );
     return response.statusCode >= 200 && response.statusCode < 300;
   }
@@ -370,11 +370,11 @@ class MediaService {
     return Uri.base.resolve(path);
   }
 
-  Future<http.Response> _get(Uri uri) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+  Future<http.Response> _get(Uri uri, {Map<String, String>? headers}) async {
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
-      return await client.get(uri).timeout(_timeout);
+      return await client.get(uri, headers: headers).timeout(_timeout);
     } finally {
       if (closeClient) client.close();
     }
@@ -386,8 +386,8 @@ class MediaService {
     String? body,
     Map<String, String>? headers,
   }) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final request = http.Request(method, uri);
       if (headers != null) request.headers.addAll(headers);

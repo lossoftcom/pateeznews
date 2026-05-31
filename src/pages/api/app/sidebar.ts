@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { ensureAppSchema, json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 
 const WEATHER_REFRESH_MS = 30 * 60 * 1000;
 const DEFAULT_WEATHER = {
@@ -46,17 +46,7 @@ const asFiniteNumber = (value: unknown, fallback: number) => {
 };
 
 const ensureSidebarCacheSchema = async () => {
-  await dbQuery(`
-    CREATE TABLE IF NOT EXISTS public.app_cache (
-      key text PRIMARY KEY,
-      payload jsonb NOT NULL,
-      expires_at timestamptz NOT NULL,
-      updated_at timestamptz DEFAULT now()
-    );
-
-    CREATE INDEX IF NOT EXISTS app_cache_expires_at_idx
-      ON public.app_cache (expires_at);
-  `);
+  await ensureAppSchema();
 };
 
 const getWeatherSettings = async (languageCode: string): Promise<WeatherSettings> => {
@@ -205,17 +195,21 @@ const readSidebarCache = async (key: string) => {
 };
 
 const writeSidebarCache = async (key: string, payload: any) => {
-  await ensureSidebarCacheSchema();
-  const expiresAt = new Date(Date.now() + WEATHER_REFRESH_MS).toISOString();
-  await dbQuery(
-    `INSERT INTO public.app_cache (key, payload, expires_at, updated_at)
-     VALUES ($1, $2::jsonb, $3, now())
-     ON CONFLICT (key) DO UPDATE SET
-       payload = EXCLUDED.payload,
-       expires_at = EXCLUDED.expires_at,
-       updated_at = now()`,
-    [key, JSON.stringify(payload), expiresAt]
-  );
+  try {
+    await ensureSidebarCacheSchema();
+    const expiresAt = new Date(Date.now() + WEATHER_REFRESH_MS).toISOString();
+    await dbQuery(
+      `INSERT INTO public.app_cache (key, payload, expires_at, updated_at)
+       VALUES ($1, $2::jsonb, $3, now())
+       ON CONFLICT (key) DO UPDATE SET
+         payload = EXCLUDED.payload,
+         expires_at = EXCLUDED.expires_at,
+         updated_at = now()`,
+      [key, JSON.stringify(payload), expiresAt]
+    );
+  } catch {
+    // Cache is an optimization; sidebar data must still render when the runtime role cannot write it.
+  }
 };
 
 const cacheMatchesSettings = (payload: any, settings: WeatherSettings) => {

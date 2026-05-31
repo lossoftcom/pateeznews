@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../../core/localization/admin_translations.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -50,18 +51,18 @@ abstract class AdminLanguagesRepository {
   });
 }
 
-class NeonAdminLanguagesRepository implements AdminLanguagesRepository {
-  const NeonAdminLanguagesRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminLanguagesRepository implements AdminLanguagesRepository {
+  const SupabaseAdminLanguagesRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
 
   @override
   Future<List<AdminLanguage>> fetchActiveLanguages() async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'languages',
       'method': 'select',
       'select': 'code,name,direction,status,flag_code,is_default',
@@ -89,7 +90,7 @@ class NeonAdminLanguagesRepository implements AdminLanguagesRepository {
     required String sortKey,
     required bool sortAscending,
   }) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'languages',
       'method': 'select',
       'select': 'code,name,direction,status,flag_code,is_default',
@@ -153,7 +154,7 @@ class NeonAdminLanguagesRepository implements AdminLanguagesRepository {
 
   @override
   Future<Map<String, String>> fetchTranslations(String code) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'language_translations',
       'method': 'select',
       'select': 'key,value',
@@ -298,11 +299,7 @@ class NeonAdminLanguagesRepository implements AdminLanguagesRepository {
     Map<String, Object?> body, {
     String? token,
   }) async {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json; charset=UTF-8',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
+    final headers = await adminJsonHeaders(token: token);
 
     final response =
         await (httpClient?.post(
@@ -310,7 +307,11 @@ class NeonAdminLanguagesRepository implements AdminLanguagesRepository {
                   headers: headers,
                   body: jsonEncode(body),
                 ) ??
-                http.post(_uri(path), headers: headers, body: jsonEncode(body)))
+                adminHttpClient.post(
+                  _uri(path),
+                  headers: headers,
+                  body: jsonEncode(body),
+                ))
             .timeout(_requestTimeout);
 
     final decoded = response.body.isEmpty

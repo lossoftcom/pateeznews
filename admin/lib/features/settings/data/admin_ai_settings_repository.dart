@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 
@@ -169,8 +170,8 @@ abstract class AdminAiSettingsRepository {
   Future<List<String>> fetchGeminiModels(String apiKey);
 }
 
-class NeonAdminAiSettingsRepository implements AdminAiSettingsRepository {
-  const NeonAdminAiSettingsRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminAiSettingsRepository implements AdminAiSettingsRepository {
+  const SupabaseAdminAiSettingsRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 18);
@@ -181,7 +182,7 @@ class NeonAdminAiSettingsRepository implements AdminAiSettingsRepository {
   @override
   Future<AdminAiSettingsData> fetchSettings(String languageCode) async {
     final normalizedCode = _cleanLanguageCode(languageCode);
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
       'method': 'select',
       'select':
@@ -210,7 +211,7 @@ class NeonAdminAiSettingsRepository implements AdminAiSettingsRepository {
     final normalizedSettings = settings.copyWith(
       languageCode: _cleanLanguageCode(settings.languageCode),
     );
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
       'method': 'upsert',
       'values': normalizedSettings.toJson(),
@@ -228,7 +229,7 @@ class NeonAdminAiSettingsRepository implements AdminAiSettingsRepository {
 
   @override
   Future<List<AdminAiPrompt>> fetchPrompts(String languageCode) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'ai_ready_formats',
       'method': 'select',
       'select': 'id,title,prompt,language_code,is_active,created_at,updated_at',
@@ -263,13 +264,13 @@ class NeonAdminAiSettingsRepository implements AdminAiSettingsRepository {
   }) async {
     final cleanId = id?.trim() ?? '';
     final result = cleanId.isEmpty
-        ? await _postJson('/api/neon/query', {
+        ? await _postJson('/api/admin/query', {
             'table': 'ai_ready_formats',
             'method': 'insert',
             'values': data.toJson(languageCode),
             'single': 'maybeSingle',
           })
-        : await _postJson('/api/neon/query', {
+        : await _postJson('/api/admin/query', {
             'table': 'ai_ready_formats',
             'method': 'update',
             'values': {
@@ -300,7 +301,7 @@ class NeonAdminAiSettingsRepository implements AdminAiSettingsRepository {
     required AdminSession session,
     required String id,
   }) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'ai_ready_formats',
       'method': 'delete',
       'filters': [
@@ -466,18 +467,12 @@ class NeonAdminAiSettingsRepository implements AdminAiSettingsRepository {
     final response =
         await (httpClient?.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ) ??
-                http.post(
+                adminHttpClient.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ))
             .timeout(_requestTimeout);

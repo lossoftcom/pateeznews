@@ -1,5 +1,5 @@
 import { getProfileRole, getSessionFromRequest, json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { ensureSmsSchema } from './schema';
 
 const PHONE_RE = /^\+?[0-9][0-9\s().-]{6,}$/;

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, MessageSquare, Share2, Calendar, Settings2, Sparkles, User as UserIcon, Mail, Link as LinkIcon, Globe, Users, FileText, Eye, Heart } from 'lucide-react';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import {  type NewsItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { accountAction } from '@/services/appActions';
@@ -93,12 +93,12 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
       try {
         setLoading(true);
         await accountAction('ensure-schema').catch(() => null);
-        const { data: { user: currentUser } } = await neon.auth.getUser();
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
 
         // Query building - Standardized and robust
         const profileSelect = 'id, full_name, username, expertise, about_me, avatar_url, social_links, created_at, role, email, show_email';
 
-        let profileQuery = neon
+        let profileQuery = supabase
           .from('profiles')
           .select(profileSelect);
 
@@ -119,16 +119,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
           }
 
           const [postsCountResult, followersResult, followingResult] = await Promise.all([
-            neon
+            supabase
               .from('posts')
               .select('id', { count: 'exact', head: true })
               .eq('publisher_id', profile.id)
               .eq('status', 'published'),
-            neon
+            supabase
               .from('publisher_follows')
               .select('id', { count: 'exact', head: true })
               .eq('publisher_id', profile.id),
-            neon
+            supabase
               .from('publisher_follows')
               .select('id', { count: 'exact', head: true })
               .eq('user_id', profile.id),
@@ -172,7 +172,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
           };
           setUserData(newData);
 
-          const { data: postsData, error: postsError } = await neon
+          const { data: postsData, error: postsError } = await supabase
             .from('posts')
             .select('*')
             .eq('publisher_id', profile.id)

@@ -4,7 +4,7 @@ import { CheckCircle2, Heart, Bookmark, Share2 } from 'lucide-react';
 import { NewsType, type NewsItem, type SiteSettings, type NavigationItem } from '@/types';
 import CommentSection from './CommentSection';
 import { useToast } from '@/context/ToastContext';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from '@/components/ui/Skeleton';
 import { navigate } from 'astro:transitions/client';
@@ -133,7 +133,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
 
       try {
         // 🚀 2026 Optimization: Use getSession() which is faster (reads from local storage)
-        const { data: { session } } = await neon.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user;
 
         if (user && isMounted) {

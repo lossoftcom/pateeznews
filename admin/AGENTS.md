@@ -125,7 +125,7 @@ Flutter dil sistemi:
 - Uygulama kodunda ve Dil Ayarları JSON import/export akışında çeviri anahtarları İngilizce olacaktır.
 - Eski Türkçe veya eski literal anahtarlar yalnızca `legacy_key_aliases.dart` üzerinden geriye dönük uyumluluk için normalize edilecektir; yeni geliştirmede buraya yeni anahtar eklemek yerine doğrudan İngilizce key kullanılacaktır.
 - Dil Ayarları ekranındaki çeviri düzenleme listesinde namespaced keyler önce gösterilecek, legacy literal keyler sadece uyumluluk için arkada kalacaktır.
-- Admin panelinden eklenen yeni runtime diller Neon `languages` ve `language_translations` kayıtlarıyla çalışacaktır; derlenmiş Flutter uygulaması çalışma anında Dart kaynak dosyası üretemez.
+- Admin panelinden eklenen yeni runtime diller Supabase `languages` ve `language_translations` kayıtlarıyla çalışacaktır; derlenmiş Flutter uygulaması çalışma anında Dart kaynak dosyası üretemez.
 - Kaynak kod fallback dili eklenecekse yeni `<code>.dart` çeviri dosyası oluşturulacak ve `admin_translations.dart` registry'sine aynı değişiklikte eklenecektir.
 - Dil sistemi değişikliğinden sonra `dart format`, `flutter analyze` ve `flutter test` çalıştırılmadan iş bitmiş sayılmayacaktır.
 

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { json } from '@/lib/server/appDb';
 import { readJsonBody, requireMailAccess, sqlSetClause } from '@/lib/server/mail/api';
 import { encryptSecret, hasSecret } from '@/lib/server/mail/secrets';

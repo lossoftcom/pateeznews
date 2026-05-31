@@ -21,7 +21,7 @@ class SmsContactListsScreen extends StatefulWidget {
   const SmsContactListsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminSmsRepository(),
+    this.repository = const SupabaseAdminSmsRepository(),
   });
 
   final AdminSession session;

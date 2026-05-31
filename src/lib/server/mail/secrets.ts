@@ -4,7 +4,11 @@ const SECRET_PREFIX = 'enc:v1:';
 
 function secretSource() {
   const env = import.meta.env as Record<string, string | undefined>;
-  return process.env.MAIL_SECRET_KEY || process.env.NEON_AUTH_SECRET || env.MAIL_SECRET_KEY || env.NEON_AUTH_SECRET || process.env.DATABASE_URL || env.DATABASE_URL || 'pateeznews-mail-dev-secret';
+  return (
+    process.env.MAIL_SECRET_KEY ||
+    env.MAIL_SECRET_KEY ||
+    'pateeznews-mail-dev-secret'
+  );
 }
 
 function key() {

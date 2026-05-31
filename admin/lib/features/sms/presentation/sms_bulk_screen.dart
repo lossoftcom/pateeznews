@@ -23,7 +23,7 @@ class SmsBulkScreen extends StatefulWidget {
   const SmsBulkScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminSmsRepository(),
+    this.repository = const SupabaseAdminSmsRepository(),
   });
 
   final AdminSession session;

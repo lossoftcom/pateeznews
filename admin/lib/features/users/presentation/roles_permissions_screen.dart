@@ -19,7 +19,7 @@ class RolesPermissionsScreen extends StatefulWidget {
   const RolesPermissionsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminRolesRepository(),
+    this.repository = const SupabaseAdminRolesRepository(),
   });
 
   static const double toolbarHeight = 38;

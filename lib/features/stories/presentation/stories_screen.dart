@@ -21,7 +21,7 @@ class StoriesScreen extends StatefulWidget {
   const StoriesScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminStoriesRepository(),
+    this.repository = const SupabaseAdminStoriesRepository(),
   });
 
   final AdminSession session;

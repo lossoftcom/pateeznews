@@ -19,7 +19,7 @@ import 'pages_models.dart';
 class PagesScreen extends StatefulWidget {
   const PagesScreen({
     super.key,
-    this.repository = const NeonAdminPagesRepository(),
+    this.repository = const SupabaseAdminPagesRepository(),
   });
 
   final AdminPagesRepository repository;

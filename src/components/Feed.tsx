@@ -11,7 +11,6 @@ interface FeedProps {
   title?: string;
   onNewsSelect?: (id: string) => void;
   onSourceClick?: (name: string) => void;
-  storiesData?: any[];
   siteSettings?: SiteSettings | null;
   navItems?: NavigationItem[];
   selectedCategory?: string;

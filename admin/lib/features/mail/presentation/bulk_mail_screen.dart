@@ -22,7 +22,7 @@ class BulkMailScreen extends StatefulWidget {
   const BulkMailScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminMailRepository(),
+    this.repository = const SupabaseAdminMailRepository(),
   });
 
   final AdminSession session;

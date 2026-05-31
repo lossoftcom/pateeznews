@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/localization/admin_language_controller.dart';
@@ -114,24 +114,24 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
     }
 
     try {
-      // Build the API URL the same way NeonAdminNewsRepository does
+      // Build the API URL the same way SupabaseAdminNewsRepository does
       const apiBase = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
       Uri uri;
       if (apiBase.isNotEmpty) {
-        uri = Uri.parse(apiBase).resolve('/api/neon/query');
+        uri = Uri.parse(apiBase).resolve('/api/admin/query');
       } else if (!kIsWeb) {
         final host = defaultTargetPlatform == TargetPlatform.android
             ? 'http://10.0.2.2:4321'
             : 'http://localhost:4321';
-        uri = Uri.parse(host).resolve('/api/neon/query');
+        uri = Uri.parse(host).resolve('/api/admin/query');
       } else {
-        uri = Uri.base.resolve('/api/neon/query');
+        uri = Uri.base.resolve('/api/admin/query');
       }
 
-      final response = await http.Client()
+      final response = await adminHttpClient
           .post(
             uri,
-            headers: const {'Content-Type': 'application/json'},
+            headers: await adminJsonHeaders(),
             body: jsonEncode({
               'table': 'posts',
               'method': 'select',

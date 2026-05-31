@@ -14,7 +14,7 @@ class WeatherSettingsScreen extends StatefulWidget {
   const WeatherSettingsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminModuleSettingsRepository(),
+    this.repository = const SupabaseAdminModuleSettingsRepository(),
   });
 
   final AdminSession session;

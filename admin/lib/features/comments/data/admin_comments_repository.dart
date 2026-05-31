@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/comments_models.dart';
@@ -40,11 +41,11 @@ abstract class AdminCommentsRepository {
   });
 }
 
-class NeonAdminCommentsRepository implements AdminCommentsRepository {
-  const NeonAdminCommentsRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
+  const SupabaseAdminCommentsRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
   static const _all = 'Tümü';
   static const _reported = 'Reported';
 
@@ -53,7 +54,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
 
   @override
   Future<AdminCommentMetricData> fetchMetrics() async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'kind': 'rpc',
       'name': 'get_admin_comment_stats',
     });
@@ -76,7 +77,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
   @override
   Future<AdminCommentFilterOptions> fetchFilterOptions() async {
     final responses = await Future.wait([
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'admin_comment_details',
         'method': 'select',
         'select': 'post_id,post_title',
@@ -84,7 +85,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
           {'column': 'post_title', 'ascending': true},
         ],
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'admin_comment_details',
         'method': 'select',
         'select': 'user_id,user_name,guest_name',
@@ -170,7 +171,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'admin_comment_details',
       'method': 'select',
       'select':
@@ -208,7 +209,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
     required String commentId,
     required bool pinned,
   }) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'comments',
       'method': 'update',
       'values': {'is_pinned': pinned},
@@ -219,7 +220,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
 
   @override
   Future<void> deleteComment(String commentId) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'comments',
       'method': 'delete',
       'filters': [_idFilter(commentId)],
@@ -231,7 +232,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
   Future<void> deleteComments(List<String> commentIds) async {
     final ids = commentIds.map(int.tryParse).whereType<int>().toList();
     if (ids.isEmpty) return;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'comments',
       'method': 'delete',
       'filters': [
@@ -249,7 +250,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
   }) async {
     final text = content.trim();
     if (text.isEmpty) return;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'comments',
       'method': 'insert',
       'values': {
@@ -264,7 +265,7 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
   }
 
   Future<void> _updateCommentStatus(String commentId, String status) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'comments',
       'method': 'update',
       'values': {'status': status},
@@ -306,18 +307,12 @@ class NeonAdminCommentsRepository implements AdminCommentsRepository {
     final response =
         await (httpClient?.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ) ??
-                http.post(
+                adminHttpClient.post(
                   _uri(path),
-                  headers: const {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json; charset=UTF-8',
-                  },
+                  headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ))
             .timeout(_requestTimeout);

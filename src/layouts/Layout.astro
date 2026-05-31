@@ -44,9 +44,8 @@ import GlobalNavigation from '@/components/GlobalNavigation';
 
 const pathname = Astro.url.pathname;
 const normalizedPathname = pathname.replace(/\/$/, '');
-const isAdminRoute = normalizedPathname.startsWith('/admin');
 const isPrivateRoute = normalizedPathname === '/profil' || normalizedPathname === '/profil-duzenle';
-const shouldNoIndex = isAdminRoute || isPrivateRoute;
+const shouldNoIndex = isPrivateRoute;
 
 const normalizeBase = (value: string) => String(value || '').trim().replace(/\/$/, '');
 const canonicalBase = normalizeBase(siteSettings?.canonical_url || '');
@@ -233,9 +232,6 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 
 		<link rel="preload" href="/fonts/inter-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
 		<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-		{isAdminRoute && (
-			<link rel="preload" href="/fonts/roboto-latin.woff2" as="font" type="font/woff2" crossorigin />
-		)}
 			<link rel="preload" href="/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
 
 			<style is:global>
@@ -327,19 +323,17 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 				: <script type="application/ld+json" set:html={safeJsonLd(jsonLd)}></script>
 		)}
 	</head>
-	<body class={isAdminRoute ? 'admin-route' : 'public-route'}>
+	<body class="public-route">
 		<!-- 🚀 PERSISTENT NAVIGATION (ZERO RELOAD) -->
-		{!isAdminRoute && (
-			<div transition:persist="global-nav" class="relative z-[999]">
-				<GlobalNavigation
-					client:load
-					initialLang={initialLang}
-					initialTranslations={initialTranslations}
-					siteSettings={siteSettings ?? null}
-					navigationItems={navigationItems}
-				/>
-			</div>
-		)}
+		<div transition:persist="global-nav" class="relative z-[999]">
+			<GlobalNavigation
+				client:load
+				initialLang={initialLang}
+				initialTranslations={initialTranslations}
+				siteSettings={siteSettings ?? null}
+				navigationItems={navigationItems}
+			/>
+		</div>
 		<slot />
 		{footerCustomCodes && <Fragment set:html={footerCustomCodes} />}
 	</body>

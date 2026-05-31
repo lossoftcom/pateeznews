@@ -17,7 +17,7 @@ import 'subscribers_models.dart';
 class SubscribersScreen extends StatefulWidget {
   const SubscribersScreen({
     super.key,
-    this.repository = const NeonAdminSubscribersRepository(),
+    this.repository = const SupabaseAdminSubscribersRepository(),
   });
 
   final AdminSubscribersRepository repository;

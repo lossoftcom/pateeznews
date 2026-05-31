@@ -21,7 +21,7 @@ class SmsTemplatesScreen extends StatefulWidget {
   const SmsTemplatesScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminSmsRepository(),
+    this.repository = const SupabaseAdminSmsRepository(),
   });
 
   final AdminSession session;

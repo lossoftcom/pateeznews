@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { X, ArrowRight, Loader2, AlertCircle, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { accountAction } from '@/services/appActions';
@@ -57,11 +57,11 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose }) => {
     setError(null);
     try {
       if (isSignUp) {
-        const { data, error } = await neon.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (data.user) onSuccess();
       } else {
-        const { data, error } = await neon.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (data.user) onSuccess();
       }

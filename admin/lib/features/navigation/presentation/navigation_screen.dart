@@ -15,7 +15,7 @@ import 'navigation_models.dart';
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({
     super.key,
-    this.repository = const NeonAdminNavigationRepository(),
+    this.repository = const SupabaseAdminNavigationRepository(),
   });
 
   final AdminNavigationRepository repository;

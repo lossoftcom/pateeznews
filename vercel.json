@@ -1,4 +1,30 @@
 {
     "cleanUrls": true,
-    "framework": "astro"
+    "framework": "astro",
+    "headers": [
+        {
+            "source": "/api/storage/(.*)",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
+                { "key": "CDN-Cache-Control", "value": "no-store" },
+                { "key": "Cloudflare-CDN-Cache-Control", "value": "no-store" }
+            ]
+        },
+        {
+            "source": "/api/(.*)",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
+                { "key": "CDN-Cache-Control", "value": "no-store" },
+                { "key": "Cloudflare-CDN-Cache-Control", "value": "no-store" }
+            ]
+        },
+        {
+            "source": "/admin/(.*)",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
+                { "key": "CDN-Cache-Control", "value": "no-store" },
+                { "key": "Cloudflare-CDN-Cache-Control", "value": "no-store" }
+            ]
+        }
+    ]
 }

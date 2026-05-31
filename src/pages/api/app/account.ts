@@ -1,21 +1,39 @@
 import type { APIRoute } from 'astro';
 import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
 import { ensureAppSchema, getProfileRole, getSessionFromRequest, json, withTransaction } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
+import {
+  adminCreateAuthUser,
+  adminDeleteAuthUser,
+  adminUpdateAuthUser,
+  signInWithPassword,
+  updateUser,
+} from '@/lib/server/supabaseAuth';
 
-async function verifyPassword(userId: string, password: string) {
-  const result = await dbQuery<{ encrypted_password: string | null }>(
-    'SELECT encrypted_password FROM auth.users WHERE id = $1 AND deleted_at IS NULL LIMIT 1',
+async function emailForUser(userId: string) {
+  const result = await dbQuery<{ email: string | null }>(
+    'SELECT email FROM public.profiles WHERE id = $1::uuid LIMIT 1',
     [userId]
   );
-  const hash = result.rows[0]?.encrypted_password;
-  return hash ? bcrypt.compare(password, hash) : false;
+  return result.rows[0]?.email || null;
 }
 
-async function setPassword(userId: string, password: string) {
-  const hash = await bcrypt.hash(password, 10);
-  await dbQuery('UPDATE auth.users SET encrypted_password = $1, updated_at = now() WHERE id = $2', [hash, userId]);
+async function verifyPassword(userId: string, password: string, emailHint?: string | null) {
+  const email = cleanEmail(emailHint || await emailForUser(userId));
+  if (!email || !password) return false;
+  const result = await signInWithPassword(email, password);
+  return !result.error && Boolean(result.data.session?.access_token);
+}
+
+function authUserMetadata(payload: ReturnType<typeof userPayload>) {
+  if ('error' in payload) return {};
+  return {
+    full_name: payload.fullName,
+    username: payload.username,
+    email: payload.email,
+    role: payload.role,
+    status: payload.status,
+  };
 }
 
 async function requireAdmin(userId: string) {
@@ -231,20 +249,23 @@ export const POST: APIRoute = async ({ request }) => {
       const currentPassword = String(body.currentPassword || '');
       const newPassword = String(body.newPassword || '');
       if (newPassword.length < 6) return json({ error: { message: 'Password is too short' } }, 400);
-      if (!(await verifyPassword(userId, currentPassword))) {
+      if (!(await verifyPassword(userId, currentPassword, session.user.email))) {
         return json({ error: { message: 'Current password is invalid' } }, 400);
       }
-      await setPassword(userId, newPassword);
+      const result = await updateUser(session.access_token, { password: newPassword });
+      if (result.error) return json({ error: result.error }, 400);
       return json({ ok: true });
     }
 
     if (action === 'delete-self') {
       const currentPassword = String(body.currentPassword || '');
-      if (!(await verifyPassword(userId, currentPassword))) {
+      if (!(await verifyPassword(userId, currentPassword, session.user.email))) {
         return json({ error: { message: 'Current password is invalid' } }, 400);
       }
-      await dbQuery('DELETE FROM public.profiles WHERE id = $1', [userId]);
-      await dbQuery('DELETE FROM auth.users WHERE id = $1', [userId]);
+      await withTransaction(async (client) => {
+        await client.query('DELETE FROM public.profiles WHERE id = $1::uuid', [userId]);
+        await adminDeleteAuthUser(userId);
+      });
       return json({ ok: true });
     }
 
@@ -253,7 +274,7 @@ export const POST: APIRoute = async ({ request }) => {
       const targetUserId = String(body.userId || '');
       const newPassword = String(body.newPassword || '');
       if (!targetUserId || newPassword.length < 6) return json({ error: { message: 'Invalid user or password' } }, 400);
-      await setPassword(targetUserId, newPassword);
+      await adminUpdateAuthUser(targetUserId, { password: newPassword });
       return json({ ok: true });
     }
 
@@ -262,27 +283,20 @@ export const POST: APIRoute = async ({ request }) => {
       const payload = userPayload(body, true);
       if ('error' in payload) return json({ error: { message: payload.error } }, 400);
 
+      let createdAuthUserId: string | null = null;
       const profile = await withTransaction(async (client) => {
         await ensureUniqueUserFields(client, {
           email: payload.email,
           username: payload.username,
         });
-        const hash = await bcrypt.hash(payload.password, 10);
-        const authResult = await client.query(
-          `INSERT INTO auth.users (
-             id, aud, role, email, encrypted_password, email_confirmed_at,
-             raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-           )
-           VALUES (
-             gen_random_uuid(), 'authenticated', 'authenticated', $1::text, $2, now(),
-             '{"provider":"email","providers":["email"]}'::jsonb,
-             jsonb_build_object('full_name', $3::text, 'username', $4::text, 'email', $1::text, 'role', $5::text, 'status', $6::text),
-             now(), now()
-           )
-           RETURNING id`,
-          [payload.email, hash, payload.fullName, payload.username, payload.role, payload.status]
-        );
-        const targetUserId = authResult.rows[0].id;
+        const authUser = await adminCreateAuthUser({
+          email: payload.email,
+          password: payload.password,
+          userMetadata: authUserMetadata(payload),
+          appMetadata: { provider: 'email', providers: ['email'] },
+        });
+        const targetUserId = authUser.id;
+        createdAuthUserId = targetUserId;
         await client.query(
           `INSERT INTO public.profiles (
              id, full_name, username, email, role, status, reward_system, updated_at
@@ -307,6 +321,11 @@ export const POST: APIRoute = async ({ request }) => {
           ]
         );
         return profileForClient(client, targetUserId);
+      }).catch(async (error) => {
+        if (createdAuthUserId) {
+          await adminDeleteAuthUser(createdAuthUserId).catch(() => undefined);
+        }
+        throw error;
       });
 
       return json({ ok: true, profile });
@@ -325,24 +344,6 @@ export const POST: APIRoute = async ({ request }) => {
           email: payload.email,
           username: payload.username,
         });
-
-        if (payload.password) {
-          const hash = await bcrypt.hash(payload.password, 10);
-          await client.query(
-            'UPDATE auth.users SET encrypted_password = $1, updated_at = now() WHERE id = $2::uuid',
-            [hash, targetUserId]
-          );
-        }
-
-        await client.query(
-          `UPDATE auth.users
-           SET email = $1::text,
-               raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
-                 || jsonb_build_object('full_name', $2::text, 'username', $3::text, 'email', $1::text, 'role', $4::text, 'status', $5::text),
-               updated_at = now()
-           WHERE id = $6::uuid`,
-          [payload.email, payload.fullName, payload.username, payload.role, payload.status, targetUserId]
-        );
 
         const updateResult = await client.query(
           `UPDATE public.profiles
@@ -366,6 +367,11 @@ export const POST: APIRoute = async ({ request }) => {
           ]
         );
         if (!updateResult.rows[0]) throw new Error('Kullanıcı bulunamadı');
+        await adminUpdateAuthUser(targetUserId, {
+          email: payload.email,
+          password: payload.password || undefined,
+          userMetadata: authUserMetadata(payload),
+        });
         return profileForClient(client, targetUserId);
       });
 
@@ -378,7 +384,7 @@ export const POST: APIRoute = async ({ request }) => {
       if (!targetUserId) return json({ error: { message: 'User missing' } }, 400);
       await withTransaction(async (client) => {
         await client.query('DELETE FROM public.profiles WHERE id = $1::uuid', [targetUserId]);
-        await client.query('DELETE FROM auth.users WHERE id = $1::uuid', [targetUserId]);
+        await adminDeleteAuthUser(targetUserId);
       });
       return json({ ok: true });
     }
@@ -391,7 +397,9 @@ export const POST: APIRoute = async ({ request }) => {
       if (!userIds.length) return json({ error: { message: 'Users missing' } }, 400);
       await withTransaction(async (client) => {
         await client.query('DELETE FROM public.profiles WHERE id = ANY($1::uuid[])', [userIds]);
-        await client.query('DELETE FROM auth.users WHERE id = ANY($1::uuid[])', [userIds]);
+        for (const targetUserId of userIds) {
+          await adminDeleteAuthUser(targetUserId);
+        }
       });
       return json({ ok: true, deletedIds: userIds });
     }

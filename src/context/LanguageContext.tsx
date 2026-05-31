@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { loadLocaleData } from '@/lib/locales';
 
 interface Language {
@@ -136,9 +136,9 @@ export const LanguageProvider: React.FC<{
         if (isMounted) setLoading(false);
       }
 
-      // Arka planda Neon'den güncel dil listesini al (Bloke etme)
+      // Arka planda Supabase'den güncel dil listesini al (Bloke etme)
       try {
-        const { data: dbLangs } = await neon
+        const { data: dbLangs } = await supabase
           .from('languages')
           .select('*')
           .eq('status', 'active');

@@ -1,101 +1,63 @@
-import type { APIRoute } from "astro";
-import fs from "fs";
-import path from "path";
+import type { APIRoute } from 'astro';
+import path from 'path';
+import { dbQuery } from '@/lib/server/supabaseDb';
+import { getStorageType, publicStorageUrl, relativeStorageId } from '@/lib/server/supabaseStorage';
+import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 
 export const GET: APIRoute = async ({ request }) => {
   try {
     const url = new URL(request.url);
-    const type = url.searchParams.get("type") || "image";
+    const type = getStorageType(url.searchParams.get('type'));
+    await requireStorageAdminRequest(request, type);
+    const prefix = `${type}/`;
 
-    const uploadRootDir = path.resolve(process.cwd(), "Upload");
-    const typeDir = path.join(uploadRootDir, type);
+    const result = await dbQuery<{
+      name: string;
+      metadata: Record<string, any> | null;
+      updated_at: Date | string | null;
+      created_at: Date | string | null;
+    }>(
+      `SELECT name, metadata, updated_at, created_at
+       FROM storage.objects
+       WHERE bucket_id = 'media'
+         AND name LIKE $1
+       ORDER BY COALESCE(updated_at, created_at) DESC
+       LIMIT 1000`,
+      [`${prefix}%`]
+    );
 
-    if (!fs.existsSync(typeDir)) {
-      return new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+    const files = result.rows
+      .filter((row) => !(type === 'video' && row.name.endsWith('_thumb.webp')))
+      .map((row) => {
+        const relativeId = relativeStorageId(type, row.name);
+        const parsed = path.posix.parse(relativeId);
+        const thumbRelativeId = type === 'video'
+          ? `${parsed.dir ? `${parsed.dir}/` : ''}${parsed.name}_thumb.webp`
+          : relativeId;
+        const date = new Date(row.updated_at || row.created_at || Date.now()).getTime();
+
+        return {
+          id: relativeId,
+          value: parsed.base,
+          size: Number(row.metadata?.size || 0),
+          date: Math.floor(date / 1000),
+          type,
+          src: `/api/storage/file/${type}/${relativeId}`,
+          thumb: `/api/storage/file/${type}/${thumbRelativeId}`,
+          publicSrc: publicStorageUrl(row.name),
+          path: parsed.dir,
+        };
       });
-    }
-
-    const files: any[] = [];
-    const videoExtensions = new Set([
-      ".mp4",
-      ".webm",
-      ".mov",
-      ".avi",
-      ".m4v",
-      ".mkv",
-    ]);
-    const audioExtensions = new Set([
-      ".mp3",
-      ".wav",
-      ".ogg",
-      ".oga",
-      ".m4a",
-      ".aac",
-    ]);
-
-    function traverse(dir: string, relativeParent: string) {
-      if (!fs.existsSync(dir)) return;
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          traverse(
-            path.join(dir, entry.name),
-            relativeParent ? `${relativeParent}/${entry.name}` : entry.name,
-          );
-        } else {
-          const fullPath = path.join(dir, entry.name);
-          const ext = path.extname(entry.name).toLowerCase();
-          const isVideoThumb =
-            type === "video" && entry.name.endsWith("_thumb.webp");
-          if (isVideoThumb) continue;
-          if (type === "video" && !videoExtensions.has(ext)) continue;
-          if (type === "audio" && !audioExtensions.has(ext)) continue;
-
-          const stats = fs.statSync(fullPath);
-          const relativeId = relativeParent
-            ? `${relativeParent}/${entry.name}`
-            : entry.name;
-          const parsed = path.parse(entry.name);
-          const thumbRelativeId =
-            type === "video"
-              ? relativeParent
-                ? `${relativeParent}/${parsed.name}_thumb.webp`
-                : `${parsed.name}_thumb.webp`
-              : relativeId;
-          const thumbFullPath =
-            type === "video"
-              ? path.join(dir, `${parsed.name}_thumb.webp`)
-              : fullPath;
-
-          files.push({
-            id: relativeId,
-            value: entry.name,
-            size: stats.size,
-            date: Math.floor(stats.mtimeMs / 1000),
-            type: type,
-            src: `/api/storage/file/${type}/${relativeId}`,
-            thumb: `/api/storage/file/${type}/${fs.existsSync(thumbFullPath) ? thumbRelativeId : relativeId}`,
-            path: relativeParent,
-          });
-        }
-      }
-    }
-
-    traverse(typeDir, "");
-
-    files.sort((a, b) => b.date - a.date);
 
     return new Response(JSON.stringify(files), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
-    console.error("Storage List Error:", err);
+    console.error('Storage List Error:', err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+      status: err?.status || 500,
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 };

@@ -1,4 +1,4 @@
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { decryptSecret, hasSecret } from '@/lib/server/mail/secrets';
 import { getTeam } from './bundle';
 

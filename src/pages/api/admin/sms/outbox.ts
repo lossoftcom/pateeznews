@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { normalizePhone, readJsonBody, requireSmsAccess } from '@/lib/server/sms/api';
 import { sendSmsTextWithAccount } from '@/lib/server/sms/providers';
 

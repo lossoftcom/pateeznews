@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../presentation/subscribers_models.dart';
 
@@ -27,11 +28,11 @@ abstract class AdminSubscribersRepository {
   Future<void> deleteSubscribers(List<String> subscriberIds);
 }
 
-class NeonAdminSubscribersRepository implements AdminSubscribersRepository {
-  const NeonAdminSubscribersRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminSubscribersRepository implements AdminSubscribersRepository {
+  const SupabaseAdminSubscribersRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -58,7 +59,7 @@ class NeonAdminSubscribersRepository implements AdminSubscribersRepository {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'newsletter_subscribers',
       'method': 'select',
       'select':
@@ -87,7 +88,7 @@ class NeonAdminSubscribersRepository implements AdminSubscribersRepository {
     final subscriberId = id?.trim();
     final isUpdate = subscriberId != null && subscriberId.isNotEmpty;
     final payload = _payload(data, includeCreateFields: !isUpdate);
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'newsletter_subscribers',
       'method': isUpdate ? 'update' : 'insert',
       'values': payload,
@@ -105,7 +106,7 @@ class NeonAdminSubscribersRepository implements AdminSubscribersRepository {
 
   @override
   Future<void> toggleStatus(AdminSubscriber subscriber) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'newsletter_subscribers',
       'method': 'update',
       'values': {
@@ -119,7 +120,7 @@ class NeonAdminSubscribersRepository implements AdminSubscribersRepository {
 
   @override
   Future<void> deleteSubscriber(String subscriberId) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'newsletter_subscribers',
       'method': 'delete',
       'filters': [_idFilter(subscriberId)],
@@ -130,7 +131,7 @@ class NeonAdminSubscribersRepository implements AdminSubscribersRepository {
   @override
   Future<void> deleteSubscribers(List<String> subscriberIds) async {
     if (subscriberIds.isEmpty) return;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'newsletter_subscribers',
       'method': 'delete',
       'filters': [
@@ -197,16 +198,12 @@ class NeonAdminSubscribersRepository implements AdminSubscribersRepository {
     String path,
     Map<String, Object?> body,
   ) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final uri = _resolveUri(path);
       final response = await client
-          .post(
-            uri,
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
+          .post(uri, headers: await adminJsonHeaders(), body: jsonEncode(body))
           .timeout(_requestTimeout);
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) return decoded;

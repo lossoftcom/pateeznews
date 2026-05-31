@@ -21,7 +21,7 @@ class WhatsappContactListsScreen extends StatefulWidget {
   const WhatsappContactListsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminWhatsappRepository(),
+    this.repository = const SupabaseAdminWhatsappRepository(),
   });
 
   final AdminSession session;

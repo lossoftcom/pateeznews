@@ -14,7 +14,7 @@ class AiSettingsScreen extends StatefulWidget {
   const AiSettingsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminAiSettingsRepository(),
+    this.repository = const SupabaseAdminAiSettingsRepository(),
   });
 
   final AdminSession session;

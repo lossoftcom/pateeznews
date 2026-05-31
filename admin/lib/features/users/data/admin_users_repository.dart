@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/users_models.dart';
@@ -45,11 +46,11 @@ abstract class AdminUsersRepository {
   });
 }
 
-class NeonAdminUsersRepository implements AdminUsersRepository {
-  const NeonAdminUsersRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminUsersRepository implements AdminUsersRepository {
+  const SupabaseAdminUsersRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
   static const _all = 'Tümü';
   static const _fallbackRoles = [
     AdminUserRole(id: 'admin', name: 'admin', label: 'Süper Yönetici'),
@@ -63,7 +64,7 @@ class NeonAdminUsersRepository implements AdminUsersRepository {
 
   @override
   Future<List<AdminUserRole>> fetchRoles() async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'roles',
       'method': 'select',
       'select': 'id,name,label',
@@ -192,7 +193,7 @@ class NeonAdminUsersRepository implements AdminUsersRepository {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'profiles',
       'method': 'select',
       'select':
@@ -251,7 +252,7 @@ class NeonAdminUsersRepository implements AdminUsersRepository {
   }
 
   Future<int> _countProfiles(List<Map<String, Object?>> filters) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'profiles',
       'method': 'select',
       'select': 'id',
@@ -281,11 +282,7 @@ class NeonAdminUsersRepository implements AdminUsersRepository {
     Map<String, Object?> body, {
     String? token,
   }) async {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json; charset=UTF-8',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
+    final headers = await adminJsonHeaders(token: token);
 
     final response =
         await (httpClient?.post(
@@ -293,7 +290,11 @@ class NeonAdminUsersRepository implements AdminUsersRepository {
                   headers: headers,
                   body: jsonEncode(body),
                 ) ??
-                http.post(_uri(path), headers: headers, body: jsonEncode(body)))
+                adminHttpClient.post(
+                  _uri(path),
+                  headers: headers,
+                  body: jsonEncode(body),
+                ))
             .timeout(_requestTimeout);
 
     final decoded = response.body.isEmpty

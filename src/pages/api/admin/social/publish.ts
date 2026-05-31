@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { createPost, createUploadFromUrl } from '@/lib/server/social/bundle';
 import { readJsonBody, requireSocialAccess } from '@/lib/server/social/api';
 import { getSocialAccountById, resolveBundleApiKey } from '@/lib/server/social/store';

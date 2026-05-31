@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { slugify } from '@/utils/helpers';
 import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
@@ -142,18 +142,18 @@ export const GET: APIRoute = async ({ request }) => {
     : baseUrl;
 
   const [postsRes, navRes, profilesRes] = await Promise.all([
-    neon
+    supabase
       .from('posts')
       .select('slug, updated_at, published_at')
       .eq('status', 'published')
       .eq('language_code', lang)
       .not('slug', 'is', null),
-    neon
+    supabase
       .from('navigation_items')
       .select('label, value, is_active, created_at')
       .eq('language_code', lang)
       .eq('is_active', true),
-    neon
+    supabase
       .from('profiles')
       .select('username, created_at, updated_at, role')
       .eq('role', 'publisher')

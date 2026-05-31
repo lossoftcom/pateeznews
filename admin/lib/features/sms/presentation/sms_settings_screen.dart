@@ -20,7 +20,7 @@ class SmsSettingsScreen extends StatefulWidget {
   const SmsSettingsScreen({
     super.key,
     required this.session,
-    this.repository = const NeonAdminSmsRepository(),
+    this.repository = const SupabaseAdminSmsRepository(),
   });
 
   final AdminSession session;

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { encryptSecret, hasSecret } from '@/lib/server/mail/secrets';
 import { readJsonBody, requireWhatsappAccess, sqlSetClause } from '@/lib/server/whatsapp/api';
 

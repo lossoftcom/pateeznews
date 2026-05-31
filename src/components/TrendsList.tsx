@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import {
     ArrowLeft, Search, Flame, Eye, Heart, Share2, TrendingUp, Zap
@@ -47,7 +47,7 @@ const TrendsList: React.FC<TrendsListProps> = ({ onBack, onTrendSelect }) => {
             try {
                 setLoading(true);
                 // 1. Fetch Trends from Nav Items
-                const { data: navData, error: navError } = await neon
+                const { data: navData, error: navError } = await supabase
                     .from('navigation_items')
                     .select('*')
                     .eq('type', 'trends')
@@ -58,7 +58,7 @@ const TrendsList: React.FC<TrendsListProps> = ({ onBack, onTrendSelect }) => {
                 if (navError) throw navError;
 
                 // 2. Fetch Post Metrics
-                const { data: postMetrics, error: metricsError } = await neon
+                const { data: postMetrics, error: metricsError } = await supabase
                     .from('posts')
                     .select('category, likes_count, comments_count, shares_count')
                     .eq('status', 'published')

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
 import '../presentation/navigation_models.dart';
 
@@ -33,11 +34,11 @@ abstract class AdminNavigationRepository {
   Future<void> deleteItems(List<String> itemIds);
 }
 
-class NeonAdminNavigationRepository implements AdminNavigationRepository {
-  const NeonAdminNavigationRepository({this.httpClient, this.apiBaseUrl});
+class SupabaseAdminNavigationRepository implements AdminNavigationRepository {
+  const SupabaseAdminNavigationRepository({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _requestTimeout = Duration(seconds: 12);
+  static const _requestTimeout = Duration(seconds: 8);
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -45,7 +46,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
   @override
   Future<AdminNavigationInitialData> fetchInitialData() async {
     final responses = await Future.wait([
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'navigation_menus',
         'method': 'select',
         'select': 'id,code,name,description,created_at',
@@ -53,7 +54,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
           {'column': 'created_at', 'ascending': true},
         ],
       }),
-      _postJson('/api/neon/query', {
+      _postJson('/api/admin/query', {
         'table': 'languages',
         'method': 'select',
         'select': 'code,name',
@@ -76,7 +77,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
 
   @override
   Future<List<AdminNavigationItem>> fetchItems(String menuId) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'select',
       'select':
@@ -99,7 +100,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
 
   @override
   Future<AdminNavigationMenu> createDefaultMenu() async {
-    final menuResult = await _postJson('/api/neon/query', {
+    final menuResult = await _postJson('/api/admin/query', {
       'table': 'navigation_menus',
       'method': 'insert',
       'values': {
@@ -236,7 +237,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
   }
 
   Future<AdminNavigationMenu?> _findMenuByCode(String code) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_menus',
       'method': 'select',
       'select': 'id,code,name,description,created_at',
@@ -252,7 +253,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
   }
 
   Future<AdminNavigationMenu> _createDefaultTopNavbarMenu() async {
-    final menuResult = await _postJson('/api/neon/query', {
+    final menuResult = await _postJson('/api/admin/query', {
       'table': 'navigation_menus',
       'method': 'insert',
       'values': {
@@ -318,7 +319,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
     required NavigationItemFormData data,
     required int orderIndex,
   }) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'insert',
       'values': _payload(menuId: menuId, data: data, orderIndex: orderIndex),
@@ -333,7 +334,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
     required int orderIndex,
     required NavigationItemFormData data,
   }) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'update',
       'values': _payload(menuId: menuId, data: data, orderIndex: orderIndex),
@@ -348,7 +349,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
   @override
   Future<void> reorderItems(List<AdminNavigationItem> items) async {
     for (var index = 0; index < items.length; index++) {
-      final result = await _postJson('/api/neon/query', {
+      final result = await _postJson('/api/admin/query', {
         'table': 'navigation_items',
         'method': 'update',
         'values': {'order_index': index},
@@ -361,7 +362,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
   @override
   Future<void> deleteItems(List<String> itemIds) async {
     if (itemIds.isEmpty) return;
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'delete',
       'filters': [
@@ -372,7 +373,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
   }
 
   Future<AdminNavigationItem> _insertItem(Map<String, Object?> values) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'insert',
       'values': values,
@@ -383,7 +384,7 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
   }
 
   Future<void> _insertItems(List<Map<String, Object?>> values) async {
-    final result = await _postJson('/api/neon/query', {
+    final result = await _postJson('/api/admin/query', {
       'table': 'navigation_items',
       'method': 'insert',
       'values': values,
@@ -439,16 +440,12 @@ class NeonAdminNavigationRepository implements AdminNavigationRepository {
     String path,
     Map<String, Object?> body,
   ) async {
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
       final uri = _resolveUri(path);
       final response = await client
-          .post(
-            uri,
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
+          .post(uri, headers: await adminJsonHeaders(), body: jsonEncode(body))
           .timeout(_requestTimeout);
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) return decoded;

@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import fs from 'fs';
 import path from 'path';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
+import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
 import { buildSeoFilenameFallback, cleanAiScalarText, extractJsonStringField, isBoilerplateAiText, toSeoSlug } from '@/lib/mediaSeoText';
 
@@ -279,6 +280,7 @@ export const POST: APIRoute = async ({ request }) => {
         const src = String(body?.src || '').trim();
         const ref = parseStorageRef(src, body?.type);
         if (!ref) return json({ error: 'Local storage file required' }, 400);
+        await requireStorageAdminRequest(request, ref.type);
 
         const uploadRootDir = path.resolve(process.cwd(), 'Upload');
         const baseDir = path.resolve(uploadRootDir, ref.type);
@@ -339,6 +341,6 @@ export const POST: APIRoute = async ({ request }) => {
         });
     } catch (error: any) {
         console.error('SEO Rename Error:', error);
-        return json({ error: error.message || 'SEO rename failed' }, 500);
+        return json({ error: error.message || 'SEO rename failed' }, error?.status || 500);
     }
 };

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/neonDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { numericLimit, numericOffset, readJsonBody, requireWhatsappAccess, sqlSetClause } from '@/lib/server/whatsapp/api';
 
 export const prerender = false;

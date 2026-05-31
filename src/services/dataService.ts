@@ -1,4 +1,4 @@
-import { neon } from '@/lib/neon';
+import { supabase } from '@/lib/supabase';
 import { NewsType, type NavigationItem, type NewsItem, type SiteSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
 import { getSpecialContentTypeAliases } from '@/utils/specialContent';
@@ -183,6 +183,41 @@ const CACHE_TTL = {
 
 const cache: Record<string, { data: any; expiry: number }> = {};
 const inflight: Record<string, Promise<any> | undefined> = {};
+const SITE_PUBLIC_COLUMNS = [
+    'id',
+    'language_code',
+    'site_name',
+    'timezone',
+    'footer_about',
+    'optional_url_button_name',
+    'copyright_text',
+    'logo_url',
+    'footer_logo_url',
+    'dark_logo_url',
+    'email_logo_url',
+    'favicon_url',
+    'home_title',
+    'meta_description',
+    'meta_keywords',
+    'canonical_url',
+    'og_image_url',
+    'google_analytics_id',
+    'google_search_console_code',
+    'bing_verification_code',
+    'twitter_username',
+    'fb_app_id',
+    'organization_legal_name',
+    'organization_phone',
+    'organization_address',
+    'robots_txt',
+    'weather_enabled',
+    'weather_location_name',
+    'weather_location_country',
+    'weather_latitude',
+    'weather_longitude',
+    'weather_timezone',
+    'weather_update_interval_minutes',
+].join(',');
 
 const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) => {
     const now = Date.now();
@@ -208,9 +243,9 @@ const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) 
 export const dataService = {
     async getSiteSettings(lang: string): Promise<SiteSettings | null> {
         return withCache(`settings_${lang}`, CACHE_TTL.SETTINGS, async () => {
-            const { data, error } = await neon
+            const { data, error } = await supabase
                 .from('site_settings')
-                .select('*')
+                .select(SITE_PUBLIC_COLUMNS)
                 .eq('language_code', lang)
                 .single();
 
@@ -226,7 +261,7 @@ export const dataService = {
         return withCache('seo_alternates', CACHE_TTL.SETTINGS, async () => {
             const fallback = [{ code: 'tr', name: 'Türkçe', direction: 'ltr' as const, flagCode: 'tr', isDefault: true }];
 
-            const { data: langs, error: langsError } = await neon
+            const { data: langs, error: langsError } = await supabase
                 .from('languages')
                 .select('code, is_default, status, name, direction, flag_code')
                 .eq('status', 'active');
@@ -252,7 +287,7 @@ export const dataService = {
                 .map((l) => l.code)
                 .filter((code) => !!code);
 
-            const { data: settings, error: settingsError } = await neon
+            const { data: settings, error: settingsError } = await supabase
                 .from('site_settings')
                 .select('language_code, canonical_url')
                 .in('language_code', codes);
@@ -288,10 +323,10 @@ export const dataService = {
     async getNavigationItems(lang: string): Promise<NavigationItem[]> {
         return withCache(`nav_${lang}`, CACHE_TTL.NAV, async () => {
             const [{ data: menuData, error: menuError }, { data, error }] = await Promise.all([
-              neon
+              supabase
                 .from('navigation_menus')
                 .select('id, code'),
-              neon
+              supabase
                 .from('navigation_items')
                 .select('*')
                 .eq('language_code', lang)
@@ -327,7 +362,7 @@ export const dataService = {
             const isHomeFeed = !category || category === 'home';
             const publishedAtLimit = new Date().toISOString();
             const selectColumns = `id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, views_count, saves_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, show_in_manset, fact_checked, schema_type, card_data, items, faq_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
-            const createPublishedQuery = () => neon
+            const createPublishedQuery = () => supabase
                 .from('posts')
                 .select(selectColumns)
                 .eq('status', 'published')
@@ -391,7 +426,7 @@ export const dataService = {
         const selectClause = `*, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
 
         // 1) Try by slug
-        const slugRes = await neon
+        const slugRes = await supabase
             .from('posts')
             .select(selectClause)
             .eq('slug', normalized)
@@ -401,7 +436,7 @@ export const dataService = {
 
         // 2) Fallback to numeric id
         if (/^[0-9]+$/.test(normalized)) {
-            const idRes = await neon
+            const idRes = await supabase
                 .from('posts')
                 .select(selectClause)
                 .eq('id', normalized)
@@ -542,21 +577,5 @@ export const dataService = {
         }
 
         return normalizeStoredTextPayload(merged) as NewsItem;
-    },
-
-    async getStories(lang: string): Promise<any[]> {
-        return withCache(`stories_${lang}`, CACHE_TTL.STORIES, async () => {
-            const { data, error } = await neon
-                .from('stories')
-                .select('*')
-                .eq('is_active', true)
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error('Error fetching stories:', error);
-                return [];
-            }
-            return data || [];
-        });
     }
 };
