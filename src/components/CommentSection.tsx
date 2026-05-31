@@ -4,11 +4,15 @@ import { Heart, Reply, Trash2, Send, ChevronDown, ChevronUp, Flag, UserMinus, Sh
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
-import Picker, { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
-const EmojiPicker = (Picker as any).default || Picker;
 import { Smile } from 'lucide-react';
 import { postAction } from '@/services/appActions';
+
+const EmojiPicker = React.lazy(async () => {
+  const module = await import('emoji-picker-react');
+  const Picker = (module.default as any).default || module.default;
+  return { default: Picker as React.ComponentType<any> };
+});
 
 interface Comment {
   id: string;
@@ -233,7 +237,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
         .from('publisher_blocks')
         .select('id')
         .eq('publisher_id', publisherId)
-        .eq('blocked_user_id', user.id)
+        .eq('blocked_user_id', updatedUser.id)
         .maybeSingle();
 
       if (block) setIsBlocked(true);
@@ -544,14 +548,16 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
                 </button>
                 {showEmojiPicker && (
                   <div className="absolute bottom-full right-0 mb-2 z-[240] shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2">
-                    <EmojiPicker
-                      onEmojiClick={onEmojiClick}
-                      autoFocusSearch={false}
-                      theme={Theme.LIGHT}
-                      searchPlaceholder={t('comments.emoji_search_placeholder')}
-                      width={300}
-                      height={400}
-                    />
+                    <React.Suspense fallback={null}>
+                      <EmojiPicker
+                        onEmojiClick={onEmojiClick}
+                        autoFocusSearch={false}
+                        theme="light"
+                        searchPlaceholder={t('comments.emoji_search_placeholder')}
+                        width={300}
+                        height={400}
+                      />
+                    </React.Suspense>
                   </div>
                 )}
               </div>

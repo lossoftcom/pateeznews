@@ -6,7 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'admin_auth_models.dart';
 
 class AdminSessionStore {
-  const AdminSessionStore({this._secureStorage = const FlutterSecureStorage()});
+  const AdminSessionStore({
+    this._secureStorage = const FlutterSecureStorage(
+      mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+    ),
+  });
 
   static const _sessionKey = 'supabase-auth-token';
   static const _profileCacheKey = 'pateez_profile_cache';

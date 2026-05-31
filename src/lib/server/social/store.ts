@@ -1,4 +1,5 @@
 import { dbQuery } from '@/lib/server/supabaseDb';
+import { readRuntimeEnv } from '@/lib/server/runtimeEnv';
 import { decryptSecret, hasSecret } from '@/lib/server/mail/secrets';
 import { getTeam } from './bundle';
 
@@ -47,8 +48,7 @@ export function socialAccountForClient(row: any) {
 }
 
 function bundleSocialEnvApiKey() {
-  const env = import.meta.env as Record<string, string | undefined>;
-  return String(process.env.BUNDLE_SOCIAL_API_KEY || env.BUNDLE_SOCIAL_API_KEY || '').trim();
+  return String(readRuntimeEnv('BUNDLE_SOCIAL_API_KEY') || '').trim();
 }
 
 export function resolveBundleApiKey(row: any) {

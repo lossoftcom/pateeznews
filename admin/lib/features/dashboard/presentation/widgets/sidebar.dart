@@ -30,11 +30,16 @@ class AdminDrawer extends StatelessWidget {
     required this.navigationVisible,
     required this.usersVisible,
     required this.rolesPermissionsVisible,
+    required this.storageSettingsVisible,
+    required this.googleNewsVisible,
     required this.aiSettingsVisible,
     required this.pharmacySettingsVisible,
     required this.weatherSettingsVisible,
     required this.deathNoticeSettingsVisible,
     required this.generalSettingsVisible,
+    required this.securitySettingsVisible,
+    required this.contentSettingsVisible,
+    required this.fontSettingsVisible,
     required this.languageSettingsVisible,
     required this.homeSelected,
     required this.newsAddSelected,
@@ -64,11 +69,16 @@ class AdminDrawer extends StatelessWidget {
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
+    required this.storageSettingsSelected,
+    required this.googleNewsSelected,
     required this.aiSettingsSelected,
     required this.pharmacySettingsSelected,
     required this.weatherSettingsSelected,
     required this.deathNoticeSettingsSelected,
     required this.generalSettingsSelected,
+    required this.securitySettingsSelected,
+    required this.contentSettingsSelected,
+    required this.fontSettingsSelected,
     required this.languageSettingsSelected,
     required this.onHomeSelected,
     required this.onNewsAddSelected,
@@ -98,11 +108,16 @@ class AdminDrawer extends StatelessWidget {
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
+    required this.onStorageSettingsSelected,
+    required this.onGoogleNewsSelected,
     required this.onAiSettingsSelected,
     required this.onPharmacySettingsSelected,
     required this.onWeatherSettingsSelected,
     required this.onDeathNoticeSettingsSelected,
     required this.onGeneralSettingsSelected,
+    required this.onSecuritySettingsSelected,
+    required this.onContentSettingsSelected,
+    required this.onFontSettingsSelected,
     required this.onLanguageSettingsSelected,
   });
 
@@ -124,11 +139,16 @@ class AdminDrawer extends StatelessWidget {
   final bool navigationVisible;
   final bool usersVisible;
   final bool rolesPermissionsVisible;
+  final bool storageSettingsVisible;
+  final bool googleNewsVisible;
   final bool aiSettingsVisible;
   final bool pharmacySettingsVisible;
   final bool weatherSettingsVisible;
   final bool deathNoticeSettingsVisible;
   final bool generalSettingsVisible;
+  final bool securitySettingsVisible;
+  final bool contentSettingsVisible;
+  final bool fontSettingsVisible;
   final bool languageSettingsVisible;
   final bool homeSelected;
   final bool newsAddSelected;
@@ -158,11 +178,16 @@ class AdminDrawer extends StatelessWidget {
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
+  final bool storageSettingsSelected;
+  final bool googleNewsSelected;
   final bool aiSettingsSelected;
   final bool pharmacySettingsSelected;
   final bool weatherSettingsSelected;
   final bool deathNoticeSettingsSelected;
   final bool generalSettingsSelected;
+  final bool securitySettingsSelected;
+  final bool contentSettingsSelected;
+  final bool fontSettingsSelected;
   final bool languageSettingsSelected;
   final VoidCallback onHomeSelected;
   final VoidCallback onNewsAddSelected;
@@ -192,11 +217,16 @@ class AdminDrawer extends StatelessWidget {
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
+  final VoidCallback onStorageSettingsSelected;
+  final VoidCallback onGoogleNewsSelected;
   final VoidCallback onAiSettingsSelected;
   final VoidCallback onPharmacySettingsSelected;
   final VoidCallback onWeatherSettingsSelected;
   final VoidCallback onDeathNoticeSettingsSelected;
   final VoidCallback onGeneralSettingsSelected;
+  final VoidCallback onSecuritySettingsSelected;
+  final VoidCallback onContentSettingsSelected;
+  final VoidCallback onFontSettingsSelected;
   final VoidCallback onLanguageSettingsSelected;
 
   @override
@@ -230,11 +260,16 @@ class AdminDrawer extends StatelessWidget {
           navigationVisible: navigationVisible,
           usersVisible: usersVisible,
           rolesPermissionsVisible: rolesPermissionsVisible,
+          storageSettingsVisible: storageSettingsVisible,
+          googleNewsVisible: googleNewsVisible,
           aiSettingsVisible: aiSettingsVisible,
           pharmacySettingsVisible: pharmacySettingsVisible,
           weatherSettingsVisible: weatherSettingsVisible,
           deathNoticeSettingsVisible: deathNoticeSettingsVisible,
           generalSettingsVisible: generalSettingsVisible,
+          securitySettingsVisible: securitySettingsVisible,
+          contentSettingsVisible: contentSettingsVisible,
+          fontSettingsVisible: fontSettingsVisible,
           languageSettingsVisible: languageSettingsVisible,
           homeSelected: homeSelected,
           newsAddSelected: newsAddSelected,
@@ -264,11 +299,16 @@ class AdminDrawer extends StatelessWidget {
           navigationSelected: navigationSelected,
           usersSelected: usersSelected,
           rolesPermissionsSelected: rolesPermissionsSelected,
+          storageSettingsSelected: storageSettingsSelected,
+          googleNewsSelected: googleNewsSelected,
           aiSettingsSelected: aiSettingsSelected,
           pharmacySettingsSelected: pharmacySettingsSelected,
           weatherSettingsSelected: weatherSettingsSelected,
           deathNoticeSettingsSelected: deathNoticeSettingsSelected,
           generalSettingsSelected: generalSettingsSelected,
+          securitySettingsSelected: securitySettingsSelected,
+          contentSettingsSelected: contentSettingsSelected,
+          fontSettingsSelected: fontSettingsSelected,
           languageSettingsSelected: languageSettingsSelected,
           onHomeSelected: onHomeSelected,
           onNewsAddSelected: onNewsAddSelected,
@@ -298,11 +338,16 @@ class AdminDrawer extends StatelessWidget {
           onNavigationSelected: onNavigationSelected,
           onUsersSelected: onUsersSelected,
           onRolesPermissionsSelected: onRolesPermissionsSelected,
+          onStorageSettingsSelected: onStorageSettingsSelected,
+          onGoogleNewsSelected: onGoogleNewsSelected,
           onAiSettingsSelected: onAiSettingsSelected,
           onPharmacySettingsSelected: onPharmacySettingsSelected,
           onWeatherSettingsSelected: onWeatherSettingsSelected,
           onDeathNoticeSettingsSelected: onDeathNoticeSettingsSelected,
           onGeneralSettingsSelected: onGeneralSettingsSelected,
+          onSecuritySettingsSelected: onSecuritySettingsSelected,
+          onContentSettingsSelected: onContentSettingsSelected,
+          onFontSettingsSelected: onFontSettingsSelected,
           onLanguageSettingsSelected: onLanguageSettingsSelected,
         ),
       ),
@@ -331,11 +376,16 @@ class Sidebar extends StatefulWidget {
     required this.navigationVisible,
     required this.usersVisible,
     required this.rolesPermissionsVisible,
+    required this.storageSettingsVisible,
+    required this.googleNewsVisible,
     required this.aiSettingsVisible,
     required this.pharmacySettingsVisible,
     required this.weatherSettingsVisible,
     required this.deathNoticeSettingsVisible,
     required this.generalSettingsVisible,
+    required this.securitySettingsVisible,
+    required this.contentSettingsVisible,
+    required this.fontSettingsVisible,
     required this.languageSettingsVisible,
     required this.homeSelected,
     required this.newsAddSelected,
@@ -365,11 +415,16 @@ class Sidebar extends StatefulWidget {
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
+    required this.storageSettingsSelected,
+    required this.googleNewsSelected,
     required this.aiSettingsSelected,
     required this.pharmacySettingsSelected,
     required this.weatherSettingsSelected,
     required this.deathNoticeSettingsSelected,
     required this.generalSettingsSelected,
+    required this.securitySettingsSelected,
+    required this.contentSettingsSelected,
+    required this.fontSettingsSelected,
     required this.languageSettingsSelected,
     required this.onHomeSelected,
     required this.onNewsAddSelected,
@@ -399,11 +454,16 @@ class Sidebar extends StatefulWidget {
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
+    required this.onStorageSettingsSelected,
+    required this.onGoogleNewsSelected,
     required this.onAiSettingsSelected,
     required this.onPharmacySettingsSelected,
     required this.onWeatherSettingsSelected,
     required this.onDeathNoticeSettingsSelected,
     required this.onGeneralSettingsSelected,
+    required this.onSecuritySettingsSelected,
+    required this.onContentSettingsSelected,
+    required this.onFontSettingsSelected,
     required this.onLanguageSettingsSelected,
     this.drawerMode = false,
   });
@@ -426,11 +486,16 @@ class Sidebar extends StatefulWidget {
   final bool navigationVisible;
   final bool usersVisible;
   final bool rolesPermissionsVisible;
+  final bool storageSettingsVisible;
+  final bool googleNewsVisible;
   final bool aiSettingsVisible;
   final bool pharmacySettingsVisible;
   final bool weatherSettingsVisible;
   final bool deathNoticeSettingsVisible;
   final bool generalSettingsVisible;
+  final bool securitySettingsVisible;
+  final bool contentSettingsVisible;
+  final bool fontSettingsVisible;
   final bool languageSettingsVisible;
   final bool homeSelected;
   final bool newsAddSelected;
@@ -460,11 +525,16 @@ class Sidebar extends StatefulWidget {
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
+  final bool storageSettingsSelected;
+  final bool googleNewsSelected;
   final bool aiSettingsSelected;
   final bool pharmacySettingsSelected;
   final bool weatherSettingsSelected;
   final bool deathNoticeSettingsSelected;
   final bool generalSettingsSelected;
+  final bool securitySettingsSelected;
+  final bool contentSettingsSelected;
+  final bool fontSettingsSelected;
   final bool languageSettingsSelected;
   final VoidCallback onHomeSelected;
   final VoidCallback onNewsAddSelected;
@@ -494,11 +564,16 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
+  final VoidCallback onStorageSettingsSelected;
+  final VoidCallback onGoogleNewsSelected;
   final VoidCallback onAiSettingsSelected;
   final VoidCallback onPharmacySettingsSelected;
   final VoidCallback onWeatherSettingsSelected;
   final VoidCallback onDeathNoticeSettingsSelected;
   final VoidCallback onGeneralSettingsSelected;
+  final VoidCallback onSecuritySettingsSelected;
+  final VoidCallback onContentSettingsSelected;
+  final VoidCallback onFontSettingsSelected;
   final VoidCallback onLanguageSettingsSelected;
   final bool drawerMode;
 
@@ -571,13 +646,19 @@ class _SidebarState extends State<Sidebar> {
         data.socialSettingsSelected) {
       return _socialGroup;
     }
-    if (data.aiSettingsSelected ||
+    if (data.storageSettingsSelected ||
+        data.googleNewsSelected ||
+        data.aiSettingsSelected ||
         data.pharmacySettingsSelected ||
         data.weatherSettingsSelected ||
         data.deathNoticeSettingsSelected) {
       return _modulesGroup;
     }
-    if (data.generalSettingsSelected || data.languageSettingsSelected) {
+    if (data.generalSettingsSelected ||
+        data.securitySettingsSelected ||
+        data.contentSettingsSelected ||
+        data.fontSettingsSelected ||
+        data.languageSettingsSelected) {
       return _settingsGroup;
     }
     return null;
@@ -620,7 +701,11 @@ class _SidebarState extends State<Sidebar> {
   @override
   Widget build(BuildContext context) {
     final settingsSelected =
-        widget.generalSettingsSelected || widget.languageSettingsSelected;
+        widget.generalSettingsSelected ||
+        widget.securitySettingsSelected ||
+        widget.contentSettingsSelected ||
+        widget.fontSettingsSelected ||
+        widget.languageSettingsSelected;
     final mailSelected =
         widget.mailInboxSelected ||
         widget.bulkMailSelected ||
@@ -644,17 +729,25 @@ class _SidebarState extends State<Sidebar> {
         widget.socialAccountsSelected ||
         widget.socialSettingsSelected;
     final modulesSelected =
+        widget.storageSettingsSelected ||
+        widget.googleNewsSelected ||
         widget.aiSettingsSelected ||
         widget.pharmacySettingsSelected ||
         widget.weatherSettingsSelected ||
         widget.deathNoticeSettingsSelected;
     final modulesVisible =
+        widget.storageSettingsVisible ||
+        widget.googleNewsVisible ||
         widget.aiSettingsVisible ||
         widget.pharmacySettingsVisible ||
         widget.weatherSettingsVisible ||
         widget.deathNoticeSettingsVisible;
     final settingsVisible =
-        widget.generalSettingsVisible || widget.languageSettingsVisible;
+        widget.generalSettingsVisible ||
+        widget.securitySettingsVisible ||
+        widget.contentSettingsVisible ||
+        widget.fontSettingsVisible ||
+        widget.languageSettingsVisible;
 
     return Container(
       width: widget.drawerMode ? null : 268,
@@ -913,6 +1006,22 @@ class _SidebarState extends State<Sidebar> {
                     expanded: _openExpandable == _modulesGroup,
                     onTap: () => _handleExpandableTap(_modulesGroup),
                     children: [
+                      if (widget.storageSettingsVisible)
+                        SidebarSubItem(
+                          label: context.t('nav.storageSettings'),
+                          selected: widget.storageSettingsSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onStorageSettingsSelected,
+                          ),
+                        ),
+                      if (widget.googleNewsVisible)
+                        SidebarSubItem(
+                          label: context.t('nav.googleNews'),
+                          selected: widget.googleNewsSelected,
+                          onTap: () =>
+                              _select(context, widget.onGoogleNewsSelected),
+                        ),
                       if (widget.aiSettingsVisible)
                         SidebarSubItem(
                           label: context.t('nav.aiSettings'),
@@ -965,6 +1074,31 @@ class _SidebarState extends State<Sidebar> {
                             context,
                             widget.onGeneralSettingsSelected,
                           ),
+                        ),
+                      if (widget.securitySettingsVisible)
+                        SidebarSubItem(
+                          label: context.t('nav.securitySettings'),
+                          selected: widget.securitySettingsSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onSecuritySettingsSelected,
+                          ),
+                        ),
+                      if (widget.contentSettingsVisible)
+                        SidebarSubItem(
+                          label: context.t('nav.contentSettings'),
+                          selected: widget.contentSettingsSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onContentSettingsSelected,
+                          ),
+                        ),
+                      if (widget.fontSettingsVisible)
+                        SidebarSubItem(
+                          label: context.t('nav.fontSettings'),
+                          selected: widget.fontSettingsSelected,
+                          onTap: () =>
+                              _select(context, widget.onFontSettingsSelected),
                         ),
                       if (widget.languageSettingsVisible)
                         SidebarSubItem(

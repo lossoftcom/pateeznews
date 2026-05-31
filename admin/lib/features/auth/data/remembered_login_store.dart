@@ -15,7 +15,9 @@ class RememberedLogin {
 
 class RememberedLoginStore {
   const RememberedLoginStore({
-    this._secureStorage = const FlutterSecureStorage(),
+    this._secureStorage = const FlutterSecureStorage(
+      mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+    ),
   });
 
   static const _enabledKey = 'pateeznews.remember_login.enabled';

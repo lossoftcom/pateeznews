@@ -1,4 +1,5 @@
 import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTPayload } from 'jose';
+import { readRuntimeEnv } from './runtimeEnv';
 
 export interface SupabaseUser {
   id: string;
@@ -25,13 +26,8 @@ type AuthGlobal = typeof globalThis & {
 
 const JWT_CLOCK_TOLERANCE_SECONDS = 30;
 
-function readEnv(name: string) {
-  const env = import.meta.env as Record<string, string | undefined>;
-  return process.env[name] || env[name];
-}
-
 function deriveSupabaseUrlFromDatabaseUrl() {
-  const databaseUrl = readEnv('SUPABASE_DATABASE_URL') || readEnv('DATABASE_URL') || readEnv('POSTGRES_URL');
+  const databaseUrl = readRuntimeEnv('SUPABASE_DATABASE_URL') || readRuntimeEnv('DATABASE_URL') || readRuntimeEnv('POSTGRES_URL');
   if (!databaseUrl) return '';
   try {
     const parsed = new URL(databaseUrl);
@@ -44,18 +40,16 @@ function deriveSupabaseUrlFromDatabaseUrl() {
 
 export function getSupabaseUrl() {
   return (
-    readEnv('SUPABASE_URL') ||
-    readEnv('PUBLIC_SUPABASE_URL') ||
+    readRuntimeEnv('SUPABASE_URL') ||
+    readRuntimeEnv('PUBLIC_SUPABASE_URL') ||
     deriveSupabaseUrlFromDatabaseUrl()
   ).replace(/\/$/, '');
 }
 
 export function getSupabasePublishableKey() {
   return (
-    readEnv('SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('PUBLIC_SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('SUPABASE_ANON_KEY') ||
-    readEnv('PUBLIC_SUPABASE_ANON_KEY') ||
+    readRuntimeEnv('SUPABASE_PUBLISHABLE_KEY') ||
+    readRuntimeEnv('PUBLIC_SUPABASE_PUBLISHABLE_KEY') ||
     ''
   );
 }
@@ -81,11 +75,11 @@ function getSupabaseJwks() {
 }
 
 function getSupabaseJwtSecret() {
-  return readEnv('SUPABASE_JWT_SECRET') || '';
+  return readRuntimeEnv('SUPABASE_JWT_SECRET') || '';
 }
 
 export function getSupabaseServiceRoleKey() {
-  return readEnv('SUPABASE_SERVICE_ROLE_KEY') || '';
+  return readRuntimeEnv('SUPABASE_SERVICE_ROLE_KEY') || '';
 }
 
 function requireSupabaseAuthConfig() {
@@ -120,18 +114,13 @@ function toUserFromJwt(payload: JWTPayload): SupabaseUser {
 async function verifyJwtLocally(token: string): Promise<SupabaseSession | null> {
   const header = decodeProtectedHeader(token);
   const issuer = getSupabaseIssuer();
-  const algorithms = header.alg?.startsWith('HS') ? ['HS256'] : ['ES256', 'RS256'];
-  const key = header.alg?.startsWith('HS')
-    ? new TextEncoder().encode(getSupabaseJwtSecret())
-    : getSupabaseJwks();
-
-  if (header.alg?.startsWith('HS') && !getSupabaseJwtSecret()) return null;
-
-  const { payload } = await jwtVerify(token, key, {
-    algorithms,
-    issuer,
-    clockTolerance: JWT_CLOCK_TOLERANCE_SECONDS,
-  });
+  const { payload } = header.alg?.startsWith('HS')
+    ? await verifyJwtWithSharedSecret(token, issuer)
+    : await jwtVerify(token, getSupabaseJwks(), {
+      algorithms: ['ES256', 'RS256'],
+      issuer,
+      clockTolerance: JWT_CLOCK_TOLERANCE_SECONDS,
+    });
 
   if (!payload.sub || !isAuthenticatedAudience(payload.aud)) return null;
 
@@ -145,6 +134,16 @@ async function verifyJwtLocally(token: string): Promise<SupabaseSession | null> 
     expires_in: Math.max(0, expiresAt - Math.floor(Date.now() / 1000)),
     user: toUserFromJwt(payload),
   };
+}
+
+async function verifyJwtWithSharedSecret(token: string, issuer: string) {
+  const secret = getSupabaseJwtSecret();
+  if (!secret) throw new Error('SUPABASE_JWT_SECRET is required for HS256 JWT verification');
+  return jwtVerify(token, new TextEncoder().encode(secret), {
+    algorithms: ['HS256'],
+    issuer,
+    clockTolerance: JWT_CLOCK_TOLERANCE_SECONDS,
+  });
 }
 
 function toUser(input: any): SupabaseUser {

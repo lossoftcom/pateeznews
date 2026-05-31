@@ -1,5 +1,6 @@
 import { getSessionFromToken, type SupabaseSession } from './supabaseAuth';
 import { dbQuery } from './supabaseDb';
+import { adminSecurityHeaders } from './securityHeaders';
 
 type AdminAuthGlobal = typeof globalThis & {
   __pateezAdminContextCache?: Map<string, CachedAdminContext>;
@@ -130,6 +131,8 @@ export function adminJson(data: any, status = 200) {
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'CDN-Cache-Control': 'no-store',
       'Cloudflare-CDN-Cache-Control': 'no-store',
+      'Vary': 'Authorization',
+      ...adminSecurityHeaders(),
     },
   });
 }

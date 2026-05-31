@@ -1,16 +1,19 @@
 import type { APIRoute } from 'astro';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import {
-  contentTypeForFilename,
   getStorageType,
   publicStorageUrl,
   type StorageType,
   storageObjectPath,
 } from '@/lib/server/supabaseStorage';
 
+const LOCAL_STATIC_PREFIX = '/local-upload/';
+const LOCAL_STATIC_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
+const REMOTE_IMAGE_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
+const REMOTE_MUTABLE_CACHE = 'public, max-age=3600, stale-while-revalidate=86400';
+
 const LOCAL_FALLBACKS: Partial<Record<StorageType, string[]>> = {
   image: [
+    'image/fallback/pateez-news-placeholder.webp',
     'image/2026-05-24/1779656233738-d-s-c02472.webp',
     'image/2026-05-24/1779656103320-Ekran_Resmi_2026-05-24_23.39.03.webp',
   ],
@@ -25,17 +28,23 @@ const LOCAL_FALLBACKS: Partial<Record<StorageType, string[]>> = {
   ],
 };
 
-const RANGEABLE_MEDIA_EXTENSIONS = new Set([
-  '.mp4',
-  '.m4v',
-  '.webm',
-  '.mov',
-  '.mp3',
-  '.wav',
-  '.ogg',
-  '.oga',
-  '.m4a',
-  '.aac',
+const LOCAL_STATIC_FILES = new Set([
+  'image/fallback/pateez-news-placeholder.webp',
+  'image/2026-05-24/1779656233738-d-s-c02472.webp',
+  'image/2026-05-24/1779656103320-Ekran_Resmi_2026-05-24_23.39.03.webp',
+  'image/2026-05-25/1779657593087-hugging-asian-couple-stands-before-beautiful-waterfall-mountains.webp',
+  'image/2026-05-25/1779657690981-5972469.webp',
+  'image/2026-05-25/1779657607042-numerology-concept-with-woman-beach.webp',
+  'logo/tr/pateezlogoson.png',
+  'logo/tr/pateezlogowhite.png',
+  'logo/tr/pateezlogoicon.png',
+  'logo/tr/pateezlogodark.png',
+  'logo/tr/pateezlogoepost.png',
+  'logo/tr/pateezlogofooter.png',
+  'profile/6c1a27d3-ce8e-4c42-bec1-fc092139e3ee-avatar.webp',
+  'profile/6c1a27d3-ce8e-4c42-bec1-fc092139e3ee-cover.webp',
+  'profile/nasip-avatar.webp',
+  'profile/nasip-cover.webp',
 ]);
 
 function parseBoundedInt(value: string | null, min: number, max: number) {
@@ -45,102 +54,35 @@ function parseBoundedInt(value: string | null, min: number, max: number) {
   return Math.min(Math.max(parsed, min), max);
 }
 
-function isLocalUploadFallbackEnabled() {
-  return import.meta.env.DEV || process.env.NODE_ENV !== 'production';
+function isLocalRequest(request: Request) {
+  const hostname = new URL(request.url).hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]' || import.meta.env.DEV;
 }
 
-function localUploadPath(objectPath: string) {
-  const uploadRoot = path.resolve(process.cwd(), 'Upload');
-  const candidate = path.resolve(uploadRoot, objectPath);
-  if (!candidate.startsWith(`${uploadRoot}${path.sep}`)) return null;
-  return candidate;
+function localStaticPath(type: StorageType, objectPath: string) {
+  if (LOCAL_STATIC_FILES.has(objectPath)) return `${LOCAL_STATIC_PREFIX}${objectPath}`;
+  const fallback = LOCAL_FALLBACKS[type]?.[0];
+  return fallback ? `${LOCAL_STATIC_PREFIX}${fallback}` : null;
 }
 
-async function existingLocalUploadPath(objectPath: string) {
-  const candidate = localUploadPath(objectPath);
-  if (!candidate) return null;
-  try {
-    const stats = await fs.stat(candidate);
-    return stats.isFile() ? candidate : null;
-  } catch {
-    return null;
-  }
+function exactLocalStaticPath(objectPath: string) {
+  return LOCAL_STATIC_FILES.has(objectPath) ? `${LOCAL_STATIC_PREFIX}${objectPath}` : null;
 }
 
-async function existingFallbackPath(type: StorageType) {
-  for (const fallback of LOCAL_FALLBACKS[type] || []) {
-    const candidate = await existingLocalUploadPath(fallback);
-    if (candidate) return candidate;
-  }
-  return null;
-}
-
-async function localFileResponse(filePath: string, request: Request) {
-  const stats = await fs.stat(filePath);
-  const ext = path.extname(filePath).toLowerCase();
-  const headers: Record<string, string> = {
-    'Content-Type': contentTypeForFilename(filePath),
-    'Cache-Control': 'public, max-age=60',
-    'Access-Control-Allow-Origin': '*',
-  };
-
-  if (RANGEABLE_MEDIA_EXTENSIONS.has(ext)) {
-    headers['Accept-Ranges'] = 'bytes';
-    const range = request.headers.get('range');
-    if (range) {
-      const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-      if (!match) {
-        return new Response('Invalid Range', {
-          status: 416,
-          headers: {
-            ...headers,
-            'Content-Range': `bytes */${stats.size}`,
-          },
-        });
-      }
-
-      const [, startRaw, endRaw] = match;
-      let start = startRaw ? Number.parseInt(startRaw, 10) : 0;
-      let end = endRaw ? Number.parseInt(endRaw, 10) : stats.size - 1;
-
-      if (!startRaw && endRaw) {
-        const suffixLength = Number.parseInt(endRaw, 10);
-        start = Math.max(stats.size - suffixLength, 0);
-        end = stats.size - 1;
-      }
-
-      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= stats.size) {
-        return new Response('Range Not Satisfiable', {
-          status: 416,
-          headers: {
-            ...headers,
-            'Content-Range': `bytes */${stats.size}`,
-          },
-        });
-      }
-
-      end = Math.min(end, stats.size - 1);
-      const fileContent = await fs.readFile(filePath);
-      const chunk = fileContent.subarray(start, end + 1);
-      return new Response(chunk, {
-        status: 206,
-        headers: {
-          ...headers,
-          'Content-Range': `bytes ${start}-${end}/${stats.size}`,
-          'Content-Length': String(chunk.length),
-        },
-      });
-    }
-  }
-
-  const fileContent = await fs.readFile(filePath);
-  return new Response(fileContent, {
-    status: 200,
+function redirect(location: URL | string, cacheControl: string) {
+  return new Response(null, {
+    status: 302,
     headers: {
-      ...headers,
-      'Content-Length': String(stats.size),
+      Location: location.toString(),
+      'Cache-Control': cacheControl,
+      'CDN-Cache-Control': cacheControl,
+      'Cloudflare-CDN-Cache-Control': cacheControl,
     },
   });
+}
+
+function remoteRedirectCache(type: StorageType) {
+  return type === 'image' ? REMOTE_IMAGE_CACHE : REMOTE_MUTABLE_CACHE;
 }
 
 export const GET: APIRoute = async ({ params, request }) => {
@@ -153,14 +95,14 @@ export const GET: APIRoute = async ({ params, request }) => {
   const url = new URL(request.url);
   const width = parseBoundedInt(url.searchParams.get('w'), 64, 2400);
   const quality = parseBoundedInt(url.searchParams.get('q'), 40, 100);
+  const staticPath = exactLocalStaticPath(objectPath);
 
-  if (isLocalUploadFallbackEnabled()) {
-    const localPath = await existingLocalUploadPath(objectPath);
-    if (localPath) return localFileResponse(localPath, request);
+  if (staticPath) return redirect(new URL(staticPath, url.origin), LOCAL_STATIC_CACHE);
 
-    const fallbackPath = await existingFallbackPath(type);
-    if (fallbackPath) return localFileResponse(fallbackPath, request);
+  if (isLocalRequest(request)) {
+    const fallbackPath = localStaticPath(type, objectPath);
+    if (fallbackPath) return redirect(new URL(fallbackPath, url.origin), LOCAL_STATIC_CACHE);
   }
 
-  return Response.redirect(publicStorageUrl(objectPath, request, { width, quality }), 302);
+  return redirect(publicStorageUrl(objectPath, request, { width, quality }), remoteRedirectCache(type));
 };

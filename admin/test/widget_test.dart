@@ -2802,12 +2802,21 @@ void main() {
 
       await tester.tap(find.text('Modüller'));
       await tester.pumpAndSettle();
+      expect(find.text('Depo'), findsOneWidget);
+      expect(find.text('Google News'), findsOneWidget);
       expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
+      expect(_isTextAbove(tester, 'Depo', 'Google News'), isTrue);
+      expect(
+        _isTextAbove(tester, 'Google News', 'Yapay Zeka Ayarları'),
+        isTrue,
+      );
       expect(find.text('Genel Ayarlar'), findsNothing);
       expect(find.text('Dil Ayarları'), findsNothing);
 
       await tester.pump(const Duration(seconds: 20));
       await tester.pumpAndSettle();
+      expect(find.text('Depo'), findsNothing);
+      expect(find.text('Google News'), findsNothing);
       expect(find.text('Yapay Zeka Ayarları'), findsNothing);
 
       await tester.tap(find.text('Ayarlar'));
@@ -2819,7 +2828,14 @@ void main() {
 
       await tester.tap(find.text('Modüller'));
       await tester.pumpAndSettle();
+      expect(find.text('Depo'), findsOneWidget);
+      expect(find.text('Google News'), findsOneWidget);
       expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
+      expect(_isTextAbove(tester, 'Depo', 'Google News'), isTrue);
+      expect(
+        _isTextAbove(tester, 'Google News', 'Yapay Zeka Ayarları'),
+        isTrue,
+      );
       expect(find.text('Genel Ayarlar'), findsNothing);
 
       await tester.pump(const Duration(seconds: 20));
@@ -3931,6 +3947,18 @@ void main() {
 
     expect(find.text('Ana Sayfa Başlığı (SEO Title)'), findsOneWidget);
     expect(find.text('Global Paylaşım Görseli (OG Image)'), findsOneWidget);
+    expect(find.text('Sitemap'), findsWidgets);
+    expect(_findRichTextContaining('Sıklık'), findsOneWidget);
+    expect(_findRichTextContaining('Son değişiklik'), findsOneWidget);
+    expect(_findRichTextContaining('Öncelik'), findsOneWidget);
+    expect(find.text('Otomatik hesapla'), findsNWidgets(3));
+    expect(find.text('Sitemap Oluştur'), findsOneWidget);
+    expect(find.text('Oluşturulan Sitemapler'), findsOneWidget);
+    expect(find.text('sitemap.xml'), findsOneWidget);
+    expect(
+      find.text('https://www.pateez.com/service/cron/main?token=YOUR_TOKEN'),
+      findsOneWidget,
+    );
 
     await tester.ensureVisible(
       find.widgetWithText(TextButton, 'Kurumsal (EEAT)'),
@@ -3966,6 +3994,260 @@ void main() {
     expect(find.text('Robots.txt İçeriği'), findsOneWidget);
   });
 
+  testWidgets('Güvenlik ayarları alt menüsü tasarım ekranını açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ayarlar'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Güvenlik Ayarları'));
+    await tester.tap(find.text('Güvenlik Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Güvenlik Ayarları'), findsNWidgets(2));
+    expect(find.text('Giriş güvenliği'), findsOneWidget);
+    expect(find.text('Maksimum giriş denemesi'), findsOneWidget);
+    expect(find.text('Şifre güvenliği'), findsOneWidget);
+    expect(find.text('Spam koruması'), findsOneWidget);
+    expect(find.text('Captcha ayarları'), findsOneWidget);
+    expect(find.text('Cloudflare Turnstile'), findsOneWidget);
+    expect(find.text('Google reCAPTCHA'), findsOneWidget);
+    expect(find.text('Uyarı'), findsOneWidget);
+  });
+
+  testWidgets('İçerik ayarları alt menüsü tasarım ekranını açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ayarlar'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('İçerik Ayarları'));
+    await tester.tap(find.text('İçerik Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('İçerik Ayarları'), findsNWidgets(2));
+    expect(find.widgetWithText(TextButton, 'Genel'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Gönderiler'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextButton, 'Gönderi Formatları'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(TextButton, 'Dosya Yükleme'), findsOneWidget);
+    expect(find.text('Manşet bölümünü göster'), findsOneWidget);
+    expect(find.text('Öne Çıkan İçerik Ayarları'), findsOneWidget);
+    expect(find.text('Manşet'), findsOneWidget);
+    expect(find.text('Otomatik gönderi silme'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Gönderiler'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gönderi URL yapısı'), findsOneWidget);
+    expect(find.text('Popüler gönderi limiti'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Gönderi Formatları'));
+    await tester.pumpAndSettle();
+    expect(find.text('Makale'), findsOneWidget);
+    expect(find.text('Etkinlik'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Dosya Yükleme'));
+    await tester.pumpAndSettle();
+    expect(find.text('Görsel dosya formatı'), findsOneWidget);
+    expect(find.text('İzin verilen dosya uzantıları'), findsOneWidget);
+  });
+
+  testWidgets('Font ayarları alt menüsü haber tablosu standardında açılır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1914, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ayarlar'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Font Ayarları'));
+    await tester.tap(find.text('Font Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Font Ayarları'), findsNWidgets(2));
+    expect(find.text('Site Fontu'), findsOneWidget);
+    expect(find.text('Font Boyutu'), findsOneWidget);
+    expect(find.text('Font Kaynağı'), findsOneWidget);
+    expect(find.text('İşlem'), findsOneWidget);
+    expect(find.text('Work Sans'), findsOneWidget);
+    expect(find.text('1 - 22 / 22 kayıt gösteriliyor'), findsOneWidget);
+    expect(find.text('Font Ekle'), findsOneWidget);
+
+    await tester.tap(find.text('...').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Düzenle'), findsOneWidget);
+    expect(find.text('Birincil font yap'), findsNothing);
+    expect(find.text('Başlık fontu yap'), findsNothing);
+    expect(find.text('İçerik fontu yap'), findsNothing);
+
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Font Ekle'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Font Ekle'), findsWidgets);
+    expect(_findRichTextContaining('Font tipi'), findsOneWidget);
+    expect(find.text('Monospace'), findsOneWidget);
+    expect(_findRichTextContaining('Font dosyası (.woff2)'), findsOneWidget);
+    expect(_findRichTextContaining('400 (Regular)'), findsOneWidget);
+    expect(_findRichTextContaining('600 (Semi-Bold)'), findsOneWidget);
+    expect(_findRichTextContaining('700 (Bold)'), findsOneWidget);
+    expect(find.text('Dosya seç'), findsNWidgets(3));
+  });
+
+  testWidgets('Google News alt menüsü tasarım ekranını açar', (tester) async {
+    tester.view.physicalSize = const Size(1660, 920);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    expect(_isTextAbove(tester, 'Google News', 'Yapay Zeka Ayarları'), isTrue);
+
+    await tester.tap(find.text('Google News'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Google News'), findsWidgets);
+    expect(find.text('Ayarlar'), findsWidgets);
+    expect(find.text('Durum'), findsOneWidget);
+    expect(
+      find.textContaining('Google News Yayın Adı', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('RSS İçeriği', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Feed gönderi limiti', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.text('Feed Link Oluşturucu'), findsOneWidget);
+    expect(find.text('Dil'), findsOneWidget);
+    expect(find.text('Kategori'), findsOneWidget);
+    expect(find.text('Oluşturulan Feed URL'), findsOneWidget);
+    expect(find.text('Kopyala'), findsOneWidget);
+    expect(find.text('Entegrasyon Uçları'), findsOneWidget);
+    expect(find.text('News Sitemap (SEO & Botlar için)'), findsOneWidget);
+    expect(find.text('Publisher Center Feed (Uygulama için)'), findsOneWidget);
+    expect(
+      find.text('https://www.pateez.com/sitemap-news.xml'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('https://www.pateez.com/service/feed/google-news?lang=1'),
+      findsWidgets,
+    );
+    expect(find.text('Görüntüle'), findsNWidgets(2));
+
+    await tester.tap(find.text('Değişiklikleri Kaydet'));
+    await tester.pumpAndSettle();
+    expect(find.text('Google News ayarları kaydedildi'), findsOneWidget);
+  });
+
+  testWidgets('Depo alt menüsü tasarım ekranını açar', (tester) async {
+    tester.view.physicalSize = const Size(1660, 920);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    expect(_isTextAbove(tester, 'Depo', 'Google News'), isTrue);
+    expect(_isTextAbove(tester, 'Google News', 'Yapay Zeka Ayarları'), isTrue);
+
+    await tester.tap(find.text('Depo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Depo'), findsWidgets);
+    expect(find.text('Aktif Depo'), findsOneWidget);
+    expect(find.text('Yerel Depo'), findsOneWidget);
+    expect(find.text('AWS S3'), findsOneWidget);
+    expect(find.text('Cloudflare R2'), findsOneWidget);
+    expect(find.text('Backblaze B2'), findsOneWidget);
+    expect(find.text('Bunny.net'), findsOneWidget);
+    expect(find.text('Access Key'), findsWidgets);
+    expect(find.text('Secret Key'), findsWidgets);
+    expect(find.text('Bucket Name'), findsWidgets);
+    expect(find.text('Region'), findsOneWidget);
+
+    await tester.tap(find.text('Bunny.net'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Storage Zone Name'), findsOneWidget);
+    expect(find.text('Hostname'), findsOneWidget);
+    expect(find.text('Pull Zone URL'), findsOneWidget);
+
+    await tester.tap(find.text('Değişiklikleri Kaydet'));
+    await tester.pumpAndSettle();
+    expect(find.text('Depo ayarları kaydedildi'), findsOneWidget);
+  });
+
   testWidgets('Yapay zeka ayarları sayfası ve promt modalı açılır', (
     tester,
   ) async {
@@ -3986,6 +4268,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Yapay Zeka Ayarları'));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -80));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Yapay Zeka Ayarları'));
     await tester.pumpAndSettle();
@@ -4160,6 +4445,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Nöbetçi Eczane Ayarları'));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -80));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Nöbetçi Eczane Ayarları'));
     await tester.pumpAndSettle();
@@ -4633,5 +4921,11 @@ void main() {
 
     // Verify modal is closed
     expect(find.text('Dil İçe Aktar'), findsNothing);
+  });
+}
+
+Finder _findRichTextContaining(String text) {
+  return find.byWidgetPredicate((widget) {
+    return widget is RichText && widget.text.toPlainText().contains(text);
   });
 }

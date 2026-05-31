@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "pateeznews",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-05-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "dev": {
+    "inspector_port": 0
+  },
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "68c47e07dd41448c9c2e914bd26803e5"
+    }
+  ],
+  "vars": {
+    "PATEEZ_ADMIN_API_DB_ROLE": "pateez_admin_api"
+  }
+}

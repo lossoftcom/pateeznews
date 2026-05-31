@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/pateeznews_admin_app.dart';
-import 'frontend/app/pateeznews_app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,5 +18,5 @@ Future<void> main() async {
       ),
     );
   }
-  runApp(const PateeznewsApp(accountPage: PateeznewsAdminApp()));
+  runApp(const PateeznewsAdminApp());
 }

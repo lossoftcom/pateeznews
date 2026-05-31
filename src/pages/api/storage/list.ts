@@ -26,14 +26,18 @@ export const GET: APIRoute = async ({ request }) => {
       [`${prefix}%`]
     );
 
+    const objectNames = new Set(result.rows.map((row) => row.name));
     const files = result.rows
       .filter((row) => !(type === 'video' && row.name.endsWith('_thumb.webp')))
       .map((row) => {
         const relativeId = relativeStorageId(type, row.name);
         const parsed = path.posix.parse(relativeId);
-        const thumbRelativeId = type === 'video'
+        const expectedThumbRelativeId = type === 'video'
           ? `${parsed.dir ? `${parsed.dir}/` : ''}${parsed.name}_thumb.webp`
           : relativeId;
+        const thumbRelativeId = type === 'video' && !objectNames.has(`${type}/${expectedThumbRelativeId}`)
+          ? relativeId
+          : expectedThumbRelativeId;
         const date = new Date(row.updated_at || row.created_at || Date.now()).getTime();
 
         return {

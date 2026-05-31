@@ -4,11 +4,24 @@ import {
   signInWithPassword,
   updateUser,
 } from '@/lib/server/supabaseAuth';
+import { adminSecurityHeaders } from '@/lib/server/securityHeaders';
 
 function json(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
+  const isProduction = import.meta.env.PROD || process.env.NODE_ENV === 'production';
+  const body = status >= 500 && isProduction && data?.error?.message
+    ? { ...data, error: { ...data.error, message: 'Auth failed' } }
+    : data;
+
+  return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'CDN-Cache-Control': 'no-store',
+      'Cloudflare-CDN-Cache-Control': 'no-store',
+      'Vary': 'Authorization',
+      ...adminSecurityHeaders(),
+    },
   });
 }
 

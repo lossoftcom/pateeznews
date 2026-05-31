@@ -681,10 +681,7 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
       final response = await client
           .get(
             _uri(path, query),
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer ${session.accessToken}',
-            },
+            headers: await adminAuthHeaders(token: session.accessToken),
           )
           .timeout(_requestTimeout);
       return _decodeResponse(response);
@@ -704,13 +701,10 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
     final client = httpClient ?? adminHttpClient;
     final closeClient = shouldCloseAdminHttpClient(client, httpClient);
     try {
+      final headers = await adminJsonHeaders(token: session.accessToken);
       final request = http.Request(method, _uri(path))
-        ..headers.addAll({
-          'Accept': 'application/json',
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer ${session.accessToken}',
-        })
-        ..body = jsonEncode({'token': session.accessToken, ...body});
+        ..headers.addAll(headers)
+        ..body = jsonEncode(body);
       final streamed = await client.send(request).timeout(_requestTimeout);
       final response = await http.Response.fromStream(streamed);
       return _decodeResponse(response);

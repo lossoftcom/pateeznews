@@ -28,10 +28,15 @@ import 'package:pateeznews_admin/features/news/presentation/news_screen.dart';
 import 'package:pateeznews_admin/features/pages/data/admin_pages_repository.dart';
 import 'package:pateeznews_admin/features/pages/presentation/pages_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/ai_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/content_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/death_notice_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/font_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/general_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/google_news_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/language_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/pharmacy_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/security_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/storage_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/weather_settings_screen.dart';
 import 'package:pateeznews_admin/features/sms/data/admin_sms_repository.dart';
 import 'package:pateeznews_admin/features/social/data/admin_social_repository.dart';
@@ -253,10 +258,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'view_roles',
         'roles_access',
       ]),
+      _DashboardPage.storageSettings ||
+      _DashboardPage.googleNews ||
       _DashboardPage.aiSettings ||
       _DashboardPage.pharmacySettings ||
       _DashboardPage.weatherSettings ||
       _DashboardPage.deathNoticeSettings ||
+      _DashboardPage.securitySettings ||
+      _DashboardPage.contentSettings ||
+      _DashboardPage.fontSettings ||
       _DashboardPage.generalSettings => _hasAny([
         'view_settings',
         'settings_access',
@@ -418,6 +428,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _openPage(_DashboardPage.generalSettings);
   }
 
+  void _openSecuritySettings() {
+    _openPage(_DashboardPage.securitySettings);
+  }
+
+  void _openContentSettings() {
+    _openPage(_DashboardPage.contentSettings);
+  }
+
+  void _openFontSettings() {
+    _openPage(_DashboardPage.fontSettings);
+  }
+
+  void _openStorageSettings() {
+    _openPage(_DashboardPage.storageSettings);
+  }
+
+  void _openGoogleNews() {
+    _openPage(_DashboardPage.googleNews);
+  }
+
   void _openAiSettings() {
     _openPage(_DashboardPage.aiSettings);
   }
@@ -440,6 +470,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final storageSettingsSelected =
+        _selectedPage == _DashboardPage.storageSettings;
+    final googleNewsSelected = _selectedPage == _DashboardPage.googleNews;
     final aiSettingsSelected = _selectedPage == _DashboardPage.aiSettings;
     final pharmacySettingsSelected =
         _selectedPage == _DashboardPage.pharmacySettings;
@@ -488,8 +521,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _selectedPage == _DashboardPage.languageSettings;
     final generalSettingsSelected =
         _selectedPage == _DashboardPage.generalSettings;
+    final securitySettingsSelected =
+        _selectedPage == _DashboardPage.securitySettings;
+    final contentSettingsSelected =
+        _selectedPage == _DashboardPage.contentSettings;
+    final fontSettingsSelected = _selectedPage == _DashboardPage.fontSettings;
     final settingsSelected =
-        languageSettingsSelected || generalSettingsSelected;
+        languageSettingsSelected ||
+        generalSettingsSelected ||
+        securitySettingsSelected ||
+        contentSettingsSelected ||
+        fontSettingsSelected;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -526,6 +568,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final rolesPermissionsVisible = _canOpen(
           _DashboardPage.rolesPermissions,
         );
+        final storageSettingsVisible = _canOpen(_DashboardPage.storageSettings);
+        final googleNewsVisible = _canOpen(_DashboardPage.googleNews);
         final aiSettingsVisible = _canOpen(_DashboardPage.aiSettings);
         final pharmacySettingsVisible = _canOpen(
           _DashboardPage.pharmacySettings,
@@ -535,6 +579,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _DashboardPage.deathNoticeSettings,
         );
         final generalSettingsVisible = _canOpen(_DashboardPage.generalSettings);
+        final securitySettingsVisible = _canOpen(
+          _DashboardPage.securitySettings,
+        );
+        final contentSettingsVisible = _canOpen(_DashboardPage.contentSettings);
+        final fontSettingsVisible = _canOpen(_DashboardPage.fontSettings);
         final languageSettingsVisible = _canOpen(
           _DashboardPage.languageSettings,
         );
@@ -560,11 +609,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   navigationVisible: navigationVisible,
                   usersVisible: usersVisible,
                   rolesPermissionsVisible: rolesPermissionsVisible,
+                  storageSettingsVisible: storageSettingsVisible,
+                  googleNewsVisible: googleNewsVisible,
                   aiSettingsVisible: aiSettingsVisible,
                   pharmacySettingsVisible: pharmacySettingsVisible,
                   weatherSettingsVisible: weatherSettingsVisible,
                   deathNoticeSettingsVisible: deathNoticeSettingsVisible,
                   generalSettingsVisible: generalSettingsVisible,
+                  securitySettingsVisible: securitySettingsVisible,
+                  contentSettingsVisible: contentSettingsVisible,
+                  fontSettingsVisible: fontSettingsVisible,
                   languageSettingsVisible: languageSettingsVisible,
                   homeSelected:
                       !settingsSelected &&
@@ -595,6 +649,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !navigationSelected &&
                       !usersSelected &&
                       !rolesPermissionsSelected &&
+                      !storageSettingsSelected &&
+                      !googleNewsSelected &&
                       !aiSettingsSelected &&
                       !pharmacySettingsSelected &&
                       !weatherSettingsSelected &&
@@ -626,11 +682,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   navigationSelected: navigationSelected,
                   usersSelected: usersSelected,
                   rolesPermissionsSelected: rolesPermissionsSelected,
+                  storageSettingsSelected: storageSettingsSelected,
+                  googleNewsSelected: googleNewsSelected,
                   aiSettingsSelected: aiSettingsSelected,
                   pharmacySettingsSelected: pharmacySettingsSelected,
                   weatherSettingsSelected: weatherSettingsSelected,
                   deathNoticeSettingsSelected: deathNoticeSettingsSelected,
                   generalSettingsSelected: generalSettingsSelected,
+                  securitySettingsSelected: securitySettingsSelected,
+                  contentSettingsSelected: contentSettingsSelected,
+                  fontSettingsSelected: fontSettingsSelected,
                   languageSettingsSelected: languageSettingsSelected,
                   onHomeSelected: _openHome,
                   onNewsAddSelected: _openNewsAdd,
@@ -660,11 +721,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onNavigationSelected: _openNavigation,
                   onUsersSelected: _openUsers,
                   onRolesPermissionsSelected: _openRolesPermissions,
+                  onStorageSettingsSelected: _openStorageSettings,
+                  onGoogleNewsSelected: _openGoogleNews,
                   onAiSettingsSelected: _openAiSettings,
                   onPharmacySettingsSelected: _openPharmacySettings,
                   onWeatherSettingsSelected: _openWeatherSettings,
                   onDeathNoticeSettingsSelected: _openDeathNoticeSettings,
                   onGeneralSettingsSelected: _openGeneralSettings,
+                  onSecuritySettingsSelected: _openSecuritySettings,
+                  onContentSettingsSelected: _openContentSettings,
+                  onFontSettingsSelected: _openFontSettings,
                   onLanguageSettingsSelected: _openLanguageSettings,
                 )
               : null,
@@ -691,11 +757,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     navigationVisible: navigationVisible,
                     usersVisible: usersVisible,
                     rolesPermissionsVisible: rolesPermissionsVisible,
+                    storageSettingsVisible: storageSettingsVisible,
+                    googleNewsVisible: googleNewsVisible,
                     aiSettingsVisible: aiSettingsVisible,
                     pharmacySettingsVisible: pharmacySettingsVisible,
                     weatherSettingsVisible: weatherSettingsVisible,
                     deathNoticeSettingsVisible: deathNoticeSettingsVisible,
                     generalSettingsVisible: generalSettingsVisible,
+                    securitySettingsVisible: securitySettingsVisible,
+                    contentSettingsVisible: contentSettingsVisible,
+                    fontSettingsVisible: fontSettingsVisible,
                     languageSettingsVisible: languageSettingsVisible,
                     homeSelected:
                         !settingsSelected &&
@@ -726,6 +797,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !navigationSelected &&
                         !usersSelected &&
                         !rolesPermissionsSelected &&
+                        !storageSettingsSelected &&
+                        !googleNewsSelected &&
                         !aiSettingsSelected &&
                         !pharmacySettingsSelected &&
                         !weatherSettingsSelected &&
@@ -757,11 +830,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     navigationSelected: navigationSelected,
                     usersSelected: usersSelected,
                     rolesPermissionsSelected: rolesPermissionsSelected,
+                    storageSettingsSelected: storageSettingsSelected,
+                    googleNewsSelected: googleNewsSelected,
                     aiSettingsSelected: aiSettingsSelected,
                     pharmacySettingsSelected: pharmacySettingsSelected,
                     weatherSettingsSelected: weatherSettingsSelected,
                     deathNoticeSettingsSelected: deathNoticeSettingsSelected,
                     generalSettingsSelected: generalSettingsSelected,
+                    securitySettingsSelected: securitySettingsSelected,
+                    contentSettingsSelected: contentSettingsSelected,
+                    fontSettingsSelected: fontSettingsSelected,
                     languageSettingsSelected: languageSettingsSelected,
                     onHomeSelected: _openHome,
                     onNewsAddSelected: _openNewsAdd,
@@ -791,11 +869,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onNavigationSelected: _openNavigation,
                     onUsersSelected: _openUsers,
                     onRolesPermissionsSelected: _openRolesPermissions,
+                    onStorageSettingsSelected: _openStorageSettings,
+                    onGoogleNewsSelected: _openGoogleNews,
                     onAiSettingsSelected: _openAiSettings,
                     onPharmacySettingsSelected: _openPharmacySettings,
                     onWeatherSettingsSelected: _openWeatherSettings,
                     onDeathNoticeSettingsSelected: _openDeathNoticeSettings,
                     onGeneralSettingsSelected: _openGeneralSettings,
+                    onSecuritySettingsSelected: _openSecuritySettings,
+                    onContentSettingsSelected: _openContentSettings,
+                    onFontSettingsSelected: _openFontSettings,
                     onLanguageSettingsSelected: _openLanguageSettings,
                   ),
                 Expanded(
@@ -946,6 +1029,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     session: widget.session,
                                     repository: widget.rolesRepository,
                                   ),
+                                _DashboardPage.storageSettings =>
+                                  const StorageSettingsScreen(),
+                                _DashboardPage.googleNews =>
+                                  const GoogleNewsSettingsScreen(),
                                 _DashboardPage.aiSettings => AiSettingsScreen(
                                   session: widget.session,
                                   repository: widget.aiSettingsRepository,
@@ -969,6 +1056,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     repository:
                                         widget.generalSettingsRepository,
                                   ),
+                                _DashboardPage.securitySettings =>
+                                  const SecuritySettingsScreen(),
+                                _DashboardPage.contentSettings =>
+                                  const ContentSettingsScreen(),
+                                _DashboardPage.fontSettings =>
+                                  const FontSettingsScreen(),
                                 _DashboardPage.languageSettings =>
                                   LanguageSettingsScreen(
                                     session: widget.session,
@@ -1062,10 +1155,15 @@ enum _DashboardPage {
   users,
   accountSettings,
   rolesPermissions,
+  storageSettings,
+  googleNews,
   aiSettings,
   pharmacySettings,
   weatherSettings,
   deathNoticeSettings,
   generalSettings,
+  securitySettings,
+  contentSettings,
+  fontSettings,
   languageSettings,
 }

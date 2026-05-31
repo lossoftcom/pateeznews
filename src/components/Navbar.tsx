@@ -225,6 +225,9 @@ const Navbar: React.FC<NavbarProps> = ({
                   src={siteSettings.logo_url}
                   alt={siteSettings?.site_name || "Site Logo"}
                   className="h-full w-auto object-contain select-none"
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
                 />
               </div>
             ) : (

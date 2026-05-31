@@ -1,12 +1,12 @@
-import type { PoolClient } from 'pg';
-import { connectDbClient, dbQuery } from './supabaseDb';
+import { connectDbClient, dbQuery, type DatabaseClient } from './supabaseDb';
 import { getSessionFromToken, type SupabaseSession } from './supabaseAuth';
+import { adminSecurityHeaders } from './securityHeaders';
 
 export async function ensureAppSchema() {
   return Promise.resolve();
 }
 
-export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>) {
+export async function withTransaction<T>(fn: (client: DatabaseClient) => Promise<T>) {
   const client = await connectDbClient();
   try {
     await client.query('BEGIN');
@@ -51,6 +51,8 @@ export function json(data: any, status = 200) {
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'CDN-Cache-Control': 'no-store',
       'Cloudflare-CDN-Cache-Control': 'no-store',
+      'Vary': 'Authorization',
+      ...adminSecurityHeaders(),
     },
   });
 }

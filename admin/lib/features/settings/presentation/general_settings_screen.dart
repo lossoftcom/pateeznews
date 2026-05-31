@@ -746,9 +746,392 @@ class _SeoSettings extends StatelessWidget {
           uploading: uploadingField == GeneralSettingsLogoField.ogImageUrl,
           onUpload: () => onUploadLogo(GeneralSettingsLogoField.ogImageUrl),
         ),
+        const SizedBox(height: 26),
+        const _SitemapSettingsSection(),
         const _FormDivider(),
         _SaveRow(saving: saving, onPressed: onSave),
       ],
+    );
+  }
+}
+
+class _SitemapSettingsSection extends StatefulWidget {
+  const _SitemapSettingsSection();
+
+  @override
+  State<_SitemapSettingsSection> createState() =>
+      _SitemapSettingsSectionState();
+}
+
+class _SitemapSettingsSectionState extends State<_SitemapSettingsSection> {
+  var _frequencyAuto = true;
+  var _lastModificationAuto = true;
+  var _priorityAuto = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.86)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _SubsectionHeader('generalSettings.seo.sitemap.title'),
+          const SizedBox(height: 22),
+          _SitemapRadioGroup(
+            label: 'generalSettings.seo.sitemap.frequency',
+            helper: 'generalSettings.seo.sitemap.frequencyHelp',
+            value: _frequencyAuto,
+            onChanged: (value) => setState(() => _frequencyAuto = value),
+          ),
+          const SizedBox(height: 22),
+          _SitemapRadioGroup(
+            label: 'generalSettings.seo.sitemap.lastModification',
+            helper: 'generalSettings.seo.sitemap.lastModificationHelp',
+            value: _lastModificationAuto,
+            onChanged: (value) => setState(() => _lastModificationAuto = value),
+          ),
+          const SizedBox(height: 22),
+          _SitemapRadioGroup(
+            label: 'generalSettings.seo.sitemap.priority',
+            helper: 'generalSettings.seo.sitemap.priorityHelp',
+            value: _priorityAuto,
+            onChanged: (value) => setState(() => _priorityAuto = value),
+          ),
+          const SizedBox(height: 20),
+          const Align(
+            alignment: Alignment.centerRight,
+            child: _SitemapActionButton(),
+          ),
+          const SizedBox(height: 28),
+          const _SubsectionHeader('generalSettings.seo.sitemap.generatedTitle'),
+          const SizedBox(height: 14),
+          const _SitemapGeneratedFile(),
+          const SizedBox(height: 18),
+          const _SitemapInfoBox(),
+        ],
+      ),
+    );
+  }
+}
+
+class _SitemapRadioGroup extends StatelessWidget {
+  const _SitemapRadioGroup({
+    required this.label,
+    required this.helper,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String helper;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _RequiredLabel(label),
+        const SizedBox(height: 4),
+        Text(
+          context.t(helper),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppColors.inkSoft,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 10),
+        RadioGroup<bool>(
+          groupValue: value,
+          onChanged: (nextValue) {
+            if (nextValue != null) onChanged(nextValue);
+          },
+          child: Wrap(
+            spacing: 24,
+            runSpacing: 10,
+            children: [
+              _SitemapRadioOption(
+                label: 'generalSettings.seo.sitemap.automaticallyCalculated',
+                optionValue: true,
+                onChanged: onChanged,
+              ),
+              _SitemapRadioOption(
+                label: 'generalSettings.seo.sitemap.none',
+                optionValue: false,
+                onChanged: onChanged,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SitemapRadioOption extends StatelessWidget {
+  const _SitemapRadioOption({
+    required this.label,
+    required this.optionValue,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool optionValue;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(optionValue),
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      mouseCursor: SystemMouseCursors.click,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Radio<bool>(
+            value: optionValue,
+            activeColor: AppColors.actionRed,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            context.t(label),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequiredLabel extends StatelessWidget {
+  const _RequiredLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: AppColors.deepOcean,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    );
+    return RichText(
+      text: TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: context.t(label)),
+          TextSpan(
+            text: ' *',
+            style: style?.copyWith(color: AppColors.actionRed),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SitemapActionButton extends StatelessWidget {
+  const _SitemapActionButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: TextButton(
+        onPressed: () {},
+        style:
+            TextButton.styleFrom(
+              backgroundColor: AppColors.actionRed,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: Text(context.t('generalSettings.seo.sitemap.generate')),
+      ),
+    );
+  }
+}
+
+class _SitemapGeneratedFile extends StatelessWidget {
+  const _SitemapGeneratedFile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: AppColors.line.withValues(alpha: 0.9)),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SymbolIcon(
+            Symbols.open_in_new,
+            color: AppColors.iconMuted,
+            size: 16,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.t('generalSettings.seo.sitemap.fileName'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.actionRed,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          const _SitemapIconButton(
+            icon: Symbols.download,
+            color: Color(0xFF16A34A),
+            background: Color(0xFFE9FBEF),
+          ),
+          const SizedBox(width: 8),
+          const _SitemapIconButton(
+            icon: Symbols.delete,
+            color: AppColors.actionRed,
+            background: Color(0xFFFFEFF0),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SitemapIconButton extends StatelessWidget {
+  const _SitemapIconButton({
+    required this.icon,
+    required this.color,
+    required this.background,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 28,
+      child: TextButton(
+        onPressed: () {},
+        style:
+            TextButton.styleFrom(
+              backgroundColor: background,
+              foregroundColor: color,
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: SymbolIcon(icon, color: color, size: 15),
+      ),
+    );
+  }
+}
+
+class _SitemapInfoBox extends StatelessWidget {
+  const _SitemapInfoBox();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.actionRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: const SymbolIcon(
+              Symbols.notifications,
+              color: AppColors.actionRed,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.t('generalSettings.seo.sitemap.infoTitle'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.actionRed,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  context.t('generalSettings.seo.sitemap.infoDescription'),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  context.t('generalSettings.seo.sitemap.cronUrl'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

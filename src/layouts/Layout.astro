@@ -207,6 +207,7 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 				<link rel="dns-prefetch" href={origin} />
 			</>
 		))}
+		{orgLogo && <link rel="preload" as="image" href={orgLogo} fetchpriority="high" />}
 		
 		<title>{resolvedTitle}</title>
 		<meta name="description" content={resolvedDescription} />

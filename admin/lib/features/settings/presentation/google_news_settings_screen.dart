@@ -1,0 +1,940 @@
+import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
+
+import '../../../core/localization/admin_language_controller.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/symbol_icon.dart';
+
+class GoogleNewsSettingsScreen extends StatefulWidget {
+  const GoogleNewsSettingsScreen({super.key});
+
+  @override
+  State<GoogleNewsSettingsScreen> createState() =>
+      _GoogleNewsSettingsScreenState();
+}
+
+class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
+  final _publicationNameController = TextEditingController(text: 'My News');
+  final _feedPostLimitController = TextEditingController(text: '50');
+
+  var _active = true;
+  var _rssContent = 'googleNews.option.showFullContent';
+  var _language = 'language.name.en';
+  var _category = 'googleNews.option.selectCategory';
+
+  @override
+  void dispose() {
+    _publicationNameController.dispose();
+    _feedPostLimitController.dispose();
+    super.dispose();
+  }
+
+  void _showSavedMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.t('googleNews.saveSuccess'))),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            28,
+            horizontalPadding,
+            28,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                context.t('googleNews.title'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 22),
+              _GoogleNewsLayout(
+                left: _SettingsCard(
+                  active: _active,
+                  publicationNameController: _publicationNameController,
+                  rssContent: _rssContent,
+                  feedPostLimitController: _feedPostLimitController,
+                  onActiveChanged: (value) => setState(() => _active = value),
+                  onRssContentChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _rssContent = value);
+                  },
+                  onSave: _showSavedMessage,
+                ),
+                right: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FeedGeneratorCard(
+                      language: _language,
+                      category: _category,
+                      onLanguageChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _language = value);
+                      },
+                      onCategoryChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _category = value);
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    const _IntegrationEndpointsCard(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GoogleNewsLayout extends StatelessWidget {
+  const _GoogleNewsLayout({required this.left, required this.right});
+
+  final Widget left;
+  final Widget right;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 980) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [left, const SizedBox(height: 20), right],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 286, child: left),
+            const SizedBox(width: 24),
+            Expanded(child: right),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({
+    required this.active,
+    required this.publicationNameController,
+    required this.rssContent,
+    required this.feedPostLimitController,
+    required this.onActiveChanged,
+    required this.onRssContentChanged,
+    required this.onSave,
+  });
+
+  final bool active;
+  final TextEditingController publicationNameController;
+  final String rssContent;
+  final TextEditingController feedPostLimitController;
+  final ValueChanged<bool> onActiveChanged;
+  final ValueChanged<String?> onRssContentChanged;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GoogleNewsCard(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardTitle('googleNews.settings.title'),
+          const SizedBox(height: 30),
+          Row(
+            children: [
+              Expanded(child: _FieldLabel('googleNews.field.status')),
+              _CompactCheckSwitch(value: active, onChanged: onActiveChanged),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _FullTextField(
+            label: 'googleNews.field.publicationName',
+            controller: publicationNameController,
+            isRequired: true,
+          ),
+          const SizedBox(height: 22),
+          _FullSelectField(
+            label: 'googleNews.field.rssContent',
+            helper: 'googleNews.help.rssContent',
+            value: rssContent,
+            options: const [
+              'googleNews.option.showFullContent',
+              'googleNews.option.showSummary',
+            ],
+            onChanged: onRssContentChanged,
+            isRequired: true,
+          ),
+          const SizedBox(height: 22),
+          _FullTextField(
+            label: 'googleNews.field.feedPostLimit',
+            helper: 'googleNews.help.feedPostLimit',
+            controller: feedPostLimitController,
+            keyboardType: TextInputType.number,
+            isRequired: true,
+          ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: _PrimaryButton(
+              label: 'Save Changes',
+              icon: Symbols.check,
+              onPressed: onSave,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedGeneratorCard extends StatelessWidget {
+  const _FeedGeneratorCard({
+    required this.language,
+    required this.category,
+    required this.onLanguageChanged,
+    required this.onCategoryChanged,
+  });
+
+  final String language;
+  final String category;
+  final ValueChanged<String?> onLanguageChanged;
+  final ValueChanged<String?> onCategoryChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GoogleNewsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardTitle('googleNews.feed.title'),
+          const SizedBox(height: 22),
+          _FullSelectField(
+            label: 'Language',
+            value: language,
+            options: const [
+              'language.name.en',
+              'language.name.tr',
+              'language.name.ar',
+            ],
+            onChanged: onLanguageChanged,
+          ),
+          const SizedBox(height: 18),
+          _FullSelectField(
+            label: 'Category',
+            value: category,
+            options: const [
+              'googleNews.option.selectCategory',
+              'googleNews.option.allCategories',
+              'googleNews.option.news',
+              'googleNews.option.video',
+            ],
+            onChanged: onCategoryChanged,
+          ),
+          const SizedBox(height: 18),
+          const _FeedUrlField(),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedUrlField extends StatelessWidget {
+  const _FeedUrlField();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _FieldLabel('googleNews.field.generatedFeedUrl'),
+        const SizedBox(height: 8),
+        Container(
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(right: BorderSide(color: AppColors.line)),
+                ),
+                child: const SymbolIcon(
+                  Symbols.open_in_new,
+                  color: AppColors.iconMuted,
+                  size: 16,
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    context.t('googleNews.feed.generatedUrl'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 42,
+                child: TextButton(
+                  onPressed: () {},
+                  style: TextButton.styleFrom(
+                    backgroundColor: AppColors.actionRed,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.only(
+                        topRight: Radius.circular(AppRadius.value),
+                        bottomRight: Radius.circular(AppRadius.value),
+                      ),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  child: Text(context.t('common.copy')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IntegrationEndpointsCard extends StatelessWidget {
+  const _IntegrationEndpointsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _GoogleNewsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardTitle('googleNews.integration.title'),
+          const SizedBox(height: 28),
+          Text(
+            context.t('googleNews.integration.description'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.placeholder,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const _EndpointBox(
+            title: 'googleNews.integration.newsSitemapTitle',
+            description: 'googleNews.integration.newsSitemapDescription',
+            url: 'https://www.pateez.com/sitemap-news.xml',
+            icon: Symbols.article,
+            accent: Color(0xFF2F80ED),
+            background: Color(0xFFEAF3FF),
+          ),
+          const SizedBox(height: 14),
+          const _EndpointBox(
+            title: 'googleNews.integration.publisherFeedTitle',
+            description: 'googleNews.integration.publisherFeedDescription',
+            url: 'https://www.pateez.com/service/feed/google-news?lang=1',
+            icon: Symbols.draft,
+            accent: Color(0xFFF39C12),
+            background: Color(0xFFFFF7DB),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EndpointBox extends StatelessWidget {
+  const _EndpointBox({
+    required this.title,
+    required this.description,
+    required this.url,
+    required this.icon,
+    required this.accent,
+    required this.background,
+  });
+
+  final String title;
+  final String description;
+  final String url;
+  final IconData icon;
+  final Color accent;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DashedBorderPainter(color: accent.withValues(alpha: 0.78)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SymbolIcon(icon, color: accent, size: 30),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    context.t(title),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    context.t(description),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkSoft,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _EndpointUrlRow(url: url),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EndpointUrlRow extends StatelessWidget {
+  const _EndpointUrlRow({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 420;
+        final urlField = Container(
+          height: 34,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Text(
+            url,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        );
+        final viewButton = SizedBox(
+          height: 34,
+          child: TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.deepOcean,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            child: Text(context.t('newsAdd.fileView')),
+          ),
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [urlField, const SizedBox(height: 8), viewButton],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: urlField),
+            const SizedBox(width: 8),
+            viewButton,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _GoogleNewsCard extends StatelessWidget {
+  const _GoogleNewsCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(24),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.86)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepOcean.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _CardTitle extends StatelessWidget {
+  const _CardTitle(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      context.t(label),
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        color: AppColors.deepOcean,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _FullTextField extends StatelessWidget {
+  const _FullTextField({
+    required this.label,
+    required this.controller,
+    this.helper,
+    this.keyboardType,
+    this.isRequired = false,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String? helper;
+  final TextInputType? keyboardType;
+  final bool isRequired;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FieldLabel(label, isRequired: isRequired),
+        const SizedBox(height: 8),
+        _TextInput(controller: controller, keyboardType: keyboardType),
+        if (helper != null) ...[
+          const SizedBox(height: 7),
+          Text(
+            context.t(helper!),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.placeholder,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FullSelectField extends StatelessWidget {
+  const _FullSelectField({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.helper,
+    this.isRequired = false,
+  });
+
+  final String label;
+  final String value;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+  final String? helper;
+  final bool isRequired;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FieldLabel(label, isRequired: isRequired),
+        const SizedBox(height: 8),
+        _SelectInput(value: value, options: options, onChanged: onChanged),
+        if (helper != null) ...[
+          const SizedBox(height: 7),
+          Text(
+            context.t(helper!),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.placeholder,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.label, {this.isRequired = false});
+
+  final String label;
+  final bool isRequired;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: AppColors.deepOcean,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    );
+    if (!isRequired) {
+      return Text(
+        context.t(label),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: context.t(label)),
+          TextSpan(
+            text: ' *',
+            style: style?.copyWith(color: AppColors.actionRed),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TextInput extends StatelessWidget {
+  const _TextInput({required this.controller, this.keyboardType});
+
+  final TextEditingController controller;
+  final TextInputType? keyboardType;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 42,
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        textAlignVertical: TextAlignVertical.center,
+        mouseCursor: SystemMouseCursors.text,
+        cursorColor: AppColors.support,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppColors.deepOcean,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+        decoration: _inputDecoration(context),
+      ),
+    );
+  }
+}
+
+class _SelectInput extends StatelessWidget {
+  const _SelectInput({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String value;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.only(left: 12, right: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            dropdownColor: Colors.white,
+            focusColor: Colors.transparent,
+            mouseCursor: SystemMouseCursors.click,
+            dropdownMenuItemMouseCursor: SystemMouseCursors.click,
+            icon: const SymbolIcon(
+              Symbols.keyboard_arrow_down,
+              color: AppColors.iconMuted,
+              size: 18,
+            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+            items: [
+              for (final option in options)
+                DropdownMenuItem(
+                  value: option,
+                  child: Text(
+                    context.t(option),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: onChanged,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: TextButton(
+        onPressed: onPressed,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: AppColors.actionRed,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                context.t(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactCheckSwitch extends StatelessWidget {
+  const _CompactCheckSwitch({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(!value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: 42,
+          height: 24,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: value ? AppColors.actionRed : AppColors.softLine,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: value
+                  ? AppColors.actionRed
+                  : AppColors.line.withValues(alpha: 0.9),
+            ),
+          ),
+          child: AnimatedAlign(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOut,
+            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: 18,
+              height: 18,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: value
+                  ? const SymbolIcon(
+                      Symbols.check,
+                      color: AppColors.actionRed,
+                      size: 12,
+                    )
+                  : null,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    final radius = Radius.circular(AppRadius.value);
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, radius).deflate(0.5),
+      );
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      const dash = 6.0;
+      const gap = 4.0;
+      while (distance < metric.length) {
+        final end = (distance + dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+InputDecoration _inputDecoration(BuildContext context) {
+  return InputDecoration(
+    filled: true,
+    fillColor: Colors.white,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      borderSide: const BorderSide(color: AppColors.line),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      borderSide: const BorderSide(color: AppColors.line),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      borderSide: BorderSide(color: AppColors.deepOcean.withValues(alpha: 0.4)),
+    ),
+  );
+}

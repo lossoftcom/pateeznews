@@ -5,10 +5,15 @@ dist/
 .env.*
 !.env.example
 .env.local
+.dev.vars
+cloudflare.env
+cloudflare.env.*
+!cloudflare.env.example
 vercel.env
 vercel.env.*
 !vercel.env.example
 .vercel/
+public/admin/
 migration/*.sql
 !migration/2026-04-27-add-manset-slider.sql
 !migration/2026-05-02-add-mail-module.sql
@@ -16,3 +21,4 @@ migration/*.sql
 !migration/2026-05-30-public-client-and-storage.sql
 !migration/2026-05-30-runtime-schema-baseline.sql
 !migration/2026-05-30-performance-indexes.sql
+!migration/2026-05-31-admin-api-rls-role-hardening.sql

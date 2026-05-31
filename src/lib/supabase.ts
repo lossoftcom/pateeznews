@@ -6,30 +6,15 @@ function readEnv(name: string) {
   return (import.meta.env as Record<string, string | undefined>)[name] || '';
 }
 
-function deriveSupabaseUrlFromDatabaseUrl() {
-  const databaseUrl = readEnv('SUPABASE_DATABASE_URL') || readEnv('DATABASE_URL') || readEnv('POSTGRES_URL');
-  if (!databaseUrl) return '';
-  try {
-    const parsed = new URL(databaseUrl);
-    const match = parsed.hostname.match(/^db\.([a-z0-9-]+)\.supabase\.co$/i);
-    return match ? `https://${match[1]}.supabase.co` : '';
-  } catch {
-    return '';
-  }
-}
-
 export function getSupabaseClientConfig() {
   const url = (
     readEnv('PUBLIC_SUPABASE_URL') ||
-    readEnv('SUPABASE_URL') ||
-    deriveSupabaseUrlFromDatabaseUrl()
+    readEnv('SUPABASE_URL')
   ).replace(/\/$/, '');
 
   const publishableKey =
     readEnv('PUBLIC_SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('PUBLIC_SUPABASE_ANON_KEY') ||
-    readEnv('SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('SUPABASE_ANON_KEY');
+    readEnv('SUPABASE_PUBLISHABLE_KEY');
 
   return { url, publishableKey };
 }

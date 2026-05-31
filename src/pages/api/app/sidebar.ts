@@ -3,6 +3,8 @@ import { ensureAppSchema, json } from '@/lib/server/appDb';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 const WEATHER_REFRESH_MS = 30 * 60 * 1000;
+const SIDEBAR_FETCH_TIMEOUT_MS = 7000;
+const SIDEBAR_REFRESH_LOCK_MS = 15_000;
 const DEFAULT_WEATHER = {
   enabled: true,
   location: 'Niğde',
@@ -23,18 +25,32 @@ type WeatherCacheEntry = {
 };
 
 let weatherCache: WeatherCacheEntry | null = null;
-const refreshInFlight = new Map<string, Promise<any>>();
+const refreshInFlight = new Map<string, { promise: Promise<any>; startedAt: number }>();
 
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
+async function fetchJson<T>(url: string, timeoutMs = SIDEBAR_FETCH_TIMEOUT_MS): Promise<T | null> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const request = (async () => {
     const response = await fetch(url, {
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { Accept: 'application/json' },
     });
     if (!response.ok) return null;
     return await response.json() as T;
+  })();
+
+  try {
+    return await Promise.race([
+      request,
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => {
+          resolve(null);
+        }, timeoutMs);
+      }),
+    ]);
   } catch {
     return null;
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
@@ -226,14 +242,18 @@ const cacheMatchesSettings = (payload: any, settings: WeatherSettings) => {
 };
 
 const fetchSidebarFresh = async (cacheKey: string, settings: WeatherSettings) => {
-  if (refreshInFlight.has(cacheKey)) return refreshInFlight.get(cacheKey)!;
+  const existing = refreshInFlight.get(cacheKey);
+  if (existing && Date.now() - existing.startedAt < SIDEBAR_REFRESH_LOCK_MS) {
+    return existing.promise;
+  }
+  if (existing) refreshInFlight.delete(cacheKey);
 
   const promise = (async () => {
     const [weather, usdTry, btc, gold] = await Promise.all([
       fetchWeather(settings),
-      fetchJson<any>('https://api.frankfurter.dev/v1/latest?from=USD&to=TRY,EUR'),
-      fetchJson<any>('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true'),
-      fetchJson<any>('https://api.gold-api.com/price/XAU'),
+      fetchJson<any>('https://api.frankfurter.dev/v1/latest?from=USD&to=TRY,EUR', 2500),
+      fetchJson<any>('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true', 2500),
+      fetchJson<any>('https://api.gold-api.com/price/XAU', 2500),
     ]);
 
     const usdTryRate = Number(usdTry?.rates?.TRY || 0);
@@ -299,7 +319,7 @@ const fetchSidebarFresh = async (cacheKey: string, settings: WeatherSettings) =>
     refreshInFlight.delete(cacheKey);
   });
 
-  refreshInFlight.set(cacheKey, promise);
+  refreshInFlight.set(cacheKey, { promise, startedAt: Date.now() });
   return promise;
 };
 

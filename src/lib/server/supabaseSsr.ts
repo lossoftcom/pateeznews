@@ -1,7 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
+import { readRuntimeEnv } from './runtimeEnv';
 
 function readEnv(name: string) {
-  return (import.meta.env as Record<string, string | undefined>)[name] || process.env[name] || '';
+  return readRuntimeEnv(name);
 }
 
 function deriveSupabaseUrlFromDatabaseUrl() {
@@ -25,9 +26,7 @@ function getServerSupabaseConfig() {
 
   const publishableKey =
     readEnv('PUBLIC_SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('PUBLIC_SUPABASE_ANON_KEY') ||
-    readEnv('SUPABASE_ANON_KEY');
+    readEnv('SUPABASE_PUBLISHABLE_KEY');
 
   if (!url || !publishableKey) {
     throw new Error('PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_PUBLISHABLE_KEY are required for Astro Supabase SSR');

@@ -1,12 +1,11 @@
 import crypto from 'crypto';
+import { readRuntimeEnv } from '@/lib/server/runtimeEnv';
 
 const SECRET_PREFIX = 'enc:v1:';
 
 function secretSource() {
-  const env = import.meta.env as Record<string, string | undefined>;
   return (
-    process.env.MAIL_SECRET_KEY ||
-    env.MAIL_SECRET_KEY ||
+    readRuntimeEnv('MAIL_SECRET_KEY') ||
     'pateeznews-mail-dev-secret'
   );
 }

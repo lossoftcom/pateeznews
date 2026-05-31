@@ -36,9 +36,10 @@ const MainLoading: React.FC = () => {
                     .maybeSingle();
 
                 if (!error && data) {
-                    setSettings(data);
-                    if (data.home_title || data.site_name) {
-                        document.title = data.home_title || data.site_name;
+                    const siteSettings = data as unknown as SiteSettings;
+                    setSettings(siteSettings);
+                    if (siteSettings.home_title || siteSettings.site_name) {
+                        document.title = siteSettings.home_title || siteSettings.site_name;
                     }
                 }
             } catch (e) {
@@ -70,6 +71,9 @@ const MainLoading: React.FC = () => {
                                 src={logoUrl}
                                 alt={siteName}
                                 className="h-10 md:h-11 w-auto object-contain transition-all duration-300"
+                                loading="eager"
+                                decoding="async"
+                                fetchPriority="high"
                                 style={{
                                     imageRendering: 'auto', // Browser handles antialiasing for smoothness
                                     transform: 'translateZ(0) scale(1.0)',

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { readRuntimeEnv } from './runtimeEnv';
 
 export const MEDIA_BUCKET = 'media';
 
@@ -6,7 +7,7 @@ export const STORAGE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profil
 export type StorageType = typeof STORAGE_TYPES[number];
 
 function readEnv(name: string) {
-  return (import.meta.env as Record<string, string | undefined>)[name] || process.env[name] || '';
+  return readRuntimeEnv(name);
 }
 
 function deriveSupabaseUrlFromDatabaseUrl() {
@@ -38,9 +39,7 @@ export function getSupabaseStorageConfig() {
 
   const publishableKey =
     readEnv('SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('PUBLIC_SUPABASE_PUBLISHABLE_KEY') ||
-    readEnv('SUPABASE_ANON_KEY') ||
-    readEnv('PUBLIC_SUPABASE_ANON_KEY');
+    readEnv('PUBLIC_SUPABASE_PUBLISHABLE_KEY');
 
   if (!publishableKey) {
     throw new Error('SUPABASE_PUBLISHABLE_KEY is required for Supabase Storage');

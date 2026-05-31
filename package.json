@@ -7,14 +7,20 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "NODE_OPTIONS=\"--import ./scripts/vercel-nft-trace-guard.mjs ${NODE_OPTIONS:-}\" astro build",
-    "preview": "astro preview",
+    "dev": "node ./scripts/run-with-cloudflare-env.mjs astro dev",
+    "build": "npm run build:cloudflare",
+    "build:astro": "node ./scripts/run-with-cloudflare-env.mjs astro build",
+    "build:admin:web": "node ./scripts/build-admin-web.mjs",
+    "copy:admin:web": "node ./scripts/copy-admin-web.mjs",
+    "build:cloudflare": "npm run build:admin:web && npm run copy:admin:web && npm run build:astro",
+    "deploy": "npm run build:cloudflare && wrangler deploy",
+    "preview": "node ./scripts/run-with-cloudflare-env.mjs astro preview",
+    "wrangler:check": "wrangler deploy --dry-run",
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^13.6.0",
     "@astrojs/react": "^5.0.4",
-    "@astrojs/vercel": "^10.0.5",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "@types/multiparty": "^4.2.1",
@@ -27,13 +33,14 @@
     "multiparty": "^4.2.3",
     "nodemailer": "^8.0.7",
     "parse5": "^7.3.0",
-    "pg": "^8.20.0",
+    "pg": "^8.21.0",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "sharp": "^0.34.5",
     "swiper": "^12.1.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260531.1",
     "@types/node": "24.12.2",
     "@types/pg": "^8.20.0",
     "@types/react": "19.2.14",
@@ -43,7 +50,8 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.1",
     "typescript": "~5.8.2",
-    "vite": "7.3.2"
+    "vite": "7.3.2",
+    "wrangler": "^4.95.0"
   },
   "overrides": {
     "lodash": "4.18.1",

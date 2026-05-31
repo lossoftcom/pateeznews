@@ -79,23 +79,13 @@ export const POST: APIRoute = async ({ request }) => {
     const sortColumn = SORT_COLUMNS[String(body.sortKey || '').trim()] || SORT_COLUMNS.date;
     const sortDirection = body.sortAscending === true ? 'ASC' : 'DESC';
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const countValues = values.slice();
     const limitSql = push(pageSize);
     const offsetSql = push(offset);
 
-    const result = await dbQuery<any>(
-      `WITH filtered AS (
-         SELECT p.*
-         FROM public.posts p
-         ${whereSql}
-       ),
-       paged AS (
-         SELECT p.*, COUNT(*) OVER() AS total_count
-         FROM filtered p
-         ORDER BY p.is_pinned DESC, ${sortColumn} ${sortDirection} NULLS LAST, p.id DESC
-         LIMIT ${limitSql}
-         OFFSET ${offsetSql}
-       )
-       SELECT
+    const [result, countResult] = await Promise.all([
+      dbQuery<any>(
+        `SELECT
          p.id,
          p.title,
          p.category,
@@ -114,9 +104,8 @@ export const POST: APIRoute = async ({ request }) => {
            'username', publisher.username,
            'email', publisher.email
          ) AS profiles,
-         parent.label AS parent_category,
-         p.total_count
-       FROM paged p
+         parent.label AS parent_category
+       FROM public.posts p
        LEFT JOIN public.profiles publisher ON publisher.id = p.publisher_id
        LEFT JOIN LATERAL (
          SELECT item.parent_id
@@ -125,14 +114,25 @@ export const POST: APIRoute = async ({ request }) => {
          ORDER BY (item.language_code = p.language_code) DESC NULLS LAST, item.id
          LIMIT 1
        ) category_item ON true
-       LEFT JOIN public.navigation_items parent ON parent.id = category_item.parent_id`,
-      values
-    );
+       LEFT JOIN public.navigation_items parent ON parent.id = category_item.parent_id
+       ${whereSql}
+       ORDER BY p.is_pinned DESC, ${sortColumn} ${sortDirection} NULLS LAST, p.id DESC
+       LIMIT ${limitSql}
+       OFFSET ${offsetSql}`,
+        values
+      ),
+      dbQuery<{ count: string }>(
+        `SELECT COUNT(*)::bigint AS count
+         FROM public.posts p
+         ${whereSql}`,
+        countValues
+      ),
+    ]);
 
     const rows = result.rows || [];
-    const count = rows.length ? Number(rows[0].total_count || 0) : 0;
+    const count = Number(countResult.rows[0]?.count || 0);
     return adminJson({
-      data: rows.map(({ total_count, ...row }) => row),
+      data: rows,
       count,
       error: null,
     });

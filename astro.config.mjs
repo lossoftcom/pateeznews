@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
-import vercel from '@astrojs/vercel';
+import cloudflare from '@astrojs/cloudflare';
 
 import { fileURLToPath } from 'url';
 
@@ -14,8 +14,14 @@ const clientOptimizeDeps = [
     'react',
     'react-dom',
     'react-dom/client',
+    'react-dom/server',
     'react/jsx-dev-runtime',
     'react/jsx-runtime',
+    'astro/assets/services/noop',
+    'astro/runtime/server/transition.js',
+    'astro/virtual-modules/middleware.js',
+    'astro/virtual-modules/prefetch.js',
+    'astro/virtual-modules/transitions.js',
     'astro > aria-query',
     'astro > axobject-query',
     'astro > html-escaper',
@@ -25,6 +31,7 @@ const clientOptimizeDeps = [
     'astro/virtual-modules/transitions-swap-functions.js',
     'astro/runtime/client/dev-toolbar/entrypoint.js',
     'scheduler',
+    'parse5',
     'emoji-picker-react',
     'lucide-react',
     'swiper/modules',
@@ -34,8 +41,9 @@ const clientOptimizeDeps = [
 // https://astro.build/config
 export default defineConfig({
     output: 'server',
-    adapter: vercel({
-        webAnalytics: { enabled: true },
+    adapter: cloudflare({
+        imageService: 'passthrough',
+        inspectorPort: 0,
     }),
     integrations: [react()],
     image: {
@@ -52,8 +60,12 @@ export default defineConfig({
     vite: {
         define: {
             global: 'globalThis',
+            __PREFETCH_PREFETCH_ALL__: 'true',
+            __PREFETCH_DEFAULT_STRATEGY__: JSON.stringify('hover'),
+            __EXPERIMENTAL_CLIENT_PRERENDER__: 'false',
         },
         resolve: {
+            dedupe: ['react', 'react-dom'],
             alias: {
                 '@': fileURLToPath(new URL('./src', import.meta.url)),
             },
@@ -70,6 +82,18 @@ export default defineConfig({
                     if (id.includes('@daybrush/utils') && message.includes('#__PURE__')) return;
                     warn(warning);
                 },
+            },
+        },
+        server: {
+            watch: {
+                ignored: [
+                    '**/admin/build/**',
+                    '**/admin/.dart_tool/**',
+                    '**/admin/macos/Flutter/ephemeral/**',
+                    '**/admin/ios/Flutter/ephemeral/**',
+                    '**/admin/linux/flutter/ephemeral/**',
+                    '**/admin/windows/flutter/ephemeral/**',
+                ],
             },
         },
         optimizeDeps: {

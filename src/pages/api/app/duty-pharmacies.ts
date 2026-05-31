@@ -301,6 +301,10 @@ const writeCache = async (payload: DutyPharmacyPayload) => {
   memoryCache = { payload, expiresAt: new Date(expiresAt).getTime() };
 };
 
+const rememberPayload = (payload: DutyPharmacyPayload) => {
+  memoryCache = { payload, expiresAt: cacheExpiryDate().getTime() };
+};
+
 const cacheMatchesToday = (payload: any) => {
   const today = localParts().dateKey;
   return payload?.citySlug === CITY_SLUG && payload?.serviceDate === today && Array.isArray(payload?.pharmacies);
@@ -353,7 +357,11 @@ const fetchFresh = async (): Promise<DutyPharmacyPayload> => {
       },
     };
 
-    await writeCache(payload);
+    try {
+      await writeCache(payload);
+    } catch {
+      rememberPayload(payload);
+    }
     return payload;
   })().finally(() => {
     refreshInFlight = null;

@@ -1,3 +1,5 @@
+import { readRuntimeEnv } from '@/lib/server/runtimeEnv';
+
 export const BUNDLE_SOCIAL_API_BASE_URL = 'https://api.bundle.social/api/v1';
 
 type BundleRequestOptions = {
@@ -15,11 +17,9 @@ export class BundleSocialError extends Error {
 }
 
 function normalizeBundleBaseUrl(value?: string) {
-  const env = import.meta.env as Record<string, string | undefined>;
   const input = String(
     value ||
-      process.env.BUNDLE_SOCIAL_API_BASE_URL ||
-      env.BUNDLE_SOCIAL_API_BASE_URL ||
+      readRuntimeEnv('BUNDLE_SOCIAL_API_BASE_URL') ||
       BUNDLE_SOCIAL_API_BASE_URL
   ).trim();
   if (!input) return BUNDLE_SOCIAL_API_BASE_URL;
