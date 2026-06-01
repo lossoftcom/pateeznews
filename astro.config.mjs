@@ -10,28 +10,6 @@ const remoteImageHosts = (process.env.PUBLIC_REMOTE_IMAGE_HOSTS || '')
     .filter(Boolean);
 
 const clientOptimizeDeps = [
-    '@astrojs/react/client.js',
-    'react',
-    'react-dom',
-    'react-dom/client',
-    'react-dom/server',
-    'react/jsx-dev-runtime',
-    'react/jsx-runtime',
-    'astro/assets/services/noop',
-    'astro/runtime/server/transition.js',
-    'astro/virtual-modules/middleware.js',
-    'astro/virtual-modules/prefetch.js',
-    'astro/virtual-modules/transitions.js',
-    'astro > aria-query',
-    'astro > axobject-query',
-    'astro > html-escaper',
-    'astro/virtual-modules/transitions-router.js',
-    'astro/virtual-modules/transitions-types.js',
-    'astro/virtual-modules/transitions-events.js',
-    'astro/virtual-modules/transitions-swap-functions.js',
-    'astro/runtime/client/dev-toolbar/entrypoint.js',
-    'scheduler',
-    'parse5',
     'emoji-picker-react',
     'lucide-react',
     'swiper/modules',
@@ -98,7 +76,6 @@ export default defineConfig({
         },
         optimizeDeps: {
             include: clientOptimizeDeps,
-            noDiscovery: true,
         }
     },
 });

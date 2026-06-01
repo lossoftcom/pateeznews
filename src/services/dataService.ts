@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { NewsType, type NavigationItem, type NewsItem, type SiteSettings } from '@/types';
+import { NewsType, type NavigationItem, type NewsItem, type SiteFont, type SiteSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
 import { getSpecialContentTypeAliases } from '@/utils/specialContent';
 
@@ -175,7 +175,7 @@ const getTypeFilterConditions = (terms: string[]) => {
 
 // --- INSTANT CACHE ENGINE (2026 LIGHT-SPEED) ---
 const CACHE_TTL = {
-    SETTINGS: 1000 * 60 * 10, // 10 minutes
+    SETTINGS: 1000 * 30,      // 30 seconds
     NAV: 1000 * 60 * 5,      // 5 minutes
     NEWS: 1000 * 30,         // 30 seconds
     STORIES: 1000 * 60,      // 1 minute
@@ -240,20 +240,73 @@ const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) 
     return promise;
 };
 
+export const invalidateDataCache = (predicate?: (key: string) => boolean) => {
+    for (const key of Object.keys(cache)) {
+        if (!predicate || predicate(key)) delete cache[key];
+    }
+    for (const key of Object.keys(inflight)) {
+        if (!predicate || predicate(key)) delete inflight[key];
+    }
+};
+
+export const invalidateSiteSettingsCache = (lang?: string) => {
+    const normalizedLang = String(lang || '').trim().toLowerCase().replace(/_/g, '-');
+    invalidateDataCache((key) => {
+        if (key === 'seo_alternates') return true;
+        if (key === 'site_fonts') return true;
+        if (!key.startsWith('settings_')) return false;
+        return !normalizedLang || key === `settings_${normalizedLang}`;
+    });
+};
+
 export const dataService = {
     async getSiteSettings(lang: string): Promise<SiteSettings | null> {
-        return withCache(`settings_${lang}`, CACHE_TTL.SETTINGS, async () => {
+        const languageCode = String(lang || 'tr').trim().toLowerCase().replace(/_/g, '-') || 'tr';
+        return withCache(`settings_${languageCode}`, CACHE_TTL.SETTINGS, async () => {
+            const fetchSettings = async (code: string) => {
+                const { data, error } = await supabase
+                    .from('site_settings')
+                    .select(SITE_PUBLIC_COLUMNS)
+                    .eq('language_code', code)
+                    .maybeSingle();
+
+                if (error) {
+                    console.error('Error fetching site settings:', error);
+                    return null;
+                }
+                return data;
+            };
+
+            const data = await fetchSettings(languageCode);
+            if (data) return data;
+
+            const seoAlternates = await dataService.getSeoAlternates();
+            const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
+            if (languageCode !== defaultLangCode) {
+                const fallbackData = await fetchSettings(defaultLangCode);
+                if (fallbackData) return fallbackData;
+            }
+            if (languageCode !== 'tr' && defaultLangCode !== 'tr') {
+                return await fetchSettings('tr');
+            }
+            return null;
+        });
+    },
+
+    async getSiteFonts(): Promise<SiteFont[]> {
+        return withCache('site_fonts', CACHE_TTL.SETTINGS, async () => {
             const { data, error } = await supabase
-                .from('site_settings')
-                .select(SITE_PUBLIC_COLUMNS)
-                .eq('language_code', lang)
-                .single();
+                .from('site_fonts')
+                .select('id,name,family,type,source,web_font_path,flutter_family,fallback_stack,font_files,is_active,sort_order')
+                .eq('is_active', true)
+                .order('sort_order', { ascending: false })
+                .order('id', { ascending: false });
 
             if (error) {
-                console.error('Error fetching site settings:', error);
-                return null;
+                console.error('Error fetching site fonts:', error);
+                return [];
             }
-            return data;
+            return (data || []) as SiteFont[];
         });
     },
 

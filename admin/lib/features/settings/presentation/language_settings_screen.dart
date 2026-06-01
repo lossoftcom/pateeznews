@@ -483,7 +483,7 @@ class _LanguageSettingsToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < 800;
-        final compact = constraints.maxWidth < 1160;
+        final compact = constraints.maxWidth < 1320;
         final pageSizeSelect = _PageSizeSelect(
           value: pageSize,
           onChanged: onPageSizeChanged,

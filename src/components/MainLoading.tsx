@@ -18,7 +18,7 @@ const MainLoading: React.FC = () => {
     const getImmediateCache = () => {
         try {
             const langCode = localStorage.getItem('pateez_lang') || 'tr';
-            const cacheKey = `pateez_v2025_settings_${langCode}_default`;
+            const cacheKey = `pateez_v2026_settings_${langCode}_default`;
             const cached = localStorage.getItem(cacheKey);
             return cached ? JSON.parse(cached).data : null;
         } catch (e) { return null; }
@@ -29,13 +29,20 @@ const MainLoading: React.FC = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('site_settings')
-                    .select(SITE_PUBLIC_COLUMNS)
-                    .eq('language_code', currentLang.code)
-                    .maybeSingle();
+                const fetchSettings = async (languageCode: string) => {
+                    const { data, error } = await supabase
+                        .from('site_settings')
+                        .select(SITE_PUBLIC_COLUMNS)
+                        .eq('language_code', languageCode)
+                        .maybeSingle();
 
-                if (!error && data) {
+                    return error ? null : data;
+                };
+
+                const data = await fetchSettings(currentLang.code) ||
+                    (currentLang.code === 'tr' ? null : await fetchSettings('tr'));
+
+                if (data) {
                     const siteSettings = data as unknown as SiteSettings;
                     setSettings(siteSettings);
                     if (siteSettings.home_title || siteSettings.site_name) {

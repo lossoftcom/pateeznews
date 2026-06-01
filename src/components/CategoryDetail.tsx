@@ -524,7 +524,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                 />
               </div>
               <div className="category-hero-slider-copy flex flex-col justify-center p-6 md:p-8">
-                <h2 className="news-title-font text-[22px] md:text-[26px] font-black text-gray-800 leading-[1.22] tracking-tight mb-3">
+                <h2 className="news-title-font text-[22px] md:text-[26px] font-[800] text-gray-800 leading-[1.22] tracking-normal mb-3">
                   {activeSlide.title}
                 </h2>
                 {activeSlide.description && (
@@ -582,7 +582,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                         </div>
                       )}
                       <div className="flex min-w-0 flex-col justify-center p-5 md:p-6">
-                        <h3 className="news-title-font text-[20px] md:text-[22px] font-black text-gray-800 leading-[1.16] tracking-tight line-clamp-2">
+                        <h3 className="news-title-font text-[20px] md:text-[22px] font-[800] text-gray-800 leading-[1.16] tracking-normal line-clamp-2">
                           {title}
                         </h3>
                         {description && (

@@ -68,8 +68,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Inter"', 'sans-serif'],
-        display: ['"Inter"', 'sans-serif'],
+        sans: ['var(--site-font-primary)', '"PateezInter"', '"Inter"', 'sans-serif'],
+        display: ['var(--site-font-title)', '"PateezInter"', '"Inter"', 'sans-serif'],
       },
       colors: {
         white: '#FFFFFF',

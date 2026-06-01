@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import { executeQuerySpec, executeRpc, type QuerySpec } from '@/lib/server/supabaseQuery';
+import { invalidateDataCache, invalidateSiteSettingsCache } from '@/services/dataService';
+import { invalidateServerDataCache, invalidateServerSiteSettingsCache } from '@/services/dataService.server';
 
 type QueryMethod = QuerySpec['method'];
 
@@ -34,6 +36,7 @@ const TABLE_RULES: Record<string, AccessRule> = {
   profiles: USERS,
   role_permissions: ROLES,
   roles: ROLES,
+  site_fonts: SETTINGS,
   site_settings: SETTINGS,
   stories: CONTENT,
 };
@@ -100,6 +103,11 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
     ],
     role_permissions: ['role_id', 'permission_key'],
     roles: ['id', 'name', 'label', 'description', 'color', 'created_at'],
+    site_fonts: [
+      'id', 'name', 'family', 'type', 'source', 'web_font_path',
+      'flutter_family', 'fallback_stack', 'font_files', 'is_active',
+      'sort_order', 'created_at', 'updated_at',
+    ],
     site_settings: [
       'id', 'language_code', 'site_name', 'timezone', 'footer_about',
       'optional_url_button_name', 'copyright_text', 'logo_url',
@@ -109,6 +117,8 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'bing_verification_code', 'twitter_username', 'fb_app_id',
       'organization_legal_name', 'organization_phone', 'organization_address',
       'robots_txt', 'header_custom_codes', 'footer_custom_codes',
+      'site_primary_font', 'site_title_font', 'site_content_font',
+      'site_font_sizes',
       'google_ai_api_key', 'google_ai_model', 'google_ai_active',
       'weather_enabled', 'weather_location_name', 'weather_location_country',
       'weather_latitude', 'weather_longitude', 'weather_timezone',
@@ -247,6 +257,49 @@ export const POST: APIRoute = async ({ request }) => {
     const result = body?.kind === 'rpc'
       ? await executeRpc(body.name, body.args || {})
       : await executeQuerySpec(body);
+
+    if (
+      body?.kind !== 'rpc' &&
+      !result.error &&
+      body?.table === 'site_settings' &&
+      ['insert', 'update', 'upsert', 'delete'].includes(String(body?.method))
+    ) {
+      const values = Array.isArray(body.values) ? body.values[0] : body.values;
+      const languageCode = values?.language_code
+        || body.filters?.find((filter: any) => filter?.column === 'language_code')?.value;
+      invalidateSiteSettingsCache(languageCode ? String(languageCode) : undefined);
+      invalidateServerSiteSettingsCache(languageCode ? String(languageCode) : undefined);
+    }
+
+    if (
+      body?.kind !== 'rpc' &&
+      !result.error &&
+      body?.table === 'site_fonts' &&
+      ['insert', 'update', 'upsert', 'delete'].includes(String(body?.method))
+    ) {
+      invalidateSiteSettingsCache();
+      invalidateServerSiteSettingsCache();
+    }
+
+    if (
+      body?.kind !== 'rpc' &&
+      !result.error &&
+      body?.table === 'navigation_items' &&
+      ['insert', 'update', 'upsert', 'delete'].includes(String(body?.method))
+    ) {
+      invalidateDataCache((key) => key.startsWith('nav_'));
+      invalidateServerDataCache((key) => key.startsWith('nav_'));
+    }
+
+    if (
+      body?.kind !== 'rpc' &&
+      !result.error &&
+      body?.table === 'posts' &&
+      ['insert', 'update', 'upsert', 'delete'].includes(String(body?.method))
+    ) {
+      invalidateDataCache((key) => key.startsWith('news_'));
+      invalidateServerDataCache((key) => key.startsWith('news_') || key.startsWith('post_') || key.startsWith('category_page_'));
+    }
 
     return adminJson(result, result.error ? 400 : 200);
   } catch (error) {

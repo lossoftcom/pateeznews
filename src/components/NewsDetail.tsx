@@ -1273,14 +1273,14 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         {(data.title || data.summary) && (
           <div className="w-full mb-6 max-w-full">
             {data.title && (
-              <h1 className="news-title-font text-4xl md:text-5xl lg:text-6xl font-[900] text-gray-900 leading-[1.15] tracking-tighter mb-4">
+              <h1 className="news-title-font text-4xl md:text-5xl lg:text-6xl font-[800] text-gray-900 leading-[1.15] tracking-normal mb-4">
                 {data.title}
               </h1>
             )}
             {data.summary && (
               <div
                 dangerouslySetInnerHTML={{ __html: data.summary }}
-                className="news-subtitle-font rich-text-content text-xl md:text-2xl font-bold text-gray-500 leading-relaxed max-w-full"
+                className="news-subtitle-font rich-text-content text-xl md:text-2xl font-medium text-gray-500 leading-relaxed max-w-full"
               />
             )}
           </div>

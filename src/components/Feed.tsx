@@ -122,7 +122,6 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
               <NewsCard
                 key={news.id}
                 data={news}
-                onClick={() => onNewsSelect?.(news.id)}
                 onSourceClick={() => onSourceClick?.(news.source)}
                 siteSettings={siteSettings}
                 navItems={navItems}

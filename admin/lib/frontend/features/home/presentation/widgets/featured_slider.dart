@@ -318,26 +318,13 @@ String _formatFeaturedCategory(String category) {
 
 TextStyle get _featuredTitleStyle => AppTypography.display.copyWith(
   color: AppColors.inkStrong,
-  fontFamily: 'Gotham',
-  fontFamilyFallback: const [
-    'PateezInter',
-    'SF Pro Display',
-    'SF Pro Text',
-    'San Francisco',
-    'Roboto',
-    'Arial',
-  ],
-  fontSize: 32,
-  fontWeight: FontWeight.w900,
+  fontWeight: FontWeight.w800,
   letterSpacing: 0,
-  height: 1.06,
+  height: 1.08,
 );
 
-TextStyle get _featuredSummaryStyle => AppTypography.body.copyWith(
-  color: AppColors.ink,
-  fontSize: 15.5,
-  height: 1.42,
-);
+TextStyle get _featuredSummaryStyle =>
+    AppTypography.body.copyWith(color: AppColors.ink, height: 1.42);
 
 TextStyle get _featuredTimeStyle => AppTypography.meta.copyWith(
   color: AppColors.inkSoft,

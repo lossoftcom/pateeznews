@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
 
-const CACHE_TTL_MS = 1000 * 60 * 10;
+const CACHE_TTL_MS = 0;
 const cacheByKey: Record<string, { body: string; expiry: number }> = {};
 
 const normalizeBase = (value: string | null | undefined) => String(value || '').trim().replace(/\/$/, '');
@@ -55,7 +55,7 @@ export const GET: APIRoute = async ({ request }) => {
     return new Response(cached.body, {
       headers: {
         'Content-Type': 'application/manifest+json; charset=utf-8',
-        'Cache-Control': 'public, max-age=600',
+        'Cache-Control': 'no-cache, max-age=0',
       },
     });
   }
@@ -103,7 +103,7 @@ export const GET: APIRoute = async ({ request }) => {
   return new Response(body, {
     headers: {
       'Content-Type': 'application/manifest+json; charset=utf-8',
-      'Cache-Control': 'public, max-age=600',
+      'Cache-Control': 'no-cache, max-age=0',
     },
   });
 };

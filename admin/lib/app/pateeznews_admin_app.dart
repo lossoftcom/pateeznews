@@ -14,6 +14,7 @@ import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
 import '../features/pages/data/admin_pages_repository.dart';
 import '../features/settings/data/admin_ai_settings_repository.dart';
+import '../features/settings/data/admin_font_settings_repository.dart';
 import '../features/settings/data/admin_general_settings_repository.dart';
 import '../features/settings/data/admin_languages_repository.dart';
 import '../features/settings/data/admin_module_settings_repository.dart';
@@ -38,6 +39,7 @@ class PateeznewsAdminApp extends StatefulWidget {
     this.rolesRepository,
     this.languagesRepository,
     this.generalSettingsRepository,
+    this.fontSettingsRepository,
     this.aiSettingsRepository,
     this.moduleSettingsRepository,
     this.accountSettingsRepository,
@@ -57,6 +59,7 @@ class PateeznewsAdminApp extends StatefulWidget {
   final AdminRolesRepository? rolesRepository;
   final AdminLanguagesRepository? languagesRepository;
   final AdminGeneralSettingsRepository? generalSettingsRepository;
+  final AdminFontSettingsRepository? fontSettingsRepository;
   final AdminAiSettingsRepository? aiSettingsRepository;
   final AdminModuleSettingsRepository? moduleSettingsRepository;
   final AdminAccountSettingsRepository? accountSettingsRepository;
@@ -130,6 +133,9 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
               generalSettingsRepository:
                   widget.generalSettingsRepository ??
                   const SupabaseAdminGeneralSettingsRepository(),
+              fontSettingsRepository:
+                  widget.fontSettingsRepository ??
+                  const SupabaseAdminFontSettingsRepository(),
               aiSettingsRepository:
                   widget.aiSettingsRepository ??
                   const SupabaseAdminAiSettingsRepository(),

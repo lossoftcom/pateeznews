@@ -135,10 +135,14 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         fileName: file.name,
         bytes: await file.readAsBytes(),
       );
+      final nextSettings = _settingsWithLogo(_currentSettings(), field, src);
+      final saved = await widget.repository.saveSettings(
+        session: widget.session,
+        settings: nextSettings,
+      );
       if (!mounted) return;
       setState(() {
-        _settings = _settingsWithLogo(_currentSettings(), field, src);
-        _form.apply(_settings);
+        _applySettings(saved);
         _uploadingField = null;
       });
       _showMessage('settings.upload_success');

@@ -33,7 +33,7 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
 
                     {/* Navbar is Global */}
 
-                    <main className="max-w-[1280px] pt-[84px] gap-8 px-4 mx-auto flex justify-center items-start">
+                    <main className="max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
                         <section className="flex-1 min-w-0 pb-10 flex justify-center xl:justify-end w-full">
                             <div className="w-full max-w-[840px] xl:max-w-[880px]">
                                 <NewsDetail
@@ -45,7 +45,7 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
                             </div>
                         </section>
 
-                        <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8 sticky top-[72px]">
+                        <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8 sticky top-[88px]">
                             <RightSidebar newsData={newsItems} loading={newsItems.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} />
                         </aside>
                     </main>

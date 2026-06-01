@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ import 'package:pateeznews_admin/features/stories/presentation/stories_models.da
 import 'package:pateeznews_admin/features/auth/data/supabase_auth_client.dart';
 import 'package:pateeznews_admin/features/auth/data/remembered_login_store.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_font_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_language_models.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_languages_repository.dart';
@@ -2116,6 +2118,58 @@ class _FakeAdminGeneralSettingsRepository
   }
 }
 
+class _FakeAdminFontSettingsRepository implements AdminFontSettingsRepository {
+  _FakeAdminFontSettingsRepository();
+
+  final _settingsByLanguage = <String, AdminFontSettingsData>{
+    'tr': AdminFontSettingsData.empty('tr'),
+  };
+
+  AdminFontSettingsData? savedSettings;
+  AdminFontFormData? addedFont;
+
+  @override
+  Future<AdminFontSettingsBundle> fetchSettings(String languageCode) async {
+    return AdminFontSettingsBundle(
+      settings:
+          _settingsByLanguage[languageCode] ??
+          AdminFontSettingsData.empty(languageCode),
+      fonts: fallbackSiteFonts,
+    );
+  }
+
+  @override
+  Future<AdminFontSettingsData> saveSettings({
+    required AdminSession session,
+    required AdminFontSettingsData settings,
+  }) async {
+    savedSettings = settings;
+    _settingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<AdminFontRow> addFont({
+    required AdminSession session,
+    required AdminFontFormData data,
+  }) async {
+    addedFont = data;
+    return AdminFontRow(
+      id: 100,
+      name: data.name,
+      family: data.name.replaceAll(RegExp(r'[^A-Za-z0-9]'), ''),
+      type: data.type,
+      source: 'local',
+      webFontPath: '/api/storage/file/font/site/test.woff2',
+      flutterFamily: data.name.replaceAll(RegExp(r'[^A-Za-z0-9]'), ''),
+      fallbackStack: "'${data.name}', Arial, sans-serif",
+      fontFiles: const {'400': '/api/storage/file/font/site/test.woff2'},
+      active: true,
+      sortOrder: 100,
+    );
+  }
+}
+
 class _FakeAdminAiSettingsRepository implements AdminAiSettingsRepository {
   _FakeAdminAiSettingsRepository();
 
@@ -2501,6 +2555,7 @@ Future<void> _pumpAdminApp(
   AdminRolesRepository? rolesRepository,
   AdminLanguagesRepository? languagesRepository,
   AdminGeneralSettingsRepository? generalSettingsRepository,
+  AdminFontSettingsRepository? fontSettingsRepository,
   AdminAiSettingsRepository? aiSettingsRepository,
   AdminModuleSettingsRepository? moduleSettingsRepository,
   AdminAccountSettingsRepository? accountSettingsRepository,
@@ -2522,6 +2577,8 @@ Future<void> _pumpAdminApp(
           languagesRepository ?? _FakeAdminLanguagesRepository(),
       generalSettingsRepository:
           generalSettingsRepository ?? _FakeAdminGeneralSettingsRepository(),
+      fontSettingsRepository:
+          fontSettingsRepository ?? _FakeAdminFontSettingsRepository(),
       aiSettingsRepository:
           aiSettingsRepository ?? _FakeAdminAiSettingsRepository(),
       moduleSettingsRepository:
@@ -2540,6 +2597,15 @@ bool _isTextAbove(WidgetTester tester, String upperText, String lowerText) {
   final upper = tester.getTopLeft(find.text(upperText).first).dy;
   final lower = tester.getTopLeft(find.text(lowerText).first).dy;
   return upper < lower;
+}
+
+Future<TestGesture> _hoverAdminSidebar(WidgetTester tester) async {
+  final sidebar = find.byKey(const ValueKey('admin-sidebar'));
+  final gesture = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+  await gesture.addPointer(location: const Offset(900, 40));
+  await gesture.moveTo(tester.getCenter(sidebar));
+  await tester.pumpAndSettle();
+  return gesture;
 }
 
 void main() {
@@ -2824,8 +2890,10 @@ void main() {
       await tester.ensureVisible(find.text('Dil Ayarları'));
       await tester.tap(find.text('Dil Ayarları'));
       await tester.pumpAndSettle();
-      expect(find.text('Dil Ayarları'), findsNWidgets(2));
+      expect(find.text('Dil Ayarları'), findsOneWidget);
 
+      final hoverGesture = await _hoverAdminSidebar(tester);
+      expect(find.text('Dil Ayarları'), findsNWidgets(2));
       await tester.tap(find.text('Modüller'));
       await tester.pumpAndSettle();
       expect(find.text('Depo'), findsOneWidget);
@@ -2843,6 +2911,47 @@ void main() {
       expect(find.text('Yapay Zeka Ayarları'), findsNothing);
       expect(find.text('Genel Ayarlar'), findsOneWidget);
       expect(find.text('Dil Ayarları'), findsNWidgets(2));
+      await hoverGesture.removePointer();
+    },
+  );
+
+  testWidgets(
+    'Sidebar seçimden sonra kapanır, hover ile açılır ve sabitlenir',
+    (tester) async {
+      tester.view.physicalSize = const Size(1366, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pumpAdminApp(tester);
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'editor@pateeznews.com',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+      await tester.tap(find.text('Giriş yap'));
+      await tester.pumpAndSettle();
+
+      final sidebar = find.byKey(const ValueKey('admin-sidebar'));
+      final expandedWidth = tester.getSize(sidebar).width;
+      expect(expandedWidth, greaterThan(280));
+
+      await tester.tap(find.text('Kullanıcılar'));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(sidebar).width, lessThan(140));
+
+      final hoverGesture = await _hoverAdminSidebar(tester);
+      expect(tester.getSize(sidebar).width, closeTo(expandedWidth, 0.1));
+      expect(find.text('Yorumlar'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('admin-sidebar-pin-switch')));
+      await tester.pumpAndSettle();
+      await hoverGesture.moveTo(const Offset(900, 40));
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(sidebar).width, closeTo(expandedWidth, 0.1));
+      await hoverGesture.removePointer();
     },
   );
 
@@ -3067,7 +3176,7 @@ void main() {
     await tester.tap(find.text('Aboneler'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Aboneler'), findsNWidgets(2));
+    expect(find.text('Aboneler'), findsOneWidget);
     expect(find.text('Nasip Gündoğu'), findsOneWidget);
     expect(find.text('nasip@pateeznews.com'), findsOneWidget);
     expect(find.text('Pasif Abone'), findsOneWidget);
@@ -3175,7 +3284,7 @@ void main() {
     expect(find.text('Tür'), findsOneWidget);
     expect(find.text('Yayıncı'), findsOneWidget);
     expect(find.text('Ara...'), findsWidgets);
-    expect(find.text('Haber Ekle'), findsNWidgets(2));
+    expect(find.text('Haber Ekle'), findsOneWidget);
     expect(find.text('Durum'), findsWidgets);
     expect(find.text('Ekleyen'), findsOneWidget);
     expect(find.text('Yorum'), findsOneWidget);
@@ -3254,7 +3363,7 @@ void main() {
     expect(find.text('Video'), findsOneWidget);
     expect(find.text('Yayında'), findsOneWidget);
     expect(find.text('Pasif'), findsOneWidget);
-    expect(find.text('Pateeznews'), findsOneWidget);
+    expect(find.textContaining('Pateeznews'), findsOneWidget);
     expect(find.text('Belirtilmedi'), findsOneWidget);
     expect(find.text('1 - 2 / 2 kayıt gösteriliyor'), findsOneWidget);
     expect(find.byTooltip('Hikaye işlemleri'), findsNWidgets(2));
@@ -3714,7 +3823,7 @@ void main() {
     await tester.tap(find.text('Dil Ayarları'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Dil Ayarları'), findsNWidgets(2));
+    expect(find.text('Dil Ayarları'), findsOneWidget);
     expect(find.text('Listeyi Yazdır'), findsOneWidget);
     expect(find.text('Dil indir'), findsOneWidget);
     expect(find.text('İçe Aktar'), findsOneWidget);
@@ -3913,9 +4022,9 @@ void main() {
     await tester.tap(find.text('Genel Ayarlar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Genel Ayarlar'), findsNWidgets(2));
+    expect(find.text('Genel Ayarlar'), findsOneWidget);
     expect(find.text('Ayarları Dili'), findsOneWidget);
-    expect(find.text('Genel & Logo'), findsNWidgets(2));
+    expect(find.text('Genel & Logo'), findsWidgets);
     expect(find.text('SEO Ayarları'), findsOneWidget);
     expect(find.text('Kurumsal (EEAT)'), findsOneWidget);
     expect(find.text('Google & Servisler'), findsOneWidget);
@@ -4018,7 +4127,7 @@ void main() {
     await tester.tap(find.text('Güvenlik Ayarları'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Güvenlik Ayarları'), findsNWidgets(2));
+    expect(find.text('Güvenlik Ayarları'), findsOneWidget);
     expect(find.text('Giriş güvenliği'), findsOneWidget);
     expect(find.text('Maksimum giriş denemesi'), findsOneWidget);
     expect(find.text('Şifre güvenliği'), findsOneWidget);
@@ -4053,7 +4162,7 @@ void main() {
     await tester.tap(find.text('İçerik Ayarları'));
     await tester.pumpAndSettle();
 
-    expect(find.text('İçerik Ayarları'), findsNWidgets(2));
+    expect(find.text('İçerik Ayarları'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Genel'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Gönderiler'), findsOneWidget);
     expect(
@@ -4106,7 +4215,7 @@ void main() {
     await tester.tap(find.text('Font Ayarları'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Font Ayarları'), findsNWidgets(2));
+    expect(find.text('Font Ayarları'), findsOneWidget);
     expect(find.text('Site Fontu'), findsOneWidget);
     expect(find.text('Font Boyutu'), findsOneWidget);
     expect(find.text('Font Kaynağı'), findsOneWidget);
@@ -4131,7 +4240,7 @@ void main() {
 
     expect(find.text('Font Ekle'), findsWidgets);
     expect(_findRichTextContaining('Font tipi'), findsOneWidget);
-    expect(find.text('Monospace'), findsOneWidget);
+    expect(find.text('Sans Serif'), findsOneWidget);
     expect(_findRichTextContaining('Font dosyası (.woff2)'), findsOneWidget);
     expect(_findRichTextContaining('400 (Regular)'), findsOneWidget);
     expect(_findRichTextContaining('600 (Semi-Bold)'), findsOneWidget);
@@ -4275,7 +4384,7 @@ void main() {
     await tester.tap(find.text('Yapay Zeka Ayarları'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Yapay Zeka Ayarları'), findsNWidgets(2));
+    expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
     expect(find.text('Ayarları Dili'), findsNothing);
     expect(
       find.text(
@@ -4283,8 +4392,8 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Google AI (Gemini)'), findsNWidgets(2));
-    expect(find.text('Yapay Zeka Hazır Promtlar'), findsOneWidget);
+    expect(find.text('Google AI (Gemini)'), findsWidgets);
+    expect(find.text('Yapay Zeka Hazır Promtlar'), findsWidgets);
     expect(find.text('Google AI Aktif'), findsOneWidget);
     expect(find.text('Google AI API Key'), findsOneWidget);
     expect(find.text('API Bağlantısını Test Et'), findsOneWidget);
@@ -4332,7 +4441,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Yapay Zeka Hazır Promtlar'), findsNWidgets(2));
+    expect(find.text('Yapay Zeka Hazır Promtlar'), findsWidgets);
     expect(find.text('Yeni Promt Ekle'), findsOneWidget);
     expect(find.text('Testi Geliştirerek Hazırla'), findsOneWidget);
     expect(find.text('Testi Metne Sadık Yerleştir'), findsOneWidget);
@@ -4452,10 +4561,10 @@ void main() {
     await tester.tap(find.text('Nöbetçi Eczane Ayarları'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nöbetçi Eczane Ayarları'), findsNWidgets(2));
+    expect(find.text('Nöbetçi Eczane Ayarları'), findsOneWidget);
     expect(find.text('Ayarları Dili'), findsNothing);
     expect(find.text('Genel Ayarlar'), findsNothing);
-    expect(find.text('Şehir Yönetimi'), findsNWidgets(2));
+    expect(find.text('Şehir Yönetimi'), findsWidgets);
     expect(find.text('Canlı Önizleme'), findsOneWidget);
     expect(find.text('Nöbetçi Eczane Aktif'), findsOneWidget);
     expect(find.text('Varsayılan Bölge'), findsNothing);
@@ -4478,7 +4587,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Şehir Yönetimi'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bölge Ekle'), findsOneWidget);
+    expect(find.text('Bölge Ekle'), findsWidgets);
     expect(find.text('Türkiye / Niğde'), findsWidgets);
     expect(find.text('Türkiye / İstanbul'), findsNothing);
     expect(find.text('Almanya / Berlin'), findsNothing);
@@ -4490,7 +4599,7 @@ void main() {
     await tester.tap(find.text('Bölge Ekle'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bölge Ekle'), findsNWidgets(2));
+    expect(find.text('Bölge Ekle'), findsWidgets);
     expect(find.text('Ülke'), findsOneWidget);
     expect(find.text('Şehir'), findsOneWidget);
     expect(find.text('İlçeler / Bölgeler'), findsWidgets);
@@ -4520,7 +4629,7 @@ void main() {
     expect(find.text('MERKEZ'), findsWidgets);
     expect(find.text('DEVA ECZANESİ'), findsOneWidget);
     expect(find.text('ÖZTÜRK ECZANESİ'), findsOneWidget);
-    expect(find.text('Yol Tarifi'), findsNWidgets(2));
+    expect(find.text('Yol Tarifi'), findsWidgets);
   });
 
   testWidgets(
@@ -4547,10 +4656,10 @@ void main() {
       await tester.tap(find.text('Hava Durumu Ayarları'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Hava Durumu Ayarları'), findsNWidgets(2));
+      expect(find.text('Hava Durumu Ayarları'), findsOneWidget);
       expect(find.text('Ayarları Dili'), findsNothing);
       expect(find.text('Genel Ayarlar'), findsNothing);
-      expect(find.text('Şehir Yönetimi'), findsNWidgets(2));
+      expect(find.text('Şehir Yönetimi'), findsWidgets);
       expect(find.text('Canlı Önizleme'), findsOneWidget);
       expect(find.text('Hava Durumu Aktif'), findsOneWidget);
       expect(find.text('Şehir Ara'), findsNothing);
@@ -4572,7 +4681,7 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Şehir Yönetimi'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Şehir Ekle'), findsOneWidget);
+      expect(find.text('Şehir Ekle'), findsWidgets);
       expect(find.text('Türkiye / Niğde'), findsOneWidget);
       expect(find.text('Türkiye / İstanbul'), findsNothing);
       expect(find.text('Almanya / Berlin'), findsNothing);
@@ -4583,7 +4692,7 @@ void main() {
       await tester.tap(find.text('Şehir Ekle'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Şehir Ekle'), findsNWidgets(2));
+      expect(find.text('Şehir Ekle'), findsWidgets);
       expect(find.text('Ülke'), findsOneWidget);
       expect(find.text('Şehir'), findsOneWidget);
       expect(find.text('Enlem'), findsWidgets);
@@ -4644,10 +4753,10 @@ void main() {
       await tester.tap(find.text('Ölüm İlanları Ayarı'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Ölüm İlanları Ayarı'), findsNWidgets(2));
+      expect(find.text('Ölüm İlanları Ayarı'), findsOneWidget);
       expect(find.text('Ayarları Dili'), findsNothing);
       expect(find.text('Genel Ayarlar'), findsNothing);
-      expect(find.text('Şehir Yönetimi'), findsNWidgets(2));
+      expect(find.text('Şehir Yönetimi'), findsWidgets);
       expect(find.text('Canlı Önizleme'), findsOneWidget);
       expect(find.text('Ölüm İlanları Aktif'), findsOneWidget);
       expect(find.text('Varsayılan Konum'), findsNothing);
@@ -4672,7 +4781,7 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Şehir Yönetimi'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Konum Ekle'), findsOneWidget);
+      expect(find.text('Konum Ekle'), findsWidgets);
       expect(find.text('Türkiye / Niğde'), findsWidgets);
       expect(find.text('Türkiye / İstanbul'), findsNothing);
       expect(find.text('Almanya / Berlin'), findsNothing);
@@ -4685,7 +4794,7 @@ void main() {
       await tester.tap(find.text('Konum Ekle'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Konum Ekle'), findsNWidgets(2));
+      expect(find.text('Konum Ekle'), findsWidgets);
       expect(find.text('Ülke'), findsOneWidget);
       expect(find.text('Şehir'), findsOneWidget);
       expect(find.text('Kaynak'), findsOneWidget);

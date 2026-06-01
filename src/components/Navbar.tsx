@@ -210,7 +210,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="fixed top-0 left-0 w-full z-[250]">
-      <div className="h-[64px] bg-white/80 backdrop-blur-2xl border-b border-palette-beige/20 shadow-sm relative z-[251]">
+      <div className="h-[72px] bg-white/80 backdrop-blur-2xl border-b border-palette-beige/20 shadow-sm relative z-[251]">
         <div className="max-w-[1280px] mx-auto h-full flex items-center px-4">
 
           {/* LOGO */}
@@ -220,7 +220,7 @@ const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-3 cursor-pointer group select-none z-20 flex-shrink-0 lg:w-[260px] pl-5"
           >
             {siteSettings?.logo_url ? (
-              <div className="h-[42px] transition-opacity duration-200 group-hover:opacity-95">
+              <div className="h-[46px] transition-opacity duration-200 group-hover:opacity-95">
                 <img
                   src={siteSettings.logo_url}
                   alt={siteSettings?.site_name || "Site Logo"}
@@ -503,7 +503,7 @@ const Navbar: React.FC<NavbarProps> = ({
       </div >
 
       {isMobileMenuOpen && (
-        <div className="lg:hidden absolute top-[64px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl z-[252] animate-in slide-in-from-top-2">
+        <div className="lg:hidden absolute top-[72px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl z-[252] animate-in slide-in-from-top-2">
           <div className="max-w-[1280px] mx-auto px-4 py-3">
             <div className="grid gap-1">
               {!hasExplicitTopNav && (
@@ -566,7 +566,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
       {/* SEARCH BAR */}
       < div
-        className={`absolute top-[64px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl transition-all duration-75 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[420px] opacity-100 py-3.5' : 'max-h-0 opacity-0 py-0'
+        className={`absolute top-[72px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl transition-all duration-75 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[420px] opacity-100 py-3.5' : 'max-h-0 opacity-0 py-0'
           }`}
       >
         <div className="max-w-[1280px] mx-auto px-4">

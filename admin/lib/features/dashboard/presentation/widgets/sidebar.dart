@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -582,6 +583,10 @@ class Sidebar extends StatefulWidget {
 }
 
 class _SidebarState extends State<Sidebar> {
+  static const double _expandedWidth = 304;
+  static const double _collapsedWidth = 104;
+  static const _sidebarAnimationDuration = Duration(milliseconds: 180);
+
   static const _mailGroup = 'mail';
   static const _smsGroup = 'sms';
   static const _whatsappGroup = 'whatsapp';
@@ -591,6 +596,10 @@ class _SidebarState extends State<Sidebar> {
 
   Timer? _autoCollapseTimer;
   String? _openExpandable;
+  var _autoCollapsed = false;
+  var _hovering = false;
+  var _hoverSuppressed = false;
+  var _pinnedOpen = false;
 
   @override
   void initState() {
@@ -695,7 +704,39 @@ class _SidebarState extends State<Sidebar> {
     callback();
     if (widget.drawerMode) {
       Navigator.maybePop(context);
+      return;
     }
+    if (!_pinnedOpen) {
+      final suppressHover = _hovering;
+      setState(() {
+        _autoCollapsed = true;
+        _hovering = false;
+        _hoverSuppressed = suppressHover;
+      });
+    }
+  }
+
+  void _handleHoverEnter(PointerEnterEvent _) {
+    if (widget.drawerMode || _pinnedOpen || _hoverSuppressed) return;
+    setState(() => _hovering = true);
+  }
+
+  void _handleHoverExit(PointerExitEvent _) {
+    if (widget.drawerMode) return;
+    setState(() {
+      _hovering = false;
+      _hoverSuppressed = false;
+    });
+  }
+
+  void _handlePinnedChanged(bool value) {
+    final suppressHover = !value && _hovering;
+    setState(() {
+      _pinnedOpen = value;
+      _autoCollapsed = !value;
+      _hovering = false;
+      _hoverSuppressed = suppressHover;
+    });
   }
 
   @override
@@ -748,9 +789,17 @@ class _SidebarState extends State<Sidebar> {
         widget.contentSettingsVisible ||
         widget.fontSettingsVisible ||
         widget.languageSettingsVisible;
+    final expanded =
+        widget.drawerMode || _pinnedOpen || _hovering || !_autoCollapsed;
+    final compact = !expanded && !widget.drawerMode;
 
-    return Container(
-      width: widget.drawerMode ? null : 268,
+    final sidebar = AnimatedContainer(
+      key: const ValueKey('admin-sidebar'),
+      width: widget.drawerMode
+          ? null
+          : (expanded ? _expandedWidth : _collapsedWidth),
+      duration: _sidebarAnimationDuration,
+      curve: Curves.easeInOutCubic,
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
@@ -759,363 +808,402 @@ class _SidebarState extends State<Sidebar> {
               : const BorderSide(color: AppColors.line),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SidebarHeader(),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              children: [
-                if (widget.homeVisible)
-                  SidebarItem(
-                    icon: Symbols.home,
-                    label: context.t('nav.home'),
-                    selected: widget.homeSelected,
-                    onTap: () => _select(context, widget.onHomeSelected),
-                  ),
-                if (widget.newsVisible)
-                  SidebarItem(
-                    icon: Symbols.add,
-                    label: context.t('nav.newsAdd'),
-                    selected: widget.newsAddSelected,
-                    onTap: () => _select(context, widget.onNewsAddSelected),
-                  ),
-                if (widget.newsVisible)
-                  SidebarItem(
-                    icon: Symbols.article,
-                    label: context.t('nav.news'),
-                    selected: widget.newsSelected,
-                    onTap: () => _select(context, widget.onNewsSelected),
-                  ),
-                if (widget.storiesVisible)
-                  SidebarItem(
-                    icon: Symbols.photo_camera,
-                    label: context.t('nav.stories'),
-                    selected: widget.storiesSelected,
-                    onTap: () => _select(context, widget.onStoriesSelected),
-                  ),
-                if (widget.commentsVisible)
-                  SidebarItem(
-                    icon: Symbols.short_text,
-                    label: context.t('nav.comments'),
-                    selected: widget.commentsSelected,
-                    onTap: () => _select(context, widget.onCommentsSelected),
-                  ),
-                if (widget.subscribersVisible)
-                  SidebarItem(
-                    icon: Symbols.group,
-                    label: context.t('nav.subscribers'),
-                    selected: widget.subscribersSelected,
-                    onTap: () => _select(context, widget.onSubscribersSelected),
-                  ),
-                if (widget.mailInboxVisible ||
-                    widget.bulkMailVisible ||
-                    widget.mailTemplatesVisible ||
-                    widget.contactListsVisible ||
-                    widget.mailSettingsVisible)
-                  SidebarExpandableItem(
-                    icon: Symbols.alternate_email,
-                    label: context.t('nav.mail'),
-                    selected: mailSelected,
-                    expanded: _openExpandable == _mailGroup,
-                    onTap: () => _handleExpandableTap(_mailGroup),
-                    children: [
-                      if (widget.mailInboxVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.mail.inbox'),
-                          selected: widget.mailInboxSelected,
-                          onTap: () =>
-                              _select(context, widget.onMailInboxSelected),
-                        ),
-                      if (widget.bulkMailVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.mail.campaigns'),
-                          selected: widget.bulkMailSelected,
-                          onTap: () =>
-                              _select(context, widget.onBulkMailSelected),
-                        ),
-                      if (widget.mailTemplatesVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.mail.templates'),
-                          selected: widget.mailTemplatesSelected,
-                          onTap: () =>
-                              _select(context, widget.onMailTemplatesSelected),
-                        ),
-                      if (widget.contactListsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.mail.contacts'),
-                          selected: widget.contactListsSelected,
-                          onTap: () =>
-                              _select(context, widget.onContactListsSelected),
-                        ),
-                      if (widget.mailSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.mail.settings'),
-                          selected: widget.mailSettingsSelected,
-                          onTap: () =>
-                              _select(context, widget.onMailSettingsSelected),
-                        ),
-                    ],
-                  ),
-                if (widget.whatsappVisible)
-                  SidebarExpandableItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: context.t('nav.whatsapp'),
-                    selected: whatsappSelected,
-                    expanded: _openExpandable == _whatsappGroup,
-                    onTap: () => _handleExpandableTap(_whatsappGroup),
-                    children: [
-                      SidebarSubItem(
-                        label: context.t('nav.whatsapp.messaging'),
-                        selected: widget.whatsappMessagingSelected,
-                        onTap: () => _select(
-                          context,
-                          widget.onWhatsappMessagingSelected,
-                        ),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.whatsapp.bulk'),
-                        selected: widget.whatsappBulkSelected,
-                        onTap: () =>
-                            _select(context, widget.onWhatsappBulkSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.whatsapp.templates'),
-                        selected: widget.whatsappTemplatesSelected,
-                        onTap: () => _select(
-                          context,
-                          widget.onWhatsappTemplatesSelected,
-                        ),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.whatsapp.contacts'),
-                        selected: widget.whatsappContactsSelected,
-                        onTap: () =>
-                            _select(context, widget.onWhatsappContactsSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.whatsapp.settings'),
-                        selected: widget.whatsappSettingsSelected,
-                        onTap: () =>
-                            _select(context, widget.onWhatsappSettingsSelected),
-                      ),
-                    ],
-                  ),
-                if (widget.socialMediaVisible)
-                  SidebarExpandableItem(
-                    icon: Symbols.alternate_email,
-                    label: context.t('nav.socialMedia'),
-                    selected: socialSelected,
-                    expanded: _openExpandable == _socialGroup,
-                    onTap: () => _handleExpandableTap(_socialGroup),
-                    children: [
-                      SidebarSubItem(
-                        label: context.t('nav.socialPublish'),
-                        selected: widget.socialPublishSelected,
-                        onTap: () =>
-                            _select(context, widget.onSocialPublishSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.socialAccountsAdd'),
-                        selected: widget.socialAccountsSelected,
-                        onTap: () =>
-                            _select(context, widget.onSocialAccountsSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.socialSettings'),
-                        selected: widget.socialSettingsSelected,
-                        onTap: () =>
-                            _select(context, widget.onSocialSettingsSelected),
-                      ),
-                    ],
-                  ),
-                if (widget.smsVisible)
-                  SidebarExpandableItem(
-                    icon: Icons.sms_outlined,
-                    label: context.t('nav.sms'),
-                    selected: smsSelected,
-                    expanded: _openExpandable == _smsGroup,
-                    onTap: () => _handleExpandableTap(_smsGroup),
-                    children: [
-                      SidebarSubItem(
-                        label: context.t('nav.sms.outbox'),
-                        selected: widget.smsOutboxSelected,
-                        onTap: () =>
-                            _select(context, widget.onSmsOutboxSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.sms.bulk'),
-                        selected: widget.smsBulkSelected,
-                        onTap: () => _select(context, widget.onSmsBulkSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.sms.templates'),
-                        selected: widget.smsTemplatesSelected,
-                        onTap: () =>
-                            _select(context, widget.onSmsTemplatesSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.sms.contacts'),
-                        selected: widget.smsContactsSelected,
-                        onTap: () =>
-                            _select(context, widget.onSmsContactsSelected),
-                      ),
-                      SidebarSubItem(
-                        label: context.t('nav.sms.settings'),
-                        selected: widget.smsSettingsSelected,
-                        onTap: () =>
-                            _select(context, widget.onSmsSettingsSelected),
-                      ),
-                    ],
-                  ),
-                if (widget.pagesVisible)
-                  SidebarItem(
-                    icon: Symbols.draft,
-                    label: context.t('nav.pages'),
-                    selected: widget.pagesSelected,
-                    onTap: () => _select(context, widget.onPagesSelected),
-                  ),
-                if (widget.navigationVisible)
-                  SidebarItem(
-                    icon: Symbols.format_list_numbered,
-                    label: context.t('nav.navigation'),
-                    selected: widget.navigationSelected,
-                    onTap: () => _select(context, widget.onNavigationSelected),
-                  ),
-                if (widget.usersVisible)
-                  SidebarItem(
-                    icon: Symbols.group,
-                    label: context.t('nav.users'),
-                    selected: widget.usersSelected,
-                    onTap: () => _select(context, widget.onUsersSelected),
-                  ),
-                if (widget.rolesPermissionsVisible)
-                  SidebarItem(
-                    icon: Symbols.verified,
-                    label: context.t('nav.roles'),
-                    selected: widget.rolesPermissionsSelected,
-                    onTap: () =>
-                        _select(context, widget.onRolesPermissionsSelected),
-                  ),
-                if (modulesVisible)
-                  SidebarExpandableItem(
-                    icon: Symbols.pending_actions,
-                    label: context.t('nav.modules'),
-                    selected: modulesSelected,
-                    expanded: _openExpandable == _modulesGroup,
-                    onTap: () => _handleExpandableTap(_modulesGroup),
-                    children: [
-                      if (widget.storageSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.storageSettings'),
-                          selected: widget.storageSettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onStorageSettingsSelected,
-                          ),
-                        ),
-                      if (widget.googleNewsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.googleNews'),
-                          selected: widget.googleNewsSelected,
-                          onTap: () =>
-                              _select(context, widget.onGoogleNewsSelected),
-                        ),
-                      if (widget.aiSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.aiSettings'),
-                          selected: widget.aiSettingsSelected,
-                          onTap: () =>
-                              _select(context, widget.onAiSettingsSelected),
-                        ),
-                      if (widget.pharmacySettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.pharmacySettings'),
-                          selected: widget.pharmacySettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onPharmacySettingsSelected,
-                          ),
-                        ),
-                      if (widget.weatherSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.weatherSettings'),
-                          selected: widget.weatherSettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onWeatherSettingsSelected,
-                          ),
-                        ),
-                      if (widget.deathNoticeSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.deathNoticeSettings'),
-                          selected: widget.deathNoticeSettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onDeathNoticeSettingsSelected,
-                          ),
-                        ),
-                    ],
-                  ),
-                if (settingsVisible)
-                  SidebarExpandableItem(
-                    icon: Symbols.menu,
-                    label: context.t('nav.settings'),
-                    selected: settingsSelected,
-                    expanded: _openExpandable == _settingsGroup,
-                    onTap: () => _handleExpandableTap(_settingsGroup),
-                    children: [
-                      if (widget.generalSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.generalSettings'),
-                          selected: widget.generalSettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onGeneralSettingsSelected,
-                          ),
-                        ),
-                      if (widget.securitySettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.securitySettings'),
-                          selected: widget.securitySettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onSecuritySettingsSelected,
-                          ),
-                        ),
-                      if (widget.contentSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.contentSettings'),
-                          selected: widget.contentSettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onContentSettingsSelected,
-                          ),
-                        ),
-                      if (widget.fontSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.fontSettings'),
-                          selected: widget.fontSettingsSelected,
-                          onTap: () =>
-                              _select(context, widget.onFontSettingsSelected),
-                        ),
-                      if (widget.languageSettingsVisible)
-                        SidebarSubItem(
-                          label: context.t('nav.languageSettings'),
-                          selected: widget.languageSettingsSelected,
-                          onTap: () => _select(
-                            context,
-                            widget.onLanguageSettingsSelected,
-                          ),
-                        ),
-                    ],
-                  ),
-              ],
+      child: ClipRect(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SidebarHeader(
+              expanded: expanded,
+              pinControlVisible: !widget.drawerMode,
+              pinned: _pinnedOpen,
+              onPinnedChanged: _handlePinnedChanged,
             ),
-          ),
-        ],
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14),
+                children: [
+                  if (widget.homeVisible)
+                    SidebarItem(
+                      icon: Symbols.home,
+                      label: context.t('nav.home'),
+                      selected: widget.homeSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onHomeSelected),
+                    ),
+                  if (widget.newsVisible)
+                    SidebarItem(
+                      icon: Symbols.add,
+                      label: context.t('nav.newsAdd'),
+                      selected: widget.newsAddSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onNewsAddSelected),
+                    ),
+                  if (widget.newsVisible)
+                    SidebarItem(
+                      icon: Symbols.article,
+                      label: context.t('nav.news'),
+                      selected: widget.newsSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onNewsSelected),
+                    ),
+                  if (widget.storiesVisible)
+                    SidebarItem(
+                      icon: Symbols.photo_camera,
+                      label: context.t('nav.stories'),
+                      selected: widget.storiesSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onStoriesSelected),
+                    ),
+                  if (widget.commentsVisible)
+                    SidebarItem(
+                      icon: Symbols.short_text,
+                      label: context.t('nav.comments'),
+                      selected: widget.commentsSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onCommentsSelected),
+                    ),
+                  if (widget.subscribersVisible)
+                    SidebarItem(
+                      icon: Symbols.group,
+                      label: context.t('nav.subscribers'),
+                      selected: widget.subscribersSelected,
+                      compact: compact,
+                      onTap: () =>
+                          _select(context, widget.onSubscribersSelected),
+                    ),
+                  if (widget.mailInboxVisible ||
+                      widget.bulkMailVisible ||
+                      widget.mailTemplatesVisible ||
+                      widget.contactListsVisible ||
+                      widget.mailSettingsVisible)
+                    SidebarExpandableItem(
+                      icon: Symbols.alternate_email,
+                      label: context.t('nav.mail'),
+                      selected: mailSelected,
+                      compact: compact,
+                      expanded: _openExpandable == _mailGroup,
+                      onTap: () => _handleExpandableTap(_mailGroup),
+                      children: [
+                        if (widget.mailInboxVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.mail.inbox'),
+                            selected: widget.mailInboxSelected,
+                            onTap: () =>
+                                _select(context, widget.onMailInboxSelected),
+                          ),
+                        if (widget.bulkMailVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.mail.campaigns'),
+                            selected: widget.bulkMailSelected,
+                            onTap: () =>
+                                _select(context, widget.onBulkMailSelected),
+                          ),
+                        if (widget.mailTemplatesVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.mail.templates'),
+                            selected: widget.mailTemplatesSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onMailTemplatesSelected,
+                            ),
+                          ),
+                        if (widget.contactListsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.mail.contacts'),
+                            selected: widget.contactListsSelected,
+                            onTap: () =>
+                                _select(context, widget.onContactListsSelected),
+                          ),
+                        if (widget.mailSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.mail.settings'),
+                            selected: widget.mailSettingsSelected,
+                            onTap: () =>
+                                _select(context, widget.onMailSettingsSelected),
+                          ),
+                      ],
+                    ),
+                  if (widget.whatsappVisible)
+                    SidebarExpandableItem(
+                      icon: Icons.chat_bubble_outline,
+                      label: context.t('nav.whatsapp'),
+                      selected: whatsappSelected,
+                      compact: compact,
+                      expanded: _openExpandable == _whatsappGroup,
+                      onTap: () => _handleExpandableTap(_whatsappGroup),
+                      children: [
+                        SidebarSubItem(
+                          label: context.t('nav.whatsapp.messaging'),
+                          selected: widget.whatsappMessagingSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onWhatsappMessagingSelected,
+                          ),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.whatsapp.bulk'),
+                          selected: widget.whatsappBulkSelected,
+                          onTap: () =>
+                              _select(context, widget.onWhatsappBulkSelected),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.whatsapp.templates'),
+                          selected: widget.whatsappTemplatesSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onWhatsappTemplatesSelected,
+                          ),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.whatsapp.contacts'),
+                          selected: widget.whatsappContactsSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onWhatsappContactsSelected,
+                          ),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.whatsapp.settings'),
+                          selected: widget.whatsappSettingsSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onWhatsappSettingsSelected,
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (widget.socialMediaVisible)
+                    SidebarExpandableItem(
+                      icon: Symbols.alternate_email,
+                      label: context.t('nav.socialMedia'),
+                      selected: socialSelected,
+                      compact: compact,
+                      expanded: _openExpandable == _socialGroup,
+                      onTap: () => _handleExpandableTap(_socialGroup),
+                      children: [
+                        SidebarSubItem(
+                          label: context.t('nav.socialPublish'),
+                          selected: widget.socialPublishSelected,
+                          onTap: () =>
+                              _select(context, widget.onSocialPublishSelected),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.socialAccountsAdd'),
+                          selected: widget.socialAccountsSelected,
+                          onTap: () =>
+                              _select(context, widget.onSocialAccountsSelected),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.socialSettings'),
+                          selected: widget.socialSettingsSelected,
+                          onTap: () =>
+                              _select(context, widget.onSocialSettingsSelected),
+                        ),
+                      ],
+                    ),
+                  if (widget.smsVisible)
+                    SidebarExpandableItem(
+                      icon: Icons.sms_outlined,
+                      label: context.t('nav.sms'),
+                      selected: smsSelected,
+                      compact: compact,
+                      expanded: _openExpandable == _smsGroup,
+                      onTap: () => _handleExpandableTap(_smsGroup),
+                      children: [
+                        SidebarSubItem(
+                          label: context.t('nav.sms.outbox'),
+                          selected: widget.smsOutboxSelected,
+                          onTap: () =>
+                              _select(context, widget.onSmsOutboxSelected),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.sms.bulk'),
+                          selected: widget.smsBulkSelected,
+                          onTap: () =>
+                              _select(context, widget.onSmsBulkSelected),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.sms.templates'),
+                          selected: widget.smsTemplatesSelected,
+                          onTap: () =>
+                              _select(context, widget.onSmsTemplatesSelected),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.sms.contacts'),
+                          selected: widget.smsContactsSelected,
+                          onTap: () =>
+                              _select(context, widget.onSmsContactsSelected),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.sms.settings'),
+                          selected: widget.smsSettingsSelected,
+                          onTap: () =>
+                              _select(context, widget.onSmsSettingsSelected),
+                        ),
+                      ],
+                    ),
+                  if (widget.pagesVisible)
+                    SidebarItem(
+                      icon: Symbols.draft,
+                      label: context.t('nav.pages'),
+                      selected: widget.pagesSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onPagesSelected),
+                    ),
+                  if (widget.navigationVisible)
+                    SidebarItem(
+                      icon: Symbols.format_list_numbered,
+                      label: context.t('nav.navigation'),
+                      selected: widget.navigationSelected,
+                      compact: compact,
+                      onTap: () =>
+                          _select(context, widget.onNavigationSelected),
+                    ),
+                  if (widget.usersVisible)
+                    SidebarItem(
+                      icon: Symbols.group,
+                      label: context.t('nav.users'),
+                      selected: widget.usersSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onUsersSelected),
+                    ),
+                  if (widget.rolesPermissionsVisible)
+                    SidebarItem(
+                      icon: Symbols.verified,
+                      label: context.t('nav.roles'),
+                      selected: widget.rolesPermissionsSelected,
+                      compact: compact,
+                      onTap: () =>
+                          _select(context, widget.onRolesPermissionsSelected),
+                    ),
+                  if (modulesVisible)
+                    SidebarExpandableItem(
+                      icon: Symbols.pending_actions,
+                      label: context.t('nav.modules'),
+                      selected: modulesSelected,
+                      compact: compact,
+                      expanded: _openExpandable == _modulesGroup,
+                      onTap: () => _handleExpandableTap(_modulesGroup),
+                      children: [
+                        if (widget.storageSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.storageSettings'),
+                            selected: widget.storageSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onStorageSettingsSelected,
+                            ),
+                          ),
+                        if (widget.googleNewsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.googleNews'),
+                            selected: widget.googleNewsSelected,
+                            onTap: () =>
+                                _select(context, widget.onGoogleNewsSelected),
+                          ),
+                        if (widget.aiSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.aiSettings'),
+                            selected: widget.aiSettingsSelected,
+                            onTap: () =>
+                                _select(context, widget.onAiSettingsSelected),
+                          ),
+                        if (widget.pharmacySettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.pharmacySettings'),
+                            selected: widget.pharmacySettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onPharmacySettingsSelected,
+                            ),
+                          ),
+                        if (widget.weatherSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.weatherSettings'),
+                            selected: widget.weatherSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onWeatherSettingsSelected,
+                            ),
+                          ),
+                        if (widget.deathNoticeSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.deathNoticeSettings'),
+                            selected: widget.deathNoticeSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onDeathNoticeSettingsSelected,
+                            ),
+                          ),
+                      ],
+                    ),
+                  if (settingsVisible)
+                    SidebarExpandableItem(
+                      icon: Symbols.menu,
+                      label: context.t('nav.settings'),
+                      selected: settingsSelected,
+                      compact: compact,
+                      expanded: _openExpandable == _settingsGroup,
+                      onTap: () => _handleExpandableTap(_settingsGroup),
+                      children: [
+                        if (widget.generalSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.generalSettings'),
+                            selected: widget.generalSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onGeneralSettingsSelected,
+                            ),
+                          ),
+                        if (widget.securitySettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.securitySettings'),
+                            selected: widget.securitySettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onSecuritySettingsSelected,
+                            ),
+                          ),
+                        if (widget.contentSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.contentSettings'),
+                            selected: widget.contentSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onContentSettingsSelected,
+                            ),
+                          ),
+                        if (widget.fontSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.fontSettings'),
+                            selected: widget.fontSettingsSelected,
+                            onTap: () =>
+                                _select(context, widget.onFontSettingsSelected),
+                          ),
+                        if (widget.languageSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.languageSettings'),
+                            selected: widget.languageSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onLanguageSettingsSelected,
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+
+    if (widget.drawerMode) return sidebar;
+    return MouseRegion(
+      onEnter: _handleHoverEnter,
+      onExit: _handleHoverExit,
+      child: sidebar,
     );
   }
 }

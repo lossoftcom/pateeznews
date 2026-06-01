@@ -35,7 +35,7 @@ const PublicProfileApp: React.FC<PublicProfileAppProps> = ({
   return (
     <LanguageProvider initialLang={initialLang} initialTranslations={initialTranslations}>
       <ToastProvider>
-        <main className="max-w-[1280px] pt-[84px] gap-8 px-4 mx-auto flex justify-center items-start">
+        <main className="max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
           <section className="flex-1 min-w-0 pb-10 flex justify-center w-full">
             <div className="w-full">
               <UserProfile

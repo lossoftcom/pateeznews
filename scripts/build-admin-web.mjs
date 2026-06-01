@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
+import { delimiter, resolve } from 'node:path';
 import { mergedCloudflareEnv } from './env-utils.mjs';
 
 const cwd = process.cwd();
-const env = mergedCloudflareEnv(cwd);
+const env = withLocalBinPath(mergedCloudflareEnv(cwd), cwd);
 const adminCwd = `${cwd}/admin`;
 env.XDG_CONFIG_HOME = ensureLocalFlutterConfig(adminCwd);
 const supabaseUrl = env.PUBLIC_SUPABASE_URL || env.SUPABASE_URL;
@@ -16,7 +17,7 @@ if (!supabaseUrl || !publishableKey) {
 }
 
 if (shouldRunPubGet(adminCwd)) {
-  const pubGet = spawnSync('flutter', ['pub', 'get'], {
+  const pubGet = spawnSync(commandForPlatform('flutter'), argsForPlatform('flutter', ['pub', 'get']), {
     cwd: adminCwd,
     env,
     stdio: 'inherit',
@@ -26,7 +27,7 @@ if (shouldRunPubGet(adminCwd)) {
   }
 }
 
-const child = spawn('flutter', [
+const flutterArgs = [
   'build',
   'web',
   '--release',
@@ -36,7 +37,9 @@ const child = spawn('flutter', [
   '--base-href=/admin/',
   `--dart-define=SUPABASE_URL=${supabaseUrl}`,
   `--dart-define=SUPABASE_PUBLISHABLE_KEY=${publishableKey}`,
-], {
+];
+
+const child = spawn(commandForPlatform('flutter'), argsForPlatform('flutter', flutterArgs), {
   cwd: adminCwd,
   env,
   stdio: 'inherit',
@@ -80,4 +83,34 @@ function ensureLocalFlutterConfig(projectDir) {
     'cli-animations': false,
   }, null, 2)}\n`);
   return configHome;
+}
+
+function withLocalBinPath(env, cwd) {
+  const nextEnv = { ...env };
+  const key = Object.keys(nextEnv).find((name) => name.toLowerCase() === 'path') || 'PATH';
+  const localBin = resolve(cwd, 'node_modules', '.bin');
+  nextEnv[key] = nextEnv[key] ? `${localBin}${delimiter}${nextEnv[key]}` : localBin;
+  return nextEnv;
+}
+
+function commandForPlatform(command) {
+  return process.platform === 'win32'
+    ? process.env.ComSpec || 'cmd.exe'
+    : command;
+}
+
+function argsForPlatform(command, args) {
+  if (process.platform !== 'win32') return args;
+  return [
+    '/d',
+    '/s',
+    '/c',
+    [command, ...args].map(quoteWindowsArg).join(' '),
+  ];
+}
+
+function quoteWindowsArg(value) {
+  const arg = String(value);
+  if (!/[\s"&|<>^]/.test(arg)) return arg;
+  return `"${arg.replace(/"/g, '\\"')}"`;
 }

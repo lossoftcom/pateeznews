@@ -155,7 +155,7 @@ class _Overlay extends StatelessWidget {
                   color: Colors.white,
                   fontSize: 10.5,
                   letterSpacing: 1.1,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -171,12 +171,10 @@ class _Overlay extends StatelessWidget {
                 next.region,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontFamily: 'PateezInter',
-                  color: Color(0xCCFFFFFF),
-                  fontSize: 11.5,
+                style: AppTypography.meta.copyWith(
+                  color: const Color(0xCCFFFFFF),
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
+                  letterSpacing: 0,
                 ),
               ),
             ),
@@ -187,14 +185,12 @@ class _Overlay extends StatelessWidget {
           next.title,
           maxLines: 4,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFamily: 'PateezInter',
+          style: AppTypography.postTitle.copyWith(
             color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.4,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
             height: 1.08,
-            shadows: [
+            shadows: const [
               Shadow(
                 color: Color(0x66000000),
                 offset: Offset(0, 1),
@@ -214,12 +210,10 @@ class _Overlay extends StatelessWidget {
             const SizedBox(width: 5),
             Text(
               '${next.readMinutes} dk okuma',
-              style: const TextStyle(
-                fontFamily: 'PateezInter',
-                color: Color(0xAAFFFFFF),
-                fontSize: 11,
+              style: AppTypography.meta.copyWith(
+                color: const Color(0xAAFFFFFF),
                 fontWeight: FontWeight.w600,
-                letterSpacing: 0.1,
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(width: 10),
@@ -234,12 +228,10 @@ class _Overlay extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               RelativeTime.format(next.publishedAt),
-              style: const TextStyle(
-                fontFamily: 'PateezInter',
-                color: Color(0xAAFFFFFF),
-                fontSize: 11,
+              style: AppTypography.meta.copyWith(
+                color: const Color(0xAAFFFFFF),
                 fontWeight: FontWeight.w600,
-                letterSpacing: 0.1,
+                letterSpacing: 0,
               ),
             ),
           ],

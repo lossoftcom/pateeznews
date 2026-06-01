@@ -741,7 +741,6 @@ class _NewsDataTable extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
 
-  static const double _minWidth = 1520;
   static const double _selectWidth = 42;
   static const double _idWidth = 70;
   static const double _postMinWidth = 500;
@@ -760,9 +759,6 @@ class _NewsDataTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
         final fixedWidth =
             _horizontalPadding +
             _tableBorderWidth +
@@ -776,6 +772,10 @@ class _NewsDataTable extends StatelessWidget {
             _commentsWidth +
             _createdWidth +
             _menuWidth;
+        final requiredMinWidth = fixedWidth + _postMinWidth;
+        final tableWidth = constraints.maxWidth < requiredMinWidth
+            ? requiredMinWidth
+            : constraints.maxWidth;
         final postWidth = (tableWidth - fixedWidth) < _postMinWidth
             ? _postMinWidth
             : tableWidth - fixedWidth;
@@ -2185,10 +2185,7 @@ class _NewsMobileToolbarCardState extends State<_NewsMobileToolbarCard> {
                     style: const TextStyle(fontSize: 14),
                     decoration: InputDecoration(
                       hintText: context.t('Search posts...'),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: Colors.grey,
-                      ),
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(
@@ -2542,18 +2539,13 @@ class _NewsMobileCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: post.published ? _activeBg : _passiveBg,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  post.published
-                      ? context.t('Published')
-                      : context.t('Draft'),
+                  post.published ? context.t('Published') : context.t('Draft'),
                   style: TextStyle(
                     color: post.published ? _activeText : _passiveText,
                     fontWeight: FontWeight.w700,

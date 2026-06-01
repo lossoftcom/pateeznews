@@ -49,6 +49,7 @@ import 'package:pateeznews_admin/features/stories/data/admin_stories_repository.
 import 'package:pateeznews_admin/features/stories/presentation/stories_screen.dart';
 import 'package:pateeznews_admin/features/auth/data/admin_auth_models.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_font_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_languages_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_module_settings_repository.dart';
@@ -79,6 +80,7 @@ class DashboardScreen extends StatefulWidget {
     this.languagesRepository = const SupabaseAdminLanguagesRepository(),
     this.generalSettingsRepository =
         const SupabaseAdminGeneralSettingsRepository(),
+    this.fontSettingsRepository = const SupabaseAdminFontSettingsRepository(),
     this.aiSettingsRepository = const SupabaseAdminAiSettingsRepository(),
     this.moduleSettingsRepository =
         const SupabaseAdminModuleSettingsRepository(),
@@ -103,6 +105,7 @@ class DashboardScreen extends StatefulWidget {
   final AdminRolesRepository rolesRepository;
   final AdminLanguagesRepository languagesRepository;
   final AdminGeneralSettingsRepository generalSettingsRepository;
+  final AdminFontSettingsRepository fontSettingsRepository;
   final AdminAiSettingsRepository aiSettingsRepository;
   final AdminModuleSettingsRepository moduleSettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
@@ -1061,7 +1064,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 _DashboardPage.contentSettings =>
                                   const ContentSettingsScreen(),
                                 _DashboardPage.fontSettings =>
-                                  const FontSettingsScreen(),
+                                  FontSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.fontSettingsRepository,
+                                  ),
                                 _DashboardPage.languageSettings =>
                                   LanguageSettingsScreen(
                                     session: widget.session,

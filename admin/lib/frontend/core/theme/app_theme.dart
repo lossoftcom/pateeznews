@@ -3,16 +3,20 @@ import 'package:flutter/services.dart';
 
 import 'app_colors.dart';
 import 'app_typography.dart';
+import 'frontend_font_settings.dart';
 
 class AppTheme {
   const AppTheme._();
 
-  static ThemeData light() {
+  static ThemeData light({FrontendFontSettings? fontSettings}) {
+    if (fontSettings != null) {
+      AppTypography.configure(fontSettings);
+    }
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.canvas,
-      fontFamily: 'PateezInter',
+      fontFamily: AppTypography.primaryFamily,
       fontFamilyFallback: const [
         'SF Pro Display',
         'SF Pro Text',
@@ -40,11 +44,8 @@ class AppTheme {
       ),
       splashColor: Colors.transparent,
       highlightColor: AppColors.surfaceInk,
-      iconTheme: const IconThemeData(
-        color: AppColors.iconStrong,
-        size: 22,
-      ),
-      textTheme: const TextTheme(
+      iconTheme: const IconThemeData(color: AppColors.iconStrong, size: 22),
+      textTheme: TextTheme(
         displayLarge: AppTypography.display,
         titleLarge: AppTypography.titleL,
         titleMedium: AppTypography.titleM,

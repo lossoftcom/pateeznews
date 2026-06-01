@@ -169,7 +169,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
                             <div className="absolute bottom-0 left-0 w-full px-6 sm:px-8 md:px-10 pt-6 sm:pt-8 md:pt-10 pb-5 sm:pb-6 md:pb-7 z-10 flex flex-col justify-end transform transition-transform duration-500 translate-y-1 group-hover:translate-y-0">
-                                <h2 className="news-title-font text-white text-[23px] sm:text-[30px] md:text-[36px] font-black tracking-tight leading-[1.08] mb-2.5 drop-shadow-lg line-clamp-3 transition-colors duration-300 group-hover:text-palette-red">
+                                <h2 className="news-title-font text-white text-[23px] sm:text-[30px] md:text-[36px] font-[800] tracking-normal leading-[1.08] mb-2.5 drop-shadow-lg line-clamp-3 transition-colors duration-300 group-hover:text-palette-red">
                                     {slide.title}
                                 </h2>
                                 {slide.description && (

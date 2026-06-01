@@ -314,11 +314,10 @@ class _HeadlineBlock extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: AppTypography.display.copyWith(
+            style: AppTypography.postTitle.copyWith(
               color: AppColors.inkStrong,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
               height: 1.1,
             ),
           ),
@@ -337,12 +336,11 @@ class _LedeSpot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       summary,
-      style: AppTypography.titleM.copyWith(
+      style: AppTypography.postSummary.copyWith(
         color: AppColors.inkSoft,
-        fontSize: 16,
         height: 1.45,
         fontWeight: FontWeight.w500,
-        letterSpacing: -0.1,
+        letterSpacing: 0,
       ),
     );
   }

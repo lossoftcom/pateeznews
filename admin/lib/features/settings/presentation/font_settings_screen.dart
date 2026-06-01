@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -7,9 +10,19 @@ import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/admin_table_chrome.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_font_settings_repository.dart';
+import '../data/admin_language_models.dart';
 
 class FontSettingsScreen extends StatefulWidget {
-  const FontSettingsScreen({super.key});
+  const FontSettingsScreen({
+    super.key,
+    required this.session,
+    this.repository = const SupabaseAdminFontSettingsRepository(),
+  });
+
+  final AdminSession session;
+  final AdminFontSettingsRepository repository;
 
   @override
   State<FontSettingsScreen> createState() => _FontSettingsScreenState();
@@ -19,15 +32,21 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
   late final Map<String, TextEditingController> _sizeControllers;
   late final TextEditingController _searchController;
 
-  var _language = 'en';
-  var _primaryFont = 'Open Sans';
-  var _secondaryFont = 'Plus Jakarta Sans';
-  var _contentFont = 'Inter';
+  var _initialized = false;
+  var _loading = true;
+  var _saving = false;
+  var _adding = false;
+  var _language = 'tr';
+  var _primaryFont = 'PateezInter';
+  var _secondaryFont = 'PateezInter';
+  var _contentFont = 'PateezInter';
   var _pageSize = 25;
   var _page = 1;
   var _searchQuery = '';
   var _sortState = const TableSortState(key: 'id', ascending: false);
   var _expandedSection = _FontSizeSection.layoutSpecial;
+  var _fonts = fallbackSiteFonts;
+  String? _error;
 
   @override
   void initState() {
@@ -48,28 +67,128 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
     super.dispose();
   }
 
-  void _showSavedMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.t('fontSettings.saveSuccess'))),
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+    final controller = AdminLocalizationScope.of(context);
+    final defaultLanguage =
+        controller.availableLanguages
+            .where((language) => language.isDefault)
+            .map((language) => language.code)
+            .firstOrNull ??
+        controller.code;
+    _language = defaultLanguage;
+    unawaited(_loadSettings(defaultLanguage));
+  }
+
+  Future<void> _loadSettings(String languageCode) async {
+    setState(() {
+      _language = languageCode;
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final bundle = await widget.repository.fetchSettings(languageCode);
+      if (!mounted) return;
+      setState(() {
+        _fonts = bundle.fonts;
+        _applySettings(bundle.settings);
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _fonts = fallbackSiteFonts;
+        _applySettings(AdminFontSettingsData.empty(languageCode));
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _applySettings(AdminFontSettingsData settings) {
+    _language = settings.languageCode;
+    _primaryFont = settings.primaryFont;
+    _secondaryFont = settings.titleFont;
+    _contentFont = settings.contentFont;
+    for (final item in _FontSizeItem.all) {
+      final value =
+          settings.fontSizes[item.key] ?? int.parse(item.initialValue);
+      _sizeControllers[item.key]?.text = value.toString();
+    }
+  }
+
+  AdminFontSettingsData _currentSettings() {
+    return AdminFontSettingsData(
+      languageCode: _language,
+      primaryFont: _primaryFont,
+      titleFont: _secondaryFont,
+      contentFont: _contentFont,
+      fontSizes: {
+        for (final item in _FontSizeItem.all)
+          item.key:
+              int.tryParse(_sizeControllers[item.key]?.text.trim() ?? '') ??
+              int.parse(item.initialValue),
+      },
     );
   }
 
+  Future<void> _saveSettings() async {
+    if (_saving || _loading) return;
+    setState(() => _saving = true);
+    try {
+      final saved = await widget.repository.saveSettings(
+        session: widget.session,
+        settings: _currentSettings(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applySettings(saved);
+        _saving = false;
+      });
+      _showMessage('fontSettings.saveSuccess');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showMessage('${context.t('settings.save_error')}: $error');
+    }
+  }
+
   Future<void> _openAddFontDialog() async {
-    await showDialog<void>(
+    if (_adding || _loading) return;
+    final data = await showDialog<AdminFontFormData>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.34),
       builder: (context) => const _FontDialogFrame(child: _AddFontDialog()),
     );
+    if (data == null) return;
+    setState(() => _adding = true);
+    try {
+      await widget.repository.addFont(session: widget.session, data: data);
+      if (!mounted) return;
+      await _loadSettings(_language);
+      if (!mounted) return;
+      setState(() => _adding = false);
+      _showMessage('fontSettings.addSuccess');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _adding = false);
+      _showMessage('${context.t('fontSettings.addError')}: $error');
+    }
   }
 
   void _selectFont(String fontName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.t('fontSettings.fontSelected', values: {'font': fontName}),
-        ),
-      ),
+    _showMessage(
+      context.t('fontSettings.fontSelected', values: {'font': fontName}),
     );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.t(message))));
   }
 
   void _changePageSize(int? value) {
@@ -98,19 +217,20 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
     setState(() => _page = page);
   }
 
-  List<_FontRow> get _filteredFonts {
+  List<AdminFontRow> get _filteredFonts {
     final query = _searchQuery.trim().toLowerCase();
     final filtered = query.isEmpty
-        ? List<_FontRow>.of(_fontRows)
-        : _fontRows.where((font) {
+        ? List<AdminFontRow>.of(_fonts)
+        : _fonts.where((font) {
             return font.name.toLowerCase().contains(query) ||
-                font.sourceLabelKey.toLowerCase().contains(query);
+                font.family.toLowerCase().contains(query) ||
+                font.labelSourceKey.toLowerCase().contains(query);
           }).toList();
 
     filtered.sort((a, b) {
       final result = switch (_sortState.key) {
         'name' => a.name.compareTo(b.name),
-        'source' => a.sourceLabelKey.compareTo(b.sourceLabelKey),
+        'source' => a.labelSourceKey.compareTo(b.labelSourceKey),
         _ => a.id.compareTo(b.id),
       };
       return _sortState.ascending ? result : -result;
@@ -135,6 +255,13 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
             .skip(start)
             .take(_pageSize)
             .toList(growable: false);
+        final languageController = AdminLocalizationScope.of(context);
+        final fontOptions = _fontOptionsFor(_fonts, [
+          _primaryFont,
+          _secondaryFont,
+          _contentFont,
+        ]);
+        final canEdit = !_loading && !_saving && !_adding;
 
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -155,6 +282,14 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                 ),
               ),
               const SizedBox(height: 22),
+              if (_error != null) ...[
+                _FontInlineStatus(
+                  message: _error!,
+                  isError: true,
+                  onRetry: () => unawaited(_loadSettings(_language)),
+                ),
+                const SizedBox(height: 14),
+              ],
               Expanded(
                 child: stacked
                     ? SingleChildScrollView(
@@ -166,11 +301,15 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                               primaryFont: _primaryFont,
                               secondaryFont: _secondaryFont,
                               contentFont: _contentFont,
+                              languages: languageController.availableLanguages,
+                              fontOptions: fontOptions,
+                              enabled: canEdit,
+                              saving: _saving,
                               expandedSection: _expandedSection,
                               sizeControllers: _sizeControllers,
                               onLanguageChanged: (value) {
                                 if (value == null) return;
-                                setState(() => _language = value);
+                                unawaited(_loadSettings(value));
                               },
                               onPrimaryFontChanged: (value) {
                                 if (value == null) return;
@@ -186,7 +325,7 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                               },
                               onSectionChanged: (section) =>
                                   setState(() => _expandedSection = section),
-                              onSave: _showSavedMessage,
+                              onSave: () => unawaited(_saveSettings()),
                             ),
                             const SizedBox(height: 18),
                             SizedBox(
@@ -221,11 +360,16 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                                 primaryFont: _primaryFont,
                                 secondaryFont: _secondaryFont,
                                 contentFont: _contentFont,
+                                languages:
+                                    languageController.availableLanguages,
+                                fontOptions: fontOptions,
+                                enabled: canEdit,
+                                saving: _saving,
                                 expandedSection: _expandedSection,
                                 sizeControllers: _sizeControllers,
                                 onLanguageChanged: (value) {
                                   if (value == null) return;
-                                  setState(() => _language = value);
+                                  unawaited(_loadSettings(value));
                                 },
                                 onPrimaryFontChanged: (value) {
                                   if (value == null) return;
@@ -241,7 +385,7 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                                 },
                                 onSectionChanged: (section) =>
                                     setState(() => _expandedSection = section),
-                                onSave: _showSavedMessage,
+                                onSave: () => unawaited(_saveSettings()),
                               ),
                             ),
                           ),
@@ -280,6 +424,10 @@ class _LeftFontSettingsColumn extends StatelessWidget {
     required this.primaryFont,
     required this.secondaryFont,
     required this.contentFont,
+    required this.languages,
+    required this.fontOptions,
+    required this.enabled,
+    required this.saving,
     required this.expandedSection,
     required this.sizeControllers,
     required this.onLanguageChanged,
@@ -294,6 +442,10 @@ class _LeftFontSettingsColumn extends StatelessWidget {
   final String primaryFont;
   final String secondaryFont;
   final String contentFont;
+  final List<AdminLanguage> languages;
+  final List<_SelectOption> fontOptions;
+  final bool enabled;
+  final bool saving;
   final _FontSizeSection expandedSection;
   final Map<String, TextEditingController> sizeControllers;
   final ValueChanged<String?> onLanguageChanged;
@@ -316,37 +468,44 @@ class _LeftFontSettingsColumn extends StatelessWidget {
               _SelectField(
                 label: 'fontSettings.siteFont.language',
                 value: language,
-                options: _languageOptions,
+                options: _languageOptionsFor(languages, language),
                 onChanged: onLanguageChanged,
+                enabled: enabled,
               ),
               const SizedBox(height: 18),
               _SelectField(
                 label: 'fontSettings.siteFont.primary',
                 value: primaryFont,
-                options: _fontSelectOptions,
+                options: fontOptions,
                 onChanged: onPrimaryFontChanged,
                 requiredField: true,
+                enabled: enabled,
               ),
               const SizedBox(height: 18),
               _SelectField(
                 label: 'fontSettings.siteFont.secondary',
                 value: secondaryFont,
-                options: _fontSelectOptions,
+                options: fontOptions,
                 onChanged: onSecondaryFontChanged,
                 requiredField: true,
+                enabled: enabled,
               ),
               const SizedBox(height: 18),
               _SelectField(
                 label: 'fontSettings.siteFont.content',
                 value: contentFont,
-                options: _fontSelectOptions,
+                options: fontOptions,
                 onChanged: onContentFontChanged,
                 requiredField: true,
+                enabled: enabled,
               ),
               const SizedBox(height: 22),
               Align(
                 alignment: Alignment.centerRight,
-                child: _SaveButton(onPressed: onSave),
+                child: _SaveButton(
+                  onPressed: enabled ? onSave : null,
+                  busy: saving,
+                ),
               ),
             ],
           ),
@@ -362,12 +521,16 @@ class _LeftFontSettingsColumn extends StatelessWidget {
                   section: section,
                   expanded: expandedSection == section,
                   controllers: sizeControllers,
+                  enabled: enabled,
                   onToggle: () => onSectionChanged(section),
                 ),
               const SizedBox(height: 22),
               Align(
                 alignment: Alignment.centerRight,
-                child: _SaveButton(onPressed: onSave),
+                child: _SaveButton(
+                  onPressed: enabled ? onSave : null,
+                  busy: saving,
+                ),
               ),
             ],
           ),
@@ -418,6 +581,74 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
+class _FontInlineStatus extends StatelessWidget {
+  const _FontInlineStatus({
+    required this.message,
+    required this.isError,
+    required this.onRetry,
+  });
+
+  final String message;
+  final bool isError;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isError
+            ? AppColors.actionRed.withValues(alpha: 0.08)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(
+          color: isError
+              ? AppColors.actionRed.withValues(alpha: 0.22)
+              : AppColors.line,
+        ),
+      ),
+      child: Row(
+        children: [
+          SymbolIcon(
+            isError ? Symbols.warning : Symbols.check,
+            color: isError ? AppColors.actionRed : const Color(0xFF16A34A),
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          if (isError) ...[
+            const SizedBox(width: 12),
+            TextButton(
+              onPressed: onRetry,
+              style:
+                  TextButton.styleFrom(
+                    foregroundColor: AppColors.deepOcean,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ).copyWith(
+                    mouseCursor: const WidgetStatePropertyAll(
+                      SystemMouseCursors.click,
+                    ),
+                  ),
+              child: Text(context.t('Retry')),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _SelectField extends StatelessWidget {
   const _SelectField({
     required this.label,
@@ -425,6 +656,7 @@ class _SelectField extends StatelessWidget {
     required this.options,
     required this.onChanged,
     this.requiredField = false,
+    this.enabled = true,
   });
 
   final String label;
@@ -432,6 +664,7 @@ class _SelectField extends StatelessWidget {
   final List<_SelectOption> options;
   final ValueChanged<String?> onChanged;
   final bool requiredField;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -440,7 +673,12 @@ class _SelectField extends StatelessWidget {
       children: [
         _FieldLabel(label: label, requiredField: requiredField),
         const SizedBox(height: 8),
-        _SelectBox(value: value, options: options, onChanged: onChanged),
+        _SelectBox(
+          value: value,
+          options: options,
+          enabled: enabled,
+          onChanged: onChanged,
+        ),
       ],
     );
   }
@@ -489,17 +727,19 @@ class _SelectBox extends StatelessWidget {
   const _SelectBox({
     required this.value,
     required this.options,
+    required this.enabled,
     required this.onChanged,
   });
 
   final String value;
   final List<_SelectOption> options;
+  final bool enabled;
   final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: Container(
         height: 42,
         padding: const EdgeInsets.only(left: 12, right: 8),
@@ -515,7 +755,9 @@ class _SelectBox extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.value),
             dropdownColor: Colors.white,
             focusColor: Colors.transparent,
-            mouseCursor: SystemMouseCursors.click,
+            mouseCursor: enabled
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.basic,
             dropdownMenuItemMouseCursor: SystemMouseCursors.click,
             icon: const SymbolIcon(
               Symbols.keyboard_arrow_down,
@@ -540,7 +782,7 @@ class _SelectBox extends StatelessWidget {
                   ),
                 ),
             ],
-            onChanged: onChanged,
+            onChanged: enabled ? onChanged : null,
           ),
         ),
       ),
@@ -549,9 +791,10 @@ class _SelectBox extends StatelessWidget {
 }
 
 class _SaveButton extends StatelessWidget {
-  const _SaveButton({required this.onPressed});
+  const _SaveButton({required this.onPressed, required this.busy});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -581,7 +824,20 @@ class _SaveButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SymbolIcon(Symbols.check, color: Colors.white, size: 16),
+            busy
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const SymbolIcon(
+                    Symbols.check,
+                    color: Colors.white,
+                    size: 16,
+                  ),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -602,12 +858,14 @@ class _FontSizePanel extends StatelessWidget {
     required this.section,
     required this.expanded,
     required this.controllers,
+    required this.enabled,
     required this.onToggle,
   });
 
   final _FontSizeSection section;
   final bool expanded;
   final Map<String, TextEditingController> controllers;
+  final bool enabled;
   final VoidCallback onToggle;
 
   @override
@@ -630,10 +888,12 @@ class _FontSizePanel extends StatelessWidget {
         child: Column(
           children: [
             MouseRegion(
-              cursor: SystemMouseCursors.click,
+              cursor: enabled
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: onToggle,
+                onTap: enabled ? onToggle : null,
                 child: SizedBox(
                   height: 54,
                   child: Padding(
@@ -677,6 +937,7 @@ class _FontSizePanel extends StatelessWidget {
                       _FontSizeRow(
                         item: item,
                         controller: controllers[item.key]!,
+                        enabled: enabled,
                       ),
                   ],
                 ),
@@ -689,10 +950,15 @@ class _FontSizePanel extends StatelessWidget {
 }
 
 class _FontSizeRow extends StatelessWidget {
-  const _FontSizeRow({required this.item, required this.controller});
+  const _FontSizeRow({
+    required this.item,
+    required this.controller,
+    required this.enabled,
+  });
 
   final _FontSizeItem item;
   final TextEditingController controller;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -702,7 +968,10 @@ class _FontSizeRow extends StatelessWidget {
         children: [
           Expanded(child: _FontSizeLabel(item: item)),
           const SizedBox(width: 10),
-          SizedBox(width: 96, child: _UnitTextField(controller: controller)),
+          SizedBox(
+            width: 96,
+            child: _UnitTextField(controller: controller, enabled: enabled),
+          ),
         ],
       ),
     );
@@ -752,9 +1021,10 @@ class _FontSizeLabel extends StatelessWidget {
 }
 
 class _UnitTextField extends StatelessWidget {
-  const _UnitTextField({required this.controller});
+  const _UnitTextField({required this.controller, required this.enabled});
 
   final TextEditingController controller;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -770,6 +1040,7 @@ class _UnitTextField extends StatelessWidget {
           Expanded(
             child: TextFormField(
               controller: controller,
+              enabled: enabled,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               mouseCursor: SystemMouseCursors.text,
@@ -833,7 +1104,7 @@ class _FontListCard extends StatelessWidget {
   final int totalCount;
   final String searchQuery;
   final TableSortState sortState;
-  final List<_FontRow> fonts;
+  final List<AdminFontRow> fonts;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
@@ -955,7 +1226,7 @@ class _FontsTable extends StatelessWidget {
     required this.onSelect,
   });
 
-  final List<_FontRow> fonts;
+  final List<AdminFontRow> fonts;
   final TableSortState sortState;
   final ValueChanged<String> onSort;
   final ValueChanged<String> onSelect;
@@ -1102,7 +1373,7 @@ class _FontTableRow extends StatelessWidget {
     required this.onSelect,
   });
 
-  final _FontRow font;
+  final AdminFontRow font;
   final double nameWidth;
   final VoidCallback onSelect;
 
@@ -1145,7 +1416,7 @@ class _FontTableRow extends StatelessWidget {
           SizedBox(
             width: _FontsTable._sourceWidth,
             child: Text(
-              context.t(font.sourceLabelKey),
+              context.t(font.labelSourceKey),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.inkSoft,
                 fontWeight: FontWeight.w500,
@@ -1568,7 +1839,9 @@ class _AddFontDialog extends StatefulWidget {
 
 class _AddFontDialogState extends State<_AddFontDialog> {
   final _nameController = TextEditingController();
-  var _fontType = 'monospace';
+  final _files = <int, XFile>{};
+  var _fontType = 'sans_serif';
+  var _submitting = false;
 
   @override
   void dispose() {
@@ -1576,8 +1849,47 @@ class _AddFontDialogState extends State<_AddFontDialog> {
     super.dispose();
   }
 
-  void _submit() {
-    Navigator.of(context).maybePop();
+  Future<void> _selectFile(int weight) async {
+    final file = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Fonts', extensions: ['ttf', 'otf', 'woff', 'woff2']),
+      ],
+    );
+    if (file == null) return;
+    setState(() => _files[weight] = file);
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    final name = _nameController.text.trim();
+    if (name.isEmpty || !_files.containsKey(400)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.t('fontSettings.dialog.required'))),
+      );
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      final files = <int, AdminFontUploadFile>{};
+      for (final entry in _files.entries) {
+        files[entry.key] = AdminFontUploadFile(
+          fileName: entry.value.name,
+          bytes: await entry.value.readAsBytes(),
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pop(AdminFontFormData(name: name, type: _fontType, files: files));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${context.t('fontSettings.addError')}: $error'),
+        ),
+      );
+    }
   }
 
   @override
@@ -1619,12 +1931,22 @@ class _AddFontDialogState extends State<_AddFontDialog> {
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 540;
               final boxes = [
-                const _FontUploadBox(
+                _FontUploadBox(
                   title: 'fontSettings.dialog.weight400',
                   requiredField: true,
+                  fileName: _files[400]?.name,
+                  onSelect: () => unawaited(_selectFile(400)),
                 ),
-                const _FontUploadBox(title: 'fontSettings.dialog.weight600'),
-                const _FontUploadBox(title: 'fontSettings.dialog.weight700'),
+                _FontUploadBox(
+                  title: 'fontSettings.dialog.weight600',
+                  fileName: _files[600]?.name,
+                  onSelect: () => unawaited(_selectFile(600)),
+                ),
+                _FontUploadBox(
+                  title: 'fontSettings.dialog.weight700',
+                  fileName: _files[700]?.name,
+                  onSelect: () => unawaited(_selectFile(700)),
+                ),
               ];
 
               if (compact) {
@@ -1653,7 +1975,8 @@ class _AddFontDialogState extends State<_AddFontDialog> {
             alignment: Alignment.centerRight,
             child: _DialogFooter(
               primaryLabel: context.t('fontSettings.dialog.addAction'),
-              onPrimaryPressed: _submit,
+              busy: _submitting,
+              onPrimaryPressed: () => unawaited(_submit()),
             ),
           ),
         ],
@@ -1876,9 +2199,16 @@ class _DialogSectionLabel extends StatelessWidget {
 }
 
 class _FontUploadBox extends StatelessWidget {
-  const _FontUploadBox({required this.title, this.requiredField = false});
+  const _FontUploadBox({
+    required this.title,
+    required this.onSelect,
+    this.fileName,
+    this.requiredField = false,
+  });
 
   final String title;
+  final VoidCallback onSelect;
+  final String? fileName;
   final bool requiredField;
 
   @override
@@ -1900,7 +2230,7 @@ class _FontUploadBox extends StatelessWidget {
             SizedBox(
               height: 30,
               child: TextButton(
-                onPressed: () {},
+                onPressed: onSelect,
                 style:
                     TextButton.styleFrom(
                       backgroundColor: AppColors.surface,
@@ -1929,7 +2259,13 @@ class _FontUploadBox extends StatelessWidget {
                       size: 15,
                     ),
                     const SizedBox(width: 6),
-                    Text(context.t('fontSettings.dialog.selectFile')),
+                    Flexible(
+                      child: Text(
+                        fileName ?? context.t('fontSettings.dialog.selectFile'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1978,10 +2314,12 @@ class _DashedBorderPainter extends CustomPainter {
 class _DialogFooter extends StatelessWidget {
   const _DialogFooter({
     required this.primaryLabel,
+    required this.busy,
     required this.onPrimaryPressed,
   });
 
   final String primaryLabel;
+  final bool busy;
   final VoidCallback onPrimaryPressed;
 
   @override
@@ -2012,7 +2350,7 @@ class _DialogFooter extends StatelessWidget {
         SizedBox(
           height: 36,
           child: TextButton(
-            onPressed: onPrimaryPressed,
+            onPressed: busy ? null : onPrimaryPressed,
             style:
                 TextButton.styleFrom(
                   backgroundColor: AppColors.deepOcean,
@@ -2032,7 +2370,16 @@ class _DialogFooter extends StatelessWidget {
                     SystemMouseCursors.click,
                   ),
                 ),
-            child: Text(primaryLabel),
+            child: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(primaryLabel),
           ),
         ),
       ],
@@ -2184,18 +2531,6 @@ class _FontSizeItem {
   static const all = [...layoutSpecial, ...general, ...titles];
 }
 
-class _FontRow {
-  const _FontRow({
-    required this.id,
-    required this.name,
-    required this.sourceLabelKey,
-  });
-
-  final int id;
-  final String name;
-  final String sourceLabelKey;
-}
-
 class _SelectOption {
   const _SelectOption(this.value, [this.labelKey]);
 
@@ -2203,121 +2538,49 @@ class _SelectOption {
   final String? labelKey;
 }
 
-const _languageOptions = [
-  _SelectOption('tr', 'language.name.tr'),
-  _SelectOption('en', 'language.name.en'),
-  _SelectOption('ar', 'language.name.ar'),
-];
+List<_SelectOption> _languageOptionsFor(
+  List<AdminLanguage> languages,
+  String selected,
+) {
+  final options = [
+    for (final language in languages)
+      _SelectOption(language.code, _languageNameKey(language)),
+  ];
+  if (options.every((option) => option.value != selected)) {
+    options.add(_SelectOption(selected));
+  }
+  return options;
+}
 
-const _fontSelectOptions = [
-  _SelectOption('Open Sans'),
-  _SelectOption('Plus Jakarta Sans'),
-  _SelectOption('Inter'),
-  _SelectOption('PateezSans'),
-  _SelectOption('Roboto'),
-  _SelectOption('Poppins'),
-  _SelectOption('Montserrat'),
-  _SelectOption('Work Sans'),
-];
+String? _languageNameKey(AdminLanguage language) {
+  return switch (language.code) {
+    'tr' => 'language.name.tr',
+    'en' => 'language.name.en',
+    'ar' => 'language.name.ar',
+    _ => null,
+  };
+}
+
+List<_SelectOption> _fontOptionsFor(
+  List<AdminFontRow> fonts,
+  List<String> selected,
+) {
+  final options = [
+    for (final font in fonts) _SelectOption(font.family, font.name),
+  ];
+  for (final family in selected) {
+    if (options.every((option) => option.value != family)) {
+      options.add(_SelectOption(family));
+    }
+  }
+  return options;
+}
 
 const _fontTypeOptions = [
-  _SelectOption('sansSerif', 'fontSettings.dialog.type.sansSerif'),
+  _SelectOption('sans_serif', 'fontSettings.dialog.type.sansSerif'),
   _SelectOption('serif', 'fontSettings.dialog.type.serif'),
   _SelectOption('monospace', 'fontSettings.dialog.type.monospace'),
   _SelectOption('cursive', 'fontSettings.dialog.type.cursive'),
   _SelectOption('fantasy', 'fontSettings.dialog.type.fantasy'),
-  _SelectOption('systemUi', 'fontSettings.dialog.type.systemUi'),
-];
-
-const _fontRows = [
-  _FontRow(
-    id: 22,
-    name: 'Work Sans',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 21,
-    name: 'Verdana',
-    sourceLabelKey: 'fontSettings.source.system',
-  ),
-  _FontRow(
-    id: 20,
-    name: 'Trebuchet MS',
-    sourceLabelKey: 'fontSettings.source.system',
-  ),
-  _FontRow(
-    id: 19,
-    name: 'Times New Roman',
-    sourceLabelKey: 'fontSettings.source.system',
-  ),
-  _FontRow(
-    id: 18,
-    name: 'Tahoma',
-    sourceLabelKey: 'fontSettings.source.system',
-  ),
-  _FontRow(
-    id: 17,
-    name: 'Source Sans 3',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(id: 16, name: 'Roboto', sourceLabelKey: 'fontSettings.source.local'),
-  _FontRow(
-    id: 15,
-    name: 'Poppins',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 14,
-    name: 'Plus Jakarta Sans',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 13,
-    name: 'Open Sans',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 12,
-    name: 'Noto Serif',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 11,
-    name: 'Montserrat',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 10,
-    name: 'Merriweather',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 9,
-    name: 'Libre Baskerville',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(id: 8, name: 'Jost', sourceLabelKey: 'fontSettings.source.local'),
-  _FontRow(id: 7, name: 'Inter', sourceLabelKey: 'fontSettings.source.local'),
-  _FontRow(
-    id: 6,
-    name: 'IBM Plex Sans',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
-  _FontRow(
-    id: 5,
-    name: 'Helvetica Neue',
-    sourceLabelKey: 'fontSettings.source.system',
-  ),
-  _FontRow(
-    id: 4,
-    name: 'Georgia',
-    sourceLabelKey: 'fontSettings.source.system',
-  ),
-  _FontRow(id: 3, name: 'DM Sans', sourceLabelKey: 'fontSettings.source.local'),
-  _FontRow(id: 2, name: 'Arial', sourceLabelKey: 'fontSettings.source.system'),
-  _FontRow(
-    id: 1,
-    name: 'PateezSans',
-    sourceLabelKey: 'fontSettings.source.local',
-  ),
+  _SelectOption('system_ui', 'fontSettings.dialog.type.systemUi'),
 ];

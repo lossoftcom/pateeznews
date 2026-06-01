@@ -107,6 +107,50 @@ flutter:
     - family: PateezInter
       fonts:
         - asset: assets/fonts/inter/InterVariable.ttf
+    - family: OpenSans
+      fonts:
+        - asset: assets/fonts/site/open_sans/OpenSans.ttf
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/site/plus_jakarta_sans/PlusJakartaSans.ttf
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/site/dm_sans/DMSans.ttf
+    - family: IBMPlexSans
+      fonts:
+        - asset: assets/fonts/site/ibm_plex_sans/IBMPlexSans.ttf
+    - family: Jost
+      fonts:
+        - asset: assets/fonts/site/jost/Jost.ttf
+    - family: LibreBaskerville
+      fonts:
+        - asset: assets/fonts/site/libre_baskerville/LibreBaskerville.ttf
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/site/merriweather/Merriweather.ttf
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/site/montserrat/Montserrat.ttf
+    - family: NotoSerif
+      fonts:
+        - asset: assets/fonts/site/noto_serif/NotoSerif.ttf
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/site/poppins/Poppins-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/site/poppins/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/site/poppins/Poppins-Bold.ttf
+          weight: 700
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/site/roboto/Roboto.ttf
+    - family: SourceSans3
+      fonts:
+        - asset: assets/fonts/site/source_sans_3/SourceSans3.ttf
+    - family: WorkSans
+      fonts:
+        - asset: assets/fonts/site/work_sans/WorkSans.ttf
 
   # To add assets to your application, add an assets section, like this:
   assets:

@@ -6,6 +6,7 @@ import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/cached_image.dart';
 import '../../../shared/widgets/social_action.dart';
 import '../data/news_detail_mock.dart';
@@ -725,14 +726,12 @@ class _HeroOverlayState extends State<_HeroOverlay> {
           article.title,
           maxLines: 4,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFamily: 'PateezInter',
+          style: AppTypography.postTitle.copyWith(
             color: Colors.white,
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.4,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
             height: 1.06,
-            shadows: [
+            shadows: const [
               Shadow(
                 color: Color(0x66000000),
                 offset: Offset(0, 1),
@@ -793,12 +792,10 @@ class _HeroPublishedAt extends StatelessWidget {
             _formatted,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'PateezInter',
+            style: AppTypography.meta.copyWith(
               color: Colors.white.withValues(alpha: 0.85),
-              fontSize: 11.5,
               fontWeight: FontWeight.w500,
-              letterSpacing: 0.1,
+              letterSpacing: 0,
               height: 1.2,
               shadows: const [
                 Shadow(

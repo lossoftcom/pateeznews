@@ -61,6 +61,8 @@ const JSON_COLUMNS: Record<string, Set<string>> = {
   posts: new Set(['card_data', 'items', 'faq_data']),
   pages: new Set(['content_delta']),
   profiles: new Set(['social_links']),
+  site_fonts: new Set(['font_files']),
+  site_settings: new Set(['site_font_sizes']),
   stories: new Set(['story_data']),
 };
 
@@ -320,6 +322,7 @@ function getConflictColumns(table: string, options?: Record<string, any>) {
     language_translations: ['language_code', 'key'],
     profiles: ['id'],
     posts: ['id'],
+    site_fonts: ['id'],
     site_settings: ['language_code'],
     publisher_users: ['publisher_id', 'user_id'],
   };

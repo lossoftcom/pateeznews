@@ -11,12 +11,14 @@ class SidebarItem extends StatelessWidget {
     required this.icon,
     required this.label,
     this.selected = false,
+    this.compact = false,
     this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
+  final bool compact;
   final VoidCallback? onTap;
 
   @override
@@ -24,7 +26,7 @@ class SidebarItem extends StatelessWidget {
     final color = selected ? Colors.white : AppColors.inkSoft;
     final background = selected ? AppColors.deepOcean : Colors.transparent;
 
-    return Padding(
+    final item = Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
@@ -32,7 +34,10 @@ class SidebarItem extends StatelessWidget {
         onTap: onTap ?? () {},
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 0 : 12,
+            vertical: 10,
+          ),
           decoration: BoxDecoration(
             color: background,
             borderRadius: BorderRadius.circular(AppRadius.value),
@@ -49,39 +54,51 @@ class SidebarItem extends StatelessWidget {
                   ]
                 : null,
           ),
-          child: Row(
-            children: [
-              SymbolIcon(icon, color: color, size: 21),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    fontSize: 15,
-                    letterSpacing: 0,
-                  ),
+          child: compact
+              ? Center(child: SymbolIcon(icon, color: color, size: 21))
+              : Row(
+                  children: [
+                    SymbolIcon(icon, color: color, size: 21),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          fontSize: 15,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    if (selected) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        width: 4,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.52),
+                          borderRadius: BorderRadius.circular(AppRadius.value),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ),
-              if (selected) ...[
-                const SizedBox(width: 10),
-                Container(
-                  width: 4,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.52),
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                  ),
-                ),
-              ],
-            ],
-          ),
         ),
       ),
     );
+
+    return compact
+        ? Tooltip(
+            message: label,
+            waitDuration: const Duration(milliseconds: 450),
+            child: item,
+          )
+        : item;
   }
 }
 
@@ -93,6 +110,7 @@ class SidebarExpandableItem extends StatelessWidget {
     required this.expanded,
     required this.onTap,
     this.selected = false,
+    this.compact = false,
     this.children = const [],
   });
 
@@ -101,6 +119,7 @@ class SidebarExpandableItem extends StatelessWidget {
   final bool expanded;
   final VoidCallback onTap;
   final bool selected;
+  final bool compact;
   final List<Widget> children;
 
   @override
@@ -109,7 +128,7 @@ class SidebarExpandableItem extends StatelessWidget {
     final color = selected ? Colors.white : AppColors.inkSoft;
     final background = selected ? AppColors.deepOcean : Colors.transparent;
 
-    return Padding(
+    final item = Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -120,7 +139,10 @@ class SidebarExpandableItem extends StatelessWidget {
             onTap: onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 0 : 12,
+                vertical: compact ? 10 : 9,
+              ),
               decoration: BoxDecoration(
                 color: background,
                 borderRadius: BorderRadius.circular(AppRadius.value),
@@ -137,43 +159,45 @@ class SidebarExpandableItem extends StatelessWidget {
                       ]
                     : null,
               ),
-              child: Row(
-                children: [
-                  SymbolIcon(icon, color: color, size: 19),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: selected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        fontSize: 15,
-                        letterSpacing: 0,
-                      ),
+              child: compact
+                  ? Center(child: SymbolIcon(icon, color: color, size: 20))
+                  : Row(
+                      children: [
+                        SymbolIcon(icon, color: color, size: 19),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: selected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              fontSize: 15,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 150),
+                          child: SymbolIcon(
+                            Symbols.keyboard_arrow_down,
+                            color: color,
+                            size: 17,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  AnimatedRotation(
-                    turns: expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 150),
-                    child: SymbolIcon(
-                      Symbols.keyboard_arrow_down,
-                      color: color,
-                      size: 17,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
           ClipRect(
             child: AnimatedSize(
               duration: const Duration(milliseconds: 150),
               alignment: Alignment.topCenter,
-              child: expanded && hasChildren
+              child: expanded && hasChildren && !compact
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: children,
@@ -184,6 +208,14 @@ class SidebarExpandableItem extends StatelessWidget {
         ],
       ),
     );
+
+    return compact
+        ? Tooltip(
+            message: label,
+            waitDuration: const Duration(milliseconds: 450),
+            child: item,
+          )
+        : item;
   }
 }
 

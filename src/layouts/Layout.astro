@@ -1,8 +1,17 @@
 ---
 import '@/styles/index.css';
 import { ClientRouter } from 'astro:transitions';
-import type { NavigationItem, SiteSettings } from '@/types';
+import type { NavigationItem, SiteFont, SiteSettings } from '@/types';
 import { dataService } from '@/services/dataService.server';
+
+type SeoAlternate = {
+	code: string;
+	canonicalUrl: string;
+	isDefault: boolean;
+	name: string;
+	direction: 'ltr' | 'rtl';
+	flagCode: string;
+};
 
 interface Props {
 	title?: string;
@@ -19,6 +28,7 @@ interface Props {
 	navigationItems?: NavigationItem[];
 	initialTranslations?: Record<string, string>;
 	initialLang?: any;
+	seoAlternates?: SeoAlternate[];
 }
 
 const { 
@@ -35,7 +45,8 @@ const {
   siteSettings,
   navigationItems = [],
   initialTranslations = {},
-  initialLang = { code: 'tr', name: 'Türkçe', direction: 'ltr', status: 'active', flag_code: 'tr', is_default: true }
+  initialLang = { code: 'tr', name: 'Türkçe', direction: 'ltr', status: 'active', flag_code: 'tr', is_default: true },
+  seoAlternates: providedSeoAlternates = []
 } = Astro.props;
 
 const defaultFavicon = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📰</text></svg>";
@@ -51,7 +62,12 @@ const normalizeBase = (value: string) => String(value || '').trim().replace(/\/$
 const canonicalBase = normalizeBase(siteSettings?.canonical_url || '');
 const baseForUrls = canonicalBase || Astro.url.origin;
 
-const seoAlternates = await dataService.getSeoAlternates();
+const [seoAlternates, siteFonts] = await Promise.all([
+	Array.isArray(providedSeoAlternates) && providedSeoAlternates.length
+		? Promise.resolve(providedSeoAlternates)
+		: dataService.getSeoAlternates(),
+	dataService.getSiteFonts(),
+]);
 const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
 const alternateBases = seoAlternates.map((entry) => normalizeBase(entry.canonicalUrl) || baseForUrls);
 const shouldUseLangParam = new Set(alternateBases).size <= 1;
@@ -98,8 +114,20 @@ const toAbsoluteUrl = (value: string | null | undefined) => {
 	}
 };
 
+const toRequestAssetUrl = (value: string | null | undefined) => {
+	const raw = String(value || '').trim();
+	if (!raw) return '';
+	if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) return raw;
+	try {
+		return new URL(raw, Astro.url.origin).toString();
+	} catch {
+		return raw;
+	}
+};
+
 const resolvedOgImage = toAbsoluteUrl(ogImage || siteSettings?.og_image_url);
 const resolvedFavicon = favicon || siteSettings?.favicon_url || defaultFavicon;
+const resolvedFaviconAsset = toRequestAssetUrl(resolvedFavicon);
 const themeColor = '#F8F9FA';
 
 const twitterHandleRaw = String(siteSettings?.twitter_username || '').trim();
@@ -121,6 +149,7 @@ const safeJsonLd = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u0
 const orgName = (siteSettings?.organization_legal_name || siteSettings?.site_name || '').trim();
 const orgUrl = baseForUrls;
 const orgLogo = toAbsoluteUrl(siteSettings?.logo_url || siteSettings?.favicon_url);
+const orgLogoAsset = toRequestAssetUrl(siteSettings?.logo_url || siteSettings?.favicon_url);
 const organizationLd = orgName ? {
 	"@context": "https://schema.org",
 	"@type": "Organization",
@@ -153,18 +182,17 @@ const preconnectOrigins = (() => {
 	const origins = new Set<string>();
 	const addOrigin = (value: string | null | undefined) => {
 		const raw = String(value || '').trim();
-		if (!raw || raw.startsWith('data:')) return;
+		if (!raw || raw.startsWith('data:') || !/^https?:\/\//.test(raw)) return;
 		try {
-			const url = new URL(raw, canonicalBase || Astro.url);
+			const url = new URL(raw);
 			if (url.origin) origins.add(url.origin);
 		} catch {
 			// ignore
 		}
 	};
 
-	addOrigin(resolvedOgImage);
-	addOrigin(resolvedFavicon);
-	addOrigin(orgLogo);
+	addOrigin(resolvedFaviconAsset);
+	addOrigin(orgLogoAsset);
 	addOrigin(siteSettings?.logo_url);
 	addOrigin(siteSettings?.footer_logo_url);
 	addOrigin(siteSettings?.dark_logo_url);
@@ -187,16 +215,147 @@ const buildLangAwareAssetHref = (pathname: string) => {
 const manifestHref = buildLangAwareAssetHref('/manifest.webmanifest');
 const rssHref = buildLangAwareAssetHref('/rss.xml');
 const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
+
+const defaultFontSizes: Record<string, number> = {
+	'fs-base': 15,
+	'fs-post-title': 32,
+	'fs-post-summary': 18,
+	'fs-content': 17,
+	'fs-main-nav': 14,
+	'fs-tiny': 11,
+	'fs-xs': 12,
+	'fs-sm': 13,
+	'fs-md': 15,
+	'fs-lg': 16,
+	'fs-xl': 18,
+	'fs-title-xs': 14,
+	'fs-title-sm': 16,
+	'fs-title-md': 18,
+	'fs-title-lg': 20,
+	'fs-title-xl': 22,
+	'fs-title-2xl': 24,
+	'fs-title-3xl': 28,
+	'fs-title-4xl': 30,
+	'fs-title-5xl': 32,
+};
+
+const cleanCssIdentifier = (value: unknown, fallback = 'PateezInter') => {
+	const raw = String(value || '').trim().replace(/[^A-Za-z0-9_-]/g, '');
+	return raw || fallback;
+};
+
+const cssQuoted = (value: string) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+
+const parseFontFiles = (value: unknown) => {
+	if (!value) return {};
+	if (typeof value === 'string') {
+		try {
+			const decoded = JSON.parse(value);
+			return decoded && typeof decoded === 'object' ? decoded as Record<string, string> : {};
+		} catch {
+			return {};
+		}
+	}
+	return typeof value === 'object' ? value as Record<string, string> : {};
+};
+
+const normalizeFontSizes = (value: unknown) => {
+	let source: Record<string, unknown> = {};
+	if (typeof value === 'string' && value.trim()) {
+		try {
+			const decoded = JSON.parse(value);
+			if (decoded && typeof decoded === 'object') source = decoded as Record<string, unknown>;
+		} catch {
+			source = {};
+		}
+	} else if (value && typeof value === 'object') {
+		source = value as Record<string, unknown>;
+	}
+	const result = { ...defaultFontSizes };
+	for (const [key, fallback] of Object.entries(defaultFontSizes)) {
+		const numeric = Number(source[key]);
+		if (Number.isFinite(numeric)) {
+			result[key] = Math.min(96, Math.max(8, Math.round(numeric)));
+		} else {
+			result[key] = fallback;
+		}
+	}
+	return result;
+};
+
+const siteFontMap = new Map<string, SiteFont>(
+	siteFonts
+		.filter((font) => font?.family)
+		.map((font) => [String(font.family), font])
+);
+
+const fontStackFor = (family: unknown, fallback: string) => {
+	const familyName = cleanCssIdentifier(family);
+	const font = siteFontMap.get(familyName);
+	const stack = String(font?.fallback_stack || '').trim();
+	if (stack && !/[;{}]/.test(stack)) return stack;
+	return `${cssQuoted(familyName)}, ${fallback}`;
+};
+
+const configuredFontSizes = normalizeFontSizes(siteSettings?.site_font_sizes);
+const siteFontStyle = [
+	`--site-font-primary: ${fontStackFor(siteSettings?.site_primary_font || 'PateezInter', "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
+	`--site-font-title: ${fontStackFor(siteSettings?.site_title_font || 'PateezInter', "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
+	`--site-font-content: ${fontStackFor(siteSettings?.site_content_font || 'PateezInter', "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
+	...Object.entries(configuredFontSizes)
+		.filter(([key]) => /^fs-[a-z0-9-]+$/.test(key))
+		.map(([key, value]) => `--${key}: ${value}px`),
+].join(';');
+
+const cssFontUrl = (url: string) => JSON.stringify(url.replace(/[\r\n]/g, ''));
+const dynamicFontFaceCss = siteFonts
+	.filter((font) => font.source === 'local' && font.is_active !== false)
+	.flatMap((font) => {
+		const family = cleanCssIdentifier(font.family, '');
+		if (!family) return [];
+		const files = parseFontFiles(font.font_files);
+		const entries = Object.entries(files).length > 0
+			? Object.entries(files)
+			: (font.web_font_path ? [['400', font.web_font_path]] : []);
+		return entries
+			.filter(([, src]) => String(src || '').trim())
+			.map(([weight, src]) => {
+				const numericWeight = Number(weight);
+				const fontWeight = Number.isFinite(numericWeight) ? Math.round(numericWeight) : 400;
+				const format = String(src).toLowerCase().endsWith('.woff2')
+					? 'woff2'
+					: String(src).toLowerCase().endsWith('.woff')
+						? 'woff'
+						: String(src).toLowerCase().endsWith('.otf')
+							? 'opentype'
+							: 'truetype';
+				return `@font-face{font-family:${cssQuoted(family)};font-style:normal;font-weight:${fontWeight};font-display:swap;src:url(${cssFontUrl(String(src))}) format('${format}');}`;
+			});
+	})
+	.join('\n');
+
+const selectedFontFamilies = [
+	siteSettings?.site_primary_font || 'PateezInter',
+	siteSettings?.site_title_font || 'PateezInter',
+	siteSettings?.site_content_font || 'PateezInter',
+].map((font) => cleanCssIdentifier(font));
+const fontPreloadHrefs = Array.from(new Set(
+	selectedFontFamilies
+		.map((family) => siteFontMap.get(family))
+		.filter((font): font is SiteFont => Boolean(font?.web_font_path))
+		.map((font) => String(font.web_font_path || '').trim())
+		.filter(Boolean)
+));
 ---
 
 <!DOCTYPE html>
-<html lang={lang} dir={dir} class="scroll-smooth">
+<html lang={lang} dir={dir} class="scroll-smooth" style={siteFontStyle}>
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 		<meta name="theme-color" content={themeColor} />
-		<link rel="icon" href={resolvedFavicon}>
-		<link rel="apple-touch-icon" href={orgLogo || resolvedFavicon} />
+		<link rel="icon" href={resolvedFaviconAsset}>
+		<link rel="apple-touch-icon" href={orgLogoAsset || resolvedFaviconAsset} />
 		<link rel="manifest" href={manifestHref} />
 		<meta name="generator" content={Astro.generator} />
 		<ClientRouter />
@@ -207,7 +366,7 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 				<link rel="dns-prefetch" href={origin} />
 			</>
 		))}
-		{orgLogo && <link rel="preload" as="image" href={orgLogo} fetchpriority="high" />}
+		{orgLogoAsset && <link rel="preload" as="image" href={orgLogoAsset} fetchpriority="high" />}
 		
 		<title>{resolvedTitle}</title>
 		<meta name="description" content={resolvedDescription} />
@@ -233,7 +392,11 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 
 		<link rel="preload" href="/fonts/inter-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
 		<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-			<link rel="preload" href="/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
+		<link rel="preload" href="/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
+		{fontPreloadHrefs.map((href) => (
+			<link rel="preload" href={href} as="font" crossorigin />
+		))}
+		{dynamicFontFaceCss && <style is:global set:html={dynamicFontFaceCss}></style>}
 
 			<style is:global>
 				@font-face {
@@ -244,7 +407,8 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 					src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
 				}
 				body {
-					font-family: 'Inter', system-ui, -apple-system, sans-serif;
+					font-family: var(--site-font-primary, 'PateezInter'), 'Inter', system-ui, -apple-system, sans-serif;
+					font-size: var(--fs-base, 15px);
 					background-color: #F8F9FA;
 					color: #2C3E50;
 				-webkit-font-smoothing: antialiased;
@@ -269,6 +433,38 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 				-webkit-font-smoothing: antialiased !important;
 				-moz-osx-font-smoothing: grayscale !important;
 				text-rendering: optimizeLegibility !important;
+			}
+			:root {
+				--public-nav-height: 72px;
+			}
+			.route-loading {
+				position: fixed;
+				top: var(--public-nav-height);
+				left: 0;
+				right: 0;
+				height: 2px;
+				z-index: 998;
+				pointer-events: none;
+				opacity: 0;
+				transition: opacity 180ms ease;
+			}
+			.route-loading.is-active {
+				opacity: 0.78;
+			}
+			.route-loading__bar {
+				height: 100%;
+				width: 100%;
+				background:
+					linear-gradient(90deg, transparent 0%, rgba(239, 59, 45, 0.18) 28%, rgba(255, 159, 28, 0.58) 50%, rgba(239, 59, 45, 0.34) 70%, transparent 100%);
+				box-shadow: 0 1px 10px rgba(239, 59, 45, 0.14);
+				transform-origin: left center;
+				animation: route-loading-run 1.85s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+				will-change: transform;
+			}
+			@keyframes route-loading-run {
+				0% { transform: translateX(-72%) scaleX(0.28); }
+				52% { transform: translateX(8%) scaleX(0.48); }
+				100% { transform: translateX(92%) scaleX(0.28); }
 			}
 		</style>
 
@@ -325,6 +521,30 @@ const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
 		)}
 	</head>
 	<body class="public-route">
+		<div id="route-loading" class="route-loading" aria-hidden="true">
+			<div class="route-loading__bar"></div>
+		</div>
+		<script is:inline>
+			(() => {
+				if (window.__pateezRouteLoadingBound) return;
+				window.__pateezRouteLoadingBound = true;
+				let hideTimer;
+				const getLoader = () => document.getElementById('route-loading');
+				const show = () => {
+					window.clearTimeout(hideTimer);
+					getLoader()?.classList.add('is-active');
+				};
+				const hide = () => {
+					window.clearTimeout(hideTimer);
+					hideTimer = window.setTimeout(() => getLoader()?.classList.remove('is-active'), 120);
+				};
+				document.addEventListener('astro:before-preparation', show);
+				document.addEventListener('astro:after-preparation', hide);
+				document.addEventListener('astro:after-swap', hide);
+				document.addEventListener('astro:page-load', hide);
+				window.addEventListener('pageshow', hide);
+			})();
+		</script>
 		<!-- 🚀 PERSISTENT NAVIGATION (ZERO RELOAD) -->
 		<div transition:persist="global-nav" class="relative z-[999]">
 			<GlobalNavigation

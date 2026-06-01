@@ -3,7 +3,7 @@ import { readRuntimeEnv } from './runtimeEnv';
 
 export const MEDIA_BUCKET = 'media';
 
-export const STORAGE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profile'] as const;
+export const STORAGE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profile', 'font'] as const;
 export type StorageType = typeof STORAGE_TYPES[number];
 
 function readEnv(name: string) {
@@ -182,6 +182,10 @@ export function contentTypeForFilename(filename: string, fallback = 'application
     m4a: 'audio/mp4',
     aac: 'audio/aac',
     pdf: 'application/pdf',
+    otf: 'font/otf',
+    ttf: 'font/ttf',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
   };
   return map[ext] || fallback;
 }

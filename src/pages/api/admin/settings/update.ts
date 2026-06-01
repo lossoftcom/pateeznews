@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import { dbQuery } from '@/lib/server/supabaseDb';
+import { invalidateSiteSettingsCache } from '@/services/dataService';
 
 const ALLOWED_COLUMNS = new Set([
   'site_name',
@@ -29,6 +30,10 @@ const ALLOWED_COLUMNS = new Set([
   'robots_txt',
   'header_custom_codes',
   'footer_custom_codes',
+  'site_primary_font',
+  'site_title_font',
+  'site_content_font',
+  'site_font_sizes',
   'google_ai_api_key',
   'google_ai_model',
   'google_ai_active',
@@ -70,6 +75,8 @@ export const POST: APIRoute = async ({ request }) => {
        RETURNING *`,
       params
     );
+
+    invalidateSiteSettingsCache(languageCode);
 
     return adminJson({ data: result.rows[0] || null, error: null });
   } catch (error) {

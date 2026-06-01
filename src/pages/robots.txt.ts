@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
 
-const CACHE_TTL_MS = 1000 * 60 * 5;
+const CACHE_TTL_MS = 0;
 const cacheByLang: Record<string, { body: string; expiry: number }> = {};
 
 export const GET: APIRoute = async ({ request }) => {
@@ -29,7 +29,7 @@ export const GET: APIRoute = async ({ request }) => {
     return new Response(cached.body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'no-cache, max-age=0',
       },
     });
   }
@@ -73,7 +73,7 @@ export const GET: APIRoute = async ({ request }) => {
   return new Response(body, {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'no-cache, max-age=0',
     },
   });
 };

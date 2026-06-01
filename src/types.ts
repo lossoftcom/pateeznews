@@ -170,6 +170,20 @@ export interface NavigationItem {
   children?: NavigationItem[]; // UI için hiyerarşi
 }
 
+export interface SiteFont {
+  id: number;
+  name: string;
+  family: string;
+  type: 'sans_serif' | 'serif' | 'monospace' | 'cursive' | 'fantasy' | 'system_ui';
+  source: 'local' | 'system';
+  web_font_path?: string;
+  flutter_family?: string;
+  fallback_stack?: string;
+  font_files?: Record<string, string> | string;
+  is_active: boolean;
+  sort_order: number;
+}
+
 // --- SITE SETTINGS ---
 export interface SiteSettings {
   id: string;
@@ -212,4 +226,9 @@ export interface SiteSettings {
   weather_longitude?: number;
   weather_timezone?: string;
   weather_update_interval_minutes?: number;
+  // Font Settings
+  site_primary_font?: string;
+  site_title_font?: string;
+  site_content_font?: string;
+  site_font_sizes?: Record<string, number> | string;
 }

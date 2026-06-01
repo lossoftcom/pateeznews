@@ -7,7 +7,6 @@ import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from '@/components/ui/Skeleton';
-import { navigate } from 'astro:transitions/client';
 import { prefetch } from 'astro:prefetch';
 import { postAction } from '@/services/appActions';
 
@@ -26,7 +25,6 @@ import ParagraphCard from './cards/ParagraphCard';
 
 interface NewsCardProps {
   data: NewsItem;
-  onClick?: () => void;
   onSourceClick?: () => void;
   siteSettings?: SiteSettings | null;
   navItems?: NavigationItem[];
@@ -79,7 +77,7 @@ const stripHtmlToText = (html: string) => {
     .trim();
 };
 
-const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteSettings, navItems }) => {
+const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, navItems }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
 
@@ -438,13 +436,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
     ) {
       return;
     }
-
-    e.preventDefault();
-    if (onClick) {
-      onClick();
-      return;
-    }
-    void navigate(detailHref);
+    document.getElementById('route-loading')?.classList.add('is-active');
   };
 
   const handleSourceAction = (e: React.MouseEvent) => {
@@ -535,7 +527,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onClick, onSourceClick, siteS
         {/* CONTENT Title */}
         <div className="px-6 pt-2 pb-0.5">
           {data.type !== NewsType.EMBED && (
-            <h3 className="news-title-font text-[38px] font-[900] text-gray-900 tracking-[-0.01em] leading-tight group-hover/card:text-palette-red transition-colors">
+            <h3 className="news-title-font text-[38px] font-[800] text-gray-900 tracking-normal leading-tight group-hover/card:text-palette-red transition-colors">
               {data.title}
             </h3>
           )}

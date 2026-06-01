@@ -320,9 +320,8 @@ class _Title extends StatelessWidget {
               title,
               style: AppTypography.display.copyWith(
                 color: headlineColor,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.3,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
                 height: 1.08,
               ),
             ),
@@ -350,7 +349,6 @@ class _Summary extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: AppTypography.body.copyWith(
           color: AppColors.inkSoft,
-          fontSize: 15,
           height: 1.5,
         ),
       ),

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-const ENV_FILES = ['.env', '.env.local', '.dev.vars'];
+const ENV_FILES = ['.env', '.env.local', '.dev.vars', 'cloudflare.env', 'cloudflare.env.local'];
 
 function unquoteEnvValue(value) {
   const trimmed = String(value || '').trim();

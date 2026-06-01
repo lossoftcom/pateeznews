@@ -62,12 +62,11 @@ class _Paragraph extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: AppTypography.body.copyWith(
+      style: AppTypography.articleBody.copyWith(
         color: AppColors.ink,
-        fontSize: 15.5,
         height: 1.62,
         fontWeight: FontWeight.w400,
-        letterSpacing: 0.05,
+        letterSpacing: 0,
       ),
     );
   }
@@ -104,10 +103,10 @@ class _DropCapParagraph extends StatelessWidget {
                   first.toUpperCase(),
                   style: AppTypography.titleL.copyWith(
                     color: Colors.white,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     fontSize: 22,
                     height: 1,
-                    letterSpacing: -0.3,
+                    letterSpacing: 0,
                   ),
                 ),
               ),
@@ -115,12 +114,11 @@ class _DropCapParagraph extends StatelessWidget {
           ),
           TextSpan(
             text: rest,
-            style: AppTypography.body.copyWith(
+            style: AppTypography.articleBody.copyWith(
               color: AppColors.ink,
-              fontSize: 15.5,
               height: 1.62,
               fontWeight: FontWeight.w400,
-              letterSpacing: 0.05,
+              letterSpacing: 0,
             ),
           ),
         ],
@@ -160,7 +158,7 @@ class _PullQuote extends StatelessWidget {
               style: AppTypography.display.copyWith(
                 color: AppColors.warmHorizon,
                 fontSize: 40,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w800,
                 height: 0.8,
                 letterSpacing: 0,
               ),
@@ -174,7 +172,7 @@ class _PullQuote extends StatelessWidget {
                 fontSize: 17,
                 height: 1.4,
                 fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
+                letterSpacing: 0,
                 fontStyle: FontStyle.italic,
               ),
             ),

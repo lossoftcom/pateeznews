@@ -1,106 +1,133 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'frontend_font_settings.dart';
 
-/// PateezInter variable font üzerine kurulu, editorial hiyerarşili tipografi.
-///
-/// Hiyerarşi:
-///   display   → featured haber başlığı (büyük, ekstra siyah)
-///   titleL    → bölüm başlığı
-///   titleM    → haber kartı başlığı
-///   titleS    → küçük kart başlığı
-///   body      → açıklama metni
-///   bodySmall → ikinci açıklama
-///   meta      → zaman, kategori, kaynak
-///   eyebrow   → kategori chip / küçük caps etiket
 class AppTypography {
   const AppTypography._();
 
-  static const String _family = 'PateezInter';
+  static FrontendFontSettings _settings = FrontendFontSettings.empty();
 
-  static const TextStyle display = TextStyle(
-    fontFamily: _family,
-    fontSize: 26,
+  static void configure(FrontendFontSettings settings) {
+    _settings = settings;
+  }
+
+  static String get primaryFamily => _settings.primaryFontFamily;
+
+  static String get titleFamily => _settings.titleFontFamily;
+
+  static String get contentFamily => _settings.contentFontFamily;
+
+  static TextStyle get display => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.size('fs-title-3xl'),
     fontWeight: FontWeight.w800,
-    letterSpacing: -0.6,
+    letterSpacing: 0,
     height: 1.18,
     color: AppColors.inkStrong,
   );
 
-  static const TextStyle titleL = TextStyle(
-    fontFamily: _family,
-    fontSize: 20,
+  static TextStyle get postTitle => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.size('fs-post-title'),
+    fontWeight: FontWeight.w800,
+    letterSpacing: 0,
+    height: 1.08,
+    color: AppColors.inkStrong,
+  );
+
+  static TextStyle get postSummary => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.size('fs-post-summary'),
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0,
+    height: 1.45,
+    color: AppColors.inkSoft,
+  );
+
+  static TextStyle get articleBody => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.size('fs-content'),
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+    height: 1.62,
+    color: AppColors.ink,
+  );
+
+  static TextStyle get titleL => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.size('fs-title-lg'),
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.3,
+    letterSpacing: 0,
     height: 1.2,
     color: AppColors.ink,
   );
 
-  static const TextStyle titleM = TextStyle(
-    fontFamily: _family,
-    fontSize: 17,
+  static TextStyle get titleM => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.size('fs-title-md'),
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.2,
+    letterSpacing: 0,
     height: 1.28,
     color: AppColors.ink,
   );
 
-  static const TextStyle titleS = TextStyle(
-    fontFamily: _family,
-    fontSize: 15,
+  static TextStyle get titleS => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.size('fs-title-xs'),
     fontWeight: FontWeight.w600,
-    letterSpacing: -0.1,
+    letterSpacing: 0,
     height: 1.3,
     color: AppColors.ink,
   );
 
-  static const TextStyle body = TextStyle(
-    fontFamily: _family,
-    fontSize: 14,
+  static TextStyle get body => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.size('fs-md'),
     fontWeight: FontWeight.w400,
     letterSpacing: 0,
     height: 1.45,
     color: AppColors.inkSoft,
   );
 
-  static const TextStyle bodySmall = TextStyle(
-    fontFamily: _family,
-    fontSize: 13,
+  static TextStyle get bodySmall => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.size('fs-sm'),
     fontWeight: FontWeight.w400,
     letterSpacing: 0,
     height: 1.45,
     color: AppColors.inkSoft,
   );
 
-  static const TextStyle meta = TextStyle(
-    fontFamily: _family,
-    fontSize: 12,
+  static TextStyle get meta => TextStyle(
+    fontFamily: primaryFamily,
+    fontSize: _settings.size('fs-xs'),
     fontWeight: FontWeight.w500,
-    letterSpacing: 0.1,
+    letterSpacing: 0,
     height: 1.3,
     color: AppColors.support,
   );
 
-  static const TextStyle eyebrow = TextStyle(
-    fontFamily: _family,
-    fontSize: 10.5,
+  static TextStyle get eyebrow => TextStyle(
+    fontFamily: primaryFamily,
+    fontSize: _settings.size('fs-tiny'),
     fontWeight: FontWeight.w700,
-    letterSpacing: 0.9,
+    letterSpacing: 0,
     height: 1.2,
     color: AppColors.inkSoft,
   );
 
-  static const TextStyle navLabel = TextStyle(
-    fontFamily: _family,
-    fontSize: 11,
+  static TextStyle get navLabel => TextStyle(
+    fontFamily: primaryFamily,
+    fontSize: _settings.size('fs-main-nav'),
     fontWeight: FontWeight.w600,
-    letterSpacing: 0.1,
+    letterSpacing: 0,
     height: 1.2,
   );
 
-  static const TextStyle storyLabel = TextStyle(
-    fontFamily: _family,
-    fontSize: 11.5,
+  static TextStyle get storyLabel => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.size('fs-xs'),
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     height: 1.2,

@@ -19,6 +19,11 @@
     --pateez-support: #95A5A6;
 }
 
+body.public-route {
+    font-family: var(--site-font-primary, 'PateezInter'), 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: var(--fs-base, 15px);
+}
+
 /* Scaleflex UI poppers (used by Filerobot) are portaled to #SfxPopper.
    Our admin modals use very high z-index, so ensure poppers render above them. */
 #SfxPopper .SfxPopper-wrapper {
@@ -43,6 +48,14 @@
     font-display: swap;
     src: url('/fonts/inter-latin.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'PateezInter';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src: url('/fonts/inter-latin-ext.woff2') format('woff2');
 }
 
 @font-face {
@@ -115,6 +128,158 @@
     font-display: swap;
     src: url('/fonts/roboto-latin.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'PateezSans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/site/google_sans_flex/GoogleSansFlex-400.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'PateezSans';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('/fonts/site/google_sans_flex/GoogleSansFlex-500.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'PateezSans';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/site/google_sans_flex/GoogleSansFlex-600.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'PateezSans';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/fonts/site/google_sans_flex/GoogleSansFlex-700.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'PateezSans';
+    font-style: normal;
+    font-weight: 800 900;
+    font-display: swap;
+    src: url('/fonts/site/google_sans_flex/GoogleSansFlex-900.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'OpenSans';
+    font-style: normal;
+    font-weight: 300 800;
+    font-display: swap;
+    src: url('/fonts/site/open_sans/OpenSans.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'PlusJakartaSans';
+    font-style: normal;
+    font-weight: 200 800;
+    font-display: swap;
+    src: url('/fonts/site/plus_jakarta_sans/PlusJakartaSans.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'DMSans';
+    font-style: normal;
+    font-weight: 100 1000;
+    font-display: swap;
+    src: url('/fonts/site/dm_sans/DMSans.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'IBMPlexSans';
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: swap;
+    src: url('/fonts/site/ibm_plex_sans/IBMPlexSans.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Jost';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/site/jost/Jost.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'LibreBaskerville';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('/fonts/site/libre_baskerville/LibreBaskerville.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Merriweather';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src: url('/fonts/site/merriweather/Merriweather.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Montserrat';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/site/montserrat/Montserrat.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'NotoSerif';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/site/noto_serif/NotoSerif.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Poppins';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/site/poppins/Poppins-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Poppins';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/site/poppins/Poppins-SemiBold.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Poppins';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/fonts/site/poppins/Poppins-Bold.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'SourceSans3';
+    font-style: normal;
+    font-weight: 200 900;
+    font-display: swap;
+    src: url('/fonts/site/source_sans_3/SourceSans3.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'WorkSans';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/site/work_sans/WorkSans.ttf') format('truetype');
 }
 
 
@@ -196,16 +361,37 @@ body.admin-scrollbar-visible::-webkit-scrollbar-thumb:hover {
 }
 
 .news-title-font {
-    font-family: 'PateezAppleDisplay', 'SF Pro Display', 'PateezAppleText', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-    font-weight: 900;
+    font-family: var(--site-font-title, 'PateezInter'), 'PateezAppleDisplay', 'SF Pro Display', 'PateezAppleText', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 800;
     letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
 }
 
+h1.news-title-font {
+    font-size: var(--fs-post-title, 36px);
+}
+
+h2.news-title-font {
+    font-size: var(--fs-title-5xl, 32px);
+}
+
+h3.news-title-font {
+    font-size: var(--fs-title-xl, 22px);
+}
+
+h4.news-title-font {
+    font-size: var(--fs-title-lg, 20px);
+}
+
+h5.news-title-font {
+    font-size: var(--fs-title-md, 18px);
+}
+
 .news-subtitle-font {
-    font-family: 'PateezAppleText', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--site-font-content, 'PateezInter'), 'PateezAppleText', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    font-size: var(--fs-content, 17px);
     font-weight: 400;
     letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
