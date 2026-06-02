@@ -4,6 +4,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../users_models.dart';
@@ -49,6 +50,17 @@ class RolesPermissionsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _RolesMobileList(
+            roles: roles,
+            loading: loading,
+            selectedRoleIds: selectedRoleIds,
+            onToggleRole: onToggleRole,
+            onEditRole: onEditRole,
+            onManagePermissions: onManagePermissions,
+            onDeleteRole: onDeleteRole,
+          );
+        }
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
@@ -883,4 +895,223 @@ Color _roleColor(String value) {
     if (parsed != null) return Color(0xFF000000 | parsed);
   }
   return AppColors.deepOcean;
+}
+
+
+class _RolesMobileList extends StatelessWidget {
+  const _RolesMobileList({
+    required this.roles,
+    required this.loading,
+    required this.selectedRoleIds,
+    required this.onToggleRole,
+    required this.onEditRole,
+    required this.onManagePermissions,
+    required this.onDeleteRole,
+  });
+
+  final List<ManagedRole> roles;
+  final bool loading;
+  final Set<String> selectedRoleIds;
+  final ValueChanged<ManagedRole> onToggleRole;
+  final ValueChanged<ManagedRole> onEditRole;
+  final ValueChanged<ManagedRole> onManagePermissions;
+  final ValueChanged<ManagedRole> onDeleteRole;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading && roles.isEmpty) {
+      return const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.4,
+            color: AppColors.deepOcean,
+          ),
+        ),
+      );
+    }
+    if (roles.isEmpty) {
+      return const _RolesEmpty();
+    }
+    return ListView.separated(
+      itemCount: roles.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final role = roles[index];
+        return _RolesMobileCard(
+          role: role,
+          selected: selectedRoleIds.contains(role.id),
+          onToggle: () => onToggleRole(role),
+          onEditRole: onEditRole,
+          onManagePermissions: onManagePermissions,
+          onDeleteRole: onDeleteRole,
+        );
+      },
+    );
+  }
+}
+
+class _RolesMobileCard extends StatelessWidget {
+  const _RolesMobileCard({
+    required this.role,
+    required this.selected,
+    required this.onToggle,
+    required this.onEditRole,
+    required this.onManagePermissions,
+    required this.onDeleteRole,
+  });
+
+  final ManagedRole role;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<ManagedRole> onEditRole;
+  final ValueChanged<ManagedRole> onManagePermissions;
+  final ValueChanged<ManagedRole> onDeleteRole;
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = role.permissionLabels;
+    final visible = labels.take(4).toList(growable: false);
+    final extra = labels.length - visible.length;
+    final locked = role.systemLocked;
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: locked ? null : onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!locked) ...[
+                AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+                const SizedBox(width: 12),
+              ],
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _roleColor(role.color),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  role.initial,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.t(role.label),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      context.t(role.displayDescription),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.support,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (locked)
+                const AdminMobileChip(
+                  label: 'Sistem',
+                  icon: Symbols.lock,
+                  color: AppColors.support,
+                )
+              else
+                AdminMobileMenuButton(
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: 'Düzenle',
+                      onTap: () => onEditRole(role),
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.verified,
+                      label: 'Yetkileri Yönet',
+                      onTap: () => onManagePermissions(role),
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: 'Sil',
+                      danger: true,
+                      onTap: () => onDeleteRole(role),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (visible.isEmpty)
+                const _PermissionChip(label: 'Henüz yetki atanmamış')
+              else ...[
+                for (final label in visible) _PermissionChip(label: label),
+                if (extra > 0)
+                  _PermissionChip(
+                    label: '+$extra ${context.t('More')}',
+                    isExtra: true,
+                  ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: locked ? 'Sistem Kilitli' : 'Aktif',
+                color: locked
+                    ? AppColors.inkSoft
+                    : const Color(0xFF198754),
+              ),
+              const Spacer(),
+              if (role.slug.trim().isNotEmpty)
+                Flexible(
+                  child: Text(
+                    role.slug,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.support,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

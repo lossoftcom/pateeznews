@@ -9,6 +9,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
@@ -618,7 +619,29 @@ class _WhatsappTemplateTableCard extends StatelessWidget {
     final allSelected =
         pageIds.isNotEmpty && selectedTemplateIds.containsAll(pageIds);
 
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _WhatsappTemplateMobileView(
+            templates: templates,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchController: searchController,
+            searchQuery: searchQuery,
+            selectedTemplateIds: selectedTemplateIds,
+            onSearchChanged: onSearchChanged,
+            onPageChanged: onPageChanged,
+            onToggleTemplate: onToggleTemplate,
+            onCreate: onCreate,
+            onEdit: onEdit,
+            onPreview: onPreview,
+            onToggleActive: onToggleActive,
+            onToggleReady: onToggleReady,
+            onDelete: onDelete,
+          );
+        }
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _TemplateListToolbar(
@@ -698,6 +721,274 @@ class _WhatsappTemplateTableCard extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+      },
+    );
+  }
+}
+
+
+class _WhatsappTemplateMobileView extends StatelessWidget {
+  const _WhatsappTemplateMobileView({
+    required this.templates,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchController,
+    required this.searchQuery,
+    required this.selectedTemplateIds,
+    required this.onSearchChanged,
+    required this.onPageChanged,
+    required this.onToggleTemplate,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onPreview,
+    required this.onToggleActive,
+    required this.onToggleReady,
+    required this.onDelete,
+  });
+
+  final List<AdminWhatsappTemplate> templates;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final TextEditingController searchController;
+  final String searchQuery;
+  final Set<int> selectedTemplateIds;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onToggleTemplate;
+  final VoidCallback onCreate;
+  final ValueChanged<AdminWhatsappTemplate> onEdit;
+  final ValueChanged<AdminWhatsappTemplate> onPreview;
+  final ValueChanged<AdminWhatsappTemplate> onToggleActive;
+  final ValueChanged<AdminWhatsappTemplate> onToggleReady;
+  final ValueChanged<AdminWhatsappTemplate> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          controller: searchController,
+          query: searchQuery,
+          hintText: context.t('whatsapp.templates.searchPlaceholder'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: 0,
+          onOpenFilters: () {},
+          showFilters: false,
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AdminMobilePrimaryButton(
+            icon: Symbols.add,
+            label: context.t('whatsapp.templates.new'),
+            onPressed: onCreate,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: false,
+            itemCount: templates.length,
+            emptyLabel: context.t('whatsapp.templates.empty'),
+            itemBuilder: (context, index) {
+              final template = templates[index];
+              return _WhatsappTemplateMobileCard(
+                template: template,
+                selected: selectedTemplateIds.contains(template.id),
+                onToggle: () => onToggleTemplate(template.id),
+                onEdit: () => onEdit(template),
+                onPreview: () => onPreview(template),
+                onToggleActive: () => onToggleActive(template),
+                onToggleReady: () => onToggleReady(template),
+                onDelete: () => onDelete(template),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: context.t(
+            'common.recordRange',
+            values: {'from': from, 'to': to, 'total': totalCount},
+          ),
+          loading: false,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _WhatsappTemplateMobileCard extends StatelessWidget {
+  const _WhatsappTemplateMobileCard({
+    required this.template,
+    required this.selected,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onPreview,
+    required this.onToggleActive,
+    required this.onToggleReady,
+    required this.onDelete,
+  });
+
+  final AdminWhatsappTemplate template;
+  final bool selected;
+  final VoidCallback onToggle;
+  final VoidCallback onEdit;
+  final VoidCallback onPreview;
+  final VoidCallback onToggleActive;
+  final VoidCallback onToggleReady;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final subject = template.subject.trim();
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 12),
+              const AdminMobileThumb(fallbackIcon: Symbols.article),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.t(template.nameKey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      context.t(template.category.labelKey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.support,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                tooltip: context.t('whatsapp.template.actions'),
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.edit_square,
+                    label: context.t('whatsapp.template.action.edit'),
+                    onTap: onEdit,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.visibility,
+                    label: context.t('whatsapp.template.action.preview'),
+                    onTap: onPreview,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: template.active
+                        ? Symbols.visibility_off
+                        : Symbols.visibility,
+                    label: context.t(
+                      template.active
+                          ? 'whatsapp.template.action.deactivate'
+                          : 'whatsapp.template.action.activate',
+                    ),
+                    onTap: onToggleActive,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: template.ready
+                        ? Icons.remove_circle_outline
+                        : Symbols.check,
+                    label: context.t(
+                      template.ready
+                          ? 'whatsapp.template.action.markNotReady'
+                          : 'whatsapp.template.action.markReady',
+                    ),
+                    onTap: onToggleReady,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: context.t('whatsapp.template.action.delete'),
+                    danger: true,
+                    onTap: onDelete,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (subject.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              subject,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.32,
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: template.ready
+                    ? context.t('whatsapp.template.ready')
+                    : context.t('whatsapp.template.notReady'),
+                color: template.ready
+                    ? const Color(0xFF2F80ED)
+                    : AppColors.support,
+              ),
+              const SizedBox(width: 8),
+              AdminMobileStatusPill(
+                label: template.active
+                    ? context.t('whatsapp.template.active')
+                    : context.t('whatsapp.template.passive'),
+                color: template.active
+                    ? const Color(0xFF198754)
+                    : AppColors.support,
+              ),
+              const Spacer(),
+              AdminMobileMeta(
+                icon: Symbols.code,
+                value: '${template.variableCount}',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

@@ -10,6 +10,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
@@ -483,7 +484,28 @@ class _WhatsappContactListsTableCard extends StatelessWidget {
     final pageIds = lists.map((list) => list.id).toSet();
     final allSelected = pageIds.isNotEmpty && selectedIds.containsAll(pageIds);
 
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _WhatsappContactListsMobileView(
+            lists: lists,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchController: searchController,
+            searchQuery: searchQuery,
+            selectedIds: selectedIds,
+            onSearchChanged: onSearchChanged,
+            onPageChanged: onPageChanged,
+            onToggleList: onToggleList,
+            onCreate: onCreate,
+            onEdit: onEdit,
+            onToggleSync: onToggleSync,
+            onToggleActive: onToggleActive,
+            onDelete: onDelete,
+          );
+        }
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _WhatsappContactListsToolbar(
@@ -557,6 +579,270 @@ class _WhatsappContactListsTableCard extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+      },
+    );
+  }
+}
+
+
+class _WhatsappContactListsMobileView extends StatelessWidget {
+  const _WhatsappContactListsMobileView({
+    required this.lists,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchController,
+    required this.searchQuery,
+    required this.selectedIds,
+    required this.onSearchChanged,
+    required this.onPageChanged,
+    required this.onToggleList,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onToggleSync,
+    required this.onToggleActive,
+    required this.onDelete,
+  });
+
+  final List<AdminWhatsappContactList> lists;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final TextEditingController searchController;
+  final String searchQuery;
+  final Set<int> selectedIds;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onToggleList;
+  final VoidCallback onCreate;
+  final ValueChanged<AdminWhatsappContactList> onEdit;
+  final ValueChanged<AdminWhatsappContactList> onToggleSync;
+  final ValueChanged<AdminWhatsappContactList> onToggleActive;
+  final ValueChanged<AdminWhatsappContactList> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          controller: searchController,
+          query: searchQuery,
+          hintText: context.t('whatsapp.contacts.searchPlaceholder'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: 0,
+          onOpenFilters: () {},
+          showFilters: false,
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AdminMobilePrimaryButton(
+            icon: Symbols.add,
+            label: context.t('whatsapp.contacts.newList'),
+            onPressed: onCreate,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: false,
+            itemCount: lists.length,
+            emptyLabel: context.t('whatsapp.contacts.empty'),
+            itemBuilder: (context, index) {
+              final list = lists[index];
+              return _WhatsappContactListsMobileCard(
+                list: list,
+                selected: selectedIds.contains(list.id),
+                onToggle: () => onToggleList(list.id),
+                onEdit: () => onEdit(list),
+                onToggleSync: () => onToggleSync(list),
+                onToggleActive: () => onToggleActive(list),
+                onDelete: () => onDelete(list),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: context.t(
+            'common.recordRange',
+            values: {'from': from, 'to': to, 'total': totalCount},
+          ),
+          loading: false,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _WhatsappContactListsMobileCard extends StatelessWidget {
+  const _WhatsappContactListsMobileCard({
+    required this.list,
+    required this.selected,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onToggleSync,
+    required this.onToggleActive,
+    required this.onDelete,
+  });
+
+  final AdminWhatsappContactList list;
+  final bool selected;
+  final VoidCallback onToggle;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleSync;
+  final VoidCallback onToggleActive;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceColor = contactListSourceColor(list.source);
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 12),
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: sourceColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(list.source.icon, color: sourceColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      list.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (list.description.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        list.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.support,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.edit_square,
+                    label: context.t('whatsapp.contacts.action.edit'),
+                    onTap: onEdit,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: list.syncEnabled ? Icons.sync_disabled : Icons.sync,
+                    label: context.t(
+                      list.syncEnabled
+                          ? 'whatsapp.contacts.action.syncDisable'
+                          : 'whatsapp.contacts.action.syncEnable',
+                    ),
+                    onTap: onToggleSync,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: list.active ? Symbols.visibility_off : Symbols.visibility,
+                    label: context.t(
+                      list.active
+                          ? 'whatsapp.contacts.action.deactivate'
+                          : 'whatsapp.contacts.action.activate',
+                    ),
+                    onTap: onToggleActive,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: context.t('whatsapp.contacts.action.delete'),
+                    danger: true,
+                    onTap: onDelete,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileMeta(
+                icon: Symbols.group,
+                value: '${list.contactCount}',
+              ),
+              const SizedBox(width: 10),
+              AdminMobileChip(
+                label: list.syncEnabled
+                    ? context.t('whatsapp.contacts.sync.open')
+                    : context.t('whatsapp.contacts.sync.closed'),
+                color: list.syncEnabled
+                    ? AppColors.deepOcean
+                    : AppColors.support,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: list.active
+                    ? context.t('whatsapp.contacts.status.active')
+                    : context.t('whatsapp.contacts.status.passive'),
+                color: list.active
+                    ? const Color(0xFF198754)
+                    : AppColors.support,
+              ),
+              const Spacer(),
+              Text(
+                formatAdminFullDate(context, list.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

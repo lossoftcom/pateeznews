@@ -7,6 +7,7 @@ import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_social_repository.dart';
@@ -342,7 +343,22 @@ class _SocialAccountsTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _SocialAccountsMobileView(
+            rows: rows,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchController: searchController,
+            onPageChanged: onPageChanged,
+            onSearchChanged: onSearchChanged,
+            onCreate: onCreate,
+            onRefresh: onRefresh,
+          );
+        }
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _SocialAccountsToolbar(
@@ -405,6 +421,196 @@ class _SocialAccountsTableCard extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+      },
+    );
+  }
+}
+
+
+class _SocialAccountsMobileView extends StatelessWidget {
+  const _SocialAccountsMobileView({
+    required this.rows,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchController,
+    required this.onPageChanged,
+    required this.onSearchChanged,
+    required this.onCreate,
+    required this.onRefresh,
+  });
+
+  final List<_SocialAccountRowData> rows;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final TextEditingController searchController;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onCreate;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          controller: searchController,
+          query: searchController.text,
+          hintText: context.t('social.accounts.searchPlaceholder'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: 0,
+          onOpenFilters: () {},
+          showFilters: false,
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _PrimaryActionButton(
+              label: context.t('social.accounts.addAccount'),
+              onPressed: onCreate,
+            ),
+            _SecondaryActionButton(
+              label: context.t('social.accounts.refresh'),
+              onPressed: onRefresh,
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: false,
+            itemCount: rows.length,
+            emptyLabel: context.t('social.accounts.empty'),
+            itemBuilder: (context, index) {
+              return _SocialAccountsMobileCard(row: rows[index]);
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: context.t(
+            'common.recordRange',
+            values: {'from': from, 'to': to, 'total': totalCount},
+          ),
+          loading: false,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _SocialAccountsMobileCard extends StatelessWidget {
+  const _SocialAccountsMobileCard({required this.row});
+
+  final _SocialAccountRowData row;
+
+  @override
+  Widget build(BuildContext context) {
+    final permission = row.permissionSummary.trim();
+    final platformName = _platformDisplayName(row.platform);
+    final meta = permission.isEmpty
+        ? platformName
+        : '$platformName • $permission';
+
+    return AdminMobileCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SocialBrandLogo(info: row.platform, size: 46),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.accountName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                      ),
+                    ),
+                    if (row.handle.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        row.handle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.support,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            meta,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.inkSoft,
+            ),
+          ),
+          if (row.connectionLabel.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AdminMobileChip(
+                label: row.connectionLabel,
+                color: row.platform.color,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(row.statusKey),
+                color: row.statusColor,
+              ),
+              const Spacer(),
+              if (row.connectedAt.trim().isNotEmpty)
+                Text(
+                  row.connectedAt,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.support,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

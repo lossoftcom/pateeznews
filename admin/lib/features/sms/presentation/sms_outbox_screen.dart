@@ -9,6 +9,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -341,7 +342,87 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
   Widget build(BuildContext context) {
     final messages = _pagedMessages;
     final totalCount = _filteredMessages.length;
-    return Padding(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          final lastPage = totalCount == 0
+              ? 1
+              : ((totalCount - 1) ~/ _pageSize) + 1;
+          final from = totalCount == 0 ? 0 : ((_page - 1) * _pageSize) + 1;
+          final to = totalCount == 0
+              ? 0
+              : (_page * _pageSize > totalCount
+                    ? totalCount
+                    : _page * _pageSize);
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _SmsOutboxHeader(),
+                const SizedBox(height: 20),
+                _SmsOutboxMetrics(messages: _messages),
+                const SizedBox(height: 16),
+                _SmsOutboxFilters(
+                  selected: _statusFilter,
+                  onChanged: _changeFilter,
+                ),
+                const SizedBox(height: 12),
+                AdminMobileToolbar(
+                  controller: _searchController,
+                  query: _searchController.text,
+                  hintText: context.t('sms.outbox.searchPlaceholder'),
+                  onSearchChanged: _changeSearch,
+                  activeFilterCount: 0,
+                  onOpenFilters: () {},
+                  showFilters: false,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _SmsOutboxPrimaryActionButton(
+                      icon: Symbols.add,
+                      label: 'sms.outbox.new',
+                      onPressed: _openSendDrawer,
+                    ),
+                    _SmsOutboxSoftActionButton(
+                      icon: Symbols.redo,
+                      label: 'sms.outbox.refresh',
+                      onPressed: _refresh,
+                    ),
+                  ],
+                ),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: _SmsOutboxMobileList(
+                    messages: messages,
+                    loading: _loading,
+                    onSendAgain: _openSendDrawer,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                AdminMobilePager(
+                  page: _page,
+                  lastPage: lastPage,
+                  rangeText: context.t(
+                    'common.recordRange',
+                    values: {'from': from, 'to': to, 'total': totalCount},
+                  ),
+                  loading: _loading,
+                  onPageChanged: _changePage,
+                ),
+              ],
+            ),
+          );
+        }
+        return Padding(
       padding: const EdgeInsets.fromLTRB(28, 28, 28, 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -380,6 +461,155 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
             pageSize: _pageSize,
             totalCount: totalCount,
             onPageChanged: _changePage,
+          ),
+        ],
+      ),
+    );
+      },
+    );
+  }
+}
+
+
+class _SmsOutboxMobileList extends StatelessWidget {
+  const _SmsOutboxMobileList({
+    required this.messages,
+    required this.loading,
+    required this.onSendAgain,
+  });
+
+  final List<_SmsOutboxMessage> messages;
+  final bool loading;
+  final VoidCallback onSendAgain;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminMobileListView(
+      loading: loading,
+      itemCount: messages.length,
+      emptyLabel: context.t('sms.outbox.empty'),
+      itemBuilder: (context, index) {
+        return _SmsOutboxMobileCard(
+          message: messages[index],
+          onSendAgain: onSendAgain,
+        );
+      },
+    );
+  }
+}
+
+class _SmsOutboxMobileCard extends StatelessWidget {
+  const _SmsOutboxMobileCard({
+    required this.message,
+    required this.onSendAgain,
+  });
+
+  final _SmsOutboxMessage message;
+  final VoidCallback onSendAgain;
+
+  @override
+  Widget build(BuildContext context) {
+    final sender = message.senderLine.trim();
+
+    return AdminMobileCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const AdminMobileThumb(fallbackIcon: Symbols.short_text),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message.recipient.isEmpty ? message.phone : message.recipient,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.deepOcean,
+                      ),
+                    ),
+                    if (message.phone.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        message.phone,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.support,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.redo,
+                    label: context.t('sms.outbox.action.sendAgain'),
+                    onTap: onSendAgain,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (message.message.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              message.message,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.35,
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(message.status.labelKey),
+                color: message.status.dotColor,
+              ),
+              const Spacer(),
+              if (sender.isNotEmpty) ...[
+                Flexible(
+                  child: Text(
+                    sender,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.support,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Text(
+                formatAdminFullDate(context, message.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
