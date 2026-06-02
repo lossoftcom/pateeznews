@@ -327,7 +327,7 @@ class _SocialAccountsTableCard extends StatelessWidget {
     required this.onRefresh,
   });
 
-  static const _minTableWidth = 1220.0;
+  static const _minTableWidth = 1120.0;
 
   final List<_SocialAccountRowData> rows;
   final int page;

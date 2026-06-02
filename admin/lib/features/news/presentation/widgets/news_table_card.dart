@@ -8,6 +8,7 @@ import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../news_models.dart';
@@ -90,56 +91,35 @@ class NewsTableCard extends StatelessWidget {
         final mobile = constraints.maxWidth < 800;
 
         if (mobile) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _NewsMobileToolbarCard(
-                searchQuery: searchQuery,
-                pageSize: pageSize,
-                selectedCount: selectedPostIds.length,
-                totalCount: totalCount,
-                filterOptions: filterOptions,
-                languageFilter: languageFilter,
-                categoryFilter: categoryFilter,
-                typeFilter: typeFilter,
-                statusFilter: statusFilter,
-                publisherFilter: publisherFilter,
-                onSearchChanged: onSearchChanged,
-                onPageSizeChanged: onPageSizeChanged,
-                onLanguageChanged: onLanguageChanged,
-                onCategoryChanged: onCategoryChanged,
-                onTypeChanged: onTypeChanged,
-                onStatusChanged: onStatusChanged,
-                onPublisherChanged: onPublisherChanged,
-                onDeleteSelected: onDeleteSelected,
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _AddPostButton(onPressed: onAddPost),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: _NewsMobileList(
-                  posts: posts,
-                  loading: loading,
-                  selectedPostIds: selectedPostIds,
-                  onTogglePost: onTogglePost,
-                  onEditPost: onEditPost,
-                  onToggleStatus: onToggleStatus,
-                  onTogglePinned: onTogglePinned,
-                  onDeletePost: onDeletePost,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _NewsFooter(
-                page: page,
-                pageSize: pageSize,
-                totalCount: totalCount,
-                loading: loading,
-                onPageChanged: onPageChanged,
-              ),
-            ],
+          return _NewsMobileView(
+            posts: posts,
+            filterOptions: filterOptions,
+            loading: loading,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchQuery: searchQuery,
+            languageFilter: languageFilter,
+            categoryFilter: categoryFilter,
+            typeFilter: typeFilter,
+            statusFilter: statusFilter,
+            publisherFilter: publisherFilter,
+            selectedPostIds: selectedPostIds,
+            onPageSizeChanged: onPageSizeChanged,
+            onSearchChanged: onSearchChanged,
+            onLanguageChanged: onLanguageChanged,
+            onCategoryChanged: onCategoryChanged,
+            onTypeChanged: onTypeChanged,
+            onStatusChanged: onStatusChanged,
+            onPublisherChanged: onPublisherChanged,
+            onPageChanged: onPageChanged,
+            onTogglePost: onTogglePost,
+            onAddPost: onAddPost,
+            onEditPost: onEditPost,
+            onToggleStatus: onToggleStatus,
+            onTogglePinned: onTogglePinned,
+            onDeletePost: onDeletePost,
+            onDeleteSelected: onDeleteSelected,
           );
         }
 
@@ -742,16 +722,16 @@ class _NewsDataTable extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onDeletePost;
 
   static const double _selectWidth = 42;
-  static const double _idWidth = 70;
-  static const double _postMinWidth = 500;
-  static const double _categoryWidth = 130;
-  static const double _statusWidth = 128;
-  static const double _languageWidth = 70;
-  static const double _authorWidth = 166;
-  static const double _viewsWidth = 82;
-  static const double _commentsWidth = 82;
-  static const double _createdWidth = 210;
-  static const double _menuWidth = 76;
+  static const double _idWidth = 62;
+  static const double _postMinWidth = 260;
+  static const double _categoryWidth = 120;
+  static const double _statusWidth = 112;
+  static const double _languageWidth = 60;
+  static const double _authorWidth = 130;
+  static const double _viewsWidth = 70;
+  static const double _commentsWidth = 70;
+  static const double _createdWidth = 168;
+  static const double _menuWidth = 70;
   static const double _horizontalPadding = 32;
   static const double _tableBorderWidth = 2;
 
@@ -1448,14 +1428,16 @@ class _NewsStatusBadge extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 5),
-            Text(
-              context.t(label),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            Flexible(
+              child: Text(
+                context.t(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -2079,320 +2061,264 @@ class _PageButton extends StatelessWidget {
   }
 }
 
-class _NewsMobileToolbarCard extends StatefulWidget {
-  const _NewsMobileToolbarCard({
-    required this.searchQuery,
-    required this.pageSize,
-    required this.selectedCount,
-    required this.totalCount,
+class _NewsMobileView extends StatelessWidget {
+  const _NewsMobileView({
+    required this.posts,
     required this.filterOptions,
+    required this.loading,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchQuery,
     required this.languageFilter,
     required this.categoryFilter,
     required this.typeFilter,
     required this.statusFilter,
     required this.publisherFilter,
-    required this.onSearchChanged,
+    required this.selectedPostIds,
     required this.onPageSizeChanged,
+    required this.onSearchChanged,
     required this.onLanguageChanged,
     required this.onCategoryChanged,
     required this.onTypeChanged,
     required this.onStatusChanged,
     required this.onPublisherChanged,
+    required this.onPageChanged,
+    required this.onTogglePost,
+    required this.onAddPost,
+    required this.onEditPost,
+    required this.onToggleStatus,
+    required this.onTogglePinned,
+    required this.onDeletePost,
     required this.onDeleteSelected,
   });
 
-  final String searchQuery;
-  final int pageSize;
-  final int selectedCount;
-  final int totalCount;
+  final List<AdminNewsPost> posts;
   final AdminNewsFilterOptions filterOptions;
+  final bool loading;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final String searchQuery;
   final String languageFilter;
   final String categoryFilter;
   final String typeFilter;
   final String statusFilter;
   final String publisherFilter;
-  final ValueChanged<String> onSearchChanged;
+  final Set<String> selectedPostIds;
   final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onLanguageChanged;
   final ValueChanged<String?> onCategoryChanged;
   final ValueChanged<String?> onTypeChanged;
   final ValueChanged<String?> onStatusChanged;
   final ValueChanged<String?> onPublisherChanged;
-  final VoidCallback onDeleteSelected;
-
-  @override
-  State<_NewsMobileToolbarCard> createState() => _NewsMobileToolbarCardState();
-}
-
-class _NewsMobileToolbarCardState extends State<_NewsMobileToolbarCard> {
-  late TextEditingController _searchController;
-  bool _expanded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController(text: widget.searchQuery);
-  }
-
-  @override
-  void didUpdateWidget(covariant _NewsMobileToolbarCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.searchQuery != _searchController.text) {
-      _searchController.value = TextEditingValue(
-        text: widget.searchQuery,
-        selection: TextSelection.collapsed(offset: widget.searchQuery.length),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  int _activeFilterCount() {
-    var count = 0;
-    if (widget.languageFilter != 'Tümü') count++;
-    if (widget.categoryFilter != 'Tümü') count++;
-    if (widget.typeFilter != 'Tümü') count++;
-    if (widget.statusFilter != 'Tümü') count++;
-    if (widget.publisherFilter != 'Tümü') count++;
-    return count;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final activeFilterCount = _activeFilterCount();
-    final hasSelection = widget.selectedCount > 0;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: widget.onSearchChanged,
-                    style: const TextStyle(fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: context.t('Search posts...'),
-                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.clear,
-                                size: 18,
-                                color: Colors.grey,
-                              ),
-                              onPressed: () {
-                                _searchController.clear();
-                                widget.onSearchChanged('');
-                                setState(() {});
-                              },
-                            )
-                          : null,
-                      prefixIconConstraints: const BoxConstraints(
-                        minWidth: 34,
-                        minHeight: 34,
-                      ),
-                      border: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.grey),
-                      ),
-                      enabledBorder: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.grey),
-                      ),
-                      focusedBorder: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFF2C3E50)),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      isDense: true,
-                      filled: false,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                InkWell(
-                  mouseCursor: WidgetStateMouseCursor.clickable,
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-                    FocusScope.of(context).unfocus();
-                    setState(() => _expanded = !_expanded);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    child: SizedBox(
-                      width: 64,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _expanded ? 'Gizle' : 'Göster',
-                                style: const TextStyle(
-                                  color: Color(0xFF2C3E50),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 3),
-                              AnimatedRotation(
-                                turns: _expanded ? 0.5 : 0,
-                                duration: const Duration(milliseconds: 220),
-                                child: const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  size: 18,
-                                  color: Color(0xFF2C3E50),
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            '${widget.totalCount} kayıt',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          Text(
-                            activeFilterCount == 0
-                                ? 'Filtre yok'
-                                : '$activeFilterCount aktif filtre',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeInOut,
-            child: !_expanded
-                ? const SizedBox.shrink()
-                : Column(
-                    children: [
-                      Divider(height: 1, color: Colors.grey.shade200),
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                _PageSizeSelect(
-                                  value: widget.pageSize,
-                                  onChanged: widget.onPageSizeChanged,
-                                ),
-                                if (hasSelection) ...[
-                                  const SizedBox(width: 12),
-                                  Flexible(
-                                    child: _BulkDeleteButton(
-                                      selectedCount: widget.selectedCount,
-                                      onPressed: widget.onDeleteSelected,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            _NewsFilters(
-                              filterOptions: widget.filterOptions,
-                              languageFilter: widget.languageFilter,
-                              categoryFilter: widget.categoryFilter,
-                              typeFilter: widget.typeFilter,
-                              statusFilter: widget.statusFilter,
-                              publisherFilter: widget.publisherFilter,
-                              onLanguageChanged: widget.onLanguageChanged,
-                              onCategoryChanged: widget.onCategoryChanged,
-                              onTypeChanged: widget.onTypeChanged,
-                              onStatusChanged: widget.onStatusChanged,
-                              onPublisherChanged: widget.onPublisherChanged,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NewsMobileList extends StatelessWidget {
-  const _NewsMobileList({
-    required this.posts,
-    required this.loading,
-    required this.selectedPostIds,
-    required this.onTogglePost,
-    required this.onEditPost,
-    required this.onToggleStatus,
-    required this.onTogglePinned,
-    required this.onDeletePost,
-  });
-
-  final List<AdminNewsPost> posts;
-  final bool loading;
-  final Set<String> selectedPostIds;
+  final ValueChanged<int> onPageChanged;
   final ValueChanged<String> onTogglePost;
+  final VoidCallback onAddPost;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
+  final VoidCallback onDeleteSelected;
+
+  int get _activeFilterCount {
+    var count = 0;
+    if (languageFilter != 'Tümü') count++;
+    if (categoryFilter != 'Tümü') count++;
+    if (typeFilter != 'Tümü') count++;
+    if (statusFilter != 'Tümü') count++;
+    if (publisherFilter != 'Tümü') count++;
+    return count;
+  }
+
+  void _openFilters(BuildContext context) {
+    showAdminMobileFilterSheet(
+      context: context,
+      onClear: () {
+        onLanguageChanged('Tümü');
+        onCategoryChanged('Tümü');
+        onTypeChanged('Tümü');
+        onStatusChanged('Tümü');
+        onPublisherChanged('Tümü');
+      },
+      contentBuilder: (context, setSheetState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AdminMobileFilterField(
+              label: context.t('Language'),
+              value: languageFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final language in filterOptions.languages)
+                  DropdownMenuItem(
+                    value: language.id,
+                    child: Text(language.label),
+                  ),
+              ],
+              onChanged: (value) {
+                onLanguageChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('Category'),
+              value: categoryFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final category in filterOptions.categories)
+                  DropdownMenuItem(
+                    value: category.id,
+                    child: Text(category.displayLabel),
+                  ),
+              ],
+              onChanged: (value) {
+                onCategoryChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('Type'),
+              value: typeFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final type in filterOptions.types)
+                  DropdownMenuItem(
+                    value: type.id,
+                    child: Text(context.t(_typeLabel(type.label))),
+                  ),
+              ],
+              onChanged: (value) {
+                onTypeChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('Status'),
+              value: statusFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                DropdownMenuItem(
+                  value: 'published',
+                  child: Text(context.t('Published')),
+                ),
+                DropdownMenuItem(
+                  value: 'draft',
+                  child: Text(context.t('Draft')),
+                ),
+              ],
+              onChanged: (value) {
+                onStatusChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('Publisher'),
+              value: publisherFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final publisher in filterOptions.publishers)
+                  DropdownMenuItem(
+                    value: publisher.id,
+                    child: Text(publisher.label),
+                  ),
+              ],
+              onChanged: (value) {
+                onPublisherChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: 'Sayfa boyutu',
+              value: pageSize.toString(),
+              items: const [
+                DropdownMenuItem(value: '25', child: Text('25')),
+                DropdownMenuItem(value: '50', child: Text('50')),
+                DropdownMenuItem(value: '100', child: Text('100')),
+              ],
+              onChanged: (value) {
+                onPageSizeChanged(int.tryParse(value ?? ''));
+                setSheetState(() {});
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (loading && posts.isEmpty) {
-      return const _NewsLoading();
-    }
-    if (posts.isEmpty) {
-      return const _NewsEmpty();
-    }
-    return ListView.separated(
-      itemCount: posts.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final post = posts[index];
-        final selected = selectedPostIds.contains(post.id);
-        return _NewsMobileCard(
-          post: post,
-          selected: selected,
-          onToggle: () => onTogglePost(post.id),
-          onEditPost: onEditPost,
-          onToggleStatus: onToggleStatus,
-          onTogglePinned: onTogglePinned,
-          onDeletePost: onDeletePost,
-        );
-      },
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
+    final hasSelection = selectedPostIds.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          query: searchQuery,
+          hintText: context.t('Search posts...'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: _activeFilterCount,
+          onOpenFilters: () => _openFilters(context),
+        ),
+        const SizedBox(height: 12),
+        hasSelection
+            ? AdminMobileSelectionBar(
+                selectedCount: selectedPostIds.length,
+                label: context.t(
+                  'news.selectedDelete',
+                  values: {'count': selectedPostIds.length},
+                ),
+                onClear: () {
+                  for (final id in selectedPostIds.toList()) {
+                    onTogglePost(id);
+                  }
+                },
+                onDelete: onDeleteSelected,
+              )
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: _AddPostButton(onPressed: onAddPost),
+              ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: loading,
+            itemCount: posts.length,
+            emptyLabel: context.t('No posts found'),
+            itemBuilder: (context, index) {
+              final post = posts[index];
+              return _NewsMobileCard(
+                post: post,
+                selected: selectedPostIds.contains(post.id),
+                onToggle: () => onTogglePost(post.id),
+                onEditPost: onEditPost,
+                onToggleStatus: onToggleStatus,
+                onTogglePinned: onTogglePinned,
+                onDeletePost: onDeletePost,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: rangeText,
+          loading: loading,
+          onPageChanged: onPageChanged,
+        ),
+      ],
     );
   }
 }
@@ -2416,154 +2342,155 @@ class _NewsMobileCard extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
 
-  static const _accent = Color(0xFF2C3E50);
-  static const _activeBg = Color(0xFFE6F4EA);
-  static const _activeText = Color(0xFF1E7E34);
-  static const _passiveBg = Color(0xFFF5F5F5);
-  static const _passiveText = Color(0xFF757575);
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: selected ? _accent.withValues(alpha: 0.04) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: selected
-              ? _accent.withValues(alpha: 0.3)
-              : Colors.grey.shade200,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: selected
-                ? _accent.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.05),
-            blurRadius: selected ? 12 : 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
+    final thumb = post.thumbnailUrl.trim();
+    final statusColor = post.published
+        ? const Color(0xFF198754)
+        : AppColors.support;
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onToggle,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: Checkbox(
-                  value: selected,
-                  onChanged: (_) => onToggle(),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  side: const BorderSide(color: Color(0xFFD1D1D1)),
-                ),
-              ),
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
               const SizedBox(width: 12),
-              _PostThumbnail(post: post),
+              AdminMobileThumb(
+                imageUrl: thumb.isEmpty ? null : _publicUrl(thumb),
+                fallbackIcon: Symbols.newspaper,
+                fit: BoxFit.cover,
+              ),
               const SizedBox(width: 12),
               Expanded(
-                child: _RowSelectTapTarget(
-                  onTap: onToggle,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (post.isPinned) ...[
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2),
-                              child: SymbolIcon(
-                                Symbols.push_pin,
-                                color: AppColors.warmHorizon,
-                                size: 14,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Expanded(
-                            child: Text(
-                              post.displayTitle,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.black87,
-                                height: 1.25,
-                              ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (post.isPinned) ...[
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: SymbolIcon(
+                              Symbols.push_pin,
+                              color: AppColors.warmHorizon,
+                              size: 15,
                             ),
                           ),
+                          const SizedBox(width: 5),
                         ],
+                        Expanded(child: _PostTitleLink(post: post)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '#${post.id} · ${post.displayCategory}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.support,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${post.id} • ${post.displayCategory}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        AdminMobileChip(
+                          label: context.t(_typeLabel(post.displayType)),
+                          color: AppColors.deepOcean,
+                          filled: true,
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: _TypeBadge(
-                              label: context.t(_typeLabel(post.displayType)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        AdminMobileChip(
+                          label: _languageLabel(post.displayLanguage),
+                          color: AppColors.support,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              _NewsRowMenu(
-                post: post,
-                onEditPost: onEditPost,
-                onToggleStatus: onToggleStatus,
-                onTogglePinned: onTogglePinned,
-                onDeletePost: onDeletePost,
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                tooltip: context.t('Post actions'),
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.edit_square,
+                    label: context.t('Edit'),
+                    onTap: () => onEditPost(post),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: post.published
+                        ? Symbols.visibility_off
+                        : Symbols.check,
+                    label: context.t(post.published ? 'Unpublish' : 'Publish'),
+                    onTap: () => onToggleStatus(post),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: post.isPinned ? Symbols.visibility_off : Symbols.verified,
+                    label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
+                    onTap: () => onTogglePinned(post),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: context.t('Delete'),
+                    danger: true,
+                    onTap: () => onDeletePost(post),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: post.published ? _activeBg : _passiveBg,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+              AdminMobileStatusPill(
+                label: context.t(post.published ? 'Published' : 'Draft'),
+                color: statusColor,
+              ),
+              const Spacer(),
+              AdminMobileMeta(
+                icon: Symbols.visibility,
+                value: '${post.likesCount}',
+              ),
+              const SizedBox(width: 12),
+              AdminMobileMeta(
+                icon: Symbols.short_text,
+                value: '${post.commentsCount}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
                 child: Text(
-                  post.published ? context.t('Published') : context.t('Draft'),
-                  style: TextStyle(
-                    color: post.published ? _activeText : _passiveText,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
+                  post.displayPublisher,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.support,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              Flexible(
-                child: Text(
-                  formatAdminFullDate(context, post.createdAt),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
+              const SizedBox(width: 8),
+              Text(
+                formatAdminFullDate(context, post.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],

@@ -40,13 +40,13 @@ class LanguageSettingsTable extends StatelessWidget {
 
   static const _activeGreen = Color(0xFF198754);
   static const _passiveGray = Color(0xFF6C757D);
-  static const double _minWidth = 1040;
+  static const double _minWidth = 900;
   static const double _selectWidth = 42;
-  static const double _orderWidth = 90;
-  static const double _defaultWidth = 170;
-  static const double _actionsWidth = 320;
-  static const double _statusWidth = 130;
-  static const double _menuWidth = 88;
+  static const double _orderWidth = 70;
+  static const double _defaultWidth = 140;
+  static const double _actionsWidth = 260;
+  static const double _statusWidth = 110;
+  static const double _menuWidth = 76;
   static const double _columnGap = 12;
 
   @override
@@ -759,12 +759,16 @@ class _StatusBadge extends StatelessWidget {
                 ),
                 const SizedBox(width: 5),
               ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -987,10 +991,7 @@ class _LanguageMobileCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: language.active ? _activeBg : _passiveBg,
                   borderRadius: BorderRadius.circular(4),

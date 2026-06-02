@@ -8,6 +8,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
@@ -407,7 +408,7 @@ class _SubscribersTableCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  static const _minTableWidth = 1360.0;
+  static const _minTableWidth = 960.0;
 
   final List<AdminSubscriber> subscribers;
   final bool loading;
@@ -434,7 +435,27 @@ class _SubscribersTableCard extends StatelessWidget {
     final pageIds = subscribers.map((subscriber) => subscriber.id).toSet();
     final allSelected = pageIds.isNotEmpty && selectedIds.containsAll(pageIds);
 
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _SubscribersMobileView(
+            subscribers: subscribers,
+            loading: loading,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchQuery: searchQuery,
+            selectedIds: selectedIds,
+            onSearchChanged: onSearchChanged,
+            onPageChanged: onPageChanged,
+            onToggleSubscriber: onToggleSubscriber,
+            onCreate: onCreate,
+            onEdit: onEdit,
+            onUpdate: onUpdate,
+            onDelete: onDelete,
+          );
+        }
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _SubscribersToolbar(
@@ -512,6 +533,242 @@ class _SubscribersTableCard extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+      },
+    );
+  }
+}
+
+
+class _SubscribersMobileView extends StatelessWidget {
+  const _SubscribersMobileView({
+    required this.subscribers,
+    required this.loading,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchQuery,
+    required this.selectedIds,
+    required this.onSearchChanged,
+    required this.onPageChanged,
+    required this.onToggleSubscriber,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onUpdate,
+    required this.onDelete,
+  });
+
+  final List<AdminSubscriber> subscribers;
+  final bool loading;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final String searchQuery;
+  final Set<String> selectedIds;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<String> onToggleSubscriber;
+  final VoidCallback onCreate;
+  final ValueChanged<AdminSubscriber> onEdit;
+  final ValueChanged<AdminSubscriber> onUpdate;
+  final ValueChanged<AdminSubscriber> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          query: searchQuery,
+          hintText: context.t('subscribers.searchPlaceholder'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: 0,
+          onOpenFilters: () {},
+          showFilters: false,
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _PrimaryActionButton(
+            icon: Symbols.add,
+            label: context.t('subscribers.addButton'),
+            onPressed: onCreate,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: loading,
+            itemCount: subscribers.length,
+            emptyLabel: context.t('subscribers.empty'),
+            itemBuilder: (context, index) {
+              final subscriber = subscribers[index];
+              return _SubscribersMobileCard(
+                subscriber: subscriber,
+                selected: selectedIds.contains(subscriber.id),
+                onToggle: () => onToggleSubscriber(subscriber.id),
+                onEdit: () => onEdit(subscriber),
+                onUpdate: () => onUpdate(subscriber),
+                onDelete: () => onDelete(subscriber),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: rangeText,
+          loading: loading,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _SubscribersMobileCard extends StatelessWidget {
+  const _SubscribersMobileCard({
+    required this.subscriber,
+    required this.selected,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onUpdate,
+    required this.onDelete,
+  });
+
+  final AdminSubscriber subscriber;
+  final bool selected;
+  final VoidCallback onToggle;
+  final VoidCallback onEdit;
+  final VoidCallback onUpdate;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = subscriber.phone.trim();
+    final city = subscriber.city.trim();
+    final hasChips = phone.isNotEmpty || city.isNotEmpty;
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 12),
+              AdminMobileAvatar(label: subscriber.fullName),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      subscriber.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                      ),
+                    ),
+                    if (subscriber.email.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subscriber.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.support,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.edit_square,
+                    label: context.t('subscribers.action.edit'),
+                    onTap: onEdit,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.save,
+                    label: context.t('subscribers.action.update'),
+                    onTap: onUpdate,
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: context.t('subscribers.action.delete'),
+                    danger: true,
+                    onTap: onDelete,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (hasChips) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (phone.isNotEmpty)
+                  AdminMobileChip(
+                    label: phone,
+                    icon: Symbols.alternate_email,
+                    color: AppColors.deepOcean,
+                  ),
+                if (city.isNotEmpty)
+                  AdminMobileChip(label: city, color: AppColors.support),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: subscriber.active
+                    ? context.t('common.active')
+                    : context.t('common.passive'),
+                color: subscriber.active
+                    ? const Color(0xFF198754)
+                    : AppColors.support,
+              ),
+              const Spacer(),
+              Text(
+                formatAdminFullDate(context, subscriber.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

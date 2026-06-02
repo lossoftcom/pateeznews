@@ -35,13 +35,13 @@ class RolesPermissionsTable extends StatelessWidget {
   final ValueChanged<String> onSort;
 
   static const _activeGreen = Color(0xFF198754);
-  static const double _minWidth = 1110;
+  static const double _minWidth = 920;
   static const double _selectWidth = 42;
-  static const double _orderWidth = 90;
-  static const double _slugWidth = 160;
-  static const double _permissionsWidth = 340;
-  static const double _statusWidth = 176;
-  static const double _menuWidth = 138;
+  static const double _orderWidth = 70;
+  static const double _slugWidth = 130;
+  static const double _permissionsWidth = 260;
+  static const double _statusWidth = 130;
+  static const double _menuWidth = 100;
   static const double _columnGap = 12;
   static const double _statusActionGap = 20;
 

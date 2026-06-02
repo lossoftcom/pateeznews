@@ -8,6 +8,7 @@ import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
@@ -391,7 +392,29 @@ class _StoriesTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _StoriesMobileView(
+            stories: stories,
+            loading: loading,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchQuery: searchQuery,
+            selectedStoryIds: selectedStoryIds,
+            onSearchChanged: onSearchChanged,
+            onPageChanged: onPageChanged,
+            onToggleStory: onToggleStory,
+            onAddStory: onAddStory,
+            onEditStory: onEditStory,
+            onToggleStatus: onToggleStatus,
+            onOpenMedia: onOpenMedia,
+            onDeleteStory: onDeleteStory,
+            onDeleteSelected: onDeleteSelected,
+          );
+        }
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _StoriesToolbar(
@@ -428,6 +451,259 @@ class _StoriesTableCard extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+      },
+    );
+  }
+}
+
+
+class _StoriesMobileView extends StatelessWidget {
+  const _StoriesMobileView({
+    required this.stories,
+    required this.loading,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchQuery,
+    required this.selectedStoryIds,
+    required this.onSearchChanged,
+    required this.onPageChanged,
+    required this.onToggleStory,
+    required this.onAddStory,
+    required this.onEditStory,
+    required this.onToggleStatus,
+    required this.onOpenMedia,
+    required this.onDeleteStory,
+    required this.onDeleteSelected,
+  });
+
+  final List<AdminStory> stories;
+  final bool loading;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final String searchQuery;
+  final Set<String> selectedStoryIds;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<String> onToggleStory;
+  final VoidCallback onAddStory;
+  final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onToggleStatus;
+  final ValueChanged<AdminStory> onOpenMedia;
+  final ValueChanged<AdminStory> onDeleteStory;
+  final VoidCallback onDeleteSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
+    final hasSelection = selectedStoryIds.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          query: searchQuery,
+          hintText: context.t('stories.searchPlaceholder'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: 0,
+          onOpenFilters: () {},
+          showFilters: false,
+        ),
+        const SizedBox(height: 12),
+        hasSelection
+            ? AdminMobileSelectionBar(
+                selectedCount: selectedStoryIds.length,
+                label: context.t(
+                  'stories.selectedDelete',
+                  values: {'count': selectedStoryIds.length},
+                ),
+                onClear: () {
+                  for (final id in selectedStoryIds.toList()) {
+                    onToggleStory(id);
+                  }
+                },
+                onDelete: onDeleteSelected,
+              )
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: _AddStoryButton(onPressed: onAddStory),
+              ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: loading,
+            itemCount: stories.length,
+            emptyLabel: context.t('stories.empty'),
+            itemBuilder: (context, index) {
+              final story = stories[index];
+              return _StoriesMobileCard(
+                story: story,
+                selected: selectedStoryIds.contains(story.id),
+                onToggle: () => onToggleStory(story.id),
+                onEditStory: onEditStory,
+                onToggleStatus: onToggleStatus,
+                onOpenMedia: onOpenMedia,
+                onDeleteStory: onDeleteStory,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: rangeText,
+          loading: loading,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _StoriesMobileCard extends StatelessWidget {
+  const _StoriesMobileCard({
+    required this.story,
+    required this.selected,
+    required this.onToggle,
+    required this.onEditStory,
+    required this.onToggleStatus,
+    required this.onOpenMedia,
+    required this.onDeleteStory,
+  });
+
+  final AdminStory story;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onToggleStatus;
+  final ValueChanged<AdminStory> onOpenMedia;
+  final ValueChanged<AdminStory> onDeleteStory;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = story.mediaUrl.trim();
+    final statusColor = story.isActive
+        ? const Color(0xFF198754)
+        : AppColors.actionRed;
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 12),
+              AdminMobileThumb(
+                imageUrl: media.isEmpty ? null : _publicUrl(media),
+                fallbackIcon: Symbols.photo_camera,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      story.displayTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 6,
+                      children: [
+                        AdminMobileMeta(
+                          icon: Symbols.visibility,
+                          value: '${story.viewCount}',
+                        ),
+                        if (story.expiresAt != null)
+                          AdminMobileMeta(
+                            icon: Symbols.schedule,
+                            value: formatAdminFullDate(context, story.expiresAt),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                tooltip: context.t('stories.actions.tooltip'),
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.edit_square,
+                    label: context.t('Edit'),
+                    onTap: () => onEditStory(story),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: story.isActive ? Symbols.visibility_off : Symbols.check,
+                    label: context.t(
+                      story.isActive
+                          ? 'stories.actions.deactivate'
+                          : 'stories.actions.activate',
+                    ),
+                    onTap: () => onToggleStatus(story),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.open_in_new,
+                    label: context.t('stories.actions.viewMedia'),
+                    onTap: () => onOpenMedia(story),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: context.t('common.delete'),
+                    danger: true,
+                    onTap: () => onDeleteStory(story),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(
+                  story.isActive ? 'stories.status.live' : 'stories.status.passive',
+                ),
+                color: statusColor,
+              ),
+              const Spacer(),
+              Text(
+                formatAdminFullDate(context, story.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -773,14 +1049,14 @@ class _StoriesDataTable extends StatelessWidget {
   final ValueChanged<AdminStory> onOpenMedia;
   final ValueChanged<AdminStory> onDeleteStory;
 
-  static const double _minWidth = 1120;
+  static const double _minWidth = 900;
   static const double _selectWidth = 42;
-  static const double _idWidth = 70;
-  static const double _storyMinWidth = 420;
-  static const double _viewsWidth = 120;
-  static const double _expiresWidth = 190;
-  static const double _statusWidth = 136;
-  static const double _menuWidth = 76;
+  static const double _idWidth = 62;
+  static const double _storyMinWidth = 260;
+  static const double _viewsWidth = 82;
+  static const double _expiresWidth = 160;
+  static const double _statusWidth = 112;
+  static const double _menuWidth = 70;
   static const double _horizontalPadding = 32;
   static const double _tableBorderWidth = 2;
 
@@ -1466,14 +1742,16 @@ class _StoryStatusBadge extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 5),
-            Text(
-              context.t(label),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            Flexible(
+              child: Text(
+                context.t(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

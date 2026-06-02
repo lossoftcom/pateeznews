@@ -1162,11 +1162,18 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
   useEffect(() => {
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = (window.scrollY / totalHeight) * 100;
+      const progress = totalHeight > 0
+        ? Math.min(100, Math.max(0, (window.scrollY / totalHeight) * 100))
+        : 0;
       setScrollProgress(progress);
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -1244,9 +1251,9 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
     <div className="animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
 
       {/* Reading Progress Bar */}
-      <div className="fixed top-0 left-0 w-full h-1 z-[60] bg-gray-100/50 backdrop-blur-sm">
+      <div className="fixed top-[var(--public-nav-height)] left-0 w-full h-1 z-[997] bg-gray-100/70 backdrop-blur-sm" aria-hidden="true">
         <div
-          className="h-full bg-palette-red transition-all duration-100 shadow-md"
+          className="h-full bg-gradient-to-r from-palette-red via-[#ff5a3d] to-[#f59e0b] transition-[width] duration-100 ease-linear shadow-[0_1px_10px_rgba(239,59,45,0.22)]"
           style={{ width: `${scrollProgress}%` }}
         />
       </div>
@@ -1273,14 +1280,14 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         {(data.title || data.summary) && (
           <div className="w-full mb-6 max-w-full">
             {data.title && (
-              <h1 className="news-title-font text-4xl md:text-5xl lg:text-6xl font-[800] text-gray-900 leading-[1.15] tracking-normal mb-4">
+              <h1 className="news-title-font text-4xl md:text-5xl lg:text-6xl font-[800] text-gray-900 leading-[1.6] tracking-normal mb-4">
                 {data.title}
               </h1>
             )}
             {data.summary && (
               <div
                 dangerouslySetInnerHTML={{ __html: data.summary }}
-                className="news-subtitle-font rich-text-content text-xl md:text-2xl font-medium text-gray-500 leading-relaxed max-w-full"
+                className="news-subtitle-font news-post-summary rich-text-content font-medium text-gray-500 leading-relaxed max-w-full"
               />
             )}
           </div>

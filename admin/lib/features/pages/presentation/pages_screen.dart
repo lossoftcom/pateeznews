@@ -9,6 +9,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/admin_rich_text_editor.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/symbol_icon.dart';
@@ -217,6 +218,76 @@ class _PagesScreenState extends State<PagesScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              28,
+              horizontalPadding,
+              28,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  context.t('pages.title'),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: _PagesMobileView(
+                    pages: _pages,
+                    loading: _loading,
+                    page: _page,
+                    pageSize: _pageSize,
+                    totalCount: _totalCount,
+                    searchController: _searchController,
+                    category: _category,
+                    type: _type,
+                    status: _status,
+                    options: _options,
+                    error: _error,
+                    onCategoryChanged: (value) {
+                      setState(() => _category = value);
+                      _reloadFirstPage();
+                    },
+                    onTypeChanged: (value) {
+                      setState(() => _type = value);
+                      _reloadFirstPage();
+                    },
+                    onStatusChanged: (value) {
+                      setState(() => _status = value);
+                      _reloadFirstPage();
+                    },
+                    onAdd: () {
+                      setState(() {
+                        _editingPage = null;
+                        _showForm = true;
+                      });
+                    },
+                    onEdit: (page) {
+                      setState(() {
+                        _editingPage = page;
+                        _showForm = true;
+                      });
+                    },
+                    onToggleStatus: (page) => unawaited(_toggleStatus(page)),
+                    onDelete: (page) => unawaited(_deletePage(page)),
+                    onPageChanged: (page) {
+                      setState(() => _page = page);
+                      unawaited(_reloadPages());
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
 
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1083,7 +1154,13 @@ class _PagesTable extends StatelessWidget {
   final ValueChanged<AdminPage> onToggleStatus;
   final ValueChanged<AdminPage> onDelete;
 
-  static const double _minWidth = 1250;
+  static const double _minWidth = 980;
+  static const double _titleWidth = 300;
+  static const double _categoryWidth = 140;
+  static const double _typeWidth = 120;
+  static const double _statusWidth = 112;
+  static const double _createdWidth = 160;
+  static const double _actionsWidth = 76;
 
   @override
   Widget build(BuildContext context) {
@@ -1184,7 +1261,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.title',
             'title',
-            380,
+            _PagesTable._titleWidth,
             sortKey,
             sortAscending,
             onSort,
@@ -1192,7 +1269,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.category',
             'category',
-            180,
+            _PagesTable._categoryWidth,
             sortKey,
             sortAscending,
             onSort,
@@ -1200,7 +1277,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.type',
             'type',
-            150,
+            _PagesTable._typeWidth,
             sortKey,
             sortAscending,
             onSort,
@@ -1208,7 +1285,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.status',
             'status',
-            140,
+            _PagesTable._statusWidth,
             sortKey,
             sortAscending,
             onSort,
@@ -1216,13 +1293,13 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.createdAt',
             'createdAt',
-            210,
+            _PagesTable._createdWidth,
             sortKey,
             sortAscending,
             onSort,
           ),
           SizedBox(
-            width: 110,
+            width: _PagesTable._actionsWidth,
             child: Text(
               context.t('pages.column.actions'),
               textAlign: TextAlign.center,
@@ -1323,13 +1400,28 @@ class _PageRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: 380, child: _PageTitleCell(page: page)),
-          SizedBox(width: 180, child: _PageCategoryCell(page: page)),
-          SizedBox(width: 150, child: _TypeBadge(type: page.displayType)),
-          SizedBox(width: 140, child: _StatusBadge(active: page.active)),
-          SizedBox(width: 210, child: _DateCell(value: page.createdAt)),
           SizedBox(
-            width: 110,
+            width: _PagesTable._titleWidth,
+            child: _PageTitleCell(page: page),
+          ),
+          SizedBox(
+            width: _PagesTable._categoryWidth,
+            child: _PageCategoryCell(page: page),
+          ),
+          SizedBox(
+            width: _PagesTable._typeWidth,
+            child: _TypeBadge(type: page.displayType),
+          ),
+          SizedBox(
+            width: _PagesTable._statusWidth,
+            child: _StatusBadge(active: page.active),
+          ),
+          SizedBox(
+            width: _PagesTable._createdWidth,
+            child: _DateCell(value: page.createdAt),
+          ),
+          SizedBox(
+            width: _PagesTable._actionsWidth,
             child: Center(
               child: PopupMenuButton<String>(
                 tooltip: context.t('pages.actions.tooltip'),
@@ -2372,3 +2464,331 @@ const _smallStrong = TextStyle(
   fontWeight: FontWeight.w600,
   fontSize: 11.5,
 );
+
+
+class _PagesMobileView extends StatelessWidget {
+  const _PagesMobileView({
+    required this.pages,
+    required this.loading,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchController,
+    required this.category,
+    required this.type,
+    required this.status,
+    required this.options,
+    required this.error,
+    required this.onCategoryChanged,
+    required this.onTypeChanged,
+    required this.onStatusChanged,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onToggleStatus,
+    required this.onDelete,
+    required this.onPageChanged,
+  });
+
+  final List<AdminPage> pages;
+  final bool loading;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final TextEditingController searchController;
+  final String category;
+  final String type;
+  final String status;
+  final AdminPagesFilterOptions options;
+  final String? error;
+  final ValueChanged<String> onCategoryChanged;
+  final ValueChanged<String> onTypeChanged;
+  final ValueChanged<String> onStatusChanged;
+  final VoidCallback onAdd;
+  final ValueChanged<AdminPage> onEdit;
+  final ValueChanged<AdminPage> onToggleStatus;
+  final ValueChanged<AdminPage> onDelete;
+  final ValueChanged<int> onPageChanged;
+
+  int get _activeFilterCount {
+    var count = 0;
+    if (category != 'Tümü') count++;
+    if (type != 'Tümü') count++;
+    if (status != 'Tümü') count++;
+    return count;
+  }
+
+  void _openFilters(BuildContext context) {
+    showAdminMobileFilterSheet(
+      context: context,
+      onClear: () {
+        onCategoryChanged('Tümü');
+        onTypeChanged('Tümü');
+        onStatusChanged('Tümü');
+      },
+      contentBuilder: (context, setSheetState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AdminMobileFilterField(
+              label: context.t('pages.column.category'),
+              value: category,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final item in options.categories)
+                  DropdownMenuItem(
+                    value: item.id,
+                    child: Text(item.displayLabel),
+                  ),
+              ],
+              onChanged: (value) {
+                onCategoryChanged(value ?? 'Tümü');
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('pages.column.type'),
+              value: type,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final item in {
+                  'custom',
+                  'default',
+                  'legal',
+                  'landing',
+                  ...options.types,
+                })
+                  DropdownMenuItem(
+                    value: item,
+                    child: Text(context.t('pages.type.$item')),
+                  ),
+              ],
+              onChanged: (value) {
+                onTypeChanged(value ?? 'Tümü');
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('pages.column.status'),
+              value: status,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                DropdownMenuItem(
+                  value: 'active',
+                  child: Text(context.t('pages.status.active')),
+                ),
+                DropdownMenuItem(
+                  value: 'passive',
+                  child: Text(context.t('pages.status.passive')),
+                ),
+              ],
+              onChanged: (value) {
+                onStatusChanged(value ?? 'Tümü');
+                setSheetState(() {});
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          controller: searchController,
+          query: searchController.text,
+          hintText: context.t('pages.searchPlaceholder'),
+          onSearchChanged: (_) {},
+          activeFilterCount: _activeFilterCount,
+          onOpenFilters: () => _openFilters(context),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AdminMobilePrimaryButton(
+            icon: Symbols.add,
+            label: context.t('pages.addButton'),
+            onPressed: onAdd,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: error != null
+              ? Center(
+                  child: Text(
+                    error!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.actionRed,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+              : AdminMobileListView(
+                  loading: loading,
+                  itemCount: pages.length,
+                  emptyLabel: context.t('pages.empty'),
+                  itemBuilder: (context, index) {
+                    final item = pages[index];
+                    return _PagesMobileCard(
+                      page: item,
+                      onEdit: onEdit,
+                      onToggleStatus: onToggleStatus,
+                      onDelete: onDelete,
+                    );
+                  },
+                ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: rangeText,
+          loading: loading,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _PagesMobileCard extends StatelessWidget {
+  const _PagesMobileCard({
+    required this.page,
+    required this.onEdit,
+    required this.onToggleStatus,
+    required this.onDelete,
+  });
+
+  final AdminPage page;
+  final ValueChanged<AdminPage> onEdit;
+  final ValueChanged<AdminPage> onToggleStatus;
+  final ValueChanged<AdminPage> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final slug = page.slug.trim().isEmpty ? '-' : page.slug.trim();
+    final statusColor = page.active
+        ? const Color(0xFF198754)
+        : AppColors.support;
+
+    return AdminMobileCard(
+      onTap: () => onEdit(page),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const AdminMobileThumb(fallbackIcon: Symbols.article),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.t(page.displayTitle),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$slug • ${page.displayLanguage}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.support,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                tooltip: context.t('pages.actions.tooltip'),
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.edit_square,
+                    label: context.t('common.edit'),
+                    onTap: () => onEdit(page),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: page.active ? Symbols.visibility_off : Symbols.check,
+                    label: context.t(
+                      page.active
+                          ? 'pages.actions.deactivate'
+                          : 'pages.actions.activate',
+                    ),
+                    onTap: () => onToggleStatus(page),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: context.t('common.delete'),
+                    danger: true,
+                    onTap: () => onDelete(page),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _TypeBadge(type: page.displayType),
+              if (page.displayCategory.trim().isNotEmpty)
+                AdminMobileChip(
+                  label: page.displayCategory,
+                  color: AppColors.support,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(
+                  page.active ? 'pages.status.active' : 'pages.status.passive',
+                ),
+                color: statusColor,
+              ),
+              const Spacer(),
+              Text(
+                formatAdminFullDate(context, page.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

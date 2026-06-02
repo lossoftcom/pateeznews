@@ -8,6 +8,7 @@ import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../comments_models.dart';
@@ -77,7 +78,37 @@ class CommentsTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _CommentsMobileView(
+            comments: comments,
+            filterOptions: filterOptions,
+            loading: loading,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchQuery: searchQuery,
+            statusFilter: statusFilter,
+            postFilter: postFilter,
+            userFilter: userFilter,
+            selectedCommentIds: selectedCommentIds,
+            onPageSizeChanged: onPageSizeChanged,
+            onSearchChanged: onSearchChanged,
+            onStatusChanged: onStatusChanged,
+            onPostChanged: onPostChanged,
+            onUserChanged: onUserChanged,
+            onPageChanged: onPageChanged,
+            onToggleComment: onToggleComment,
+            onApproveComment: onApproveComment,
+            onRejectComment: onRejectComment,
+            onTogglePinned: onTogglePinned,
+            onReplyComment: onReplyComment,
+            onDeleteComment: onDeleteComment,
+            onDeleteSelected: onDeleteSelected,
+          );
+        }
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _CommentsFilters(
@@ -124,6 +155,417 @@ class CommentsTableCard extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+      },
+    );
+  }
+}
+
+
+class _CommentsMobileView extends StatelessWidget {
+  const _CommentsMobileView({
+    required this.comments,
+    required this.filterOptions,
+    required this.loading,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchQuery,
+    required this.statusFilter,
+    required this.postFilter,
+    required this.userFilter,
+    required this.selectedCommentIds,
+    required this.onPageSizeChanged,
+    required this.onSearchChanged,
+    required this.onStatusChanged,
+    required this.onPostChanged,
+    required this.onUserChanged,
+    required this.onPageChanged,
+    required this.onToggleComment,
+    required this.onApproveComment,
+    required this.onRejectComment,
+    required this.onTogglePinned,
+    required this.onReplyComment,
+    required this.onDeleteComment,
+    required this.onDeleteSelected,
+  });
+
+  final List<AdminComment> comments;
+  final AdminCommentFilterOptions filterOptions;
+  final bool loading;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final String searchQuery;
+  final String statusFilter;
+  final String postFilter;
+  final String userFilter;
+  final Set<String> selectedCommentIds;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final ValueChanged<String?> onPostChanged;
+  final ValueChanged<String?> onUserChanged;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<String> onToggleComment;
+  final ValueChanged<AdminComment> onApproveComment;
+  final ValueChanged<AdminComment> onRejectComment;
+  final ValueChanged<AdminComment> onTogglePinned;
+  final ValueChanged<AdminComment> onReplyComment;
+  final ValueChanged<AdminComment> onDeleteComment;
+  final VoidCallback onDeleteSelected;
+
+  int get _activeFilterCount {
+    var count = 0;
+    if (statusFilter != 'Tümü') count++;
+    if (postFilter != 'Tümü') count++;
+    if (userFilter != 'Tümü') count++;
+    return count;
+  }
+
+  void _openFilters(BuildContext context) {
+    showAdminMobileFilterSheet(
+      context: context,
+      onClear: () {
+        onStatusChanged('Tümü');
+        onPostChanged('Tümü');
+        onUserChanged('Tümü');
+      },
+      contentBuilder: (context, setSheetState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AdminMobileFilterField(
+              label: context.t('Status'),
+              value: statusFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                DropdownMenuItem(
+                  value: 'approved',
+                  child: Text(context.t('Approved')),
+                ),
+                DropdownMenuItem(
+                  value: 'pending',
+                  child: Text(context.t('Pending')),
+                ),
+                DropdownMenuItem(
+                  value: 'rejected',
+                  child: Text(context.t('Rejected')),
+                ),
+                DropdownMenuItem(
+                  value: 'Reported',
+                  child: Text(context.t('Reported')),
+                ),
+              ],
+              onChanged: (value) {
+                onStatusChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('Post'),
+              value: postFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final post in filterOptions.posts)
+                  DropdownMenuItem(value: post.id, child: Text(post.label)),
+              ],
+              onChanged: (value) {
+                onPostChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('User'),
+              value: userFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final user in filterOptions.users)
+                  DropdownMenuItem(value: user.id, child: Text(user.label)),
+              ],
+              onChanged: (value) {
+                onUserChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: 'Sayfa boyutu',
+              value: pageSize.toString(),
+              items: const [
+                DropdownMenuItem(value: '25', child: Text('25')),
+                DropdownMenuItem(value: '50', child: Text('50')),
+                DropdownMenuItem(value: '100', child: Text('100')),
+              ],
+              onChanged: (value) {
+                onPageSizeChanged(int.tryParse(value ?? ''));
+                setSheetState(() {});
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
+    final hasSelection = selectedCommentIds.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          query: searchQuery,
+          hintText: context.t('Search comments...'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: _activeFilterCount,
+          onOpenFilters: () => _openFilters(context),
+        ),
+        if (hasSelection) ...[
+          const SizedBox(height: 12),
+          AdminMobileSelectionBar(
+            selectedCount: selectedCommentIds.length,
+            label: context.t(
+              'comments.selectedDelete',
+              values: {'count': selectedCommentIds.length},
+            ),
+            onClear: () {
+              for (final id in selectedCommentIds.toList()) {
+                onToggleComment(id);
+              }
+            },
+            onDelete: onDeleteSelected,
+          ),
+        ],
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: loading,
+            itemCount: comments.length,
+            emptyLabel: context.t('No comments found'),
+            itemBuilder: (context, index) {
+              final comment = comments[index];
+              return _CommentsMobileCard(
+                comment: comment,
+                selected: selectedCommentIds.contains(comment.id),
+                onToggle: () => onToggleComment(comment.id),
+                onApproveComment: onApproveComment,
+                onRejectComment: onRejectComment,
+                onTogglePinned: onTogglePinned,
+                onReplyComment: onReplyComment,
+                onDeleteComment: onDeleteComment,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: rangeText,
+          loading: loading,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _CommentsMobileCard extends StatelessWidget {
+  const _CommentsMobileCard({
+    required this.comment,
+    required this.selected,
+    required this.onToggle,
+    required this.onApproveComment,
+    required this.onRejectComment,
+    required this.onTogglePinned,
+    required this.onReplyComment,
+    required this.onDeleteComment,
+  });
+
+  final AdminComment comment;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<AdminComment> onApproveComment;
+  final ValueChanged<AdminComment> onRejectComment;
+  final ValueChanged<AdminComment> onTogglePinned;
+  final ValueChanged<AdminComment> onReplyComment;
+  final ValueChanged<AdminComment> onDeleteComment;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (comment.status) {
+      'approved' => 'Approved',
+      'rejected' => 'Rejected',
+      _ => 'Pending',
+    };
+    final color = switch (comment.status) {
+      'approved' => const Color(0xFF198754),
+      'rejected' => AppColors.actionRed,
+      _ => AppColors.warmHorizon,
+    };
+    final avatar = comment.userAvatar.trim();
+    final hasPost = comment.postId.trim().isNotEmpty;
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 12),
+              AdminMobileAvatar(
+                label: context.t(comment.displayUser),
+                imageUrl: avatar.isEmpty ? null : _publicUrl(avatar),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (comment.isPinned) ...[
+                          const SymbolIcon(
+                            Symbols.verified,
+                            color: AppColors.warmHorizon,
+                            size: 15,
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        Flexible(
+                          child: Text(
+                            context.t(comment.displayUser),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.deepOcean,
+                            ),
+                          ),
+                        ),
+                        if (comment.hasReports) ...[
+                          const SizedBox(width: 8),
+                          AdminMobileChip(
+                            label: context.t(
+                              'comments.reportCount',
+                              values: {'count': comment.reportsCount},
+                            ),
+                            color: AppColors.actionRed,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      comment.content,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.32,
+                        color: AppColors.inkSoft,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                tooltip: context.t('Comment actions'),
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.check,
+                    label: context.t('Approve'),
+                    onTap: () => onApproveComment(comment),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.close,
+                    label: context.t('Reject'),
+                    onTap: () => onRejectComment(comment),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: comment.isPinned
+                        ? Symbols.visibility_off
+                        : Symbols.verified,
+                    label: context.t(comment.isPinned ? 'Unpin' : 'Pin'),
+                    onTap: () => onTogglePinned(comment),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.short_text,
+                    label: context.t('Reply'),
+                    onTap: () => onReplyComment(comment),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: context.t('Delete'),
+                    danger: true,
+                    onTap: () => onDeleteComment(comment),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (hasPost) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Row(
+                children: [
+                  const SymbolIcon(
+                    Symbols.article,
+                    color: AppColors.iconMuted,
+                    size: 15,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: _PostCell(comment: comment)),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(label: context.t(label), color: color),
+              const Spacer(),
+              AdminMobileMeta(
+                icon: Symbols.short_text,
+                value: '${comment.repliesCount}',
+              ),
+              const SizedBox(width: 12),
+              Text(
+                formatAdminFullDate(context, comment.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -586,15 +1028,15 @@ class _CommentsDataTable extends StatelessWidget {
   final ValueChanged<AdminComment> onReplyComment;
   final ValueChanged<AdminComment> onDeleteComment;
 
-  static const double _minWidth = 1260;
+  static const double _minWidth = 1120;
   static const double _selectWidth = 42;
-  static const double _idWidth = 76;
-  static const double _postWidth = 360;
-  static const double _statusWidth = 156;
-  static const double _likesWidth = 82;
-  static const double _repliesWidth = 82;
-  static const double _createdWidth = 210;
-  static const double _menuWidth = 76;
+  static const double _idWidth = 64;
+  static const double _postWidth = 280;
+  static const double _statusWidth = 132;
+  static const double _likesWidth = 70;
+  static const double _repliesWidth = 70;
+  static const double _createdWidth = 168;
+  static const double _menuWidth = 70;
 
   @override
   Widget build(BuildContext context) {
@@ -1216,14 +1658,16 @@ class _StatusBadge extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 5),
-            Text(
-              context.t(label),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            Flexible(
+              child: Text(
+                context.t(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

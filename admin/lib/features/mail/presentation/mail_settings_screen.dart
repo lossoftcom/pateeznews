@@ -631,7 +631,7 @@ class _MailSettingsTableCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  static const _minTableWidth = 1380.0;
+  static const _minTableWidth = 1040.0;
 
   final List<AdminMailAccount> accounts;
   final int page;

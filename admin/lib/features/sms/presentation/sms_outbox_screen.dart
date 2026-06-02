@@ -915,12 +915,12 @@ class _SmsOutboxTable extends StatelessWidget {
   final VoidCallback onSendAgain;
 
   static const _selectWidth = 42.0;
-  static const _recipientWidth = 210.0;
-  static const _messageMinWidth = 420.0;
-  static const _senderWidth = 160.0;
-  static const _statusWidth = 132.0;
-  static const _dateWidth = 174.0;
-  static const _menuWidth = 74.0;
+  static const _recipientWidth = 160.0;
+  static const _messageMinWidth = 260.0;
+  static const _senderWidth = 120.0;
+  static const _statusWidth = 110.0;
+  static const _dateWidth = 150.0;
+  static const _menuWidth = 70.0;
   static const _horizontalPadding = 32.0;
   static const _columnsMinWidth =
       _selectWidth +

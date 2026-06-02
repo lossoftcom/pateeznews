@@ -36,6 +36,7 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
   var _loading = true;
   var _saving = false;
   var _adding = false;
+  var _editing = false;
   var _language = 'tr';
   var _primaryFont = 'PateezInter';
   var _secondaryFont = 'PateezInter';
@@ -179,10 +180,32 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
     }
   }
 
-  void _selectFont(String fontName) {
-    _showMessage(
-      context.t('fontSettings.fontSelected', values: {'font': fontName}),
+  Future<void> _openEditFontDialog(AdminFontRow font) async {
+    if (_editing || _loading) return;
+    final data = await showDialog<AdminFontFormData>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.34),
+      builder: (context) =>
+          _FontDialogFrame(child: _EditFontDialog(font: font)),
     );
+    if (data == null) return;
+    setState(() => _editing = true);
+    try {
+      await widget.repository.updateFont(
+        session: widget.session,
+        font: font,
+        data: data,
+      );
+      if (!mounted) return;
+      await _loadSettings(_language);
+      if (!mounted) return;
+      setState(() => _editing = false);
+      _showMessage('fontSettings.editSuccess');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _editing = false);
+      _showMessage('${context.t('fontSettings.editError')}: $error');
+    }
   }
 
   void _showMessage(String message) {
@@ -244,7 +267,10 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
-        final stacked = constraints.maxWidth < 1120;
+        final contentWidth = constraints.maxWidth - (horizontalPadding * 2);
+        final stacked = contentWidth < 980;
+        final leftColumnWidth = contentWidth < 1280 ? 304.0 : 320.0;
+        final columnGap = contentWidth < 1280 ? 22.0 : 28.0;
         final filteredFonts = _filteredFonts;
         final pageCount = filteredFonts.isEmpty
             ? 1
@@ -261,7 +287,7 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
           _secondaryFont,
           _contentFont,
         ]);
-        final canEdit = !_loading && !_saving && !_adding;
+        final canEdit = !_loading && !_saving && !_adding && !_editing;
 
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -343,7 +369,8 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                                 onPageChanged: _changePage,
                                 onSort: _changeSort,
                                 onAddFont: _openAddFontDialog,
-                                onSelectFont: _selectFont,
+                                onEditFont: (font) =>
+                                    unawaited(_openEditFontDialog(font)),
                               ),
                             ),
                           ],
@@ -353,7 +380,7 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           SizedBox(
-                            width: 276,
+                            width: leftColumnWidth,
                             child: SingleChildScrollView(
                               child: _LeftFontSettingsColumn(
                                 language: _language,
@@ -389,7 +416,7 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 28),
+                          SizedBox(width: columnGap),
                           Expanded(
                             child: _FontListCard(
                               searchController: _searchController,
@@ -404,7 +431,8 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                               onPageChanged: _changePage,
                               onSort: _changeSort,
                               onAddFont: _openAddFontDialog,
-                              onSelectFont: _selectFont,
+                              onEditFont: (font) =>
+                                  unawaited(_openEditFontDialog(font)),
                             ),
                           ),
                         ],
@@ -1095,7 +1123,7 @@ class _FontListCard extends StatelessWidget {
     required this.onPageChanged,
     required this.onSort,
     required this.onAddFont,
-    required this.onSelectFont,
+    required this.onEditFont,
   });
 
   final TextEditingController searchController;
@@ -1110,7 +1138,7 @@ class _FontListCard extends StatelessWidget {
   final ValueChanged<int> onPageChanged;
   final ValueChanged<String> onSort;
   final VoidCallback onAddFont;
-  final ValueChanged<String> onSelectFont;
+  final ValueChanged<AdminFontRow> onEditFont;
 
   @override
   Widget build(BuildContext context) {
@@ -1131,7 +1159,7 @@ class _FontListCard extends StatelessWidget {
             fonts: fonts,
             sortState: sortState,
             onSort: onSort,
-            onSelect: onSelectFont,
+            onEdit: onEditFont,
           ),
         ),
         const SizedBox(height: 16),
@@ -1223,19 +1251,15 @@ class _FontsTable extends StatelessWidget {
     required this.fonts,
     required this.sortState,
     required this.onSort,
-    required this.onSelect,
+    required this.onEdit,
   });
 
   final List<AdminFontRow> fonts;
   final TableSortState sortState;
   final ValueChanged<String> onSort;
-  final ValueChanged<String> onSelect;
+  final ValueChanged<AdminFontRow> onEdit;
 
-  static const double _minWidth = 1040;
-  static const double _idWidth = 92;
-  static const double _sourceWidth = 220;
-  static const double _optionsWidth = 124;
-  static const double _horizontalPadding = 32;
+  static const double _minWidth = 620;
   static const double _tableBorderWidth = 2;
 
   @override
@@ -1245,13 +1269,7 @@ class _FontsTable extends StatelessWidget {
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
-        final nameWidth =
-            tableWidth -
-            _horizontalPadding -
-            _tableBorderWidth -
-            _idWidth -
-            _sourceWidth -
-            _optionsWidth;
+        final layout = _FontsTableColumnLayout.forWidth(tableWidth);
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1269,7 +1287,7 @@ class _FontsTable extends StatelessWidget {
               child: Column(
                 children: [
                   _FontsHeader(
-                    nameWidth: nameWidth,
+                    layout: layout,
                     sortState: sortState,
                     onSort: onSort,
                   ),
@@ -1286,8 +1304,8 @@ class _FontsTable extends StatelessWidget {
                                 for (final font in fonts)
                                   _FontTableRow(
                                     font: font,
-                                    nameWidth: nameWidth,
-                                    onSelect: () => onSelect(font.name),
+                                    layout: layout,
+                                    onEdit: () => onEdit(font),
                                   ),
                               ],
                             ),
@@ -1303,14 +1321,53 @@ class _FontsTable extends StatelessWidget {
   }
 }
 
+class _FontsTableColumnLayout {
+  const _FontsTableColumnLayout({
+    required this.idWidth,
+    required this.nameWidth,
+    required this.sourceWidth,
+    required this.optionsWidth,
+    required this.horizontalInset,
+  });
+
+  final double idWidth;
+  final double nameWidth;
+  final double sourceWidth;
+  final double optionsWidth;
+  final double horizontalInset;
+
+  factory _FontsTableColumnLayout.forWidth(double tableWidth) {
+    final compact = tableWidth < 900;
+    final idWidth = compact ? 68.0 : 92.0;
+    final sourceWidth = compact ? 150.0 : 220.0;
+    final optionsWidth = compact ? 88.0 : 124.0;
+    final horizontalInset = compact ? 12.0 : 16.0;
+    final nameWidth =
+        tableWidth -
+        (horizontalInset * 2) -
+        _FontsTable._tableBorderWidth -
+        idWidth -
+        sourceWidth -
+        optionsWidth;
+
+    return _FontsTableColumnLayout(
+      idWidth: idWidth,
+      nameWidth: nameWidth,
+      sourceWidth: sourceWidth,
+      optionsWidth: optionsWidth,
+      horizontalInset: horizontalInset,
+    );
+  }
+}
+
 class _FontsHeader extends StatelessWidget {
   const _FontsHeader({
-    required this.nameWidth,
+    required this.layout,
     required this.sortState,
     required this.onSort,
   });
 
-  final double nameWidth;
+  final _FontsTableColumnLayout layout;
   final TableSortState sortState;
   final ValueChanged<String> onSort;
 
@@ -1318,7 +1375,7 @@ class _FontsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: layout.horizontalInset),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
@@ -1327,7 +1384,7 @@ class _FontsHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _FontsTable._idWidth,
+            width: layout.idWidth,
             child: SortableTableHeader(
               label: 'ID',
               sortKey: 'id',
@@ -1336,7 +1393,7 @@ class _FontsHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: nameWidth,
+            width: layout.nameWidth,
             child: SortableTableHeader(
               label: 'fontSettings.table.name',
               sortKey: 'name',
@@ -1345,7 +1402,7 @@ class _FontsHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _FontsTable._sourceWidth,
+            width: layout.sourceWidth,
             child: SortableTableHeader(
               label: 'fontSettings.table.source',
               sortKey: 'source',
@@ -1354,7 +1411,7 @@ class _FontsHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _FontsTable._optionsWidth,
+            width: layout.optionsWidth,
             child: _HeaderText(
               context.t('fontSettings.table.options'),
               centered: true,
@@ -1369,19 +1426,19 @@ class _FontsHeader extends StatelessWidget {
 class _FontTableRow extends StatelessWidget {
   const _FontTableRow({
     required this.font,
-    required this.nameWidth,
-    required this.onSelect,
+    required this.layout,
+    required this.onEdit,
   });
 
   final AdminFontRow font;
-  final double nameWidth;
-  final VoidCallback onSelect;
+  final _FontsTableColumnLayout layout;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: layout.horizontalInset),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
@@ -1390,7 +1447,7 @@ class _FontTableRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _FontsTable._idWidth,
+            width: layout.idWidth,
             child: Text(
               font.id.toString(),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1401,7 +1458,7 @@ class _FontTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: nameWidth,
+            width: layout.nameWidth,
             child: Text(
               font.name,
               maxLines: 1,
@@ -1414,7 +1471,7 @@ class _FontTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _FontsTable._sourceWidth,
+            width: layout.sourceWidth,
             child: Text(
               context.t(font.labelSourceKey),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1425,10 +1482,10 @@ class _FontTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _FontsTable._optionsWidth,
+            width: layout.optionsWidth,
             child: Align(
               alignment: Alignment.center,
-              child: _FontSelectAction(onSelect: onSelect),
+              child: _FontEditAction(onEdit: onEdit),
             ),
           ),
         ],
@@ -1462,21 +1519,21 @@ class _HeaderText extends StatelessWidget {
   }
 }
 
-class _FontSelectAction extends StatelessWidget {
-  const _FontSelectAction({required this.onSelect});
+class _FontEditAction extends StatelessWidget {
+  const _FontEditAction({required this.onEdit});
 
-  final VoidCallback onSelect;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
-    return _FontRowMenu(onSelect: onSelect);
+    return _FontRowMenu(onEdit: onEdit);
   }
 }
 
 class _FontRowMenu extends StatefulWidget {
-  const _FontRowMenu({required this.onSelect});
+  const _FontRowMenu({required this.onEdit});
 
-  final VoidCallback onSelect;
+  final VoidCallback onEdit;
 
   @override
   State<_FontRowMenu> createState() => _FontRowMenuState();
@@ -1512,7 +1569,7 @@ class _FontRowMenuState extends State<_FontRowMenu> {
               targetAnchor: Alignment.bottomRight,
               followerAnchor: Alignment.topRight,
               offset: const Offset(0, 8),
-              child: _FontMenuCard(onEdit: () => _runAndClose(widget.onSelect)),
+              child: _FontMenuCard(onEdit: () => _runAndClose(widget.onEdit)),
             ),
           ],
         );
@@ -1975,6 +2032,175 @@ class _AddFontDialogState extends State<_AddFontDialog> {
             alignment: Alignment.centerRight,
             child: _DialogFooter(
               primaryLabel: context.t('fontSettings.dialog.addAction'),
+              busy: _submitting,
+              onPrimaryPressed: () => unawaited(_submit()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditFontDialog extends StatefulWidget {
+  const _EditFontDialog({required this.font});
+
+  final AdminFontRow font;
+
+  @override
+  State<_EditFontDialog> createState() => _EditFontDialogState();
+}
+
+class _EditFontDialogState extends State<_EditFontDialog> {
+  late final TextEditingController _nameController;
+  final _files = <int, XFile>{};
+  late var _fontType = _dialogFontType(widget.font.type);
+  var _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.font.name);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectFile(int weight) async {
+    final file = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Fonts', extensions: ['ttf', 'otf', 'woff', 'woff2']),
+      ],
+    );
+    if (file == null) return;
+    setState(() => _files[weight] = file);
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.t('fontSettings.dialog.editRequired'))),
+      );
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      final files = <int, AdminFontUploadFile>{};
+      for (final entry in _files.entries) {
+        files[entry.key] = AdminFontUploadFile(
+          fileName: entry.value.name,
+          bytes: await entry.value.readAsBytes(),
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pop(AdminFontFormData(name: name, type: _fontType, files: files));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${context.t('fontSettings.editError')}: $error'),
+        ),
+      );
+    }
+  }
+
+  String? _fileNameForWeight(int weight) {
+    return _files[weight]?.name ??
+        _fontFileDisplayName(
+          widget.font.fontFiles[weight.toString()] ??
+              (weight == 400 ? widget.font.webFontPath : null),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _DialogHeader(title: context.t('fontSettings.dialog.editTitle')),
+          const SizedBox(height: 24),
+          _DialogLineField(
+            controller: _nameController,
+            label: 'fontSettings.dialog.name',
+            hintText: 'fontSettings.dialog.nameHint',
+            icon: Symbols.short_text,
+            requiredField: true,
+          ),
+          const SizedBox(height: 22),
+          _DialogSelectField(
+            label: 'fontSettings.dialog.fontType',
+            value: _fontType,
+            options: _fontTypeOptions,
+            icon: Symbols.short_text,
+            requiredField: true,
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _fontType = value);
+            },
+          ),
+          if (widget.font.isLocal) ...[
+            const SizedBox(height: 22),
+            _DialogSectionLabel(context.t('fontSettings.dialog.fontFile')),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 540;
+                final boxes = [
+                  _FontUploadBox(
+                    title: 'fontSettings.dialog.weight400',
+                    fileName: _fileNameForWeight(400),
+                    onSelect: () => unawaited(_selectFile(400)),
+                  ),
+                  _FontUploadBox(
+                    title: 'fontSettings.dialog.weight600',
+                    fileName: _fileNameForWeight(600),
+                    onSelect: () => unawaited(_selectFile(600)),
+                  ),
+                  _FontUploadBox(
+                    title: 'fontSettings.dialog.weight700',
+                    fileName: _fileNameForWeight(700),
+                    onSelect: () => unawaited(_selectFile(700)),
+                  ),
+                ];
+
+                if (compact) {
+                  return Column(
+                    children: [
+                      for (var index = 0; index < boxes.length; index++) ...[
+                        if (index > 0) const SizedBox(height: 12),
+                        boxes[index],
+                      ],
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    for (var index = 0; index < boxes.length; index++) ...[
+                      if (index > 0) const SizedBox(width: 12),
+                      Expanded(child: boxes[index]),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
+          const SizedBox(height: 34),
+          Align(
+            alignment: Alignment.centerRight,
+            child: _DialogFooter(
+              primaryLabel: context.t('fontSettings.dialog.updateAction'),
               busy: _submitting,
               onPrimaryPressed: () => unawaited(_submit()),
             ),
@@ -2574,6 +2800,25 @@ List<_SelectOption> _fontOptionsFor(
     }
   }
   return options;
+}
+
+String _dialogFontType(String value) {
+  final normalized = value.trim();
+  return _fontTypeOptions.any((option) => option.value == normalized)
+      ? normalized
+      : 'sans_serif';
+}
+
+String? _fontFileDisplayName(String? value) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty) return null;
+  final uri = Uri.tryParse(text);
+  final segments = uri?.pathSegments;
+  if (segments != null && segments.isNotEmpty) {
+    return Uri.decodeComponent(segments.last);
+  }
+  final slashIndex = text.lastIndexOf('/');
+  return slashIndex >= 0 ? text.substring(slashIndex + 1) : text;
 }
 
 const _fontTypeOptions = [

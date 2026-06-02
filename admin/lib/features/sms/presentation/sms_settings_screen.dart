@@ -634,7 +634,7 @@ class _SmsSettingsTableCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  static const _minTableWidth = 1380.0;
+  static const _minTableWidth = 1040.0;
 
   final List<AdminSmsAccount> accounts;
   final int page;

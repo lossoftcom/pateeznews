@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { NewsItem } from '@/types';
 
 const AUTOPLAY_DELAY = 5000;
+const DISPLAY_TIME_ZONE = 'Europe/Istanbul';
 const TEXT_ENTITY_MAP: Record<string, string> = {
     amp: '&',
     apos: "'",
@@ -77,12 +78,14 @@ const formatSlideDate = (value: string) => {
     if (Number.isNaN(date.getTime())) return value;
 
     const datePart = date.toLocaleDateString('tr-TR', {
+        timeZone: DISPLAY_TIME_ZONE,
         day: 'numeric',
         month: 'long',
         year: 'numeric',
         weekday: 'long',
     });
     const timePart = date.toLocaleTimeString('tr-TR', {
+        timeZone: DISPLAY_TIME_ZONE,
         hour: '2-digit',
         minute: '2-digit',
     });

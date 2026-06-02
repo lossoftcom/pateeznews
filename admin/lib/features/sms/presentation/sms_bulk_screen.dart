@@ -1099,13 +1099,13 @@ class _BulkMailTable extends StatelessWidget {
   final ValueChanged<AdminSmsBulkCampaign> onDelete;
 
   static const _selectWidth = 42.0;
-  static const _campaignWidth = 260.0;
-  static const _recipientWidth = 96.0;
-  static const _metricWidth = 112.0;
-  static const _bounceWidth = 92.0;
-  static const _statusWidth = 132.0;
-  static const _controlWidth = 154.0;
-  static const _dateWidth = 190.0;
+  static const _campaignWidth = 220.0;
+  static const _recipientWidth = 84.0;
+  static const _metricWidth = 90.0;
+  static const _bounceWidth = 78.0;
+  static const _statusWidth = 110.0;
+  static const _controlWidth = 126.0;
+  static const _dateWidth = 150.0;
   static const _menuWidth = 58.0;
   static const _horizontalPadding = 32.0;
   static const _columnsMinWidth =

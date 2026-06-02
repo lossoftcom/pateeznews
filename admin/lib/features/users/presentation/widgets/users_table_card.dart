@@ -6,6 +6,7 @@ import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../users_models.dart';
@@ -74,7 +75,37 @@ class UsersTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _UsersMobileView(
+            users: users,
+            roles: roles,
+            loading: loading,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchQuery: searchQuery,
+            roleFilter: roleFilter,
+            rewardFilter: rewardFilter,
+            statusFilter: statusFilter,
+            selectedUserIds: selectedUserIds,
+            onPageSizeChanged: onPageSizeChanged,
+            onSearchChanged: onSearchChanged,
+            onRoleChanged: onRoleChanged,
+            onRewardChanged: onRewardChanged,
+            onStatusChanged: onStatusChanged,
+            onPageChanged: onPageChanged,
+            onToggleUser: onToggleUser,
+            onAddUser: onAddUser,
+            onEditUser: onEditUser,
+            onToggleStatus: onToggleStatus,
+            onToggleReward: onToggleReward,
+            onDeleteUser: onDeleteUser,
+            onDeleteSelected: onDeleteSelected,
+          );
+        }
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _UsersFilters(
@@ -122,6 +153,401 @@ class UsersTableCard extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+      },
+    );
+  }
+}
+
+
+class _UsersMobileView extends StatelessWidget {
+  const _UsersMobileView({
+    required this.users,
+    required this.roles,
+    required this.loading,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchQuery,
+    required this.roleFilter,
+    required this.rewardFilter,
+    required this.statusFilter,
+    required this.selectedUserIds,
+    required this.onPageSizeChanged,
+    required this.onSearchChanged,
+    required this.onRoleChanged,
+    required this.onRewardChanged,
+    required this.onStatusChanged,
+    required this.onPageChanged,
+    required this.onToggleUser,
+    required this.onAddUser,
+    required this.onEditUser,
+    required this.onToggleStatus,
+    required this.onToggleReward,
+    required this.onDeleteUser,
+    required this.onDeleteSelected,
+  });
+
+  final List<ManagedUser> users;
+  final List<AdminUserRole> roles;
+  final bool loading;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final String searchQuery;
+  final String roleFilter;
+  final String rewardFilter;
+  final String statusFilter;
+  final Set<String> selectedUserIds;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String?> onRoleChanged;
+  final ValueChanged<String?> onRewardChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<String> onToggleUser;
+  final VoidCallback onAddUser;
+  final ValueChanged<ManagedUser> onEditUser;
+  final ValueChanged<ManagedUser> onToggleStatus;
+  final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onDeleteUser;
+  final VoidCallback onDeleteSelected;
+
+  int get _activeFilterCount {
+    var count = 0;
+    if (roleFilter != 'Tümü') count++;
+    if (rewardFilter != 'Tümü') count++;
+    if (statusFilter != 'Tümü') count++;
+    return count;
+  }
+
+  void _openFilters(BuildContext context) {
+    showAdminMobileFilterSheet(
+      context: context,
+      onClear: () {
+        onRoleChanged('Tümü');
+        onRewardChanged('Tümü');
+        onStatusChanged('Tümü');
+      },
+      contentBuilder: (context, setSheetState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AdminMobileFilterField(
+              label: 'Rol',
+              value: roleFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                for (final role in roles)
+                  DropdownMenuItem(
+                    value: role.name,
+                    child: Text(context.t(role.label)),
+                  ),
+              ],
+              onChanged: (value) {
+                onRoleChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: 'Ödül Sistemi',
+              value: rewardFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                DropdownMenuItem(
+                  value: 'Aktif',
+                  child: Text(context.t('Active')),
+                ),
+                DropdownMenuItem(
+                  value: 'Pasif',
+                  child: Text(context.t('Passive')),
+                ),
+              ],
+              onChanged: (value) {
+                onRewardChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: 'Durum',
+              value: statusFilter,
+              items: [
+                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+                DropdownMenuItem(
+                  value: 'Aktif',
+                  child: Text(context.t('Active')),
+                ),
+                DropdownMenuItem(
+                  value: 'Beklemede',
+                  child: Text(context.t('Pending')),
+                ),
+                DropdownMenuItem(
+                  value: 'Engelli',
+                  child: Text(context.t('Disabled')),
+                ),
+              ],
+              onChanged: (value) {
+                onStatusChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: 'Sayfa boyutu',
+              value: pageSize.toString(),
+              items: const [
+                DropdownMenuItem(value: '25', child: Text('25')),
+                DropdownMenuItem(value: '50', child: Text('50')),
+                DropdownMenuItem(value: '100', child: Text('100')),
+              ],
+              onChanged: (value) {
+                onPageSizeChanged(int.tryParse(value ?? ''));
+                setSheetState(() {});
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
+    final hasSelection = selectedUserIds.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminMobileToolbar(
+          query: searchQuery,
+          hintText: context.t('Search users...'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: _activeFilterCount,
+          onOpenFilters: () => _openFilters(context),
+        ),
+        const SizedBox(height: 12),
+        hasSelection
+            ? AdminMobileSelectionBar(
+                selectedCount: selectedUserIds.length,
+                label: context.t(
+                  'users.selectedDelete',
+                  values: {'count': selectedUserIds.length},
+                ),
+                onClear: () {
+                  for (final id in selectedUserIds.toList()) {
+                    onToggleUser(id);
+                  }
+                },
+                onDelete: onDeleteSelected,
+              )
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: _AddUserButton(onPressed: onAddUser),
+              ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: loading,
+            itemCount: users.length,
+            emptyLabel: context.t('No users found'),
+            itemBuilder: (context, index) {
+              final user = users[index];
+              return _UsersMobileCard(
+                user: user,
+                roles: roles,
+                selected: selectedUserIds.contains(user.id),
+                onToggle: () => onToggleUser(user.id),
+                onEditUser: onEditUser,
+                onToggleStatus: onToggleStatus,
+                onToggleReward: onToggleReward,
+                onDeleteUser: onDeleteUser,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: rangeText,
+          loading: loading,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _UsersMobileCard extends StatelessWidget {
+  const _UsersMobileCard({
+    required this.user,
+    required this.roles,
+    required this.selected,
+    required this.onToggle,
+    required this.onEditUser,
+    required this.onToggleStatus,
+    required this.onToggleReward,
+    required this.onDeleteUser,
+  });
+
+  final ManagedUser user;
+  final List<AdminUserRole> roles;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<ManagedUser> onEditUser;
+  final ValueChanged<ManagedUser> onToggleStatus;
+  final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onDeleteUser;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = user.avatarUrl.trim();
+    final statusColor = switch (user.status) {
+      'Aktif' => const Color(0xFF198754),
+      'Engelli' => AppColors.actionRed,
+      _ => AppColors.warmHorizon,
+    };
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 12),
+              AdminMobileAvatar(
+                label: user.displayName,
+                imageUrl: avatar.isEmpty ? null : _publicUrl(avatar),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepOcean,
+                      ),
+                    ),
+                    if (user.displayUsername.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        user.displayUsername,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.inkSoft,
+                        ),
+                      ),
+                    ],
+                    if (user.email.trim().isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        user.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.support,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                tooltip: context.t('User actions'),
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.edit_square,
+                    label: 'Düzenle',
+                    onTap: () => onEditUser(user),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: user.active
+                        ? Symbols.visibility_off
+                        : Symbols.verified,
+                    label: user.active ? 'Pasifleştir' : 'Aktifleştir',
+                    onTap: () => onToggleStatus(user),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: user.rewardEnabled
+                        ? Symbols.visibility_off
+                        : Symbols.verified,
+                    label: user.rewardEnabled ? 'Ödülü kapat' : 'Ödülü aç',
+                    onTap: () => onToggleReward(user),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.delete,
+                    label: 'Sil',
+                    danger: true,
+                    onTap: () => onDeleteUser(user),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              AdminMobileChip(
+                label: context.t(roleLabelFor(user.role, roles)),
+                icon: Symbols.verified,
+                color: AppColors.deepOcean,
+              ),
+              if (user.rewardEnabled)
+                AdminMobileChip(
+                  label: 'Ödül',
+                  icon: Symbols.verified,
+                  color: AppColors.warmHorizon,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(user.status),
+                color: statusColor,
+              ),
+              const Spacer(),
+              Text(
+                formatAdminFullDate(context, user.createdAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -641,14 +1067,14 @@ class _UsersDataTable extends StatelessWidget {
   final ValueChanged<ManagedUser> onDeleteUser;
   final ValueChanged<String> onSort;
 
-  static const double _minWidth = 1060;
+  static const double _minWidth = 900;
   static const double _selectWidth = 42;
-  static const double _idWidth = 76;
-  static const double _roleWidth = 150;
-  static const double _rewardWidth = 150;
-  static const double _statusWidth = 130;
-  static const double _createdWidth = 210;
-  static const double _menuWidth = 88;
+  static const double _idWidth = 64;
+  static const double _roleWidth = 130;
+  static const double _rewardWidth = 130;
+  static const double _statusWidth = 112;
+  static const double _createdWidth = 160;
+  static const double _menuWidth = 76;
   static const double _contentSpacing = 36;
 
   @override

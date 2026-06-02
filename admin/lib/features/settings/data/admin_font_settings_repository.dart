@@ -164,6 +164,12 @@ abstract class AdminFontSettingsRepository {
     required AdminSession session,
     required AdminFontFormData data,
   });
+
+  Future<AdminFontRow> updateFont({
+    required AdminSession session,
+    required AdminFontRow font,
+    required AdminFontFormData data,
+  });
 }
 
 class SupabaseAdminFontSettingsRepository
@@ -185,7 +191,9 @@ class SupabaseAdminFontSettingsRepository
     _throwIfApiError(result, fallbackMessage: 'Font ayarlari alinamadi');
 
     final payload = result['data'];
-    final data = payload is Map ? _asStringKeyMap(payload) : <String, Object?>{};
+    final data = payload is Map
+        ? _asStringKeyMap(payload)
+        : <String, Object?>{};
     final fonts = _fontsFromData(data['fonts']);
     final settingsData = data['settings'];
     final settings = settingsData is Map
@@ -266,6 +274,64 @@ class SupabaseAdminFontSettingsRepository
     final row = result['data'];
     if (row is Map) return AdminFontRow.fromJson(row);
     throw const AdminFontSettingsException('Font ekleme yaniti gecersiz');
+  }
+
+  @override
+  Future<AdminFontRow> updateFont({
+    required AdminSession session,
+    required AdminFontRow font,
+    required AdminFontFormData data,
+  }) async {
+    final name = data.name.trim();
+    if (name.isEmpty) {
+      throw const AdminFontSettingsException('Font adi zorunlu');
+    }
+    final family = font.family.trim().isEmpty
+        ? _fontFamilyFromName(font.name)
+        : font.family.trim();
+    final values = <String, Object?>{
+      'name': name,
+      'type': _cleanFontType(data.type),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    if (data.files.isNotEmpty) {
+      final uploadedFiles = Map<String, String>.of(font.fontFiles);
+      for (final entry in data.files.entries) {
+        final src = await _uploadFontFile(
+          family: family,
+          weight: entry.key,
+          file: entry.value,
+        );
+        uploadedFiles[entry.key.toString()] = src;
+      }
+      final existingWebFontPath = font.webFontPath.trim();
+      final fallbackUploadedPath = uploadedFiles.isEmpty
+          ? ''
+          : uploadedFiles.values.first;
+      values['source'] = 'local';
+      values['web_font_path'] =
+          uploadedFiles['400'] ??
+          (existingWebFontPath.isEmpty
+              ? fallbackUploadedPath
+              : existingWebFontPath);
+      values['font_files'] = uploadedFiles;
+    }
+
+    final result = await _postJson('/api/admin/query', {
+      'table': 'site_fonts',
+      'method': 'update',
+      'select': _fontSelect,
+      'values': values,
+      'filters': [
+        {'type': 'comparison', 'op': 'eq', 'column': 'id', 'value': font.id},
+      ],
+      'single': 'maybeSingle',
+    });
+    _throwIfApiError(result, fallbackMessage: 'Font guncellenemedi');
+    final row = result['data'];
+    if (row is Map) return AdminFontRow.fromJson(row);
+    throw const AdminFontSettingsException('Font guncelleme yaniti gecersiz');
   }
 
   Future<String> _uploadFontFile({

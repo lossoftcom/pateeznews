@@ -589,7 +589,7 @@ class _WhatsappTemplateTableCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  static const _minTableWidth = 1180.0;
+  static const _minTableWidth = 900.0;
 
   final List<AdminWhatsappTemplate> templates;
   final int page;

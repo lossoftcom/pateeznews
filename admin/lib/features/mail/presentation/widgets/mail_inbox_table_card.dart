@@ -6,6 +6,7 @@ import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../mail_inbox_models.dart';
@@ -103,6 +104,40 @@ class MailInboxTableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return _MailInboxMobileView(
+            allMessages: allMessages,
+            messages: messages,
+            page: page,
+            pageSize: pageSize,
+            totalCount: totalCount,
+            searchQuery: searchQuery,
+            quickFilter: quickFilter,
+            folderFilter: folderFilter,
+            accountFilter: accountFilter,
+            dateFilter: dateFilter,
+            selectedMessageIds: selectedMessageIds,
+            onQuickFilterChanged: onQuickFilterChanged,
+            onFolderChanged: onFolderChanged,
+            onAccountChanged: onAccountChanged,
+            onDateChanged: onDateChanged,
+            onPageSizeChanged: onPageSizeChanged,
+            onSearchChanged: onSearchChanged,
+            onPageChanged: onPageChanged,
+            onToggleMessage: onToggleMessage,
+            onOpenMessage: onOpenMessage,
+            onMarkRead: onMarkRead,
+            onToggleStar: onToggleStar,
+            onArchive: onArchive,
+            onMoveSpam: onMoveSpam,
+            onMoveTrash: onMoveTrash,
+            onRestoreInbox: onRestoreInbox,
+            onDelete: onDelete,
+            onDeleteSelected: onDeleteSelected,
+            onRefresh: onRefresh,
+            onCompose: onCompose,
+          );
+        }
         final sideNavigation = constraints.maxWidth >= 980;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1236,14 +1271,14 @@ class _MailDataTable extends StatelessWidget {
   final ValueChanged<AdminMailMessage> onDelete;
 
   static const double _selectWidth = 42;
-  static const double _idWidth = 64;
-  static const double _senderWidth = 210;
-  static const double _subjectMinWidth = 320;
-  static const double _attachmentWidth = 76;
-  static const double _accountWidth = 150;
-  static const double _dateWidth = 150;
-  static const double _statusWidth = 96;
-  static const double _menuWidth = 100;
+  static const double _idWidth = 58;
+  static const double _senderWidth = 160;
+  static const double _subjectMinWidth = 240;
+  static const double _attachmentWidth = 60;
+  static const double _accountWidth = 120;
+  static const double _dateWidth = 140;
+  static const double _statusWidth = 82;
+  static const double _menuWidth = 76;
   static const double _horizontalPadding = 32;
   static const double _tableBorderWidth = 2;
   static const double _minWidth =
@@ -2429,6 +2464,530 @@ class _PagerButton extends StatelessWidget {
               ),
             ),
         child: Text(label),
+      ),
+    );
+  }
+}
+
+
+class _MailInboxMobileView extends StatelessWidget {
+  const _MailInboxMobileView({
+    required this.allMessages,
+    required this.messages,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.searchQuery,
+    required this.quickFilter,
+    required this.folderFilter,
+    required this.accountFilter,
+    required this.dateFilter,
+    required this.selectedMessageIds,
+    required this.onQuickFilterChanged,
+    required this.onFolderChanged,
+    required this.onAccountChanged,
+    required this.onDateChanged,
+    required this.onPageSizeChanged,
+    required this.onSearchChanged,
+    required this.onPageChanged,
+    required this.onToggleMessage,
+    required this.onOpenMessage,
+    required this.onMarkRead,
+    required this.onToggleStar,
+    required this.onArchive,
+    required this.onMoveSpam,
+    required this.onMoveTrash,
+    required this.onRestoreInbox,
+    required this.onDelete,
+    required this.onDeleteSelected,
+    required this.onRefresh,
+    required this.onCompose,
+  });
+
+  final List<AdminMailMessage> allMessages;
+  final List<AdminMailMessage> messages;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final String searchQuery;
+  final String quickFilter;
+  final String folderFilter;
+  final String accountFilter;
+  final String dateFilter;
+  final Set<int> selectedMessageIds;
+  final ValueChanged<String> onQuickFilterChanged;
+  final ValueChanged<String?> onFolderChanged;
+  final ValueChanged<String?> onAccountChanged;
+  final ValueChanged<String?> onDateChanged;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onToggleMessage;
+  final ValueChanged<AdminMailMessage> onOpenMessage;
+  final void Function(AdminMailMessage message, bool read) onMarkRead;
+  final ValueChanged<AdminMailMessage> onToggleStar;
+  final ValueChanged<AdminMailMessage> onArchive;
+  final ValueChanged<AdminMailMessage> onMoveSpam;
+  final ValueChanged<AdminMailMessage> onMoveTrash;
+  final ValueChanged<AdminMailMessage> onRestoreInbox;
+  final ValueChanged<AdminMailMessage> onDelete;
+  final VoidCallback onDeleteSelected;
+  final VoidCallback onRefresh;
+  final VoidCallback onCompose;
+
+  int get _activeFilterCount {
+    var count = 0;
+    if (folderFilter != mailFilterAll) count++;
+    if (accountFilter != mailFilterAll) count++;
+    if (dateFilter != mailDateAll) count++;
+    return count;
+  }
+
+  void _openFilters(BuildContext context) {
+    final accounts = allMessages.map((m) => m.account).toSet().toList()..sort();
+    showAdminMobileFilterSheet(
+      context: context,
+      onClear: () {
+        onFolderChanged(mailFilterAll);
+        onAccountChanged(mailFilterAll);
+        onDateChanged(mailDateAll);
+      },
+      contentBuilder: (context, setSheetState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AdminMobileFilterField(
+              label: context.t('mail.folder'),
+              value: folderFilter,
+              items: [
+                DropdownMenuItem(
+                  value: mailFilterAll,
+                  child: Text(context.t('All')),
+                ),
+                DropdownMenuItem(
+                  value: mailFolderInbox,
+                  child: Text(context.t('mail.folder.inbox')),
+                ),
+                DropdownMenuItem(
+                  value: mailFolderArchive,
+                  child: Text(context.t('mail.folder.archive')),
+                ),
+                DropdownMenuItem(
+                  value: mailFolderSent,
+                  child: Text(context.t('mail.folder.sent')),
+                ),
+                DropdownMenuItem(
+                  value: mailFolderSpam,
+                  child: Text(context.t('mail.folder.spam')),
+                ),
+                DropdownMenuItem(
+                  value: mailFolderTrash,
+                  child: Text(context.t('mail.folder.trash')),
+                ),
+              ],
+              onChanged: (value) {
+                onFolderChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('mail.account'),
+              value: accountFilter,
+              items: [
+                DropdownMenuItem(
+                  value: mailFilterAll,
+                  child: Text(context.t('All')),
+                ),
+                for (final account in accounts)
+                  DropdownMenuItem(value: account, child: Text(account)),
+              ],
+              onChanged: (value) {
+                onAccountChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: context.t('mail.dateRange'),
+              value: dateFilter,
+              items: [
+                DropdownMenuItem(
+                  value: mailDateAll,
+                  child: Text(context.t('All')),
+                ),
+                DropdownMenuItem(
+                  value: mailDateToday,
+                  child: Text(context.t('mail.date.today')),
+                ),
+                DropdownMenuItem(
+                  value: mailDateSevenDays,
+                  child: Text(context.t('mail.date.last7')),
+                ),
+                DropdownMenuItem(
+                  value: mailDateThirtyDays,
+                  child: Text(context.t('mail.date.last30')),
+                ),
+              ],
+              onChanged: (value) {
+                onDateChanged(value);
+                setSheetState(() {});
+              },
+            ),
+            AdminMobileFilterField(
+              label: 'Sayfa boyutu',
+              value: pageSize.toString(),
+              items: const [
+                DropdownMenuItem(value: '25', child: Text('25')),
+                DropdownMenuItem(value: '50', child: Text('50')),
+                DropdownMenuItem(value: '100', child: Text('100')),
+              ],
+              onChanged: (value) {
+                onPageSizeChanged(int.tryParse(value ?? ''));
+                setSheetState(() {});
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final to = totalCount == 0
+        ? 0
+        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+    final rangeText = context.t(
+      'common.recordRange',
+      values: {'from': from, 'to': to, 'total': totalCount},
+    );
+    final hasSelection = selectedMessageIds.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MailFolderPanel(
+          messages: allMessages,
+          selectedFilter: quickFilter,
+          onChanged: onQuickFilterChanged,
+        ),
+        const SizedBox(height: 16),
+        _MailMetricGrid(messages: allMessages),
+        const SizedBox(height: 16),
+        AdminMobileToolbar(
+          query: searchQuery,
+          hintText: context.t('mail.inbox.searchPlaceholder'),
+          onSearchChanged: onSearchChanged,
+          activeFilterCount: _activeFilterCount,
+          onOpenFilters: () => _openFilters(context),
+        ),
+        const SizedBox(height: 12),
+        hasSelection
+            ? AdminMobileSelectionBar(
+                selectedCount: selectedMessageIds.length,
+                label: context.t(
+                  'mail.selectedDelete',
+                  values: {'count': selectedMessageIds.length},
+                ),
+                onClear: () {
+                  for (final id in selectedMessageIds.toList()) {
+                    onToggleMessage(id);
+                  }
+                },
+                onDelete: onDeleteSelected,
+              )
+            : Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _PrimaryActionButton(
+                    label: 'mail.action.compose',
+                    icon: Symbols.add,
+                    onPressed: onCompose,
+                  ),
+                  _SoftActionButton(
+                    label: 'mail.action.refresh',
+                    icon: Symbols.download,
+                    onPressed: onRefresh,
+                  ),
+                ],
+              ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: AdminMobileListView(
+            loading: false,
+            itemCount: messages.length,
+            emptyLabel: context.t('mail.inbox.empty'),
+            itemBuilder: (context, index) {
+              final message = messages[index];
+              return _MailInboxMobileCard(
+                message: message,
+                selected: selectedMessageIds.contains(message.id),
+                onToggle: () => onToggleMessage(message.id),
+                onOpenMessage: onOpenMessage,
+                onMarkRead: onMarkRead,
+                onToggleStar: onToggleStar,
+                onArchive: onArchive,
+                onMoveSpam: onMoveSpam,
+                onMoveTrash: onMoveTrash,
+                onRestoreInbox: onRestoreInbox,
+                onDelete: onDelete,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdminMobilePager(
+          page: page,
+          lastPage: lastPage,
+          rangeText: rangeText,
+          loading: false,
+          onPageChanged: onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _MailInboxMobileCard extends StatelessWidget {
+  const _MailInboxMobileCard({
+    required this.message,
+    required this.selected,
+    required this.onToggle,
+    required this.onOpenMessage,
+    required this.onMarkRead,
+    required this.onToggleStar,
+    required this.onArchive,
+    required this.onMoveSpam,
+    required this.onMoveTrash,
+    required this.onRestoreInbox,
+    required this.onDelete,
+  });
+
+  final AdminMailMessage message;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<AdminMailMessage> onOpenMessage;
+  final void Function(AdminMailMessage message, bool read) onMarkRead;
+  final ValueChanged<AdminMailMessage> onToggleStar;
+  final ValueChanged<AdminMailMessage> onArchive;
+  final ValueChanged<AdminMailMessage> onMoveSpam;
+  final ValueChanged<AdminMailMessage> onMoveTrash;
+  final ValueChanged<AdminMailMessage> onRestoreInbox;
+  final ValueChanged<AdminMailMessage> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final inTrash = message.folder == mailFolderTrash;
+    final sent = message.folder == mailFolderSent;
+    final active = !message.read || sent;
+    final statusLabel = sent
+        ? 'mail.status.sent'
+        : message.read
+        ? 'mail.status.read'
+        : 'mail.status.unread';
+    final statusColor = active ? const Color(0xFF198754) : AppColors.support;
+    final hasAttachment = message.hasAttachments || message.hasImages;
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: () => onOpenMessage(message),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 12),
+              AdminMobileAvatar(label: message.senderName),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            message.senderName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: message.read
+                                  ? FontWeight.w600
+                                  : FontWeight.w800,
+                              color: AppColors.deepOcean,
+                            ),
+                          ),
+                        ),
+                        if (message.starred) ...[
+                          const SizedBox(width: 6),
+                          const SymbolIcon(
+                            Symbols.verified,
+                            color: AppColors.warmHorizon,
+                            size: 15,
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (message.senderEmail.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        message.senderEmail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.support,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              AdminMobileMenuButton(
+                actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.visibility,
+                    label: context.t('mail.action.open'),
+                    onTap: () => onOpenMessage(message),
+                  ),
+                  if (!inTrash)
+                    AdminMobileMenuAction(
+                      icon: message.read
+                          ? Symbols.visibility_off
+                          : Symbols.check,
+                      label: context.t(
+                        message.read
+                            ? 'mail.action.markUnread'
+                            : 'mail.action.markRead',
+                      ),
+                      onTap: () => onMarkRead(message, !message.read),
+                    ),
+                  if (!inTrash)
+                    AdminMobileMenuAction(
+                      icon: Symbols.verified,
+                      label: context.t(
+                        message.starred
+                            ? 'mail.action.unstar'
+                            : 'mail.action.star',
+                      ),
+                      onTap: () => onToggleStar(message),
+                    ),
+                  if (!inTrash && message.folder != mailFolderArchive)
+                    AdminMobileMenuAction(
+                      icon: Symbols.folder_open,
+                      label: context.t('mail.action.archive'),
+                      onTap: () => onArchive(message),
+                    ),
+                  if (message.folder == mailFolderSpam ||
+                      message.folder == mailFolderTrash)
+                    AdminMobileMenuAction(
+                      icon: Symbols.alternate_email,
+                      label: context.t('mail.action.moveInbox'),
+                      onTap: () => onRestoreInbox(message),
+                    ),
+                  if (!inTrash && message.folder != mailFolderSpam)
+                    AdminMobileMenuAction(
+                      icon: Symbols.visibility_off,
+                      label: context.t('mail.action.moveSpam'),
+                      onTap: () => onMoveSpam(message),
+                    ),
+                  if (!inTrash)
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('mail.action.moveTrash'),
+                      danger: true,
+                      onTap: () => onMoveTrash(message),
+                    ),
+                  if (inTrash)
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('Delete'),
+                      danger: true,
+                      onTap: () => onDelete(message),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message.subject,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: message.read ? FontWeight.w600 : FontWeight.w800,
+              color: AppColors.deepOcean,
+            ),
+          ),
+          if (message.preview.trim().isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              message.preview,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.32,
+                color: AppColors.support,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          if (hasAttachment) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AdminMobileChip(
+                label: 'Ek dosya',
+                icon: Symbols.folder_open,
+                color: AppColors.support,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(statusLabel),
+                color: statusColor,
+              ),
+              const Spacer(),
+              if (message.account.trim().isNotEmpty) ...[
+                Flexible(
+                  child: Text(
+                    message.account,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.support,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Text(
+                formatAdminFullDate(context, message.sentAt),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.support,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

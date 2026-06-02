@@ -666,7 +666,7 @@ class _SocialSettingsTableCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  static const _minTableWidth = 1180.0;
+  static const _minTableWidth = 860.0;
 
   final List<AdminSocialAccount> accounts;
   final int page;

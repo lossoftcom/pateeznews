@@ -589,7 +589,7 @@ class _MailTemplateTableCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  static const _minTableWidth = 1180.0;
+  static const _minTableWidth = 900.0;
 
   final List<AdminMailTemplate> templates;
   final int page;

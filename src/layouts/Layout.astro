@@ -442,21 +442,21 @@ const fontPreloadHrefs = Array.from(new Set(
 				top: var(--public-nav-height);
 				left: 0;
 				right: 0;
-				height: 2px;
+				height: 4px;
 				z-index: 998;
 				pointer-events: none;
 				opacity: 0;
 				transition: opacity 180ms ease;
 			}
 			.route-loading.is-active {
-				opacity: 0.78;
+				opacity: 0.9;
 			}
 			.route-loading__bar {
 				height: 100%;
 				width: 100%;
 				background:
 					linear-gradient(90deg, transparent 0%, rgba(239, 59, 45, 0.18) 28%, rgba(255, 159, 28, 0.58) 50%, rgba(239, 59, 45, 0.34) 70%, transparent 100%);
-				box-shadow: 0 1px 10px rgba(239, 59, 45, 0.14);
+				box-shadow: 0 1px 12px rgba(239, 59, 45, 0.18);
 				transform-origin: left center;
 				animation: route-loading-run 1.85s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 				will-change: transform;

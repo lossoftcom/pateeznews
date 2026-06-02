@@ -22,6 +22,8 @@ export const isPostId = (value: unknown): boolean => {
   return /^[0-9]+$/.test(String(value));
 };
 
+const DISPLAY_TIME_ZONE = 'Europe/Istanbul';
+
 // Görece zaman formatlayıcı (Örn: 2 saat önce)
 export const getRelativeTime = (dateString: string | null | undefined, lang = 'tr'): string => {
   if (!dateString) return '';
@@ -40,7 +42,9 @@ export const getRelativeTime = (dateString: string | null | undefined, lang = 't
   const diffInDays = Math.floor(diffInHours / 24);
   if (diffInDays < 7) return `${diffInDays} ${lang === 'tr' ? 'gün' : 'days'}`;
 
-  return date.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US');
+  return date.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', {
+    timeZone: DISPLAY_TIME_ZONE,
+  });
 };
 
 const TURKISH_CHAR_MAP: Record<string, string> = {

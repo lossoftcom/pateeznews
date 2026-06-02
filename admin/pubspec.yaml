@@ -151,6 +151,12 @@ flutter:
     - family: WorkSans
       fonts:
         - asset: assets/fonts/site/work_sans/WorkSans.ttf
+    - family: Newsreader
+      fonts:
+        - asset: assets/fonts/site/newsreader/Newsreader.ttf
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/site/lexend/Lexend.ttf
 
   # To add assets to your application, add an assets section, like this:
   assets:

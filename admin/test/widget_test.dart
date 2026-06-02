@@ -2127,6 +2127,7 @@ class _FakeAdminFontSettingsRepository implements AdminFontSettingsRepository {
 
   AdminFontSettingsData? savedSettings;
   AdminFontFormData? addedFont;
+  AdminFontFormData? updatedFont;
 
   @override
   Future<AdminFontSettingsBundle> fetchSettings(String languageCode) async {
@@ -2166,6 +2167,28 @@ class _FakeAdminFontSettingsRepository implements AdminFontSettingsRepository {
       fontFiles: const {'400': '/api/storage/file/font/site/test.woff2'},
       active: true,
       sortOrder: 100,
+    );
+  }
+
+  @override
+  Future<AdminFontRow> updateFont({
+    required AdminSession session,
+    required AdminFontRow font,
+    required AdminFontFormData data,
+  }) async {
+    updatedFont = data;
+    return AdminFontRow(
+      id: font.id,
+      name: data.name,
+      family: font.family,
+      type: data.type,
+      source: font.source,
+      webFontPath: font.webFontPath,
+      flutterFamily: font.flutterFamily,
+      fallbackStack: font.fallbackStack,
+      fontFiles: font.fontFiles,
+      active: font.active,
+      sortOrder: font.sortOrder,
     );
   }
 }
@@ -4231,6 +4254,15 @@ void main() {
     expect(find.text('Birincil font yap'), findsNothing);
     expect(find.text('Başlık fontu yap'), findsNothing);
     expect(find.text('İçerik fontu yap'), findsNothing);
+
+    await tester.tap(find.text('Düzenle'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Font Düzenle'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Kaydet'), findsOneWidget);
+
+    await tester.tap(find.text('İptal'));
+    await tester.pumpAndSettle();
 
     await tester.tapAt(const Offset(20, 20));
     await tester.pumpAndSettle();
