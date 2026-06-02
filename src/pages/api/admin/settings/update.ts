@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { invalidateSiteSettingsCache } from '@/services/dataService';
+import { invalidateServerSiteSettingsCache } from '@/services/dataService.server';
 
 const ALLOWED_COLUMNS = new Set([
   'site_name',
@@ -77,6 +78,7 @@ export const POST: APIRoute = async ({ request }) => {
     );
 
     invalidateSiteSettingsCache(languageCode);
+    invalidateServerSiteSettingsCache(languageCode);
 
     return adminJson({ data: result.rows[0] || null, error: null });
   } catch (error) {

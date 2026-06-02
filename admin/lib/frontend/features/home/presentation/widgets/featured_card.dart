@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -42,7 +43,7 @@ class _Cover extends StatelessWidget {
         color: AppColors.surfaceInk,
         alignment: Alignment.center,
         child: const Icon(
-          Icons.image_outlined,
+          Symbols.image_outlined,
           color: AppColors.support,
           size: 36,
         ),

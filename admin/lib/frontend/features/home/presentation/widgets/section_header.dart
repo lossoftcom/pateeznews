@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -81,10 +82,7 @@ class _DefaultAction extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(4),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 4,
-            vertical: 4,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Row(
             children: [
               Text(
@@ -96,7 +94,7 @@ class _DefaultAction extends StatelessWidget {
               ),
               const SizedBox(width: 2),
               const Icon(
-                Icons.arrow_forward_rounded,
+                Symbols.arrow_forward_rounded,
                 size: 14,
                 color: AppColors.deepOcean,
               ),

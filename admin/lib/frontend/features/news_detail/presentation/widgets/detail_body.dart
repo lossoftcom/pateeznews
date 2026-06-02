@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -62,10 +63,9 @@ class _Paragraph extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: AppTypography.articleBody.copyWith(
+      style: AppTypography.mobileDetailBody.copyWith(
         color: AppColors.ink,
         height: 1.62,
-        fontWeight: FontWeight.w400,
         letterSpacing: 0,
       ),
     );
@@ -114,10 +114,9 @@ class _DropCapParagraph extends StatelessWidget {
           ),
           TextSpan(
             text: rest,
-            style: AppTypography.articleBody.copyWith(
+            style: AppTypography.mobileDetailBody.copyWith(
               color: AppColors.ink,
               height: 1.62,
-              fontWeight: FontWeight.w400,
               letterSpacing: 0,
             ),
           ),
@@ -201,7 +200,7 @@ class _SourceNote extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(top: 1, right: 8),
             child: Icon(
-              Icons.info_outline_rounded,
+              Symbols.info_outline_rounded,
               size: 14,
               color: AppColors.support,
             ),

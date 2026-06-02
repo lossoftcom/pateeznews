@@ -33,7 +33,7 @@ git fetch origin && git reset --hard origin/main
 
 
 
-
+flutter run -d emulator-5554 --dart-define=PATEEZNEWS_API_BASE_URL=http://10.0.2.2:4321
 
 
 

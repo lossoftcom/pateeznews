@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pateeznews_admin/frontend/core/mock/home_mock_data.dart';
 import 'package:pateeznews_admin/frontend/features/home/presentation/widgets/news_card.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 void main() {
   testWidgets('news card renders cover overlay and below-image content', (
@@ -48,7 +49,8 @@ void main() {
     expect(find.textContaining('TAKİP'), findsNothing);
     expect(find.text('Türkiye  /  Ekonomi'), findsOneWidget);
     expect(find.text('TÜRKİYE  /  EKONOMİ'), findsNothing);
-    expect(find.byType(CustomPaint), findsWidgets);
+    expect(find.byIcon(Symbols.heart_3_line), findsWidgets);
+    expect(find.byIcon(Symbols.bookmark_3_line), findsWidgets);
 
     // Kapak görseli artık diske cache'lenen CachedNetworkImage (CachedImage
     // sarmalayıcısı üzerinden). Doğru URL ile ve BoxFit.contain ile render

@@ -7,7 +7,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "node ./scripts/run-with-cloudflare-env.mjs astro dev",
+    "dev": "node ./scripts/run-with-cloudflare-env.mjs astro dev --host 127.0.0.1",
     "build": "npm run build:cloudflare",
     "build:astro": "node ./scripts/run-with-cloudflare-env.mjs astro build",
     "build:admin:web": "node ./scripts/build-admin-web.mjs",

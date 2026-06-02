@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -156,14 +157,10 @@ class _Header extends StatelessWidget {
               width: 1,
             ),
           ),
-          child: const Text(
-            '✦',
-            style: TextStyle(
-              color: AppColors.warmHorizon,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
+          child: const Icon(
+            Symbols.sparkling_fill,
+            color: AppColors.warmHorizon,
+            size: 15,
           ),
         ),
         const SizedBox(width: 10),
@@ -215,7 +212,7 @@ class _Header extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(
-                  Icons.people_alt_outlined,
+                  Symbols.people_alt_outlined,
                   size: 12,
                   color: AppColors.inkSoft,
                 ),
@@ -531,7 +528,7 @@ class _Disk extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Icon(Icons.check_rounded, size: 10, color: accent),
+                child: Icon(Symbols.check_rounded, size: 10, color: accent),
               ),
             ),
           ),

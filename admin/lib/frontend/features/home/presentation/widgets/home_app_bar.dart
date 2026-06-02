@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
@@ -38,15 +39,13 @@ class HomeAppBar extends StatelessWidget {
         children: [
           const SizedBox(width: 4),
           _AppBarButton(
-            icon: Icons.menu_rounded,
+            icon: Symbols.menu_rounded,
             onTap: onMenuTap,
             semantics: 'Menü',
           ),
-          const Expanded(
-            child: Center(child: _Wordmark()),
-          ),
+          const Expanded(child: Center(child: _Wordmark())),
           _AppBarButton(
-            icon: Icons.search_rounded,
+            icon: Symbols.search_rounded,
             onTap: onSearchTap,
             semantics: 'Arama',
           ),

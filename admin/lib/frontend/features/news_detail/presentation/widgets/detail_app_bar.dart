@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -119,7 +120,7 @@ class _CircleBackButton extends StatelessWidget {
               border: Border.all(color: border, width: 1),
             ),
             child: Icon(
-              Icons.chevron_left_rounded,
+              Symbols.chevron_left_rounded,
               size: 24,
               color: foreground,
             ),

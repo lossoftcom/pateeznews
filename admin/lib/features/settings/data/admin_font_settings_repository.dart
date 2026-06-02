@@ -63,16 +63,29 @@ class AdminFontSettingsData {
     required this.primaryFont,
     required this.titleFont,
     required this.contentFont,
+    required this.mobilePrimaryFont,
+    required this.mobileTitleFont,
+    required this.mobileContentFont,
     required this.fontSizes,
+    required this.mobileFontSizes,
+    required this.fontWeights,
+    required this.mobileFontWeights,
   });
 
   factory AdminFontSettingsData.empty(String languageCode) {
+    final fontSizes = Map<String, int>.of(defaultWebFontSizes);
     return AdminFontSettingsData(
       languageCode: _cleanLanguageCode(languageCode),
       primaryFont: 'PateezInter',
       titleFont: 'PateezInter',
       contentFont: 'PateezInter',
-      fontSizes: Map<String, int>.of(defaultFontSizes),
+      mobilePrimaryFont: 'PateezInter',
+      mobileTitleFont: 'PateezInter',
+      mobileContentFont: 'PateezInter',
+      fontSizes: fontSizes,
+      mobileFontSizes: _defaultMobileFontSizesFromWeb(fontSizes),
+      fontWeights: Map<String, int>.of(defaultWebFontWeights),
+      mobileFontWeights: Map<String, int>.of(defaultMobileFontWeights),
     );
   }
 
@@ -81,14 +94,45 @@ class AdminFontSettingsData {
     String languageCode,
   ) {
     final item = _asStringKeyMap(json);
+    final fontPayload = item['site_font_sizes'];
+    final legacyFontSizes = _legacyFontSizeMap(fontPayload);
+    final webFontSizes = _webFontSizeMap(fontPayload, legacyFontSizes);
+    final webFonts = _targetFontFamiliesMap(
+      fontPayload,
+      target: 'web',
+      primary: _string(item['site_primary_font'], fallback: 'PateezInter'),
+      title: _string(item['site_title_font'], fallback: 'PateezInter'),
+      content: _string(item['site_content_font'], fallback: 'PateezInter'),
+    );
+    final mobileFonts = _targetFontFamiliesMap(
+      fontPayload,
+      target: 'mobile',
+      primary: webFonts['primary'] ?? 'PateezInter',
+      title: webFonts['title'] ?? 'PateezInter',
+      content: webFonts['content'] ?? 'PateezInter',
+    );
     return AdminFontSettingsData(
       languageCode: _cleanLanguageCode(
         _string(item['language_code'], fallback: languageCode),
       ),
-      primaryFont: _string(item['site_primary_font'], fallback: 'PateezInter'),
-      titleFont: _string(item['site_title_font'], fallback: 'PateezInter'),
-      contentFont: _string(item['site_content_font'], fallback: 'PateezInter'),
-      fontSizes: _fontSizeMap(item['site_font_sizes']),
+      primaryFont: webFonts['primary'] ?? 'PateezInter',
+      titleFont: webFonts['title'] ?? 'PateezInter',
+      contentFont: webFonts['content'] ?? 'PateezInter',
+      mobilePrimaryFont: mobileFonts['primary'] ?? 'PateezInter',
+      mobileTitleFont: mobileFonts['title'] ?? 'PateezInter',
+      mobileContentFont: mobileFonts['content'] ?? 'PateezInter',
+      fontSizes: webFontSizes,
+      mobileFontSizes: _mobileFontSizeMap(fontPayload, webFontSizes),
+      fontWeights: _fontWeightMap(
+        fontPayload,
+        target: 'web',
+        defaults: defaultWebFontWeights,
+      ),
+      mobileFontWeights: _fontWeightMap(
+        fontPayload,
+        target: 'mobile',
+        defaults: defaultMobileFontWeights,
+      ),
     );
   }
 
@@ -96,15 +140,39 @@ class AdminFontSettingsData {
   final String primaryFont;
   final String titleFont;
   final String contentFont;
+  final String mobilePrimaryFont;
+  final String mobileTitleFont;
+  final String mobileContentFont;
   final Map<String, int> fontSizes;
+  final Map<String, int> mobileFontSizes;
+  final Map<String, int> fontWeights;
+  final Map<String, int> mobileFontWeights;
 
   Map<String, Object?> toJson() {
+    final legacyFontSizes = _legacyFontSizesFromWeb(fontSizes);
     return {
       'language_code': languageCode,
       'site_primary_font': primaryFont,
       'site_title_font': titleFont,
       'site_content_font': contentFont,
-      'site_font_sizes': fontSizes,
+      'site_font_sizes': {
+        ...legacyFontSizes,
+        'web': fontSizes,
+        'mobile': mobileFontSizes,
+        'weights': {'web': fontWeights, 'mobile': mobileFontWeights},
+        'fonts': {
+          'web': {
+            'primary': primaryFont,
+            'title': titleFont,
+            'content': contentFont,
+          },
+          'mobile': {
+            'primary': mobilePrimaryFont,
+            'title': mobileTitleFont,
+            'content': mobileContentFont,
+          },
+        },
+      },
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
@@ -114,14 +182,26 @@ class AdminFontSettingsData {
     String? primaryFont,
     String? titleFont,
     String? contentFont,
+    String? mobilePrimaryFont,
+    String? mobileTitleFont,
+    String? mobileContentFont,
     Map<String, int>? fontSizes,
+    Map<String, int>? mobileFontSizes,
+    Map<String, int>? fontWeights,
+    Map<String, int>? mobileFontWeights,
   }) {
     return AdminFontSettingsData(
       languageCode: languageCode ?? this.languageCode,
       primaryFont: primaryFont ?? this.primaryFont,
       titleFont: titleFont ?? this.titleFont,
       contentFont: contentFont ?? this.contentFont,
+      mobilePrimaryFont: mobilePrimaryFont ?? this.mobilePrimaryFont,
+      mobileTitleFont: mobileTitleFont ?? this.mobileTitleFont,
+      mobileContentFont: mobileContentFont ?? this.mobileContentFont,
       fontSizes: fontSizes ?? this.fontSizes,
+      mobileFontSizes: mobileFontSizes ?? this.mobileFontSizes,
+      fontWeights: fontWeights ?? this.fontWeights,
+      mobileFontWeights: mobileFontWeights ?? this.mobileFontWeights,
     );
   }
 }
@@ -213,7 +293,10 @@ class SupabaseAdminFontSettingsRepository
   }) async {
     final normalized = settings.copyWith(
       languageCode: _cleanLanguageCode(settings.languageCode),
-      fontSizes: _clampedSizes(settings.fontSizes),
+      fontSizes: _clampedWebSizes(settings.fontSizes),
+      mobileFontSizes: _clampedMobileSizes(settings.mobileFontSizes),
+      fontWeights: _clampedWebWeights(settings.fontWeights),
+      mobileFontWeights: _clampedMobileWeights(settings.mobileFontWeights),
     );
     final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
@@ -467,6 +550,50 @@ const defaultFontSizes = <String, int>{
   'fs-title-3xl': 28,
   'fs-title-4xl': 30,
   'fs-title-5xl': 32,
+};
+
+const defaultWebFontSizes = <String, int>{
+  'web-nav-label': 14,
+  'web-featured-title': 36,
+  'web-featured-summary': 16,
+  'web-card-title': 38,
+  'web-card-summary': 16,
+  'web-detail-title': 48,
+  'web-detail-summary': 18,
+  'web-detail-body': 17,
+};
+
+const defaultMobileFontSizes = <String, int>{
+  'mobile-nav-label': 14,
+  'mobile-featured-title': 28,
+  'mobile-featured-summary': 15,
+  'mobile-card-title': 28,
+  'mobile-card-summary': 15,
+  'mobile-detail-title': 32,
+  'mobile-detail-summary': 18,
+  'mobile-detail-body': 17,
+};
+
+const defaultWebFontWeights = <String, int>{
+  'web-nav-label': 700,
+  'web-featured-title': 800,
+  'web-featured-summary': 500,
+  'web-card-title': 800,
+  'web-card-summary': 500,
+  'web-detail-title': 800,
+  'web-detail-summary': 500,
+  'web-detail-body': 400,
+};
+
+const defaultMobileFontWeights = <String, int>{
+  'mobile-nav-label': 600,
+  'mobile-featured-title': 800,
+  'mobile-featured-summary': 400,
+  'mobile-card-title': 800,
+  'mobile-card-summary': 400,
+  'mobile-detail-title': 800,
+  'mobile-detail-summary': 500,
+  'mobile-detail-body': 400,
 };
 
 const fallbackSiteFonts = <AdminFontRow>[
@@ -795,11 +922,17 @@ AdminFontSettingsData _sanitizeSettings(
     primaryFont: safeFamily(settings.primaryFont),
     titleFont: safeFamily(settings.titleFont),
     contentFont: safeFamily(settings.contentFont),
-    fontSizes: _clampedSizes(settings.fontSizes),
+    mobilePrimaryFont: safeFamily(settings.mobilePrimaryFont),
+    mobileTitleFont: safeFamily(settings.mobileTitleFont),
+    mobileContentFont: safeFamily(settings.mobileContentFont),
+    fontSizes: _clampedWebSizes(settings.fontSizes),
+    mobileFontSizes: _clampedMobileSizes(settings.mobileFontSizes),
+    fontWeights: _clampedWebWeights(settings.fontWeights),
+    mobileFontWeights: _clampedMobileWeights(settings.mobileFontWeights),
   );
 }
 
-Map<String, int> _clampedSizes(Map<String, int> values) {
+Map<String, int> _clampedLegacySizes(Map<String, int> values) {
   final result = Map<String, int>.of(defaultFontSizes);
   for (final entry in values.entries) {
     if (!defaultFontSizes.containsKey(entry.key)) continue;
@@ -808,7 +941,48 @@ Map<String, int> _clampedSizes(Map<String, int> values) {
   return result;
 }
 
-Map<String, int> _fontSizeMap(Object? value) {
+Map<String, int> _clampedWebSizes(Map<String, int> values) {
+  final result = Map<String, int>.of(defaultWebFontSizes);
+  for (final entry in values.entries) {
+    if (!defaultWebFontSizes.containsKey(entry.key)) continue;
+    result[entry.key] = entry.value.clamp(8, 96);
+  }
+  return result;
+}
+
+Map<String, int> _clampedMobileSizes(Map<String, int> values) {
+  final result = Map<String, int>.of(defaultMobileFontSizes);
+  for (final entry in values.entries) {
+    if (!defaultMobileFontSizes.containsKey(entry.key)) continue;
+    result[entry.key] = entry.value.clamp(8, 96);
+  }
+  return result;
+}
+
+Map<String, int> _clampedWebWeights(Map<String, int> values) {
+  final result = Map<String, int>.of(defaultWebFontWeights);
+  for (final entry in values.entries) {
+    if (!defaultWebFontWeights.containsKey(entry.key)) continue;
+    result[entry.key] = _clampFontWeight(entry.value);
+  }
+  return result;
+}
+
+Map<String, int> _clampedMobileWeights(Map<String, int> values) {
+  final result = Map<String, int>.of(defaultMobileFontWeights);
+  for (final entry in values.entries) {
+    if (!defaultMobileFontWeights.containsKey(entry.key)) continue;
+    result[entry.key] = _clampFontWeight(entry.value);
+  }
+  return result;
+}
+
+int _clampFontWeight(int value) {
+  final clamped = value.clamp(100, 900);
+  return ((clamped / 100).round() * 100).clamp(100, 900);
+}
+
+Map<String, int> _legacyFontSizeMap(Object? value) {
   final result = Map<String, int>.of(defaultFontSizes);
   Map<dynamic, dynamic>? source;
   if (value is Map) {
@@ -826,7 +1000,176 @@ Map<String, int> _fontSizeMap(Object? value) {
       }
     }
   }
+  return _clampedLegacySizes(result);
+}
+
+Map<String, int> _webFontSizeMap(Object? value, Map<String, int> legacySizes) {
+  final result = _defaultWebFontSizesFromLegacy(legacySizes);
+  final source = _nestedMap(value, 'web');
+  if (source != null) {
+    for (final entry in source.entries) {
+      final key = entry.key.toString();
+      if (!defaultWebFontSizes.containsKey(key)) continue;
+      final parsed = _int(
+        entry.value,
+        fallback: result[key] ?? defaultWebFontSizes[key] ?? 0,
+      );
+      result[key] = parsed.clamp(8, 96);
+    }
+  }
+  return _clampedWebSizes(result);
+}
+
+Map<String, int> _mobileFontSizeMap(Object? value, Map<String, int> webSizes) {
+  final result = _defaultMobileFontSizesFromWeb(webSizes);
+  final source = _nestedMap(value, 'mobile');
+  if (source != null) {
+    for (final entry in source.entries) {
+      final key = entry.key.toString();
+      final parsed = _int(
+        entry.value,
+        fallback: result[key] ?? defaultMobileFontSizes[key] ?? 0,
+      );
+      if (defaultMobileFontSizes.containsKey(key)) {
+        result[key] = parsed.clamp(8, 96);
+      }
+    }
+  }
   return result;
+}
+
+Map<String, int> _fontWeightMap(
+  Object? value, {
+  required String target,
+  required Map<String, int> defaults,
+}) {
+  final result = Map<String, int>.of(defaults);
+  final weights = _nestedMap(value, 'weights');
+  final source = weights == null ? null : _mapFromUnknown(weights[target]);
+  if (source != null) {
+    for (final entry in source.entries) {
+      final key = entry.key.toString();
+      if (!defaults.containsKey(key)) continue;
+      final parsed = _int(entry.value, fallback: result[key] ?? 400);
+      result[key] = _clampFontWeight(parsed);
+    }
+  }
+  return result;
+}
+
+Map<String, String> _targetFontFamiliesMap(
+  Object? value, {
+  required String target,
+  required String primary,
+  required String title,
+  required String content,
+}) {
+  final result = <String, String>{
+    'primary': primary,
+    'title': title,
+    'content': content,
+  };
+  final fonts = _nestedMap(value, 'fonts');
+  final source = fonts == null ? null : _mapFromUnknown(fonts[target]);
+  if (source != null) {
+    for (final key in result.keys.toList()) {
+      final parsed = _string(source[key]);
+      if (parsed.isNotEmpty) result[key] = parsed;
+    }
+  }
+  return result;
+}
+
+Map<String, int> _defaultWebFontSizesFromLegacy(Map<String, int> legacySizes) {
+  return {
+    'web-nav-label':
+        legacySizes['fs-main-nav'] ?? defaultWebFontSizes['web-nav-label']!,
+    'web-featured-title':
+        legacySizes['fs-title-4xl'] ??
+        legacySizes['fs-title-5xl'] ??
+        defaultWebFontSizes['web-featured-title']!,
+    'web-featured-summary':
+        legacySizes['fs-post-summary'] ??
+        defaultWebFontSizes['web-featured-summary']!,
+    'web-card-title':
+        legacySizes['fs-title-5xl'] ??
+        legacySizes['fs-title-3xl'] ??
+        defaultWebFontSizes['web-card-title']!,
+    'web-card-summary': legacySizes['fs-content'] == null
+        ? defaultWebFontSizes['web-card-summary']!
+        : (legacySizes['fs-content']! - 2).clamp(8, 96),
+    'web-detail-title':
+        legacySizes['fs-post-title'] ??
+        defaultWebFontSizes['web-detail-title']!,
+    'web-detail-summary':
+        legacySizes['fs-post-summary'] ??
+        defaultWebFontSizes['web-detail-summary']!,
+    'web-detail-body':
+        legacySizes['fs-content'] ?? defaultWebFontSizes['web-detail-body']!,
+  };
+}
+
+Map<String, int> _legacyFontSizesFromWeb(Map<String, int> webSizes) {
+  final result = Map<String, int>.of(defaultFontSizes);
+  result['fs-base'] = webSizes['web-detail-body'] ?? result['fs-base']!;
+  result['fs-main-nav'] = webSizes['web-nav-label'] ?? result['fs-main-nav']!;
+  result['fs-post-title'] =
+      webSizes['web-detail-title'] ?? result['fs-post-title']!;
+  result['fs-post-summary'] =
+      webSizes['web-detail-summary'] ?? result['fs-post-summary']!;
+  result['fs-content'] = webSizes['web-detail-body'] ?? result['fs-content']!;
+  result['fs-md'] = webSizes['web-card-summary'] ?? result['fs-md']!;
+  result['fs-title-3xl'] =
+      webSizes['web-card-title'] ?? result['fs-title-3xl']!;
+  result['fs-title-4xl'] =
+      webSizes['web-featured-title'] ?? result['fs-title-4xl']!;
+  result['fs-title-5xl'] =
+      webSizes['web-card-title'] ?? result['fs-title-5xl']!;
+  return _clampedLegacySizes(result);
+}
+
+Map<String, int> _defaultMobileFontSizesFromWeb(Map<String, int> webSizes) {
+  return {
+    'mobile-nav-label':
+        webSizes['web-nav-label'] ??
+        defaultMobileFontSizes['mobile-nav-label']!,
+    'mobile-featured-title':
+        webSizes['web-featured-title'] ??
+        defaultMobileFontSizes['mobile-featured-title']!,
+    'mobile-featured-summary':
+        webSizes['web-featured-summary'] ??
+        defaultMobileFontSizes['mobile-featured-summary']!,
+    'mobile-card-title':
+        webSizes['web-card-title'] ??
+        defaultMobileFontSizes['mobile-card-title']!,
+    'mobile-card-summary':
+        webSizes['web-card-summary'] ??
+        defaultMobileFontSizes['mobile-card-summary']!,
+    'mobile-detail-title':
+        webSizes['web-detail-title'] ??
+        defaultMobileFontSizes['mobile-detail-title']!,
+    'mobile-detail-summary':
+        webSizes['web-detail-summary'] ??
+        defaultMobileFontSizes['mobile-detail-summary']!,
+    'mobile-detail-body':
+        webSizes['web-detail-body'] ??
+        defaultMobileFontSizes['mobile-detail-body']!,
+  };
+}
+
+Map<dynamic, dynamic>? _nestedMap(Object? value, String key) {
+  final source = _mapFromUnknown(value);
+  if (source == null) return null;
+  return _mapFromUnknown(source[key]);
+}
+
+Map<dynamic, dynamic>? _mapFromUnknown(Object? value) {
+  if (value is Map) return value;
+  if (value is String && value.trim().isNotEmpty) {
+    final decoded = jsonDecode(value);
+    if (decoded is Map) return decoded;
+  }
+  return null;
 }
 
 Map<String, String> _stringMap(Object? value) {

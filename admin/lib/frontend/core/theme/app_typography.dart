@@ -18,6 +18,15 @@ class AppTypography {
 
   static String get contentFamily => _settings.contentFontFamily;
 
+  static FontWeight _weightFromValue(int value) {
+    final index = ((value.clamp(100, 900) / 100).round() - 1).clamp(0, 8);
+    return FontWeight.values[index];
+  }
+
+  static FontWeight _mobileWeight(String key) {
+    return _weightFromValue(_settings.mobileWeightValue(key));
+  }
+
   static TextStyle get display => TextStyle(
     fontFamily: titleFamily,
     fontSize: _settings.size('fs-title-3xl'),
@@ -123,6 +132,77 @@ class AppTypography {
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     height: 1.2,
+  );
+
+  static TextStyle get mobileMenuLabel => TextStyle(
+    fontFamily: primaryFamily,
+    fontSize: _settings.mobileSize('mobile-nav-label'),
+    fontWeight: _mobileWeight('mobile-nav-label'),
+    letterSpacing: 0,
+    height: 1.2,
+  );
+
+  static TextStyle get mobileFeaturedTitle => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.mobileSize('mobile-featured-title'),
+    fontWeight: _mobileWeight('mobile-featured-title'),
+    letterSpacing: 0,
+    height: 1.08,
+    color: AppColors.inkStrong,
+  );
+
+  static TextStyle get mobileFeaturedSummary => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.mobileSize('mobile-featured-summary'),
+    fontWeight: _mobileWeight('mobile-featured-summary'),
+    letterSpacing: 0,
+    height: 1.42,
+    color: AppColors.ink,
+  );
+
+  static TextStyle get mobileNewsCardTitle => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.mobileSize('mobile-card-title'),
+    fontWeight: _mobileWeight('mobile-card-title'),
+    letterSpacing: 0,
+    height: 1.08,
+    color: AppColors.inkStrong,
+  );
+
+  static TextStyle get mobileNewsCardSummary => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.mobileSize('mobile-card-summary'),
+    fontWeight: _mobileWeight('mobile-card-summary'),
+    letterSpacing: 0,
+    height: 1.5,
+    color: AppColors.inkSoft,
+  );
+
+  static TextStyle get mobileDetailTitle => TextStyle(
+    fontFamily: titleFamily,
+    fontSize: _settings.mobileSize('mobile-detail-title'),
+    fontWeight: _mobileWeight('mobile-detail-title'),
+    letterSpacing: 0,
+    height: 1.1,
+    color: AppColors.inkStrong,
+  );
+
+  static TextStyle get mobileDetailSummary => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.mobileSize('mobile-detail-summary'),
+    fontWeight: _mobileWeight('mobile-detail-summary'),
+    letterSpacing: 0,
+    height: 1.45,
+    color: AppColors.inkSoft,
+  );
+
+  static TextStyle get mobileDetailBody => TextStyle(
+    fontFamily: contentFamily,
+    fontSize: _settings.mobileSize('mobile-detail-body'),
+    fontWeight: _mobileWeight('mobile-detail-body'),
+    letterSpacing: 0,
+    height: 1.62,
+    color: AppColors.ink,
   );
 
   static TextStyle get storyLabel => TextStyle(

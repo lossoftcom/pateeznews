@@ -230,5 +230,5 @@ export interface SiteSettings {
   site_primary_font?: string;
   site_title_font?: string;
   site_content_font?: string;
-  site_font_sizes?: Record<string, number> | string;
+  site_font_sizes?: Record<string, unknown> | string;
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -123,7 +124,7 @@ class _HeaderOverlay extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           _IconBtn(
-            icon: Icons.more_horiz_rounded,
+            icon: Symbols.more_horiz_rounded,
             onTap: () {},
             semantics: 'Diğer seçenekler',
             color: Colors.white.withValues(alpha: 0.86),
@@ -318,9 +319,8 @@ class _Title extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: AppTypography.display.copyWith(
+              style: AppTypography.mobileNewsCardTitle.copyWith(
                 color: headlineColor,
-                fontWeight: FontWeight.w800,
                 letterSpacing: 0,
                 height: 1.08,
               ),
@@ -347,7 +347,7 @@ class _Summary extends StatelessWidget {
         summary,
         maxLines: 3,
         overflow: TextOverflow.ellipsis,
-        style: AppTypography.body.copyWith(
+        style: AppTypography.mobileNewsCardSummary.copyWith(
           color: AppColors.inkSoft,
           height: 1.5,
         ),
@@ -384,7 +384,7 @@ class _ReadStats extends StatelessWidget {
         child: Row(
           children: [
             const Icon(
-              Icons.menu_book_rounded,
+              Symbols.menu_book_rounded,
               size: 13,
               color: AppColors.placeholderSoft,
             ),
@@ -401,7 +401,7 @@ class _ReadStats extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             const Icon(
-              Icons.visibility_outlined,
+              Symbols.visibility_outlined,
               size: 13,
               color: AppColors.placeholderSoft,
             ),
@@ -478,7 +478,7 @@ class _CoverImage extends StatelessWidget {
         color: AppColors.surfaceInk,
         alignment: Alignment.center,
         child: const Icon(
-          Icons.image_outlined,
+          Symbols.image_outlined,
           color: AppColors.support,
           size: 32,
         ),
@@ -761,7 +761,7 @@ class _CommentRow extends StatelessWidget {
                 Row(
                   children: [
                     const Icon(
-                      Icons.thumb_up_outlined,
+                      Symbols.thumb_up_outlined,
                       size: 12,
                       color: AppColors.support,
                     ),

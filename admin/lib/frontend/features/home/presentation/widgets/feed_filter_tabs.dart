@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -28,14 +29,14 @@ class FeedFilterTabs extends StatelessWidget {
       children: [
         _FilterPill(
           label: 'En yeni',
-          icon: Icons.schedule_rounded,
+          icon: Symbols.schedule_rounded,
           isActive: filter == FeedFilter.latest,
           onTap: () => onChange(FeedFilter.latest),
         ),
         const SizedBox(width: 4),
         _FilterPill(
           label: 'Popüler',
-          icon: Icons.local_fire_department_rounded,
+          icon: Symbols.local_fire_department_rounded,
           isActive: filter == FeedFilter.popular,
           onTap: () => onChange(FeedFilter.popular),
         ),

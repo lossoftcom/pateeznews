@@ -5,129 +5,182 @@ import 'package:flutter/widgets.dart';
 class Symbols {
   const Symbols._();
 
-  static const alternate_email = IconData(
-    0xe0e6,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
-  static const add = IconData(0xe145, fontFamily: 'MaterialSymbolsOutlined');
+  static const _fontFamily = 'RemixIcon';
+
+  static const alternate_email = IconData(0xea83, fontFamily: _fontFamily);
+  static const add = IconData(0xea13, fontFamily: _fontFamily);
   static const arrow_forward = IconData(
-    0xe5c8,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xea6c,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
   static const article = IconData(
-    0xef42,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xea7e,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
-  static const check = IconData(0xe5ca, fontFamily: 'MaterialSymbolsOutlined');
-  static const close = IconData(0xe5cd, fontFamily: 'MaterialSymbolsOutlined');
-  static const code = IconData(0xe86f, fontFamily: 'MaterialSymbolsOutlined');
-  static const delete = IconData(0xe92e, fontFamily: 'MaterialSymbolsOutlined');
-  static const download = IconData(
-    0xf090,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
+  static const check = IconData(0xeb7b, fontFamily: _fontFamily);
+  static const close = IconData(0xeb99, fontFamily: _fontFamily);
+  static const code = IconData(0xeba9, fontFamily: _fontFamily);
+  static const delete = IconData(0xec2a, fontFamily: _fontFamily);
+  static const download = IconData(0xec5a, fontFamily: _fontFamily);
   static const draft = IconData(
-    0xe66d,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xec5c,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
-  static const edit_square = IconData(
-    0xf88d,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
-  static const folder_open = IconData(
-    0xe2c8,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
+  static const edit_square = IconData(0xec82, fontFamily: _fontFamily);
+  static const folder_open = IconData(0xed70, fontFamily: _fontFamily);
   static const format_list_numbered = IconData(
-    0xe242,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xeebb,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
-  static const group = IconData(0xea21, fontFamily: 'MaterialSymbolsOutlined');
-  static const home = IconData(0xe9b2, fontFamily: 'MaterialSymbolsOutlined');
-  static const keyboard_arrow_down = IconData(
-    0xe313,
-    fontFamily: 'MaterialSymbolsOutlined',
+  static const group = IconData(0xede3, fontFamily: _fontFamily);
+  static const home = IconData(0xee1f, fontFamily: _fontFamily);
+  static const keyboard_arrow_down = IconData(0xea4e, fontFamily: _fontFamily);
+  static const language = IconData(0xedcf, fontFamily: _fontFamily);
+  static const lock = IconData(0xeece, fontFamily: _fontFamily);
+  static const logout = IconData(
+    0xeeda,
+    fontFamily: _fontFamily,
+    matchTextDirection: true,
   );
-  static const language = IconData(
-    0xe894,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
-  static const lock = IconData(0xe899, fontFamily: 'MaterialSymbolsOutlined');
-  static const logout = IconData(0xe9ba, fontFamily: 'MaterialSymbolsOutlined');
-  static const menu = IconData(0xe5d2, fontFamily: 'MaterialSymbolsOutlined');
-  static const newspaper = IconData(
-    0xeb81,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
-  static const notifications = IconData(
-    0xe7f5,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
+  static const menu = IconData(0xef3e, fontFamily: _fontFamily);
+  static const newspaper = IconData(0xef8f, fontFamily: _fontFamily);
+  static const notifications = IconData(0xef9a, fontFamily: _fontFamily);
   static const open_in_new = IconData(
-    0xe89e,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xecaf,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
-  static const pending_actions = IconData(
-    0xf1bb,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
-  static const person = IconData(0xf0d3, fontFamily: 'MaterialSymbolsOutlined');
-  static const photo_camera = IconData(
-    0xe412,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
-  static const keep = IconData(0xf026, fontFamily: 'MaterialSymbolsOutlined');
+  static const pending_actions = IconData(0xf339, fontFamily: _fontFamily);
+  static const person = IconData(0xf256, fontFamily: _fontFamily);
+  static const photo_camera = IconData(0xeb31, fontFamily: _fontFamily);
+  static const keep = IconData(0xf039, fontFamily: _fontFamily);
   static const push_pin = keep;
-  static const schedule = IconData(
-    0xefd6,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
+  static const schedule = IconData(0xf20f, fontFamily: _fontFamily);
   static const schedule_send = IconData(
-    0xea0a,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xf0da,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
-  static const search = IconData(0xe8b6, fontFamily: 'MaterialSymbolsOutlined');
-  static const save = IconData(0xe161, fontFamily: 'MaterialSymbolsOutlined');
+  static const search = IconData(0xf0d1, fontFamily: _fontFamily);
+  static const save = IconData(0xf0b3, fontFamily: _fontFamily);
   static const short_text = IconData(
-    0xe261,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xf46d,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
-  static const translate = IconData(
-    0xe8e2,
-    fontFamily: 'MaterialSymbolsOutlined',
-  );
-  static const upload = IconData(0xf09b, fontFamily: 'MaterialSymbolsOutlined');
+  static const translate = IconData(0xf226, fontFamily: _fontFamily);
+  static const upload = IconData(0xf250, fontFamily: _fontFamily);
   static const undo = IconData(
-    0xe166,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xea58,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
   static const redo = IconData(
-    0xe15a,
-    fontFamily: 'MaterialSymbolsOutlined',
+    0xea5a,
+    fontFamily: _fontFamily,
     matchTextDirection: true,
   );
-  static const verified = IconData(
-    0xef76,
-    fontFamily: 'MaterialSymbolsOutlined',
+  static const verified = IconData(0xf3e7, fontFamily: _fontFamily);
+  static const visibility = IconData(0xecb5, fontFamily: _fontFamily);
+  static const visibility_off = IconData(0xecb7, fontFamily: _fontFamily);
+  static const warning = IconData(0xeca1, fontFamily: _fontFamily);
+
+  static const alternate_email_rounded = alternate_email;
+  static const apple_rounded = IconData(0xea3f, fontFamily: _fontFamily);
+  static const arrow_forward_rounded = arrow_forward;
+  static const bolt_rounded = IconData(0xed3c, fontFamily: _fontFamily);
+  static const check_rounded = check;
+  static const chevron_left_rounded = IconData(
+    0xea64,
+    fontFamily: _fontFamily,
+    matchTextDirection: true,
   );
-  static const visibility = IconData(
-    0xe8f4,
-    fontFamily: 'MaterialSymbolsOutlined',
+  static const close_rounded = close;
+  static const favorite_outline_rounded = IconData(
+    0xee0b,
+    fontFamily: _fontFamily,
   );
-  static const visibility_off = IconData(
-    0xe8f5,
-    fontFamily: 'MaterialSymbolsOutlined',
+  static const favorite_rounded = IconData(0xee0a, fontFamily: _fontFamily);
+  static const flag_outlined = IconData(0xed3b, fontFamily: _fontFamily);
+  static const forum_outlined = IconData(0xec3a, fontFamily: _fontFamily);
+  static const grid_view_outlined = IconData(0xf4ee, fontFamily: _fontFamily);
+  static const grid_view_rounded = IconData(0xf4ed, fontFamily: _fontFamily);
+  static const home_outlined = home;
+  static const home_rounded = IconData(0xee1e, fontFamily: _fontFamily);
+  static const image_outlined = IconData(0xee4b, fontFamily: _fontFamily);
+  static const info_outline_rounded = IconData(0xee59, fontFamily: _fontFamily);
+  static const ios_share_rounded = IconData(
+    0xf0fd,
+    fontFamily: _fontFamily,
+    matchTextDirection: true,
   );
-  static const warning = IconData(
-    0xf083,
-    fontFamily: 'MaterialSymbolsOutlined',
+  static const keyboard_arrow_down_rounded = keyboard_arrow_down;
+  static const local_fire_department_rounded = IconData(
+    0xed32,
+    fontFamily: _fontFamily,
   );
+  static const location_on_rounded = IconData(0xef13, fontFamily: _fontFamily);
+  static const lock_outline_rounded = lock;
+  static const memory_rounded = IconData(0xebf0, fontFamily: _fontFamily);
+  static const menu_book_rounded = IconData(0xeadb, fontFamily: _fontFamily);
+  static const menu_rounded = menu;
+  static const more_horiz_rounded = IconData(0xef77, fontFamily: _fontFamily);
+  static const people_alt_outlined = IconData(0xf1ee, fontFamily: _fontFamily);
+  static const person_outline_rounded = person;
+  static const person_rounded = IconData(0xf255, fontFamily: _fontFamily);
+  static const play_circle_outline_rounded = IconData(
+    0xf009,
+    fontFamily: _fontFamily,
+  );
+  static const play_circle_rounded = IconData(0xf008, fontFamily: _fontFamily);
+  static const podcasts_rounded = IconData(0xeaf8, fontFamily: _fontFamily);
+  static const public_rounded = language;
+  static const reply_rounded = IconData(
+    0xf07a,
+    fontFamily: _fontFamily,
+    matchTextDirection: true,
+  );
+  static const schedule_rounded = schedule;
+  static const science_rounded = IconData(0xed3f, fontFamily: _fontFamily);
+  static const search_rounded = search;
+  static const send_rounded = IconData(
+    0xf0d9,
+    fontFamily: _fontFamily,
+    matchTextDirection: true,
+  );
+  static const sports_soccer_rounded = IconData(
+    0xed8f,
+    fontFamily: _fontFamily,
+  );
+  static const theater_comedy_rounded = IconData(
+    0xefc5,
+    fontFamily: _fontFamily,
+  );
+  static const thumb_up_outlined = IconData(0xf207, fontFamily: _fontFamily);
+  static const trending_up_rounded = IconData(0xeeab, fontFamily: _fontFamily);
+  static const visibility_off_outlined = visibility_off;
+  static const visibility_outlined = visibility;
+
+  static const bookmark_3_fill = IconData(0xeae2, fontFamily: _fontFamily);
+  static const bookmark_3_line = IconData(0xeae3, fontFamily: _fontFamily);
+  static const chat_3_fill = IconData(0xeb50, fontFamily: _fontFamily);
+  static const chat_3_line = IconData(0xeb51, fontFamily: _fontFamily);
+  static const facebook_fill = IconData(0xecbc, fontFamily: _fontFamily);
+  static const google_fill = IconData(0xedd4, fontFamily: _fontFamily);
+  static const heart_3_fill = IconData(0xee0a, fontFamily: _fontFamily);
+  static const heart_3_line = IconData(0xee0b, fontFamily: _fontFamily);
+  static const instagram_fill = IconData(0xee65, fontFamily: _fontFamily);
+  static const share_2_fill = IconData(0xf41a, fontFamily: _fontFamily);
+  static const share_2_line = IconData(0xf41b, fontFamily: _fontFamily);
+  static const sparkling_fill = IconData(0xf36c, fontFamily: _fontFamily);
+  static const thumb_down_fill = IconData(0xf204, fontFamily: _fontFamily);
+  static const thumb_down_line = IconData(0xf205, fontFamily: _fontFamily);
+  static const thumb_up_fill = IconData(0xf206, fontFamily: _fontFamily);
+  static const thumb_up_line = thumb_up_outlined;
+  static const twitter_x_fill = IconData(0xf3e5, fontFamily: _fontFamily);
+  static const whatsapp_fill = IconData(0xf2bb, fontFamily: _fontFamily);
 }

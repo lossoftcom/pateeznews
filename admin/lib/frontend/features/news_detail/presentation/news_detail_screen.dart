@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -545,7 +546,7 @@ class _DetailHero extends StatelessWidget {
                 Positioned(
                   left: AppSpacing.pageHorizontal,
                   right: AppSpacing.pageHorizontal,
-                  bottom: AppSpacing.xxxl,
+                  bottom: AppSpacing.xxl,
                   child: _HeroOverlay(
                     article: article,
                     onLike: onLike,
@@ -581,7 +582,7 @@ class _HeroImage extends StatelessWidget {
         color: AppColors.surfaceInk,
         alignment: Alignment.center,
         child: const Icon(
-          Icons.image_outlined,
+          Symbols.image_outlined,
           color: AppColors.support,
           size: 36,
         ),
@@ -620,11 +621,11 @@ class _HeroBottomScrim extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             const Color(0x00000000),
-            Colors.black.withValues(alpha: 0.18),
-            Colors.black.withValues(alpha: 0.62),
-            Colors.black.withValues(alpha: 0.86),
+            Colors.black.withValues(alpha: 0.10),
+            Colors.black.withValues(alpha: 0.38),
+            Colors.black.withValues(alpha: 0.66),
           ],
-          stops: const [0, 0.55, 0.85, 1],
+          stops: const [0, 0.62, 0.86, 1],
         ),
       ),
     );
@@ -721,27 +722,7 @@ class _HeroOverlayState extends State<_HeroOverlay> {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          article.title,
-          maxLines: 4,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.postTitle.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-            height: 1.06,
-            shadows: const [
-              Shadow(
-                color: Color(0x66000000),
-                offset: Offset(0, 1),
-                blurRadius: 8,
-              ),
-            ],
-          ),
-        ),
         const SizedBox(height: 10),
-        // Başlığın altında, ana sayfadaki "1 g" karakterinde ince/küçük tarih.
         _HeroPublishedAt(date: article.publishedAt),
       ],
     );
@@ -782,7 +763,7 @@ class _HeroPublishedAt extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
-          Icons.schedule_rounded,
+          Symbols.schedule_rounded,
           size: 12,
           color: Colors.white.withValues(alpha: 0.78),
         ),

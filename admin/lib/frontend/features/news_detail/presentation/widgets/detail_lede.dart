@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -263,7 +264,7 @@ class _MetaStrip extends StatelessWidget {
       child: Row(
         children: [
           const Icon(
-            Icons.menu_book_rounded,
+            Symbols.menu_book_rounded,
             size: 13,
             color: AppColors.support,
           ),
@@ -280,7 +281,7 @@ class _MetaStrip extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           const Icon(
-            Icons.visibility_outlined,
+            Symbols.visibility_outlined,
             size: 13,
             color: AppColors.support,
           ),
@@ -314,9 +315,8 @@ class _HeadlineBlock extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: AppTypography.postTitle.copyWith(
+            style: AppTypography.mobileDetailTitle.copyWith(
               color: AppColors.inkStrong,
-              fontWeight: FontWeight.w800,
               letterSpacing: 0,
               height: 1.1,
             ),
@@ -336,10 +336,9 @@ class _LedeSpot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       summary,
-      style: AppTypography.postSummary.copyWith(
+      style: AppTypography.mobileDetailSummary.copyWith(
         color: AppColors.inkSoft,
         height: 1.45,
-        fontWeight: FontWeight.w500,
         letterSpacing: 0,
       ),
     );

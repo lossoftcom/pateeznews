@@ -239,6 +239,28 @@ const defaultFontSizes: Record<string, number> = {
 	'fs-title-5xl': 32,
 };
 
+const defaultWebFontSizes: Record<string, number> = {
+	'web-nav-label': 14,
+	'web-featured-title': 36,
+	'web-featured-summary': 16,
+	'web-card-title': 38,
+	'web-card-summary': 16,
+	'web-detail-title': 48,
+	'web-detail-summary': 18,
+	'web-detail-body': 17,
+};
+
+const defaultWebFontWeights: Record<string, number> = {
+	'web-nav-label': 700,
+	'web-featured-title': 800,
+	'web-featured-summary': 500,
+	'web-card-title': 800,
+	'web-card-summary': 500,
+	'web-detail-title': 800,
+	'web-detail-summary': 500,
+	'web-detail-body': 400,
+};
+
 const cleanCssIdentifier = (value: unknown, fallback = 'PateezInter') => {
 	const raw = String(value || '').trim().replace(/[^A-Za-z0-9_-]/g, '');
 	return raw || fallback;
@@ -283,6 +305,88 @@ const normalizeFontSizes = (value: unknown) => {
 	return result;
 };
 
+const mapFromUnknown = (value: unknown): Record<string, unknown> => {
+	if (typeof value === 'string' && value.trim()) {
+		try {
+			const decoded = JSON.parse(value);
+			return decoded && typeof decoded === 'object' ? decoded as Record<string, unknown> : {};
+		} catch {
+			return {};
+		}
+	}
+	return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+};
+
+const clampSize = (value: unknown, fallback: number) => {
+	const numeric = Number(value);
+	return Number.isFinite(numeric) ? Math.min(96, Math.max(8, Math.round(numeric))) : fallback;
+};
+
+const clampWeight = (value: unknown, fallback: number) => {
+	const numeric = Number(value);
+	const safe = Number.isFinite(numeric) ? Math.min(900, Math.max(100, Math.round(numeric))) : fallback;
+	return Math.min(900, Math.max(100, Math.round(safe / 100) * 100));
+};
+
+const webDefaultsFromLegacy = (legacySizes: Record<string, number>): Record<string, number> => ({
+	'web-nav-label': legacySizes['fs-main-nav'] ?? defaultWebFontSizes['web-nav-label'],
+	'web-featured-title': legacySizes['fs-title-4xl'] ?? legacySizes['fs-title-5xl'] ?? defaultWebFontSizes['web-featured-title'],
+	'web-featured-summary': legacySizes['fs-post-summary'] ?? defaultWebFontSizes['web-featured-summary'],
+	'web-card-title': legacySizes['fs-title-5xl'] ?? legacySizes['fs-title-3xl'] ?? defaultWebFontSizes['web-card-title'],
+	'web-card-summary': legacySizes['fs-content'] ? Math.min(96, Math.max(8, legacySizes['fs-content'] - 2)) : defaultWebFontSizes['web-card-summary'],
+	'web-detail-title': legacySizes['fs-post-title'] ?? defaultWebFontSizes['web-detail-title'],
+	'web-detail-summary': legacySizes['fs-post-summary'] ?? defaultWebFontSizes['web-detail-summary'],
+	'web-detail-body': legacySizes['fs-content'] ?? defaultWebFontSizes['web-detail-body'],
+});
+
+const normalizeWebFontSizes = (value: unknown, legacySizes: Record<string, number>) => {
+	const root = mapFromUnknown(value);
+	const source = root.web && typeof root.web === 'object' ? root.web as Record<string, unknown> : {};
+	const result = webDefaultsFromLegacy(legacySizes);
+	for (const key of Object.keys(defaultWebFontSizes)) {
+		result[key] = clampSize(source[key], result[key] ?? defaultWebFontSizes[key]);
+	}
+	return result;
+};
+
+const legacyFromWeb = (webSizes: Record<string, number>) => ({
+	...defaultFontSizes,
+	'fs-base': webSizes['web-detail-body'] ?? defaultFontSizes['fs-base'],
+	'fs-main-nav': webSizes['web-nav-label'] ?? defaultFontSizes['fs-main-nav'],
+	'fs-post-title': webSizes['web-detail-title'] ?? defaultFontSizes['fs-post-title'],
+	'fs-post-summary': webSizes['web-detail-summary'] ?? defaultFontSizes['fs-post-summary'],
+	'fs-content': webSizes['web-detail-body'] ?? defaultFontSizes['fs-content'],
+	'fs-md': webSizes['web-card-summary'] ?? defaultFontSizes['fs-md'],
+	'fs-title-3xl': webSizes['web-card-title'] ?? defaultFontSizes['fs-title-3xl'],
+	'fs-title-4xl': webSizes['web-featured-title'] ?? defaultFontSizes['fs-title-4xl'],
+	'fs-title-5xl': webSizes['web-card-title'] ?? defaultFontSizes['fs-title-5xl'],
+});
+
+const normalizeWebFontWeights = (value: unknown) => {
+	const root = mapFromUnknown(value);
+	const weights = root.weights && typeof root.weights === 'object' ? root.weights as Record<string, unknown> : {};
+	const source = weights.web && typeof weights.web === 'object' ? weights.web as Record<string, unknown> : {};
+	const result = { ...defaultWebFontWeights };
+	for (const key of Object.keys(defaultWebFontWeights)) {
+		result[key] = clampWeight(source[key], result[key]);
+	}
+	return result;
+};
+
+const normalizeFontTargets = (
+	value: unknown,
+	fallback: { primary: string; title: string; content: string }
+) => {
+	const root = mapFromUnknown(value);
+	const fonts = root.fonts && typeof root.fonts === 'object' ? root.fonts as Record<string, unknown> : {};
+	const web = fonts.web && typeof fonts.web === 'object' ? fonts.web as Record<string, unknown> : {};
+	return {
+		primary: String(web.primary || fallback.primary || 'PateezInter'),
+		title: String(web.title || fallback.title || 'PateezInter'),
+		content: String(web.content || fallback.content || 'PateezInter'),
+	};
+};
+
 const siteFontMap = new Map<string, SiteFont>(
 	siteFonts
 		.filter((font) => font?.family)
@@ -297,14 +401,28 @@ const fontStackFor = (family: unknown, fallback: string) => {
 	return `${cssQuoted(familyName)}, ${fallback}`;
 };
 
-const configuredFontSizes = normalizeFontSizes(siteSettings?.site_font_sizes);
+const configuredLegacyFontSizes = normalizeFontSizes(siteSettings?.site_font_sizes);
+const configuredWebFontSizes = normalizeWebFontSizes(siteSettings?.site_font_sizes, configuredLegacyFontSizes);
+const configuredFontSizes = legacyFromWeb(configuredWebFontSizes);
+const configuredWebFontWeights = normalizeWebFontWeights(siteSettings?.site_font_sizes);
+const configuredWebFonts = normalizeFontTargets(siteSettings?.site_font_sizes, {
+	primary: String(siteSettings?.site_primary_font || 'PateezInter'),
+	title: String(siteSettings?.site_title_font || 'PateezInter'),
+	content: String(siteSettings?.site_content_font || 'PateezInter'),
+});
 const siteFontStyle = [
-	`--site-font-primary: ${fontStackFor(siteSettings?.site_primary_font || 'PateezInter', "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
-	`--site-font-title: ${fontStackFor(siteSettings?.site_title_font || 'PateezInter', "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
-	`--site-font-content: ${fontStackFor(siteSettings?.site_content_font || 'PateezInter', "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
+	`--site-font-primary: ${fontStackFor(configuredWebFonts.primary, "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
+	`--site-font-title: ${fontStackFor(configuredWebFonts.title, "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
+	`--site-font-content: ${fontStackFor(configuredWebFonts.content, "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif")}`,
 	...Object.entries(configuredFontSizes)
 		.filter(([key]) => /^fs-[a-z0-9-]+$/.test(key))
 		.map(([key, value]) => `--${key}: ${value}px`),
+	...Object.entries(configuredWebFontSizes)
+		.filter(([key]) => /^web-[a-z0-9-]+$/.test(key))
+		.map(([key, value]) => `--${key}-size: ${value}px`),
+	...Object.entries(configuredWebFontWeights)
+		.filter(([key]) => /^web-[a-z0-9-]+$/.test(key))
+		.map(([key, value]) => `--${key}-weight: ${value}`),
 ].join(';');
 
 const cssFontUrl = (url: string) => JSON.stringify(url.replace(/[\r\n]/g, ''));
@@ -335,9 +453,9 @@ const dynamicFontFaceCss = siteFonts
 	.join('\n');
 
 const selectedFontFamilies = [
-	siteSettings?.site_primary_font || 'PateezInter',
-	siteSettings?.site_title_font || 'PateezInter',
-	siteSettings?.site_content_font || 'PateezInter',
+	configuredWebFonts.primary,
+	configuredWebFonts.title,
+	configuredWebFonts.content,
 ].map((font) => cleanCssIdentifier(font));
 const fontPreloadHrefs = Array.from(new Set(
 	selectedFontFamilies

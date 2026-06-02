@@ -702,15 +702,78 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "fontSettings.saveChanges": "Save Changes",
   "fontSettings.saveSuccess": "Font settings saved",
   "fontSettings.fontSelected": "{font} selected",
+  "fontSettings.target.web": "Web",
+  "fontSettings.target.mobile": "Mobile",
   "fontSettings.siteFont.title": "Site Font",
   "fontSettings.siteFont.language": "Language",
   "fontSettings.siteFont.primary": "Primary Font (Main)",
   "fontSettings.siteFont.secondary": "Secondary Font (Titles)",
   "fontSettings.siteFont.content": "Content Font (Post & Page Text)",
+  "fontSettings.siteFont.webPrimary": "Web primary font",
+  "fontSettings.siteFont.webTitle": "Web title font",
+  "fontSettings.siteFont.webContent": "Web content font",
+  "fontSettings.siteFont.mobilePrimary": "Mobile primary font",
+  "fontSettings.siteFont.mobileTitle": "Mobile title font",
+  "fontSettings.siteFont.mobileContent": "Mobile content font",
   "fontSettings.fontSize.title": "Font Size",
+  "fontSettings.fontWeight.title": "Font Weight",
   "fontSettings.fontSize.layoutSpecial": "Layout & Special",
   "fontSettings.fontSize.general": "General",
   "fontSettings.fontSize.titles": "Titles",
+  "fontSettings.webSection.navigationFeatured": "Menu & Featured",
+  "fontSettings.webSection.newsCard": "News Card",
+  "fontSettings.webSection.detail": "Detail Page",
+  "fontSettings.webSize.navLabel": "Top menu labels",
+  "fontSettings.webSize.navLabelHelp":
+      "Category labels in the web header navigation",
+  "fontSettings.webSize.featuredTitle": "Featured title",
+  "fontSettings.webSize.featuredTitleHelp":
+      "Main headline in the web home featured slider",
+  "fontSettings.webSize.featuredSummary": "Featured subtitle",
+  "fontSettings.webSize.featuredSummaryHelp":
+      "Description text in the web featured slider",
+  "fontSettings.webSize.cardTitle": "News card title",
+  "fontSettings.webSize.cardTitleHelp": "Headline inside web feed news cards",
+  "fontSettings.webSize.cardSummary": "News card subtitle",
+  "fontSettings.webSize.cardSummaryHelp":
+      "Summary text inside web feed news cards",
+  "fontSettings.webSize.detailTitle": "Detail title",
+  "fontSettings.webSize.detailTitleHelp":
+      "Main headline on the web news detail page",
+  "fontSettings.webSize.detailSummary": "Detail subtitle",
+  "fontSettings.webSize.detailSummaryHelp":
+      "Lead/summary text on the web news detail page",
+  "fontSettings.webSize.detailBody": "Detail body text",
+  "fontSettings.webSize.detailBodyHelp":
+      "Reading text in the web news detail page",
+  "fontSettings.mobileSection.navigation": "Menu",
+  "fontSettings.mobileSection.featured": "Featured Slider",
+  "fontSettings.mobileSection.newsCard": "News Card",
+  "fontSettings.mobileSection.detail": "Detail Page",
+  "fontSettings.mobileSize.navLabel": "Bottom menu labels",
+  "fontSettings.mobileSize.navLabelHelp":
+      "Home, Video, Apps, and Account labels",
+  "fontSettings.mobileSize.featuredTitle": "Featured title",
+  "fontSettings.mobileSize.featuredTitleHelp":
+      "Large headline in the home slider",
+  "fontSettings.mobileSize.featuredSummary": "Featured subtitle",
+  "fontSettings.mobileSize.featuredSummaryHelp":
+      "Short description under the slider headline",
+  "fontSettings.mobileSize.cardTitle": "Card title",
+  "fontSettings.mobileSize.cardTitleHelp":
+      "Main headline inside feed news cards",
+  "fontSettings.mobileSize.cardSummary": "Card subtitle",
+  "fontSettings.mobileSize.cardSummaryHelp":
+      "Summary text under the news card title",
+  "fontSettings.mobileSize.detailTitle": "Detail title",
+  "fontSettings.mobileSize.detailTitleHelp":
+      "Large news headline on the detail screen",
+  "fontSettings.mobileSize.detailSummary": "Detail subtitle",
+  "fontSettings.mobileSize.detailSummaryHelp":
+      "Lead/summary text under the detail headline",
+  "fontSettings.mobileSize.detailBody": "Detail body text",
+  "fontSettings.mobileSize.detailBodyHelp":
+      "Reading text on the mobile detail screen",
   "fontSettings.size.fsBase": "fs-base",
   "fontSettings.size.main": "(main)",
   "fontSettings.size.fsPostTitle": "fs-post-title",
@@ -733,6 +796,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "fontSettings.size.fsTitle4xl": "fs-title-4xl",
   "fontSettings.size.fsTitle5xl": "fs-title-5xl",
   "fontSettings.unitPx": "px",
+  "fontSettings.unitWeight": "w",
   "fontSettings.addFont": "Add Font",
   "fontSettings.table.name": "Name",
   "fontSettings.table.source": "Font Source",

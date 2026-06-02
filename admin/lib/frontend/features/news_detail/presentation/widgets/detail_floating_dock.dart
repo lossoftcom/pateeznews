@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -252,11 +253,10 @@ class _ClosedShareTriggerState extends State<_ClosedShareTrigger> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SizedBox.square(
-                          dimension: 13,
-                          child: CustomPaint(
-                            painter: _ShareIconPainter(color: Colors.white),
-                          ),
+                        const Icon(
+                          Symbols.share_2_line,
+                          color: Colors.white,
+                          size: 14,
                         ),
                         const SizedBox(width: 8),
                         const Text(
@@ -343,7 +343,7 @@ class _CloseMicroButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(
-                  Icons.close_rounded,
+                  Symbols.close_rounded,
                   size: 10,
                   color: AppColors.support,
                 ),
@@ -366,53 +366,6 @@ class _CloseMicroButton extends StatelessWidget {
       ),
     );
   }
-}
-
-/// "PAYLAŞ" tetikleyici butonundaki paylaşım ikonu.
-/// Kutudan diyagonal çıkan ok silüeti — modern "share to external" stili.
-/// Kutunun sağ-üst köşesinde boşluk, oradan diyagonal yukarı-sağ uzanan ok.
-class _ShareIconPainter extends CustomPainter {
-  const _ShareIconPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final stroke = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = s * 0.14
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    // Kutu silüeti — sağ-üst köşede ok için boşluk bırakılır.
-    // Sol-üstten başlar, saat yönünün tersinde: aşağı → sağ → yarı yukarı.
-    // Üst kenar yarısı eksiktir, ok oradan çıkar.
-    final box = Path()
-      ..moveTo(s * 0.52, s * 0.22)
-      ..lineTo(s * 0.22, s * 0.22)
-      ..lineTo(s * 0.22, s * 0.78)
-      ..lineTo(s * 0.78, s * 0.78)
-      ..lineTo(s * 0.78, s * 0.52);
-    canvas.drawPath(box, stroke);
-
-    // Ok şaftı — kutu içinden çıkıp diyagonal yukarı-sağa uzanır.
-    final shaft = Path()
-      ..moveTo(s * 0.46, s * 0.54)
-      ..lineTo(s * 0.86, s * 0.14);
-    canvas.drawPath(shaft, stroke);
-
-    // Ok başı — sağ-üst köşede, "L" şeklinde iki kenar.
-    final head = Path()
-      ..moveTo(s * 0.58, s * 0.14)
-      ..lineTo(s * 0.86, s * 0.14)
-      ..lineTo(s * 0.86, s * 0.42);
-    canvas.drawPath(head, stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _ShareCountHeader extends StatelessWidget {
@@ -511,9 +464,10 @@ class _BrandDotState extends State<_BrandDot> {
               ],
             ),
             alignment: Alignment.center,
-            child: SizedBox.square(
-              dimension: _size * 0.54,
-              child: CustomPaint(painter: _painterFor(widget.brand)),
+            child: Icon(
+              _iconFor(widget.brand),
+              color: _colorFor(widget.brand),
+              size: _size * 0.58,
             ),
           ),
         ),
@@ -534,16 +488,29 @@ class _BrandDotState extends State<_BrandDot> {
     }
   }
 
-  static CustomPainter _painterFor(_Brand b) {
+  static IconData _iconFor(_Brand b) {
     switch (b) {
       case _Brand.instagram:
-        return _InstagramGlyph();
+        return Symbols.instagram_fill;
       case _Brand.facebook:
-        return _FacebookGlyph();
+        return Symbols.facebook_fill;
       case _Brand.x:
-        return _XGlyph();
+        return Symbols.twitter_x_fill;
       case _Brand.whatsapp:
-        return _WhatsAppGlyph();
+        return Symbols.whatsapp_fill;
+    }
+  }
+
+  static Color _colorFor(_Brand b) {
+    switch (b) {
+      case _Brand.instagram:
+        return const Color(0xFFE1306C);
+      case _Brand.facebook:
+        return const Color(0xFF1877F2);
+      case _Brand.x:
+        return const Color(0xFF0F1419);
+      case _Brand.whatsapp:
+        return const Color(0xFF25D366);
     }
   }
 }
@@ -643,12 +610,10 @@ class _PateezDotState extends State<_PateezDot> {
                     child: SizedBox.square(
                       key: ValueKey<bool>(isActive),
                       dimension: 16,
-                      child: CustomPaint(
-                        painter: PateezSocialGlyphPainter(
-                          glyph: widget.glyph,
-                          color: isActive ? Colors.white : accent,
-                          filled: isActive,
-                        ),
+                      child: Icon(
+                        _pateezIconFor(widget.glyph, filled: isActive),
+                        color: isActive ? Colors.white : accent,
+                        size: 16,
                       ),
                     ),
                   ),
@@ -665,6 +630,23 @@ class _PateezDotState extends State<_PateezDot> {
         ),
       ),
     );
+  }
+}
+
+IconData _pateezIconFor(PateezSocialGlyph glyph, {required bool filled}) {
+  switch (glyph) {
+    case PateezSocialGlyph.sparkUp:
+      return filled ? Symbols.thumb_up_fill : Symbols.thumb_up_line;
+    case PateezSocialGlyph.sparkDown:
+      return filled ? Symbols.thumb_down_fill : Symbols.thumb_down_line;
+    case PateezSocialGlyph.conversation:
+      return filled ? Symbols.chat_3_fill : Symbols.chat_3_line;
+    case PateezSocialGlyph.orbitShare:
+      return filled ? Symbols.share_2_fill : Symbols.share_2_line;
+    case PateezSocialGlyph.ribbon:
+      return filled ? Symbols.bookmark_3_fill : Symbols.bookmark_3_line;
+    case PateezSocialGlyph.heart:
+      return filled ? Symbols.heart_3_fill : Symbols.heart_3_line;
   }
 }
 
@@ -706,398 +688,4 @@ class _CountBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// MARKA SİMGELERİ — orjinal logolar, beyaz zeminde marka renginde.
-// ─────────────────────────────────────────────────────────────────────────
-
-/// Resmi Instagram logosu: çok renkli gradient stroke ile kamera silüeti.
-class _InstagramGlyph extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final shader = const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        Color(0xFFFEDA77),
-        Color(0xFFF58529),
-        Color(0xFFDD2A7B),
-        Color(0xFF8134AF),
-        Color(0xFF515BD4),
-      ],
-      stops: [0, 0.25, 0.55, 0.8, 1],
-    ).createShader(Rect.fromLTWH(0, 0, s, s));
-
-    final stroke = Paint()
-      ..shader = shader
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = s * 0.10
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final dot = Paint()..shader = shader;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(s * 0.08, s * 0.08, s * 0.84, s * 0.84),
-        Radius.circular(s * 0.24),
-      ),
-      stroke,
-    );
-    canvas.drawCircle(Offset(s * 0.5, s * 0.5), s * 0.22, stroke);
-    canvas.drawCircle(Offset(s * 0.74, s * 0.26), s * 0.06, dot);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Resmi Facebook logosu: kıvrımlı "f" silüeti, marka mavisinde.
-class _FacebookGlyph extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final fill = Paint()..color = const Color(0xFF1877F2);
-
-    final path = Path()
-      ..moveTo(s * 0.46, s * 0.96)
-      ..lineTo(s * 0.46, s * 0.55)
-      ..lineTo(s * 0.30, s * 0.55)
-      ..lineTo(s * 0.30, s * 0.42)
-      ..lineTo(s * 0.46, s * 0.42)
-      ..lineTo(s * 0.46, s * 0.32)
-      ..cubicTo(s * 0.46, s * 0.12, s * 0.58, s * 0.04, s * 0.78, s * 0.06)
-      ..lineTo(s * 0.78, s * 0.22)
-      ..cubicTo(s * 0.66, s * 0.21, s * 0.62, s * 0.24, s * 0.62, s * 0.34)
-      ..lineTo(s * 0.62, s * 0.42)
-      ..lineTo(s * 0.78, s * 0.42)
-      ..lineTo(s * 0.76, s * 0.55)
-      ..lineTo(s * 0.62, s * 0.55)
-      ..lineTo(s * 0.62, s * 0.96)
-      ..close();
-
-    canvas.drawPath(path, fill);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Resmi X.com logosu — simple-icons 24x24 viewBox SVG path data'sı
-/// birebir Flutter Path'e taşındı.
-///
-/// SVG kaynak:
-///   M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584
-///   -6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932Z
-///   M17.61 20.644h2.039L6.486 3.24H4.298Z
-///
-/// İki subpath + evenOdd fill ile X harfinin iç negatif boşluğu kesiliyor.
-class _XGlyph extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final fill = Paint()..color = const Color(0xFF0F1419);
-
-    double x(double v) => v / 24 * s;
-    double y(double v) => v / 24 * s;
-
-    final path = Path()..fillType = PathFillType.evenOdd;
-
-    // Dış silüet — X harfinin tüm çevresi (12 köşeli polygon).
-    path.moveTo(x(18.901), y(1.153));
-    path.lineTo(x(22.581), y(1.153)); // h3.68
-    path.lineTo(x(14.541), y(10.343)); // l-8.04 9.19
-    path.lineTo(x(24), y(22.846)); // L24 22.846
-    path.lineTo(x(16.594), y(22.846)); // h-7.406
-    path.lineTo(x(10.794), y(15.262)); // l-5.8 -7.584
-    path.lineTo(x(4.156), y(22.846)); // l-6.638 7.584
-    path.lineTo(x(0.474), y(22.846)); // H.474
-    path.lineTo(x(9.074), y(13.016)); // l8.6 -9.83
-    path.lineTo(0, y(1.154)); // L0 1.154
-    path.lineTo(x(7.594), y(1.154)); // h7.594
-    path.lineTo(x(12.837), y(8.086)); // l5.243 6.932
-    path.close();
-
-    // İç ince diyagonal slot — iki çapraz çubuğun "kesişim" hissini veren
-    // negatif boşluk.
-    path.moveTo(x(17.61), y(20.644));
-    path.lineTo(x(19.649), y(20.644)); // h2.039
-    path.lineTo(x(6.486), y(3.24)); // L6.486 3.24
-    path.lineTo(x(4.298), y(3.24)); // H4.298
-    path.close();
-
-    canvas.drawPath(path, fill);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Resmi WhatsApp logosu — simple-icons 24x24 viewBox SVG path data'sı
-/// birebir Flutter Path'e taşındı.
-///
-/// SVG kaynak:
-///   M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67
-///   .15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15
-///   -1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297
-///   -.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298
-///   -.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242
-///   -.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792
-///   .372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074
-///   .149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36
-///   .195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173
-///   -1.413-.074-.124-.272-.198-.57-.347 (handset)
-///   m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335 .157
-///   11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882
-///   0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821
-///   0 0 0 20.465 3.488 (outer bubble silüeti)
-///
-/// İki subpath ayrı renklerle çizilir: yeşil balon + beyaz ahize (üstte).
-class _WhatsAppGlyph extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final green = Paint()..color = const Color(0xFF25D366);
-    final white = Paint()..color = Colors.white;
-
-    double x(double v) => v / 24 * s;
-    double y(double v) => v / 24 * s;
-    Radius r(double v) => Radius.circular(v / 24 * s);
-
-    // ─── Dış balon silüeti (yeşil) ───
-    // Başlangıç noktası: handset bitişinden (~17.472, 14.382) "m 8.413
-    // -18.297" relative move → mutlak (20.463, 3.488). Path'i ayrı çizdiğimiz
-    // için doğrudan moveTo ile başlatıyoruz.
-    final bubble = Path();
-    bubble.moveTo(x(20.463), y(3.488));
-    // A11.815 11.815 0 0 0 12.05 0
-    bubble.arcToPoint(
-      Offset(x(12.05), y(0)),
-      radius: r(11.815),
-      largeArc: false,
-      clockwise: false,
-    );
-    // C5.495 0 .16 5.335 .157 11.892
-    bubble.cubicTo(x(5.495), y(0), x(.16), y(5.335), x(.157), y(11.892));
-    // c0 2.096 .547 4.142 1.588 5.945
-    bubble.relativeCubicTo(0, y(2.096), x(.547), y(4.142), x(1.588), y(5.945));
-    // L.057 24
-    bubble.lineTo(x(.057), y(24));
-    // l6.305 -1.654
-    bubble.relativeLineTo(x(6.305), y(-1.654));
-    // a11.882 11.882 0 0 0 5.683 1.448
-    bubble.relativeArcToPoint(
-      Offset(x(5.683), y(1.448)),
-      radius: r(11.882),
-      largeArc: false,
-      clockwise: false,
-    );
-    // h.005
-    bubble.relativeLineTo(x(.005), 0);
-    // c6.554 0 11.89 -5.335 11.893 -11.893
-    bubble.relativeCubicTo(
-      x(6.554),
-      0,
-      x(11.89),
-      y(-5.335),
-      x(11.893),
-      y(-11.893),
-    );
-    // A11.821 11.821 0 0 0 20.465 3.488
-    bubble.arcToPoint(
-      Offset(x(20.465), y(3.488)),
-      radius: r(11.821),
-      largeArc: false,
-      clockwise: false,
-    );
-    bubble.close();
-    canvas.drawPath(bubble, green);
-
-    // ─── Telefon ahizesi (beyaz, balonun üstüne çizilir) ───
-    // Başlangıç: (17.472, 14.382). Toplam 22 ardışık relative cubic.
-    final handset = Path();
-    handset.moveTo(x(17.472), y(14.382));
-    handset.relativeCubicTo(
-      x(-.297),
-      y(-.149),
-      x(-1.758),
-      y(-.867),
-      x(-2.03),
-      y(-.967),
-    );
-    handset.relativeCubicTo(
-      x(-.273),
-      y(-.099),
-      x(-.471),
-      y(-.148),
-      x(-.67),
-      y(.15),
-    );
-    handset.relativeCubicTo(
-      x(-.197),
-      y(.297),
-      x(-.767),
-      y(.966),
-      x(-.94),
-      y(1.164),
-    );
-    handset.relativeCubicTo(
-      x(-.173),
-      y(.199),
-      x(-.347),
-      y(.223),
-      x(-.644),
-      y(.075),
-    );
-    handset.relativeCubicTo(
-      x(-.297),
-      y(-.15),
-      x(-1.255),
-      y(-.463),
-      x(-2.39),
-      y(-1.475),
-    );
-    handset.relativeCubicTo(
-      x(-.883),
-      y(-.788),
-      x(-1.48),
-      y(-1.761),
-      x(-1.653),
-      y(-2.059),
-    );
-    handset.relativeCubicTo(
-      x(-.173),
-      y(-.297),
-      x(-.018),
-      y(-.458),
-      x(.13),
-      y(-.606),
-    );
-    handset.relativeCubicTo(
-      x(.134),
-      y(-.133),
-      x(.298),
-      y(-.347),
-      x(.446),
-      y(-.52),
-    );
-    handset.relativeCubicTo(
-      x(.149),
-      y(-.174),
-      x(.198),
-      y(-.298),
-      x(.298),
-      y(-.497),
-    );
-    handset.relativeCubicTo(
-      x(.099),
-      y(-.198),
-      x(.05),
-      y(-.371),
-      x(-.025),
-      y(-.52),
-    );
-    handset.relativeCubicTo(
-      x(-.075),
-      y(-.149),
-      x(-.669),
-      y(-1.612),
-      x(-.916),
-      y(-2.207),
-    );
-    handset.relativeCubicTo(
-      x(-.242),
-      y(-.579),
-      x(-.487),
-      y(-.5),
-      x(-.669),
-      y(-.51),
-    );
-    handset.relativeCubicTo(
-      x(-.173),
-      y(-.008),
-      x(-.371),
-      y(-.01),
-      x(-.57),
-      y(-.01),
-    );
-    handset.relativeCubicTo(
-      x(-.198),
-      0,
-      x(-.52),
-      y(.074),
-      x(-.792),
-      y(.372),
-    );
-    handset.relativeCubicTo(
-      x(-.272),
-      y(.297),
-      x(-1.04),
-      y(1.016),
-      x(-1.04),
-      y(2.479),
-    );
-    handset.relativeCubicTo(
-      0,
-      y(1.462),
-      x(1.065),
-      y(2.875),
-      x(1.213),
-      y(3.074),
-    );
-    handset.relativeCubicTo(
-      x(.149),
-      y(.198),
-      x(2.096),
-      y(3.2),
-      x(5.077),
-      y(4.487),
-    );
-    handset.relativeCubicTo(
-      x(.709),
-      y(.306),
-      x(1.262),
-      y(.489),
-      x(1.694),
-      y(.625),
-    );
-    handset.relativeCubicTo(
-      x(.712),
-      y(.227),
-      x(1.36),
-      y(.195),
-      x(1.871),
-      y(.118),
-    );
-    handset.relativeCubicTo(
-      x(.571),
-      y(-.085),
-      x(1.758),
-      y(-.719),
-      x(2.006),
-      y(-1.413),
-    );
-    handset.relativeCubicTo(
-      x(.248),
-      y(-.694),
-      x(.248),
-      y(-1.289),
-      x(.173),
-      y(-1.413),
-    );
-    handset.relativeCubicTo(
-      x(-.074),
-      y(-.124),
-      x(-.272),
-      y(-.198),
-      x(-.57),
-      y(-.347),
-    );
-    handset.close();
-    canvas.drawPath(handset, white);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

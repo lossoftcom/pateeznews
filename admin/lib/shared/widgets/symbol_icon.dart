@@ -9,14 +9,6 @@ class SymbolIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Icon(
-      icon,
-      color: color,
-      size: size,
-      fill: 0,
-      grade: 100,
-      opticalSize: 20,
-      weight: 100,
-    );
+    return Icon(icon, color: color, size: size);
   }
 }

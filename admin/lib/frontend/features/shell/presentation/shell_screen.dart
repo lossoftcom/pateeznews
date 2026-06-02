@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../account/presentation/account_sign_in_screen.dart';
 import '../../home/presentation/home_screen.dart';
 import 'widgets/pateez_bottom_nav.dart';
 import 'widgets/section_placeholder.dart';
@@ -26,23 +28,23 @@ class _ShellScreenState extends State<ShellScreen> {
   static const _items = <PateezNavItem>[
     PateezNavItem(
       label: 'Anasayfa',
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home_rounded,
+      icon: Symbols.home_outlined,
+      activeIcon: Symbols.home_rounded,
     ),
     PateezNavItem(
       label: 'Video',
-      icon: Icons.play_circle_outline_rounded,
-      activeIcon: Icons.play_circle_rounded,
+      icon: Symbols.play_circle_outline_rounded,
+      activeIcon: Symbols.play_circle_rounded,
     ),
     PateezNavItem(
       label: 'Uygulamalar',
-      icon: Icons.grid_view_outlined,
-      activeIcon: Icons.grid_view_rounded,
+      icon: Symbols.grid_view_outlined,
+      activeIcon: Symbols.grid_view_rounded,
     ),
     PateezNavItem(
       label: 'Hesap',
-      icon: Icons.person_outline_rounded,
-      activeIcon: Icons.person_rounded,
+      icon: Symbols.person_outline_rounded,
+      activeIcon: Symbols.person_rounded,
     ),
   ];
 
@@ -59,14 +61,14 @@ class _ShellScreenState extends State<ShellScreen> {
             children: [
               const HomeScreen(),
               const SectionPlaceholder(
-                icon: Icons.play_circle_outline_rounded,
+                icon: Symbols.play_circle_outline_rounded,
                 title: 'Video akışı',
                 message:
                     'Editör seçimi kısa videolar burada yayına alındığında '
                     'sana özel akış hazır olacak.',
               ),
               const SectionPlaceholder(
-                icon: Icons.grid_view_rounded,
+                icon: Symbols.grid_view_rounded,
                 title: 'Pateez uygulamaları',
                 message:
                     'Anketler, testler ve mini araçlar bu bölümde tek '
@@ -74,13 +76,7 @@ class _ShellScreenState extends State<ShellScreen> {
               ),
               _hasOpenedAccount && widget.accountPage != null
                   ? widget.accountPage!
-                  : const SectionPlaceholder(
-                      icon: Icons.person_outline_rounded,
-                      title: 'Hesabın',
-                      message:
-                          'Giriş yaptıktan sonra kaydettiğin haberler, takip '
-                          'ettiğin kategoriler ve tercihlerin burada görünecek.',
-                    ),
+                  : const AccountSignInScreen(),
             ],
           ),
         ),

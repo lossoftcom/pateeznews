@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+
+import '../network/local_api_base_url.dart';
 
 const frontendDefaultFontSizes = <String, int>{
   'fs-base': 15,
@@ -28,6 +29,28 @@ const frontendDefaultFontSizes = <String, int>{
   'fs-title-5xl': 32,
 };
 
+const frontendDefaultMobileFontSizes = <String, int>{
+  'mobile-nav-label': 14,
+  'mobile-featured-title': 28,
+  'mobile-featured-summary': 15,
+  'mobile-card-title': 28,
+  'mobile-card-summary': 15,
+  'mobile-detail-title': 32,
+  'mobile-detail-summary': 18,
+  'mobile-detail-body': 17,
+};
+
+const frontendDefaultMobileFontWeights = <String, int>{
+  'mobile-nav-label': 600,
+  'mobile-featured-title': 800,
+  'mobile-featured-summary': 400,
+  'mobile-card-title': 800,
+  'mobile-card-summary': 400,
+  'mobile-detail-title': 800,
+  'mobile-detail-summary': 500,
+  'mobile-detail-body': 400,
+};
+
 const _bundledFontFamilies = {
   'PateezInter',
   'PateezSans',
@@ -44,6 +67,8 @@ const _bundledFontFamilies = {
   'Roboto',
   'SourceSans3',
   'WorkSans',
+  'Newsreader',
+  'Lexend',
 };
 
 class FrontendFontRow {
@@ -76,15 +101,20 @@ class FrontendFontSettings {
     required this.titleFontFamily,
     required this.contentFontFamily,
     required this.fontSizes,
+    required this.mobileFontSizes,
+    required this.mobileFontWeights,
     required this.fonts,
   });
 
   factory FrontendFontSettings.empty() {
+    final fontSizes = Map<String, int>.of(frontendDefaultFontSizes);
     return FrontendFontSettings(
       primaryFontFamily: 'PateezInter',
       titleFontFamily: 'PateezInter',
       contentFontFamily: 'PateezInter',
-      fontSizes: Map<String, int>.of(frontendDefaultFontSizes),
+      fontSizes: fontSizes,
+      mobileFontSizes: _defaultMobileFontSizesFrom(fontSizes),
+      mobileFontWeights: Map<String, int>.of(frontendDefaultMobileFontWeights),
       fonts: const [],
     );
   }
@@ -93,10 +123,25 @@ class FrontendFontSettings {
   final String titleFontFamily;
   final String contentFontFamily;
   final Map<String, int> fontSizes;
+  final Map<String, int> mobileFontSizes;
+  final Map<String, int> mobileFontWeights;
   final List<FrontendFontRow> fonts;
 
   double size(String key) {
     return (fontSizes[key] ?? frontendDefaultFontSizes[key] ?? 15).toDouble();
+  }
+
+  double mobileSize(String key) {
+    return (mobileFontSizes[key] ??
+            frontendDefaultMobileFontSizes[key] ??
+            size(key))
+        .toDouble();
+  }
+
+  int mobileWeightValue(String key) {
+    return mobileFontWeights[key] ??
+        frontendDefaultMobileFontWeights[key] ??
+        400;
   }
 }
 
@@ -133,20 +178,26 @@ class FrontendFontSettingsRepository {
       if (settings is! Map) {
         return FrontendFontSettings.empty();
       }
+      final fontSizes = _fontSizeMap(settings['fontSizes']);
       final result = FrontendFontSettings(
         primaryFontFamily: _safeFamily(
-          settings['primaryFont'],
+          settings['mobilePrimaryFont'] ?? settings['primaryFont'],
           fallback: 'PateezInter',
         ),
         titleFontFamily: _safeFamily(
-          settings['titleFont'],
+          settings['mobileTitleFont'] ?? settings['titleFont'],
           fallback: 'PateezInter',
         ),
         contentFontFamily: _safeFamily(
-          settings['contentFont'],
+          settings['mobileContentFont'] ?? settings['contentFont'],
           fallback: 'PateezInter',
         ),
-        fontSizes: _fontSizeMap(settings['fontSizes']),
+        fontSizes: fontSizes,
+        mobileFontSizes: _mobileFontSizeMap(
+          settings['mobileFontSizes'],
+          fontSizes,
+        ),
+        mobileFontWeights: _mobileFontWeightMap(settings['mobileFontWeights']),
         fonts: fonts,
       );
       await _loadNetworkFonts(result);
@@ -202,17 +253,7 @@ class FrontendFontSettingsRepository {
   }
 
   Uri _uri(String path) {
-    final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty) return Uri.parse(baseUrl).resolve(path);
-    if (!kIsWeb) return _defaultLocalApiBaseUrl().resolve(path);
-    return Uri.base.resolve(path);
-  }
-
-  Uri _defaultLocalApiBaseUrl() {
-    return switch (defaultTargetPlatform) {
-      TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-      _ => Uri.parse('http://localhost:4321'),
-    };
+    return frontendApiUri(path, configuredBaseUrl: apiBaseUrl ?? _apiBaseUrl);
   }
 }
 
@@ -235,6 +276,78 @@ Map<String, int> _fontSizeMap(Object? value) {
     }
   }
   return result;
+}
+
+Map<String, int> _mobileFontSizeMap(Object? value, Map<String, int> webSizes) {
+  final result = _defaultMobileFontSizesFrom(webSizes);
+  Map<dynamic, dynamic>? source;
+  if (value is Map) {
+    source = value;
+  } else if (value is String && value.trim().isNotEmpty) {
+    final decoded = jsonDecode(value);
+    if (decoded is Map) source = decoded;
+  }
+  if (source == null) return result;
+  for (final entry in source.entries) {
+    final key = entry.key.toString();
+    if (!frontendDefaultMobileFontSizes.containsKey(key)) continue;
+    final numeric = int.tryParse(entry.value?.toString() ?? '');
+    if (numeric != null) {
+      result[key] = numeric.clamp(8, 96);
+    }
+  }
+  return result;
+}
+
+Map<String, int> _mobileFontWeightMap(Object? value) {
+  final result = Map<String, int>.of(frontendDefaultMobileFontWeights);
+  Map<dynamic, dynamic>? source;
+  if (value is Map) {
+    source = value;
+  } else if (value is String && value.trim().isNotEmpty) {
+    final decoded = jsonDecode(value);
+    if (decoded is Map) source = decoded;
+  }
+  if (source == null) return result;
+  for (final entry in source.entries) {
+    final key = entry.key.toString();
+    if (!frontendDefaultMobileFontWeights.containsKey(key)) continue;
+    final numeric = int.tryParse(entry.value?.toString() ?? '');
+    if (numeric != null) {
+      final clamped = numeric.clamp(100, 900);
+      result[key] = ((clamped / 100).round() * 100).clamp(100, 900);
+    }
+  }
+  return result;
+}
+
+Map<String, int> _defaultMobileFontSizesFrom(Map<String, int> webSizes) {
+  return {
+    'mobile-nav-label':
+        webSizes['fs-main-nav'] ??
+        frontendDefaultMobileFontSizes['mobile-nav-label']!,
+    'mobile-featured-title':
+        webSizes['fs-title-3xl'] ??
+        frontendDefaultMobileFontSizes['mobile-featured-title']!,
+    'mobile-featured-summary':
+        webSizes['fs-md'] ??
+        frontendDefaultMobileFontSizes['mobile-featured-summary']!,
+    'mobile-card-title':
+        webSizes['fs-title-3xl'] ??
+        frontendDefaultMobileFontSizes['mobile-card-title']!,
+    'mobile-card-summary':
+        webSizes['fs-md'] ??
+        frontendDefaultMobileFontSizes['mobile-card-summary']!,
+    'mobile-detail-title':
+        webSizes['fs-post-title'] ??
+        frontendDefaultMobileFontSizes['mobile-detail-title']!,
+    'mobile-detail-summary':
+        webSizes['fs-post-summary'] ??
+        frontendDefaultMobileFontSizes['mobile-detail-summary']!,
+    'mobile-detail-body':
+        webSizes['fs-content'] ??
+        frontendDefaultMobileFontSizes['mobile-detail-body']!,
+  };
 }
 
 Map<String, String> _stringMap(Object? value) {

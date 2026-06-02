@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -130,7 +131,7 @@ class _CommentsHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 2),
                   const Icon(
-                    Icons.keyboard_arrow_down_rounded,
+                    Symbols.keyboard_arrow_down_rounded,
                     size: 16,
                     color: AppColors.deepOcean,
                   ),
@@ -305,7 +306,7 @@ class _SendButton extends StatelessWidget {
           width: 34,
           height: 34,
           alignment: Alignment.center,
-          child: Icon(Icons.send_rounded, size: 16, color: fg),
+          child: Icon(Symbols.send_rounded, size: 16, color: fg),
         ),
       ),
     );
@@ -401,8 +402,8 @@ class _CommentTileState extends State<_CommentTile> {
                 children: [
                   _MicroAction(
                     icon: _liked
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_outline_rounded,
+                        ? Symbols.favorite_rounded
+                        : Symbols.favorite_outline_rounded,
                     color: _liked ? AppColors.actionRed : AppColors.support,
                     label: CountFormat.compact(_likes),
                     bold: _liked,
@@ -410,14 +411,14 @@ class _CommentTileState extends State<_CommentTile> {
                   ),
                   const SizedBox(width: 16),
                   _MicroAction(
-                    icon: Icons.reply_rounded,
+                    icon: Symbols.reply_rounded,
                     color: AppColors.inkSoft,
                     label: 'Yanıtla',
                     onTap: () {},
                   ),
                   const Spacer(),
                   _MicroAction(
-                    icon: Icons.flag_outlined,
+                    icon: Symbols.flag_outlined,
                     color: AppColors.support,
                     label: '',
                     onTap: () {},
@@ -609,7 +610,7 @@ class _SeeAllCta extends StatelessWidget {
           child: Row(
             children: [
               const Icon(
-                Icons.forum_outlined,
+                Symbols.forum_outlined,
                 size: 16,
                 color: AppColors.deepOcean,
               ),
@@ -626,7 +627,7 @@ class _SeeAllCta extends StatelessWidget {
                 ),
               ),
               const Icon(
-                Icons.arrow_forward_rounded,
+                Symbols.arrow_forward_rounded,
                 size: 16,
                 color: AppColors.deepOcean,
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -124,7 +125,7 @@ class _PrimaryShareCtaState extends State<_PrimaryShareCta> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(
-                Icons.ios_share_rounded,
+                Symbols.ios_share_rounded,
                 size: 17,
                 color: Colors.white,
               ),

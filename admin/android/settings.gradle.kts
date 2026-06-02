@@ -23,4 +23,23 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }
 
+val builtInKotlinPluginBuildFiles =
+    mapOf(
+        "file_selector_android" to "flutter_plugin_build_shims/file_selector_android.gradle.kts",
+        "pro_image_editor" to "flutter_plugin_build_shims/pro_image_editor.gradle",
+        "quill_native_bridge_android" to "flutter_plugin_build_shims/quill_native_bridge_android.gradle",
+        "shared_preferences_android" to "flutter_plugin_build_shims/shared_preferences_android.gradle.kts",
+        "url_launcher_android" to "flutter_plugin_build_shims/url_launcher_android.gradle.kts",
+        "webview_flutter_android" to "flutter_plugin_build_shims/webview_flutter_android.gradle.kts",
+    )
+
+builtInKotlinPluginBuildFiles.forEach { (pluginName, buildFilePath) ->
+    val pluginProject = findProject(":$pluginName") ?: return@forEach
+    pluginProject.buildFileName =
+        pluginProject.projectDir
+            .toPath()
+            .relativize(file(buildFilePath).toPath())
+            .toString()
+}
+
 include(":app")

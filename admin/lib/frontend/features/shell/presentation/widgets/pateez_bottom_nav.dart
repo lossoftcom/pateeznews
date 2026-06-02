@@ -91,18 +91,9 @@ class _NavCell extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeOutCubic,
-                  width: isActive ? 46 : 32,
+                SizedBox(
+                  width: 32,
                   height: 28,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? AppColors.deepOcean.withValues(alpha: 0.08)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 220),
                     transitionBuilder: (child, anim) => ScaleTransition(
@@ -112,7 +103,7 @@ class _NavCell extends StatelessWidget {
                     child: Icon(
                       isActive ? item.activeIcon : item.icon,
                       key: ValueKey<bool>(isActive),
-                      size: 22,
+                      size: isActive ? 23 : 22,
                       color: color,
                     ),
                   ),
@@ -120,11 +111,7 @@ class _NavCell extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   item.label,
-                  style: AppTypography.navLabel.copyWith(
-                    color: color,
-                    fontWeight:
-                        isActive ? FontWeight.w700 : FontWeight.w500,
-                  ),
+                  style: AppTypography.mobileMenuLabel.copyWith(color: color),
                 ),
               ],
             ),

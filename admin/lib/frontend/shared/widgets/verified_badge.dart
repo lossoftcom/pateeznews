@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../core/theme/app_colors.dart';
 
@@ -21,11 +22,7 @@ class VerifiedBadge extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       alignment: Alignment.center,
-      child: Icon(
-        Icons.check_rounded,
-        size: size * 0.7,
-        color: Colors.white,
-      ),
+      child: Icon(Symbols.check_rounded, size: size * 0.7, color: Colors.white),
     );
   }
 }

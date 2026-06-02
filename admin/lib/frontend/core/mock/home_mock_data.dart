@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Ana sayfa için sade mock veri katmanı.
 ///
@@ -253,63 +254,63 @@ class HomeMockData {
     StoryHighlight(
       id: 'live',
       label: 'Canlı',
-      icon: Icons.podcasts_rounded,
+      icon: Symbols.podcasts_rounded,
       isLive: true,
       isUnviewed: true,
     ),
     StoryHighlight(
       id: 'agenda',
       label: 'Gündem',
-      icon: Icons.bolt_rounded,
+      icon: Symbols.bolt_rounded,
       isLive: false,
       isUnviewed: true,
     ),
     StoryHighlight(
       id: 'sport',
       label: 'Spor',
-      icon: Icons.sports_soccer_rounded,
+      icon: Symbols.sports_soccer_rounded,
       isLive: false,
       isUnviewed: true,
     ),
     StoryHighlight(
       id: 'economy',
       label: 'Ekonomi',
-      icon: Icons.trending_up_rounded,
+      icon: Symbols.trending_up_rounded,
       isLive: false,
       isUnviewed: true,
     ),
     StoryHighlight(
       id: 'tech',
       label: 'Teknoloji',
-      icon: Icons.memory_rounded,
+      icon: Symbols.memory_rounded,
       isLive: false,
       isUnviewed: false,
     ),
     StoryHighlight(
       id: 'culture',
       label: 'Kültür',
-      icon: Icons.theater_comedy_rounded,
+      icon: Symbols.theater_comedy_rounded,
       isLive: false,
       isUnviewed: false,
     ),
     StoryHighlight(
       id: 'health',
       label: 'Sağlık',
-      icon: Icons.favorite_rounded,
+      icon: Symbols.favorite_rounded,
       isLive: false,
       isUnviewed: false,
     ),
     StoryHighlight(
       id: 'world',
       label: 'Dünya',
-      icon: Icons.public_rounded,
+      icon: Symbols.public_rounded,
       isLive: false,
       isUnviewed: false,
     ),
     StoryHighlight(
       id: 'science',
       label: 'Bilim',
-      icon: Icons.science_rounded,
+      icon: Symbols.science_rounded,
       isLive: false,
       isUnviewed: false,
     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -76,11 +77,16 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.hasBoundedWidth
+        final mediaWidth = MediaQuery.sizeOf(context).width;
+        final constrainedWidth = constraints.hasBoundedWidth
             ? constraints.maxWidth
-            : MediaQuery.sizeOf(context).width;
+            : mediaWidth;
+        final width = _resolveFiniteWidth(constrainedWidth, mediaWidth);
         final imageHeight = width / _imageAspectRatio;
-        final contentWidth = width - (AppSpacing.pageHorizontal * 2);
+        final contentWidth = _resolveFiniteWidth(
+          width - (AppSpacing.pageHorizontal * 2),
+          mediaWidth - (AppSpacing.pageHorizontal * 2),
+        );
         final textScaler = MediaQuery.textScalerOf(context);
         final contentPanelHeight = _resolveContentPanelHeight(
           item: active,
@@ -283,7 +289,7 @@ class _ActiveContent extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
-              Icons.schedule_rounded,
+              Symbols.schedule_rounded,
               size: _FeaturedSliderState._metaIconSize,
               color: AppColors.inkSoft.withValues(alpha: 0.85),
             ),
@@ -316,15 +322,14 @@ String _formatFeaturedCategory(String category) {
   return _toTurkishUpper(lower.substring(0, 1)) + lower.substring(1);
 }
 
-TextStyle get _featuredTitleStyle => AppTypography.display.copyWith(
+TextStyle get _featuredTitleStyle => AppTypography.mobileFeaturedTitle.copyWith(
   color: AppColors.inkStrong,
-  fontWeight: FontWeight.w800,
   letterSpacing: 0,
   height: 1.08,
 );
 
-TextStyle get _featuredSummaryStyle =>
-    AppTypography.body.copyWith(color: AppColors.ink, height: 1.42);
+TextStyle get _featuredSummaryStyle => AppTypography.mobileFeaturedSummary
+    .copyWith(color: AppColors.ink, height: 1.42);
 
 TextStyle get _featuredTimeStyle => AppTypography.meta.copyWith(
   color: AppColors.inkSoft,
@@ -363,13 +368,20 @@ double _measureTextHeight(
   required TextScaler textScaler,
   int? maxLines,
 }) {
+  final textMaxWidth = maxWidth.isFinite && maxWidth > 0 ? maxWidth : 1.0;
   final painter = TextPainter(
     text: TextSpan(text: text, style: style),
     maxLines: maxLines,
     textScaler: textScaler,
     textDirection: TextDirection.ltr,
-  )..layout(maxWidth: maxWidth);
+  )..layout(maxWidth: textMaxWidth);
   return painter.height;
+}
+
+double _resolveFiniteWidth(double preferred, double fallback) {
+  if (preferred.isFinite && preferred > 0) return preferred;
+  if (fallback.isFinite && fallback > 0) return fallback;
+  return 1.0;
 }
 
 String _toTurkishLower(String value) {

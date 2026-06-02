@@ -30,6 +30,7 @@ class FontSettingsScreen extends StatefulWidget {
 
 class _FontSettingsScreenState extends State<FontSettingsScreen> {
   late final Map<String, TextEditingController> _sizeControllers;
+  late final Map<String, TextEditingController> _weightControllers;
   late final TextEditingController _searchController;
 
   var _initialized = false;
@@ -41,11 +42,18 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
   var _primaryFont = 'PateezInter';
   var _secondaryFont = 'PateezInter';
   var _contentFont = 'PateezInter';
+  var _mobilePrimaryFont = 'PateezInter';
+  var _mobileSecondaryFont = 'PateezInter';
+  var _mobileContentFont = 'PateezInter';
   var _pageSize = 25;
   var _page = 1;
   var _searchQuery = '';
   var _sortState = const TableSortState(key: 'id', ascending: false);
+  var _activeTarget = _FontSettingsTarget.web;
   var _expandedSection = _FontSizeSection.layoutSpecial;
+  var _expandedMobileSection = _MobileFontSizeSection.featured;
+  var _expandedWeightSection = _FontSizeSection.layoutSpecial;
+  var _expandedMobileWeightSection = _MobileFontSizeSection.featured;
   var _fonts = fallbackSiteFonts;
   String? _error;
 
@@ -55,6 +63,14 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
     _sizeControllers = {
       for (final item in _FontSizeItem.all)
         item.key: TextEditingController(text: item.initialValue),
+      for (final item in _MobileFontSizeItem.all)
+        item.key: TextEditingController(text: item.initialValue),
+    };
+    _weightControllers = {
+      for (final item in _FontSizeItem.all)
+        item.key: TextEditingController(text: item.initialWeight),
+      for (final item in _MobileFontSizeItem.all)
+        item.key: TextEditingController(text: item.initialWeight),
     };
     _searchController = TextEditingController();
   }
@@ -63,6 +79,9 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
   void dispose() {
     _searchController.dispose();
     for (final controller in _sizeControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _weightControllers.values) {
       controller.dispose();
     }
     super.dispose();
@@ -114,10 +133,24 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
     _primaryFont = settings.primaryFont;
     _secondaryFont = settings.titleFont;
     _contentFont = settings.contentFont;
+    _mobilePrimaryFont = settings.mobilePrimaryFont;
+    _mobileSecondaryFont = settings.mobileTitleFont;
+    _mobileContentFont = settings.mobileContentFont;
     for (final item in _FontSizeItem.all) {
       final value =
           settings.fontSizes[item.key] ?? int.parse(item.initialValue);
       _sizeControllers[item.key]?.text = value.toString();
+      final weight =
+          settings.fontWeights[item.key] ?? int.parse(item.initialWeight);
+      _weightControllers[item.key]?.text = weight.toString();
+    }
+    for (final item in _MobileFontSizeItem.all) {
+      final value =
+          settings.mobileFontSizes[item.key] ?? int.parse(item.initialValue);
+      _sizeControllers[item.key]?.text = value.toString();
+      final weight =
+          settings.mobileFontWeights[item.key] ?? int.parse(item.initialWeight);
+      _weightControllers[item.key]?.text = weight.toString();
     }
   }
 
@@ -127,11 +160,32 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
       primaryFont: _primaryFont,
       titleFont: _secondaryFont,
       contentFont: _contentFont,
+      mobilePrimaryFont: _mobilePrimaryFont,
+      mobileTitleFont: _mobileSecondaryFont,
+      mobileContentFont: _mobileContentFont,
       fontSizes: {
         for (final item in _FontSizeItem.all)
           item.key:
               int.tryParse(_sizeControllers[item.key]?.text.trim() ?? '') ??
               int.parse(item.initialValue),
+      },
+      mobileFontSizes: {
+        for (final item in _MobileFontSizeItem.all)
+          item.key:
+              int.tryParse(_sizeControllers[item.key]?.text.trim() ?? '') ??
+              int.parse(item.initialValue),
+      },
+      fontWeights: {
+        for (final item in _FontSizeItem.all)
+          item.key:
+              int.tryParse(_weightControllers[item.key]?.text.trim() ?? '') ??
+              int.parse(item.initialWeight),
+      },
+      mobileFontWeights: {
+        for (final item in _MobileFontSizeItem.all)
+          item.key:
+              int.tryParse(_weightControllers[item.key]?.text.trim() ?? '') ??
+              int.parse(item.initialWeight),
       },
     );
   }
@@ -269,7 +323,7 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
         final contentWidth = constraints.maxWidth - (horizontalPadding * 2);
         final stacked = contentWidth < 980;
-        final leftColumnWidth = contentWidth < 1280 ? 304.0 : 320.0;
+        final leftColumnWidth = contentWidth < 1280 ? 360.0 : 400.0;
         final columnGap = contentWidth < 1280 ? 22.0 : 28.0;
         final filteredFonts = _filteredFonts;
         final pageCount = filteredFonts.isEmpty
@@ -286,6 +340,9 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
           _primaryFont,
           _secondaryFont,
           _contentFont,
+          _mobilePrimaryFont,
+          _mobileSecondaryFont,
+          _mobileContentFont,
         ]);
         final canEdit = !_loading && !_saving && !_adding && !_editing;
 
@@ -327,12 +384,23 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                               primaryFont: _primaryFont,
                               secondaryFont: _secondaryFont,
                               contentFont: _contentFont,
+                              mobilePrimaryFont: _mobilePrimaryFont,
+                              mobileSecondaryFont: _mobileSecondaryFont,
+                              mobileContentFont: _mobileContentFont,
                               languages: languageController.availableLanguages,
                               fontOptions: fontOptions,
                               enabled: canEdit,
                               saving: _saving,
+                              activeTarget: _activeTarget,
                               expandedSection: _expandedSection,
+                              expandedMobileSection: _expandedMobileSection,
+                              expandedWeightSection: _expandedWeightSection,
+                              expandedMobileWeightSection:
+                                  _expandedMobileWeightSection,
                               sizeControllers: _sizeControllers,
+                              weightControllers: _weightControllers,
+                              onTargetChanged: (target) =>
+                                  setState(() => _activeTarget = target),
                               onLanguageChanged: (value) {
                                 if (value == null) return;
                                 unawaited(_loadSettings(value));
@@ -349,8 +417,31 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                                 if (value == null) return;
                                 setState(() => _contentFont = value);
                               },
+                              onMobilePrimaryFontChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _mobilePrimaryFont = value);
+                              },
+                              onMobileSecondaryFontChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _mobileSecondaryFont = value);
+                              },
+                              onMobileContentFontChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _mobileContentFont = value);
+                              },
                               onSectionChanged: (section) =>
                                   setState(() => _expandedSection = section),
+                              onMobileSectionChanged: (section) => setState(
+                                () => _expandedMobileSection = section,
+                              ),
+                              onWeightSectionChanged: (section) => setState(
+                                () => _expandedWeightSection = section,
+                              ),
+                              onMobileWeightSectionChanged: (section) =>
+                                  setState(
+                                    () =>
+                                        _expandedMobileWeightSection = section,
+                                  ),
                               onSave: () => unawaited(_saveSettings()),
                             ),
                             const SizedBox(height: 18),
@@ -387,13 +478,24 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                                 primaryFont: _primaryFont,
                                 secondaryFont: _secondaryFont,
                                 contentFont: _contentFont,
+                                mobilePrimaryFont: _mobilePrimaryFont,
+                                mobileSecondaryFont: _mobileSecondaryFont,
+                                mobileContentFont: _mobileContentFont,
                                 languages:
                                     languageController.availableLanguages,
                                 fontOptions: fontOptions,
                                 enabled: canEdit,
                                 saving: _saving,
+                                activeTarget: _activeTarget,
                                 expandedSection: _expandedSection,
+                                expandedMobileSection: _expandedMobileSection,
+                                expandedWeightSection: _expandedWeightSection,
+                                expandedMobileWeightSection:
+                                    _expandedMobileWeightSection,
                                 sizeControllers: _sizeControllers,
+                                weightControllers: _weightControllers,
+                                onTargetChanged: (target) =>
+                                    setState(() => _activeTarget = target),
                                 onLanguageChanged: (value) {
                                   if (value == null) return;
                                   unawaited(_loadSettings(value));
@@ -410,8 +512,31 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
                                   if (value == null) return;
                                   setState(() => _contentFont = value);
                                 },
+                                onMobilePrimaryFontChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() => _mobilePrimaryFont = value);
+                                },
+                                onMobileSecondaryFontChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() => _mobileSecondaryFont = value);
+                                },
+                                onMobileContentFontChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() => _mobileContentFont = value);
+                                },
                                 onSectionChanged: (section) =>
                                     setState(() => _expandedSection = section),
+                                onMobileSectionChanged: (section) => setState(
+                                  () => _expandedMobileSection = section,
+                                ),
+                                onWeightSectionChanged: (section) => setState(
+                                  () => _expandedWeightSection = section,
+                                ),
+                                onMobileWeightSectionChanged: (section) =>
+                                    setState(
+                                      () => _expandedMobileWeightSection =
+                                          section,
+                                    ),
                                 onSave: () => unawaited(_saveSettings()),
                               ),
                             ),
@@ -452,17 +577,32 @@ class _LeftFontSettingsColumn extends StatelessWidget {
     required this.primaryFont,
     required this.secondaryFont,
     required this.contentFont,
+    required this.mobilePrimaryFont,
+    required this.mobileSecondaryFont,
+    required this.mobileContentFont,
     required this.languages,
     required this.fontOptions,
     required this.enabled,
     required this.saving,
+    required this.activeTarget,
     required this.expandedSection,
+    required this.expandedMobileSection,
+    required this.expandedWeightSection,
+    required this.expandedMobileWeightSection,
     required this.sizeControllers,
+    required this.weightControllers,
+    required this.onTargetChanged,
     required this.onLanguageChanged,
     required this.onPrimaryFontChanged,
     required this.onSecondaryFontChanged,
     required this.onContentFontChanged,
+    required this.onMobilePrimaryFontChanged,
+    required this.onMobileSecondaryFontChanged,
+    required this.onMobileContentFontChanged,
     required this.onSectionChanged,
+    required this.onMobileSectionChanged,
+    required this.onWeightSectionChanged,
+    required this.onMobileWeightSectionChanged,
     required this.onSave,
   });
 
@@ -470,17 +610,32 @@ class _LeftFontSettingsColumn extends StatelessWidget {
   final String primaryFont;
   final String secondaryFont;
   final String contentFont;
+  final String mobilePrimaryFont;
+  final String mobileSecondaryFont;
+  final String mobileContentFont;
   final List<AdminLanguage> languages;
   final List<_SelectOption> fontOptions;
   final bool enabled;
   final bool saving;
+  final _FontSettingsTarget activeTarget;
   final _FontSizeSection expandedSection;
+  final _MobileFontSizeSection expandedMobileSection;
+  final _FontSizeSection expandedWeightSection;
+  final _MobileFontSizeSection expandedMobileWeightSection;
   final Map<String, TextEditingController> sizeControllers;
+  final Map<String, TextEditingController> weightControllers;
+  final ValueChanged<_FontSettingsTarget> onTargetChanged;
   final ValueChanged<String?> onLanguageChanged;
   final ValueChanged<String?> onPrimaryFontChanged;
   final ValueChanged<String?> onSecondaryFontChanged;
   final ValueChanged<String?> onContentFontChanged;
+  final ValueChanged<String?> onMobilePrimaryFontChanged;
+  final ValueChanged<String?> onMobileSecondaryFontChanged;
+  final ValueChanged<String?> onMobileContentFontChanged;
   final ValueChanged<_FontSizeSection> onSectionChanged;
+  final ValueChanged<_MobileFontSizeSection> onMobileSectionChanged;
+  final ValueChanged<_FontSizeSection> onWeightSectionChanged;
+  final ValueChanged<_MobileFontSizeSection> onMobileWeightSectionChanged;
   final VoidCallback onSave;
 
   @override
@@ -488,6 +643,12 @@ class _LeftFontSettingsColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _FontTargetSwitch(
+          value: activeTarget,
+          enabled: enabled,
+          onChanged: onTargetChanged,
+        ),
+        const SizedBox(height: 18),
         _SettingsCard(
           title: 'fontSettings.siteFont.title',
           child: Column(
@@ -501,40 +662,61 @@ class _LeftFontSettingsColumn extends StatelessWidget {
                 enabled: enabled,
               ),
               const SizedBox(height: 18),
-              _SelectField(
-                label: 'fontSettings.siteFont.primary',
-                value: primaryFont,
-                options: fontOptions,
-                onChanged: onPrimaryFontChanged,
-                requiredField: true,
-                enabled: enabled,
-              ),
-              const SizedBox(height: 18),
-              _SelectField(
-                label: 'fontSettings.siteFont.secondary',
-                value: secondaryFont,
-                options: fontOptions,
-                onChanged: onSecondaryFontChanged,
-                requiredField: true,
-                enabled: enabled,
-              ),
-              const SizedBox(height: 18),
-              _SelectField(
-                label: 'fontSettings.siteFont.content',
-                value: contentFont,
-                options: fontOptions,
-                onChanged: onContentFontChanged,
-                requiredField: true,
-                enabled: enabled,
-              ),
-              const SizedBox(height: 22),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _SaveButton(
-                  onPressed: enabled ? onSave : null,
-                  busy: saving,
+              if (activeTarget == _FontSettingsTarget.web) ...[
+                _SelectField(
+                  label: 'fontSettings.siteFont.webPrimary',
+                  value: primaryFont,
+                  options: fontOptions,
+                  onChanged: onPrimaryFontChanged,
+                  requiredField: true,
+                  enabled: enabled,
                 ),
-              ),
+                const SizedBox(height: 18),
+                _SelectField(
+                  label: 'fontSettings.siteFont.webTitle',
+                  value: secondaryFont,
+                  options: fontOptions,
+                  onChanged: onSecondaryFontChanged,
+                  requiredField: true,
+                  enabled: enabled,
+                ),
+                const SizedBox(height: 18),
+                _SelectField(
+                  label: 'fontSettings.siteFont.webContent',
+                  value: contentFont,
+                  options: fontOptions,
+                  onChanged: onContentFontChanged,
+                  requiredField: true,
+                  enabled: enabled,
+                ),
+              ] else ...[
+                _SelectField(
+                  label: 'fontSettings.siteFont.mobilePrimary',
+                  value: mobilePrimaryFont,
+                  options: fontOptions,
+                  onChanged: onMobilePrimaryFontChanged,
+                  requiredField: true,
+                  enabled: enabled,
+                ),
+                const SizedBox(height: 18),
+                _SelectField(
+                  label: 'fontSettings.siteFont.mobileTitle',
+                  value: mobileSecondaryFont,
+                  options: fontOptions,
+                  onChanged: onMobileSecondaryFontChanged,
+                  requiredField: true,
+                  enabled: enabled,
+                ),
+                const SizedBox(height: 18),
+                _SelectField(
+                  label: 'fontSettings.siteFont.mobileContent',
+                  value: mobileContentFont,
+                  options: fontOptions,
+                  onChanged: onMobileContentFontChanged,
+                  requiredField: true,
+                  enabled: enabled,
+                ),
+              ],
             ],
           ),
         ),
@@ -544,24 +726,58 @@ class _LeftFontSettingsColumn extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final section in _FontSizeSection.values)
-                _FontSizePanel(
-                  section: section,
-                  expanded: expandedSection == section,
-                  controllers: sizeControllers,
-                  enabled: enabled,
-                  onToggle: () => onSectionChanged(section),
-                ),
-              const SizedBox(height: 22),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _SaveButton(
-                  onPressed: enabled ? onSave : null,
-                  busy: saving,
-                ),
-              ),
+              if (activeTarget == _FontSettingsTarget.web)
+                for (final section in _FontSizeSection.values)
+                  _FontSizePanel(
+                    section: section,
+                    expanded: expandedSection == section,
+                    controllers: sizeControllers,
+                    enabled: enabled,
+                    onToggle: () => onSectionChanged(section),
+                  )
+              else
+                for (final section in _MobileFontSizeSection.values)
+                  _MobileFontSizePanel(
+                    section: section,
+                    expanded: expandedMobileSection == section,
+                    controllers: sizeControllers,
+                    enabled: enabled,
+                    onToggle: () => onMobileSectionChanged(section),
+                  ),
             ],
           ),
+        ),
+        const SizedBox(height: 18),
+        _SettingsCard(
+          title: 'fontSettings.fontWeight.title',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (activeTarget == _FontSettingsTarget.web)
+                for (final section in _FontSizeSection.values)
+                  _FontWeightPanel(
+                    section: section,
+                    expanded: expandedWeightSection == section,
+                    controllers: weightControllers,
+                    enabled: enabled,
+                    onToggle: () => onWeightSectionChanged(section),
+                  )
+              else
+                for (final section in _MobileFontSizeSection.values)
+                  _MobileFontWeightPanel(
+                    section: section,
+                    expanded: expandedMobileWeightSection == section,
+                    controllers: weightControllers,
+                    enabled: enabled,
+                    onToggle: () => onMobileWeightSectionChanged(section),
+                  ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _SaveButton(onPressed: enabled ? onSave : null, busy: saving),
         ),
       ],
     );
@@ -845,6 +1061,12 @@ class _SaveButton extends StatelessWidget {
                 letterSpacing: 0,
               ),
             ).copyWith(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                return AppColors.actionRed.withValues(
+                  alpha: states.contains(WidgetState.disabled) ? 0.72 : 1,
+                );
+              }),
+              foregroundColor: const WidgetStatePropertyAll(Colors.white),
               mouseCursor: const WidgetStatePropertyAll(
                 SystemMouseCursors.click,
               ),
@@ -875,6 +1097,98 @@ class _SaveButton extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _FontSettingsTarget {
+  web('fontSettings.target.web'),
+  mobile('fontSettings.target.mobile');
+
+  const _FontSettingsTarget(this.labelKey);
+
+  final String labelKey;
+}
+
+class _FontTargetSwitch extends StatelessWidget {
+  const _FontTargetSwitch({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final _FontSettingsTarget value;
+  final bool enabled;
+  final ValueChanged<_FontSettingsTarget> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          for (final target in _FontSettingsTarget.values)
+            Expanded(
+              child: _FontTargetButton(
+                target: target,
+                selected: value == target,
+                enabled: enabled,
+                onTap: () => onChanged(target),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontTargetButton extends StatelessWidget {
+  const _FontTargetButton({
+    required this.target,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final _FontSettingsTarget target;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected ? Colors.white : AppColors.deepOcean;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.deepOcean : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.value - 1),
+          ),
+          child: Text(
+            context.t(target.labelKey),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
         ),
       ),
     );
@@ -977,6 +1291,266 @@ class _FontSizePanel extends StatelessWidget {
   }
 }
 
+class _MobileFontSizePanel extends StatelessWidget {
+  const _MobileFontSizePanel({
+    required this.section,
+    required this.expanded,
+    required this.controllers,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  final _MobileFontSizeSection section;
+  final bool expanded;
+  final Map<String, TextEditingController> controllers;
+  final bool enabled;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: AppColors.softLine),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deepOcean.withValues(alpha: 0.025),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            MouseRegion(
+              cursor: enabled
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: enabled ? onToggle : null,
+                child: SizedBox(
+                  height: 54,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.t(section.labelKey),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color:
+                                      section == _MobileFontSizeSection.featured
+                                      ? AppColors.actionRed
+                                      : AppColors.deepOcean,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0,
+                                ),
+                          ),
+                        ),
+                        SymbolIcon(
+                          Symbols.keyboard_arrow_down,
+                          color: expanded
+                              ? AppColors.actionRed
+                              : AppColors.iconMuted,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  children: [
+                    for (final item in section.items)
+                      _MobileFontSizeRow(
+                        item: item,
+                        controller: controllers[item.key]!,
+                        enabled: enabled,
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FontWeightPanel extends StatelessWidget {
+  const _FontWeightPanel({
+    required this.section,
+    required this.expanded,
+    required this.controllers,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  final _FontSizeSection section;
+  final bool expanded;
+  final Map<String, TextEditingController> controllers;
+  final bool enabled;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FontAccordionPanel(
+      labelKey: section.labelKey,
+      highlighted: section == _FontSizeSection.titles,
+      expanded: expanded,
+      enabled: enabled,
+      onToggle: onToggle,
+      child: Column(
+        children: [
+          for (final item in section.items)
+            _FontWeightRow(
+              item: item,
+              controller: controllers[item.key]!,
+              enabled: enabled,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileFontWeightPanel extends StatelessWidget {
+  const _MobileFontWeightPanel({
+    required this.section,
+    required this.expanded,
+    required this.controllers,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  final _MobileFontSizeSection section;
+  final bool expanded;
+  final Map<String, TextEditingController> controllers;
+  final bool enabled;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FontAccordionPanel(
+      labelKey: section.labelKey,
+      highlighted: section == _MobileFontSizeSection.featured,
+      expanded: expanded,
+      enabled: enabled,
+      onToggle: onToggle,
+      child: Column(
+        children: [
+          for (final item in section.items)
+            _MobileFontWeightRow(
+              item: item,
+              controller: controllers[item.key]!,
+              enabled: enabled,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontAccordionPanel extends StatelessWidget {
+  const _FontAccordionPanel({
+    required this.labelKey,
+    required this.highlighted,
+    required this.expanded,
+    required this.enabled,
+    required this.onToggle,
+    required this.child,
+  });
+
+  final String labelKey;
+  final bool highlighted;
+  final bool expanded;
+  final bool enabled;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: AppColors.softLine),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deepOcean.withValues(alpha: 0.025),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            MouseRegion(
+              cursor: enabled
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: enabled ? onToggle : null,
+                child: SizedBox(
+                  height: 54,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.t(labelKey),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: highlighted
+                                      ? AppColors.actionRed
+                                      : AppColors.deepOcean,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0,
+                                ),
+                          ),
+                        ),
+                        SymbolIcon(
+                          Symbols.keyboard_arrow_down,
+                          color: expanded
+                              ? AppColors.actionRed
+                              : AppColors.iconMuted,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: child,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FontSizeRow extends StatelessWidget {
   const _FontSizeRow({
     required this.item,
@@ -998,7 +1572,113 @@ class _FontSizeRow extends StatelessWidget {
           const SizedBox(width: 10),
           SizedBox(
             width: 96,
-            child: _UnitTextField(controller: controller, enabled: enabled),
+            child: _UnitTextField(
+              controller: controller,
+              enabled: enabled,
+              unitKey: 'fontSettings.unitPx',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileFontSizeRow extends StatelessWidget {
+  const _MobileFontSizeRow({
+    required this.item,
+    required this.controller,
+    required this.enabled,
+  });
+
+  final _MobileFontSizeItem item;
+  final TextEditingController controller;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: _MobileFontSizeLabel(item: item)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 96,
+            child: _UnitTextField(
+              controller: controller,
+              enabled: enabled,
+              unitKey: 'fontSettings.unitPx',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontWeightRow extends StatelessWidget {
+  const _FontWeightRow({
+    required this.item,
+    required this.controller,
+    required this.enabled,
+  });
+
+  final _FontSizeItem item;
+  final TextEditingController controller;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: _FontSizeLabel(item: item)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 104,
+            child: _UnitTextField(
+              controller: controller,
+              enabled: enabled,
+              unitKey: 'fontSettings.unitWeight',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileFontWeightRow extends StatelessWidget {
+  const _MobileFontWeightRow({
+    required this.item,
+    required this.controller,
+    required this.enabled,
+  });
+
+  final _MobileFontSizeItem item;
+  final TextEditingController controller;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: _MobileFontSizeLabel(item: item)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 104,
+            child: _UnitTextField(
+              controller: controller,
+              enabled: enabled,
+              unitKey: 'fontSettings.unitWeight',
+            ),
           ),
         ],
       ),
@@ -1013,46 +1693,86 @@ class _FontSizeLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (item.highlightKey == null) {
-      return Text(
-        context.t(item.labelKey),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppColors.deepOcean,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0,
-        ),
-      );
-    }
+    final titleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: AppColors.deepOcean,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0,
+    );
+    final descriptionStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: AppColors.inkSoft,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0,
+    );
 
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(text: context.t(item.labelKey)),
-          const TextSpan(text: ' '),
-          TextSpan(
-            text: context.t(item.highlightKey!),
-            style: const TextStyle(color: Color(0xFF16A34A)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.t(item.labelKey),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: titleStyle,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          context.t(item.descriptionKey),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: descriptionStyle,
+        ),
+      ],
+    );
+  }
+}
+
+class _MobileFontSizeLabel extends StatelessWidget {
+  const _MobileFontSizeLabel({required this.item});
+
+  final _MobileFontSizeItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.t(item.labelKey),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
           ),
-        ],
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: AppColors.deepOcean,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0,
-      ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          context.t(item.descriptionKey),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.inkSoft,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _UnitTextField extends StatelessWidget {
-  const _UnitTextField({required this.controller, required this.enabled});
+  const _UnitTextField({
+    required this.controller,
+    required this.enabled,
+    required this.unitKey,
+  });
 
   final TextEditingController controller;
   final bool enabled;
+  final String unitKey;
 
   @override
   Widget build(BuildContext context) {
@@ -1095,7 +1815,7 @@ class _UnitTextField extends StatelessWidget {
               border: Border(left: BorderSide(color: AppColors.line)),
             ),
             child: Text(
-              context.t('fontSettings.unitPx'),
+              context.t(unitKey),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.placeholder,
                 fontWeight: FontWeight.w700,
@@ -2614,9 +3334,9 @@ class _DialogFooter extends StatelessWidget {
 }
 
 enum _FontSizeSection {
-  layoutSpecial('fontSettings.fontSize.layoutSpecial'),
-  general('fontSettings.fontSize.general'),
-  titles('fontSettings.fontSize.titles');
+  layoutSpecial('fontSettings.webSection.navigationFeatured'),
+  general('fontSettings.webSection.newsCard'),
+  titles('fontSettings.webSection.detail');
 
   const _FontSizeSection(this.labelKey);
 
@@ -2635,126 +3355,189 @@ class _FontSizeItem {
   const _FontSizeItem({
     required this.key,
     required this.labelKey,
+    required this.descriptionKey,
     required this.initialValue,
-    this.highlightKey,
+    required this.initialWeight,
   });
 
   final String key;
   final String labelKey;
+  final String descriptionKey;
   final String initialValue;
-  final String? highlightKey;
+  final String initialWeight;
 
   static const layoutSpecial = [
     _FontSizeItem(
-      key: 'fs-base',
-      labelKey: 'fontSettings.size.fsBase',
-      highlightKey: 'fontSettings.size.main',
-      initialValue: '15',
+      key: 'web-nav-label',
+      labelKey: 'fontSettings.webSize.navLabel',
+      descriptionKey: 'fontSettings.webSize.navLabelHelp',
+      initialValue: '14',
+      initialWeight: '700',
     ),
     _FontSizeItem(
-      key: 'fs-post-title',
-      labelKey: 'fontSettings.size.fsPostTitle',
+      key: 'web-featured-title',
+      labelKey: 'fontSettings.webSize.featuredTitle',
+      descriptionKey: 'fontSettings.webSize.featuredTitleHelp',
       initialValue: '36',
+      initialWeight: '800',
     ),
     _FontSizeItem(
-      key: 'fs-post-summary',
-      labelKey: 'fontSettings.size.fsPostSummary',
-      initialValue: '18',
-    ),
-    _FontSizeItem(
-      key: 'fs-content',
-      labelKey: 'fontSettings.size.fsContent',
-      initialValue: '17',
-    ),
-    _FontSizeItem(
-      key: 'fs-main-nav',
-      labelKey: 'fontSettings.size.fsMainNav',
-      initialValue: '15',
+      key: 'web-featured-summary',
+      labelKey: 'fontSettings.webSize.featuredSummary',
+      descriptionKey: 'fontSettings.webSize.featuredSummaryHelp',
+      initialValue: '16',
+      initialWeight: '500',
     ),
   ];
 
   static const general = [
     _FontSizeItem(
-      key: 'fs-tiny',
-      labelKey: 'fontSettings.size.fsTiny',
-      initialValue: '11',
+      key: 'web-card-title',
+      labelKey: 'fontSettings.webSize.cardTitle',
+      descriptionKey: 'fontSettings.webSize.cardTitleHelp',
+      initialValue: '38',
+      initialWeight: '800',
     ),
     _FontSizeItem(
-      key: 'fs-xs',
-      labelKey: 'fontSettings.size.fsXs',
-      initialValue: '12',
-    ),
-    _FontSizeItem(
-      key: 'fs-sm',
-      labelKey: 'fontSettings.size.fsSm',
-      initialValue: '13',
-    ),
-    _FontSizeItem(
-      key: 'fs-md',
-      labelKey: 'fontSettings.size.fsMd',
-      initialValue: '14',
-    ),
-    _FontSizeItem(
-      key: 'fs-lg',
-      labelKey: 'fontSettings.size.fsLg',
+      key: 'web-card-summary',
+      labelKey: 'fontSettings.webSize.cardSummary',
+      descriptionKey: 'fontSettings.webSize.cardSummaryHelp',
       initialValue: '16',
-    ),
-    _FontSizeItem(
-      key: 'fs-xl',
-      labelKey: 'fontSettings.size.fsXl',
-      initialValue: '18',
+      initialWeight: '500',
     ),
   ];
 
   static const titles = [
     _FontSizeItem(
-      key: 'fs-title-xs',
-      labelKey: 'fontSettings.size.fsTitleXs',
-      initialValue: '15',
+      key: 'web-detail-title',
+      labelKey: 'fontSettings.webSize.detailTitle',
+      descriptionKey: 'fontSettings.webSize.detailTitleHelp',
+      initialValue: '48',
+      initialWeight: '800',
     ),
     _FontSizeItem(
-      key: 'fs-title-sm',
-      labelKey: 'fontSettings.size.fsTitleSm',
-      initialValue: '16',
-    ),
-    _FontSizeItem(
-      key: 'fs-title-md',
-      labelKey: 'fontSettings.size.fsTitleMd',
+      key: 'web-detail-summary',
+      labelKey: 'fontSettings.webSize.detailSummary',
+      descriptionKey: 'fontSettings.webSize.detailSummaryHelp',
       initialValue: '18',
+      initialWeight: '500',
     ),
     _FontSizeItem(
-      key: 'fs-title-lg',
-      labelKey: 'fontSettings.size.fsTitleLg',
-      initialValue: '20',
-    ),
-    _FontSizeItem(
-      key: 'fs-title-xl',
-      labelKey: 'fontSettings.size.fsTitleXl',
-      initialValue: '22',
-    ),
-    _FontSizeItem(
-      key: 'fs-title-2xl',
-      labelKey: 'fontSettings.size.fsTitle2xl',
-      initialValue: '24',
-    ),
-    _FontSizeItem(
-      key: 'fs-title-3xl',
-      labelKey: 'fontSettings.size.fsTitle3xl',
-      initialValue: '26',
-    ),
-    _FontSizeItem(
-      key: 'fs-title-4xl',
-      labelKey: 'fontSettings.size.fsTitle4xl',
-      initialValue: '30',
-    ),
-    _FontSizeItem(
-      key: 'fs-title-5xl',
-      labelKey: 'fontSettings.size.fsTitle5xl',
-      initialValue: '32',
+      key: 'web-detail-body',
+      labelKey: 'fontSettings.webSize.detailBody',
+      descriptionKey: 'fontSettings.webSize.detailBodyHelp',
+      initialValue: '17',
+      initialWeight: '400',
     ),
   ];
 
   static const all = [...layoutSpecial, ...general, ...titles];
+}
+
+enum _MobileFontSizeSection {
+  navigation('fontSettings.mobileSection.navigation'),
+  featured('fontSettings.mobileSection.featured'),
+  newsCard('fontSettings.mobileSection.newsCard'),
+  detail('fontSettings.mobileSection.detail');
+
+  const _MobileFontSizeSection(this.labelKey);
+
+  final String labelKey;
+
+  List<_MobileFontSizeItem> get items {
+    return switch (this) {
+      _MobileFontSizeSection.navigation => _MobileFontSizeItem.navigation,
+      _MobileFontSizeSection.featured => _MobileFontSizeItem.featured,
+      _MobileFontSizeSection.newsCard => _MobileFontSizeItem.newsCard,
+      _MobileFontSizeSection.detail => _MobileFontSizeItem.detail,
+    };
+  }
+}
+
+class _MobileFontSizeItem {
+  const _MobileFontSizeItem({
+    required this.key,
+    required this.labelKey,
+    required this.descriptionKey,
+    required this.initialValue,
+    required this.initialWeight,
+  });
+
+  final String key;
+  final String labelKey;
+  final String descriptionKey;
+  final String initialValue;
+  final String initialWeight;
+
+  static const navigation = [
+    _MobileFontSizeItem(
+      key: 'mobile-nav-label',
+      labelKey: 'fontSettings.mobileSize.navLabel',
+      descriptionKey: 'fontSettings.mobileSize.navLabelHelp',
+      initialValue: '14',
+      initialWeight: '600',
+    ),
+  ];
+
+  static const featured = [
+    _MobileFontSizeItem(
+      key: 'mobile-featured-title',
+      labelKey: 'fontSettings.mobileSize.featuredTitle',
+      descriptionKey: 'fontSettings.mobileSize.featuredTitleHelp',
+      initialValue: '28',
+      initialWeight: '800',
+    ),
+    _MobileFontSizeItem(
+      key: 'mobile-featured-summary',
+      labelKey: 'fontSettings.mobileSize.featuredSummary',
+      descriptionKey: 'fontSettings.mobileSize.featuredSummaryHelp',
+      initialValue: '15',
+      initialWeight: '400',
+    ),
+  ];
+
+  static const newsCard = [
+    _MobileFontSizeItem(
+      key: 'mobile-card-title',
+      labelKey: 'fontSettings.mobileSize.cardTitle',
+      descriptionKey: 'fontSettings.mobileSize.cardTitleHelp',
+      initialValue: '28',
+      initialWeight: '800',
+    ),
+    _MobileFontSizeItem(
+      key: 'mobile-card-summary',
+      labelKey: 'fontSettings.mobileSize.cardSummary',
+      descriptionKey: 'fontSettings.mobileSize.cardSummaryHelp',
+      initialValue: '15',
+      initialWeight: '400',
+    ),
+  ];
+
+  static const detail = [
+    _MobileFontSizeItem(
+      key: 'mobile-detail-title',
+      labelKey: 'fontSettings.mobileSize.detailTitle',
+      descriptionKey: 'fontSettings.mobileSize.detailTitleHelp',
+      initialValue: '32',
+      initialWeight: '800',
+    ),
+    _MobileFontSizeItem(
+      key: 'mobile-detail-summary',
+      labelKey: 'fontSettings.mobileSize.detailSummary',
+      descriptionKey: 'fontSettings.mobileSize.detailSummaryHelp',
+      initialValue: '18',
+      initialWeight: '500',
+    ),
+    _MobileFontSizeItem(
+      key: 'mobile-detail-body',
+      labelKey: 'fontSettings.mobileSize.detailBody',
+      descriptionKey: 'fontSettings.mobileSize.detailBodyHelp',
+      initialValue: '17',
+      initialWeight: '400',
+    ),
+  ];
+
+  static const all = [...navigation, ...featured, ...newsCard, ...detail];
 }
 
 class _SelectOption {
