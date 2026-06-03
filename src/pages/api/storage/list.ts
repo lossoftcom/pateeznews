@@ -3,6 +3,7 @@ import path from 'path';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { getStorageType, publicStorageUrl, relativeStorageId } from '@/lib/server/supabaseStorage';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
+import { localUploadItemsForType } from '@/lib/server/localUploadStorage';
 
 export const GET: APIRoute = async ({ request }) => {
   try {
@@ -11,23 +12,35 @@ export const GET: APIRoute = async ({ request }) => {
     await requireStorageAdminRequest(request, type);
     const prefix = `${type}/`;
 
-    const result = await dbQuery<{
+    let rows: Array<{
       name: string;
       metadata: Record<string, any> | null;
       updated_at: Date | string | null;
       created_at: Date | string | null;
-    }>(
-      `SELECT name, metadata, updated_at, created_at
-       FROM storage.objects
-       WHERE bucket_id = 'media'
-         AND name LIKE $1
-       ORDER BY COALESCE(updated_at, created_at) DESC
-       LIMIT 1000`,
-      [`${prefix}%`]
-    );
+    }> = [];
 
-    const objectNames = new Set(result.rows.map((row) => row.name));
-    const files = result.rows
+    try {
+      const result = await dbQuery<{
+        name: string;
+        metadata: Record<string, any> | null;
+        updated_at: Date | string | null;
+        created_at: Date | string | null;
+      }>(
+        `SELECT name, metadata, updated_at, created_at
+         FROM storage.objects
+         WHERE bucket_id = 'media'
+           AND name LIKE $1
+         ORDER BY COALESCE(updated_at, created_at) DESC
+         LIMIT 1000`,
+        [`${prefix}%`]
+      );
+      rows = result.rows;
+    } catch (error) {
+      console.error('Storage remote list fallback:', error);
+    }
+
+    const objectNames = new Set(rows.map((row) => row.name));
+    const remoteFiles = rows
       .filter((row) => !(type === 'video' && row.name.endsWith('_thumb.webp')))
       .map((row) => {
         const relativeId = relativeStorageId(type, row.name);
@@ -52,6 +65,9 @@ export const GET: APIRoute = async ({ request }) => {
           path: parsed.dir,
         };
       });
+    const seenIds = new Set(remoteFiles.map((file) => file.id));
+    const localFiles = localUploadItemsForType(type).filter((file) => !seenIds.has(file.id));
+    const files = [...remoteFiles, ...localFiles].sort((a, b) => b.date - a.date);
 
     return new Response(JSON.stringify(files), {
       status: 200,

@@ -11,6 +11,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../account/presentation/account_sign_in_screen.dart';
+import '../../apps/data/app_item.dart';
+import '../../apps/presentation/app_feature_screen.dart';
+import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
 import '../../home/presentation/home_screen.dart';
 import '../../profile/data/profile_content.dart';
@@ -48,14 +51,29 @@ class ShellScreen extends StatefulWidget {
   State<ShellScreen> createState() => _ShellScreenState();
 }
 
-class _ShellScreenState extends State<ShellScreen> {
+class _ShellScreenState extends State<ShellScreen>
+    with SingleTickerProviderStateMixin {
   int _index = 0;
   var _accountRouteOpen = false;
   var _menuOpen = false;
   var _accountMenuOpen = false;
+  var _appsSheetOpen = false;
   var _menuDarkModeSelected = false;
 
+  late final AnimationController _appsController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+    reverseDuration: const Duration(milliseconds: 240),
+  );
+
   static const _accountNavIndex = 4;
+  static const _appsNavIndex = 2;
+
+  @override
+  void dispose() {
+    _appsController.dispose();
+    super.dispose();
+  }
 
   static const _items = <PateezNavItem>[
     PateezNavItem(
@@ -190,6 +208,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
   void _openMenu() {
     _closeAccountMenu();
+    _closeAppsSheet();
     if (_menuOpen) return;
     setState(() => _menuOpen = true);
   }
@@ -202,6 +221,7 @@ class _ShellScreenState extends State<ShellScreen> {
   void _openAccountMenu() {
     if (widget.authState == null || _accountMenuOpen) return;
     _closeMenu();
+    _closeAppsSheet();
     setState(() => _accountMenuOpen = true);
   }
 
@@ -228,7 +248,12 @@ class _ShellScreenState extends State<ShellScreen> {
       }
       return;
     }
+    if (index == _appsNavIndex) {
+      _openAppsSheet();
+      return;
+    }
     _closeAccountMenu();
+    _closeAppsSheet();
     setState(() => _index = index);
   }
 
@@ -269,6 +294,53 @@ class _ShellScreenState extends State<ShellScreen> {
           categoryName: item.label,
           categoryType: item.type,
         ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openAppsSheet() {
+    _closeMenu();
+    _closeAccountMenu();
+    if (_appsSheetOpen) return;
+    setState(() => _appsSheetOpen = true);
+    _appsController.forward();
+  }
+
+  void _closeAppsSheet() {
+    if (!_appsSheetOpen) return;
+    setState(() => _appsSheetOpen = false);
+    _appsController.reverse();
+  }
+
+  void _toggleAppsSheet() {
+    if (_appsSheetOpen) {
+      _closeAppsSheet();
+    } else {
+      _openAppsSheet();
+    }
+  }
+
+  void _openApp(AppItem item) {
+    _closeAppsSheet();
+    Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
+        pageBuilder: (_, _, _) => AppFeatureScreen(item: item),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -354,6 +426,16 @@ class _ShellScreenState extends State<ShellScreen> {
               child: _buildScaffold(),
             ),
           ),
+          Positioned.fill(
+            child: _AppsOverlay(
+              controller: _appsController,
+              navHeight:
+                  MediaQuery.paddingOf(context).bottom +
+                  AppSpacing.bottomNavHeight,
+              onClose: _closeAppsSheet,
+              onSelect: _openApp,
+            ),
+          ),
           if (_accountMenuOpen && widget.authState != null) ...[
             Positioned.fill(
               child: GestureDetector(
@@ -407,6 +489,7 @@ class _ShellScreenState extends State<ShellScreen> {
             HomeScreen(
               shellSettings: widget.shellData.siteSettings,
               onMenuTap: _openMenu,
+              onPharmacyTap: () => _openApp(AppItems.nobetciEczane),
             ),
             const SectionPlaceholder(
               icon: Symbols.play_circle_outline_rounded,
@@ -434,7 +517,11 @@ class _ShellScreenState extends State<ShellScreen> {
       ),
       bottomNavigationBar: PateezBottomNav(
         items: _items,
-        activeIndex: _accountMenuOpen ? _accountNavIndex : _index,
+        activeIndex: _accountMenuOpen
+            ? _accountNavIndex
+            : _appsSheetOpen
+            ? _appsNavIndex
+            : _index,
         authState: widget.authState,
         authLoading: widget.authLoading,
         onSelected: (i) {
@@ -446,10 +533,69 @@ class _ShellScreenState extends State<ShellScreen> {
             }
             return;
           }
+          if (i == _appsNavIndex) {
+            _toggleAppsSheet();
+            return;
+          }
           _closeAccountMenu();
+          _closeAppsSheet();
           setState(() => _index = i);
         },
       ),
+    );
+  }
+}
+
+/// "Uygulamalar" alt sayfasının kabuk içindeki kaplaması: içerik alanını
+/// karartan örtü + aşağıdan yukarı kayan [AppsSheet]. Bottom nav'ın üstünde
+/// konumlanır (nav görünür ve etkileşimli kalır); kapanırken sheet nav çizgisi
+/// altında kırpılarak gizlenir.
+class _AppsOverlay extends StatelessWidget {
+  const _AppsOverlay({
+    required this.controller,
+    required this.navHeight,
+    required this.onClose,
+    required this.onSelect,
+  });
+
+  final AnimationController controller;
+  final double navHeight;
+  final VoidCallback onClose;
+  final ValueChanged<AppItem> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final t = controller.value;
+        if (t == 0) return const SizedBox.shrink();
+        return Padding(
+          padding: EdgeInsets.only(bottom: navHeight),
+          child: ClipRect(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onClose,
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.45 * t),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: FractionalTranslation(
+                    translation: Offset(0, 1 - t),
+                    child: AppsSheet(items: AppItems.all, onSelect: onSelect),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

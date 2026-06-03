@@ -9,11 +9,13 @@ class HomeAppBar extends StatelessWidget {
   const HomeAppBar({
     super.key,
     required this.onMenuTap,
+    this.onPharmacyTap,
     this.shellSettings = const AppShellSettings.empty(),
     this.elevated = false,
   });
 
   final VoidCallback onMenuTap;
+  final VoidCallback? onPharmacyTap;
   final AppShellSettings shellSettings;
   final bool elevated;
 
@@ -46,8 +48,45 @@ class HomeAppBar extends StatelessWidget {
           Expanded(
             child: Center(child: _BrandMark(settings: shellSettings)),
           ),
-          const SizedBox(width: 48),
+          _PharmacyBadge(onTap: onPharmacyTap ?? () {}),
+          const SizedBox(width: 4),
         ],
+      ),
+    );
+  }
+}
+
+/// Ana sayfa app bar'ında sağa yaslı nöbetçi eczane kısayolu — gerçek Nöbetçi
+/// Eczane logosunun optimize webp'i.
+class _PharmacyBadge extends StatelessWidget {
+  const _PharmacyBadge({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Nöbetçi eczane',
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Image.asset(
+                'assets/images/nobetci_eczane.webp',
+                height: 30,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

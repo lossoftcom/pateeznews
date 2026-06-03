@@ -24,10 +24,12 @@ class HomeScreen extends StatefulWidget {
     super.key,
     this.shellSettings = const AppShellSettings.empty(),
     this.onMenuTap,
+    this.onPharmacyTap,
   });
 
   final AppShellSettings shellSettings;
   final VoidCallback? onMenuTap;
+  final VoidCallback? onPharmacyTap;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -99,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
             elevated: _isElevated,
             shellSettings: widget.shellSettings,
             onMenuTap: widget.onMenuTap ?? () {},
+            onPharmacyTap: widget.onPharmacyTap,
           ),
           Expanded(
             child: RefreshIndicator(

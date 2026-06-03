@@ -31,6 +31,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   var _settings = AdminAiSettingsData.empty('tr');
   var _models = <String>[];
   var _databasePrompts = <AdminAiPrompt>[];
+  var _showFreeModelsOnly = false;
   var _loadingSettings = true;
   var _loadingPrompts = false;
   var _savingGoogle = false;
@@ -92,9 +93,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     setState(() => _loadingPrompts = true);
     try {
       final prompts = await widget.repository.fetchPrompts(targetCode);
+      final nextPrompts = await _ensureDefaultNewsPrompt(
+        languageCode: targetCode,
+        prompts: prompts,
+      );
       if (!mounted) return;
       setState(() {
-        _databasePrompts = prompts;
+        _databasePrompts = nextPrompts;
         _loadingPrompts = false;
       });
     } catch (error) {
@@ -102,6 +107,19 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       setState(() => _loadingPrompts = false);
       _showMessage('${context.t('AI prompts could not be loaded')}: $error');
     }
+  }
+
+  Future<List<AdminAiPrompt>> _ensureDefaultNewsPrompt({
+    required String languageCode,
+    required List<AdminAiPrompt> prompts,
+  }) async {
+    if (prompts.isNotEmpty) return prompts;
+    final saved = await widget.repository.savePrompt(
+      session: widget.session,
+      languageCode: languageCode,
+      data: adminNewsAiDefaultPromptData,
+    );
+    return [saved];
   }
 
   Future<void> _saveGoogleSettings() async {
@@ -116,10 +134,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         ),
       );
       if (!mounted) return;
+      final nextModels = _models.isEmpty
+          ? _fallbackModelsFor(saved.googleAiModel)
+          : _models;
       setState(() {
         _settings = saved;
         _apiKeyController.text = saved.googleAiApiKey;
-        _models = _fallbackModelsFor(saved.googleAiModel);
+        _models = nextModels;
         _savingGoogle = false;
       });
       _showMessage('AI settings saved successfully');
@@ -141,9 +162,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _apiKeyController.text,
       );
       if (!mounted) return;
+      final selectableModels = _selectableModelsFor(
+        selectedModel: _settings.googleAiModel,
+        fetchedModels: models,
+        freeOnly: _showFreeModelsOnly,
+      );
       final selectedModel = _selectModelAfterFetch(
         current: _settings.googleAiModel,
-        models: models,
+        models: selectableModels,
       );
       setState(() {
         _models = models;
@@ -235,17 +261,27 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     }
   }
 
-  List<AdminAiPrompt> get _visiblePrompts {
-    final builtinTitles = {
-      for (final prompt in _builtinAiPrompts) prompt.title.trim().toLowerCase(),
-    };
-    return [
-      ..._builtinAiPrompts,
-      ..._databasePrompts.where(
-        (prompt) => !builtinTitles.contains(prompt.title.trim().toLowerCase()),
-      ),
-    ];
+  void _setShowFreeModelsOnly(bool value) {
+    if (_showFreeModelsOnly == value) return;
+    final selectableModels = _selectableModelsFor(
+      selectedModel: _settings.googleAiModel,
+      fetchedModels: _models,
+      freeOnly: value,
+    );
+    final selectedModel = _selectModelAfterFetch(
+      current: _settings.googleAiModel,
+      models: selectableModels,
+    );
+    setState(() {
+      _showFreeModelsOnly = value;
+      if (selectedModel.trim().isNotEmpty &&
+          selectedModel != _settings.googleAiModel) {
+        _settings = _settings.copyWith(googleAiModel: selectedModel);
+      }
+    });
   }
+
+  List<AdminAiPrompt> get _visiblePrompts => _databasePrompts;
 
   @override
   Widget build(BuildContext context) {
@@ -286,6 +322,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                           settings: _settings,
                           apiKeyController: _apiKeyController,
                           models: _models,
+                          freeModelsOnly: _showFreeModelsOnly,
                           testing: _testingApi,
                           saving: _savingGoogle,
                           onActiveChanged: (value) {
@@ -303,6 +340,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                               ),
                             );
                           },
+                          onFreeModelsOnlyChanged: _setShowFreeModelsOnly,
                           onTest: _testApiConnection,
                           onSave: _saveGoogleSettings,
                         )
@@ -501,10 +539,12 @@ class _GoogleAiSettings extends StatelessWidget {
     required this.settings,
     required this.apiKeyController,
     required this.models,
+    required this.freeModelsOnly,
     required this.testing,
     required this.saving,
     required this.onActiveChanged,
     required this.onModelChanged,
+    required this.onFreeModelsOnlyChanged,
     required this.onTest,
     required this.onSave,
   });
@@ -512,10 +552,12 @@ class _GoogleAiSettings extends StatelessWidget {
   final AdminAiSettingsData settings;
   final TextEditingController apiKeyController;
   final List<String> models;
+  final bool freeModelsOnly;
   final bool testing;
   final bool saving;
   final ValueChanged<bool> onActiveChanged;
   final ValueChanged<String?> onModelChanged;
+  final ValueChanged<bool> onFreeModelsOnlyChanged;
   final VoidCallback onTest;
   final VoidCallback onSave;
 
@@ -558,7 +600,9 @@ class _GoogleAiSettings extends StatelessWidget {
         _ModelSelect(
           value: settings.googleAiModel,
           models: models,
+          freeOnly: freeModelsOnly,
           onChanged: saving ? (_) {} : onModelChanged,
+          onFreeOnlyChanged: saving ? (_) {} : onFreeModelsOnlyChanged,
         ),
         const _FormDivider(),
         _SaveRow(enabled: !saving && !testing, saving: saving, onSave: onSave),
@@ -799,7 +843,7 @@ class _TestConnectionButton extends StatelessWidget {
                     ),
                   )
                 : const SymbolIcon(
-                    Symbols.visibility,
+                    Symbols.science_rounded,
                     color: AppColors.deepOcean,
                     size: 16,
                   ),
@@ -816,71 +860,151 @@ class _ModelSelect extends StatelessWidget {
   const _ModelSelect({
     required this.value,
     required this.models,
+    required this.freeOnly,
     required this.onChanged,
+    required this.onFreeOnlyChanged,
   });
 
   final String value;
   final List<String> models;
+  final bool freeOnly;
   final ValueChanged<String?> onChanged;
+  final ValueChanged<bool> onFreeOnlyChanged;
 
   @override
   Widget build(BuildContext context) {
-    final options = _fallbackModelsFor(value);
-    if (models.isNotEmpty) {
-      options
-        ..clear()
-        ..addAll(models);
-      if (value.trim().isNotEmpty && !options.contains(value.trim())) {
-        options.insert(0, value.trim());
-      }
-    }
+    final options = _selectableModelsFor(
+      selectedModel: value,
+      fetchedModels: models,
+      freeOnly: freeOnly,
+    );
     final safeValue = value.trim().isNotEmpty && options.contains(value.trim())
         ? value.trim()
         : options.firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel('Google AI Model'),
-        const SizedBox(height: 8),
-        MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.only(left: 12, right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.value),
-              border: Border.all(color: AppColors.line),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: safeValue,
-                isExpanded: true,
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                dropdownColor: Colors.white,
-                focusColor: Colors.transparent,
-                mouseCursor: SystemMouseCursors.click,
-                dropdownMenuItemMouseCursor: SystemMouseCursors.click,
-                icon: const SymbolIcon(
-                  Symbols.keyboard_arrow_down,
-                  color: AppColors.iconMuted,
-                  size: 18,
-                ),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.deepOcean,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0,
-                ),
-                items: [
-                  for (final model in options)
-                    DropdownMenuItem(value: model, child: Text(model)),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final toggle = _FreeModelsToggle(
+              value: freeOnly,
+              onChanged: onFreeOnlyChanged,
+            );
+            if (constraints.maxWidth < 420) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _FieldLabel('Google AI Model'),
+                  const SizedBox(height: 8),
+                  toggle,
                 ],
-                onChanged: onChanged,
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Expanded(child: _FieldLabel('Google AI Model')),
+                const SizedBox(width: 12),
+                toggle,
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        if (options.isEmpty)
+          _EmptyModelBox()
+        else
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(color: AppColors.line),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: safeValue,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  dropdownColor: Colors.white,
+                  focusColor: Colors.transparent,
+                  mouseCursor: SystemMouseCursors.click,
+                  dropdownMenuItemMouseCursor: SystemMouseCursors.click,
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                  items: [
+                    for (final model in options)
+                      DropdownMenuItem(value: model, child: Text(model)),
+                  ],
+                  onChanged: onChanged,
+                ),
               ),
             ),
           ),
-        ),
       ],
+    );
+  }
+}
+
+class _FreeModelsToggle extends StatelessWidget {
+  const _FreeModelsToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          context.t('Show free models only'),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: AppColors.inkSoft,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(width: 8),
+        _CompactCheckSwitch(value: value, onChanged: onChanged),
+      ],
+    );
+  }
+}
+
+class _EmptyModelBox extends StatelessWidget {
+  const _EmptyModelBox();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: Text(
+        context.t('No available models found.'),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppColors.inkSoft,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+        ),
+      ),
     );
   }
 }
@@ -1653,16 +1777,41 @@ InputDecoration _inputDecoration(
 
 List<String> _fallbackModelsFor(String selectedModel) {
   final models = <String>[
+    'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3-flash-preview',
     'gemini-2.5-flash',
-    'gemini-3-pro-preview',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
   ];
   final cleanSelected = selectedModel.trim();
   if (cleanSelected.isNotEmpty && !models.contains(cleanSelected)) {
     models.insert(0, cleanSelected);
   }
   return models;
+}
+
+List<String> _selectableModelsFor({
+  required String selectedModel,
+  required List<String> fetchedModels,
+  required bool freeOnly,
+}) {
+  final sourceModels = fetchedModels.isEmpty
+      ? _fallbackModelsFor(selectedModel)
+      : filterGeminiTextGenerationModels(fetchedModels);
+  final models = freeOnly
+      ? sourceModels
+            .where(isFreeGeminiTextGenerationModel)
+            .toList(growable: false)
+      : sourceModels;
+  final cleanSelected = selectedModel.trim();
+  if (cleanSelected.isEmpty || models.contains(cleanSelected)) {
+    return models;
+  }
+  if (freeOnly && !isFreeGeminiTextGenerationModel(cleanSelected)) {
+    return models;
+  }
+  return [cleanSelected, ...models];
 }
 
 String _selectModelAfterFetch({
@@ -1683,117 +1832,6 @@ String _cleanLanguageCode(String value) {
   final code = value.trim().toLowerCase().replaceAll('_', '-');
   return code.isEmpty ? 'tr' : code;
 }
-
-const _builtinAiPrompts = [
-  AdminAiPrompt(
-    id: 'builtin-quiz-ready-1',
-    title: 'Testi Geliştirerek Hazırla',
-    prompt:
-        'Sen, dijital medya davranışlarını, etkileşimli test kurgusunu, yerel haber dili ve SEO dinamiklerini bilen kıdemli bir Quiz/Test Editörü’sün. Görevin, sana verilen konu, ham metin veya örnekten admin panelindeki Test formuna doğrudan oturacak profesyonel bir test üretmektir.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-quiz-ready-2',
-    title: 'Testi Metne Sadık Yerleştir',
-    prompt:
-        'Sen, admin panelindeki Test formu için ham metni sadece yapısal alanlara yerleştiren dikkatli bir Quiz Veri Yerleştirme Editörü’sün. Metne sadık kal, verilen başlık, spot, soru ve cevapları doğru alanlara taşı.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-poll-ready-1',
-    title: 'Anketi Geliştirerek Hazırla',
-    prompt:
-        'Sen, dijital medya davranışlarını, topluluk katılımını ve yerel haber dili dinamiklerini bilen kıdemli bir Anket Editörü’sün. Verilen konu veya metinden admin panelindeki Anket formuna uygun profesyonel bir anket üret.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-poll-ready-2',
-    title: 'Anketi Metne Sadık Yerleştir',
-    prompt:
-        'Sen, admin panelindeki Anket formu için ham metni sadece yapısal alanlara yerleştiren dikkatli bir Anket Veri Yerleştirme Editörü’sün. Verilen metinleri yeniden yazmadan doğru anket alanlarına taşı.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-video-ready-1',
-    title: 'Videoyu Geliştirerek Hazırla',
-    prompt:
-        'Sen, dijital video haberciliği, YouTube/Shorts içerik dili, yerel haber anlatısı ve SEO dinamiklerini bilen kıdemli bir Video Haber Editörü’sün. Verilen konu, ham metin veya URL’den yayınlanabilir video içeriği üret.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-video-ready-2',
-    title: 'Videoyu Metne Sadık Yerleştir',
-    prompt:
-        'Sen, video içerik formu için verilen ham metni yapısal alanlara sadık şekilde yerleştiren dikkatli bir Video Veri Yerleştirme Editörü’sün.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-toc-ready-1',
-    title: 'İçindekileri Geliştirerek Hazırla',
-    prompt:
-        'Sen, uzun biçimli haber ve rehber içeriklerinde içindekiler kurgusunu profesyonelce hazırlayan kıdemli bir editörsün.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-toc-ready-2',
-    title: 'İçindekileri Metne Sadık Yerleştir',
-    prompt:
-        'Sen, verilen metni değiştirmeden içindekiler yapısına sadık şekilde yerleştiren dikkatli bir içerik editörüsün.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-recipe-ready-1',
-    title: 'Tarifi Geliştirerek Hazırla',
-    prompt:
-        'Sen, yemek tarifi içeriklerini okunaklı, uygulanabilir ve yayın formatına uygun şekilde geliştiren deneyimli bir tarif editörüsün.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-recipe-ready-2',
-    title: 'Tarifi Metne Sadık Yerleştir',
-    prompt:
-        'Sen, verilen tarif metnini malzemeler, adımlar ve süreler gibi doğru yapısal alanlara sadık kalarak yerleştiren editörsün.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-event-ready-1',
-    title: 'Etkinliği Geliştirerek Hazırla',
-    prompt:
-        'Sen, etkinlik haberlerini tarih, mekan, program ve katılım bilgileriyle yayınlanabilir hale getiren kıdemli bir etkinlik editörüsün.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-  AdminAiPrompt(
-    id: 'builtin-event-ready-2',
-    title: 'Etkinliği Metne Sadık Yerleştir',
-    prompt:
-        'Sen, etkinlik metnindeki görünür bilgileri değiştirmeden doğru yayın alanlarına taşıyan dikkatli bir veri yerleştirme editörüsün.',
-    languageCode: 'tr',
-    isActive: true,
-    isBuiltin: true,
-  ),
-];
 
 enum _AiSettingsTab {
   google('Google AI (Gemini)', Symbols.pending_actions),

@@ -158,11 +158,14 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
 
   Future<void> _pickAndUpload() async {
     if (_uploading) return;
-    final typeGroup = XTypeGroup(
-      label: widget.type,
-      extensions: _extensionsFor(widget.type),
-    );
-    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    final extensions = _extensionsFor(widget.type);
+    final file = extensions.isEmpty
+        ? await openFile()
+        : await openFile(
+            acceptedTypeGroups: [
+              XTypeGroup(label: widget.type, extensions: extensions),
+            ],
+          );
     if (file == null) return;
 
     setState(() {
@@ -537,10 +540,23 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   }
 
   static List<String> _extensionsFor(String type) => switch (type) {
-    'video' => ['mp4', 'webm', 'mov', 'avi'],
-    'audio' => ['mp3', 'wav', 'ogg', 'm4a', 'aac'],
-    'file' => ['pdf', 'docx', 'xlsx', 'pptx'],
-    _ => ['jpg', 'jpeg', 'webp', 'png', 'gif'],
+    'video' => ['mp4', 'm4v', 'webm', 'mov', 'avi', 'mkv', '3gp', '3g2'],
+    'audio' => ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus'],
+    'file' => const <String>[],
+    _ => [
+      'jpg',
+      'jpeg',
+      'webp',
+      'png',
+      'gif',
+      'avif',
+      'bmp',
+      'tif',
+      'tiff',
+      'heic',
+      'heif',
+      'svg',
+    ],
   };
 }
 
@@ -699,11 +715,11 @@ class _UploadSidebar extends StatelessWidget {
   final Duration? remaining;
   final VoidCallback onPickFile;
 
-  List<String> get _extensions => switch (type) {
-    'video' => ['MP4', 'WEBM', 'MOV', 'AVI'],
-    'audio' => ['MP3', 'WAV', 'OGG', 'M4A', 'AAC'],
-    'file' => ['PDF', 'DOCX', 'XLSX', 'PPTX'],
-    _ => ['JPG', 'JPEG', 'WEBP', 'PNG', 'GIF'],
+  List<String> _extensions(BuildContext context) => switch (type) {
+    'video' => ['MP4', 'M4V', 'WEBM', 'MOV', 'AVI', 'MKV', '3GP'],
+    'audio' => ['MP3', 'WAV', 'OGG', 'M4A', 'AAC', 'FLAC', 'OPUS'],
+    'file' => [context.t('media.allFiles')],
+    _ => ['JPG', 'JPEG', 'WEBP', 'PNG', 'GIF', 'AVIF', 'HEIC', 'SVG'],
   };
 
   @override
@@ -743,7 +759,7 @@ class _UploadSidebar extends StatelessWidget {
                         spacing: 5,
                         runSpacing: 5,
                         alignment: WrapAlignment.center,
-                        children: _extensions
+                        children: _extensions(context)
                             .map((ext) => _ExtChip(text: ext, type: type))
                             .toList(),
                       ),

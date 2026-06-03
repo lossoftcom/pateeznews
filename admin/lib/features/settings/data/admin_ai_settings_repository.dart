@@ -145,6 +145,31 @@ class AiPromptFormData {
   }
 }
 
+const adminNewsAiDefaultPromptTitle = 'Haber İçerik Üretici';
+
+const adminNewsAiDefaultSystemPrompt = '''
+Sen, F-Pattern okuma alışkanlığına, Smart Brevity'ye ve haber SEO'suna hakim
+bir Dijital Medya Mimarı ve Haber Editörüsün.
+Görevin ham metni CMS uyumlu modüler haber JSON'una çevirmektir.
+Metne mutlak sadakat göster. Ham metinde olmayan bilgiyi uydurma.
+Haberi kısaltma, eksiltme veya kaynak dışı bilgiyle genişletme.
+Kişi sözü, kurum adı, tarih, rakam, yer, unvan ve özel adları değiştirme.
+Alıntıları birebir koru; kimseye söylemediği bir şeyi söyletme.
+Alıntı dışı anlatımı anlamı bozmadan doğal, profesyonel ve özgün cümlelerle yenile.
+Uzun metin duvarı kurma; kısa paragraflar, habere özel h2 başlıklar ve
+gerekli yerlerde <strong>vurgular</strong> kullan.
+Sabit AI kalıpları kullanma; her başlık habere özgü olsun.
+Etiketlerde kişi adını, tam ünvanlı kişi adını, kurum, mekan ve ürün adını ayrı yakala.
+SEO etiketlerini yalnız kaynakta kanıtlanan ana kişi, kurum, olay, proje, yer ve doğal sorgu ifadelerinden üret; alakasız trend veya keyword stuffing yapma.
+Seçili item sayıları ve tipleri neyse JSON'da birebir karşıla.
+Sadece JSON üret ve şemaya uy.
+''';
+
+const adminNewsAiDefaultPromptData = AiPromptFormData(
+  title: adminNewsAiDefaultPromptTitle,
+  prompt: adminNewsAiDefaultSystemPrompt,
+);
+
 abstract class AdminAiSettingsRepository {
   Future<AdminAiSettingsData> fetchSettings(String languageCode);
 
@@ -319,10 +344,10 @@ class SupabaseAdminAiSettingsRepository implements AdminAiSettingsRepository {
     }
 
     final results = await Future.wait([
-      _fetchGeminiModelList('v1', trimmedKey),
       _fetchGeminiModelList('v1beta', trimmedKey),
+      _fetchGeminiModelList('v1', trimmedKey),
     ]);
-    final models = _filterPreferredModels([
+    final models = filterGeminiTextGenerationModels([
       for (final result in results) ...result.modelIds,
     ]);
     if (models.isNotEmpty) return models;
@@ -339,125 +364,62 @@ class SupabaseAdminAiSettingsRepository implements AdminAiSettingsRepository {
     String apiKey,
   ) async {
     try {
-      final uri = Uri.https(
-        'generativelanguage.googleapis.com',
-        '/$version/models',
-        {'key': apiKey},
-      );
-      final response = await (httpClient?.get(uri) ?? http.get(uri)).timeout(
-        _requestTimeout,
-      );
-      final decoded = response.body.isEmpty
-          ? <String, Object?>{}
-          : jsonDecode(response.body);
-      if (decoded is! Map) {
-        return const _GeminiModelListResult(
-          modelIds: [],
-          error: 'Geçersiz model yanıtı',
+      final modelIds = <String>[];
+      var pageToken = '';
+
+      for (var page = 0; page < 20; page++) {
+        final uri =
+            Uri.https('generativelanguage.googleapis.com', '/$version/models', {
+              'key': apiKey,
+              'pageSize': '1000',
+              if (pageToken.isNotEmpty) 'pageToken': pageToken,
+            });
+        final response = await (httpClient?.get(uri) ?? http.get(uri)).timeout(
+          _requestTimeout,
         );
+        final decoded = response.body.isEmpty
+            ? <String, Object?>{}
+            : jsonDecode(response.body);
+        if (decoded is! Map) {
+          return const _GeminiModelListResult(
+            modelIds: [],
+            error: 'Geçersiz model yanıtı',
+          );
+        }
+        final error = decoded['error'];
+        if (error is Map) {
+          return _GeminiModelListResult(
+            modelIds: const [],
+            error: error['message']?.toString() ?? 'Model listesi alınamadı',
+          );
+        }
+        final models = decoded['models'];
+        if (models is List) {
+          modelIds.addAll(
+            [
+              for (final item in models.whereType<Map>())
+                if (_supportsGenerateContent(item))
+                  normalizeGeminiModelId(_string(item['name'])),
+            ].where((id) => id.isNotEmpty),
+          );
+        }
+        pageToken = _string(decoded['nextPageToken']);
+        if (pageToken.isEmpty) break;
       }
-      final error = decoded['error'];
-      if (error is Map) {
-        return _GeminiModelListResult(
-          modelIds: const [],
-          error: error['message']?.toString() ?? 'Model listesi alınamadı',
-        );
-      }
-      final models = decoded['models'];
-      if (models is! List) return const _GeminiModelListResult(modelIds: []);
-      return _GeminiModelListResult(
-        modelIds: [
-          for (final item in models.whereType<Map>())
-            if (_supportsGenerateContent(item))
-              _string(item['name']).replaceFirst('models/', '').trim(),
-        ].where((id) => id.isNotEmpty).toList(growable: false),
-      );
+
+      return _GeminiModelListResult(modelIds: modelIds);
     } catch (error) {
       return _GeminiModelListResult(modelIds: const [], error: '$error');
     }
   }
 
   bool _supportsGenerateContent(Map<dynamic, dynamic> item) {
-    final methods = item['supportedGenerationMethods'];
-    return methods is List && methods.contains('generateContent');
-  }
-
-  List<String> _filterPreferredModels(List<String> rawModels) {
-    final seen = <String>{};
-    final unique = <String>[
-      for (final model in rawModels.map((model) => model.trim()))
-        if (model.isNotEmpty && seen.add(model)) model,
-    ];
-    final geminiFlash = unique
-        .where((id) {
-          final lower = id.toLowerCase();
-          if (lower.contains('image')) return false;
-          return lower.contains('gemini-3-flash') ||
-              lower.contains('gemini-3.1-flash');
-        })
-        .toList(growable: false);
-
-    final gemini25FlashCandidates = unique
-        .where((id) {
-          final lower = id.toLowerCase();
-          if (lower.contains('image')) return false;
-          return lower.contains('gemini-2.5-flash');
-        })
-        .toList(growable: false);
-    final exactGemini25Flash = gemini25FlashCandidates
-        .where((model) => model.toLowerCase() == 'gemini-2.5-flash')
-        .firstOrNull;
-    final bestGemini25Flash =
-        exactGemini25Flash ?? _pickBestModel(gemini25FlashCandidates);
-
-    final gemmaModels = unique
-        .where((id) => id.toLowerCase().contains('gemma'))
-        .toList(growable: false);
-    final bestGemma = _pickBestGemma(gemmaModels);
-
-    final filtered = <String>[...geminiFlash];
-    if (bestGemini25Flash.isNotEmpty && !filtered.contains(bestGemini25Flash)) {
-      filtered.add(bestGemini25Flash);
-    }
-    if (bestGemma.isNotEmpty && !filtered.contains(bestGemma)) {
-      filtered.add(bestGemma);
-    }
-    return filtered;
-  }
-
-  String _pickBestModel(List<String> candidates) {
-    if (candidates.isEmpty) return '';
-    final sorted = candidates.toList(growable: false)
-      ..sort((a, b) {
-        final scoreDiff = _modelRank(b) - _modelRank(a);
-        if (scoreDiff != 0) return scoreDiff;
-        return b.compareTo(a);
-      });
-    return sorted.first;
-  }
-
-  int _modelRank(String id) {
-    final lower = id.toLowerCase();
-    var score = 0;
-    if (lower.contains('latest')) score += 1000;
-    if (!lower.contains('preview') &&
-        !lower.contains('exp') &&
-        !lower.contains('experimental')) {
-      score += 200;
-    }
-    if (lower.contains('preview')) score -= 50;
-    if (lower.contains('flash-lite') || lower.contains('-lite')) {
-      score -= 2000;
-    }
-    return score;
-  }
-
-  String _pickBestGemma(List<String> models) {
-    if (models.isEmpty) return '';
-    return models.where((model) => model.contains('27b')).firstOrNull ??
-        models.where((model) => model.contains('9b')).firstOrNull ??
-        models.where((model) => model.contains('7b')).firstOrNull ??
-        models.first;
+    final rawMethods =
+        item['supportedGenerationMethods'] ?? item['supportedActions'];
+    if (rawMethods is! List) return false;
+    return rawMethods.any(
+      (method) => method.toString().trim() == 'generateContent',
+    );
   }
 
   Future<Map<String, Object?>> _postJson(
@@ -525,6 +487,117 @@ class _GeminiModelListResult {
 
   final List<String> modelIds;
   final String error;
+}
+
+String normalizeGeminiModelId(Object? value) {
+  return _string(
+    value,
+  ).trim().replaceFirst(RegExp(r'^models/', caseSensitive: false), '').trim();
+}
+
+List<String> filterGeminiTextGenerationModels(List<String> rawModels) {
+  final seen = <String>{};
+  final models = <String>[];
+
+  for (final rawModel in rawModels) {
+    final model = normalizeGeminiModelId(rawModel);
+    final lower = model.toLowerCase();
+    if (model.isEmpty || !seen.add(lower)) continue;
+    if (!isSupportedGeminiTextGenerationModel(model)) continue;
+    models.add(model);
+  }
+
+  return models..sort((a, b) {
+    final rankDiff = _geminiTextModelRank(b) - _geminiTextModelRank(a);
+    if (rankDiff != 0) return rankDiff;
+    return a.compareTo(b);
+  });
+}
+
+bool isSupportedGeminiTextGenerationModel(String model) {
+  final lower = normalizeGeminiModelId(model).toLowerCase();
+  if (lower.isEmpty) return false;
+  if (!lower.startsWith('gemini-') && !lower.startsWith('gemma-')) {
+    return false;
+  }
+  if (_isDeprecatedGeminiTextModel(lower)) return false;
+  if (_isNonTextGenerationModel(lower)) return false;
+  return true;
+}
+
+bool isFreeGeminiTextGenerationModel(String model) {
+  final lower = normalizeGeminiModelId(model).toLowerCase();
+  if (!isSupportedGeminiTextGenerationModel(lower)) return false;
+  if (_freeGeminiTextModelIds.contains(lower)) return true;
+  if (lower.startsWith('gemini-2.5-flash-preview')) return true;
+  if (lower.startsWith('gemma-3') || lower.startsWith('gemma-3n')) return true;
+  return false;
+}
+
+const _freeGeminiTextModelIds = <String>{
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash-preview',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash-lite-preview-09-2025',
+};
+
+bool _isDeprecatedGeminiTextModel(String lower) {
+  return lower.startsWith('gemini-1.5') ||
+      lower.startsWith('gemini-2.0') ||
+      lower == 'gemini-3-pro-preview' ||
+      lower.startsWith('gemini-3.1-flash-lite-preview');
+}
+
+bool _isNonTextGenerationModel(String lower) {
+  const blockedFragments = [
+    'image',
+    'imagen',
+    'veo',
+    'lyria',
+    'tts',
+    'audio',
+    'live',
+    'embedding',
+    'embed',
+    'aqa',
+    'robot',
+    'computer-use',
+    'deep-research',
+    'antigravity',
+  ];
+  return blockedFragments.any(lower.contains);
+}
+
+int _geminiTextModelRank(String model) {
+  final lower = normalizeGeminiModelId(model).toLowerCase();
+  const exactRanks = <String, int>{
+    'gemini-3.5-flash': 20000,
+    'gemini-3.1-flash-lite': 19000,
+    'gemini-3-flash-preview': 18000,
+    'gemini-2.5-flash': 17000,
+    'gemini-2.5-flash-lite': 16000,
+    'gemini-2.5-pro': 15000,
+    'gemini-2.5-flash-lite-preview-09-2025': 14500,
+  };
+
+  var score = exactRanks[lower] ?? 0;
+  if (score == 0) {
+    if (lower.startsWith('gemini-3.1-pro')) score = 14000;
+    if (lower.startsWith('gemini-2.5-flash-preview')) score = 13500;
+    if (lower.startsWith('gemini-3')) score = 12000;
+    if (lower.startsWith('gemini-2.5')) score = 10000;
+    if (lower.startsWith('gemini-')) score = 8000;
+    if (lower.startsWith('gemma-3n')) score = 6000;
+    if (lower.startsWith('gemma-3')) score = 5800;
+    if (lower.startsWith('gemma-')) score = 5000;
+  }
+  if (lower.contains('latest')) score += 400;
+  if (lower.contains('preview')) score -= 80;
+  if (lower.contains('experimental') || lower.contains('-exp')) score -= 300;
+  return score;
 }
 
 class AdminAiSettingsException implements Exception {

@@ -4372,6 +4372,7 @@ void main() {
     expect(find.text('Cloudflare R2'), findsOneWidget);
     expect(find.text('Backblaze B2'), findsOneWidget);
     expect(find.text('Bunny.net'), findsOneWidget);
+    expect(find.text('Google Drive'), findsOneWidget);
     expect(find.text('Access Key'), findsWidgets);
     expect(find.text('Secret Key'), findsWidgets);
     expect(find.text('Bucket Name'), findsWidgets);
@@ -4383,6 +4384,14 @@ void main() {
     expect(find.text('Storage Zone Name'), findsOneWidget);
     expect(find.text('Hostname'), findsOneWidget);
     expect(find.text('Pull Zone URL'), findsOneWidget);
+
+    await tester.tap(find.text('Google Drive'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Client ID'), findsOneWidget);
+    expect(find.text('Client Secret'), findsOneWidget);
+    expect(find.text('Refresh Token'), findsOneWidget);
+    expect(find.text('Folder ID'), findsOneWidget);
 
     await tester.tap(find.text('Değişiklikleri Kaydet'));
     await tester.pumpAndSettle();
@@ -4430,6 +4439,7 @@ void main() {
     expect(find.text('Google AI API Key'), findsOneWidget);
     expect(find.text('API Bağlantısını Test Et'), findsOneWidget);
     expect(find.text('Google AI Modeli'), findsOneWidget);
+    expect(find.text('Ücretsizleri göster'), findsOneWidget);
     expect(find.text('gemini-3-pro-preview'), findsOneWidget);
     expect(find.text('Değişiklikleri Kaydet'), findsOneWidget);
 
@@ -4475,11 +4485,11 @@ void main() {
 
     expect(find.text('Yapay Zeka Hazır Promtlar'), findsWidgets);
     expect(find.text('Yeni Promt Ekle'), findsOneWidget);
-    expect(find.text('Testi Geliştirerek Hazırla'), findsOneWidget);
-    expect(find.text('Testi Metne Sadık Yerleştir'), findsOneWidget);
-    expect(find.text('Anketi Geliştirerek Hazırla'), findsOneWidget);
-    expect(find.text('Anketi Metne Sadık Yerleştir'), findsOneWidget);
-    expect(find.text('Videoyu Geliştirerek Hazırla'), findsOneWidget);
+    expect(find.text('Testi Geliştirerek Hazırla'), findsNothing);
+    expect(find.text('Testi Metne Sadık Yerleştir'), findsNothing);
+    expect(find.text('Anketi Geliştirerek Hazırla'), findsNothing);
+    expect(find.text('Anketi Metne Sadık Yerleştir'), findsNothing);
+    expect(find.text('Videoyu Geliştirerek Hazırla'), findsNothing);
     expect(find.text('Haber Hazırla 1'), findsOneWidget);
     expect(find.byTooltip('Promtu düzenle'), findsOneWidget);
     expect(find.byTooltip('Promtu sil'), findsOneWidget);

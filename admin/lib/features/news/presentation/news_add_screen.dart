@@ -9,6 +9,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_news_ai_repository.dart';
 import '../data/admin_news_repository.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/data/media_service.dart';
@@ -53,6 +54,13 @@ const _newsAddTabMuted = Color(0xFF5F6F78);
 const _newsAddUploadInk = Color(0xFF6D7B83);
 const _newsAddActionHeight = 42.0;
 const _newsAddCoverVisualHeight = 160.0;
+const _allowedAiSchemaTypes = {
+  'NewsArticle',
+  'ReportageNewsArticle',
+  'OpinionNewsArticle',
+  'AnalysisNewsArticle',
+  'Article',
+};
 
 class NewsAddScreen extends StatefulWidget {
   const NewsAddScreen({
@@ -61,12 +69,14 @@ class NewsAddScreen extends StatefulWidget {
     required this.repository,
     this.profile,
     this.postId,
+    this.aiRepository,
     this.onBackToNews,
   });
 
   final AdminSession session;
   final AdminProfile? profile;
   final AdminNewsRepository repository;
+  final AdminNewsAiRepository? aiRepository;
   final String? postId;
   final VoidCallback? onBackToNews;
 
@@ -136,11 +146,13 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     categories: [],
     publishers: [],
   );
+  late final AdminNewsAiRepository _aiRepository;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+    _aiRepository = widget.aiRepository ?? const GeminiAdminNewsAiRepository();
     _editingPostId = widget.postId;
     _titleController.addListener(_handleTitleChanged);
     _summaryController.addListener(_handleSummaryChanged);
@@ -3274,11 +3286,246 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           faqEntries: _faqEntries,
           onAddFaq: _handleAddFaq,
           onRemoveFaq: _handleRemoveFaq,
+          onAiGenerate: _openAiContentGenerator,
         ),
         const SizedBox(height: 20),
         ..._buildTabBody(),
       ],
     );
+  }
+
+  Future<void> _openAiContentGenerator() async {
+    final draft = await showDialog<AdminNewsAiDraft>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (dialogContext) {
+        return _AiContentGeneratorDialog(
+          languageCode: _languageCode,
+          category: _selectedCategory,
+          initialTopic: _titleController.text.trim(),
+          initialNotes: _summaryController.text.trim(),
+          onGenerate: _aiRepository.generateDraft,
+        );
+      },
+    );
+    if (draft == null || !mounted) return;
+    _applyAiDraft(draft);
+    _showEditorMessage(context.t('newsAdd.aiModal.generated'));
+  }
+
+  void _applyAiDraft(AdminNewsAiDraft draft) {
+    final blocks = _contentBlocksFromAiDraft(draft);
+    _hydrating = true;
+    setState(() {
+      _activeTab = NewsAddFormatTab.article;
+      if (draft.title.isNotEmpty) {
+        _setControllerText(_titleController, draft.title);
+      }
+      if (draft.summary.isNotEmpty) {
+        _setControllerText(_summaryController, draft.summary);
+      }
+      if (draft.seoTitle.isNotEmpty) {
+        _setControllerText(_seoTitleController, draft.seoTitle);
+      }
+      final normalizedSlug = _slugify(
+        draft.slug.isNotEmpty ? draft.slug : draft.title,
+      );
+      if (normalizedSlug.isNotEmpty) {
+        _setControllerText(_slugController, normalizedSlug);
+      }
+      if (draft.metaDescription.isNotEmpty) {
+        _setControllerText(
+          _metaDescriptionController,
+          draft.metaDescription.length > 170
+              ? draft.metaDescription.substring(0, 170)
+              : draft.metaDescription,
+        );
+      }
+      if (_allowedAiSchemaTypes.contains(draft.schemaType)) {
+        _schemaType = draft.schemaType;
+      }
+      if (draft.keywords.isNotEmpty) {
+        _keywords
+          ..clear()
+          ..addAll(draft.keywords.take(14));
+      }
+      if (draft.faqEntries.isNotEmpty) {
+        for (final entry in _faqEntries) {
+          entry.dispose();
+        }
+        _faqEntries
+          ..clear()
+          ..addAll([
+            for (final item in draft.faqEntries)
+              _FaqEntry()
+                ..question.text = item.question
+                ..answer.text = item.answer,
+          ]);
+      }
+      if (blocks.isNotEmpty) {
+        _replaceContentBlocks(_articleBlocks, blocks);
+      }
+      _lastAutoSlug = _slugController.text.trim();
+      _lastAutoSeoTitle = _seoTitleController.text.trim();
+      _lastAutoSeoDescription = _metaDescriptionController.text.trim();
+    });
+    _hydrating = false;
+  }
+
+  List<Object> _contentBlocksFromAiDraft(AdminNewsAiDraft draft) {
+    final blocks = <Object>[];
+    final sections = splitAdminNewsAiContentSections(
+      title: draft.mainContentTitle,
+      fallbackTitle: draft.title,
+      html: draft.mainContentHtml,
+    );
+    for (final section in sections) {
+      final block = ArticleTextBlockEntry();
+      block.titleController.text = section.title;
+      adminSetQuillHtml(block.editorController, section.html);
+      blocks.add(block);
+    }
+    for (final item in draft.items) {
+      final block = _contentBlockFromAiItem(item);
+      if (block != null) blocks.add(block);
+    }
+    return blocks;
+  }
+
+  Object? _contentBlockFromAiItem(AdminNewsAiItem item) {
+    switch (item.type) {
+      case 'text':
+        final block = ArticleTextBlockEntry();
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.editorController, item.descriptionHtml);
+        return block;
+      case 'image':
+        final block = ArticleImageBlockEntry();
+        block.titleController.text = item.title;
+        block.altTextController.text = item.altText;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.captionController, item.descriptionHtml);
+        return block;
+      case 'slider':
+        final block = ArticleSliderImageBlockEntry();
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.captionController, item.descriptionHtml);
+        return block;
+      case 'video':
+        final block = ArticleVideoBlockEntry();
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.descriptionController, item.descriptionHtml);
+        return block;
+      case 'audio':
+        final block = ArticleAudioBlockEntry();
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.descriptionController, item.descriptionHtml);
+        return block;
+      case 'file':
+        final block = ArticleFileBlockEntry();
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.descriptionController, item.descriptionHtml);
+        return block;
+      case 'social':
+        final block = ArticleSocialBlockEntry();
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.contentController, item.descriptionHtml);
+        return block;
+      case 'flipcard':
+        final block = ArticleFlipcardBlockEntry();
+        block.titleController.text = item.title;
+        block.frontTitleController.text = item.frontTitle;
+        block.backTitleController.text = item.backTitle;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.descriptionController, item.descriptionHtml);
+        adminSetQuillHtml(
+          block.frontDescriptionController,
+          item.frontDescriptionHtml,
+        );
+        adminSetQuillHtml(
+          block.backDescriptionController,
+          item.backDescriptionHtml,
+        );
+        return block;
+      case 'beforeafter':
+        final block = ArticleBeforeAfterBlockEntry(
+          beforeLabel: item.beforeLabel.isEmpty
+              ? context.t('newsAdd.beforeAfterBeforeDefault')
+              : item.beforeLabel,
+          afterLabel: item.afterLabel.isEmpty
+              ? context.t('newsAdd.beforeAfterAfterDefault')
+              : item.afterLabel,
+        );
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.descriptionController, item.descriptionHtml);
+        return block;
+      case 'poll':
+        final answers = item.options.isEmpty
+            ? const <String>[]
+            : item.options.take(6).toList();
+        final block = PollQuestionBlockEntry(
+          answerCount: answers.isEmpty ? 2 : answers.length,
+        );
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.descriptionController, item.descriptionHtml);
+        for (
+          var index = 0;
+          index < answers.length && index < block.answers.length;
+          index++
+        ) {
+          block.answers[index].answerController.text = answers[index];
+        }
+        return block;
+      case 'vs':
+        final left = item.options.isNotEmpty
+            ? item.options[0]
+            : context.t('newsAdd.vsLeftDefault');
+        final right = item.options.length > 1
+            ? item.options[1]
+            : context.t('newsAdd.vsRightDefault');
+        final block = ArticleVsBlockEntry(leftLabel: left, rightLabel: right);
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.descriptionController, item.descriptionHtml);
+        return block;
+      case 'review':
+        final block = ArticleReviewBlockEntry(
+          designLabel: context.t('newsAdd.reviewCriterionDesign'),
+          performanceLabel: context.t('newsAdd.reviewCriterionPerformance'),
+        );
+        block.productNameController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.verdictController, item.descriptionHtml);
+        if (item.pros.isNotEmpty) _replaceReviewTexts(block.pros, item.pros);
+        if (item.cons.isNotEmpty) _replaceReviewTexts(block.cons, item.cons);
+        if (item.criteria.isNotEmpty) {
+          _replaceReviewCriteria(block.criteria, [
+            for (final criterion in item.criteria)
+              {'label': criterion.label, 'score': criterion.score},
+          ]);
+        }
+        return block;
+      case 'quote':
+        final block = ArticleQuoteBlockEntry();
+        block.authorController.text = item.title;
+        block.sourceController.text = item.source;
+        adminSetQuillHtml(block.quoteController, item.descriptionHtml);
+        return block;
+      case 'iframe':
+        final block = ArticleIframeBlockEntry();
+        block.titleController.text = item.title;
+        block.sourceController.text = item.source;
+        return block;
+    }
+    return null;
   }
 
   List<Widget> _buildTabBody() {
@@ -4443,36 +4690,40 @@ class _PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Container(
-          height: height,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: borderColor == null
-                ? null
-                : Border.all(color: borderColor!),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 15, color: foreground),
-              const SizedBox(width: 8),
-              Text(
-                context.t(label),
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.62,
+          child: Container(
+            height: height,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: borderColor == null
+                  ? null
+                  : Border.all(color: borderColor!),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 15, color: foreground),
+                const SizedBox(width: 8),
+                Text(
+                  context.t(label),
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -4933,6 +5184,7 @@ class _ContentInfoCard extends StatelessWidget {
     required this.faqEntries,
     required this.onAddFaq,
     required this.onRemoveFaq,
+    required this.onAiGenerate,
   });
 
   final NewsAddFormatTab activeTab;
@@ -4955,6 +5207,7 @@ class _ContentInfoCard extends StatelessWidget {
   final List<_FaqEntry> faqEntries;
   final VoidCallback onAddFaq;
   final ValueChanged<_FaqEntry> onRemoveFaq;
+  final VoidCallback onAiGenerate;
 
   @override
   Widget build(BuildContext context) {
@@ -4988,6 +5241,7 @@ class _ContentInfoCard extends StatelessWidget {
                     pinToTop: pinToTop,
                     onMansetChanged: onMansetChanged,
                     onPinChanged: onPinChanged,
+                    onAiGenerate: onAiGenerate,
                   ),
                 ),
                 const SizedBox(height: 22),
@@ -5156,12 +5410,14 @@ class _HeaderToggles extends StatelessWidget {
     required this.pinToTop,
     required this.onMansetChanged,
     required this.onPinChanged,
+    required this.onAiGenerate,
   });
 
   final bool mansetSlider;
   final bool pinToTop;
   final ValueChanged<bool> onMansetChanged;
   final ValueChanged<bool> onPinChanged;
+  final VoidCallback onAiGenerate;
 
   @override
   Widget build(BuildContext context) {
@@ -5184,7 +5440,7 @@ class _HeaderToggles extends StatelessWidget {
           activeColor: AppColors.warmHorizon,
           showCheckIcon: true,
         ),
-        _AiButton(),
+        _AiButton(onTap: onAiGenerate),
       ],
     );
   }
@@ -5232,7 +5488,9 @@ class _NamedToggle extends StatelessWidget {
 }
 
 class _AiButton extends StatelessWidget {
-  const _AiButton();
+  const _AiButton({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -5240,7 +5498,7 @@ class _AiButton extends StatelessWidget {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {},
+        onTap: onTap,
         child: Container(
           height: 30,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -5268,6 +5526,1088 @@ class _AiButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AiContentGeneratorDialog extends StatefulWidget {
+  const _AiContentGeneratorDialog({
+    required this.languageCode,
+    required this.category,
+    required this.initialTopic,
+    required this.initialNotes,
+    required this.onGenerate,
+  });
+
+  final String languageCode;
+  final String category;
+  final String initialTopic;
+  final String initialNotes;
+  final Future<AdminNewsAiDraft> Function(AdminNewsAiDraftRequest request)
+  onGenerate;
+
+  @override
+  State<_AiContentGeneratorDialog> createState() =>
+      _AiContentGeneratorDialogState();
+}
+
+class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
+  late final TextEditingController _topicController;
+  late final TextEditingController _notesController;
+
+  var _tone = 'neutral';
+  var _contentType = 'article';
+  var _outputTarget = 'all';
+  var _includeSeo = true;
+  var _generating = false;
+  String? _generationError;
+  final _itemCounts = <String, int>{};
+
+  List<_AddBtn> get _aiItemOptions => const [
+    _AddBtn('newsAdd.add.text', Icons.text_fields, Color(0xFF2C3E50)),
+    _AddBtn('newsAdd.add.image', Icons.image_outlined, Color(0xFF1F8B3D)),
+    _AddBtn(
+      'newsAdd.add.slider',
+      Icons.collections_outlined,
+      Color(0xFF2E7D32),
+    ),
+    _AddBtn('newsAdd.add.video', Icons.play_circle_outline, Color(0xFFC0392B)),
+    _AddBtn('newsAdd.add.audio', Icons.headphones_outlined, Color(0xFF8E44AD)),
+    _AddBtn(
+      'newsAdd.add.file',
+      Icons.insert_drive_file_outlined,
+      Color(0xFF7F8C8D),
+    ),
+    _AddBtn('newsAdd.add.social', Icons.share_outlined, Color(0xFF2980B9)),
+    _AddBtn('newsAdd.add.flip', Icons.sync, Color(0xFFD35400)),
+    _AddBtn(
+      'newsAdd.add.beforeAfter',
+      Icons.compare_outlined,
+      Color(0xFF1F6FA8),
+    ),
+    _AddBtn('newsAdd.add.poll', Icons.bar_chart_outlined, Color(0xFF5B3FB0)),
+    _AddBtn('newsAdd.add.vs', Icons.flash_on_outlined, Color(0xFFE91E63)),
+    _AddBtn('newsAdd.add.review', Icons.star_outline, Color(0xFF16A085)),
+    _AddBtn('newsAdd.add.quote', Icons.format_quote, Color(0xFF34495E)),
+    _AddBtn('newsAdd.add.iframe', Icons.public, Color(0xFF3F51B5)),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _topicController = TextEditingController(text: widget.initialTopic);
+    _notesController = TextEditingController(text: widget.initialNotes);
+  }
+
+  @override
+  void dispose() {
+    _topicController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleGenerate() async {
+    if (_generating) return;
+    setState(() {
+      _generating = true;
+      _generationError = null;
+    });
+    try {
+      final draft = await widget.onGenerate(
+        AdminNewsAiDraftRequest(
+          languageCode: widget.languageCode,
+          category: widget.category,
+          tone: _tone,
+          contentType: _contentType,
+          outputTarget: _outputTarget,
+          includeSeo: _includeSeo,
+          topic: _topicController.text,
+          sourceNotes: _notesController.text,
+          itemCounts: _normalizedItemCounts(),
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(draft);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        _generationError = error.toString();
+      });
+    }
+  }
+
+  Map<String, int> _normalizedItemCounts() {
+    return {
+      for (final entry in _itemCounts.entries)
+        if (_itemTypeForLabel(entry.key).isNotEmpty && entry.value > 0)
+          _itemTypeForLabel(entry.key): entry.value,
+    };
+  }
+
+  String _itemTypeForLabel(String label) {
+    return switch (label) {
+      'newsAdd.add.text' => 'text',
+      'newsAdd.add.image' => 'image',
+      'newsAdd.add.slider' => 'slider',
+      'newsAdd.add.video' => 'video',
+      'newsAdd.add.audio' => 'audio',
+      'newsAdd.add.file' => 'file',
+      'newsAdd.add.social' => 'social',
+      'newsAdd.add.flip' => 'flipcard',
+      'newsAdd.add.beforeAfter' => 'beforeafter',
+      'newsAdd.add.poll' => 'poll',
+      'newsAdd.add.vs' => 'vs',
+      'newsAdd.add.review' => 'review',
+      'newsAdd.add.quote' => 'quote',
+      'newsAdd.add.iframe' => 'iframe',
+      _ => '',
+    };
+  }
+
+  void _addAiItem(_AddBtn item) {
+    setState(() {
+      _itemCounts[item.label] = (_itemCounts[item.label] ?? 0) + 1;
+    });
+  }
+
+  void _removeAiItem(_AddBtn item) {
+    setState(() {
+      final next = (_itemCounts[item.label] ?? 0) - 1;
+      if (next <= 0) {
+        _itemCounts.remove(item.label);
+      } else {
+        _itemCounts[item.label] = next;
+      }
+    });
+  }
+
+  void _clearAiItems() {
+    setState(_itemCounts.clear);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final horizontalInset = size.width < 720 ? 16.0 : 48.0;
+    final verticalInset = size.height < 700 ? 16.0 : 42.0;
+    final availableWidth = size.width - (horizontalInset * 2);
+    final availableHeight = size.height - (verticalInset * 2);
+    final preferredWidth = size.width < 1180
+        ? availableWidth
+        : (size.width * 0.76).clamp(1120.0, 1280.0).toDouble();
+    final dialogWidth = preferredWidth.clamp(0.0, availableWidth).toDouble();
+    final preferredHeight = size.height < 700
+        ? availableHeight
+        : (size.height * 0.76).clamp(620.0, 700.0).toDouble();
+    final dialogHeight = preferredHeight.clamp(0.0, availableHeight).toDouble();
+
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: horizontalInset,
+        vertical: verticalInset,
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: dialogWidth,
+          maxHeight: dialogHeight,
+        ),
+        child: SizedBox(
+          width: dialogWidth,
+          height: dialogHeight,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: _newsAddStrongLine),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 30,
+                  offset: const Offset(0, 18),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    _AiModalHeader(
+                      onClose: _generating
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(28, 22, 28, 18),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final railLayout = constraints.maxWidth >= 980;
+                            final railWidth = constraints.maxWidth < 1160
+                                ? 420.0
+                                : 460.0;
+                            final dense = constraints.maxHeight < 560;
+                            final form = _buildAiForm(
+                              context,
+                              !railLayout,
+                              dense,
+                            );
+                            final items = _AiModalItemPlanner(
+                              items: _aiItemOptions,
+                              counts: _itemCounts,
+                              enabled: !_generating,
+                              onAdd: _addAiItem,
+                              onRemove: _removeAiItem,
+                              onClear: _clearAiItems,
+                            );
+
+                            if (!railLayout) {
+                              return SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    form,
+                                    SizedBox(height: dense ? 12 : 16),
+                                    items,
+                                  ],
+                                ),
+                              );
+                            }
+
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(child: form),
+                                ),
+                                const SizedBox(width: 22),
+                                SizedBox(
+                                  width: railWidth,
+                                  child: SingleChildScrollView(child: items),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    if (_generationError != null)
+                      _AiGenerationError(message: _generationError!),
+                    _AiModalFooter(
+                      generating: _generating,
+                      onClose: _generating
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      onGenerate: _generating
+                          ? null
+                          : () => unawaited(_handleGenerate()),
+                    ),
+                  ],
+                ),
+                if (_generating) const _AiGenerationOverlay(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectGrid(BuildContext context, bool compact) {
+    final tone = _AiGeneratorSelect(
+      label: 'newsAdd.aiModal.tone',
+      value: _tone,
+      leadingIcon: Icons.record_voice_over_outlined,
+      items: [
+        DropdownMenuItem(
+          value: 'neutral',
+          child: Text(context.t('newsAdd.aiModal.tone.neutral')),
+        ),
+        DropdownMenuItem(
+          value: 'professional',
+          child: Text(context.t('newsAdd.aiModal.tone.professional')),
+        ),
+        DropdownMenuItem(
+          value: 'entertaining',
+          child: Text(context.t('newsAdd.aiModal.tone.entertaining')),
+        ),
+        DropdownMenuItem(
+          value: 'local',
+          child: Text(context.t('newsAdd.aiModal.tone.local')),
+        ),
+        DropdownMenuItem(
+          value: 'critical',
+          child: Text(context.t('newsAdd.aiModal.tone.critical')),
+        ),
+        DropdownMenuItem(
+          value: 'formal',
+          child: Text(context.t('newsAdd.aiModal.tone.formal')),
+        ),
+      ],
+      onChanged: (value) => setState(() => _tone = value ?? _tone),
+    );
+    final contentType = _AiGeneratorSelect(
+      label: 'newsAdd.aiModal.contentType',
+      value: _contentType,
+      leadingIcon: Icons.article_outlined,
+      items: [
+        DropdownMenuItem(
+          value: 'article',
+          child: Text(context.t('newsAdd.aiModal.content.article')),
+        ),
+        DropdownMenuItem(
+          value: 'breaking',
+          child: Text(context.t('newsAdd.aiModal.content.breaking')),
+        ),
+        DropdownMenuItem(
+          value: 'analysis',
+          child: Text(context.t('newsAdd.aiModal.content.analysis')),
+        ),
+        DropdownMenuItem(
+          value: 'interview',
+          child: Text(context.t('newsAdd.aiModal.content.interview')),
+        ),
+      ],
+      onChanged: (value) =>
+          setState(() => _contentType = value ?? _contentType),
+    );
+    final outputTarget = _AiGeneratorSelect(
+      label: 'newsAdd.aiModal.outputTarget',
+      value: _outputTarget,
+      leadingIcon: Icons.auto_fix_high_outlined,
+      items: [
+        DropdownMenuItem(
+          value: 'all',
+          child: Text(context.t('newsAdd.aiModal.output.all')),
+        ),
+        DropdownMenuItem(
+          value: 'contentSeo',
+          child: Text(context.t('newsAdd.aiModal.output.contentSeo')),
+        ),
+        DropdownMenuItem(
+          value: 'seoOnly',
+          child: Text(context.t('newsAdd.aiModal.output.seoOnly')),
+        ),
+        DropdownMenuItem(
+          value: 'social',
+          child: Text(context.t('newsAdd.aiModal.output.social')),
+        ),
+      ],
+      onChanged: (value) =>
+          setState(() => _outputTarget = value ?? _outputTarget),
+    );
+
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          tone,
+          const SizedBox(height: 14),
+          contentType,
+          const SizedBox(height: 14),
+          outputTarget,
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: tone),
+            const SizedBox(width: 18),
+            Expanded(child: contentType),
+          ],
+        ),
+        const SizedBox(height: 16),
+        outputTarget,
+      ],
+    );
+  }
+
+  Widget _buildAiForm(BuildContext context, bool compact, bool dense) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSelectGrid(context, compact),
+        SizedBox(height: dense ? 14 : 18),
+        const _FieldLabel('newsAdd.aiModal.topic', icon: Icons.auto_awesome),
+        _TextInputBox(
+          controller: _topicController,
+          hintTextKey: 'newsAdd.aiModal.topicHint',
+          minLines: dense ? 4 : 5,
+          maxLines: dense ? 4 : 5,
+          fontSize: 13.5,
+          bold: true,
+        ),
+        SizedBox(height: dense ? 12 : 14),
+        const _FieldLabel(
+          'newsAdd.aiModal.sourceNotes',
+          icon: Icons.fact_check_outlined,
+        ),
+        _TextInputBox(
+          controller: _notesController,
+          hintTextKey: 'newsAdd.aiModal.sourceNotesHint',
+          minLines: dense ? 4 : 5,
+          maxLines: dense ? 4 : 5,
+          fontSize: 13,
+        ),
+        SizedBox(height: dense ? 12 : 16),
+        _AiModalOptions(
+          includeSeo: _includeSeo,
+          onSeoChanged: (value) => setState(() => _includeSeo = value),
+        ),
+      ],
+    );
+  }
+}
+
+class _AiModalHeader extends StatelessWidget {
+  const _AiModalHeader({required this.onClose});
+
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(28, 18, 20, 18),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: const Icon(
+              Icons.auto_awesome,
+              size: 18,
+              color: AppColors.actionRed,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              context.t('newsAdd.aiModal.title'),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          _GoogleAiReadyBadge(),
+          const SizedBox(width: 12),
+          MouseRegion(
+            cursor: onClose == null
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClose,
+              child: Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(
+                  Icons.close,
+                  size: 20,
+                  color: onClose == null
+                      ? AppColors.iconMuted.withValues(alpha: 0.45)
+                      : AppColors.iconMuted,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiGeneratorSelect extends StatelessWidget {
+  const _AiGeneratorSelect({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    required this.leadingIcon,
+  });
+
+  final String label;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+  final IconData leadingIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(label, icon: leadingIcon),
+        _DropdownField(
+          value: value,
+          items: items,
+          onChanged: onChanged,
+          leadingIcon: leadingIcon,
+        ),
+      ],
+    );
+  }
+}
+
+class _AiModalOptions extends StatelessWidget {
+  const _AiModalOptions({required this.includeSeo, required this.onSeoChanged});
+
+  final bool includeSeo;
+  final ValueChanged<bool> onSeoChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddSoftLine),
+      ),
+      child: Row(
+        children: [
+          _AiModalToggle(
+            label: 'newsAdd.aiModal.includeSeo',
+            value: includeSeo,
+            onChanged: onSeoChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiModalToggle extends StatelessWidget {
+  const _AiModalToggle({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ToggleSwitch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: AppColors.deepOcean,
+          showCheckIcon: true,
+        ),
+        const SizedBox(width: 10),
+        Text(
+          context.t(label),
+          style: const TextStyle(
+            color: AppColors.inkSoft,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AiModalItemPlanner extends StatelessWidget {
+  const _AiModalItemPlanner({
+    required this.items,
+    required this.counts,
+    required this.enabled,
+    required this.onAdd,
+    required this.onRemove,
+    required this.onClear,
+  });
+
+  final List<_AddBtn> items;
+  final Map<String, int> counts;
+  final bool enabled;
+  final ValueChanged<_AddBtn> onAdd;
+  final ValueChanged<_AddBtn> onRemove;
+  final VoidCallback onClear;
+
+  int get _totalCount =>
+      counts.values.fold<int>(0, (total, count) => total + count);
+
+  @override
+  Widget build(BuildContext context) {
+    final totalCount = _totalCount;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddStrongLine),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepOcean.withValues(alpha: 0.025),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.deepOcean.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: const Icon(
+                  Icons.add_box_outlined,
+                  color: AppColors.deepOcean,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  context.t('newsAdd.aiModal.items'),
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              _AiItemCounterBadge(totalCount: totalCount),
+              if (totalCount > 0) ...[
+                const SizedBox(width: 8),
+                _AiItemClearButton(onTap: enabled ? onClear : null),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.t('newsAdd.aiModal.itemsHint'),
+            style: const TextStyle(
+              color: AppColors.iconMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final twoColumns = constraints.maxWidth >= 360;
+              final itemWidth = twoColumns
+                  ? ((constraints.maxWidth - 8) / 2)
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final item in items)
+                    SizedBox(
+                      width: itemWidth,
+                      child: _AiItemChoiceChip(
+                        item: item,
+                        count: counts[item.label] ?? 0,
+                        enabled: enabled,
+                        onAdd: () => onAdd(item),
+                        onRemove: () => onRemove(item),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiItemCounterBadge extends StatelessWidget {
+  const _AiItemCounterBadge({required this.totalCount});
+
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: totalCount > 0
+            ? AppColors.deepOcean.withValues(alpha: 0.08)
+            : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(
+          color: totalCount > 0
+              ? AppColors.deepOcean.withValues(alpha: 0.16)
+              : _newsAddSoftLine,
+        ),
+      ),
+      child: Text(
+        '${context.t('newsAdd.aiModal.totalItems')}: $totalCount',
+        style: TextStyle(
+          color: totalCount > 0 ? AppColors.deepOcean : AppColors.iconMuted,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _AiItemClearButton extends StatelessWidget {
+  const _AiItemClearButton({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.actionRed.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: AppColors.actionRed.withValues(alpha: 0.16),
+            ),
+          ),
+          child: Text(
+            context.t('newsAdd.aiModal.clearItems'),
+            style: const TextStyle(
+              color: AppColors.actionRed,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiItemChoiceChip extends StatelessWidget {
+  const _AiItemChoiceChip({
+    required this.item,
+    required this.count,
+    required this.enabled,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final _AddBtn item;
+  final int count;
+  final bool enabled;
+  final VoidCallback onAdd;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = count > 0;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onAdd : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: double.infinity,
+          height: 28,
+          padding: const EdgeInsets.only(left: 6, right: 6),
+          decoration: BoxDecoration(
+            color: selected
+                ? item.color.withValues(alpha: 0.10)
+                : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: selected
+                  ? item.color.withValues(alpha: 0.38)
+                  : _newsAddSoftLine,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: item.color,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: Icon(item.icon, size: 11, color: Colors.white),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  context.t(item.label),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+              if (selected) ...[
+                const SizedBox(width: 6),
+                Container(
+                  height: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: item.color,
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  child: Text(
+                    'x$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: enabled ? onRemove : null,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                      border: Border.all(
+                        color: item.color.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    child: Icon(Icons.remove, color: item.color, size: 12),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(width: 6),
+                Icon(Icons.add, color: item.color, size: 14),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiModalFooter extends StatelessWidget {
+  const _AiModalFooter({
+    required this.generating,
+    required this.onClose,
+    required this.onGenerate,
+  });
+
+  final bool generating;
+  final VoidCallback? onClose;
+  final VoidCallback? onGenerate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(28, 16, 28, 18),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final actions = [
+            _PillButton(
+              icon: Icons.close,
+              label: 'newsAdd.aiModal.close',
+              onTap: onClose,
+              background: Colors.white,
+              foreground: AppColors.inkSoft,
+              borderColor: _newsAddStrongLine,
+              height: 38,
+            ),
+            _PillButton(
+              icon: generating ? Icons.hourglass_empty : Icons.auto_awesome,
+              label: generating
+                  ? 'newsAdd.aiModal.generating'
+                  : 'newsAdd.aiModal.generate',
+              onTap: onGenerate,
+              background: AppColors.deepOcean,
+              foreground: Colors.white,
+              height: 38,
+            ),
+          ];
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [actions[1], const SizedBox(height: 10), actions[0]],
+            );
+          }
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [actions[0], const SizedBox(width: 10), actions[1]],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AiGenerationOverlay extends StatelessWidget {
+  const _AiGenerationOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.white.withValues(alpha: 0.78),
+        child: Center(
+          child: Container(
+            width: 340,
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: _newsAddStrongLine),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.deepOcean.withValues(alpha: 0.14),
+                  blurRadius: 28,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.deepOcean.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  child: const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: AppColors.deepOcean,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  context.t('newsAdd.aiModal.generating'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  context.t('newsAdd.aiModal.generatingHint'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.iconMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiGenerationError extends StatelessWidget {
+  const _AiGenerationError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(28, 0, 28, 12),
+      padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
+      decoration: BoxDecoration(
+        color: AppColors.actionRed.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.actionRed.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, size: 16, color: AppColors.actionRed),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.actionRed,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

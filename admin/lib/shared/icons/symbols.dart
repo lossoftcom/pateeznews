@@ -191,4 +191,8 @@ class Symbols {
   static const thumb_up_line = thumb_up_outlined;
   static const twitter_x_fill = IconData(0xf3e5, fontFamily: _fontFamily);
   static const whatsapp_fill = IconData(0xf2bb, fontFamily: _fontFamily);
+
+  // Ölüm İlanları için yaprak glifi — kod noktası
+  // admin/assets/fonts/remixicon/remixicon.css dosyasından birebir alınmıştır.
+  static const leaf_line = IconData(0xeea3, fontFamily: _fontFamily);
 }

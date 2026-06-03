@@ -145,6 +145,7 @@ class _ActiveStorageCard extends StatelessWidget {
     'storageSettings.option.cloudflareR2',
     'storageSettings.option.backblazeB2',
     'storageSettings.option.bunnyNet',
+    'storageSettings.option.googleDrive',
   ];
 
   @override
@@ -614,7 +615,8 @@ enum _StorageProvider {
   awsS3('storageSettings.provider.awsS3'),
   cloudflareR2('storageSettings.provider.cloudflareR2'),
   backblazeB2('storageSettings.provider.backblazeB2'),
-  bunnyNet('storageSettings.provider.bunnyNet');
+  bunnyNet('storageSettings.provider.bunnyNet'),
+  googleDrive('storageSettings.provider.googleDrive');
 
   const _StorageProvider(this.labelKey);
 
@@ -712,6 +714,28 @@ enum _StorageProvider {
         _StorageField(
           label: 'storageSettings.field.pullZoneUrl',
           hint: 'storageSettings.hint.pullZoneUrl',
+          controller: regionController,
+        ),
+      ],
+      _StorageProvider.googleDrive => [
+        _StorageField(
+          label: 'storageSettings.field.clientId',
+          hint: 'storageSettings.hint.clientId',
+          controller: accessKeyController,
+        ),
+        _StorageField(
+          label: 'storageSettings.field.clientSecret',
+          hint: 'storageSettings.hint.clientSecret',
+          controller: secretKeyController,
+        ),
+        _StorageField(
+          label: 'storageSettings.field.refreshToken',
+          hint: 'storageSettings.hint.refreshToken',
+          controller: bucketController,
+        ),
+        _StorageField(
+          label: 'storageSettings.field.folderId',
+          hint: 'storageSettings.hint.folderId',
           controller: regionController,
         ),
       ],

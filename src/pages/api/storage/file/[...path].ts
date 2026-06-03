@@ -5,47 +5,14 @@ import {
   type StorageType,
   storageObjectPath,
 } from '@/lib/server/supabaseStorage';
+import {
+  LOCAL_STATIC_CACHE,
+  exactLocalStaticPath,
+  localStaticPath,
+} from '@/lib/server/localUploadStorage';
 
-const LOCAL_STATIC_PREFIX = '/local-upload/';
-const LOCAL_STATIC_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
 const REMOTE_IMAGE_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
 const REMOTE_MUTABLE_CACHE = 'public, max-age=3600, stale-while-revalidate=86400';
-
-const LOCAL_FALLBACKS: Partial<Record<StorageType, string[]>> = {
-  image: [
-    'image/fallback/pateez-news-placeholder.webp',
-    'image/2026-05-24/1779656233738-d-s-c02472.webp',
-    'image/2026-05-24/1779656103320-Ekran_Resmi_2026-05-24_23.39.03.webp',
-  ],
-  logo: [
-    'logo/tr/pateezlogoson.png',
-    'logo/tr/pateezlogowhite.png',
-    'logo/tr/pateezlogoicon.png',
-  ],
-  profile: [
-    'profile/6c1a27d3-ce8e-4c42-bec1-fc092139e3ee-avatar.webp',
-    'profile/nasip-avatar.webp',
-  ],
-};
-
-const LOCAL_STATIC_FILES = new Set([
-  'image/fallback/pateez-news-placeholder.webp',
-  'image/2026-05-24/1779656233738-d-s-c02472.webp',
-  'image/2026-05-24/1779656103320-Ekran_Resmi_2026-05-24_23.39.03.webp',
-  'image/2026-05-25/1779657593087-hugging-asian-couple-stands-before-beautiful-waterfall-mountains.webp',
-  'image/2026-05-25/1779657690981-5972469.webp',
-  'image/2026-05-25/1779657607042-numerology-concept-with-woman-beach.webp',
-  'logo/tr/pateezlogoson.png',
-  'logo/tr/pateezlogowhite.png',
-  'logo/tr/pateezlogoicon.png',
-  'logo/tr/pateezlogodark.png',
-  'logo/tr/pateezlogoepost.png',
-  'logo/tr/pateezlogofooter.png',
-  'profile/6c1a27d3-ce8e-4c42-bec1-fc092139e3ee-avatar.webp',
-  'profile/6c1a27d3-ce8e-4c42-bec1-fc092139e3ee-cover.webp',
-  'profile/nasip-avatar.webp',
-  'profile/nasip-cover.webp',
-]);
 
 function parseBoundedInt(value: string | null, min: number, max: number) {
   if (!value) return null;
@@ -57,16 +24,6 @@ function parseBoundedInt(value: string | null, min: number, max: number) {
 function isLocalRequest(request: Request) {
   const hostname = new URL(request.url).hostname;
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]' || import.meta.env.DEV;
-}
-
-function localStaticPath(type: StorageType, objectPath: string) {
-  if (LOCAL_STATIC_FILES.has(objectPath)) return `${LOCAL_STATIC_PREFIX}${objectPath}`;
-  const fallback = LOCAL_FALLBACKS[type]?.[0];
-  return fallback ? `${LOCAL_STATIC_PREFIX}${fallback}` : null;
-}
-
-function exactLocalStaticPath(objectPath: string) {
-  return LOCAL_STATIC_FILES.has(objectPath) ? `${LOCAL_STATIC_PREFIX}${objectPath}` : null;
 }
 
 function redirect(location: URL | string, cacheControl: string) {
