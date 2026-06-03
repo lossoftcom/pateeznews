@@ -5,9 +5,6 @@ import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
-import { getImage } from 'astro:assets';
-import sharp from 'sharp';
-import path from 'node:path';
 
 export const prerender = false;
 
@@ -115,78 +112,8 @@ const itemListLd = {
   })),
 };
 
-const THUMB_WIDTHS = [320, 480, 640, 840, 1280];
-const THUMB_SIZES = '(max-width: 840px) 100vw, 840px';
-const MAX_OPTIMIZED_ITEMS = 12;
-const STORAGE_FILE_PREFIX = '/api/storage/file/';
-const IMAGE_STORAGE_TYPES = new Set(['image', 'logo', 'profile']);
-
-const resolveLocalStorageImage = (src: string) => {
-  const raw = String(src || '').trim();
-  if (!raw) return null;
-
-  let pathname = raw;
-  if (/^https?:\/\//i.test(raw)) {
-    try {
-      pathname = new URL(raw).pathname;
-    } catch {
-      return null;
-    }
-  }
-
-  if (!pathname.startsWith(STORAGE_FILE_PREFIX)) return null;
-
-  const relativePath = decodeURIComponent(pathname.slice(STORAGE_FILE_PREFIX.length));
-  const [type, ...parts] = relativePath.split('/').filter(Boolean);
-  if (!type || !IMAGE_STORAGE_TYPES.has(type) || parts.length === 0) return null;
-
-  const baseDir = path.resolve(process.cwd(), 'Upload', type);
-  const filePath = path.resolve(baseDir, ...parts);
-  if (filePath !== baseDir && filePath.startsWith(`${baseDir}${path.sep}`)) return filePath;
-  return null;
-};
-
-const readLocalImageDimensions = async (src: string) => {
-  const filePath = resolveLocalStorageImage(src);
-  if (!filePath) return null;
-
-  try {
-    const metadata = await sharp(filePath).metadata();
-    const width = Number(metadata.width || 0);
-    const height = Number(metadata.height || 0);
-    if (width > 0 && height > 0) return { width, height };
-  } catch {
-    return null;
-  }
-
-  return null;
-};
-
-const buildOptimizedThumbnail = async (src: string) => {
-  const raw = String(src || '').trim();
-  if (!raw || raw.startsWith('data:')) return null;
-  const dimensions = await readLocalImageDimensions(raw);
-  try {
-    const result = await getImage({ src: raw, widths: THUMB_WIDTHS, format: 'webp', quality: 'mid' });
-    return {
-      src: result.src,
-      srcSet: result.srcSet.attribute,
-      sizes: THUMB_SIZES,
-      ...(dimensions || {}),
-    };
-  } catch {
-    return dimensions ? { src: raw, ...dimensions } : null;
-  }
-};
-
-const newsItemsWithOptimized = await Promise.all(
-  (newsItems || []).map(async (item: any, index: number) => {
-    if (index >= MAX_OPTIMIZED_ITEMS) return item;
-    const optimizedThumbnail = await buildOptimizedThumbnail(item?.thumbnail);
-    if (!optimizedThumbnail) return item;
-    return { ...item, optimizedThumbnail };
-  })
-);
+// Cloudflare Worker dev runtime cannot load native Sharp. Keep category pages on
+// the same thumbnail path as the home page; card components handle image loading.
 ---
 
 <Layout
@@ -207,7 +134,7 @@ const newsItemsWithOptimized = await Promise.all(
     initialTranslations={initialTranslations}
     siteSettings={siteSettings}
     navigationItems={navigationItems}
-    newsItems={newsItemsWithOptimized}
+    newsItems={newsItems}
     categoryPagination={{
       category: String(resolvedCategory || slug || ''),
       limit: categoryNewsPage.limit,

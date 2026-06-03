@@ -117,132 +117,154 @@ class _AdminMobileToolbarState extends State<AdminMobileToolbar> {
   @override
   Widget build(BuildContext context) {
     final hasFilters = widget.activeFilterCount > 0;
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: AdminMobile.controlHeight,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
-              border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
-            ),
-            child: TextField(
-              controller: _controller,
-              onChanged: widget.onSearchChanged,
-              textAlignVertical: TextAlignVertical.center,
-              cursorColor: AppColors.deepOcean,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.deepOcean,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                hintText: widget.hintText,
-                hintStyle: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.placeholder,
-                  fontWeight: FontWeight.w400,
-                ),
-                prefixIcon: const Padding(
-                  padding: EdgeInsets.only(left: 14, right: 10),
-                  child: SymbolIcon(
-                    Symbols.search,
-                    color: AppColors.iconMuted,
-                    size: 20,
-                  ),
-                ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 44,
-                  minHeight: AdminMobile.controlHeight,
-                ),
-                suffixIcon: _controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        visualDensity: VisualDensity.compact,
-                        splashRadius: 18,
-                        icon: const SymbolIcon(
-                          Symbols.close,
-                          color: AppColors.iconMuted,
-                          size: 18,
-                        ),
-                        onPressed: () {
-                          _controller.clear();
-                          widget.onSearchChanged('');
-                          setState(() {});
-                        },
-                      ),
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-              ),
-            ),
-          ),
+    final search = Container(
+      height: AdminMobile.controlHeight,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+      ),
+      child: TextField(
+        controller: _controller,
+        onChanged: widget.onSearchChanged,
+        textAlignVertical: TextAlignVertical.center,
+        cursorColor: AppColors.deepOcean,
+        style: const TextStyle(
+          fontSize: 14,
+          color: AppColors.deepOcean,
+          fontWeight: FontWeight.w500,
         ),
-        if (widget.showFilters) ...[
-          const SizedBox(width: 10),
-          _FiltersButton(
-            label: widget.filtersLabel,
-            count: widget.activeFilterCount,
-            active: hasFilters,
-            onPressed: () {
-              FocusScope.of(context).unfocus();
-              widget.onOpenFilters();
-            },
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          hintStyle: const TextStyle(
+            fontSize: 14,
+            color: AppColors.placeholder,
+            fontWeight: FontWeight.w400,
           ),
-        ],
+          prefixIcon: const Padding(
+            padding: EdgeInsets.only(left: 14, right: 10),
+            child: SymbolIcon(
+              Symbols.search,
+              color: AppColors.iconMuted,
+              size: 20,
+            ),
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 44,
+            minHeight: AdminMobile.controlHeight,
+          ),
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  visualDensity: VisualDensity.compact,
+                  splashRadius: 18,
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  onPressed: () {
+                    _controller.clear();
+                    widget.onSearchChanged('');
+                    setState(() {});
+                  },
+                ),
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+        ),
+      ),
+    );
+
+    if (!widget.showFilters) return search;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        search,
+        const SizedBox(height: 10),
+        AdminMobileFiltersButton(
+          label: widget.filtersLabel,
+          count: widget.activeFilterCount,
+          active: hasFilters,
+          fullWidth: true,
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+            widget.onOpenFilters();
+          },
+        ),
       ],
     );
   }
 }
 
-class _FiltersButton extends StatelessWidget {
-  const _FiltersButton({
+class AdminMobileActionButton extends StatelessWidget {
+  const AdminMobileActionButton({
+    super.key,
     required this.label,
-    required this.count,
-    required this.active,
+    required this.leading,
     required this.onPressed,
+    this.primary = false,
+    this.active = false,
+    this.count = 0,
+    this.fullWidth = false,
+    this.backgroundColor,
   });
 
   final String label;
-  final int count;
-  final bool active;
+  final Widget leading;
   final VoidCallback onPressed;
+  final bool primary;
+  final bool active;
+  final int count;
+  final bool fullWidth;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
+    final foregroundColor = primary ? Colors.white : AppColors.deepOcean;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onPressed,
         child: Container(
+          width: fullWidth ? double.infinity : null,
           height: AdminMobile.controlHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: active
+            color: primary
+                ? backgroundColor ?? AppColors.actionRed
+                : active
                 ? AppColors.deepOcean.withValues(alpha: 0.06)
                 : Colors.white,
             borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
             border: Border.all(
-              color: active
+              color: primary
+                  ? backgroundColor ?? AppColors.actionRed
+                  : active
                   ? AppColors.deepOcean.withValues(alpha: 0.45)
                   : AppColors.line.withValues(alpha: 0.9),
             ),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              const _FunnelIcon(),
+              leading,
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  color: AppColors.deepOcean,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    color: foregroundColor,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               if (count > 0) ...[
@@ -271,6 +293,35 @@ class _FiltersButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class AdminMobileFiltersButton extends StatelessWidget {
+  const AdminMobileFiltersButton({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.active,
+    required this.onPressed,
+    this.fullWidth = false,
+  });
+
+  final String label;
+  final int count;
+  final bool active;
+  final VoidCallback onPressed;
+  final bool fullWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminMobileActionButton(
+      label: label,
+      leading: const _FunnelIcon(),
+      count: count,
+      active: active,
+      fullWidth: fullWidth,
+      onPressed: onPressed,
     );
   }
 }
@@ -344,6 +395,7 @@ Future<void> showAdminMobileFilterSheet({
         builder: (context, setSheetState) {
           final media = MediaQuery.of(context);
           return Container(
+            width: double.infinity,
             constraints: BoxConstraints(maxHeight: media.size.height * 0.82),
             decoration: const BoxDecoration(
               color: Colors.white,
@@ -402,11 +454,17 @@ Future<void> showAdminMobileFilterSheet({
                     ],
                   ),
                 ),
-                Divider(height: 1, color: AppColors.line.withValues(alpha: 0.8)),
+                Divider(
+                  height: 1,
+                  color: AppColors.line.withValues(alpha: 0.8),
+                ),
                 Flexible(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-                    child: contentBuilder(context, setSheetState),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: contentBuilder(context, setSheetState),
+                    ),
                   ),
                 ),
                 Padding(
@@ -467,49 +525,56 @@ class AdminMobileFilterField extends StatelessWidget {
         : (items.isEmpty ? null : items.first.value);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.inkSoft,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 48,
-            padding: const EdgeInsets.only(left: 14, right: 8),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
-              border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                value: safeValue,
-                borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
-                dropdownColor: Colors.white,
-                focusColor: Colors.transparent,
-                icon: const SymbolIcon(
-                  Symbols.keyboard_arrow_down,
-                  color: AppColors.iconMuted,
-                  size: 20,
-                ),
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.deepOcean,
-                  fontWeight: FontWeight.w600,
-                ),
-                items: items,
-                onChanged: onChanged,
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkSoft,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Container(
+              height: 48,
+              padding: const EdgeInsets.only(left: 14, right: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.9),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: safeValue,
+                  borderRadius: BorderRadius.circular(
+                    AdminMobile.controlRadius,
+                  ),
+                  dropdownColor: Colors.white,
+                  focusColor: Colors.transparent,
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 20,
+                  ),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  items: items,
+                  onChanged: onChanged,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -523,38 +588,24 @@ class AdminMobilePrimaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.backgroundColor = AppColors.actionRed,
+    this.fullWidth = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
   final Color backgroundColor;
+  final bool fullWidth;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: AdminMobile.controlHeight,
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          backgroundColor: backgroundColor,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
-          ),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SymbolIcon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(label),
-          ],
-        ),
-      ),
+    return AdminMobileActionButton(
+      label: label,
+      leading: SymbolIcon(icon, color: Colors.white, size: 18),
+      primary: true,
+      backgroundColor: backgroundColor,
+      fullWidth: fullWidth,
+      onPressed: onPressed,
     );
   }
 }
@@ -593,7 +644,11 @@ class AdminMobileSelectionBar extends StatelessWidget {
           IconButton(
             onPressed: onClear,
             visualDensity: VisualDensity.compact,
-            icon: const SymbolIcon(Symbols.close, color: Colors.white, size: 20),
+            icon: const SymbolIcon(
+              Symbols.close,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           Expanded(
             child: Text(
@@ -945,7 +1000,10 @@ class AdminMobileChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final fg = filled ? Colors.white : color;
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: icon != null ? 8 : 9, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: icon != null ? 8 : 9,
+        vertical: 4,
+      ),
       decoration: BoxDecoration(
         color: filled ? color : color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(7),
@@ -1032,7 +1090,10 @@ class AdminMobileCheckbox extends StatelessWidget {
         onChanged: onChanged,
         activeColor: AppColors.deepOcean,
         checkColor: Colors.white,
-        side: BorderSide(color: AppColors.line.withValues(alpha: 1), width: 1.6),
+        side: BorderSide(
+          color: AppColors.line.withValues(alpha: 1),
+          width: 1.6,
+        ),
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -1060,11 +1121,7 @@ class AdminMobileMenuAction {
 }
 
 class AdminMobileMenuButton extends StatefulWidget {
-  const AdminMobileMenuButton({
-    super.key,
-    required this.actions,
-    this.tooltip,
-  });
+  const AdminMobileMenuButton({super.key, required this.actions, this.tooltip});
 
   final List<AdminMobileMenuAction> actions;
   final String? tooltip;
@@ -1155,7 +1212,9 @@ class _AdminMobileMenuButtonState extends State<AdminMobileMenuButton> {
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.9),
+                ),
               ),
               child: const SymbolIcon(
                 Symbols.menu,

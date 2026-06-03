@@ -8,6 +8,7 @@ class UserMetric {
     required this.description,
     required this.icon,
     required this.iconColor,
+    this.centerContent = false,
   });
 
   final String title;
@@ -16,6 +17,7 @@ class UserMetric {
   final String description;
   final IconData icon;
   final Color iconColor;
+  final bool centerContent;
 }
 
 class ManagedUser {

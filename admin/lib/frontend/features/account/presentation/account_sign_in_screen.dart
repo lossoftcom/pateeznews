@@ -1,15 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
+import '../data/frontend_auth_repository.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/back_circle_button.dart';
 
 enum _AccountMode { signIn, signUp }
 
+typedef FrontendSignInCallback =
+    Future<FrontendAuthState> Function({
+      required String identifier,
+      required String password,
+    });
+
 class AccountSignInScreen extends StatefulWidget {
-  const AccountSignInScreen({super.key});
+  const AccountSignInScreen({
+    super.key,
+    this.onBack,
+    this.authState,
+    this.authLoading = false,
+    this.onSignIn,
+    this.onSignOut,
+  });
+
+  final VoidCallback? onBack;
+  final FrontendAuthState? authState;
+  final bool authLoading;
+  final FrontendSignInCallback? onSignIn;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<AccountSignInScreen> createState() => _AccountSignInScreenState();
@@ -24,55 +45,176 @@ class _AccountSignInScreenState extends State<AccountSignInScreen> {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surface,
-      child: SafeArea(
-        bottom: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.pageHorizontal,
-                    AppSpacing.xl,
-                    AppSpacing.pageHorizontal,
-                    AppSpacing.xl,
+      child: Column(
+        children: [
+          _AccountAppBar(onBack: widget.onBack),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+                return SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        AppSpacing.pageHorizontal,
+                        AppSpacing.xl,
+                        AppSpacing.pageHorizontal,
+                        AppSpacing.xl + keyboardInset,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _AccountIntro(
+                            mode: _mode,
+                            authState: widget.authState,
+                          ),
+                          const SizedBox(height: AppSpacing.xxxl),
+                          if (widget.authState != null)
+                            _SignedInPanel(
+                              authState: widget.authState!,
+                              onSignOut: widget.onSignOut,
+                              onBack: widget.onBack,
+                            )
+                          else
+                            _AuthPanel(
+                              mode: _mode,
+                              authLoading: widget.authLoading,
+                              onModeChanged: _setMode,
+                              onSignIn: widget.onSignIn,
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _AccountIntro(mode: _mode),
-                      const SizedBox(height: AppSpacing.xl),
-                      _AuthPanel(mode: _mode, onModeChanged: _setMode),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hesap sekmesinin üst başlığı.
+///
+/// Ana sayfadaki app bar diliyle uyumludur: yüzey zemini, ince alt çizgi ve
+/// üst güvenli alanı kendi içinde yöneten sabit yükseklik. Ortada marka
+/// wordmark'ı yer alır; böylece sekmeler arası kimlik bütünlüğü korunur.
+class _AccountAppBar extends StatelessWidget {
+  const _AccountAppBar({this.onBack});
+
+  final VoidCallback? onBack;
+
+  static const double _height = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.viewPaddingOf(context).top;
+    final back =
+        onBack ??
+        (Navigator.canPop(context)
+            ? () => Navigator.of(context).maybePop()
+            : null);
+    return Container(
+      height: _height + topInset,
+      padding: EdgeInsets.only(top: topInset),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.softLine, width: 1)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 56),
+          const Expanded(child: Center(child: _AccountWordmark())),
+          SizedBox(
+            width: 56,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: back == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.lg),
+                      child: BackCircleButton(onTap: back),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountWordmark extends StatelessWidget {
+  const _AccountWordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: 'pateez',
+            style: TextStyle(
+              fontFamily: 'PateezInter',
+              color: AppColors.inkStrong,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              height: 1,
+            ),
+          ),
+          TextSpan(
+            text: 'news',
+            style: TextStyle(
+              fontFamily: 'PateezInter',
+              color: AppColors.accentAction,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              height: 1,
+            ),
+          ),
+          TextSpan(
+            text: '.',
+            style: TextStyle(
+              fontFamily: 'PateezInter',
+              color: AppColors.warmHorizon,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              height: 1,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _AccountIntro extends StatelessWidget {
-  const _AccountIntro({required this.mode});
+  const _AccountIntro({required this.mode, required this.authState});
 
   final _AccountMode mode;
+  final FrontendAuthState? authState;
 
   bool get _isSignUp => mode == _AccountMode.signUp;
 
   @override
   Widget build(BuildContext context) {
+    final signedIn = authState != null;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       child: Column(
-        key: ValueKey<_AccountMode>(mode),
+        key: ValueKey<Object>(signedIn ? authState!.session.user.id : mode),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -92,14 +234,22 @@ class _AccountIntro extends StatelessWidget {
               ],
             ),
             child: Icon(
-              _isSignUp ? Symbols.add : Symbols.person_rounded,
+              signedIn
+                  ? Symbols.person_rounded
+                  : _isSignUp
+                  ? Symbols.add
+                  : Symbols.person_rounded,
               color: AppColors.deepOcean,
               size: 21,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            _isSignUp ? 'Hesabını oluştur' : 'Hesabına giriş yap',
+            signedIn
+                ? 'Profilim'
+                : _isSignUp
+                ? 'Hesabını oluştur'
+                : 'Hesabına giriş yap',
             style: AppTypography.display.copyWith(
               fontSize: 27,
               fontWeight: FontWeight.w800,
@@ -110,7 +260,9 @@ class _AccountIntro extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            _isSignUp
+            signedIn
+                ? 'Hesap bilgilerin, kayıtların ve tercihlerin tek yerde.'
+                : _isSignUp
                 ? 'Pateez deneyimini kişiselleştir, yorumlarını ve kayıtlarını tek yerde tut.'
                 : 'Kaydettiğin haberler, takip ettiklerin ve tercihlerin tek yerde kalsın.',
             style: AppTypography.body.copyWith(
@@ -125,13 +277,176 @@ class _AccountIntro extends StatelessWidget {
   }
 }
 
-class _AuthPanel extends StatelessWidget {
-  const _AuthPanel({required this.mode, required this.onModeChanged});
+class _SignedInPanel extends StatelessWidget {
+  const _SignedInPanel({
+    required this.authState,
+    required this.onSignOut,
+    required this.onBack,
+  });
+
+  final FrontendAuthState authState;
+  final Future<void> Function()? onSignOut;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.softLine),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepOcean.withValues(alpha: 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              _AccountAvatar(authState: authState, size: 54),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      authState.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleS.copyWith(
+                        color: AppColors.inkStrong,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      authState.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.meta.copyWith(
+                        color: AppColors.support,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _ProfileActionButton(
+            label: 'Geri dön',
+            icon: Symbols.chevron_left_rounded,
+            onTap: onBack,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileActionButton(
+            label: 'Çıkış yap',
+            icon: Symbols.logout,
+            destructive: true,
+            onTap: onSignOut == null
+                ? null
+                : () {
+                    () async {
+                      await onSignOut!();
+                      if (context.mounted) Navigator.of(context).maybePop();
+                    }();
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthPanel extends StatefulWidget {
+  const _AuthPanel({
+    required this.mode,
+    required this.authLoading,
+    required this.onModeChanged,
+    required this.onSignIn,
+  });
 
   final _AccountMode mode;
+  final bool authLoading;
   final ValueChanged<_AccountMode> onModeChanged;
+  final FrontendSignInCallback? onSignIn;
 
-  bool get _isSignUp => mode == _AccountMode.signUp;
+  @override
+  State<_AuthPanel> createState() => _AuthPanelState();
+}
+
+class _AuthPanelState extends State<_AuthPanel> {
+  final _identifier = TextEditingController();
+  final _password = TextEditingController();
+  final _name = TextEditingController();
+  final _email = TextEditingController();
+  final _newPassword = TextEditingController();
+  final _newPasswordAgain = TextEditingController();
+
+  var _submitting = false;
+  String? _error;
+
+  bool get _isSignUp => widget.mode == _AccountMode.signUp;
+  bool get _busy => _submitting || widget.authLoading;
+
+  @override
+  void dispose() {
+    _identifier.dispose();
+    _password.dispose();
+    _name.dispose();
+    _email.dispose();
+    _newPassword.dispose();
+    _newPasswordAgain.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    FocusScope.of(context).unfocus();
+    if (_isSignUp) {
+      setState(() => _error = 'Üyelik sistemi şu an aktif değil.');
+      return;
+    }
+
+    final identifier = _identifier.text.trim();
+    final password = _password.text;
+    if (identifier.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Kullanıcı adı ve şifre zorunlu.');
+      return;
+    }
+    final onSignIn = widget.onSignIn;
+    if (onSignIn == null) {
+      setState(() => _error = 'Giriş servisi hazır değil.');
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await onSignIn(identifier: identifier, password: password);
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+    } on FrontendAuthException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Giriş yapılamadı. Lütfen tekrar dene.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,59 +456,73 @@ class _AuthPanel extends StatelessWidget {
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
         child: Column(
-          key: ValueKey<_AccountMode>(mode),
+          key: ValueKey<_AccountMode>(widget.mode),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ProviderButtons(mode: mode),
+            _ProviderButtons(mode: widget.mode),
             const SizedBox(height: AppSpacing.md),
             const _DividerLabel(),
             const SizedBox(height: AppSpacing.md),
             if (_isSignUp) ...[
-              const _TextInputField(
+              _TextInputField(
                 label: 'Ad soyad',
                 hint: 'Adını yaz',
                 icon: Symbols.person_rounded,
+                controller: _name,
+                enabled: !_busy,
                 autofillHints: [AutofillHints.name],
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: AppSpacing.sm),
-              const _TextInputField(
+              _TextInputField(
                 label: 'E-posta',
                 hint: 'mail@ornek.com',
                 icon: Symbols.alternate_email_rounded,
+                controller: _email,
+                enabled: !_busy,
                 autofillHints: [AutofillHints.email],
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: AppSpacing.sm),
-              const _PasswordField(
+              _PasswordField(
                 label: 'Şifre',
                 hint: 'Güçlü şifre oluştur',
+                controller: _newPassword,
+                enabled: !_busy,
                 autofillHints: [AutofillHints.newPassword],
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: AppSpacing.sm),
-              const _PasswordField(
+              _PasswordField(
                 label: 'Şifre tekrar',
                 hint: 'Şifreni tekrar yaz',
+                controller: _newPasswordAgain,
+                enabled: !_busy,
                 autofillHints: [AutofillHints.newPassword],
                 textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
               ),
             ] else ...[
-              const _TextInputField(
-                label: 'Kullanıcı adı',
-                hint: '@kullaniciadi',
+              _TextInputField(
+                label: 'Kullanıcı adı veya e-posta',
+                hint: '@kullaniciadi / mail@ornek.com',
                 icon: Symbols.alternate_email_rounded,
+                controller: _identifier,
+                enabled: !_busy,
                 autofillHints: [AutofillHints.username],
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: AppSpacing.sm),
-              const _PasswordField(
+              _PasswordField(
                 label: 'Şifre',
                 hint: 'Şifreni yaz',
+                controller: _password,
+                enabled: !_busy,
                 autofillHints: [AutofillHints.password],
                 textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: AppSpacing.sm),
               Align(
@@ -208,17 +537,35 @@ class _AuthPanel extends StatelessWidget {
                 ),
               ),
             ],
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                _error!,
+                style: AppTypography.meta.copyWith(
+                  color: AppColors.actionRed,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             _PrimaryButton(
-              label: _isSignUp ? 'Kayıt ol' : 'Giriş yap',
-              onTap: () {},
+              label: _busy
+                  ? (_isSignUp ? 'Bekleniyor' : 'Giriş yapılıyor')
+                  : _isSignUp
+                  ? 'Kayıt ol'
+                  : 'Giriş yap',
+              loading: _busy,
+              onTap: _submit,
             ),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: AppSpacing.lg),
             _ModeTextAction(
               label: _isSignUp ? 'Giriş yap' : 'Üye ol',
-              onTap: () => onModeChanged(
-                _isSignUp ? _AccountMode.signIn : _AccountMode.signUp,
-              ),
+              onTap: _busy
+                  ? null
+                  : () => widget.onModeChanged(
+                      _isSignUp ? _AccountMode.signIn : _AccountMode.signUp,
+                    ),
             ),
           ],
         ),
@@ -270,6 +617,112 @@ class _ProviderButtons extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _AccountAvatar extends StatelessWidget {
+  const _AccountAvatar({required this.authState, required this.size});
+
+  final FrontendAuthState authState;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = authState.avatarUrl;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.surfaceSoft,
+        border: Border.all(color: AppColors.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: avatarUrl.isEmpty
+          ? Center(
+              child: Text(
+                authState.initials,
+                style: AppTypography.titleS.copyWith(
+                  color: AppColors.deepOcean,
+                  fontSize: size * 0.34,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            )
+          : Image.network(
+              avatarUrl,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (_, _, _) => Center(
+                child: Text(
+                  authState.initials,
+                  style: AppTypography.titleS.copyWith(
+                    color: AppColors.deepOcean,
+                    fontSize: size * 0.34,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _ProfileActionButton extends StatelessWidget {
+  const _ProfileActionButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = destructive ? AppColors.actionRed : AppColors.deepOcean;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          decoration: BoxDecoration(
+            color: destructive
+                ? AppColors.actionRed.withValues(alpha: 0.06)
+                : AppColors.surfaceSoft,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: destructive
+                  ? AppColors.actionRed.withValues(alpha: 0.16)
+                  : AppColors.softLine,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTypography.titleS.copyWith(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -371,32 +824,41 @@ class _TextInputField extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.icon,
+    required this.controller,
+    required this.enabled,
     required this.autofillHints,
     required this.textInputAction,
     this.keyboardType = TextInputType.text,
     this.textCapitalization = TextCapitalization.none,
     this.obscureText = false,
     this.suffix,
+    this.onSubmitted,
   });
 
   final String label;
   final String hint;
   final IconData icon;
+  final TextEditingController controller;
+  final bool enabled;
   final List<String> autofillHints;
   final TextInputAction textInputAction;
   final TextInputType keyboardType;
   final TextCapitalization textCapitalization;
   final bool obscureText;
   final Widget? suffix;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
+      controller: controller,
+      enabled: enabled,
       autofillHints: autofillHints,
       keyboardType: keyboardType,
       textCapitalization: textCapitalization,
       obscureText: obscureText,
       textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
       style: AppTypography.titleS.copyWith(
         color: AppColors.inkStrong,
         fontSize: 14,
@@ -437,14 +899,20 @@ class _PasswordField extends StatefulWidget {
   const _PasswordField({
     required this.label,
     required this.hint,
+    required this.controller,
+    required this.enabled,
     required this.autofillHints,
     required this.textInputAction,
+    this.onSubmitted,
   });
 
   final String label;
   final String hint;
+  final TextEditingController controller;
+  final bool enabled;
   final List<String> autofillHints;
   final TextInputAction textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   State<_PasswordField> createState() => _PasswordFieldState();
@@ -459,9 +927,12 @@ class _PasswordFieldState extends State<_PasswordField> {
       label: widget.label,
       hint: widget.hint,
       icon: Symbols.lock_outline_rounded,
+      controller: widget.controller,
+      enabled: widget.enabled,
       autofillHints: widget.autofillHints,
       textInputAction: widget.textInputAction,
       obscureText: _isObscured,
+      onSubmitted: widget.onSubmitted,
       suffix: IconButton(
         onPressed: () => setState(() => _isObscured = !_isObscured),
         icon: Icon(
@@ -477,10 +948,15 @@ class _PasswordFieldState extends State<_PasswordField> {
 }
 
 class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({required this.label, required this.onTap});
+  const _PrimaryButton({
+    required this.label,
+    required this.onTap,
+    this.loading = false,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -509,6 +985,17 @@ class _PrimaryButton extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                if (loading) ...[
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
                 Text(
                   label,
                   style: AppTypography.titleS.copyWith(
@@ -518,12 +1005,14 @@ class _PrimaryButton extends StatelessWidget {
                     letterSpacing: 0,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                const Icon(
-                  Symbols.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
+                if (!loading) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  const Icon(
+                    Symbols.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ],
               ],
             ),
           ),
@@ -537,7 +1026,7 @@ class _ModeTextAction extends StatelessWidget {
   const _ModeTextAction({required this.label, required this.onTap});
 
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

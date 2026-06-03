@@ -2469,7 +2469,6 @@ class _PagerButton extends StatelessWidget {
   }
 }
 
-
 class _MailInboxMobileView extends StatelessWidget {
   const _MailInboxMobileView({
     required this.allMessages,
@@ -2667,20 +2666,13 @@ class _MailInboxMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        MailFolderPanel(
-          messages: allMessages,
-          selectedFilter: quickFilter,
-          onChanged: onQuickFilterChanged,
-        ),
-        const SizedBox(height: 16),
-        _MailMetricGrid(messages: allMessages),
-        const SizedBox(height: 16),
         AdminMobileToolbar(
           query: searchQuery,
           hintText: context.t('mail.inbox.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
           activeFilterCount: _activeFilterCount,
           onOpenFilters: () => _openFilters(context),
+          showFilters: false,
         ),
         const SizedBox(height: 12),
         hasSelection
@@ -2697,18 +2689,40 @@ class _MailInboxMobileView extends StatelessWidget {
                 },
                 onDelete: onDeleteSelected,
               )
-            : Wrap(
-                spacing: 10,
-                runSpacing: 10,
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _PrimaryActionButton(
-                    label: 'mail.action.compose',
-                    icon: Symbols.add,
-                    onPressed: onCompose,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AdminMobileFiltersButton(
+                          label: context.t('Filtreler'),
+                          count: _activeFilterCount,
+                          active: _activeFilterCount > 0,
+                          fullWidth: true,
+                          onPressed: () => _openFilters(context),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: AdminMobilePrimaryButton(
+                          icon: Symbols.add,
+                          label: context.t('mail.action.compose'),
+                          fullWidth: true,
+                          onPressed: onCompose,
+                        ),
+                      ),
+                    ],
                   ),
-                  _SoftActionButton(
-                    label: 'mail.action.refresh',
-                    icon: Symbols.download,
+                  const SizedBox(height: 10),
+                  AdminMobileActionButton(
+                    label: context.t('mail.action.refresh'),
+                    leading: const SymbolIcon(
+                      Symbols.download,
+                      color: AppColors.deepOcean,
+                      size: 18,
+                    ),
+                    fullWidth: true,
                     onPressed: onRefresh,
                   ),
                 ],
@@ -2799,7 +2813,10 @@ class _MailInboxMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               AdminMobileAvatar(label: message.senderName),
               const SizedBox(width: 12),

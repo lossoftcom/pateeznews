@@ -91,6 +91,7 @@ class DashboardScreen extends StatefulWidget {
     this.smsRepository = const SupabaseAdminSmsRepository(),
     this.whatsappRepository = const SupabaseAdminWhatsappRepository(),
     this.socialRepository = const SupabaseAdminSocialRepository(),
+    this.onOpenFrontend,
   });
 
   final AdminSession session;
@@ -114,6 +115,7 @@ class DashboardScreen extends StatefulWidget {
   final AdminSmsRepository smsRepository;
   final AdminWhatsappRepository whatsappRepository;
   final AdminSocialRepository socialRepository;
+  final VoidCallback? onOpenFrontend;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -893,6 +895,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         profile: widget.profile,
                         onLogout: widget.onLogout,
                         onAccountSettings: _openAccountSettings,
+                        onOpenFrontend: widget.onOpenFrontend,
                       ),
                       Expanded(
                         child: _permissionLoading

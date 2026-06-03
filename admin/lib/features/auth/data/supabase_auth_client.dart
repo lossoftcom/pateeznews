@@ -32,16 +32,18 @@ class SupabaseAuthClient implements AdminAuthRepository {
   Future<AdminAuthState?> restoreSession() async {
     if (_usesSupabaseSdk) {
       final sdkSession = sdk.Supabase.instance.client.auth.currentSession;
-      if (sdkSession == null) {
-        await sessionStore.clearAuth();
-        return null;
+      if (sdkSession != null) {
+        final session = adminSessionFromSupabaseSession(sdkSession);
+        await sessionStore.saveSession(session);
+        final profile = await _profileForSession(session);
+        return AdminAuthState(session: session, profile: profile);
       }
-      final session = adminSessionFromSupabaseSession(sdkSession);
-      await sessionStore.saveSession(session);
-      final profile = await _profileForSession(session);
-      return AdminAuthState(session: session, profile: profile);
     }
 
+    return _restoreStoredSession();
+  }
+
+  Future<AdminAuthState?> _restoreStoredSession() async {
     final storedSession = await sessionStore.readSession();
     if (storedSession == null || storedSession.accessToken.isEmpty) {
       await sessionStore.clearAuth();

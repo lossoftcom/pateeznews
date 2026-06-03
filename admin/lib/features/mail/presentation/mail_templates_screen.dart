@@ -372,7 +372,9 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
         final filtered = _filteredTemplates;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -381,7 +383,7 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
               selectedCount: _selectedTemplateIds.length,
               onDeleteSelected: _deleteSelectedTemplates,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             _TemplateCategoryChips(
               selectedValue: _categoryFilter,
               onChanged: _changeCategory,
@@ -420,7 +422,7 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -431,7 +433,7 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -642,91 +644,92 @@ class _MailTemplateTableCard extends StatelessWidget {
           );
         }
         return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _TemplateListToolbar(
-          pageSize: pageSize,
-          searchController: searchController,
-          searchQuery: searchQuery,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onCreate: onCreate,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: AppColors.line),
-              borderRadius: BorderRadius.circular(AppRadius.value),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _TemplateListToolbar(
+              pageSize: pageSize,
+              searchController: searchController,
+              searchQuery: searchQuery,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onCreate: onCreate,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = math.max(constraints.maxWidth, _minTableWidth);
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.hasBoundedHeight
-                        ? constraints.maxHeight
-                        : null,
-                    child: Column(
-                      children: [
-                        _TemplateTableHeader(
-                          selected: allSelected,
-                          sortState: sortState,
-                          onToggle: onToggleAllTemplates,
-                          onSort: onSort,
+            const SizedBox(height: 18),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = math.max(
+                      constraints.maxWidth,
+                      _minTableWidth,
+                    );
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: width,
+                        height: constraints.hasBoundedHeight
+                            ? constraints.maxHeight
+                            : null,
+                        child: Column(
+                          children: [
+                            _TemplateTableHeader(
+                              selected: allSelected,
+                              sortState: sortState,
+                              onToggle: onToggleAllTemplates,
+                              onSort: onSort,
+                            ),
+                            Expanded(
+                              child: templates.isEmpty
+                                  ? const _TemplateEmptyState()
+                                  : ListView.builder(
+                                      itemCount: templates.length,
+                                      itemBuilder: (context, index) {
+                                        final template = templates[index];
+                                        return _TemplateTableRow(
+                                          template: template,
+                                          selected: selectedTemplateIds
+                                              .contains(template.id),
+                                          sortState: sortState,
+                                          onToggle: () =>
+                                              onToggleTemplate(template.id),
+                                          onEdit: () => onEdit(template),
+                                          onPreview: () => onPreview(template),
+                                          onToggleActive: () =>
+                                              onToggleActive(template),
+                                          onToggleReady: () =>
+                                              onToggleReady(template),
+                                          onDelete: () => onDelete(template),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          child: templates.isEmpty
-                              ? const _TemplateEmptyState()
-                              : ListView.builder(
-                                  itemCount: templates.length,
-                                  itemBuilder: (context, index) {
-                                    final template = templates[index];
-                                    return _TemplateTableRow(
-                                      template: template,
-                                      selected: selectedTemplateIds.contains(
-                                        template.id,
-                                      ),
-                                      sortState: sortState,
-                                      onToggle: () =>
-                                          onToggleTemplate(template.id),
-                                      onEdit: () => onEdit(template),
-                                      onPreview: () => onPreview(template),
-                                      onToggleActive: () =>
-                                          onToggleActive(template),
-                                      onToggleReady: () =>
-                                          onToggleReady(template),
-                                      onDelete: () => onDelete(template),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _TemplateFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
-    );
+            const SizedBox(height: 16),
+            _TemplateFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
       },
     );
   }
 }
-
 
 class _MailTemplateMobileView extends StatelessWidget {
   const _MailTemplateMobileView({
@@ -786,13 +789,11 @@ class _MailTemplateMobileView extends StatelessWidget {
           showFilters: false,
         ),
         const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AdminMobilePrimaryButton(
-            icon: Symbols.add,
-            label: context.t('mail.templates.new'),
-            onPressed: onCreate,
-          ),
+        AdminMobilePrimaryButton(
+          icon: Symbols.add,
+          label: context.t('mail.templates.new'),
+          fullWidth: true,
+          onPressed: onCreate,
         ),
         const SizedBox(height: 14),
         Expanded(
@@ -865,7 +866,10 @@ class _MailTemplateMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               const AdminMobileThumb(fallbackIcon: Symbols.article),
               const SizedBox(width: 12),

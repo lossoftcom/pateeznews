@@ -237,7 +237,9 @@ class _StoriesScreenState extends State<StoriesScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
 
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -247,7 +249,7 @@ class _StoriesScreenState extends State<StoriesScreen> {
               const SizedBox(height: 22),
               _StoriesErrorBanner(message: _errorText!),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: _StoriesTableCard(
                 stories: _stories,
@@ -279,7 +281,7 @@ class _StoriesScreenState extends State<StoriesScreen> {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -290,7 +292,7 @@ class _StoriesScreenState extends State<StoriesScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -415,48 +417,47 @@ class _StoriesTableCard extends StatelessWidget {
           );
         }
         return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _StoriesToolbar(
-          pageSize: pageSize,
-          searchQuery: searchQuery,
-          selectedCount: selectedStoryIds.length,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onAddStory: onAddStory,
-          onDeleteSelected: onDeleteSelected,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: _StoriesDataTable(
-            stories: stories,
-            loading: loading,
-            selectedStoryIds: selectedStoryIds,
-            sortState: sortState,
-            onToggleStory: onToggleStory,
-            onToggleAllStories: onToggleAllStories,
-            onSort: onSort,
-            onEditStory: onEditStory,
-            onToggleStatus: onToggleStatus,
-            onOpenMedia: onOpenMedia,
-            onDeleteStory: onDeleteStory,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _StoriesFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          loading: loading,
-          onPageChanged: onPageChanged,
-        ),
-      ],
-    );
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _StoriesToolbar(
+              pageSize: pageSize,
+              searchQuery: searchQuery,
+              selectedCount: selectedStoryIds.length,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onAddStory: onAddStory,
+              onDeleteSelected: onDeleteSelected,
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: _StoriesDataTable(
+                stories: stories,
+                loading: loading,
+                selectedStoryIds: selectedStoryIds,
+                sortState: sortState,
+                onToggleStory: onToggleStory,
+                onToggleAllStories: onToggleAllStories,
+                onSort: onSort,
+                onEditStory: onEditStory,
+                onToggleStatus: onToggleStatus,
+                onOpenMedia: onOpenMedia,
+                onDeleteStory: onDeleteStory,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _StoriesFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              loading: loading,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
       },
     );
   }
 }
-
 
 class _StoriesMobileView extends StatelessWidget {
   const _StoriesMobileView({
@@ -534,9 +535,11 @@ class _StoriesMobileView extends StatelessWidget {
                 },
                 onDelete: onDeleteSelected,
               )
-            : Align(
-                alignment: Alignment.centerLeft,
-                child: _AddStoryButton(onPressed: onAddStory),
+            : AdminMobilePrimaryButton(
+                icon: Symbols.add,
+                label: context.t('stories.addButton'),
+                fullWidth: true,
+                onPressed: onAddStory,
               ),
         const SizedBox(height: 14),
         Expanded(
@@ -606,7 +609,10 @@ class _StoriesMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               AdminMobileThumb(
                 imageUrl: media.isEmpty ? null : _publicUrl(media),
@@ -640,7 +646,10 @@ class _StoriesMobileCard extends StatelessWidget {
                         if (story.expiresAt != null)
                           AdminMobileMeta(
                             icon: Symbols.schedule,
-                            value: formatAdminFullDate(context, story.expiresAt),
+                            value: formatAdminFullDate(
+                              context,
+                              story.expiresAt,
+                            ),
                           ),
                       ],
                     ),
@@ -657,7 +666,9 @@ class _StoriesMobileCard extends StatelessWidget {
                     onTap: () => onEditStory(story),
                   ),
                   AdminMobileMenuAction(
-                    icon: story.isActive ? Symbols.visibility_off : Symbols.check,
+                    icon: story.isActive
+                        ? Symbols.visibility_off
+                        : Symbols.check,
                     label: context.t(
                       story.isActive
                           ? 'stories.actions.deactivate'
@@ -687,7 +698,9 @@ class _StoriesMobileCard extends StatelessWidget {
             children: [
               AdminMobileStatusPill(
                 label: context.t(
-                  story.isActive ? 'stories.status.live' : 'stories.status.passive',
+                  story.isActive
+                      ? 'stories.status.live'
+                      : 'stories.status.passive',
                 ),
                 color: statusColor,
               ),

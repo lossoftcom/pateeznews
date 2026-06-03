@@ -46,6 +46,7 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final centered = metric.centerContent;
     return Container(
       constraints: const BoxConstraints(minHeight: 146),
       padding: const EdgeInsets.all(24),
@@ -66,10 +67,13 @@ class _MetricCard extends StatelessWidget {
         children: [
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: centered
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
               children: [
                 Text(
                   metric.title,
+                  textAlign: centered ? TextAlign.center : TextAlign.start,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.deepOcean,
                     fontWeight: FontWeight.w700,
@@ -78,6 +82,9 @@ class _MetricCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Row(
+                  mainAxisAlignment: centered
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(

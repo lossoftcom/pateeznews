@@ -6,6 +6,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -344,7 +345,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
 
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -356,7 +359,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
               const SizedBox(height: 16),
               _CommentsErrorBanner(message: _errorText!),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 14 : 24),
             Expanded(
               child: CommentsTableCard(
                 comments: _comments,
@@ -399,7 +402,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -410,7 +413,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),

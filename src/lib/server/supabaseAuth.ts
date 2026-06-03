@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTPayload } from 'jose';
+import { createRemoteJWKSet, decodeJwt, decodeProtectedHeader, jwtVerify, type JWTPayload } from 'jose';
 import { readRuntimeEnv } from './runtimeEnv';
 
 export interface SupabaseUser {
@@ -220,8 +220,32 @@ export async function getSessionFromToken(token?: string | null): Promise<Supaba
   try {
     return await verifyJwtLocally(token);
   } catch {
-    return null;
+    try {
+      const user = await authFetch('/user', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const expiresAt = expiresAtFromToken(token);
+      return {
+        access_token: token,
+        token_type: 'bearer',
+        expires_at: expiresAt,
+        expires_in: Math.max(0, expiresAt - Math.floor(Date.now() / 1000)),
+        user: toUser(user),
+      };
+    } catch {
+      return null;
+    }
   }
+}
+
+function expiresAtFromToken(token: string) {
+  try {
+    const payload = decodeJwt(token);
+    if (typeof payload.exp === 'number') return payload.exp;
+  } catch {
+    // Auth REST already validated the token; this only affects local cache TTL.
+  }
+  return Math.floor(Date.now() / 1000) + 3600;
 }
 
 export async function signInWithPassword(email: string, password: string) {

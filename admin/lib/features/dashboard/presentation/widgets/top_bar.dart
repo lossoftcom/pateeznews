@@ -21,6 +21,7 @@ class TopBar extends StatelessWidget {
     required this.profile,
     required this.onLogout,
     required this.onAccountSettings,
+    this.onOpenFrontend,
   });
 
   final bool compact;
@@ -28,6 +29,7 @@ class TopBar extends StatelessWidget {
   final AdminProfile? profile;
   final VoidCallback onLogout;
   final VoidCallback onAccountSettings;
+  final VoidCallback? onOpenFrontend;
 
   @override
   Widget build(BuildContext context) {
@@ -41,16 +43,23 @@ class TopBar extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final searchWidth = (constraints.maxWidth - 288).clamp(220.0, 360.0);
+          const compactSideWidth = 84.0;
           return Row(
             children: compact
                 ? [
-                    IconButton(
-                      tooltip: context.t('nav.menu'),
-                      mouseCursor: SystemMouseCursors.click,
-                      onPressed: () {
-                        Scaffold.of(context).openDrawer();
-                      },
-                      icon: const SymbolIcon(Symbols.menu),
+                    SizedBox(
+                      width: onOpenFrontend == null ? 48 : compactSideWidth,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          tooltip: context.t('nav.menu'),
+                          mouseCursor: SystemMouseCursors.click,
+                          onPressed: () {
+                            Scaffold.of(context).openDrawer();
+                          },
+                          icon: const SymbolIcon(Symbols.menu),
+                        ),
+                      ),
                     ),
                     Expanded(
                       child: Center(
@@ -65,11 +74,27 @@ class TopBar extends StatelessWidget {
                         ),
                       ),
                     ),
-                    UserAvatarMenu(
-                      session: session,
-                      profile: profile,
-                      onLogout: onLogout,
-                      onAccountSettings: onAccountSettings,
+                    SizedBox(
+                      width: onOpenFrontend == null ? 36 : compactSideWidth,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (onOpenFrontend != null) ...[
+                            TopBarIconAction(
+                              icon: Symbols.open_in_new,
+                              tooltip: context.t('nav.sitePreview'),
+                              onPressed: onOpenFrontend!,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          UserAvatarMenu(
+                            session: session,
+                            profile: profile,
+                            onLogout: onLogout,
+                            onAccountSettings: onAccountSettings,
+                          ),
+                        ],
+                      ),
                     ),
                   ]
                 : [
@@ -81,7 +106,7 @@ class TopBar extends StatelessWidget {
                       icon: Symbols.open_in_new,
                       tooltip: context.t('nav.sitePreview'),
                       label: context.t('nav.sitePreview'),
-                      onPressed: () {},
+                      onPressed: onOpenFrontend ?? () {},
                     ),
                     const SizedBox(width: 12),
                     const _TopBarDateTime(),

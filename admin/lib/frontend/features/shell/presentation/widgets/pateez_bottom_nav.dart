@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../account/data/frontend_auth_repository.dart';
 
 @immutable
 class PateezNavItem {
@@ -25,11 +26,15 @@ class PateezBottomNav extends StatelessWidget {
     required this.items,
     required this.activeIndex,
     required this.onSelected,
+    this.authState,
+    this.authLoading = false,
   });
 
   final List<PateezNavItem> items;
   final int activeIndex;
   final ValueChanged<int> onSelected;
+  final FrontendAuthState? authState;
+  final bool authLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +55,9 @@ class PateezBottomNav extends StatelessWidget {
               child: _NavCell(
                 item: item,
                 isActive: isActive,
+                compact: items.length >= 5,
+                authState: item.label == 'Hesap' ? authState : null,
+                authLoading: item.label == 'Hesap' && authLoading,
                 onTap: () => onSelected(index),
               ),
             );
@@ -64,11 +72,17 @@ class _NavCell extends StatelessWidget {
   const _NavCell({
     required this.item,
     required this.isActive,
+    required this.compact,
+    required this.authState,
+    required this.authLoading,
     required this.onTap,
   });
 
   final PateezNavItem item;
   final bool isActive;
+  final bool compact;
+  final FrontendAuthState? authState;
+  final bool authLoading;
   final VoidCallback onTap;
 
   @override
@@ -76,6 +90,7 @@ class _NavCell extends StatelessWidget {
     final activeColor = AppColors.deepOcean;
     final passiveColor = AppColors.support;
     final color = isActive ? activeColor : passiveColor;
+    final showAvatar = authState != null;
 
     return Semantics(
       label: item.label,
@@ -92,31 +107,141 @@ class _NavCell extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
-                  width: 32,
-                  height: 28,
+                  width: 34,
+                  height: compact ? 28 : 30,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 220),
                     transitionBuilder: (child, anim) => ScaleTransition(
                       scale: anim,
                       child: FadeTransition(opacity: anim, child: child),
                     ),
-                    child: Icon(
-                      isActive ? item.activeIcon : item.icon,
-                      key: ValueKey<bool>(isActive),
-                      size: isActive ? 23 : 22,
-                      color: color,
-                    ),
+                    child: authLoading
+                        ? const _AvatarSkeleton(key: ValueKey('loading'))
+                        : showAvatar
+                        ? _BottomAvatar(
+                            key: ValueKey<String>(authState!.session.user.id),
+                            authState: authState!,
+                            active: isActive,
+                          )
+                        : Icon(
+                            isActive ? item.activeIcon : item.icon,
+                            key: ValueKey<bool>(isActive),
+                            size: compact
+                                ? (isActive ? 22 : 21)
+                                : (isActive ? 23 : 22),
+                            color: color,
+                          ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: compact ? 3 : 4),
                 Text(
                   item.label,
-                  style: AppTypography.mobileMenuLabel.copyWith(color: color),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.mobileMenuLabel.copyWith(
+                    color: color,
+                    fontSize: compact ? 11.5 : null,
+                  ),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BottomAvatar extends StatelessWidget {
+  const _BottomAvatar({
+    super.key,
+    required this.authState,
+    required this.active,
+  });
+
+  final FrontendAuthState authState;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 28,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipOval(child: _BottomAvatarContent(authState: authState)),
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: active ? AppColors.deepOcean : AppColors.line,
+                  width: active ? 1.4 : 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomAvatarContent extends StatelessWidget {
+  const _BottomAvatarContent({required this.authState});
+
+  final FrontendAuthState authState;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = authState.avatarUrl;
+    if (avatarUrl.isEmpty) return _BottomAvatarFallback(authState: authState);
+    return Image.network(
+      avatarUrl,
+      fit: BoxFit.cover,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, _, _) => _BottomAvatarFallback(authState: authState),
+    );
+  }
+}
+
+class _BottomAvatarFallback extends StatelessWidget {
+  const _BottomAvatarFallback({required this.authState});
+
+  final FrontendAuthState authState;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.surfaceSoft,
+      child: Center(
+        child: Text(
+          authState.initials,
+          style: AppTypography.titleS.copyWith(
+            color: AppColors.deepOcean,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarSkeleton extends StatelessWidget {
+  const _AvatarSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 27,
+      height: 27,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.surfaceInk,
+        border: Border.all(color: AppColors.softLine),
       ),
     );
   }

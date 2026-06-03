@@ -48,6 +48,7 @@ class AdminGate extends StatefulWidget {
     required this.subscribersRepository,
     required this.smsRepository,
     required this.socialRepository,
+    this.onOpenFrontend,
   });
 
   final AdminAuthRepository authRepository;
@@ -67,6 +68,7 @@ class AdminGate extends StatefulWidget {
   final AdminSubscribersRepository subscribersRepository;
   final AdminSmsRepository smsRepository;
   final AdminSocialRepository socialRepository;
+  final VoidCallback? onOpenFrontend;
 
   @override
   State<AdminGate> createState() => _AdminGateState();
@@ -226,6 +228,7 @@ class _AdminGateState extends State<AdminGate> {
             subscribersRepository: widget.subscribersRepository,
             smsRepository: widget.smsRepository,
             socialRepository: widget.socialRepository,
+            onOpenFrontend: widget.onOpenFrontend,
           )
         : LoginScreen(onLogin: _login);
   }

@@ -13,7 +13,7 @@ import '../../../../shared/widgets/social_action.dart';
 ///   - Kapalı (ilk açılış varsayılanı): Sağ üstte küçük, dikkat çekici
 ///     "PAYLAŞ" kırmızı pil butonu. Tıklayınca dock açılır.
 ///   - Açık: Tam dock — paylaşım sayım header'ı, 4 marka butonu (Instagram,
-///     Facebook, X, WhatsApp), heart + ribbon aksiyon butonları, en altta
+///     Facebook, X, WhatsApp), beğen/beğenme + ribbon aksiyon butonları, en altta
 ///     küçük "KAPAT" mikro butonu.
 ///
 /// State session boyunca hatırlanır (sınıf-seviyesi statik değişken).
@@ -26,9 +26,11 @@ class DetailFloatingDock extends StatefulWidget {
     required this.onX,
     required this.onWhatsApp,
     required this.onLike,
+    required this.onDislike,
     required this.onSave,
     this.shareCount = 0,
     this.likeCount = 0,
+    this.dislikeCount = 0,
     this.saveCount = 0,
   });
 
@@ -37,9 +39,11 @@ class DetailFloatingDock extends StatefulWidget {
   final VoidCallback onX;
   final VoidCallback onWhatsApp;
   final VoidCallback onLike;
+  final VoidCallback onDislike;
   final VoidCallback onSave;
   final int shareCount;
   final int likeCount;
+  final int dislikeCount;
   final int saveCount;
 
   @override
@@ -70,45 +74,61 @@ class _DetailFloatingDockState extends State<DetailFloatingDock> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topRight,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 280),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, anim) {
-          return FadeTransition(
-            opacity: anim,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.16, 0),
-                end: Offset.zero,
-              ).animate(anim),
-              child: child,
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 420),
+      reverseDuration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (currentChild, previousChildren) {
+        return Stack(
+          alignment: Alignment.topRight,
+          clipBehavior: Clip.none,
+          children: [...previousChildren, ?currentChild],
+        );
+      },
+      transitionBuilder: (child, anim) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        final openingDock = child.key == const ValueKey('dock-open');
+        if (!openingDock) {
+          return FadeTransition(opacity: curved, child: child);
+        }
+
+        // Mirrors NewsDetailScreen's scroll reveal: 0.35 right offset + fade.
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.35, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+      child: _isOpen
+          ? _OpenDockContent(
+              key: const ValueKey('dock-open'),
+              shareCount: widget.shareCount,
+              likeCount: widget.likeCount,
+              dislikeCount: widget.dislikeCount,
+              saveCount: widget.saveCount,
+              onInstagram: widget.onInstagram,
+              onFacebook: widget.onFacebook,
+              onX: widget.onX,
+              onWhatsApp: widget.onWhatsApp,
+              onLike: widget.onLike,
+              onDislike: widget.onDislike,
+              onSave: widget.onSave,
+              onClose: _toggle,
+            )
+          : _ClosedShareTrigger(
+              key: const ValueKey('dock-closed'),
+              onTap: _toggle,
             ),
-          );
-        },
-        child: _isOpen
-            ? _OpenDockContent(
-                key: const ValueKey('dock-open'),
-                shareCount: widget.shareCount,
-                likeCount: widget.likeCount,
-                saveCount: widget.saveCount,
-                onInstagram: widget.onInstagram,
-                onFacebook: widget.onFacebook,
-                onX: widget.onX,
-                onWhatsApp: widget.onWhatsApp,
-                onLike: widget.onLike,
-                onSave: widget.onSave,
-                onClose: _toggle,
-              )
-            : _ClosedShareTrigger(
-                key: const ValueKey('dock-closed'),
-                onTap: _toggle,
-              ),
-      ),
     );
   }
 }
@@ -119,24 +139,28 @@ class _OpenDockContent extends StatelessWidget {
     super.key,
     required this.shareCount,
     required this.likeCount,
+    required this.dislikeCount,
     required this.saveCount,
     required this.onInstagram,
     required this.onFacebook,
     required this.onX,
     required this.onWhatsApp,
     required this.onLike,
+    required this.onDislike,
     required this.onSave,
     required this.onClose,
   });
 
   final int shareCount;
   final int likeCount;
+  final int dislikeCount;
   final int saveCount;
   final VoidCallback onInstagram;
   final VoidCallback onFacebook;
   final VoidCallback onX;
   final VoidCallback onWhatsApp;
   final VoidCallback onLike;
+  final VoidCallback onDislike;
   final VoidCallback onSave;
   final VoidCallback onClose;
 
@@ -156,11 +180,19 @@ class _OpenDockContent extends StatelessWidget {
         _BrandDot(brand: _Brand.whatsapp, onTap: onWhatsApp),
         const SizedBox(height: 14),
         _PateezDot(
-          glyph: PateezSocialGlyph.heart,
-          accent: AppColors.actionRed,
+          glyph: PateezSocialGlyph.sparkUp,
+          accent: AppColors.deepOcean,
           semantics: 'Beğen',
           baseCount: likeCount,
           onTap: onLike,
+        ),
+        const SizedBox(height: 6),
+        _PateezDot(
+          glyph: PateezSocialGlyph.sparkDown,
+          accent: AppColors.actionRed,
+          semantics: 'Beğenme',
+          baseCount: dislikeCount,
+          onTap: onDislike,
         ),
         const SizedBox(height: 6),
         _PateezDot(
@@ -452,6 +484,12 @@ class _BrandDotState extends State<_BrandDot> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
+                  color: Color(0x1C52A9FF),
+                  blurRadius: 22,
+                  offset: Offset(-2, 5),
+                  spreadRadius: -3,
+                ),
+                BoxShadow(
                   color: Color(0x14000000),
                   blurRadius: 14,
                   offset: Offset(0, 4),
@@ -582,6 +620,12 @@ class _PateezDotState extends State<_PateezDot> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
+                        color: const Color(0xFF52A9FF).withValues(alpha: 0.11),
+                        blurRadius: 22,
+                        offset: const Offset(-2, 5),
+                        spreadRadius: -3,
+                      ),
+                      BoxShadow(
                         color: isActive
                             ? accent.withValues(alpha: 0.38)
                             : Colors.black.withValues(alpha: 0.08),
@@ -644,13 +688,13 @@ IconData _pateezIconFor(PateezSocialGlyph glyph, {required bool filled}) {
     case PateezSocialGlyph.orbitShare:
       return filled ? Symbols.share_2_fill : Symbols.share_2_line;
     case PateezSocialGlyph.ribbon:
-      return filled ? Symbols.bookmark_3_fill : Symbols.bookmark_3_line;
+      return filled ? Symbols.bookmark_fill : Symbols.bookmark_line;
     case PateezSocialGlyph.heart:
       return filled ? Symbols.heart_3_fill : Symbols.heart_3_line;
   }
 }
 
-/// Heart ve ribbon butonlarının sağ üst köşesinde duran küçük sayım rozeti.
+/// Pateez aksiyon butonlarının sağ üst köşesinde duran küçük sayım rozeti.
 class _CountBadge extends StatelessWidget {
   const _CountBadge({required this.count, required this.color});
 

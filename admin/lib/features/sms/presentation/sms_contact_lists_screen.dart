@@ -334,7 +334,9 @@ class _SmsContactListsScreenState extends State<SmsContactListsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -342,7 +344,7 @@ class _SmsContactListsScreenState extends State<SmsContactListsScreen> {
               selectedCount: _selectedIds.length,
               onDeleteSelected: _deleteSelectedLists,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: _SmsContactListsTableCard(
                 lists: _pagedLists,
@@ -374,7 +376,7 @@ class _SmsContactListsScreenState extends State<SmsContactListsScreen> {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -385,7 +387,7 @@ class _SmsContactListsScreenState extends State<SmsContactListsScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -504,85 +506,90 @@ class _SmsContactListsTableCard extends StatelessWidget {
           );
         }
         return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SmsContactListsToolbar(
-          pageSize: pageSize,
-          searchController: searchController,
-          searchQuery: searchQuery,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onCreate: onCreate,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: AppColors.line),
-              borderRadius: BorderRadius.circular(AppRadius.value),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SmsContactListsToolbar(
+              pageSize: pageSize,
+              searchController: searchController,
+              searchQuery: searchQuery,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onCreate: onCreate,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = math.max(constraints.maxWidth, _minTableWidth);
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.hasBoundedHeight
-                        ? constraints.maxHeight
-                        : null,
-                    child: Column(
-                      children: [
-                        _SmsContactListTableHeader(
-                          selected: allSelected,
-                          sortState: sortState,
-                          onToggle: onToggleAllLists,
-                          onSort: onSort,
+            const SizedBox(height: 18),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = math.max(
+                      constraints.maxWidth,
+                      _minTableWidth,
+                    );
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: width,
+                        height: constraints.hasBoundedHeight
+                            ? constraints.maxHeight
+                            : null,
+                        child: Column(
+                          children: [
+                            _SmsContactListTableHeader(
+                              selected: allSelected,
+                              sortState: sortState,
+                              onToggle: onToggleAllLists,
+                              onSort: onSort,
+                            ),
+                            Expanded(
+                              child: lists.isEmpty
+                                  ? const _SmsContactListEmptyState()
+                                  : ListView.builder(
+                                      itemCount: lists.length,
+                                      itemBuilder: (context, index) {
+                                        final list = lists[index];
+                                        return _SmsContactListTableRow(
+                                          list: list,
+                                          selected: selectedIds.contains(
+                                            list.id,
+                                          ),
+                                          onToggle: () => onToggleList(list.id),
+                                          onEdit: () => onEdit(list),
+                                          onToggleSync: () =>
+                                              onToggleSync(list),
+                                          onToggleActive: () =>
+                                              onToggleActive(list),
+                                          onDelete: () => onDelete(list),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          child: lists.isEmpty
-                              ? const _SmsContactListEmptyState()
-                              : ListView.builder(
-                                  itemCount: lists.length,
-                                  itemBuilder: (context, index) {
-                                    final list = lists[index];
-                                    return _SmsContactListTableRow(
-                                      list: list,
-                                      selected: selectedIds.contains(list.id),
-                                      onToggle: () => onToggleList(list.id),
-                                      onEdit: () => onEdit(list),
-                                      onToggleSync: () => onToggleSync(list),
-                                      onToggleActive: () =>
-                                          onToggleActive(list),
-                                      onDelete: () => onDelete(list),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _SmsContactListFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
-    );
+            const SizedBox(height: 16),
+            _SmsContactListFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
       },
     );
   }
 }
-
 
 class _SmsContactListsMobileView extends StatelessWidget {
   const _SmsContactListsMobileView({
@@ -640,13 +647,11 @@ class _SmsContactListsMobileView extends StatelessWidget {
           showFilters: false,
         ),
         const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AdminMobilePrimaryButton(
-            icon: Symbols.add,
-            label: context.t('sms.contacts.newList'),
-            onPressed: onCreate,
-          ),
+        AdminMobilePrimaryButton(
+          icon: Symbols.add,
+          label: context.t('sms.contacts.newList'),
+          fullWidth: true,
+          onPressed: onCreate,
         ),
         const SizedBox(height: 14),
         Expanded(
@@ -716,7 +721,10 @@ class _SmsContactListsMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               Container(
                 width: 46,
@@ -779,7 +787,9 @@ class _SmsContactListsMobileCard extends StatelessWidget {
                     onTap: onToggleSync,
                   ),
                   AdminMobileMenuAction(
-                    icon: list.active ? Symbols.visibility_off : Symbols.visibility,
+                    icon: list.active
+                        ? Symbols.visibility_off
+                        : Symbols.visibility,
                     label: context.t(
                       list.active
                           ? 'sms.contacts.action.deactivate'

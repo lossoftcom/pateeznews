@@ -355,7 +355,7 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
                     ? totalCount
                     : _page * _pageSize);
           return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 22),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -378,19 +378,28 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
                   showFilters: false,
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                Row(
                   children: [
-                    _SmsOutboxPrimaryActionButton(
-                      icon: Symbols.add,
-                      label: 'sms.outbox.new',
-                      onPressed: _openSendDrawer,
+                    Expanded(
+                      child: AdminMobileActionButton(
+                        label: context.t('sms.outbox.refresh'),
+                        leading: const SymbolIcon(
+                          Symbols.redo,
+                          color: AppColors.deepOcean,
+                          size: 18,
+                        ),
+                        fullWidth: true,
+                        onPressed: _refresh,
+                      ),
                     ),
-                    _SmsOutboxSoftActionButton(
-                      icon: Symbols.redo,
-                      label: 'sms.outbox.refresh',
-                      onPressed: _refresh,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: AdminMobilePrimaryButton(
+                        icon: Symbols.add,
+                        label: context.t('sms.outbox.new'),
+                        fullWidth: true,
+                        onPressed: _openSendDrawer,
+                      ),
                     ),
                   ],
                 ),
@@ -423,53 +432,55 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
           );
         }
         return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 28, 28, 22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _SmsOutboxHeader(),
-          const SizedBox(height: 24),
-          _SmsOutboxMetrics(messages: _messages),
-          const SizedBox(height: 18),
-          _SmsOutboxFilters(selected: _statusFilter, onChanged: _changeFilter),
-          const SizedBox(height: 12),
-          _SmsOutboxToolbar(
-            controller: _searchController,
-            pageSize: _pageSize,
-            selectedCount: _selectedIds.length,
-            onPageSizeChanged: _changePageSize,
-            onSearchChanged: _changeSearch,
-            onRefresh: _refresh,
-            onNewSms: _openSendDrawer,
+          padding: const EdgeInsets.fromLTRB(28, 28, 28, 22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SmsOutboxHeader(),
+              const SizedBox(height: 24),
+              _SmsOutboxMetrics(messages: _messages),
+              const SizedBox(height: 18),
+              _SmsOutboxFilters(
+                selected: _statusFilter,
+                onChanged: _changeFilter,
+              ),
+              const SizedBox(height: 12),
+              _SmsOutboxToolbar(
+                controller: _searchController,
+                pageSize: _pageSize,
+                selectedCount: _selectedIds.length,
+                onPageSizeChanged: _changePageSize,
+                onSearchChanged: _changeSearch,
+                onRefresh: _refresh,
+                onNewSms: _openSendDrawer,
+              ),
+              if (_loading) const LinearProgressIndicator(minHeight: 2),
+              const SizedBox(height: 18),
+              Expanded(
+                child: _SmsOutboxTable(
+                  messages: messages,
+                  selectedIds: _selectedIds,
+                  sortState: _sortState,
+                  onToggleAll: _toggleAll,
+                  onToggleOne: _toggleOne,
+                  onSort: _changeSort,
+                  onSendAgain: _openSendDrawer,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SmsOutboxFooter(
+                page: _page,
+                pageSize: _pageSize,
+                totalCount: totalCount,
+                onPageChanged: _changePage,
+              ),
+            ],
           ),
-          if (_loading) const LinearProgressIndicator(minHeight: 2),
-          const SizedBox(height: 18),
-          Expanded(
-            child: _SmsOutboxTable(
-              messages: messages,
-              selectedIds: _selectedIds,
-              sortState: _sortState,
-              onToggleAll: _toggleAll,
-              onToggleOne: _toggleOne,
-              onSort: _changeSort,
-              onSendAgain: _openSendDrawer,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _SmsOutboxFooter(
-            page: _page,
-            pageSize: _pageSize,
-            totalCount: totalCount,
-            onPageChanged: _changePage,
-          ),
-        ],
-      ),
-    );
+        );
       },
     );
   }
 }
-
 
 class _SmsOutboxMobileList extends StatelessWidget {
   const _SmsOutboxMobileList({
@@ -525,7 +536,9 @@ class _SmsOutboxMobileCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      message.recipient.isEmpty ? message.phone : message.recipient,
+                      message.recipient.isEmpty
+                          ? message.phone
+                          : message.recipient,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

@@ -7,12 +7,12 @@ import 'frontend/app/pateeznews_app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _initializeSupabase();
   if (!kIsWeb && _isMobileTarget(defaultTargetPlatform)) {
     runApp(const PateeznewsApp());
     return;
   }
 
-  await _initializeAdminSupabase();
   runApp(const PateeznewsAdminApp());
 }
 
@@ -20,7 +20,7 @@ bool _isMobileTarget(TargetPlatform platform) {
   return platform == TargetPlatform.android || platform == TargetPlatform.iOS;
 }
 
-Future<void> _initializeAdminSupabase() async {
+Future<void> _initializeSupabase() async {
   const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   const supabasePublishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',

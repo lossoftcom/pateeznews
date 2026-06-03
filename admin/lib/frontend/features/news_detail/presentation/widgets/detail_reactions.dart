@@ -37,6 +37,7 @@ class DetailReactionsStrip extends StatefulWidget {
 class _DetailReactionsStripState extends State<DetailReactionsStrip> {
   NewsReaction? _selected;
   late Map<NewsReaction, int> _counts;
+  bool _didPrecacheAssets = false;
 
   @override
   void initState() {
@@ -50,6 +51,16 @@ class _DetailReactionsStripState extends State<DetailReactionsStrip> {
     if (oldWidget.stats != widget.stats) {
       _counts = Map.of(widget.stats.counts);
       _selected = null;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didPrecacheAssets) return;
+    _didPrecacheAssets = true;
+    for (final reaction in NewsReaction.values) {
+      precacheImage(AssetImage(reaction.assetPath), context);
     }
   }
 
@@ -332,7 +343,7 @@ class _ReactionCellState extends State<_ReactionCell>
                     child: Transform.rotate(
                       angle: _wiggle.value,
                       child: _Disk(
-                        emoji: widget.reaction.emoji,
+                        assetPath: widget.reaction.assetPath,
                         accent: accent,
                         isActive: isActive,
                         progress: progress,
@@ -392,20 +403,21 @@ class _ReactionCellState extends State<_ReactionCell>
 
 class _Disk extends StatelessWidget {
   const _Disk({
-    required this.emoji,
+    required this.assetPath,
     required this.accent,
     required this.isActive,
     required this.progress,
     required this.ripple,
   });
 
-  final String emoji;
+  final String assetPath;
   final Color accent;
   final bool isActive;
   final double progress;
   final double ripple;
 
   static const double _diskSize = 48;
+  static const double _assetSize = 40;
 
   @override
   Widget build(BuildContext context) {
@@ -502,7 +514,15 @@ class _Disk extends StatelessWidget {
               ],
             ),
             alignment: Alignment.center,
-            child: Text(emoji, style: const TextStyle(fontSize: 26, height: 1)),
+            child: Image.asset(
+              assetPath,
+              width: _assetSize,
+              height: _assetSize,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+              gaplessPlayback: true,
+              excludeFromSemantics: true,
+            ),
           ),
           // Aktif rozeti — küçük tick noktası
           AnimatedPositioned(

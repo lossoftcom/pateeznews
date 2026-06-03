@@ -16,6 +16,15 @@ const clientOptimizeDeps = [
     'swiper/react',
 ];
 
+const astroVirtualDeps = [
+    'astro/virtual-modules/prefetch.js',
+    'astro/virtual-modules/transitions.js',
+    'astro/virtual-modules/transitions-router.js',
+    'astro/virtual-modules/transitions-types.js',
+    'astro/virtual-modules/transitions-events.js',
+    'astro/virtual-modules/transitions-swap-functions.js',
+];
+
 // https://astro.build/config
 export default defineConfig({
     output: 'server',
@@ -66,7 +75,9 @@ export default defineConfig({
             watch: {
                 ignored: [
                     '**/admin/build/**',
+                    '**/admin/**/build/**',
                     '**/admin/.dart_tool/**',
+                    '**/admin/web/**',
                     '**/admin/macos/Flutter/ephemeral/**',
                     '**/admin/ios/Flutter/ephemeral/**',
                     '**/admin/linux/flutter/ephemeral/**',
@@ -74,8 +85,14 @@ export default defineConfig({
                 ],
             },
         },
+        ssr: {
+            optimizeDeps: {
+                exclude: astroVirtualDeps,
+            },
+        },
         optimizeDeps: {
             include: clientOptimizeDeps,
+            exclude: astroVirtualDeps,
         }
     },
 });

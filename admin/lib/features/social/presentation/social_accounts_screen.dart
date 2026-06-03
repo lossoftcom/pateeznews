@@ -176,13 +176,15 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 920;
+        final topPadding = mobile ? 18.0 : 28.0;
         final filteredRows = _filteredRows;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const _SocialAccountsTitle(),
-            const SizedBox(height: 18),
+            SizedBox(height: mobile ? 12 : 18),
             Expanded(
               child: _loading
                   ? const Center(
@@ -227,7 +229,7 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -238,7 +240,7 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -359,74 +361,73 @@ class _SocialAccountsTableCard extends StatelessWidget {
           );
         }
         return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SocialAccountsToolbar(
-          pageSize: pageSize,
-          searchController: searchController,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onCreate: onCreate,
-          onRefresh: onRefresh,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: AppColors.line),
-              borderRadius: BorderRadius.circular(AppRadius.value),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SocialAccountsToolbar(
+              pageSize: pageSize,
+              searchController: searchController,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onCreate: onCreate,
+              onRefresh: onRefresh,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth < _minTableWidth
-                    ? _minTableWidth
-                    : constraints.maxWidth;
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.hasBoundedHeight
-                        ? constraints.maxHeight
-                        : null,
-                    child: Column(
-                      children: [
-                        const _SocialAccountsTableHeader(),
-                        Expanded(
-                          child: rows.isEmpty
-                              ? const _SocialAccountsEmptyState()
-                              : ListView.builder(
-                                  itemCount: rows.length,
-                                  itemBuilder: (context, index) {
-                                    return _SocialAccountsTableRow(
-                                      row: rows[index],
-                                    );
-                                  },
-                                ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth < _minTableWidth
+                        ? _minTableWidth
+                        : constraints.maxWidth;
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: width,
+                        height: constraints.hasBoundedHeight
+                            ? constraints.maxHeight
+                            : null,
+                        child: Column(
+                          children: [
+                            const _SocialAccountsTableHeader(),
+                            Expanded(
+                              child: rows.isEmpty
+                                  ? const _SocialAccountsEmptyState()
+                                  : ListView.builder(
+                                      itemCount: rows.length,
+                                      itemBuilder: (context, index) {
+                                        return _SocialAccountsTableRow(
+                                          row: rows[index],
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _SocialAccountsFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
-    );
+            const SizedBox(height: 16),
+            _SocialAccountsFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
       },
     );
   }
 }
-
 
 class _SocialAccountsMobileView extends StatelessWidget {
   const _SocialAccountsMobileView({
@@ -472,17 +473,28 @@ class _SocialAccountsMobileView extends StatelessWidget {
           showFilters: false,
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
+        Row(
           children: [
-            _PrimaryActionButton(
-              label: context.t('social.accounts.addAccount'),
-              onPressed: onCreate,
+            Expanded(
+              child: AdminMobilePrimaryButton(
+                icon: Symbols.add,
+                label: context.t('social.accounts.addAccount'),
+                fullWidth: true,
+                onPressed: onCreate,
+              ),
             ),
-            _SecondaryActionButton(
-              label: context.t('social.accounts.refresh'),
-              onPressed: onRefresh,
+            const SizedBox(width: 10),
+            Expanded(
+              child: AdminMobileActionButton(
+                label: context.t('social.accounts.refresh'),
+                leading: const SymbolIcon(
+                  Symbols.redo,
+                  color: AppColors.deepOcean,
+                  size: 18,
+                ),
+                fullWidth: true,
+                onPressed: onRefresh,
+              ),
             ),
           ],
         ),

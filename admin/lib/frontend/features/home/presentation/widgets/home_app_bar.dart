@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../shell/data/app_shell_repository.dart';
 
-/// Solda menü, ortada wordmark, sağda arama. Scroll'la birlikte alt çizgi
-/// belirginleşir.
+/// Solda menü, ortada wordmark. Scroll'la birlikte alt çizgi belirginleşir.
 class HomeAppBar extends StatelessWidget {
   const HomeAppBar({
     super.key,
     required this.onMenuTap,
-    required this.onSearchTap,
+    this.shellSettings = const AppShellSettings.empty(),
     this.elevated = false,
   });
 
   final VoidCallback onMenuTap;
-  final VoidCallback onSearchTap;
+  final AppShellSettings shellSettings;
   final bool elevated;
 
   static const double _height = 56;
@@ -43,13 +43,10 @@ class HomeAppBar extends StatelessWidget {
             onTap: onMenuTap,
             semantics: 'Menü',
           ),
-          const Expanded(child: Center(child: _Wordmark())),
-          _AppBarButton(
-            icon: Symbols.search_rounded,
-            onTap: onSearchTap,
-            semantics: 'Arama',
+          Expanded(
+            child: Center(child: _BrandMark(settings: shellSettings)),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -88,11 +85,59 @@ class _AppBarButton extends StatelessWidget {
   }
 }
 
-class _Wordmark extends StatelessWidget {
-  const _Wordmark();
+class _BrandMark extends StatelessWidget {
+  const _BrandMark({required this.settings});
+
+  final AppShellSettings settings;
 
   @override
   Widget build(BuildContext context) {
+    final logoUrl = settings.displayLogoUrl;
+    if (logoUrl.isEmpty) {
+      return _Wordmark(siteName: settings.siteName);
+    }
+
+    return SizedBox(
+      height: 32,
+      child: Image.network(
+        logoUrl,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        semanticLabel: settings.siteName.isEmpty
+            ? 'Pateeznews'
+            : settings.siteName,
+        errorBuilder: (context, error, stackTrace) {
+          return _Wordmark(siteName: settings.siteName);
+        },
+      ),
+    );
+  }
+}
+
+class _Wordmark extends StatelessWidget {
+  const _Wordmark({required this.siteName});
+
+  final String siteName;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = siteName.toLowerCase().replaceAll(' ', '');
+    if (normalized.isNotEmpty && !normalized.contains('pateez')) {
+      return Text(
+        siteName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontFamily: 'PateezInter',
+          color: AppColors.inkStrong,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+          height: 1,
+        ),
+      );
+    }
+
     return const Text.rich(
       TextSpan(
         children: [

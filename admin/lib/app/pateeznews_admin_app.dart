@@ -47,6 +47,7 @@ class PateeznewsAdminApp extends StatefulWidget {
     this.smsRepository,
     this.socialRepository,
     this.languageController,
+    this.onOpenFrontend,
   });
 
   final AdminAuthRepository? authRepository;
@@ -67,6 +68,7 @@ class PateeznewsAdminApp extends StatefulWidget {
   final AdminSmsRepository? smsRepository;
   final AdminSocialRepository? socialRepository;
   final AdminLanguageController? languageController;
+  final VoidCallback? onOpenFrontend;
 
   @override
   State<PateeznewsAdminApp> createState() => _PateeznewsAdminAppState();
@@ -153,6 +155,7 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
               socialRepository:
                   widget.socialRepository ??
                   const SupabaseAdminSocialRepository(),
+              onOpenFrontend: widget.onOpenFrontend,
             ),
           );
         },

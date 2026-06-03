@@ -254,7 +254,9 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -266,7 +268,7 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
               const SizedBox(height: 22),
               _SubscribersErrorBanner(message: _errorText!),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: _SubscribersTableCard(
                 subscribers: _subscribers,
@@ -301,7 +303,7 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -312,7 +314,7 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -456,89 +458,91 @@ class _SubscribersTableCard extends StatelessWidget {
           );
         }
         return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SubscribersToolbar(
-          pageSize: pageSize,
-          searchController: searchController,
-          searchQuery: searchQuery,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onCreate: onCreate,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: AppColors.line),
-              borderRadius: BorderRadius.circular(AppRadius.value),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SubscribersToolbar(
+              pageSize: pageSize,
+              searchController: searchController,
+              searchQuery: searchQuery,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onCreate: onCreate,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = math.max(constraints.maxWidth, _minTableWidth);
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.hasBoundedHeight
-                        ? constraints.maxHeight
-                        : null,
-                    child: Column(
-                      children: [
-                        _SubscriberTableHeader(
-                          selected: allSelected,
-                          sortState: sortState,
-                          onToggle: onToggleAllSubscribers,
-                          onSort: onSort,
+            const SizedBox(height: 18),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = math.max(
+                      constraints.maxWidth,
+                      _minTableWidth,
+                    );
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: width,
+                        height: constraints.hasBoundedHeight
+                            ? constraints.maxHeight
+                            : null,
+                        child: Column(
+                          children: [
+                            _SubscriberTableHeader(
+                              selected: allSelected,
+                              sortState: sortState,
+                              onToggle: onToggleAllSubscribers,
+                              onSort: onSort,
+                            ),
+                            Expanded(
+                              child: loading && subscribers.isEmpty
+                                  ? const _SubscriberLoadingState()
+                                  : subscribers.isEmpty
+                                  ? const _SubscriberEmptyState()
+                                  : ListView.builder(
+                                      itemCount: subscribers.length,
+                                      itemBuilder: (context, index) {
+                                        final subscriber = subscribers[index];
+                                        return _SubscriberTableRow(
+                                          subscriber: subscriber,
+                                          selected: selectedIds.contains(
+                                            subscriber.id,
+                                          ),
+                                          onToggle: () =>
+                                              onToggleSubscriber(subscriber.id),
+                                          onEdit: () => onEdit(subscriber),
+                                          onUpdate: () => onUpdate(subscriber),
+                                          onDelete: () => onDelete(subscriber),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          child: loading && subscribers.isEmpty
-                              ? const _SubscriberLoadingState()
-                              : subscribers.isEmpty
-                              ? const _SubscriberEmptyState()
-                              : ListView.builder(
-                                  itemCount: subscribers.length,
-                                  itemBuilder: (context, index) {
-                                    final subscriber = subscribers[index];
-                                    return _SubscriberTableRow(
-                                      subscriber: subscriber,
-                                      selected: selectedIds.contains(
-                                        subscriber.id,
-                                      ),
-                                      onToggle: () =>
-                                          onToggleSubscriber(subscriber.id),
-                                      onEdit: () => onEdit(subscriber),
-                                      onUpdate: () => onUpdate(subscriber),
-                                      onDelete: () => onDelete(subscriber),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _SubscribersFooter(
-          loading: loading,
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
-    );
+            const SizedBox(height: 16),
+            _SubscribersFooter(
+              loading: loading,
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
       },
     );
   }
 }
-
 
 class _SubscribersMobileView extends StatelessWidget {
   const _SubscribersMobileView({
@@ -597,13 +601,11 @@ class _SubscribersMobileView extends StatelessWidget {
           showFilters: false,
         ),
         const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: _PrimaryActionButton(
-            icon: Symbols.add,
-            label: context.t('subscribers.addButton'),
-            onPressed: onCreate,
-          ),
+        AdminMobilePrimaryButton(
+          icon: Symbols.add,
+          label: context.t('subscribers.addButton'),
+          fullWidth: true,
+          onPressed: onCreate,
         ),
         const SizedBox(height: 14),
         Expanded(
@@ -669,7 +671,10 @@ class _SubscribersMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               AdminMobileAvatar(label: subscriber.fullName),
               const SizedBox(width: 12),

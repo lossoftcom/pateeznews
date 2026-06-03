@@ -2270,8 +2270,9 @@ class _NewsMobileView extends StatelessWidget {
           onSearchChanged: onSearchChanged,
           activeFilterCount: _activeFilterCount,
           onOpenFilters: () => _openFilters(context),
+          showFilters: false,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         hasSelection
             ? AdminMobileSelectionBar(
                 selectedCount: selectedPostIds.length,
@@ -2286,9 +2287,27 @@ class _NewsMobileView extends StatelessWidget {
                 },
                 onDelete: onDeleteSelected,
               )
-            : Align(
-                alignment: Alignment.centerLeft,
-                child: _AddPostButton(onPressed: onAddPost),
+            : Row(
+                children: [
+                  Expanded(
+                    child: AdminMobileFiltersButton(
+                      label: context.t('Filtreler'),
+                      count: _activeFilterCount,
+                      active: _activeFilterCount > 0,
+                      fullWidth: true,
+                      onPressed: () => _openFilters(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: AdminMobilePrimaryButton(
+                      icon: Symbols.add,
+                      label: context.t('Add Post'),
+                      fullWidth: true,
+                      onPressed: onAddPost,
+                    ),
+                  ),
+                ],
               ),
         const SizedBox(height: 14),
         Expanded(
@@ -2358,7 +2377,10 @@ class _NewsMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               AdminMobileThumb(
                 imageUrl: thumb.isEmpty ? null : _publicUrl(thumb),
@@ -2434,7 +2456,9 @@ class _NewsMobileCard extends StatelessWidget {
                     onTap: () => onToggleStatus(post),
                   ),
                   AdminMobileMenuAction(
-                    icon: post.isPinned ? Symbols.visibility_off : Symbols.verified,
+                    icon: post.isPinned
+                        ? Symbols.visibility_off
+                        : Symbols.verified,
                     label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
                     onTap: () => onTogglePinned(post),
                   ),

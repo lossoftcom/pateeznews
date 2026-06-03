@@ -127,7 +127,7 @@ IconData _iconForGlyph(PateezSocialGlyph glyph, {required bool filled}) {
     case PateezSocialGlyph.orbitShare:
       return filled ? Symbols.share_2_fill : Symbols.share_2_line;
     case PateezSocialGlyph.ribbon:
-      return filled ? Symbols.bookmark_3_fill : Symbols.bookmark_3_line;
+      return filled ? Symbols.bookmark_fill : Symbols.bookmark_line;
     case PateezSocialGlyph.heart:
       return filled ? Symbols.heart_3_fill : Symbols.heart_3_line;
   }

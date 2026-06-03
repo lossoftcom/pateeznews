@@ -294,9 +294,11 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                       onWhatsApp: () =>
                           _showMessage('WhatsApp\'ta paylaşılıyor.'),
                       onLike: () => _showMessage('Beğenildi.'),
+                      onDislike: () => _showMessage('Beğenilmedi.'),
                       onSave: () => _showMessage('Haber kaydedildi.'),
                       shareCount: article.shares,
                       likeCount: article.likes,
+                      dislikeCount: article.dislikes,
                       saveCount: (article.shares * 0.4).round() + 12,
                     );
                   },
@@ -653,11 +655,30 @@ class _HeroOverlay extends StatefulWidget {
 
 class _HeroOverlayState extends State<_HeroOverlay> {
   bool _liked = false;
+  bool _disliked = false;
   bool _saved = false;
 
   void _toggleLike() {
-    setState(() => _liked = !_liked);
+    setState(() {
+      if (_liked) {
+        _liked = false;
+      } else {
+        _disliked = false;
+        _liked = true;
+      }
+    });
     if (_liked) widget.onLike();
+  }
+
+  void _toggleDislike() {
+    setState(() {
+      if (_disliked) {
+        _disliked = false;
+      } else {
+        _liked = false;
+        _disliked = true;
+      }
+    });
   }
 
   void _toggleSave() {
@@ -669,24 +690,34 @@ class _HeroOverlayState extends State<_HeroOverlay> {
   Widget build(BuildContext context) {
     final article = widget.article;
     final likes = article.likes + (_liked ? 1 : 0);
+    final dislikes = article.dislikes + (_disliked ? 1 : 0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Sosyal aksiyonlar + sağda kaydet
+        // Sosyal aksiyonlar + sağda beğen/beğenme/kaydet
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SocialAction(
-              glyph: PateezSocialGlyph.heart,
+              glyph: PateezSocialGlyph.sparkUp,
               isActive: _liked,
-              activeColor: AppColors.actionRed,
+              activeColor: AppColors.deepOcean,
               inactiveColor: Colors.white,
               semanticLabel: 'Beğen',
-              iconSize: 20,
+              iconSize: 23,
               count: likes,
-              countFontSize: 10.5,
               onTap: _toggleLike,
+            ),
+            SocialAction(
+              glyph: PateezSocialGlyph.sparkDown,
+              isActive: _disliked,
+              activeColor: AppColors.actionRed,
+              inactiveColor: Colors.white,
+              semanticLabel: 'Beğenme',
+              iconSize: 23,
+              count: dislikes,
+              onTap: _toggleDislike,
             ),
             SocialAction(
               glyph: PateezSocialGlyph.conversation,
@@ -694,9 +725,8 @@ class _HeroOverlayState extends State<_HeroOverlay> {
               activeColor: AppColors.deepOcean,
               inactiveColor: Colors.white,
               semanticLabel: 'Yorumlar',
-              iconSize: 20,
+              iconSize: 26,
               count: article.comments,
-              countFontSize: 10.5,
               onTap: widget.onComment,
             ),
             SocialAction(
@@ -705,9 +735,8 @@ class _HeroOverlayState extends State<_HeroOverlay> {
               activeColor: AppColors.warmHorizon,
               inactiveColor: Colors.white,
               semanticLabel: 'Paylaş',
-              iconSize: 20,
+              iconSize: 26,
               count: article.shares,
-              countFontSize: 10.5,
               onTap: widget.onShare,
             ),
             const Spacer(),
@@ -717,7 +746,7 @@ class _HeroOverlayState extends State<_HeroOverlay> {
               activeColor: AppColors.warmHorizon,
               inactiveColor: Colors.white,
               semanticLabel: 'Kaydet',
-              iconSize: 22,
+              iconSize: 28,
               onTap: _toggleSave,
             ),
           ],

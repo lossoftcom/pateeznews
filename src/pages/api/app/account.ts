@@ -90,17 +90,6 @@ async function ensureUniqueUserFields(client: any, input: { userId?: string; ema
   if (profile?.email?.toLowerCase() === input.email.toLowerCase()) {
     throw new Error('E-posta zaten kullanılıyor');
   }
-
-  const authConflict = await client.query(
-    `SELECT id
-     FROM auth.users
-     WHERE ($2::uuid IS NULL OR id <> $2::uuid)
-       AND lower(email) = lower($1)
-       AND deleted_at IS NULL
-     LIMIT 1`,
-    [input.email, input.userId || null]
-  );
-  if (authConflict.rows[0]) throw new Error('E-posta zaten kullanılıyor');
 }
 
 async function profileForClient(client: any, userId: string) {

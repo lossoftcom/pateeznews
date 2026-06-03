@@ -436,6 +436,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < 800;
         final compact = constraints.maxWidth < 900;
         final filtered = _filteredMessages;
         final content = Column(
@@ -488,6 +489,18 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
             if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              18,
+              horizontalPadding,
+              28,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(

@@ -226,7 +226,7 @@ String _monthName(int month) {
   return names[month - 1];
 }
 
-/// Tepkilerin Türkçe etiketi ve emoji glifi.
+/// Tepkilerin Türkçe etiketi ve görsel asset yolu.
 extension NewsReactionMeta on NewsReaction {
   String get label {
     switch (this) {
@@ -245,20 +245,20 @@ extension NewsReactionMeta on NewsReaction {
     }
   }
 
-  String get emoji {
+  String get assetPath {
     switch (this) {
       case NewsReaction.like:
-        return '👍';
+        return 'assets/images/reactions/reaction_like.webp';
       case NewsReaction.illuminating:
-        return '💡';
+        return 'assets/images/reactions/reaction_illuminating.webp';
       case NewsReaction.thoughtful:
-        return '🤔';
+        return 'assets/images/reactions/reaction_thoughtful.webp';
       case NewsReaction.surprised:
-        return '😮';
+        return 'assets/images/reactions/reaction_surprised.webp';
       case NewsReaction.saddened:
-        return '😢';
+        return 'assets/images/reactions/reaction_saddened.webp';
       case NewsReaction.angering:
-        return '😠';
+        return 'assets/images/reactions/reaction_angering.webp';
     }
   }
 }

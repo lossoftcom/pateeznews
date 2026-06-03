@@ -321,7 +321,7 @@ class _NewsScreenState extends State<NewsScreen> {
               const SizedBox(height: 22),
               _NewsErrorBanner(message: _errorText!),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: NewsTableCard(
                 posts: _posts,
@@ -364,7 +364,7 @@ class _NewsScreenState extends State<NewsScreen> {
           return Padding(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              18,
               horizontalPadding,
               28,
             ),

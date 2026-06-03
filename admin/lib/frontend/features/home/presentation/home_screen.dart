@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../shell/data/app_shell_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import 'widgets/featured_slider.dart';
 import 'widgets/feed_filter_tabs.dart';
@@ -19,7 +20,14 @@ import 'widgets/stories_strip.dart';
 ///   [Beyaz üst blok: stories + featured slider]
 ///   [Gri zemin: bölüm başlığı + sosyal post tarzı haber kartları]
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+    this.shellSettings = const AppShellSettings.empty(),
+    this.onMenuTap,
+  });
+
+  final AppShellSettings shellSettings;
+  final VoidCallback? onMenuTap;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -89,8 +97,8 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           HomeAppBar(
             elevated: _isElevated,
-            onMenuTap: () {},
-            onSearchTap: () {},
+            shellSettings: widget.shellSettings,
+            onMenuTap: widget.onMenuTap ?? () {},
           ),
           Expanded(
             child: RefreshIndicator(

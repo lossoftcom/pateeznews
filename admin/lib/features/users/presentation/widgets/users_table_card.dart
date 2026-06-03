@@ -106,59 +106,58 @@ class UsersTableCard extends StatelessWidget {
           );
         }
         return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _UsersFilters(
-          roles: roles,
-          roleFilter: roleFilter,
-          rewardFilter: rewardFilter,
-          statusFilter: statusFilter,
-          onRoleChanged: onRoleChanged,
-          onRewardChanged: onRewardChanged,
-          onStatusChanged: onStatusChanged,
-        ),
-        const SizedBox(height: 28),
-        _UsersToolbar(
-          pageSize: pageSize,
-          searchQuery: searchQuery,
-          selectedCount: selectedUserIds.length,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onAddUser: onAddUser,
-          onDeleteSelected: onDeleteSelected,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: _UsersDataTable(
-            users: users,
-            roles: roles,
-            loading: loading,
-            selectedUserIds: selectedUserIds,
-            sortState: sortState,
-            onToggleUser: onToggleUser,
-            onToggleAllUsers: onToggleAllUsers,
-            onEditUser: onEditUser,
-            onToggleStatus: onToggleStatus,
-            onToggleReward: onToggleReward,
-            onDeleteUser: onDeleteUser,
-            onSort: onSort,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _UsersFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          loading: loading,
-          onPageChanged: onPageChanged,
-        ),
-      ],
-    );
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _UsersFilters(
+              roles: roles,
+              roleFilter: roleFilter,
+              rewardFilter: rewardFilter,
+              statusFilter: statusFilter,
+              onRoleChanged: onRoleChanged,
+              onRewardChanged: onRewardChanged,
+              onStatusChanged: onStatusChanged,
+            ),
+            const SizedBox(height: 28),
+            _UsersToolbar(
+              pageSize: pageSize,
+              searchQuery: searchQuery,
+              selectedCount: selectedUserIds.length,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onAddUser: onAddUser,
+              onDeleteSelected: onDeleteSelected,
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: _UsersDataTable(
+                users: users,
+                roles: roles,
+                loading: loading,
+                selectedUserIds: selectedUserIds,
+                sortState: sortState,
+                onToggleUser: onToggleUser,
+                onToggleAllUsers: onToggleAllUsers,
+                onEditUser: onEditUser,
+                onToggleStatus: onToggleStatus,
+                onToggleReward: onToggleReward,
+                onDeleteUser: onDeleteUser,
+                onSort: onSort,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _UsersFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              loading: loading,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
       },
     );
   }
 }
-
 
 class _UsersMobileView extends StatelessWidget {
   const _UsersMobileView({
@@ -332,8 +331,9 @@ class _UsersMobileView extends StatelessWidget {
           onSearchChanged: onSearchChanged,
           activeFilterCount: _activeFilterCount,
           onOpenFilters: () => _openFilters(context),
+          showFilters: false,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         hasSelection
             ? AdminMobileSelectionBar(
                 selectedCount: selectedUserIds.length,
@@ -348,9 +348,27 @@ class _UsersMobileView extends StatelessWidget {
                 },
                 onDelete: onDeleteSelected,
               )
-            : Align(
-                alignment: Alignment.centerLeft,
-                child: _AddUserButton(onPressed: onAddUser),
+            : Row(
+                children: [
+                  Expanded(
+                    child: AdminMobileFiltersButton(
+                      label: context.t('Filtreler'),
+                      count: _activeFilterCount,
+                      active: _activeFilterCount > 0,
+                      fullWidth: true,
+                      onPressed: () => _openFilters(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: AdminMobilePrimaryButton(
+                      icon: Symbols.add,
+                      label: context.t('Add User'),
+                      fullWidth: true,
+                      onPressed: onAddUser,
+                    ),
+                  ),
+                ],
               ),
         const SizedBox(height: 14),
         Expanded(
@@ -425,7 +443,10 @@ class _UsersMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               AdminMobileAvatar(
                 label: user.displayName,

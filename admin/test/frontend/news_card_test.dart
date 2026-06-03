@@ -49,8 +49,11 @@ void main() {
     expect(find.textContaining('TAKİP'), findsNothing);
     expect(find.text('Türkiye  /  Ekonomi'), findsOneWidget);
     expect(find.text('TÜRKİYE  /  EKONOMİ'), findsNothing);
-    expect(find.byIcon(Symbols.heart_3_line), findsWidgets);
-    expect(find.byIcon(Symbols.bookmark_3_line), findsWidgets);
+    expect(find.byIcon(Symbols.heart_3_line), findsNothing);
+    expect(find.byIcon(Symbols.thumb_up_line), findsWidgets);
+    expect(find.byIcon(Symbols.thumb_down_line), findsWidgets);
+    expect(find.byIcon(Symbols.bookmark_line), findsWidgets);
+    expect(find.byIcon(Symbols.bookmark_3_line), findsNothing);
 
     // Kapak görseli artık diske cache'lenen CachedNetworkImage (CachedImage
     // sarmalayıcısı üzerinden). Doğru URL ile ve BoxFit.contain ile render

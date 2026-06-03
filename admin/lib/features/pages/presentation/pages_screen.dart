@@ -223,7 +223,7 @@ class _PagesScreenState extends State<PagesScreen> {
           return Padding(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              18,
               horizontalPadding,
               28,
             ),
@@ -238,7 +238,7 @@ class _PagesScreenState extends State<PagesScreen> {
                     letterSpacing: 0,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 Expanded(
                   child: _PagesMobileView(
                     pages: _pages,
@@ -2465,7 +2465,6 @@ const _smallStrong = TextStyle(
   fontSize: 11.5,
 );
 
-
 class _PagesMobileView extends StatelessWidget {
   const _PagesMobileView({
     required this.pages,
@@ -2614,15 +2613,30 @@ class _PagesMobileView extends StatelessWidget {
           onSearchChanged: (_) {},
           activeFilterCount: _activeFilterCount,
           onOpenFilters: () => _openFilters(context),
+          showFilters: false,
         ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AdminMobilePrimaryButton(
-            icon: Symbols.add,
-            label: context.t('pages.addButton'),
-            onPressed: onAdd,
-          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: AdminMobileFiltersButton(
+                label: context.t('Filtreler'),
+                count: _activeFilterCount,
+                active: _activeFilterCount > 0,
+                fullWidth: true,
+                onPressed: () => _openFilters(context),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: AdminMobilePrimaryButton(
+                icon: Symbols.add,
+                label: context.t('pages.addButton'),
+                fullWidth: true,
+                onPressed: onAdd,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 14),
         Expanded(

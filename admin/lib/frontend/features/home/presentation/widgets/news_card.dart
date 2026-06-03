@@ -25,8 +25,10 @@ class NewsCard extends StatefulWidget {
 
 class _NewsCardState extends State<NewsCard> {
   bool _isLiked = false;
+  bool _isDisliked = false;
   bool _isSaved = false;
   late int _likes = widget.article.likes;
+  late int _dislikes = widget.article.dislikes;
 
   void _toggleLike() {
     setState(() {
@@ -34,8 +36,28 @@ class _NewsCardState extends State<NewsCard> {
         _isLiked = false;
         _likes--;
       } else {
+        if (_isDisliked) {
+          _isDisliked = false;
+          _dislikes--;
+        }
         _isLiked = true;
         _likes++;
+      }
+    });
+  }
+
+  void _toggleDislike() {
+    setState(() {
+      if (_isDisliked) {
+        _isDisliked = false;
+        _dislikes--;
+      } else {
+        if (_isLiked) {
+          _isLiked = false;
+          _likes--;
+        }
+        _isDisliked = true;
+        _dislikes++;
       }
     });
   }
@@ -59,9 +81,12 @@ class _NewsCardState extends State<NewsCard> {
             _ActionBar(
               article: article,
               isLiked: _isLiked,
+              isDisliked: _isDisliked,
               isSaved: _isSaved,
               likes: _likes,
+              dislikes: _dislikes,
               onLike: _toggleLike,
+              onDislike: _toggleDislike,
               onSave: _toggleSave,
             ),
             _CommentsPreview(comments: HomeMockData.samplePreviewComments),
@@ -521,17 +546,23 @@ class _ActionBar extends StatelessWidget {
   const _ActionBar({
     required this.article,
     required this.isLiked,
+    required this.isDisliked,
     required this.isSaved,
     required this.likes,
+    required this.dislikes,
     required this.onLike,
+    required this.onDislike,
     required this.onSave,
   });
 
   final NewsArticle article;
   final bool isLiked;
+  final bool isDisliked;
   final bool isSaved;
   final int likes;
+  final int dislikes;
   final VoidCallback onLike;
+  final VoidCallback onDislike;
   final VoidCallback onSave;
 
   @override
@@ -555,13 +586,22 @@ class _ActionBar extends StatelessWidget {
                   runSpacing: 2,
                   children: [
                     SocialAction(
-                      glyph: PateezSocialGlyph.heart,
+                      glyph: PateezSocialGlyph.sparkUp,
                       isActive: isLiked,
-                      activeColor: AppColors.actionRed,
+                      activeColor: AppColors.deepOcean,
                       semanticLabel: 'Beğen',
                       count: likes,
                       onTap: onLike,
-                      iconSize: 26,
+                      iconSize: 23,
+                    ),
+                    SocialAction(
+                      glyph: PateezSocialGlyph.sparkDown,
+                      isActive: isDisliked,
+                      activeColor: AppColors.actionRed,
+                      semanticLabel: 'Beğenme',
+                      count: dislikes,
+                      onTap: onDislike,
+                      iconSize: 23,
                     ),
                     SocialAction(
                       glyph: PateezSocialGlyph.conversation,
@@ -584,13 +624,18 @@ class _ActionBar extends StatelessWidget {
                   ],
                 ),
               ),
-              SocialAction(
-                glyph: PateezSocialGlyph.ribbon,
-                isActive: isSaved,
-                activeColor: AppColors.warmHorizon,
-                semanticLabel: 'Kaydet',
-                onTap: onSave,
-                iconSize: 28,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SocialAction(
+                    glyph: PateezSocialGlyph.ribbon,
+                    isActive: isSaved,
+                    activeColor: AppColors.warmHorizon,
+                    semanticLabel: 'Kaydet',
+                    onTap: onSave,
+                    iconSize: 28,
+                  ),
+                ],
               ),
             ],
           );

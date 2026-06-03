@@ -5,6 +5,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -368,6 +369,7 @@ class _UsersScreenState extends State<UsersScreen> {
         description: context.t('Active systems'),
         icon: Symbols.verified,
         iconColor: AppColors.actionRed,
+        centerContent: true,
       ),
       UserMetric(
         title: context.t('Active Users'),
@@ -393,7 +395,9 @@ class _UsersScreenState extends State<UsersScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
 
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -405,7 +409,7 @@ class _UsersScreenState extends State<UsersScreen> {
               const SizedBox(height: 16),
               _UsersErrorBanner(message: _errorText!),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 14 : 24),
             Expanded(
               child: UsersTableCard(
                 users: _users,
@@ -444,7 +448,7 @@ class _UsersScreenState extends State<UsersScreen> {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -455,7 +459,7 @@ class _UsersScreenState extends State<UsersScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),

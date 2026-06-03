@@ -9,6 +9,8 @@ class Symbols {
 
   static const alternate_email = IconData(0xea83, fontFamily: _fontFamily);
   static const add = IconData(0xea13, fontFamily: _fontFamily);
+  static const apps = IconData(0xea44, fontFamily: _fontFamily);
+  static const apps_fill = IconData(0xea43, fontFamily: _fontFamily);
   static const arrow_forward = IconData(
     0xea6c,
     fontFamily: _fontFamily,
@@ -129,6 +131,7 @@ class Symbols {
   static const menu_book_rounded = IconData(0xeadb, fontFamily: _fontFamily);
   static const menu_rounded = menu;
   static const more_horiz_rounded = IconData(0xef77, fontFamily: _fontFamily);
+  static const moon_rounded = IconData(0xef75, fontFamily: _fontFamily);
   static const people_alt_outlined = IconData(0xf1ee, fontFamily: _fontFamily);
   static const person_outline_rounded = person;
   static const person_rounded = IconData(0xf255, fontFamily: _fontFamily);
@@ -147,6 +150,8 @@ class Symbols {
   static const schedule_rounded = schedule;
   static const science_rounded = IconData(0xed3f, fontFamily: _fontFamily);
   static const search_rounded = search;
+  static const search_ai_fill = IconData(0xf635, fontFamily: _fontFamily);
+  static const search_ai_line = IconData(0xf636, fontFamily: _fontFamily);
   static const send_rounded = IconData(
     0xf0d9,
     fontFamily: _fontFamily,
@@ -156,6 +161,7 @@ class Symbols {
     0xed8f,
     fontFamily: _fontFamily,
   );
+  static const sun_rounded = IconData(0xf1bf, fontFamily: _fontFamily);
   static const theater_comedy_rounded = IconData(
     0xefc5,
     fontFamily: _fontFamily,
@@ -165,6 +171,8 @@ class Symbols {
   static const visibility_off_outlined = visibility_off;
   static const visibility_outlined = visibility;
 
+  static const bookmark_fill = IconData(0xeae4, fontFamily: _fontFamily);
+  static const bookmark_line = IconData(0xeae5, fontFamily: _fontFamily);
   static const bookmark_3_fill = IconData(0xeae2, fontFamily: _fontFamily);
   static const bookmark_3_line = IconData(0xeae3, fontFamily: _fontFamily);
   static const chat_3_fill = IconData(0xeb50, fontFamily: _fontFamily);
