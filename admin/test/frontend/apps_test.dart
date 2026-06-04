@@ -24,7 +24,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Uygulamalar'), findsOneWidget);
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
@@ -62,11 +62,30 @@ void main() {
     expect(find.text('Nöbetçi Eczane'), findsNothing);
 
     await tester.tap(find.text('Uygulamalar'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
 
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
     expect(find.text('Ölüm İlanları'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Uygulamalar sheet aşağı sürüklenince kapanır', (tester) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: ShellScreen()));
+    await tester.pump(const Duration(milliseconds: 1));
+
+    await tester.tap(find.text('Uygulamalar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nöbetçi Eczane'), findsOneWidget);
+
+    // Sheet'i parmakla aşağı çek → kapanmalı.
+    await tester.drag(find.text('Nöbetçi Eczane'), const Offset(0, 420));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nöbetçi Eczane'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

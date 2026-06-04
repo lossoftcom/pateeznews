@@ -192,7 +192,32 @@ class Symbols {
   static const twitter_x_fill = IconData(0xf3e5, fontFamily: _fontFamily);
   static const whatsapp_fill = IconData(0xf2bb, fontFamily: _fontFamily);
 
-  // Ölüm İlanları için yaprak glifi — kod noktası
-  // admin/assets/fonts/remixicon/remixicon.css dosyasından birebir alınmıştır.
+  // Hava durumu / nöbetçi eczane / ölüm ilanları sayfaları için ek glifler.
+  // Kod noktaları admin/assets/fonts/remixicon/RemixIcon.ttf cmap'inden
+  // (fontun kendi sürümünden) birebir okunmuştur — tofu riski yoktur.
   static const leaf_line = IconData(0xeea3, fontFamily: _fontFamily);
+  static const flower_line = IconData(0xf40a, fontFamily: _fontFamily);
+  static const capsule_fill = IconData(0xeb36, fontFamily: _fontFamily);
+
+  static const sun_fill = IconData(0xf1bc, fontFamily: _fontFamily);
+  static const sun_cloudy_fill = IconData(0xf1ba, fontFamily: _fontFamily);
+  static const moon_clear_fill = IconData(0xef6e, fontFamily: _fontFamily);
+  static const moon_cloudy_fill = IconData(0xef70, fontFamily: _fontFamily);
+  static const cloudy_fill = IconData(0xeba4, fontFamily: _fontFamily);
+  static const rainy_fill = IconData(0xf055, fontFamily: _fontFamily);
+  static const drizzle_fill = IconData(0xec67, fontFamily: _fontFamily);
+  static const foggy_fill = IconData(0xed4f, fontFamily: _fontFamily);
+  static const windy_fill = IconData(0xf2ca, fontFamily: _fontFamily);
+  static const drop_fill = IconData(0xec69, fontFamily: _fontFamily);
+  static const water_percent_fill = IconData(0xf3ad, fontFamily: _fontFamily);
+  static const temp_hot_fill = IconData(0xf1f3, fontFamily: _fontFamily);
+  static const eye_fill = IconData(0xecb4, fontFamily: _fontFamily);
+  static const compass_fill = IconData(0xebc3, fontFamily: _fontFamily);
+
+  static const phone_fill = IconData(0xefe9, fontFamily: _fontFamily);
+  static const navigation_fill = IconData(0xef88, fontFamily: _fontFamily);
+  static const time_fill = IconData(0xf20e, fontFamily: _fontFamily);
+  static const map_pin_line = IconData(0xef14, fontFamily: _fontFamily);
+  static const calendar_event_line = IconData(0xeb25, fontFamily: _fontFamily);
+  static const building_line = IconData(0xeb0f, fontFamily: _fontFamily);
 }

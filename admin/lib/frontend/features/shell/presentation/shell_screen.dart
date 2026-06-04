@@ -16,8 +16,11 @@ import '../../apps/presentation/app_feature_screen.dart';
 import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
 import '../../home/presentation/home_screen.dart';
+import '../../obituaries/presentation/obituaries_screen.dart';
+import '../../pharmacy/presentation/pharmacy_screen.dart';
 import '../../profile/data/profile_content.dart';
 import '../../profile/presentation/profile_screen.dart';
+import '../../weather/presentation/weather_screen.dart';
 import '../data/app_shell_repository.dart';
 import 'widgets/pateez_bottom_nav.dart';
 import 'widgets/section_placeholder.dart';
@@ -340,7 +343,12 @@ class _ShellScreenState extends State<ShellScreen>
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) => AppFeatureScreen(item: item),
+        pageBuilder: (_, _, _) => switch (item.id) {
+          'nobetci-eczane' => const PharmacyScreen(),
+          'hava-durumu' => const WeatherScreen(),
+          'olum-ilanlari' => const ObituariesScreen(),
+          _ => AppFeatureScreen(item: item),
+        },
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -549,8 +557,9 @@ class _ShellScreenState extends State<ShellScreen>
 /// "Uygulamalar" alt sayfasının kabuk içindeki kaplaması: içerik alanını
 /// karartan örtü + aşağıdan yukarı kayan [AppsSheet]. Bottom nav'ın üstünde
 /// konumlanır (nav görünür ve etkileşimli kalır); kapanırken sheet nav çizgisi
-/// altında kırpılarak gizlenir.
-class _AppsOverlay extends StatelessWidget {
+/// altında kırpılarak gizlenir. Sheet parmakla aşağı çekilerek de kapatılır:
+/// sürükleme parmağı takip eder, bırakınca eşiğe göre kapanır ya da geri yapışır.
+class _AppsOverlay extends StatefulWidget {
   const _AppsOverlay({
     required this.controller,
     required this.navHeight,
@@ -564,21 +573,58 @@ class _AppsOverlay extends StatelessWidget {
   final ValueChanged<AppItem> onSelect;
 
   @override
+  State<_AppsOverlay> createState() => _AppsOverlayState();
+}
+
+class _AppsOverlayState extends State<_AppsOverlay> {
+  final GlobalKey _sheetKey = GlobalKey();
+  bool _dismissing = false;
+
+  double get _sheetHeight {
+    final size = _sheetKey.currentContext?.size;
+    return (size != null && size.height > 0) ? size.height : 320;
+  }
+
+  void _onDragStart(DragStartDetails _) => _dismissing = false;
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (_dismissing) return;
+    final next =
+        widget.controller.value - (details.primaryDelta ?? 0) / _sheetHeight;
+    if (next <= 0.02) {
+      _dismissing = true;
+      widget.onClose();
+      return;
+    }
+    widget.controller.value = next.clamp(0.0, 1.0);
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    if (_dismissing) return;
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity > 600 || widget.controller.value < 0.6) {
+      widget.onClose();
+    } else {
+      widget.controller.forward();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: controller,
+      animation: widget.controller,
       builder: (context, _) {
-        final t = controller.value;
+        final t = widget.controller.value;
         if (t == 0) return const SizedBox.shrink();
         return Padding(
-          padding: EdgeInsets.only(bottom: navHeight),
+          padding: EdgeInsets.only(bottom: widget.navHeight),
           child: ClipRect(
             child: Stack(
               children: [
                 Positioned.fill(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: onClose,
+                    onTap: widget.onClose,
                     child: ColoredBox(
                       color: Colors.black.withValues(alpha: 0.45 * t),
                     ),
@@ -588,7 +634,18 @@ class _AppsOverlay extends StatelessWidget {
                   alignment: Alignment.bottomCenter,
                   child: FractionalTranslation(
                     translation: Offset(0, 1 - t),
-                    child: AppsSheet(items: AppItems.all, onSelect: onSelect),
+                    child: GestureDetector(
+                      onVerticalDragStart: _onDragStart,
+                      onVerticalDragUpdate: _onDragUpdate,
+                      onVerticalDragEnd: _onDragEnd,
+                      child: KeyedSubtree(
+                        key: _sheetKey,
+                        child: AppsSheet(
+                          items: AppItems.all,
+                          onSelect: widget.onSelect,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
