@@ -17,12 +17,12 @@ class StoriesStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 112,
+      height: 88,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.pageHorizontal,
-          vertical: AppSpacing.sm,
+          vertical: AppSpacing.xs,
         ),
         physics: const BouncingScrollPhysics(),
         itemCount: stories.length,

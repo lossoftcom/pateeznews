@@ -2783,12 +2783,17 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "newsAdd.aiModal.length": "Metin Uzunluğu",
   "newsAdd.aiModal.contentType": "İçerik Türü",
   "newsAdd.aiModal.outputTarget": "Doldurulacak Alan",
-  "newsAdd.aiModal.topic": "Konu / Brief",
+  "newsAdd.aiModal.sourceUrl": "Haber Linki",
+  "newsAdd.aiModal.sourceUrlHint": "https://site.com/haber-linki",
+  "newsAdd.aiModal.sourceUrlRead": "Linki Oku",
+  "newsAdd.aiModal.sourceUrlReading": "Okunuyor...",
+  "newsAdd.aiModal.sourceUrlReady": "Link okundu ve haber içeriği hazırlandı.",
+  "newsAdd.aiModal.topic": "Haber İçeriği",
   "newsAdd.aiModal.topicHint":
-      "Örn: Niğde'de yeni ulaşım projesi, resmi açıklamalar ve vatandaş etkisi...",
-  "newsAdd.aiModal.sourceNotes": "Kaynak Notları",
+      "Linkten okunan haber metni veya ham haber içeriğini buraya yazın...",
+  "newsAdd.aiModal.sourceNotes": "AI Talimatları / Notlar",
   "newsAdd.aiModal.sourceNotesHint":
-      "Doğrulanmış bilgileri, kişi/kurum adlarını, tarihleri ve önemli detayları yazın...",
+      "Örn: Belediye başkanının konuşmasını ön plana al, haberdeki isimleri çıkar...",
   "newsAdd.aiModal.includeSeo": "SEO alanları",
   "newsAdd.aiModal.items": "AI ile Eklenecek Itemler",
   "newsAdd.aiModal.itemsHint":
@@ -2796,6 +2801,8 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "newsAdd.aiModal.totalItems": "Toplam item",
   "newsAdd.aiModal.clearItems": "Temizle",
   "newsAdd.aiModal.close": "Kapat",
+  "newsAdd.aiModal.fix": "Düzelt",
+  "newsAdd.aiModal.fixing": "Düzeltiliyor...",
   "newsAdd.aiModal.generate": "İçerik Taslağı Oluştur",
   "newsAdd.aiModal.generating": "Taslak hazırlanıyor...",
   "newsAdd.aiModal.generatingHint":

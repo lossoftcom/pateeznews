@@ -1,11 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pateeznews_admin/frontend/features/announcements/presentation/announcements_screen.dart';
+import 'package:pateeznews_admin/frontend/features/etkinlik/presentation/etkinlik_screen.dart';
 import 'package:pateeznews_admin/frontend/features/markets/presentation/markets_screen.dart';
 import 'package:pateeznews_admin/frontend/features/obituaries/presentation/obituaries_screen.dart';
 import 'package:pateeznews_admin/frontend/features/pharmacy/presentation/pharmacy_screen.dart';
 import 'package:pateeznews_admin/frontend/features/weather/presentation/weather_screen.dart';
 
 void main() {
+  testWidgets('Duyurular sayfası resmi kurum duyurularını gösterir', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: AnnouncementsScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Duyurular'), findsOneWidget);
+    expect(find.text('Resmi duyurular tek ekranda'), findsOneWidget);
+    expect(find.text('VALİLİK'), findsOneWidget);
+    expect(find.text('BELEDİYE'), findsOneWidget);
+    expect(find.text('KAMU'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Hava Durumu sayfası Niğde verisini ve bölümleri gösterir', (
     tester,
   ) async {
@@ -80,6 +100,27 @@ void main() {
     await tester.tap(find.text('Altın'));
     await tester.pumpAndSettle();
     expect(find.text('Gram Altın'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Etkinlik sayfası filtreler ve etkinlikleri gösterir', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 1500);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: EtkinlikScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Etkinlik'), findsOneWidget);
+    expect(find.text('Tümü'), findsOneWidget);
+    expect(find.text('Niğde Bağ Bozumu Festivali'), findsOneWidget);
+
+    await tester.tap(find.text('Konser'));
+    await tester.pumpAndSettle();
+    expect(find.text('Niğde Bağ Bozumu Festivali'), findsNothing);
+    expect(find.textContaining('Senfoni'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

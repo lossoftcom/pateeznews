@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_news_ai_repository.dart';
+import '../data/admin_news_source_reader.dart';
 import '../data/admin_news_repository.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/data/media_service.dart';
@@ -3295,6 +3296,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   Future<void> _openAiContentGenerator() async {
+    final initialContent = _currentAiContentSeed();
     final draft = await showDialog<AdminNewsAiDraft>(
       context: context,
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
@@ -3302,8 +3304,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         return _AiContentGeneratorDialog(
           languageCode: _languageCode,
           category: _selectedCategory,
-          initialTopic: _titleController.text.trim(),
-          initialNotes: _summaryController.text.trim(),
+          initialTopic: initialContent,
+          initialNotes: '',
+          revisionMode: initialContent.trim().isNotEmpty,
           onGenerate: _aiRepository.generateDraft,
         );
       },
@@ -3311,6 +3314,81 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (draft == null || !mounted) return;
     _applyAiDraft(draft);
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
+  }
+
+  String _currentAiContentSeed() {
+    final lines = <String>[];
+
+    void addField(String label, String value) {
+      final text = value.trim();
+      if (text.isEmpty) return;
+      lines.add('$label: $text');
+    }
+
+    addField('Haber başlığı', _titleController.text);
+    addField('Kısa özet', _summaryController.text);
+    addField('SEO başlık', _seoTitleController.text);
+    addField('URL uzantısı', _slugController.text);
+    addField('Meta açıklama', _metaDescriptionController.text);
+    if (_keywords.isNotEmpty) {
+      addField('Odak anahtar kelimeler', _keywords.join(', '));
+    }
+
+    final items = _itemsForStorage()
+        .where(_hasUsefulAiContentSeedItem)
+        .toList(growable: false);
+    if (items.isNotEmpty) {
+      lines.add('Haber içerik blokları:');
+      for (final item in items) {
+        final type = _text(item['type']);
+        final title = _text(item['title']);
+        final description = _text(item['description']);
+        final source = _text(item['source']);
+        lines.add('---');
+        addField('Blok tipi', type);
+        addField('Blok başlığı', title);
+        addField('Blok metni', description);
+        addField('Blok kaynağı', source);
+        addField('Medya URL', _text(item['mediaUrl']));
+        addField('Alt metin', _text(item['altText']));
+        final options = item['options'];
+        if (options is List && options.isNotEmpty) {
+          addField(
+            'Seçenekler',
+            options
+                .map(
+                  (option) =>
+                      option is Map ? _text(option['text']) : _text(option),
+                )
+                .where((option) => option.isNotEmpty)
+                .join(', '),
+          );
+        }
+      }
+    }
+
+    final faqData = _faqDataForStorage();
+    if (faqData.isNotEmpty) {
+      lines.add('FAQ:');
+      for (final item in faqData) {
+        addField('Soru', _text(item['q']));
+        addField('Cevap', _text(item['a']));
+      }
+    }
+
+    if (lines.isNotEmpty) {
+      addField('Schema.org türü', _schemaType);
+    }
+
+    return lines.join('\n').trim();
+  }
+
+  bool _hasUsefulAiContentSeedItem(Map<String, Object?> item) {
+    return _text(item['title']).isNotEmpty ||
+        _text(item['description']).isNotEmpty ||
+        _text(item['source']).isNotEmpty ||
+        _text(item['mediaUrl']).isNotEmpty ||
+        _text(item['altText']).isNotEmpty;
   }
 
   void _applyAiDraft(AdminNewsAiDraft draft) {
@@ -5537,6 +5615,7 @@ class _AiContentGeneratorDialog extends StatefulWidget {
     required this.category,
     required this.initialTopic,
     required this.initialNotes,
+    required this.revisionMode,
     required this.onGenerate,
   });
 
@@ -5544,6 +5623,7 @@ class _AiContentGeneratorDialog extends StatefulWidget {
   final String category;
   final String initialTopic;
   final String initialNotes;
+  final bool revisionMode;
   final Future<AdminNewsAiDraft> Function(AdminNewsAiDraftRequest request)
   onGenerate;
 
@@ -5553,15 +5633,22 @@ class _AiContentGeneratorDialog extends StatefulWidget {
 }
 
 class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
+  late final TextEditingController _sourceUrlController;
   late final TextEditingController _topicController;
   late final TextEditingController _notesController;
+  final _sourceReader = const AdminNewsSourceReader();
 
   var _tone = 'neutral';
   var _contentType = 'article';
   var _outputTarget = 'all';
   var _includeSeo = true;
   var _generating = false;
+  var _readingSource = false;
   String? _generationError;
+  String? _sourceUrlStatus;
+  var _sourceUrlStatusIsError = false;
+  AdminNewsSourceArticle? _sourceArticle;
+  String? _sourceArticleUrl;
   final _itemCounts = <String, int>{};
 
   List<_AddBtn> get _aiItemOptions => const [
@@ -5596,24 +5683,27 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   @override
   void initState() {
     super.initState();
+    _sourceUrlController = TextEditingController();
     _topicController = TextEditingController(text: widget.initialTopic);
     _notesController = TextEditingController(text: widget.initialNotes);
   }
 
   @override
   void dispose() {
+    _sourceUrlController.dispose();
     _topicController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
   Future<void> _handleGenerate() async {
-    if (_generating) return;
+    if (_generating || _readingSource) return;
     setState(() {
       _generating = true;
       _generationError = null;
     });
     try {
+      final sourceArticle = await _readSourceUrlIfNeeded(fillFields: false);
       final draft = await widget.onGenerate(
         AdminNewsAiDraftRequest(
           languageCode: widget.languageCode,
@@ -5622,8 +5712,8 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           contentType: _contentType,
           outputTarget: _outputTarget,
           includeSeo: _includeSeo,
-          topic: _topicController.text,
-          sourceNotes: _notesController.text,
+          topic: _topicForGenerate(sourceArticle),
+          sourceNotes: _sourceNotesForGenerate(),
           itemCounts: _normalizedItemCounts(),
         ),
       );
@@ -5636,6 +5726,78 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         _generationError = error.toString();
       });
     }
+  }
+
+  Future<void> _handleReadSourceUrl() async {
+    if (_readingSource || _generating) return;
+    try {
+      await _readSourceUrlIfNeeded(fillFields: true, force: true);
+    } catch (_) {
+      // Status is already written by _readSourceUrlIfNeeded.
+    }
+  }
+
+  Future<AdminNewsSourceArticle?> _readSourceUrlIfNeeded({
+    required bool fillFields,
+    bool force = false,
+  }) async {
+    final url = _sourceUrlController.text.trim();
+    if (url.isEmpty) return null;
+    if (!force && _sourceArticle != null && _sourceArticleUrl == url) {
+      return _sourceArticle;
+    }
+    setState(() {
+      _readingSource = true;
+      _sourceUrlStatus = null;
+      _sourceUrlStatusIsError = false;
+    });
+    try {
+      final article = await _sourceReader.read(url);
+      if (!mounted) return article;
+      setState(() {
+        _sourceArticle = article;
+        _sourceArticleUrl = url;
+        _sourceUrlStatus = context.t('newsAdd.aiModal.sourceUrlReady');
+        _sourceUrlStatusIsError = false;
+        if (fillFields) {
+          _applySourceArticleToInputs(article);
+        }
+      });
+      return article;
+    } catch (error) {
+      if (!mounted) rethrow;
+      setState(() {
+        _sourceUrlStatus = error.toString();
+        _sourceUrlStatusIsError = true;
+      });
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() => _readingSource = false);
+      }
+    }
+  }
+
+  void _applySourceArticleToInputs(AdminNewsSourceArticle article) {
+    final currentContent = _topicController.text.trim();
+    final sourceBlock = article.toPromptBlock();
+    if (currentContent.contains('Kaynak URL: ${article.url}')) return;
+    _topicController.text = currentContent.isEmpty
+        ? sourceBlock
+        : '$currentContent\n\n$sourceBlock';
+  }
+
+  String _topicForGenerate(AdminNewsSourceArticle? article) {
+    final topic = _topicController.text.trim();
+    if (article == null || topic.contains('Kaynak URL: ${article.url}')) {
+      return topic;
+    }
+    final sourceBlock = article.toPromptBlock();
+    return topic.isEmpty ? sourceBlock : '$topic\n\n$sourceBlock';
+  }
+
+  String _sourceNotesForGenerate() {
+    return _notesController.text.trim();
   }
 
   Map<String, int> _normalizedItemCounts() {
@@ -5737,7 +5899,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                 Column(
                   children: [
                     _AiModalHeader(
-                      onClose: _generating
+                      onClose: _generating || _readingSource
                           ? null
                           : () => Navigator.of(context).pop(),
                     ),
@@ -5800,10 +5962,11 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                       _AiGenerationError(message: _generationError!),
                     _AiModalFooter(
                       generating: _generating,
-                      onClose: _generating
+                      revisionMode: widget.revisionMode,
+                      onClose: _generating || _readingSource
                           ? null
                           : () => Navigator.of(context).pop(),
-                      onGenerate: _generating
+                      onGenerate: _generating || _readingSource
                           ? null
                           : () => unawaited(_handleGenerate()),
                     ),
@@ -5937,6 +6100,17 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       children: [
         _buildSelectGrid(context, compact),
         SizedBox(height: dense ? 14 : 18),
+        _AiSourceUrlField(
+          controller: _sourceUrlController,
+          enabled: !_generating,
+          reading: _readingSource,
+          status: _sourceUrlStatus,
+          statusIsError: _sourceUrlStatusIsError,
+          onRead: _generating || _readingSource
+              ? null
+              : () => unawaited(_handleReadSourceUrl()),
+        ),
+        SizedBox(height: dense ? 12 : 14),
         const _FieldLabel('newsAdd.aiModal.topic', icon: Icons.auto_awesome),
         _TextInputBox(
           controller: _topicController,
@@ -5944,7 +6118,6 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           minLines: dense ? 4 : 5,
           maxLines: dense ? 4 : 5,
           fontSize: 13.5,
-          bold: true,
         ),
         SizedBox(height: dense ? 12 : 14),
         const _FieldLabel(
@@ -6063,6 +6236,131 @@ class _AiGeneratorSelect extends StatelessWidget {
           leadingIcon: leadingIcon,
         ),
       ],
+    );
+  }
+}
+
+class _AiSourceUrlField extends StatelessWidget {
+  const _AiSourceUrlField({
+    required this.controller,
+    required this.enabled,
+    required this.reading,
+    required this.status,
+    required this.statusIsError,
+    required this.onRead,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final bool reading;
+  final String? status;
+  final bool statusIsError;
+  final VoidCallback? onRead;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusText = status?.trim() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _FieldLabel(
+          'newsAdd.aiModal.sourceUrl',
+          icon: Icons.link_outlined,
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final input = _buildInput(context);
+            final button = _PillButton(
+              icon: reading ? Icons.hourglass_empty : Icons.travel_explore,
+              label: reading
+                  ? 'newsAdd.aiModal.sourceUrlReading'
+                  : 'newsAdd.aiModal.sourceUrlRead',
+              onTap: onRead,
+              background: AppColors.deepOcean,
+              foreground: Colors.white,
+              height: 42,
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  input,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: button),
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: input),
+                const SizedBox(width: 10),
+                button,
+              ],
+            );
+          },
+        ),
+        if (statusText.isNotEmpty) ...[
+          const SizedBox(height: 7),
+          Text(
+            statusText,
+            style: TextStyle(
+              color: statusIsError
+                  ? AppColors.actionRed
+                  : const Color(0xFF1F8B3D),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildInput(BuildContext context) {
+    return Container(
+      height: 42,
+      decoration: BoxDecoration(
+        color: enabled ? Colors.white : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddStrongLine),
+      ),
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+        maxLines: 1,
+        keyboardType: TextInputType.url,
+        textInputAction: TextInputAction.done,
+        cursorColor: AppColors.deepOcean,
+        style: const TextStyle(
+          color: AppColors.deepOcean,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+        ),
+        decoration: InputDecoration(
+          hintText: context.t('newsAdd.aiModal.sourceUrlHint'),
+          hintStyle: const TextStyle(
+            color: AppColors.placeholder,
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            letterSpacing: 0,
+          ),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          filled: false,
+        ),
+      ),
     );
   }
 }
@@ -6443,11 +6741,13 @@ class _AiItemChoiceChip extends StatelessWidget {
 class _AiModalFooter extends StatelessWidget {
   const _AiModalFooter({
     required this.generating,
+    required this.revisionMode,
     required this.onClose,
     required this.onGenerate,
   });
 
   final bool generating;
+  final bool revisionMode;
   final VoidCallback? onClose;
   final VoidCallback? onGenerate;
 
@@ -6475,8 +6775,12 @@ class _AiModalFooter extends StatelessWidget {
             _PillButton(
               icon: generating ? Icons.hourglass_empty : Icons.auto_awesome,
               label: generating
-                  ? 'newsAdd.aiModal.generating'
-                  : 'newsAdd.aiModal.generate',
+                  ? (revisionMode
+                        ? 'newsAdd.aiModal.fixing'
+                        : 'newsAdd.aiModal.generating')
+                  : (revisionMode
+                        ? 'newsAdd.aiModal.fix'
+                        : 'newsAdd.aiModal.generate'),
               onTap: onGenerate,
               background: AppColors.deepOcean,
               foreground: Colors.white,

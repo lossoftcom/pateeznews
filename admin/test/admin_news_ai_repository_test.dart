@@ -61,13 +61,32 @@ void main() {
       final systemPrompt =
           (systemParts.single as Map<String, Object?>)['text'] as String;
 
-      expect(systemPrompt, 'Aktif haber promptu');
+      expect(systemPrompt, contains('Aktif haber promptu'));
+      expect(systemPrompt, contains('Haberi gereksiz ara başlıklarla bölme'));
+      expect(
+        adminNewsAiDefaultSystemPrompt,
+        contains('Haberi gereksiz ara başlıklarla bölme'),
+      );
+      expect(systemPrompt, contains('2-4 arası anlamlı h2'));
+      expect(systemPrompt, contains('Liste ve tablo gibi ham verileri'));
       expect(generationConfig['maxOutputTokens'], 8192);
       expect(generationConfig['temperature'], 0.5);
       expect(itemsSchema.containsKey('maxItems'), isFalse);
       expect(prompt, contains('Eğlenceli'));
       expect(prompt, contains('- text: 2 adet'));
       expect(prompt, contains('tam 2 adet text item'));
+      expect(prompt, contains('kısa haberde h2 üretme'));
+      expect(prompt, contains('2-4 arası anlamlı h2'));
+      expect(prompt, contains('Kısa ara başlık parçası yapma'));
+      expect(prompt, contains('okunur listeye dönüştür'));
+      expect(prompt, contains('Haber içeriği / ham kaynak:'));
+      expect(prompt, contains('Editör talimatları / notlar:'));
+      expect(prompt, contains('Talimat kaynakta olmayan bilgi eklettiremez'));
+      expect(
+        prompt,
+        contains('yalnız haber içeriğinde açıkça bulunan bilgileri kullan'),
+      );
+      expect(prompt, contains('HTML sadece p, h2, ul, ol, li, strong'));
       expect(prompt, isNot(contains('Uzunluk:')));
       expect(prompt, isNot(contains('420-620')));
       expect(prompt, isNot(contains('320-460')));
@@ -119,6 +138,80 @@ void main() {
     },
   );
 
+  test(
+    'kaynak listedeki kişi adları keywords listesine kontrollü eklenir',
+    () async {
+      final repository = GeminiAdminNewsAiRepository(
+        settingsRepository: const _FakeAiSettingsRepository(),
+        httpClient: MockClient((request) async {
+          return _jsonResponse({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'text': jsonEncode(
+                        _draftJson(
+                          items: const [],
+                          keywords: const [
+                            'A Milli Futbol Takımı',
+                            'Dünya Kupası',
+                            '2026 Dünya Kupası',
+                            'Forma Numaraları',
+                            'Milli Takım Kadrosu',
+                            'Mert Günok',
+                            'Hakan Çalhanoğlu',
+                            'Arda Güler',
+                            'Kenan Yıldız',
+                            'Türkiye Futbol',
+                          ],
+                        ),
+                      ),
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      final draft = await repository.generateDraft(
+        const AdminNewsAiDraftRequest(
+          languageCode: 'tr',
+          category: 'Spor',
+          tone: 'neutral',
+          contentType: 'article',
+          outputTarget: 'all',
+          includeSeo: true,
+          topic: 'Milli Takımımızın Dünya Kupası Forma Numaraları Belli Oldu',
+          sourceNotes: '''
+1 — Mert Günok
+2 — Zeki Çelik
+3 — Merih Demiral
+4 — Çağlar Söyüncü
+5 — Salih Özcan
+6 — Orkun Kökçü
+7 — Kerem Aktürkoğlu
+8 — Arda Güler
+9 — Deniz Gül
+10 — Hakan Çalhanoğlu
+''',
+          itemCounts: {},
+        ),
+      );
+
+      expect(draft.keywords, contains('A Milli Futbol Takımı'));
+      expect(draft.keywords, contains('Dünya Kupası'));
+      expect(draft.keywords, contains('Zeki Çelik'));
+      expect(draft.keywords, contains('Merih Demiral'));
+      expect(draft.keywords, contains('Çağlar Söyüncü'));
+      expect(draft.keywords, contains('Salih Özcan'));
+      expect(draft.keywords, isNot(contains('Dünya Kupası Forma')));
+      expect(draft.keywords.length, lessThanOrEqualTo(14));
+    },
+  );
+
   test('mainContentHtml ara başlıkları ayrı metin bölümlerine ayrılır', () {
     final sections = splitAdminNewsAiContentSections(
       title: 'Ulaştırma projeleri',
@@ -162,7 +255,10 @@ http.Response _jsonResponse(Map<String, Object?> body) {
   );
 }
 
-Map<String, Object?> _draftJson({List<Map<String, Object?>>? items}) {
+Map<String, Object?> _draftJson({
+  List<Map<String, Object?>>? items,
+  List<String>? keywords,
+}) {
   return {
     'title': 'Başkan ulaşım projesini anlattı',
     'summary': 'Niğde için yeni ulaşım projesi duyuruldu.',
@@ -171,7 +267,7 @@ Map<String, Object?> _draftJson({List<Map<String, Object?>>? items}) {
     'slug': '',
     'metaDescription': '',
     'schemaType': '',
-    'keywords': <String>[],
+    'keywords': keywords ?? <String>[],
     'faq': <Map<String, Object?>>[],
     'mainContentHtml':
         '<p>Başkan konuşmasında yeni ulaşım projesinin detaylarını anlattı.</p>',

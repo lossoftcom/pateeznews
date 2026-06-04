@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../shell/data/app_shell_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
+import '../../today/presentation/widgets/today_widget.dart';
 import 'widgets/featured_slider.dart';
 import 'widgets/feed_filter_tabs.dart';
 import 'widgets/home_app_bar.dart';
@@ -17,7 +18,8 @@ import 'widgets/stories_strip.dart';
 ///
 /// Yapı:
 ///   [App bar]
-///   [Beyaz üst blok: stories + featured slider]
+///   [Beyaz üst blok: stories]
+///   [Gri zemin: today header + featured slider]
 ///   [Gri zemin: bölüm başlığı + sosyal post tarzı haber kartları]
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -124,8 +126,38 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           const SizedBox(height: 4),
                           StoriesStrip(stories: HomeMockData.stories),
-                          const SizedBox(height: AppSpacing.sm),
-                          FeaturedSlider(items: HomeMockData.featured)
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: const TodayWidget()
+                        .animate()
+                        .fadeIn(
+                          delay: 60.ms,
+                          duration: 320.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .slideY(
+                          begin: 0.05,
+                          end: 0,
+                          delay: 60.ms,
+                          duration: 320.ms,
+                          curve: Curves.easeOutCubic,
+                        ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.sm),
+                      child:
+                          DecoratedBox(
+                                decoration: const BoxDecoration(
+                                  color: AppColors.surface,
+                                ),
+                                child: FeaturedSlider(
+                                  items: HomeMockData.featured,
+                                ),
+                              )
                               .animate()
                               .fadeIn(
                                 delay: 120.ms,
@@ -139,8 +171,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 duration: 360.ms,
                                 curve: Curves.easeOutCubic,
                               ),
-                        ],
-                      ),
                     ),
                   ),
                   SliverToBoxAdapter(

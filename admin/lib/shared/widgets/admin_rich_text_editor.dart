@@ -84,6 +84,16 @@ String adminQuillHtml(quill.QuillController controller) {
   if (current.isNotEmpty) flushLine();
 
   final html = StringBuffer();
+  String? openListTag;
+  String openListStyle = '';
+
+  void closeOpenList() {
+    if (openListTag == null) return;
+    html.write('</$openListTag>');
+    openListTag = null;
+    openListStyle = '';
+  }
+
   for (final line in lines) {
     final content = line.content.trim().isEmpty ? '<br>' : line.content;
     final header = line.attributes['header'];
@@ -95,20 +105,30 @@ String adminQuillHtml(quill.QuillController controller) {
         ? ''
         : ' style="text-align:${_escapeAttr(align)}"';
 
-    if (header == 1 || header == 2 || header == 3) {
+    if (list == 'ordered' || list == 'bullet') {
+      final tag = list == 'ordered' ? 'ol' : 'ul';
+      if (openListTag != tag || openListStyle != style) {
+        closeOpenList();
+        html.write('<$tag$style>');
+        openListTag = tag;
+        openListStyle = style;
+      }
+      html.write('<li>$content</li>');
+    } else if (header == 1 || header == 2 || header == 3) {
+      closeOpenList();
       html.write('<h$header$style>$content</h$header>');
-    } else if (list == 'ordered') {
-      html.write('<ol$style><li>$content</li></ol>');
-    } else if (list == 'bullet') {
-      html.write('<ul$style><li>$content</li></ul>');
     } else if (blockquote) {
+      closeOpenList();
       html.write('<blockquote$style>$content</blockquote>');
     } else if (codeBlock) {
+      closeOpenList();
       html.write('<pre$style><code>$content</code></pre>');
     } else {
+      closeOpenList();
       html.write('<p$style>$content</p>');
     }
   }
+  closeOpenList();
   return html.toString();
 }
 

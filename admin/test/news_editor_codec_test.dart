@@ -28,4 +28,26 @@ void main() {
 
     expect(adminQuillHtml(controller), isEmpty);
   });
+
+  test('Sirali ve maddeli listeler tek liste HTML olarak kaydedilir', () {
+    final document = adminQuillDocumentFromStoredHtml(
+      '<ol><li>Birinci oyuncu</li><li>Ikinci oyuncu</li></ol>'
+      '<p>Liste arasi metin</p>'
+      '<ul><li>Ilk not</li><li>Ikinci not</li></ul>',
+    );
+    final controller = quill.QuillController(
+      document: document,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+
+    final html = adminQuillHtml(controller);
+
+    expect(
+      html,
+      contains('<ol><li>Birinci oyuncu</li><li>Ikinci oyuncu</li></ol>'),
+    );
+    expect(html, contains('<ul><li>Ilk not</li><li>Ikinci not</li></ul>'));
+    expect(html, isNot(contains('</ol><ol>')));
+    expect(html, isNot(contains('</ul><ul>')));
+  });
 }

@@ -3,8 +3,12 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
 
-/// Nöbetçi Eczane resmi işaretinin kırmızısı (tonlu kart zemini için).
-const Color _eczaneRed = Color(0xFFE30613);
+/// Her uygulama için ayrı, uyumlu ama belirgin biçimde farklı vurgu renkleri.
+/// Marka üçlüsünü (kırmızı/amber/deepOcean) korur, eksik tonları tamamlar.
+const Color _eczaneRed = Color(0xFFE30613); // Nöbetçi Eczane (logo)
+const Color _etkinlikViolet = Color(0xFF6C5CE7); // Etkinlik
+const Color _havaSky = Color(0xFF2D9CDB); // Hava Durumu
+const Color _dovizGreen = Color(0xFF1FA971); // Döviz & Altın
 
 /// Nöbetçi Eczane resmi logosu — gerçek görselin optimize webp kopyası.
 const String _eczaneLogoAsset = 'assets/images/nobetci_eczane.webp';
@@ -33,7 +37,7 @@ class AppItem {
   final Widget Function(double size, Color color) glyph;
 }
 
-/// Pateez mini servisleri (şimdilik üç hizmet).
+/// Pateez mini servisleri.
 class AppItems {
   const AppItems._();
 
@@ -58,7 +62,7 @@ class AppItems {
   static final havaDurumu = AppItem(
     id: 'hava-durumu',
     label: 'Hava Durumu',
-    accent: AppColors.warmHorizon,
+    accent: _havaSky,
     tagline: 'Saatlik ve 7 günlük tahmin',
     description:
         'Bulunduğun ilin saatlik ve haftalık hava tahmini, sıcaklık ve yağış '
@@ -66,10 +70,34 @@ class AppItems {
     glyph: (size, color) => Icon(Symbols.sun_rounded, size: size, color: color),
   );
 
+  static final duyurular = AppItem(
+    id: 'duyurular',
+    label: 'Duyurular',
+    accent: AppColors.warmHorizon,
+    tagline: 'Yerel bildirim ve ilanlar',
+    description:
+        'Şehirdeki önemli duyurular, etkinlikler ve güncel bilgilendirmeler '
+        'yakında bu ekranda yayınlanacak.',
+    glyph: (size, color) =>
+        Icon(Symbols.notifications, size: size, color: color),
+  );
+
+  static final etkinlik = AppItem(
+    id: 'etkinlik',
+    label: 'Etkinlik',
+    accent: _etkinlikViolet,
+    tagline: 'Şehir programı ve etkinlikler',
+    description:
+        'Konser, söyleşi, belediye programları ve aile etkinlikleri yakında '
+        'bu bölümde düzenli olarak listelenecek.',
+    glyph: (size, color) =>
+        Icon(Symbols.calendar_event_line, size: size, color: color),
+  );
+
   static final dovizAltin = AppItem(
     id: 'doviz-altin',
     label: 'Döviz & Altın',
-    accent: AppColors.warmHorizon,
+    accent: _dovizGreen,
     tagline: 'Anlık kur ve altın',
     description:
         'Döviz kurları ve altın fiyatları, günlük değişim oranlarıyla birlikte '
@@ -91,8 +119,10 @@ class AppItems {
   /// "Uygulamalar" sheet'inde gösterilecek sıralı liste.
   static final all = <AppItem>[
     nobetciEczane,
+    etkinlik,
+    duyurular,
     havaDurumu,
-    dovizAltin,
     olumIlanlari,
+    dovizAltin,
   ];
 }

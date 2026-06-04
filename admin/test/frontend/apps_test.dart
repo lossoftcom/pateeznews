@@ -26,11 +26,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(AppItems.all.take(3).map((item) => item.id), [
+      'nobetci-eczane',
+      'etkinlik',
+      'duyurular',
+    ]);
+    final havaIndex = AppItems.all.indexWhere(
+      (item) => item.id == 'hava-durumu',
+    );
+    expect(AppItems.all[havaIndex + 1].id, 'olum-ilanlari');
     expect(find.text('Uygulamalar'), findsOneWidget);
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
+    expect(find.text('Etkinlik'), findsWidgets);
+    expect(find.text('Duyurular'), findsOneWidget);
     expect(find.text('Hava Durumu'), findsOneWidget);
     expect(find.text('Döviz & Altın'), findsOneWidget);
     expect(find.text('Ölüm İlanları'), findsOneWidget);
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
 
     await tester.tap(find.text('Hava Durumu'));
     expect(selected?.id, 'hava-durumu');
@@ -66,6 +81,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
+    expect(find.text('Etkinlik'), findsWidgets);
+    expect(find.text('Duyurular'), findsOneWidget);
     expect(find.text('Ölüm İlanları'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

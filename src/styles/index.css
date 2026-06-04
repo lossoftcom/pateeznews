@@ -1072,17 +1072,72 @@ h5.news-title-font {
 
 .rich-text-content ul,
 .rich-text-content ol {
-    margin-bottom: 1.5rem;
-    padding-left: 1.5rem;
-    list-style-type: disc;
+    display: grid;
+    gap: 0.62rem;
+    margin: 1.5rem 0 1.75rem;
+    padding-left: 0;
+    list-style: none;
 }
 
 .rich-text-content ol {
-    list-style-type: decimal;
+    counter-reset: rich-text-order;
 }
 
-.rich-text-content li {
-    margin-bottom: 0.75rem;
+.rich-text-content :where(ul, ol)>li {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.78rem;
+    align-items: start;
+    margin-bottom: 0;
+    padding: 0.78rem 0.9rem;
+    border: 1px solid rgba(149, 165, 166, 0.22);
+    border-radius: 5px;
+    background: rgba(248, 249, 250, 0.76);
+    color: var(--pateez-deep-ocean);
+    line-height: 1.7;
+}
+
+.rich-text-content ul>li::before {
+    content: "";
+    width: 0.52rem;
+    height: 0.52rem;
+    margin-top: 0.58rem;
+    border-radius: 999px;
+    background: var(--pateez-action);
+    box-shadow: 0 0 0 4px rgba(234, 67, 53, 0.08);
+}
+
+.rich-text-content ol>li {
+    counter-increment: rich-text-order;
+}
+
+.rich-text-content ol>li::before {
+    content: counter(rich-text-order);
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.38rem;
+    border-radius: 5px;
+    background: var(--pateez-deep-ocean);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 2rem;
+    text-align: center;
+}
+
+.rich-text-content :where(ul, ol)>li strong {
+    color: var(--pateez-deep-ocean);
+    font-weight: 800;
+}
+
+.rich-text-content :where(ul, ol)>li>:where(ul, ol) {
+    grid-column: 2;
+    margin: 0.75rem 0 0;
+}
+
+.rich-text-content :where(ul, ol)>li>:last-child {
+    margin-bottom: 0;
 }
 
 .rich-text-content blockquote {
@@ -1095,14 +1150,48 @@ h5.news-title-font {
 
 .rich-text-content table {
     width: 100% !important;
+    max-width: 100%;
     overflow-x: auto;
     display: block;
-    border-collapse: collapse;
-    margin: 1.5rem 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1.75rem 0;
+    border: 1px solid rgba(149, 165, 166, 0.24);
+    border-radius: 5px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(44, 62, 80, 0.06);
 }
 
 .rich-text-content th,
 .rich-text-content td {
-    border: 1px solid var(--pateez-surface);
-    padding: 0.75rem;
+    min-width: 9rem;
+    border-right: 1px solid rgba(149, 165, 166, 0.18);
+    border-bottom: 1px solid rgba(149, 165, 166, 0.18);
+    padding: 0.82rem 0.95rem;
+    text-align: left;
+    vertical-align: top;
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+
+.rich-text-content th {
+    background: var(--pateez-deep-ocean);
+    color: #fff;
+    font-weight: 800;
+}
+
+.rich-text-content td {
+    color: #3f4f59;
+}
+
+.rich-text-content tr:nth-child(even) td {
+    background: rgba(248, 249, 250, 0.78);
+}
+
+.rich-text-content tr:last-child td {
+    border-bottom: 0;
+}
+
+.rich-text-content :where(th, td):last-child {
+    border-right: 0;
 }

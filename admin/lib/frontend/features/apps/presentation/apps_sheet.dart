@@ -35,7 +35,7 @@ class AppsSheet extends StatelessWidget {
           AppSpacing.pageHorizontal,
           AppSpacing.md,
           AppSpacing.pageHorizontal,
-          AppSpacing.xl,
+          AppSpacing.sm,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -51,7 +51,7 @@ class AppsSheet extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             Row(
               children: [
                 Container(
@@ -68,24 +68,37 @@ class AppsSheet extends StatelessWidget {
                   style: AppTypography.titleL.copyWith(
                     color: AppColors.inkStrong,
                     fontWeight: FontWeight.w800,
+                    decoration: TextDecoration.none,
+                    decorationColor: Colors.transparent,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             GridView.count(
               crossAxisCount: 4,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
               crossAxisSpacing: AppSpacing.md,
-              mainAxisSpacing: AppSpacing.lg,
-              childAspectRatio: 0.80,
+              mainAxisSpacing: AppSpacing.sm,
+              childAspectRatio: 0.78,
               children: [
                 for (var i = 0; i < items.length; i++)
                   _AppTile(item: items[i], onTap: () => onSelect(items[i]))
                       .animate()
-                      .fadeIn(delay: (50 * i).ms, duration: 280.ms, curve: Curves.easeOutCubic)
-                      .slideY(begin: 0.16, end: 0, delay: (50 * i).ms, duration: 280.ms, curve: Curves.easeOutCubic),
+                      .fadeIn(
+                        delay: (50 * i).ms,
+                        duration: 280.ms,
+                        curve: Curves.easeOutCubic,
+                      )
+                      .slideY(
+                        begin: 0.16,
+                        end: 0,
+                        delay: (50 * i).ms,
+                        duration: 280.ms,
+                        curve: Curves.easeOutCubic,
+                      ),
               ],
             ),
           ],
@@ -116,19 +129,32 @@ class _AppTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 58,
-                height: 58,
+                width: 62,
+                height: 62,
                 decoration: BoxDecoration(
                   color: isLogo
                       ? AppColors.surface
                       : item.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                  border: isLogo ? Border.all(color: AppColors.line) : null,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isLogo
+                        ? AppColors.line
+                        : item.accent.withValues(alpha: 0.10),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: item.accent.withValues(
+                        alpha: isLogo ? 0.06 : 0.08,
+                      ),
+                      blurRadius: 14,
+                      offset: const Offset(0, 7),
+                    ),
+                  ],
                 ),
                 alignment: Alignment.center,
-                child: item.glyph(isLogo ? 42 : 30, item.accent),
+                child: item.glyph(isLogo ? 44 : 32, item.accent),
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.xs),
               Flexible(
                 child: Text(
                   item.label,

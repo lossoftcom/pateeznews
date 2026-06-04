@@ -7,11 +7,7 @@ import '../../../../core/theme/app_typography.dart';
 /// Çift halka — dış halka durum (canlı / okunmamış / okunmuş), iç halka beyaz
 /// nefes alanı — ve içeride monokrom ikon. Instagram'a "benzemeyen" özgün dil.
 class StoryAvatar extends StatelessWidget {
-  const StoryAvatar({
-    super.key,
-    required this.story,
-    required this.onTap,
-  });
+  const StoryAvatar({super.key, required this.story, required this.onTap});
 
   final StoryHighlight story;
   final VoidCallback onTap;
@@ -25,7 +21,7 @@ class StoryAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 76,
+      width: 62,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -38,16 +34,16 @@ class StoryAvatar extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   Container(
-                    width: 68,
-                    height: 68,
+                    width: 54,
+                    height: 54,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(color: _ringColor, width: 1.8),
                     ),
                   ),
                   Container(
-                    width: 58,
-                    height: 58,
+                    width: 44,
+                    height: 44,
                     decoration: const BoxDecoration(
                       color: AppColors.surfaceSoft,
                       shape: BoxShape.circle,
@@ -55,7 +51,7 @@ class StoryAvatar extends StatelessWidget {
                     alignment: Alignment.center,
                     child: Icon(
                       story.icon,
-                      size: 24,
+                      size: 18,
                       color: AppColors.deepOcean,
                     ),
                   ),
@@ -86,16 +82,14 @@ class StoryAvatar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             story.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: AppTypography.storyLabel.copyWith(
-              color: story.isUnviewed ? AppColors.ink : AppColors.inkSoft,
-              fontWeight:
-                  story.isUnviewed ? FontWeight.w600 : FontWeight.w500,
+            style: AppTypography.mobileMenuLabel.copyWith(
+              color: story.isUnviewed ? AppColors.deepOcean : AppColors.support,
             ),
           ),
         ],

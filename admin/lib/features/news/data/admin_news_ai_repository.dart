@@ -313,11 +313,7 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
     return {
       'system_instruction': {
         'parts': [
-          {
-            'text': systemPrompt.trim().isEmpty
-                ? adminNewsAiDefaultSystemPrompt
-                : systemPrompt.trim(),
-          },
+          {'text': _systemPromptWithCompactStructureRule(systemPrompt)},
         ],
       },
       'contents': [
@@ -341,20 +337,29 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
 CMS için modüler haber JSON'u üret.
 
 Ana görev:
-- Kullanıcının verdiği ham metni ve kaynak notlarını CMS uyumlu, modüler haber JSON'una dönüştür.
+- Kullanıcının verdiği haber içeriğini ve editör talimatlarını CMS uyumlu, modüler haber JSON'una dönüştür.
 - Haber metnini kısaltma, eksiltme, atlama veya özet metne indirgeme. Kaynakta verilen tüm doğrulanabilir bilgileri koru.
 - Kaynakta olmayan isim, kurum, tarih, sayı, yer, iddia, sebep, sonuç, duygu, yorum, vaat veya alıntı ekleme.
 - Doğrudan alıntıları ve konuşmacı sözlerini birebir koru. Kimseye söylemediği bir şeyi söyletme.
 - Alıntı dışındaki anlatımı güvenli eş anlamlılar ve doğal cümle yapılarıyla profesyonelce yenile; anlamı değiştirme.
 - Özel adları, kurum adlarını, unvanları, tarihleri, rakamları, para tutarlarını, yer adlarını ve teknik/hukuki ifadeleri değiştirme.
+- Haber içeriğinde "Kaynak URL" ve "Kaynak metni" varsa bunu linkten kodla çıkarılmış ham haber kaynağı say; menü, reklam, yorum, ilgili haber ve sayfa çevresi metnini haber bilgisine dönüştürme.
+- Editör talimatları haberin hangi yönünün öne çıkarılacağını, hangi isim/kurum/yerlerin çıkarılacağını veya hangi vurgunun azaltılacağını söyleyebilir. Talimat kaynakta olmayan bilgi eklettiremez; kaynak metindeki anlam, özel ad, tarih ve rakam değiştirilemez.
+- "İsimleri çıkar", "konuşmayı öne al", "başkanın açıklamasını vurgula" gibi talimatlarda yalnız haber içeriğinde açıkça bulunan bilgileri kullan.
 
 Editör modu:
 - Bir insan haber editörü yazmış gibi doğal, akıcı, temiz ve profesyonel Türkçe kullan.
-- F-Pattern ve Smart Brevity uygula; uzun gri metin duvarı kurma ama kaynak bilgisini azaltma.
+- F-Pattern ve Smart Brevity uygula; uzun gri metin duvarı kurma ama haberi gereksiz ara başlık veya item parçalarına bölme. Kaynak bilgisini azaltma.
+- Ana haber akışını mümkün olduğunca tek metin bloğunda tut; geçişleri kısa paragraflar ve <strong>vurgular</strong> ile kur.
 - Her paragraf en fazla 3 cümle olsun.
+- Tek cümle, tek paragraf veya kısa haber için ara başlık üretme.
+- Uzun ve doğal bölüm ayrımı olan haberlerde 2-4 arası anlamlı h2 kullanılabilir; h2 başlıklar insan editör gibi özel, net ve az sayıda olsun.
+- Forma numarası, kadro, maç takvimi, puan listesi, teknik özellik, tablo veya maddeli ham veri varsa düz paragraf yapma; okunur listeye dönüştür.
+- Örnekteki "1 — Mert Günok" gibi ardışık numaralı satırları <ol><li><strong>Mert Günok</strong></li></ol> yapısına çevir; numara sırası liste numarası olarak kalsın.
+- Sayı satır kimliği olup ardışık değilse veya tablo çok kolonluysa <ul><li><strong>Etiket:</strong> Değer</li></ul> biçimini kullan.
 - Önemli gerçekleri <strong>kalın</strong> vurgula.
 - Zero AI Footprint: "Neden önemli", "Sırada ne var", "Büyük resim" gibi sabit kalıp kullanma.
-- Her başlığı habere özel, konuşkan, net ve benzersiz üret.
+- Zorunlu başlık varsa habere özel, konuşkan, net ve benzersiz üret.
 - Clickbait, sansasyon, ima, uydurma bağlam ve kaynak dışı çıkarım yok.
 
 Seçili ayarlar:
@@ -370,10 +375,10 @@ ${itemLines.isEmpty ? '- Ek item yok. "items" boş dizi olsun.' : itemLines}
 Bölüm ve text item eşleme:
 ${_sectionMappingInstruction(request.itemCounts)}
 
-Ham metin / konu:
+Haber içeriği / ham kaynak:
 ${request.topic.trim()}
 
-Kaynak notları:
+Editör talimatları / notlar:
 ${request.sourceNotes.trim()}
 
 JSON alan kuralları:
@@ -381,10 +386,12 @@ JSON alan kuralları:
 - seoTitle: title ile aynı kalıp olmasın; arama sonucu için güçlü olsun.
 - summary: vurucu spot. En fazla 2 kısa cümle.
 - mainContentTitle: ilk metin bloğunun başlığıdır; mutlaka dolu olsun.
-- mainContentHtml: kaynak akışına uygun giriş ve bölüm metinleri. Kaynakta ara başlık varsa h2/h3 kullan; uygulama bunları ayrı metin bloklarına bölecek.
+- mainContentHtml: ana haber gövdesini mümkün olduğunca tek akışta taşı. Kaynakta zorunlu büyük bölüm ayrımı yoksa h2 kullanma; uzun ve doğal bölümlü haberlerde 2-4 arası anlamlı h2 kullan. H2 forma ayrı metin bloğu olur, bu yüzden tek cümleye veya kısa paragrafa başlık açma.
 - mainContentHtml kısa özet değil, tam haber olsun. Kaynakta yer alan bilgi, bölüm ve detaylar korunacak.
+- Liste, kadro, forma numarası ve tablo benzeri veri varsa HTML içinde semantik ul/ol/li kullan; satırları <p> ile tek tek yazma.
 - seoTitle: Google/Yandex için sayfayı doğru anlatan, tekil, açık ve tıklanabilir başlık olsun; ana anahtar ifadeyi doğal geçir, ana başlığı kopyalama.
-- keywords: SEO açıksa Google'da meta keywords sıralama hilesi değildir; Yandex'te sayfa ilgisini destekleyebilir. Bu yüzden 8-12 adet, yalnız kaynakta geçen veya doğrudan kaynakla kanıtlanan, haberin ana sorgu niyetini anlatan odak etiket üret.
+- keywords: SEO açıksa Google'da meta keywords sıralama hilesi değildir; Yandex'te sayfa ilgisini destekleyebilir. Bu yüzden 8-14 adet, yalnız kaynakta geçen veya doğrudan kaynakla kanıtlanan, haberin ana sorgu niyetini anlatan odak etiket üret.
+- Kadro/liste haberlerinde bütün isimleri keywords alanına doldurma; ana kurum/olay/yer/sorgu etiketleriyle birlikte kaynak sırasındaki merkezi 4-8 kişi adını dengeli ekle.
 - Etiketlerde keyword stuffing yapma; alakasız trend, genel kelime, kaynakta olmayan kurum/proje/teknoloji ekleme. Aynı kelimenin ufak çekim farklarını tekrar etme.
 - Etiket sırası: ana kişi/kurum, ana olay/proje, şehir/ilçe, rota/konu, kaynakta geçen önemli sayı veya resmi ad.
 - metaDescription SEO açıksa 140-155 karakter aralığında, tek cümle gibi okunabilen, haberin en önemli bilgilerini eksiltmeden veren özgün açıklama olsun.
@@ -395,7 +402,7 @@ Item kuralları:
 - Her tipten istenen adetle birebir aynı sayıda üret.
 - Her item.title ayrı ve dolu olsun; başlığı descriptionHtml içine gömme.
 - Aynı tipten birden fazla item varsa her biri kaynak içindeki farklı ama gerçek bir açıya dayansın.
-- text item: kaynakta bulunan ek ara başlık, takvim, dikkat çeken detay veya arka planı ayrı metin bloğu yap.
+- text item: yalnız seçili plandaki adet kadar üret. Kısa ara başlık parçası yapma; ana gövdeyi kopyalamayan ek arka plan, takvim veya dikkat çeken detayı bağımsız ve sınırlı metin bloğu yap.
 - quote item: sadece kaynakta açıkça geçen sözü kullan; sözü değiştirme, uydurma alıntı üretme.
 - poll/vs item: options alanına 2-6 kısa seçenek koy; seçenekler kaynak bağlamından çıksın.
 - review item: pros, cons ve criteria yalnız kaynakta ürün/inceleme verisi varsa doldur; yoksa kaynak dışı puan uydurma.
@@ -408,7 +415,7 @@ Item kuralları:
 Kesin çıktı:
 - Sadece geçerli JSON döndür.
 - Markdown açıklama veya kod bloğu döndürme.
-- HTML sadece p, h2, h3, ul, li, strong kullansın.
+- HTML sadece p, h2, ul, ol, li, strong kullansın.
 ''';
   }
 
@@ -420,6 +427,15 @@ Kesin çıktı:
     }
     return adminNewsAiDefaultSystemPrompt;
   }
+}
+
+String _systemPromptWithCompactStructureRule(String systemPrompt) {
+  final base = systemPrompt.trim().isEmpty
+      ? adminNewsAiDefaultSystemPrompt.trim()
+      : systemPrompt.trim();
+  final rule = adminNewsAiCompactStructureInstruction.trim();
+  if (base.contains('Yapısal düzen kuralı:')) return base;
+  return '$base\n\n$rule';
 }
 
 class AdminNewsAiException implements Exception {
@@ -490,9 +506,9 @@ String _outputTargetInstruction(String outputTarget, bool includeSeo) {
 String _sectionMappingInstruction(Map<String, int> itemCounts) {
   final textCount = itemCounts['text'] ?? 0;
   if (textCount <= 0) {
-    return '- Kaynakta birden fazla ara başlık veya bölüm varsa her bölümün başlığını h2/h3 olarak mainContentHtml içinde belirt. Kullanıcı text item seçmese bile uygulama bu h2/h3 bölümlerini forma ayrı Metin İçerik Bloğu olarak ayıracak.';
+    return '- Text item seçilmediyse mainContentHtml ana akışı korusun. Kısa haberde h2 üretme; uzun ve gerçek bölüm ayrımı olan kaynakta 2-4 arası anlamlı h2 kullanılabilir. "items" boş dizi olsun.';
   }
-  return '- Kaynak ara başlıklarını h2/h3 olarak mainContentHtml içinde koru. Ayrıca kullanıcı isteği için tam $textCount adet text item üret; bu text itemler mainContentHtml bölümlerini kopyalamasın, kaynakta bulunan ek arka plan, takvim veya dikkat çeken detayı ayrı blok yapsın.';
+  return '- Seçili text itemler zaten ayrı blok olacağı için mainContentHtml h2 sayısını yalnız haberin doğal ana bölümleriyle sınırlı tut; kısa haberde h2 üretme, uzun ve gerçek bölümlü haberde 2-4 arası anlamlı h2 kullanılabilir. Ayrıca kullanıcı isteği için tam $textCount adet text item üret; bu text itemler kısa ara başlık parçası veya mainContentHtml kopyası olmasın, kaynakta bulunan ek arka plan, takvim veya dikkat çeken detayı bağımsız blok yapsın.';
 }
 
 int _maxOutputTokensFor(AdminNewsAiDraftRequest _) => 8192;
@@ -587,12 +603,16 @@ AdminNewsAiDraft _enrichDraft(
   AdminNewsAiDraftRequest request,
 ) {
   if (!request.includeSeo) return draft;
-  final keywordHints = _keywordHintsFromSource(
-    '${request.topic}\n${request.sourceNotes}',
-  );
-  if (keywordHints.isEmpty) return draft;
+  final source = '${request.topic}\n${request.sourceNotes}';
+  final officialKeywordHints = _officialKeywordHintsFromSource(source);
+  final personNameHints = _personNameKeywordHintsFromSource(source);
+  if (officialKeywordHints.isEmpty && personNameHints.isEmpty) return draft;
 
-  final keywords = _mergeKeywords(keywordHints, draft.keywords, limit: 14);
+  final keywords = _mergeKeywords(
+    officialKeywordHints,
+    _mergeKeywords(draft.keywords, personNameHints, limit: 14),
+    limit: 14,
+  );
   return AdminNewsAiDraft(
     title: draft.title,
     summary: draft.summary,
@@ -608,13 +628,10 @@ AdminNewsAiDraft _enrichDraft(
   );
 }
 
-List<String> _keywordHintsFromSource(String source) {
+List<String> _officialKeywordHintsFromSource(String source) {
   final hints = <String>[];
   final seen = <String>{};
-  final normalizedSource = source.replaceAllMapped(
-    RegExp(r'\(([A-ZÇĞİÖŞÜ]{2,})\)'),
-    (match) => ' ${match.group(1)} ',
-  );
+  final normalizedSource = _normalizeKeywordSource(source);
 
   void add(String value) {
     final text = _cleanText(value);
@@ -623,10 +640,10 @@ List<String> _keywordHintsFromSource(String source) {
   }
 
   final titlePattern = RegExp(
-    r'\b(?:[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+|[A-ZÇĞİÖŞÜ]{2,})(?:\s+(?:[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+|[A-ZÇĞİÖŞÜ]{2,})){0,4}\s+(?:Valisi|Kaymakamı|Belediye Başkanı|Başkanı|Genel Müdürü|Müdürü|Rektörü|Milletvekili|Bakanı)\s+[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+){1,2}\b',
+    r'(?:^|[^A-Za-zÇĞİÖŞÜçğıöşü])((?:[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+|[A-ZÇĞİÖŞÜ]{2,})(?:\s+(?:[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+|[A-ZÇĞİÖŞÜ]{2,})){0,4}\s+(?:Valisi|Kaymakamı|Belediye Başkanı|Başkanı|Genel Müdürü|Müdürü|Rektörü|Milletvekili|Bakanı)\s+[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]+){1,2})(?=$|[^A-Za-zÇĞİÖŞÜçğıöşü])',
   );
   for (final match in titlePattern.allMatches(normalizedSource)) {
-    final titleWithName = match.group(0) ?? '';
+    final titleWithName = match.group(1) ?? '';
     add(titleWithName);
     final name = _nameFromTitleKeyword(titleWithName);
     if (name.isNotEmpty) add(name);
@@ -634,6 +651,85 @@ List<String> _keywordHintsFromSource(String source) {
 
   return hints;
 }
+
+List<String> _personNameKeywordHintsFromSource(String source) {
+  const maxPersonHints = 6;
+  final hints = <String>[];
+  final seen = <String>{};
+  final normalizedSource = _normalizeKeywordSource(source);
+  final personPattern = RegExp(
+    r'(?:^|[^A-Za-zÇĞİÖŞÜçğıöşü])([A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]{1,}(?:[ \t]+[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]{1,}){1,2})(?=$|[^A-Za-zÇĞİÖŞÜçğıöşü])',
+  );
+
+  for (final match in personPattern.allMatches(normalizedSource)) {
+    final text = _cleanText(match.group(1) ?? '');
+    if (!_looksLikePersonNameKeyword(text)) continue;
+    final key = text.toLowerCase();
+    if (!seen.add(key)) continue;
+    hints.add(text);
+    if (hints.length >= maxPersonHints) break;
+  }
+  return hints;
+}
+
+String _normalizeKeywordSource(String source) {
+  return source.replaceAllMapped(
+    RegExp(r'\(([A-ZÇĞİÖŞÜ]{2,})\)'),
+    (match) => ' ${match.group(1)} ',
+  );
+}
+
+bool _looksLikePersonNameKeyword(String value) {
+  final words = value
+      .split(RegExp(r'\s+'))
+      .map((word) => word.trim())
+      .where((word) => word.isNotEmpty)
+      .toList(growable: false);
+  if (words.length < 2 || words.length > 3) return false;
+  if (words.any(_isAllUppercaseKeywordToken)) return false;
+  final lowerWords = words.map((word) => word.toLowerCase()).toSet();
+  if (lowerWords.any(_nonPersonKeywordTokens.contains)) return false;
+  return true;
+}
+
+bool _isAllUppercaseKeywordToken(String word) {
+  return word.length > 1 &&
+      word == word.toUpperCase() &&
+      word != word.toLowerCase();
+}
+
+const _nonPersonKeywordTokens = {
+  'abd',
+  'açıklandı',
+  'avustralya',
+  'bakanlığı',
+  'belediyesi',
+  'belli',
+  'dünya',
+  'fifa',
+  'forma',
+  'futbol',
+  'google',
+  'haziran',
+  'kadro',
+  'kadrosu',
+  'kanada',
+  'kupası',
+  'meksika',
+  'milli',
+  'numarası',
+  'numaraları',
+  'oldu',
+  'oyuncuları',
+  'oyuncuların',
+  'takımı',
+  'takımımız',
+  'takımımızın',
+  'türkiye',
+  'uefa',
+  'valiliği',
+  'yandex',
+};
 
 String _nameFromTitleKeyword(String value) {
   const markers = [
@@ -712,7 +808,7 @@ const _draftJsonSchema = {
     'keywords': {
       'type': 'array',
       'description':
-          'SEO açıksa 8-12 odak etiket. Yalnız kaynakla kanıtlanan kişi, kurum, olay, proje, yer ve doğal sorgu ifadeleri.',
+          'SEO açıksa 8-14 odak etiket. Yalnız kaynakla kanıtlanan kişi, kurum, olay, proje, yer ve doğal sorgu ifadeleri; liste haberlerinde isimleri ölçülü seç.',
       'items': {'type': 'string'},
       'minItems': 0,
       'maxItems': 14,
@@ -734,7 +830,7 @@ const _draftJsonSchema = {
     'mainContentHtml': {
       'type': 'string',
       'description':
-          'Tam haber metni. Kaynak bilgilerini kısaltmadan ve eksiltmeden koru; kelime hedefi yoktur. p, h2, h3, ul, li ve strong HTML etiketleri kullanılabilir.',
+          'Tam haber metni. Kaynak bilgilerini kısaltmadan ve eksiltmeden koru; kelime hedefi yoktur. Normalde p, ul, ol, li ve strong kullan; kısa haberde h2 kullanma, uzun ve doğal bölümlü haberde 2-4 arası anlamlı h2 kullan.',
     },
     'items': {
       'type': 'array',

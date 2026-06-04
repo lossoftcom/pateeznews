@@ -2803,12 +2803,17 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.aiModal.length": "Text Length",
   "newsAdd.aiModal.contentType": "Content Type",
   "newsAdd.aiModal.outputTarget": "Target Fields",
-  "newsAdd.aiModal.topic": "Topic / Brief",
+  "newsAdd.aiModal.sourceUrl": "News Link",
+  "newsAdd.aiModal.sourceUrlHint": "https://site.com/news-link",
+  "newsAdd.aiModal.sourceUrlRead": "Read Link",
+  "newsAdd.aiModal.sourceUrlReading": "Reading...",
+  "newsAdd.aiModal.sourceUrlReady": "Link was read and news content is ready.",
+  "newsAdd.aiModal.topic": "News Content",
   "newsAdd.aiModal.topicHint":
-      "E.g. new transportation project in Nigde, official statements and citizen impact...",
-  "newsAdd.aiModal.sourceNotes": "Source Notes",
+      "Paste the raw news content or the text read from a link here...",
+  "newsAdd.aiModal.sourceNotes": "AI Instructions / Notes",
   "newsAdd.aiModal.sourceNotesHint":
-      "Write verified facts, person/institution names, dates and important details...",
+      "E.g. highlight the mayor's speech, extract the names mentioned in the news...",
   "newsAdd.aiModal.includeSeo": "SEO fields",
   "newsAdd.aiModal.items": "Items to Add with AI",
   "newsAdd.aiModal.itemsHint":
@@ -2816,6 +2821,8 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.aiModal.totalItems": "Total items",
   "newsAdd.aiModal.clearItems": "Clear",
   "newsAdd.aiModal.close": "Close",
+  "newsAdd.aiModal.fix": "Revise",
+  "newsAdd.aiModal.fixing": "Revising...",
   "newsAdd.aiModal.generate": "Create Content Draft",
   "newsAdd.aiModal.generating": "Preparing draft...",
   "newsAdd.aiModal.generatingHint":

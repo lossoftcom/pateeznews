@@ -11,10 +11,12 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../account/presentation/account_sign_in_screen.dart';
+import '../../announcements/presentation/announcements_screen.dart';
 import '../../apps/data/app_item.dart';
 import '../../apps/presentation/app_feature_screen.dart';
 import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
+import '../../etkinlik/presentation/etkinlik_screen.dart';
 import '../../home/presentation/home_screen.dart';
 import '../../markets/presentation/markets_screen.dart';
 import '../../obituaries/presentation/obituaries_screen.dart';
@@ -346,6 +348,8 @@ class _ShellScreenState extends State<ShellScreen>
         reverseTransitionDuration: const Duration(milliseconds: 260),
         pageBuilder: (_, _, _) => switch (item.id) {
           'nobetci-eczane' => const PharmacyScreen(),
+          'duyurular' => const AnnouncementsScreen(),
+          'etkinlik' => const EtkinlikScreen(),
           'hava-durumu' => const WeatherScreen(),
           'doviz-altin' => const MarketsScreen(),
           'olum-ilanlari' => const ObituariesScreen(),
