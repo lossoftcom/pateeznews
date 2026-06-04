@@ -118,9 +118,9 @@ class _Hero extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.deepOcean.withValues(alpha: 0.30),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
+            color: AppColors.deepOcean.withValues(alpha: 0.18),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -187,7 +187,7 @@ class _Hero extends StatelessWidget {
                           '${WeatherMock.currentTemp}°',
                           style: AppTypography.display.copyWith(
                             color: Colors.white,
-                            fontSize: 68,
+                            fontSize: 60,
                             fontWeight: FontWeight.w800,
                             height: 1,
                           ),
@@ -205,7 +205,7 @@ class _Hero extends StatelessWidget {
                   ),
                   Icon(
                     WeatherMock.currentKind.icon,
-                    size: 76,
+                    size: 66,
                     color: AppColors.warmHorizon,
                   ),
                 ],
@@ -461,7 +461,7 @@ class _DetailsGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: AppSpacing.md,
       mainAxisSpacing: AppSpacing.md,
-      childAspectRatio: 1.9,
+      childAspectRatio: 2.4,
       children: WeatherMock.details
           .map((d) => _DetailCard(detail: d))
           .toList(growable: false),
@@ -480,14 +480,14 @@ class _DetailCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: AppColors.deepOcean.withValues(alpha: 0.08),
+              color: AppColors.deepOcean.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(4),
             ),
             alignment: Alignment.center,
-            child: Icon(detail.icon, size: 20, color: AppColors.deepOcean),
+            child: Icon(detail.icon, size: 18, color: AppColors.deepOcean),
           ),
           const SizedBox(width: AppSpacing.sm + 2),
           Expanded(
@@ -505,24 +505,15 @@ class _DetailCard extends StatelessWidget {
                     letterSpacing: 0.3,
                   ),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(height: 2),
                 Text(
                   detail.value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.titleM.copyWith(
                     color: AppColors.inkStrong,
-                    fontSize: 16,
+                    fontSize: 15.5,
                     fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  detail.note,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.meta.copyWith(
-                    color: AppColors.support,
-                    fontSize: 10.5,
                   ),
                 ),
               ],

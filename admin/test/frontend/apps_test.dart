@@ -29,6 +29,7 @@ void main() {
     expect(find.text('Uygulamalar'), findsOneWidget);
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
     expect(find.text('Hava Durumu'), findsOneWidget);
+    expect(find.text('Döviz & Altın'), findsOneWidget);
     expect(find.text('Ölüm İlanları'), findsOneWidget);
 
     await tester.tap(find.text('Hava Durumu'));

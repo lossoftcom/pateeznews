@@ -130,13 +130,6 @@ class _PharmacyCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: AppColors.line),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.deepOcean.withValues(alpha: 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,7 +142,7 @@ class _PharmacyCard extends StatelessWidget {
                   pharmacy.name,
                   style: AppTypography.titleM.copyWith(
                     color: AppColors.inkStrong,
-                    fontSize: 17,
+                    fontSize: 16.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

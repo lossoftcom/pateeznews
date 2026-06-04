@@ -220,4 +220,8 @@ class Symbols {
   static const map_pin_line = IconData(0xef14, fontFamily: _fontFamily);
   static const calendar_event_line = IconData(0xeb25, fontFamily: _fontFamily);
   static const building_line = IconData(0xeb0f, fontFamily: _fontFamily);
+  static const coins_fill = IconData(0xebb3, fontFamily: _fontFamily);
+  static const arrow_up_s_fill = IconData(0xea77, fontFamily: _fontFamily);
+  static const arrow_down_s_fill = IconData(0xea4d, fontFamily: _fontFamily);
+  static const refresh_line = IconData(0xf064, fontFamily: _fontFamily);
 }

@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../data/app_item.dart';
 
-/// "Uygulamalar" alt sayfasının içeriği: tutamaç, başlık ve premium servis
-/// kartları. Aşağıdan yukarı kayan, üstü yuvarlatılmış beyaz yüzey; kayma,
-/// karartma ve konum (bottom nav'ın üstünde) kabuk ekranında yönetilir.
-///
-/// Her servis küçük ikon-ızgara yerine geniş, dokunması net bir kart: solda
-/// vurgu tonuyla tonlanmış ikon, ortada başlık + kısa açıklama, sağda ok.
-/// Açılışta kartlar sırayla belirir (2026 hissi).
+/// "Uygulamalar" alt sayfasının içeriği: tutamaç, başlık ve yan yana uygulama
+/// ızgarası. Her hücre yumuşak köşeli (squircle) bir app-ikon karesi + iki
+/// satırlık etikettir — sade, ferah, Apple disiplininde. Kayma/karartma/konum
+/// kabuk ekranında yönetilir; açılışta hücreler sırayla belirir.
 class AppsSheet extends StatelessWidget {
   const AppsSheet({super.key, required this.items, required this.onSelect});
 
@@ -28,9 +24,9 @@ class AppsSheet extends StatelessWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.deepOcean.withValues(alpha: 0.18),
-            blurRadius: 36,
-            offset: const Offset(0, -12),
+            color: AppColors.deepOcean.withValues(alpha: 0.14),
+            blurRadius: 32,
+            offset: const Offset(0, -10),
           ),
         ],
       ),
@@ -77,23 +73,21 @@ class AppsSheet extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            for (var i = 0; i < items.length; i++) ...[
-              if (i > 0) const SizedBox(height: AppSpacing.md),
-              _ServiceCard(item: items[i], onTap: () => onSelect(items[i]))
-                  .animate()
-                  .fadeIn(
-                    delay: (70 * i).ms,
-                    duration: 320.ms,
-                    curve: Curves.easeOutCubic,
-                  )
-                  .slideY(
-                    begin: 0.12,
-                    end: 0,
-                    delay: (70 * i).ms,
-                    duration: 320.ms,
-                    curve: Curves.easeOutCubic,
-                  ),
-            ],
+            GridView.count(
+              crossAxisCount: 4,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: AppSpacing.md,
+              mainAxisSpacing: AppSpacing.lg,
+              childAspectRatio: 0.80,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  _AppTile(item: items[i], onTap: () => onSelect(items[i]))
+                      .animate()
+                      .fadeIn(delay: (50 * i).ms, duration: 280.ms, curve: Curves.easeOutCubic)
+                      .slideY(begin: 0.16, end: 0, delay: (50 * i).ms, duration: 280.ms, curve: Curves.easeOutCubic),
+              ],
+            ),
           ],
         ),
       ),
@@ -101,94 +95,55 @@ class AppsSheet extends StatelessWidget {
   }
 }
 
-class _ServiceCard extends StatelessWidget {
-  const _ServiceCard({required this.item, required this.onTap});
+class _AppTile extends StatelessWidget {
+  const _AppTile({required this.item, required this.onTap});
 
   final AppItem item;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isLogo = item.id == 'nobetci-eczane';
     return Semantics(
       label: item.label,
       button: true,
       child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(4),
+        color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: AppColors.line),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.deepOcean.withValues(alpha: 0.04),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
+          borderRadius: BorderRadius.circular(14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: isLogo
+                      ? AppColors.surface
+                      : item.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: isLogo ? Border.all(color: AppColors.line) : null,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: item.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  alignment: Alignment.center,
-                  child: item.glyph(32, item.accent),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.titleS.copyWith(
-                          color: AppColors.inkStrong,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.tagline,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.inkSoft,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
+                alignment: Alignment.center,
+                child: item.glyph(isLogo ? 42 : 30, item.accent),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  item.label,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.meta.copyWith(
+                    color: AppColors.ink,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: const BoxDecoration(
-                    color: AppColors.surfaceInk,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Symbols.arrow_forward_rounded,
-                    size: 16,
-                    color: AppColors.inkSoft,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -66,6 +66,17 @@ class AppItems {
     glyph: (size, color) => Icon(Symbols.sun_rounded, size: size, color: color),
   );
 
+  static final dovizAltin = AppItem(
+    id: 'doviz-altin',
+    label: 'Döviz & Altın',
+    accent: AppColors.warmHorizon,
+    tagline: 'Anlık kur ve altın',
+    description:
+        'Döviz kurları ve altın fiyatları, günlük değişim oranlarıyla birlikte '
+        'burada güncellenecek.',
+    glyph: (size, color) => Icon(Symbols.coins_fill, size: size, color: color),
+  );
+
   static final olumIlanlari = AppItem(
     id: 'olum-ilanlari',
     label: 'Ölüm İlanları',
@@ -78,5 +89,10 @@ class AppItems {
   );
 
   /// "Uygulamalar" sheet'inde gösterilecek sıralı liste.
-  static final all = <AppItem>[nobetciEczane, havaDurumu, olumIlanlari];
+  static final all = <AppItem>[
+    nobetciEczane,
+    havaDurumu,
+    dovizAltin,
+    olumIlanlari,
+  ];
 }

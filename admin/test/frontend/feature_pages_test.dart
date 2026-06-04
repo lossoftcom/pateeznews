@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pateeznews_admin/frontend/features/markets/presentation/markets_screen.dart';
 import 'package:pateeznews_admin/frontend/features/obituaries/presentation/obituaries_screen.dart';
 import 'package:pateeznews_admin/frontend/features/pharmacy/presentation/pharmacy_screen.dart';
 import 'package:pateeznews_admin/frontend/features/weather/presentation/weather_screen.dart';
@@ -57,6 +58,28 @@ void main() {
     expect(find.text('Mehmet Yıldız'), findsOneWidget);
     expect(find.text('Cenaze Programı'), findsWidgets);
     expect(find.text('Taziye Mesajı Gönder'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Döviz & Altın sayfası segment ve kurları gösterir', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: MarketsScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Döviz & Altın'), findsOneWidget);
+    expect(find.text('Döviz'), findsOneWidget);
+    expect(find.text('Altın'), findsOneWidget);
+    expect(find.text('USD'), findsOneWidget);
+    expect(find.text('48,2040'), findsOneWidget);
+
+    await tester.tap(find.text('Altın'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gram Altın'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

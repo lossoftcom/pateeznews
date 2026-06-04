@@ -79,7 +79,7 @@ class _PharmacyBadge extends StatelessWidget {
             child: Center(
               child: Image.asset(
                 'assets/images/nobetci_eczane.webp',
-                height: 30,
+                height: 36,
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.medium,
                 errorBuilder: (_, _, _) => const SizedBox.shrink(),

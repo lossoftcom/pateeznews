@@ -16,6 +16,7 @@ import '../../apps/presentation/app_feature_screen.dart';
 import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
 import '../../home/presentation/home_screen.dart';
+import '../../markets/presentation/markets_screen.dart';
 import '../../obituaries/presentation/obituaries_screen.dart';
 import '../../pharmacy/presentation/pharmacy_screen.dart';
 import '../../profile/data/profile_content.dart';
@@ -346,6 +347,7 @@ class _ShellScreenState extends State<ShellScreen>
         pageBuilder: (_, _, _) => switch (item.id) {
           'nobetci-eczane' => const PharmacyScreen(),
           'hava-durumu' => const WeatherScreen(),
+          'doviz-altin' => const MarketsScreen(),
           'olum-ilanlari' => const ObituariesScreen(),
           _ => AppFeatureScreen(item: item),
         },

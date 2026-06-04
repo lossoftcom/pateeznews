@@ -146,7 +146,7 @@ class _ObituaryCard extends StatelessWidget {
                   obituary.name,
                   style: AppTypography.titleL.copyWith(
                     color: AppColors.inkStrong,
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.w700,
                     height: 1.15,
                   ),
