@@ -72,7 +72,10 @@ void main() {
       expect(generationConfig['maxOutputTokens'], 8192);
       expect(generationConfig['temperature'], 0.5);
       expect(itemsSchema.containsKey('maxItems'), isFalse);
+      expect(properties, contains('tabItem'));
       expect(prompt, contains('Eğlenceli'));
+      expect(prompt, contains('Aktif Format/Tab: Makale Haber'));
+      expect(prompt, contains('tabItem boş nesne {} olsun'));
       expect(prompt, contains('- text: 2 adet'));
       expect(prompt, contains('tam 2 adet text item'));
       expect(prompt, contains('kısa haberde h2 üretme'));
@@ -94,6 +97,107 @@ void main() {
       expect(draft.keywords, isEmpty);
     },
   );
+
+  test('quiz formatı aktif tab verisini tabItem şemasıyla ister', () async {
+    Map<String, Object?>? capturedBody;
+    final repository = GeminiAdminNewsAiRepository(
+      settingsRepository: const _FakeAiSettingsRepository(),
+      httpClient: MockClient((request) async {
+        capturedBody = jsonDecode(request.body) as Map<String, Object?>;
+        return _jsonResponse({
+          'candidates': [
+            {
+              'content': {
+                'parts': [
+                  {
+                    'text': jsonEncode(
+                      _draftJson(
+                        items: const [],
+                        tabItem: {
+                          'type': 'quiz',
+                          'title': 'Dünya Kupası forma numarası testi',
+                          'descriptionHtml':
+                              '<p>Forma numaralarını ne kadar biliyorsun?</p>',
+                          'quizData': {
+                            'quizType': 'trivia',
+                            'questionSorting': 'asc',
+                            'allowMultiple': false,
+                            'showResults': true,
+                            'endDate': '',
+                            'results': <Map<String, Object?>>[],
+                            'questions': [
+                              {
+                                'id': 'q1',
+                                'title': 'Arda Güler hangi numarayı giydi?',
+                                'image': '',
+                                'description': '',
+                                'layout': 'list',
+                                'answers': [
+                                  {
+                                    'id': 'a1',
+                                    'text': '8',
+                                    'image': '',
+                                    'resultId': '',
+                                    'isCorrect': true,
+                                  },
+                                  {
+                                    'id': 'a2',
+                                    'text': '10',
+                                    'image': '',
+                                    'resultId': '',
+                                    'isCorrect': false,
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                      ),
+                    ),
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }),
+    );
+
+    final draft = await repository.generateDraft(
+      const AdminNewsAiDraftRequest(
+        languageCode: 'tr',
+        category: 'Spor',
+        tone: 'neutral',
+        contentType: 'article',
+        outputTarget: 'all',
+        includeSeo: true,
+        topic: 'Forma numaraları listesi',
+        sourceNotes: '',
+        itemCounts: {},
+        formatType: 'quiz',
+        formatSubtype: 'trivia',
+      ),
+    );
+
+    final body = capturedBody!;
+    final contents = body['contents'] as List<Object?>;
+    final userContent = contents.single as Map<String, Object?>;
+    final parts = userContent['parts'] as List<Object?>;
+    final prompt = (parts.single as Map<String, Object?>)['text'] as String;
+    final generationConfig = body['generationConfig'] as Map<String, Object?>;
+    final schema =
+        generationConfig['responseJsonSchema'] as Map<String, Object?>;
+    final properties = schema['properties'] as Map<String, Object?>;
+
+    expect(prompt, contains('Aktif Format/Tab: Quiz/Test / alt tür: trivia'));
+    expect(prompt, contains('tabItem.type kesin "quiz" olsun'));
+    expect(prompt, contains('quizData.questions alanında'));
+    expect(prompt, contains('items yalnız seçili ek item planını taşısın'));
+    expect(properties, contains('tabItem'));
+    expect(draft.items, isEmpty);
+    expect(draft.tabItem['type'], 'quiz');
+    expect(draft.tabItem['quizData'], isA<Map<String, Object?>>());
+  });
 
   test(
     'item seçilmediyse AI tarafından dönen ekstra item reddedilir',
@@ -258,6 +362,7 @@ http.Response _jsonResponse(Map<String, Object?> body) {
 Map<String, Object?> _draftJson({
   List<Map<String, Object?>>? items,
   List<String>? keywords,
+  Map<String, Object?>? tabItem,
 }) {
   return {
     'title': 'Başkan ulaşım projesini anlattı',
@@ -271,6 +376,7 @@ Map<String, Object?> _draftJson({
     'faq': <Map<String, Object?>>[],
     'mainContentHtml':
         '<p>Başkan konuşmasında yeni ulaşım projesinin detaylarını anlattı.</p>',
+    'tabItem': tabItem ?? <String, Object?>{},
     'items':
         items ?? [_textItem('İlk ara başlık'), _textItem('İkinci ara başlık')],
   };

@@ -61,6 +61,9 @@ const _allowedAiSchemaTypes = {
   'OpinionNewsArticle',
   'AnalysisNewsArticle',
   'Article',
+  'Quiz',
+  'Recipe',
+  'Event',
 };
 
 class NewsAddScreen extends StatefulWidget {
@@ -3297,6 +3300,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   Future<void> _openAiContentGenerator() async {
     final initialContent = _currentAiContentSeed();
+    final targetTab = _activeTab;
     final draft = await showDialog<AdminNewsAiDraft>(
       context: context,
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
@@ -3304,6 +3308,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         return _AiContentGeneratorDialog(
           languageCode: _languageCode,
           category: _selectedCategory,
+          formatType: _postTypeForActiveTab,
+          formatSubtype: _aiFormatSubtypeForActiveTab,
           initialTopic: initialContent,
           initialNotes: '',
           revisionMode: initialContent.trim().isNotEmpty,
@@ -3312,8 +3318,15 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       },
     );
     if (draft == null || !mounted) return;
-    _applyAiDraft(draft);
+    _applyAiDraft(draft, targetTab);
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
+  }
+
+  String get _aiFormatSubtypeForActiveTab {
+    return switch (_activeTab) {
+      NewsAddFormatTab.quiz => _quizSubTab.name,
+      _ => '',
+    };
   }
 
   String _currentAiContentSeed() {
@@ -3364,6 +3377,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
                 .join(', '),
           );
         }
+        _appendStructuredAiSeedItem(item, addField);
       }
     }
 
@@ -3383,6 +3397,76 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return lines.join('\n').trim();
   }
 
+  void _appendStructuredAiSeedItem(
+    Map<String, Object?> item,
+    void Function(String label, String value) addField,
+  ) {
+    final type = _text(item['type']);
+    if (type == 'quiz') {
+      final data = _map(item['quizData']);
+      addField('Quiz tipi', _text(data['quizType']));
+      final results = _mapList(data['results']);
+      if (results.isNotEmpty) {
+        addField(
+          'Quiz sonuçları',
+          results.map((row) => _text(row['title'])).join(', '),
+        );
+      }
+      for (final row in _mapList(data['questions'])) {
+        addField('Quiz sorusu', _text(row['title']));
+        final answers = _mapList(row['answers'])
+            .map((answer) => _text(answer['text']))
+            .where((answer) => answer.trim().isNotEmpty)
+            .join(', ');
+        addField('Quiz cevapları', answers);
+      }
+      return;
+    }
+    if (type == 'toc') {
+      final data = _map(item['tocData']);
+      for (final row in _mapList(data['items'])) {
+        addField('İçindekiler başlığı', _text(row['title']));
+        addField('İçindekiler metni', _text(row['content']));
+      }
+      return;
+    }
+    if (type == 'recipe') {
+      final data = _map(item['recipeData']);
+      addField('Hazırlık süresi', _text(data['prepTime']));
+      addField('Pişirme süresi', _text(data['cookTime']));
+      addField('Porsiyon', _text(data['serving']));
+      addField('Zorluk', _text(data['difficulty']));
+      addField(
+        'Malzemeler',
+        _mapList(data['ingredients'])
+            .map((row) => _text(row['text']))
+            .where((text) => text.trim().isNotEmpty)
+            .join(', '),
+      );
+      for (final row in _mapList(data['directions'])) {
+        addField('Tarif adımı', _text(row['title']));
+        addField('Tarif adımı metni', _text(row['content']));
+      }
+      return;
+    }
+    if (type == 'event') {
+      final data = _map(item['eventData']);
+      addField('Etkinlik başlangıcı', _text(data['startDateTime']));
+      addField('Etkinlik bitişi', _text(data['endDateTime']));
+      addField('Organizatör', _text(data['organizer']));
+      addField('Mekan', _text(data['venueName']));
+      addField('Adres', _text(data['address']));
+      for (final row in _mapList(data['schedule'])) {
+        addField('Etkinlik programı', _text(row['title']));
+        addField('Program açıklaması', _text(row['description']));
+      }
+      for (final row in _mapList(data['speakers'])) {
+        addField('Konuşmacı', _text(row['name']));
+        addField('Konuşmacı rolü', _text(row['role']));
+      }
+    }
+  }
+
   bool _hasUsefulAiContentSeedItem(Map<String, Object?> item) {
     return _text(item['title']).isNotEmpty ||
         _text(item['description']).isNotEmpty ||
@@ -3391,63 +3475,200 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _text(item['altText']).isNotEmpty;
   }
 
-  void _applyAiDraft(AdminNewsAiDraft draft) {
+  void _applyAiDraft(AdminNewsAiDraft draft, NewsAddFormatTab targetTab) {
+    if (targetTab != NewsAddFormatTab.article) {
+      _applyAiDraftToStructuredTab(draft, targetTab);
+      return;
+    }
     final blocks = _contentBlocksFromAiDraft(draft);
     _hydrating = true;
     setState(() {
       _activeTab = NewsAddFormatTab.article;
-      if (draft.title.isNotEmpty) {
-        _setControllerText(_titleController, draft.title);
-      }
-      if (draft.summary.isNotEmpty) {
-        _setControllerText(_summaryController, draft.summary);
-      }
-      if (draft.seoTitle.isNotEmpty) {
-        _setControllerText(_seoTitleController, draft.seoTitle);
-      }
-      final normalizedSlug = _slugify(
-        draft.slug.isNotEmpty ? draft.slug : draft.title,
-      );
-      if (normalizedSlug.isNotEmpty) {
-        _setControllerText(_slugController, normalizedSlug);
-      }
-      if (draft.metaDescription.isNotEmpty) {
-        _setControllerText(
-          _metaDescriptionController,
-          draft.metaDescription.length > 170
-              ? draft.metaDescription.substring(0, 170)
-              : draft.metaDescription,
-        );
-      }
-      if (_allowedAiSchemaTypes.contains(draft.schemaType)) {
-        _schemaType = draft.schemaType;
-      }
-      if (draft.keywords.isNotEmpty) {
-        _keywords
-          ..clear()
-          ..addAll(draft.keywords.take(14));
-      }
-      if (draft.faqEntries.isNotEmpty) {
-        for (final entry in _faqEntries) {
-          entry.dispose();
-        }
-        _faqEntries
-          ..clear()
-          ..addAll([
-            for (final item in draft.faqEntries)
-              _FaqEntry()
-                ..question.text = item.question
-                ..answer.text = item.answer,
-          ]);
-      }
+      _applyAiDraftCommonFields(draft);
       if (blocks.isNotEmpty) {
         _replaceContentBlocks(_articleBlocks, blocks);
       }
-      _lastAutoSlug = _slugController.text.trim();
-      _lastAutoSeoTitle = _seoTitleController.text.trim();
-      _lastAutoSeoDescription = _metaDescriptionController.text.trim();
+      _syncAiAutoMarkers();
     });
     _hydrating = false;
+  }
+
+  void _applyAiDraftToStructuredTab(
+    AdminNewsAiDraft draft,
+    NewsAddFormatTab targetTab,
+  ) {
+    final item = _tabStorageItemFromAiDraft(draft, targetTab);
+    _hydrating = true;
+    setState(() {
+      _activeTab = targetTab;
+      _applyAiDraftCommonFields(draft);
+      if (item != null) {
+        switch (targetTab) {
+          case NewsAddFormatTab.quiz:
+            _hydrateQuizItem(item);
+          case NewsAddFormatTab.poll:
+            _replacePollQuestions([_pollFromItem(item)]);
+          case NewsAddFormatTab.video:
+            final block = ArticleVideoBlockEntry();
+            _hydrateVideoBlock(block, item);
+            _replaceContentBlocks(_videoBlocks, [block]);
+          case NewsAddFormatTab.contents:
+            _hydrateTocItem(item);
+          case NewsAddFormatTab.recipe:
+            _hydrateRecipeItem(item);
+          case NewsAddFormatTab.event:
+            _hydrateEventItem(item);
+          case NewsAddFormatTab.article:
+            break;
+        }
+      }
+      _syncAiAutoMarkers();
+    });
+    _hydrating = false;
+  }
+
+  void _applyAiDraftCommonFields(AdminNewsAiDraft draft) {
+    if (draft.title.isNotEmpty) {
+      _setControllerText(_titleController, draft.title);
+    }
+    if (draft.summary.isNotEmpty) {
+      _setControllerText(_summaryController, draft.summary);
+    }
+    if (draft.seoTitle.isNotEmpty) {
+      _setControllerText(_seoTitleController, draft.seoTitle);
+    }
+    final normalizedSlug = _slugify(
+      draft.slug.isNotEmpty ? draft.slug : draft.title,
+    );
+    if (normalizedSlug.isNotEmpty) {
+      _setControllerText(_slugController, normalizedSlug);
+    }
+    if (draft.metaDescription.isNotEmpty) {
+      _setControllerText(
+        _metaDescriptionController,
+        draft.metaDescription.length > 170
+            ? draft.metaDescription.substring(0, 170)
+            : draft.metaDescription,
+      );
+    }
+    if (_allowedAiSchemaTypes.contains(draft.schemaType)) {
+      _schemaType = draft.schemaType;
+    }
+    if (draft.keywords.isNotEmpty) {
+      _keywords
+        ..clear()
+        ..addAll(draft.keywords.take(14));
+    }
+    if (draft.faqEntries.isNotEmpty) {
+      for (final entry in _faqEntries) {
+        entry.dispose();
+      }
+      _faqEntries
+        ..clear()
+        ..addAll([
+          for (final item in draft.faqEntries)
+            _FaqEntry()
+              ..question.text = item.question
+              ..answer.text = item.answer,
+        ]);
+    }
+  }
+
+  void _syncAiAutoMarkers() {
+    _lastAutoSlug = _slugController.text.trim();
+    _lastAutoSeoTitle = _seoTitleController.text.trim();
+    _lastAutoSeoDescription = _metaDescriptionController.text.trim();
+  }
+
+  Map<String, Object?>? _tabStorageItemFromAiDraft(
+    AdminNewsAiDraft draft,
+    NewsAddFormatTab targetTab,
+  ) {
+    final tabItem = draft.tabItem;
+    if (tabItem.isEmpty) return null;
+    final type = _storageTypeForAiTab(targetTab);
+    final title = _firstNonEmpty([
+      _text(tabItem['title']),
+      draft.mainContentTitle,
+      draft.title,
+    ]);
+    final description = _firstNonEmpty([
+      _text(tabItem['descriptionHtml']),
+      draft.mainContentHtml,
+      draft.summary,
+    ]);
+    final item = <String, Object?>{
+      'id': _firstNonEmpty([_text(tabItem['id']), 'ai-$type']),
+      'type': type,
+      'title': title,
+      'description': description,
+      'source': _text(tabItem['source']).trim(),
+      'mediaUrl': _text(tabItem['mediaUrl']).trim(),
+      'altText': _text(tabItem['altText']).trim(),
+      'showOnHomepage': _bool(tabItem['showOnHomepage']),
+      'orderNumber': 1,
+    };
+
+    switch (targetTab) {
+      case NewsAddFormatTab.quiz:
+        item['quizData'] = _map(tabItem['quizData']);
+      case NewsAddFormatTab.poll:
+        item['isImagePoll'] = _bool(tabItem['isImagePoll']);
+        item['pollColumns'] = _int(tabItem['pollColumns']) == 3 ? 3 : 2;
+        item['options'] = _aiPollOptions(tabItem['options']);
+      case NewsAddFormatTab.contents:
+        item['tocData'] = _map(tabItem['tocData']);
+      case NewsAddFormatTab.recipe:
+        item['recipeData'] = _map(tabItem['recipeData']);
+      case NewsAddFormatTab.event:
+        item['eventData'] = _map(tabItem['eventData']);
+      case NewsAddFormatTab.video || NewsAddFormatTab.article:
+        break;
+    }
+    return item;
+  }
+
+  String _storageTypeForAiTab(NewsAddFormatTab tab) {
+    return switch (tab) {
+      NewsAddFormatTab.contents => 'toc',
+      NewsAddFormatTab.article => 'article',
+      NewsAddFormatTab.quiz => 'quiz',
+      NewsAddFormatTab.poll => 'poll',
+      NewsAddFormatTab.video => 'video',
+      NewsAddFormatTab.recipe => 'recipe',
+      NewsAddFormatTab.event => 'event',
+    };
+  }
+
+  String _firstNonEmpty(List<String> values) {
+    for (final value in values) {
+      final text = value.trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  List<Map<String, Object?>> _aiPollOptions(Object? value) {
+    if (value is! List) return const [];
+    return [
+      for (var index = 0; index < value.length && index < 6; index++)
+        if (_aiPollOptionText(value[index]).isNotEmpty)
+          {
+            'id': 'ai-poll-option-${index + 1}',
+            'text': _aiPollOptionText(value[index]),
+            'image': value[index] is Map
+                ? _text((value[index] as Map)['image']).trim()
+                : '',
+            'votes': value[index] is Map
+                ? _int((value[index] as Map)['votes'])
+                : 0,
+          },
+    ];
+  }
+
+  String _aiPollOptionText(Object? value) {
+    if (value is Map) return _text(value['text']).trim();
+    return _text(value).trim();
   }
 
   List<Object> _contentBlocksFromAiDraft(AdminNewsAiDraft draft) {
@@ -5613,6 +5834,8 @@ class _AiContentGeneratorDialog extends StatefulWidget {
   const _AiContentGeneratorDialog({
     required this.languageCode,
     required this.category,
+    required this.formatType,
+    required this.formatSubtype,
     required this.initialTopic,
     required this.initialNotes,
     required this.revisionMode,
@@ -5621,6 +5844,8 @@ class _AiContentGeneratorDialog extends StatefulWidget {
 
   final String languageCode;
   final String category;
+  final String formatType;
+  final String formatSubtype;
   final String initialTopic;
   final String initialNotes;
   final bool revisionMode;
@@ -5715,6 +5940,8 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           topic: _topicForGenerate(sourceArticle),
           sourceNotes: _sourceNotesForGenerate(),
           itemCounts: _normalizedItemCounts(),
+          formatType: widget.formatType,
+          formatSubtype: widget.formatSubtype,
         ),
       );
       if (!mounted) return;

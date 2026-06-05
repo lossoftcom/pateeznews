@@ -16,6 +16,8 @@ class AdminNewsAiDraftRequest {
     required this.topic,
     required this.sourceNotes,
     required this.itemCounts,
+    this.formatType = 'article',
+    this.formatSubtype = '',
   });
 
   final String languageCode;
@@ -27,6 +29,8 @@ class AdminNewsAiDraftRequest {
   final String topic;
   final String sourceNotes;
   final Map<String, int> itemCounts;
+  final String formatType;
+  final String formatSubtype;
 }
 
 class AdminNewsAiDraft {
@@ -42,6 +46,7 @@ class AdminNewsAiDraft {
     required this.faqEntries,
     required this.mainContentHtml,
     required this.items,
+    required this.tabItem,
   });
 
   factory AdminNewsAiDraft.fromJson(Map<String, Object?> json) {
@@ -71,6 +76,7 @@ class AdminNewsAiDraft {
         for (final row in _mapList(json['items']))
           AdminNewsAiItem.fromJson(row),
       ].where((item) => item.type.isNotEmpty).toList(growable: false),
+      tabItem: _map(json['tabItem']),
     );
   }
 
@@ -85,6 +91,7 @@ class AdminNewsAiDraft {
   final List<AdminNewsAiFaq> faqEntries;
   final String mainContentHtml;
   final List<AdminNewsAiItem> items;
+  final Map<String, Object?> tabItem;
 }
 
 class AdminNewsAiContentSection {
@@ -368,12 +375,16 @@ Seçili ayarlar:
 - Ton/Stil: ${_toneInstruction(request.tone)}
 - İçerik Türü: ${_contentTypeInstruction(request.contentType)}
 - Doldurulacak Alan: ${_outputTargetInstruction(request.outputTarget, request.includeSeo)}
+- Aktif Format/Tab: ${_formatTypeInstruction(request.formatType, request.formatSubtype)}
 
 Seçili item planı:
 ${itemLines.isEmpty ? '- Ek item yok. "items" boş dizi olsun.' : itemLines}
 
 Bölüm ve text item eşleme:
-${_sectionMappingInstruction(request.itemCounts)}
+${_sectionMappingInstruction(request)}
+
+Aktif tab veri kuralları:
+${_formatSpecificInstruction(request)}
 
 Haber içeriği / ham kaynak:
 ${request.topic.trim()}
@@ -386,15 +397,17 @@ JSON alan kuralları:
 - seoTitle: title ile aynı kalıp olmasın; arama sonucu için güçlü olsun.
 - summary: vurucu spot. En fazla 2 kısa cümle.
 - mainContentTitle: ilk metin bloğunun başlığıdır; mutlaka dolu olsun.
-- mainContentHtml: ana haber gövdesini mümkün olduğunca tek akışta taşı. Kaynakta zorunlu büyük bölüm ayrımı yoksa h2 kullanma; uzun ve doğal bölümlü haberlerde 2-4 arası anlamlı h2 kullan. H2 forma ayrı metin bloğu olur, bu yüzden tek cümleye veya kısa paragrafa başlık açma.
-- mainContentHtml kısa özet değil, tam haber olsun. Kaynakta yer alan bilgi, bölüm ve detaylar korunacak.
+- mainContentHtml: Makale/Article formatında ana haber gövdesini mümkün olduğunca tek akışta taşı. Kaynakta zorunlu büyük bölüm ayrımı yoksa h2 kullanma; uzun ve doğal bölümlü haberlerde 2-4 arası anlamlı h2 kullan. H2 forma ayrı metin bloğu olur, bu yüzden tek cümleye veya kısa paragrafa başlık açma.
+- Makale/Article formatında mainContentHtml kısa özet değil, tam haber olsun. Quiz, anket, video, içindekiler, tarif ve etkinlik formatlarında mainContentHtml kısa giriş olabilir; asıl CMS tab verisi tabItem içinde eksiksiz taşınacak.
 - Liste, kadro, forma numarası ve tablo benzeri veri varsa HTML içinde semantik ul/ol/li kullan; satırları <p> ile tek tek yazma.
+- tabItem: Article/Makale formatında boş nesne {} döndür. Quiz, anket, video, içerikler, tarif ve etkinlik formatlarında aktif tabın ana CMS verisini yalnız tabItem içinde döndür.
 - seoTitle: Google/Yandex için sayfayı doğru anlatan, tekil, açık ve tıklanabilir başlık olsun; ana anahtar ifadeyi doğal geçir, ana başlığı kopyalama.
 - keywords: SEO açıksa Google'da meta keywords sıralama hilesi değildir; Yandex'te sayfa ilgisini destekleyebilir. Bu yüzden 8-14 adet, yalnız kaynakta geçen veya doğrudan kaynakla kanıtlanan, haberin ana sorgu niyetini anlatan odak etiket üret.
 - Kadro/liste haberlerinde bütün isimleri keywords alanına doldurma; ana kurum/olay/yer/sorgu etiketleriyle birlikte kaynak sırasındaki merkezi 4-8 kişi adını dengeli ekle.
 - Etiketlerde keyword stuffing yapma; alakasız trend, genel kelime, kaynakta olmayan kurum/proje/teknoloji ekleme. Aynı kelimenin ufak çekim farklarını tekrar etme.
 - Etiket sırası: ana kişi/kurum, ana olay/proje, şehir/ilçe, rota/konu, kaynakta geçen önemli sayı veya resmi ad.
 - metaDescription SEO açıksa 140-155 karakter aralığında, tek cümle gibi okunabilen, haberin en önemli bilgilerini eksiltmeden veren özgün açıklama olsun.
+- schemaType aktif formatla uyumlu olsun: quiz için Quiz, tarif için Recipe, etkinlik için Event; haber/makale/video/anket/içindekiler için kaynak türüne göre NewsArticle veya Article kullan.
 - faq yalnız ham metinde cevabı açıkça olan sorulardan oluşsun; kaynakta cevap yoksa boş dizi döndür.
 
 Item kuralları:
@@ -503,12 +516,82 @@ String _outputTargetInstruction(String outputTarget, bool includeSeo) {
           : ' SEO alanları kapalıysa SEO alanlarını boş bırak.');
 }
 
-String _sectionMappingInstruction(Map<String, int> itemCounts) {
-  final textCount = itemCounts['text'] ?? 0;
+String _sectionMappingInstruction(AdminNewsAiDraftRequest request) {
+  final textCount = request.itemCounts['text'] ?? 0;
+  if (request.formatType.trim().toLowerCase() != 'article') {
+    if (textCount <= 0) {
+      return '- Aktif format article değildir; mainContentHtml kısa giriş olabilir, ana tab verisi tabItem içinde üretilecek. Ek item seçilmediyse "items" boş dizi olsun.';
+    }
+    return '- Aktif format article değildir; ana tab verisi tabItem içinde üretilecek. Kullanıcı ayrıca $textCount adet text item seçtiyse "items" içinde yalnız bu ek metin bloklarını üret; tabItem verisini items içine kopyalama.';
+  }
   if (textCount <= 0) {
     return '- Text item seçilmediyse mainContentHtml ana akışı korusun. Kısa haberde h2 üretme; uzun ve gerçek bölüm ayrımı olan kaynakta 2-4 arası anlamlı h2 kullanılabilir. "items" boş dizi olsun.';
   }
   return '- Seçili text itemler zaten ayrı blok olacağı için mainContentHtml h2 sayısını yalnız haberin doğal ana bölümleriyle sınırlı tut; kısa haberde h2 üretme, uzun ve gerçek bölümlü haberde 2-4 arası anlamlı h2 kullanılabilir. Ayrıca kullanıcı isteği için tam $textCount adet text item üret; bu text itemler kısa ara başlık parçası veya mainContentHtml kopyası olmasın, kaynakta bulunan ek arka plan, takvim veya dikkat çeken detayı bağımsız blok yapsın.';
+}
+
+String _formatTypeInstruction(String formatType, String formatSubtype) {
+  final subtype = formatSubtype.trim();
+  final suffix = subtype.isEmpty ? '' : ' / alt tür: $subtype';
+  return switch (formatType.trim().toLowerCase()) {
+    'quiz' => 'Quiz/Test$suffix',
+    'poll' => 'Anket$suffix',
+    'video' => 'Video Haber$suffix',
+    'contents' ||
+    'toc' ||
+    'table of contents' => 'İçindekiler/Listeli İçerik$suffix',
+    'recipe' => 'Tarif$suffix',
+    'event' => 'Etkinlik$suffix',
+    _ => 'Makale Haber$suffix',
+  };
+}
+
+String _formatSpecificInstruction(AdminNewsAiDraftRequest request) {
+  final subtype = request.formatSubtype.trim().toLowerCase();
+  return switch (request.formatType.trim().toLowerCase()) {
+    'quiz' =>
+      '''
+- Aktif tab quiz/testtir. Article akışını bozma: mainContentHtml kısa bir giriş olabilir, items yalnız seçili ek item planını taşısın.
+- tabItem.type kesin "quiz" olsun; title ve descriptionHtml dolu olsun.
+- tabItem.quizData.quizType "${subtype == 'trivia' || subtype == 'checklist' ? subtype : 'personality'}" olsun.
+- quizData.questions alanında kaynak metinden çıkan 4-8 soru üret; her soru 2-5 cevap içersin, cevaplar kısa ve anlaşılır olsun.
+- Trivia/test alt türünde her soruda tam bir doğru cevap için isCorrect true kullan; kaynakta cevabı olmayan soru uydurma.
+- Personality/checklist alt türlerinde 2-4 sonuç üret; cevapların resultId değerleri results içindeki id değerleriyle eşleşsin.
+- Görsel URL uydurma; image alanları boş kalsın. questionSorting "asc", allowMultiple false, showResults true, endDate boş olsun.''',
+    'poll' =>
+      '''
+- Aktif tab ankettir. tabItem.type kesin "poll" olsun; tek profesyonel anket sorusu üret.
+- tabItem.options alanında kaynak bağlamından çıkan 2-6 kısa seçenek üret; seçenekler yargılayıcı, manipülatif veya kaynak dışı olmasın.
+- isImagePoll false, pollColumns 2 olsun; görsel/medya URL uydurma.''',
+    'video' =>
+      '''
+- Aktif tab video haberdir. tabItem.type kesin "video" olsun.
+- title video bloğu başlığı, descriptionHtml video için okunur açıklama olsun.
+- Kullanıcı açıkça video/embed URL vermediyse mediaUrl boş kalsın; URL uydurma. source yalnız kaynakta varsa dolsun.''',
+    'contents' || 'toc' || 'table of contents' =>
+      '''
+- Aktif tab içindekiler/listeli içeriktir. tabItem.type kesin "toc" olsun.
+- tabItem.tocData.items alanında kaynak akışını bozmadan 3-8 okunur bölüm üret; her item title ve content alanı dolu olsun.
+- content HTML sadece p, ul, ol, li, strong kullansın; kısa içerikte gereksiz bölüm çoğaltma.
+- linkListStyle level1/level2/level3 "none", showInText değerleri false olsun. Görsel URL uydurma.''',
+    'recipe' =>
+      '''
+- Aktif tab tariftir. tabItem.type kesin "recipe" olsun.
+- recipeData.ingredients ve recipeData.directions alanlarını kaynakta verilen sıraya göre eksiksiz ve okunur doldur.
+- prepTime, cookTime, serving, difficulty ve nutrition yalnız kaynakta açıkça varsa dolsun; yoksa boş bırak, tahmin etme.
+- directions içinde 3-8 adım uygundur; her adımda title ve content dolu olsun, görsel URL uydurma.''',
+    'event' =>
+      '''
+- Aktif tab etkinliktir. tabItem.type kesin "event" olsun.
+- eventData startDateTime, endDateTime, organizer, venueName, address, ticketUrl, ticketPrice, capacity gibi alanları yalnız kaynakta açıkça varsa doldur; tarih, ücret, kontenjan veya koordinat tahmin etme.
+- schedule, highlights ve speakers listelerini yalnız kaynakta açıkça geçen bilgilerden üret; kaynakta yoksa boş dizi döndür.
+- registrationType yalnız kaynak kayıt veya bilet bilgisi veriyorsa "required", "tickets" veya "external" olabilir; aksi halde "none" olsun.''',
+    _ =>
+      '''
+- Aktif tab makale haberdir. Mevcut article üretim davranışı korunur.
+- tabItem boş nesne {} olsun.
+- mainContentHtml tam haber gövdesini taşısın; items yalnız seçili item planındaki ek blokları taşısın.''',
+  };
 }
 
 int _maxOutputTokensFor(AdminNewsAiDraftRequest _) => 8192;
@@ -625,6 +708,7 @@ AdminNewsAiDraft _enrichDraft(
     faqEntries: draft.faqEntries,
     mainContentHtml: draft.mainContentHtml,
     items: draft.items,
+    tabItem: draft.tabItem,
   );
 }
 
@@ -803,6 +887,9 @@ const _draftJsonSchema = {
         'OpinionNewsArticle',
         'AnalysisNewsArticle',
         'Article',
+        'Quiz',
+        'Recipe',
+        'Event',
       ],
     },
     'keywords': {
@@ -831,6 +918,266 @@ const _draftJsonSchema = {
       'type': 'string',
       'description':
           'Tam haber metni. Kaynak bilgilerini kısaltmadan ve eksiltmeden koru; kelime hedefi yoktur. Normalde p, ul, ol, li ve strong kullan; kısa haberde h2 kullanma, uzun ve doğal bölümlü haberde 2-4 arası anlamlı h2 kullan.',
+    },
+    'tabItem': {
+      'type': 'object',
+      'description':
+          'Article dışındaki aktif formatın ana CMS item verisi. Article için boş nesne.',
+      'additionalProperties': false,
+      'properties': {
+        'id': {'type': 'string'},
+        'type': {
+          'type': 'string',
+          'enum': ['', 'quiz', 'poll', 'video', 'toc', 'recipe', 'event'],
+        },
+        'title': {'type': 'string'},
+        'descriptionHtml': {'type': 'string'},
+        'source': {'type': 'string'},
+        'mediaUrl': {'type': 'string'},
+        'altText': {'type': 'string'},
+        'showOnHomepage': {'type': 'boolean'},
+        'isImagePoll': {'type': 'boolean'},
+        'pollColumns': {'type': 'integer'},
+        'options': {
+          'type': 'array',
+          'items': {
+            'type': 'object',
+            'additionalProperties': false,
+            'properties': {
+              'id': {'type': 'string'},
+              'text': {'type': 'string'},
+              'image': {'type': 'string'},
+              'votes': {'type': 'integer'},
+            },
+          },
+          'maxItems': 6,
+        },
+        'quizData': {
+          'type': 'object',
+          'additionalProperties': false,
+          'properties': {
+            'quizType': {
+              'type': 'string',
+              'enum': ['personality', 'trivia', 'checklist'],
+            },
+            'questionSorting': {
+              'type': 'string',
+              'enum': ['asc', 'desc', 'hide'],
+            },
+            'allowMultiple': {'type': 'boolean'},
+            'showResults': {'type': 'boolean'},
+            'endDate': {'type': 'string'},
+            'results': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'id': {'type': 'string'},
+                  'title': {'type': 'string'},
+                  'image': {'type': 'string'},
+                  'description': {'type': 'string'},
+                  'minScore': {'type': 'integer'},
+                  'maxScore': {'type': 'integer'},
+                  'answerCount': {'type': 'integer'},
+                },
+              },
+              'maxItems': 6,
+            },
+            'questions': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'id': {'type': 'string'},
+                  'title': {'type': 'string'},
+                  'image': {'type': 'string'},
+                  'description': {'type': 'string'},
+                  'layout': {
+                    'type': 'string',
+                    'enum': ['', 'list', 'grid2', 'grid3'],
+                  },
+                  'answers': {
+                    'type': 'array',
+                    'items': {
+                      'type': 'object',
+                      'additionalProperties': false,
+                      'properties': {
+                        'id': {'type': 'string'},
+                        'text': {'type': 'string'},
+                        'image': {'type': 'string'},
+                        'resultId': {'type': 'string'},
+                        'isCorrect': {'type': 'boolean'},
+                      },
+                    },
+                    'maxItems': 5,
+                  },
+                },
+              },
+              'maxItems': 8,
+            },
+          },
+        },
+        'tocData': {
+          'type': 'object',
+          'additionalProperties': false,
+          'properties': {
+            'linkListStyle': {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties': {
+                'level1': {'type': 'string'},
+                'level2': {'type': 'string'},
+                'level3': {'type': 'string'},
+              },
+            },
+            'showInText': {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties': {
+                'level1': {'type': 'boolean'},
+                'level2': {'type': 'boolean'},
+                'level3': {'type': 'boolean'},
+              },
+            },
+            'items': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'id': {'type': 'string'},
+                  'title': {'type': 'string'},
+                  'parentId': {'type': 'string'},
+                  'image': {'type': 'string'},
+                  'imageDescription': {'type': 'string'},
+                  'content': {'type': 'string'},
+                  'orderNumber': {'type': 'integer'},
+                },
+              },
+              'maxItems': 8,
+            },
+          },
+        },
+        'recipeData': {
+          'type': 'object',
+          'additionalProperties': false,
+          'properties': {
+            'prepTime': {'type': 'string'},
+            'cookTime': {'type': 'string'},
+            'serving': {'type': 'string'},
+            'difficulty': {'type': 'string'},
+            'ingredients': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'text': {'type': 'string'},
+                },
+              },
+              'maxItems': 30,
+            },
+            'nutrition': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'label': {'type': 'string'},
+                  'value': {'type': 'string'},
+                },
+              },
+              'maxItems': 12,
+            },
+            'directions': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'id': {'type': 'string'},
+                  'title': {'type': 'string'},
+                  'content': {'type': 'string'},
+                  'image': {'type': 'string'},
+                  'imageDescription': {'type': 'string'},
+                  'orderNumber': {'type': 'integer'},
+                },
+              },
+              'maxItems': 12,
+            },
+          },
+        },
+        'eventData': {
+          'type': 'object',
+          'additionalProperties': false,
+          'properties': {
+            'startDateTime': {'type': 'string'},
+            'endDateTime': {'type': 'string'},
+            'organizer': {'type': 'string'},
+            'venueName': {'type': 'string'},
+            'address': {'type': 'string'},
+            'latitude': {'type': 'string'},
+            'longitude': {'type': 'string'},
+            'registrationType': {
+              'type': 'string',
+              'enum': ['none', 'required', 'tickets', 'external'],
+            },
+            'ticketUrl': {'type': 'string'},
+            'ticketPrice': {'type': 'string'},
+            'capacity': {'type': 'string'},
+            'scheduleTitle': {'type': 'string'},
+            'highlightsTitle': {'type': 'string'},
+            'speakersTitle': {'type': 'string'},
+            'schedule': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'id': {'type': 'string'},
+                  'date': {'type': 'string'},
+                  'time': {'type': 'string'},
+                  'title': {'type': 'string'},
+                  'description': {'type': 'string'},
+                  'image': {'type': 'string'},
+                  'imageDescription': {'type': 'string'},
+                },
+              },
+              'maxItems': 12,
+            },
+            'highlights': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'label': {'type': 'string'},
+                  'value': {'type': 'string'},
+                },
+              },
+              'maxItems': 12,
+            },
+            'speakers': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'id': {'type': 'string'},
+                  'name': {'type': 'string'},
+                  'role': {'type': 'string'},
+                  'bio': {'type': 'string'},
+                  'image': {'type': 'string'},
+                  'imageDescription': {'type': 'string'},
+                },
+              },
+              'maxItems': 12,
+            },
+          },
+        },
+      },
     },
     'items': {
       'type': 'array',
@@ -948,6 +1295,7 @@ const _draftJsonSchema = {
     'keywords',
     'faq',
     'mainContentHtml',
+    'tabItem',
     'items',
   ],
 };
@@ -1061,6 +1409,12 @@ List<Map<String, Object?>> _mapList(Object? value) {
     for (final item in value)
       if (item is Map) _asStringKeyMap(item),
   ];
+}
+
+Map<String, Object?> _map(Object? value) {
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) return _asStringKeyMap(value);
+  return const {};
 }
 
 List<String> _stringList(Object? value, {int limit = 20}) {
