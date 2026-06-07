@@ -8,6 +8,8 @@ const CITY = 'Niğde';
 const CITY_SLUG = 'nigde';
 const TIMEZONE = 'Europe/Istanbul';
 const PHARMACY_REFRESH_MS = 15 * 60 * 1000;
+const SOURCE_FETCH_TIMEOUT_MS = 10000;
+const FRESH_OPERATION_TIMEOUT_MS = 12000;
 const CACHE_KEY = `duty_pharmacies:${CITY_SLUG}`;
 const DISTRICT_ORDER = ['MERKEZ', 'ALTUNHİSAR', 'BOR', 'ÇAMARDI', 'ÇİFTLİK', 'ULUKIŞLA'];
 
@@ -55,6 +57,19 @@ const normalizeText = (value: unknown) =>
     .replace(/[ \t\r\f\v]+/g, ' ')
     .replace(/\n\s+/g, '\n')
     .trim();
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout !== undefined) clearTimeout(timeout);
+  });
+};
+
+const errorMessage = (error: any, fallback: string) => normalizeText(error?.message || fallback) || fallback;
 
 const trUpper = (value: string) => normalizeText(value).toLocaleUpperCase('tr-TR');
 
@@ -310,12 +325,12 @@ const cacheMatchesToday = (payload: any) => {
   return payload?.citySlug === CITY_SLUG && payload?.serviceDate === today && Array.isArray(payload?.pharmacies);
 };
 
-const fetchFresh = async (): Promise<DutyPharmacyPayload> => {
-  if (refreshInFlight) return refreshInFlight;
+const fetchFresh = async ({ reuseInFlight = true } = {}): Promise<DutyPharmacyPayload> => {
+  if (reuseInFlight && refreshInFlight) return refreshInFlight;
 
-  refreshInFlight = (async () => {
+  const operation = (async () => {
     const response = await fetch(SOURCE_URL, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
       headers: {
         Accept: 'text/html,application/xhtml+xml',
         'User-Agent': 'PateezNews/1.0 (+https://www.pateez.com)',
@@ -363,11 +378,19 @@ const fetchFresh = async (): Promise<DutyPharmacyPayload> => {
       rememberPayload(payload);
     }
     return payload;
-  })().finally(() => {
-    refreshInFlight = null;
+  })();
+
+  let request: Promise<DutyPharmacyPayload>;
+  request = withTimeout(
+    operation,
+    FRESH_OPERATION_TIMEOUT_MS,
+    'Duty pharmacy refresh timed out'
+  ).finally(() => {
+    if (refreshInFlight === request) refreshInFlight = null;
   });
 
-  return refreshInFlight;
+  if (reuseInFlight) refreshInFlight = request;
+  return request;
 };
 
 export const GET: APIRoute = async ({ url }) => {
@@ -382,13 +405,39 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
-  const cached = forceRefresh ? null : await readCache();
-  if (cached?.payload && cacheMatchesToday(cached.payload) && cached.expiresAt > now) {
+  const cached = await readCache() ?? (
+    currentMemoryCache && cacheMatchesToday(currentMemoryCache.payload)
+      ? { payload: currentMemoryCache.payload, expiresAt: currentMemoryCache.expiresAt }
+      : null
+  );
+  if (!forceRefresh && cached?.payload && cacheMatchesToday(cached.payload) && cached.expiresAt > now) {
     memoryCache = { payload: cached.payload, expiresAt: cached.expiresAt };
     return json({
       ...cached.payload,
       cache: { hit: true, stale: false, source: 'database', refreshIntervalMinutes: 15 },
     });
+  }
+
+  if (forceRefresh && cached?.payload && cacheMatchesToday(cached.payload)) {
+    try {
+      const fresh = await fetchFresh({ reuseInFlight: false });
+      return json({
+        ...fresh,
+        cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: 15 },
+      });
+    } catch (error: any) {
+      return json({
+        ...cached.payload,
+        cache: {
+          hit: true,
+          stale: cached.expiresAt <= now,
+          refreshing: false,
+          source: 'database',
+          refreshIntervalMinutes: 15,
+          refreshError: errorMessage(error, 'Duty pharmacy refresh failed'),
+        },
+      });
+    }
   }
 
   if (cached?.payload && cacheMatchesToday(cached.payload)) {
@@ -400,7 +449,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   try {
-    const fresh = await fetchFresh();
+    const fresh = await fetchFresh({ reuseInFlight: !forceRefresh });
     return json({
       ...fresh,
       cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: 15 },

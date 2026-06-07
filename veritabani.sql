@@ -279,6 +279,27 @@ Sitemap: https://yourdomain.com/sitemap.xml'::text,
   weather_longitude double precision DEFAULT 34.67935,
   weather_timezone text DEFAULT 'Europe/Istanbul'::text,
   weather_update_interval_minutes integer DEFAULT 30,
+  market_enabled boolean DEFAULT true,
+  market_provider text DEFAULT 'genelpara'::text,
+  market_altinapi_key text,
+  market_altinapi_base_url text DEFAULT 'https://altinapi.com/api/v1'::text,
+  market_genelpara_base_url text DEFAULT 'https://api.genelpara.com/json/'::text,
+  market_update_interval_seconds integer DEFAULT 300,
+  market_currency_symbols text DEFAULT 'USD,EUR,BTC,GBP,CHF,CAD,AUD,JPY,SAR,KWD,NOK,SEK,DKK,RUB,CNY,AED'::text,
+  market_gold_symbols text DEFAULT 'HAS,ONS,AYAR22,GRAM,ALTINGUMUS,CEYREK,YARIM,TAM,CUMHURIYET,GREMSE,AYAR14,GUMUS,AYAR18,RESAT,ATA,BESLI,HAMIT,IKIBUCUK'::text,
+  prayer_enabled boolean DEFAULT true,
+  prayer_diyanet_base_url text DEFAULT 'https://namazvakitleri.diyanet.gov.tr'::text,
+  prayer_location_name text DEFAULT 'Niğde'::text,
+  prayer_location_country text DEFAULT 'Türkiye'::text,
+  prayer_location_state_id integer DEFAULT 561,
+  prayer_location_city_id integer DEFAULT 9766,
+  prayer_timezone text DEFAULT 'Europe/Istanbul'::text,
+  prayer_refresh_lead_days integer DEFAULT 3,
+  prayer_cache_days integer DEFAULT 370,
+  daily_ayah_enabled boolean DEFAULT true,
+  daily_ayah_start_date date DEFAULT '2026-06-05'::date,
+  daily_ayah_quran_api_base_url text DEFAULT 'https://t061.diyanet.gov.tr/apigateway/acikkaynakkuran'::text,
+  daily_ayah_quran_api_token text,
   CONSTRAINT site_settings_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.site_fonts (
@@ -339,6 +360,103 @@ CREATE TABLE public.app_cache (
   CONSTRAINT app_cache_pkey PRIMARY KEY (key)
 );
 CREATE INDEX app_cache_expires_at_idx ON public.app_cache USING btree (expires_at);
+CREATE TABLE public.announcement_sources (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  source_key text NOT NULL,
+  name text NOT NULL,
+  source_type text NOT NULL DEFAULT 'other'::text CHECK (source_type = ANY (ARRAY['institution'::text, 'municipality'::text, 'chamber'::text, 'union'::text, 'ngo'::text, 'education'::text, 'health'::text, 'sports'::text, 'utility'::text, 'media'::text, 'social'::text, 'other'::text])),
+  category_hint text NOT NULL DEFAULT 'official'::text CHECK (category_hint = ANY (ARRAY['official'::text, 'power'::text, 'road'::text])),
+  district text NOT NULL DEFAULT 'merkez'::text CHECK (district = ANY (ARRAY['merkez'::text, 'altunhisar'::text, 'bor'::text, 'camardi'::text, 'ciftlik'::text, 'ulukisla'::text])),
+  website_url text,
+  list_url text NOT NULL,
+  social_url text,
+  facebook_url text,
+  instagram_url text,
+  crawl_strategy text NOT NULL DEFAULT 'auto'::text CHECK (crawl_strategy = ANY (ARRAY['auto'::text, 'rss'::text, 'sitemap'::text, 'html'::text, 'social_public'::text, 'search'::text])),
+  selector_config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  crawl_interval_minutes integer NOT NULL DEFAULT 30,
+  last_checked_at timestamp with time zone,
+  last_success_at timestamp with time zone,
+  last_error text,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT announcement_sources_pkey PRIMARY KEY (id),
+  CONSTRAINT announcement_sources_source_key_key UNIQUE (source_key)
+);
+CREATE INDEX announcement_sources_active_idx ON public.announcement_sources USING btree (is_active, sort_order, name);
+CREATE INDEX announcement_sources_district_idx ON public.announcement_sources USING btree (district, is_active);
+CREATE TABLE public.announcements (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  source_id uuid,
+  source_key text NOT NULL,
+  source_name text NOT NULL,
+  category text NOT NULL DEFAULT 'official'::text CHECK (category = ANY (ARRAY['official'::text, 'power'::text, 'road'::text])),
+  title text NOT NULL,
+  summary text NOT NULL DEFAULT ''::text,
+  body text NOT NULL DEFAULT ''::text,
+  place text NOT NULL DEFAULT 'Niğde'::text,
+  district text NOT NULL DEFAULT 'merkez'::text CHECK (district = ANY (ARRAY['merkez'::text, 'altunhisar'::text, 'bor'::text, 'camardi'::text, 'ciftlik'::text, 'ulukisla'::text])),
+  time_label text NOT NULL DEFAULT ''::text,
+  published_at timestamp with time zone,
+  starts_at timestamp with time zone,
+  ends_at timestamp with time zone,
+  status_label text NOT NULL DEFAULT ''::text,
+  schedule_label text NOT NULL DEFAULT ''::text,
+  image_url text NOT NULL DEFAULT ''::text,
+  source_url text NOT NULL,
+  canonical_url text NOT NULL DEFAULT ''::text,
+  linked_post_id bigint,
+  external_id text NOT NULL DEFAULT ''::text,
+  content_hash text NOT NULL,
+  raw_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ai_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  confidence numeric(4,3) NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT announcements_pkey PRIMARY KEY (id),
+  CONSTRAINT announcements_content_hash_key UNIQUE (content_hash),
+  CONSTRAINT announcements_source_id_fkey FOREIGN KEY (source_id) REFERENCES public.announcement_sources(id) ON DELETE SET NULL,
+  CONSTRAINT announcements_linked_post_id_fkey FOREIGN KEY (linked_post_id) REFERENCES public.posts(id) ON DELETE SET NULL
+);
+CREATE INDEX announcements_active_published_idx ON public.announcements USING btree (is_active, published_at DESC NULLS LAST, created_at DESC);
+CREATE INDEX announcements_category_idx ON public.announcements USING btree (category, is_active);
+CREATE INDEX announcements_district_idx ON public.announcements USING btree (district, is_active);
+CREATE INDEX announcements_source_idx ON public.announcements USING btree (source_key, is_active);
+CREATE INDEX announcements_linked_post_idx ON public.announcements USING btree (linked_post_id) WHERE linked_post_id IS NOT NULL;
+CREATE TABLE public.announcement_media (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  announcement_id uuid NOT NULL,
+  url text NOT NULL,
+  alt_text text NOT NULL DEFAULT ''::text,
+  source_url text NOT NULL DEFAULT ''::text,
+  width integer,
+  height integer,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT announcement_media_pkey PRIMARY KEY (id),
+  CONSTRAINT announcement_media_announcement_url_key UNIQUE (announcement_id, url),
+  CONSTRAINT announcement_media_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcements(id) ON DELETE CASCADE
+);
+CREATE TABLE public.announcement_crawl_runs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  source_id uuid,
+  run_type text NOT NULL DEFAULT 'manual'::text CHECK (run_type = ANY (ARRAY['manual'::text, 'cron'::text, 'discovery'::text, 'source'::text])),
+  status text NOT NULL DEFAULT 'running'::text CHECK (status = ANY (ARRAY['running'::text, 'success'::text, 'partial'::text, 'error'::text])),
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  finished_at timestamp with time zone,
+  candidates_found integer NOT NULL DEFAULT 0,
+  inserted_count integer NOT NULL DEFAULT 0,
+  updated_count integer NOT NULL DEFAULT 0,
+  skipped_count integer NOT NULL DEFAULT 0,
+  error_message text,
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  CONSTRAINT announcement_crawl_runs_pkey PRIMARY KEY (id),
+  CONSTRAINT announcement_crawl_runs_source_id_fkey FOREIGN KEY (source_id) REFERENCES public.announcement_sources(id) ON DELETE SET NULL
+);
+CREATE INDEX announcement_crawl_runs_started_idx ON public.announcement_crawl_runs USING btree (started_at DESC);
 CREATE TABLE public.stories (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),

@@ -28,13 +28,16 @@ import 'package:pateeznews_admin/features/news/presentation/news_screen.dart';
 import 'package:pateeznews_admin/features/pages/data/admin_pages_repository.dart';
 import 'package:pateeznews_admin/features/pages/presentation/pages_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/ai_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/announcements_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/content_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/death_notice_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/font_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/general_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/google_news_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/language_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/market_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/pharmacy_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/presentation/prayer_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/security_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/storage_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/weather_settings_screen.dart';
@@ -266,8 +269,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _DashboardPage.storageSettings ||
       _DashboardPage.googleNews ||
       _DashboardPage.aiSettings ||
+      _DashboardPage.marketSettings ||
+      _DashboardPage.announcementsSettings ||
       _DashboardPage.pharmacySettings ||
       _DashboardPage.weatherSettings ||
+      _DashboardPage.prayerSettings ||
       _DashboardPage.deathNoticeSettings ||
       _DashboardPage.securitySettings ||
       _DashboardPage.contentSettings ||
@@ -457,12 +463,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _openPage(_DashboardPage.aiSettings);
   }
 
+  void _openMarketSettings() {
+    _openPage(_DashboardPage.marketSettings);
+  }
+
+  void _openAnnouncementsSettings() {
+    _openPage(_DashboardPage.announcementsSettings);
+  }
+
   void _openPharmacySettings() {
     _openPage(_DashboardPage.pharmacySettings);
   }
 
   void _openWeatherSettings() {
     _openPage(_DashboardPage.weatherSettings);
+  }
+
+  void _openPrayerSettings() {
+    _openPage(_DashboardPage.prayerSettings);
   }
 
   void _openDeathNoticeSettings() {
@@ -479,10 +497,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _selectedPage == _DashboardPage.storageSettings;
     final googleNewsSelected = _selectedPage == _DashboardPage.googleNews;
     final aiSettingsSelected = _selectedPage == _DashboardPage.aiSettings;
+    final marketSettingsSelected =
+        _selectedPage == _DashboardPage.marketSettings;
+    final announcementsSettingsSelected =
+        _selectedPage == _DashboardPage.announcementsSettings;
     final pharmacySettingsSelected =
         _selectedPage == _DashboardPage.pharmacySettings;
     final weatherSettingsSelected =
         _selectedPage == _DashboardPage.weatherSettings;
+    final prayerSettingsSelected =
+        _selectedPage == _DashboardPage.prayerSettings;
     final deathNoticeSettingsSelected =
         _selectedPage == _DashboardPage.deathNoticeSettings;
     final newsAddSelected = _selectedPage == _DashboardPage.newsAdd;
@@ -576,10 +600,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final storageSettingsVisible = _canOpen(_DashboardPage.storageSettings);
         final googleNewsVisible = _canOpen(_DashboardPage.googleNews);
         final aiSettingsVisible = _canOpen(_DashboardPage.aiSettings);
+        final marketSettingsVisible = _canOpen(_DashboardPage.marketSettings);
+        final announcementsSettingsVisible = _canOpen(
+          _DashboardPage.announcementsSettings,
+        );
         final pharmacySettingsVisible = _canOpen(
           _DashboardPage.pharmacySettings,
         );
         final weatherSettingsVisible = _canOpen(_DashboardPage.weatherSettings);
+        final prayerSettingsVisible = _canOpen(_DashboardPage.prayerSettings);
         final deathNoticeSettingsVisible = _canOpen(
           _DashboardPage.deathNoticeSettings,
         );
@@ -617,8 +646,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   storageSettingsVisible: storageSettingsVisible,
                   googleNewsVisible: googleNewsVisible,
                   aiSettingsVisible: aiSettingsVisible,
+                  marketSettingsVisible: marketSettingsVisible,
+                  announcementsSettingsVisible: announcementsSettingsVisible,
                   pharmacySettingsVisible: pharmacySettingsVisible,
                   weatherSettingsVisible: weatherSettingsVisible,
+                  prayerSettingsVisible: prayerSettingsVisible,
                   deathNoticeSettingsVisible: deathNoticeSettingsVisible,
                   generalSettingsVisible: generalSettingsVisible,
                   securitySettingsVisible: securitySettingsVisible,
@@ -657,8 +689,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !storageSettingsSelected &&
                       !googleNewsSelected &&
                       !aiSettingsSelected &&
+                      !marketSettingsSelected &&
+                      !announcementsSettingsSelected &&
                       !pharmacySettingsSelected &&
                       !weatherSettingsSelected &&
+                      !prayerSettingsSelected &&
                       !deathNoticeSettingsSelected,
                   newsAddSelected: newsAddSelected,
                   newsSelected: newsSelected,
@@ -690,8 +725,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   storageSettingsSelected: storageSettingsSelected,
                   googleNewsSelected: googleNewsSelected,
                   aiSettingsSelected: aiSettingsSelected,
+                  marketSettingsSelected: marketSettingsSelected,
+                  announcementsSettingsSelected: announcementsSettingsSelected,
                   pharmacySettingsSelected: pharmacySettingsSelected,
                   weatherSettingsSelected: weatherSettingsSelected,
+                  prayerSettingsSelected: prayerSettingsSelected,
                   deathNoticeSettingsSelected: deathNoticeSettingsSelected,
                   generalSettingsSelected: generalSettingsSelected,
                   securitySettingsSelected: securitySettingsSelected,
@@ -729,8 +767,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onStorageSettingsSelected: _openStorageSettings,
                   onGoogleNewsSelected: _openGoogleNews,
                   onAiSettingsSelected: _openAiSettings,
+                  onMarketSettingsSelected: _openMarketSettings,
+                  onAnnouncementsSettingsSelected: _openAnnouncementsSettings,
                   onPharmacySettingsSelected: _openPharmacySettings,
                   onWeatherSettingsSelected: _openWeatherSettings,
+                  onPrayerSettingsSelected: _openPrayerSettings,
                   onDeathNoticeSettingsSelected: _openDeathNoticeSettings,
                   onGeneralSettingsSelected: _openGeneralSettings,
                   onSecuritySettingsSelected: _openSecuritySettings,
@@ -765,8 +806,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     storageSettingsVisible: storageSettingsVisible,
                     googleNewsVisible: googleNewsVisible,
                     aiSettingsVisible: aiSettingsVisible,
+                    marketSettingsVisible: marketSettingsVisible,
+                    announcementsSettingsVisible: announcementsSettingsVisible,
                     pharmacySettingsVisible: pharmacySettingsVisible,
                     weatherSettingsVisible: weatherSettingsVisible,
+                    prayerSettingsVisible: prayerSettingsVisible,
                     deathNoticeSettingsVisible: deathNoticeSettingsVisible,
                     generalSettingsVisible: generalSettingsVisible,
                     securitySettingsVisible: securitySettingsVisible,
@@ -805,8 +849,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !storageSettingsSelected &&
                         !googleNewsSelected &&
                         !aiSettingsSelected &&
+                        !marketSettingsSelected &&
+                        !announcementsSettingsSelected &&
                         !pharmacySettingsSelected &&
                         !weatherSettingsSelected &&
+                        !prayerSettingsSelected &&
                         !deathNoticeSettingsSelected,
                     newsAddSelected: newsAddSelected,
                     newsSelected: newsSelected,
@@ -838,8 +885,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     storageSettingsSelected: storageSettingsSelected,
                     googleNewsSelected: googleNewsSelected,
                     aiSettingsSelected: aiSettingsSelected,
+                    marketSettingsSelected: marketSettingsSelected,
+                    announcementsSettingsSelected:
+                        announcementsSettingsSelected,
                     pharmacySettingsSelected: pharmacySettingsSelected,
                     weatherSettingsSelected: weatherSettingsSelected,
+                    prayerSettingsSelected: prayerSettingsSelected,
                     deathNoticeSettingsSelected: deathNoticeSettingsSelected,
                     generalSettingsSelected: generalSettingsSelected,
                     securitySettingsSelected: securitySettingsSelected,
@@ -877,8 +928,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onStorageSettingsSelected: _openStorageSettings,
                     onGoogleNewsSelected: _openGoogleNews,
                     onAiSettingsSelected: _openAiSettings,
+                    onMarketSettingsSelected: _openMarketSettings,
+                    onAnnouncementsSettingsSelected: _openAnnouncementsSettings,
                     onPharmacySettingsSelected: _openPharmacySettings,
                     onWeatherSettingsSelected: _openWeatherSettings,
+                    onPrayerSettingsSelected: _openPrayerSettings,
                     onDeathNoticeSettingsSelected: _openDeathNoticeSettings,
                     onGeneralSettingsSelected: _openGeneralSettings,
                     onSecuritySettingsSelected: _openSecuritySettings,
@@ -1043,12 +1097,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   session: widget.session,
                                   repository: widget.aiSettingsRepository,
                                 ),
+                                _DashboardPage.marketSettings =>
+                                  MarketSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.moduleSettingsRepository,
+                                  ),
+                                _DashboardPage.announcementsSettings =>
+                                  AnnouncementsSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.moduleSettingsRepository,
+                                    newsRepository: widget.newsRepository,
+                                  ),
                                 _DashboardPage.pharmacySettings =>
                                   PharmacySettingsScreen(
                                     repository: widget.moduleSettingsRepository,
                                   ),
                                 _DashboardPage.weatherSettings =>
                                   WeatherSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.moduleSettingsRepository,
+                                  ),
+                                _DashboardPage.prayerSettings =>
+                                  PrayerSettingsScreen(
                                     session: widget.session,
                                     repository: widget.moduleSettingsRepository,
                                   ),
@@ -1167,8 +1237,11 @@ enum _DashboardPage {
   storageSettings,
   googleNews,
   aiSettings,
+  marketSettings,
+  announcementsSettings,
   pharmacySettings,
   weatherSettings,
+  prayerSettings,
   deathNoticeSettings,
   generalSettings,
   securitySettings,

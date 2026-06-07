@@ -31,10 +31,10 @@ void main() {
       'etkinlik',
       'duyurular',
     ]);
-    final havaIndex = AppItems.all.indexWhere(
-      (item) => item.id == 'hava-durumu',
+    final duyuruIndex = AppItems.all.indexWhere(
+      (item) => item.id == 'duyurular',
     );
-    expect(AppItems.all[havaIndex + 1].id, 'olum-ilanlari');
+    expect(AppItems.all[duyuruIndex + 1].id, 'olum-ilanlari');
     expect(find.text('Uygulamalar'), findsOneWidget);
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
     expect(find.text('Etkinlik'), findsWidgets);
@@ -52,7 +52,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('AppFeatureScreen başlık ve "yakında" durumunu gösterir', (
+  testWidgets('AppFeatureScreen başlık ve boş veri durumunu gösterir', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -62,8 +62,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
-    expect(find.text('Bölgendeki açık eczaneler'), findsOneWidget);
-    expect(find.text('YAKINDA'), findsOneWidget);
+    expect(find.text('Veri yüklenemedi'), findsOneWidget);
+    expect(find.text('Bölgendeki açık eczaneler'), findsNothing);
+    expect(find.text('YAKINDA'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

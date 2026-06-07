@@ -3,19 +3,26 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../pharmacy/data/pharmacy_repository.dart';
 import '../today_screen.dart';
 
 /// Ana sayfada "Senin için akış" ile aynı yalın bölüm başlığı ritminde duran
 /// "Niğde'de Bugün" satırı. Arka plan, kart veya ekstra içerik taşımaz.
 class TodayWidget extends StatelessWidget {
-  const TodayWidget({super.key});
+  const TodayWidget({
+    super.key,
+    this.dutyPharmacyData = const DutyPharmacyData.empty(),
+  });
+
+  final DutyPharmacyData dutyPharmacyData;
 
   void _open(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) => const TodayScreen(),
+        pageBuilder: (_, _, _) =>
+            TodayScreen(dutyPharmacyData: dutyPharmacyData),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,

@@ -9,6 +9,8 @@ const CITY = 'Niğde';
 const CITY_SLUG = 'nigde';
 const TIMEZONE = 'Europe/Istanbul';
 const REFRESH_MS = 30 * 60 * 1000;
+const EXTERNAL_FETCH_TIMEOUT_MS = 8500;
+const REFRESH_IN_FLIGHT_TIMEOUT_MS = 12 * 1000;
 const CACHE_KEY = `death_notices:${CITY_SLUG}`;
 
 type DeathNotice = {
@@ -41,7 +43,7 @@ type DeathNoticePayload = {
 };
 
 let memoryCache: { expiresAt: number; payload: DeathNoticePayload } | null = null;
-let refreshInFlight: Promise<DeathNoticePayload> | null = null;
+let refreshInFlight: { startedAt: number; promise: Promise<DeathNoticePayload> } | null = null;
 
 const normalizeText = (value: unknown) =>
   String(value || '')
@@ -221,28 +223,61 @@ const writeCache = async (payload: DeathNoticePayload) => {
   memoryCache = { payload, expiresAt: new Date(expiresAt).getTime() };
 };
 
+const writeCacheLater = (payload: DeathNoticePayload) => {
+  const expiresAt = cacheExpiryDate().getTime();
+  memoryCache = { payload, expiresAt };
+  void writeCache(payload).catch(() => null);
+};
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 const cacheMatchesToday = (payload: any) => {
   const today = localParts().dateKey;
   return payload?.citySlug === CITY_SLUG && payload?.serviceDate === today && Array.isArray(payload?.notices);
 };
 
 const fetchFresh = async (): Promise<DeathNoticePayload> => {
-  if (refreshInFlight) return refreshInFlight;
+  const activeRefresh = refreshInFlight;
+  if (activeRefresh && Date.now() - activeRefresh.startedAt < REFRESH_IN_FLIGHT_TIMEOUT_MS) {
+    return activeRefresh.promise;
+  }
+  if (activeRefresh) {
+    refreshInFlight = null;
+  }
 
-  refreshInFlight = (async () => {
+  const startedAt = Date.now();
+  let trackedPromise: Promise<DeathNoticePayload>;
+  trackedPromise = (async () => {
     const now = new Date();
     const serviceDate = localParts(now).dateKey;
     const fetchUrl = new URL(FETCH_URL);
     fetchUrl.searchParams.set('araTarih', serviceDate);
 
-    const response = await fetch(fetchUrl.toString(), {
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        Accept: 'text/html,application/xhtml+xml',
-        'User-Agent': 'PateezNews/1.0 (+https://www.pateez.com)',
-      },
-    });
+    const response = await withTimeout(
+      fetch(fetchUrl.toString(), {
+        signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
+        headers: {
+          Accept: 'text/html,application/xhtml+xml',
+          'User-Agent': 'PateezNews/1.0 (+https://www.pateez.com)',
+        },
+      }),
+      EXTERNAL_FETCH_TIMEOUT_MS,
+      null
+    );
 
+    if (!response) throw new Error('Niğde Belediyesi request timed out');
     if (!response.ok) throw new Error(`Niğde Belediyesi returned ${response.status}`);
 
     const html = await response.text();
@@ -266,13 +301,16 @@ const fetchFresh = async (): Promise<DeathNoticePayload> => {
       },
     };
 
-    await writeCache(payload);
+    writeCacheLater(payload);
     return payload;
   })().finally(() => {
-    refreshInFlight = null;
+    if (refreshInFlight?.promise === trackedPromise) {
+      refreshInFlight = null;
+    }
   });
 
-  return refreshInFlight;
+  refreshInFlight = { startedAt, promise: trackedPromise };
+  return trackedPromise;
 };
 
 export const GET: APIRoute = async ({ url }) => {
@@ -287,8 +325,14 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
-  const cached = forceRefresh ? null : await readCache();
-  if (cached?.payload && cacheMatchesToday(cached.payload) && cached.expiresAt > now) {
+  const cached = await withTimeout(readCache(), 900, null);
+  const fallbackCache = cached?.payload && cacheMatchesToday(cached.payload)
+    ? cached
+    : currentMemoryCache && cacheMatchesToday(currentMemoryCache.payload)
+      ? currentMemoryCache
+      : null;
+
+  if (!forceRefresh && cached?.payload && cacheMatchesToday(cached.payload) && cached.expiresAt > now) {
     memoryCache = { payload: cached.payload, expiresAt: cached.expiresAt };
     return json({
       ...cached.payload,
@@ -296,7 +340,7 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
-  if (cached?.payload && cacheMatchesToday(cached.payload)) {
+  if (!forceRefresh && cached?.payload && cacheMatchesToday(cached.payload)) {
     void fetchFresh().catch(() => null);
     return json({
       ...cached.payload,
@@ -305,12 +349,27 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   try {
-    const fresh = await fetchFresh();
+    const fresh = await withTimeout(fetchFresh(), REFRESH_IN_FLIGHT_TIMEOUT_MS, null);
+    if (!fresh) throw new Error('Death notices refresh timed out');
     return json({
       ...fresh,
       cache: { hit: false, stale: false, source: 'nigde.bel.tr', refreshIntervalMinutes: 30 },
     });
   } catch (error: any) {
+    if (fallbackCache?.payload) {
+      return json({
+        ...fallbackCache.payload,
+        cache: {
+          hit: true,
+          stale: true,
+          refreshFailed: true,
+          source: cached?.payload === fallbackCache.payload ? 'database' : 'memory',
+          refreshIntervalMinutes: 30,
+        },
+        error: error?.message || 'Death notices could not be refreshed',
+      });
+    }
+
     return json({
       city: CITY,
       citySlug: CITY_SLUG,

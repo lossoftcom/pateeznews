@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../pharmacy/data/pharmacy_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import '../../today/presentation/widgets/today_widget.dart';
@@ -25,12 +26,16 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     this.shellSettings = const AppShellSettings.empty(),
+    this.dutyPharmacyData = const DutyPharmacyData.empty(),
     this.onMenuTap,
+    this.onSubmitNewsTap,
     this.onPharmacyTap,
   });
 
   final AppShellSettings shellSettings;
+  final DutyPharmacyData dutyPharmacyData;
   final VoidCallback? onMenuTap;
+  final VoidCallback? onSubmitNewsTap;
   final VoidCallback? onPharmacyTap;
 
   @override
@@ -103,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
             elevated: _isElevated,
             shellSettings: widget.shellSettings,
             onMenuTap: widget.onMenuTap ?? () {},
+            onSubmitNewsTap: widget.onSubmitNewsTap,
             onPharmacyTap: widget.onPharmacyTap,
           ),
           Expanded(
@@ -131,20 +137,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   SliverToBoxAdapter(
-                    child: const TodayWidget()
-                        .animate()
-                        .fadeIn(
-                          delay: 60.ms,
-                          duration: 320.ms,
-                          curve: Curves.easeOutCubic,
-                        )
-                        .slideY(
-                          begin: 0.05,
-                          end: 0,
-                          delay: 60.ms,
-                          duration: 320.ms,
-                          curve: Curves.easeOutCubic,
-                        ),
+                    child:
+                        TodayWidget(dutyPharmacyData: widget.dutyPharmacyData)
+                            .animate()
+                            .fadeIn(
+                              delay: 60.ms,
+                              duration: 320.ms,
+                              curve: Curves.easeOutCubic,
+                            )
+                            .slideY(
+                              begin: 0.05,
+                              end: 0,
+                              delay: 60.ms,
+                              duration: 320.ms,
+                              curve: Curves.easeOutCubic,
+                            ),
                   ),
                   SliverToBoxAdapter(
                     child: Padding(

@@ -344,7 +344,7 @@ class _SignedInPanel extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           _ProfileActionButton(
             label: 'Geri dön',
-            icon: Symbols.chevron_left_rounded,
+            icon: Symbols.arrow_left_line,
             onTap: onBack,
           ),
           const SizedBox(height: AppSpacing.sm),

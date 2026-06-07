@@ -13,6 +13,7 @@ class AdminNewsSourceArticle {
     required this.author,
     required this.publishedAt,
     required this.bodyText,
+    required this.images,
   });
 
   final String url;
@@ -21,6 +22,7 @@ class AdminNewsSourceArticle {
   final String author;
   final String publishedAt;
   final String bodyText;
+  final List<AdminNewsSourceImage> images;
 
   String get topicHint => title.isNotEmpty ? title : _firstUsefulLine(bodyText);
 
@@ -36,6 +38,13 @@ class AdminNewsSourceArticle {
     ];
     return lines.where((line) => line.trim().isNotEmpty).join('\n');
   }
+}
+
+class AdminNewsSourceImage {
+  const AdminNewsSourceImage({required this.url, required this.alt});
+
+  final String url;
+  final String alt;
 }
 
 class AdminNewsSourceReadException implements Exception {
@@ -82,9 +91,15 @@ class AdminNewsSourceReader {
       _metaContent(document, 'meta[name="description"]'),
       _metaContent(document, 'meta[name="twitter:description"]'),
     ]);
+    final structuredQuizText = _extractStructuredQuizText(html, document);
+    final structuredBodyText = _joinDistinctText([
+      structured.bodyText,
+      structuredQuizText,
+    ]);
     final bodyText = _cleanBodyText(
-      _firstNonEmpty([structured.bodyText, _extractMainText(document)]),
+      _firstNonEmpty([structuredBodyText, _extractMainText(document)]),
     );
+    final images = _extractSourceImages(html, document, uri, title: title);
 
     if (bodyText.length < 80) {
       throw const AdminNewsSourceReadException(
@@ -99,6 +114,7 @@ class AdminNewsSourceReader {
       author: _cleanLine(structured.author),
       publishedAt: _cleanLine(structured.publishedAt),
       bodyText: bodyText,
+      images: images,
     );
   }
 
@@ -160,6 +176,263 @@ void _removeNoise(dom.Document document) {
   }
 }
 
+List<AdminNewsSourceImage> _extractSourceImages(
+  String html,
+  dom.Document document,
+  Uri pageUri, {
+  required String title,
+}) {
+  final images = <AdminNewsSourceImage>[];
+  final seen = <String>{};
+  final fallbackAlt = _cleanLine(title);
+
+  void add(String? rawUrl, {String? alt}) {
+    final url = _normalizeSourceImageUrl(rawUrl, pageUri);
+    if (url == null || _shouldSkipSourceImageUrl(url)) return;
+    if (!seen.add(_sourceImageIdentityKey(url))) return;
+    images.add(
+      AdminNewsSourceImage(url: url, alt: _cleanLine(alt ?? fallbackAlt)),
+    );
+  }
+
+  for (final imageUrl in _structuredImageUrls(html, document)) {
+    add(imageUrl);
+  }
+
+  const metaSelectors = [
+    'meta[property="og:image"]',
+    'meta[property="og:image:url"]',
+    'meta[property="og:image:secure_url"]',
+    'meta[name="twitter:image"]',
+    'meta[name="twitter:image:src"]',
+  ];
+  for (final selector in metaSelectors) {
+    add(_metaContent(document, selector));
+  }
+
+  for (final link in document.querySelectorAll('link[rel]')) {
+    final rel = link.attributes['rel']?.toLowerCase() ?? '';
+    if (rel.contains('image_src')) add(link.attributes['href']);
+  }
+
+  for (final root in _articleImageSearchRoots(document)) {
+    _removeSourceImageNoise(root);
+    for (final pictureSource in root.querySelectorAll('picture source')) {
+      add(_bestSrcsetUrl(pictureSource.attributes['srcset']));
+    }
+    for (final image in root.querySelectorAll('img')) {
+      final alt = _firstNonEmpty([
+        image.attributes['alt'],
+        image.attributes['title'],
+        fallbackAlt,
+      ]);
+      add(_bestSrcsetUrl(image.attributes['srcset']), alt: alt);
+      add(_bestSrcsetUrl(image.attributes['data-srcset']), alt: alt);
+      add(image.attributes['src'], alt: alt);
+      add(image.attributes['data-src'], alt: alt);
+      add(image.attributes['data-original'], alt: alt);
+      add(image.attributes['data-lazy-src'], alt: alt);
+      add(image.attributes['data-image'], alt: alt);
+    }
+  }
+
+  return images.take(32).toList(growable: false);
+}
+
+Iterable<String> _structuredImageUrls(
+  String html,
+  dom.Document document,
+) sync* {
+  for (final raw in _jsonLdBlocks(html, document)) {
+    if (raw.isEmpty) continue;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException {
+      continue;
+    }
+    for (final node in _jsonMapsDeep(decoded)) {
+      final type = _jsonText(node['@type']).toLowerCase();
+      if (!type.contains('article') &&
+          !type.contains('posting') &&
+          !type.contains('quiz') &&
+          !type.contains('question')) {
+        continue;
+      }
+      yield* _jsonImageUrls(node['image']);
+      yield* _jsonImageUrls(node['thumbnailUrl']);
+    }
+  }
+}
+
+Iterable<String> _jsonImageUrls(Object? value) sync* {
+  if (value == null) return;
+  if (value is String || value is num || value is bool) {
+    final text = value.toString();
+    if (text.trim().isNotEmpty) yield text;
+    return;
+  }
+  if (value is Map) {
+    final map = value.map((key, item) => MapEntry(key.toString(), item));
+    final direct = _jsonText(
+      map['url'] ?? map['contentUrl'] ?? map['thumbnailUrl'] ?? map['@id'],
+    );
+    if (direct.isNotEmpty) yield direct;
+    return;
+  }
+  if (value is Iterable) {
+    for (final item in value) {
+      yield* _jsonImageUrls(item);
+    }
+  }
+}
+
+List<dom.Element> _articleImageSearchRoots(dom.Document document) {
+  final seen = <dom.Element>{};
+
+  List<dom.Element> collect(Iterable<String> selectors) {
+    final roots = <dom.Element>[];
+    for (final selector in selectors) {
+      for (final element in document.querySelectorAll(selector)) {
+        if (seen.add(element)) roots.add(element);
+      }
+    }
+    return roots;
+  }
+
+  final strictRoots = collect(const [
+    '[itemprop="articleBody"]',
+    '[property="articleBody"]',
+    'article [itemprop="articleBody"]',
+    'article [property="articleBody"]',
+    '.article-text',
+    '.article-content',
+    '.article-body',
+    '.entry-content',
+    '.post-content',
+    '.news-content',
+  ]);
+  if (strictRoots.isNotEmpty) return strictRoots;
+
+  return collect(const [
+    'article',
+    '.article-detail',
+    '.news-detail',
+    '.haber-detay',
+  ]);
+}
+
+void _removeSourceImageNoise(dom.Element root) {
+  for (final element in root.querySelectorAll(
+    '.post-flash, .related-news, .similar-news, .recommended-news, .other-news, '
+    '.last-news, .popular-news, .article-source, .reporter-name, '
+    '.ng-other-news-container, .ng-other-news, .body-banner-block, '
+    '.mymani-layout-banner, .home-mymani-widget, .app-link-container, '
+    '.breadcrumb, .share, .share-box, .detail-post-info, '
+    '.post-date-info-container, .mynet-user-reactions, '
+    '[class*="related"], [class*="recommend"], [class*="similar"], '
+    '[class*="ilgili"], [class*="advert"], [class*="reklam"], '
+    '[id*="advert"], [id*="reklam"], [data-ad], [data-advert]',
+  )) {
+    element.remove();
+  }
+}
+
+String _sourceImageIdentityKey(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return url;
+  final host = uri.host.toLowerCase();
+  final segments = uri.pathSegments
+      .map((segment) => Uri.decodeComponent(segment).trim())
+      .where((segment) => segment.isNotEmpty)
+      .toList(growable: false);
+  final fileIndex = segments.indexWhere(
+    (segment) => segment.toLowerCase() == 'file',
+  );
+  if (fileIndex >= 0 && fileIndex + 1 < segments.length) {
+    final id = segments[fileIndex + 1];
+    if (RegExp(r'^\d+$').hasMatch(id)) return '$host/file/$id';
+  }
+  final uploadsIndex = segments.indexWhere(
+    (segment) => segment.toLowerCase() == 'uploads',
+  );
+  if (uploadsIndex >= 0 && uploadsIndex + 1 < segments.length) {
+    return '$host/uploads/${segments.sublist(uploadsIndex + 1).join('/').toLowerCase()}';
+  }
+  return '$host/${segments.join('/').toLowerCase()}';
+}
+
+String? _bestSrcsetUrl(String? value) {
+  final raw = value?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  var bestUrl = '';
+  var bestScore = -1.0;
+  var fallbackScore = 0.0;
+  for (final part in raw.split(',')) {
+    final tokens = part.trim().split(RegExp(r'\s+'));
+    if (tokens.isEmpty || tokens.first.isEmpty) continue;
+    var score = fallbackScore;
+    if (tokens.length > 1) {
+      final descriptor = tokens[1].trim().toLowerCase();
+      if (descriptor.endsWith('w')) {
+        score =
+            double.tryParse(descriptor.substring(0, descriptor.length - 1)) ??
+            score;
+      } else if (descriptor.endsWith('x')) {
+        score =
+            (double.tryParse(descriptor.substring(0, descriptor.length - 1)) ??
+                1) *
+            1000;
+      }
+    }
+    fallbackScore += 1;
+    if (score > bestScore) {
+      bestScore = score;
+      bestUrl = tokens.first;
+    }
+  }
+  return bestUrl.isEmpty ? null : bestUrl;
+}
+
+String? _normalizeSourceImageUrl(String? rawUrl, Uri pageUri) {
+  final value = _decodeHtmlEntities(rawUrl ?? '').trim();
+  if (value.isEmpty) return null;
+  final lower = value.toLowerCase();
+  if (lower.startsWith('data:') ||
+      lower.startsWith('blob:') ||
+      lower.startsWith('javascript:')) {
+    return null;
+  }
+  try {
+    final resolved = pageUri.resolve(value.replaceAll(' ', '%20'));
+    if (resolved.scheme != 'http' && resolved.scheme != 'https') return null;
+    return resolved.toString();
+  } on FormatException {
+    return null;
+  }
+}
+
+bool _shouldSkipSourceImageUrl(String url) {
+  final uri = Uri.tryParse(url);
+  final path = uri?.path.toLowerCase() ?? url.toLowerCase();
+  if (path.endsWith('.svg')) return true;
+  const noisyParts = [
+    'favicon',
+    'logo',
+    'avatar',
+    'author',
+    'profile',
+    'sprite',
+    'placeholder',
+    'blank',
+    'pixel',
+    'tracker',
+    'advert',
+    '/ads/',
+  ];
+  return noisyParts.any(path.contains);
+}
+
 _StructuredArticle _extractStructuredArticle(
   String html,
   dom.Document document,
@@ -189,6 +462,50 @@ _StructuredArticle _extractStructuredArticle(
   return best;
 }
 
+String _extractStructuredQuizText(String html, dom.Document document) {
+  final lines = <String>[];
+  final seen = <String>{};
+
+  void add(String label, String value) {
+    final text = _cleanLine(value);
+    if (text.isEmpty) return;
+    final line = '$label: $text';
+    if (seen.add(line.toLowerCase())) lines.add(line);
+  }
+
+  for (final raw in _jsonLdBlocks(html, document)) {
+    if (raw.isEmpty) continue;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException {
+      continue;
+    }
+    for (final node in _jsonMapsDeep(decoded)) {
+      final type = _jsonText(node['@type']).toLowerCase();
+      if (type.contains('quiz')) {
+        add('Test başlığı', _jsonText(node['name'] ?? node['headline']));
+        add('Test açıklaması', _jsonText(node['description']));
+      }
+      if (type.contains('question')) {
+        add('Test sorusu', _jsonText(node['name'] ?? node['headline']));
+        add('Test sorusu', _jsonText(node['text']));
+        for (final answer in _jsonAnswerTexts(node['acceptedAnswer'])) {
+          add('Doğru cevap', answer);
+        }
+        for (final answer in _jsonAnswerTexts(node['suggestedAnswer'])) {
+          add('Cevap', answer);
+        }
+      }
+      if (type.contains('answer')) {
+        add('Cevap', _jsonText(node['text'] ?? node['name']));
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
 Iterable<String> _jsonLdBlocks(String html, dom.Document document) sync* {
   final seen = <String>{};
   final pattern = RegExp(
@@ -204,6 +521,42 @@ Iterable<String> _jsonLdBlocks(String html, dom.Document document) sync* {
     if (!type.contains('ld+json')) continue;
     final raw = _decodeHtmlEntities(script.innerHtml).trim();
     if (raw.isNotEmpty && seen.add(raw)) yield raw;
+  }
+}
+
+Iterable<Map<String, Object?>> _jsonMapsDeep(Object? value) sync* {
+  if (value is Map) {
+    final map = value.map((key, item) => MapEntry(key.toString(), item));
+    yield map;
+    for (final item in map.values) {
+      yield* _jsonMapsDeep(item);
+    }
+    return;
+  }
+  if (value is Iterable) {
+    for (final item in value) {
+      yield* _jsonMapsDeep(item);
+    }
+  }
+}
+
+Iterable<String> _jsonAnswerTexts(Object? value) sync* {
+  if (value == null) return;
+  if (value is String || value is num || value is bool) {
+    final text = value.toString().trim();
+    if (text.isNotEmpty) yield text;
+    return;
+  }
+  if (value is Map) {
+    final map = value.map((key, item) => MapEntry(key.toString(), item));
+    final text = _jsonText(map['text'] ?? map['name'] ?? map['answerText']);
+    if (text.isNotEmpty) yield text;
+    return;
+  }
+  if (value is Iterable) {
+    for (final item in value) {
+      yield* _jsonAnswerTexts(item);
+    }
   }
 }
 
@@ -361,6 +714,19 @@ String _firstNonEmpty(Iterable<String?> values) {
     if (text.isNotEmpty) return text;
   }
   return '';
+}
+
+String _joinDistinctText(Iterable<String> values) {
+  final lines = <String>[];
+  final seen = <String>{};
+  for (final value in values) {
+    for (final line in value.split(RegExp(r'\r?\n+'))) {
+      final text = _cleanLine(line);
+      if (text.isEmpty) continue;
+      if (seen.add(text.toLowerCase())) lines.add(text);
+    }
+  }
+  return lines.join('\n');
 }
 
 String _firstUsefulLine(String text) {

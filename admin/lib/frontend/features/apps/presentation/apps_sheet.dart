@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -116,7 +117,14 @@ class _AppTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLogo = item.id == 'nobetci-eczane';
+    final accent = item.accent;
+    // Duyurular afiş diliyle aynı: renk gradyanı + yumuşak daireler + beyaz ikon.
+    // Nöbetçi Eczane kendi kırmızısında; gerçek logo gradyan üzerinde okunmadığı
+    // için sade beyaz kapsül ikonu kullanılır (logo eczane sayfasında korunur).
+    final Widget glyph = item.id == 'nobetci-eczane'
+        ? const Icon(Symbols.capsule_fill, size: 30, color: Colors.white)
+        : item.glyph(30, Colors.white);
+
     return Semantics(
       label: item.label,
       button: true,
@@ -131,28 +139,43 @@ class _AppTile extends StatelessWidget {
               Container(
                 width: 62,
                 height: 62,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: isLogo
-                      ? AppColors.surface
-                      : item.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isLogo
-                        ? AppColors.line
-                        : item.accent.withValues(alpha: 0.10),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(accent, Colors.white, 0.16)!,
+                      accent,
+                      Color.lerp(accent, Colors.black, 0.28)!,
+                    ],
+                    stops: const [0, 0.55, 1],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: item.accent.withValues(
-                        alpha: isLogo ? 0.06 : 0.08,
-                      ),
+                      color: accent.withValues(alpha: 0.30),
                       blurRadius: 14,
                       offset: const Offset(0, 7),
                     ),
                   ],
                 ),
-                alignment: Alignment.center,
-                child: item.glyph(isLogo ? 44 : 32, item.accent),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const Positioned(
+                      right: -12,
+                      top: -14,
+                      child: _SoftCircle(size: 36, opacity: 0.12),
+                    ),
+                    const Positioned(
+                      left: -10,
+                      bottom: -16,
+                      child: _SoftCircle(size: 30, opacity: 0.08),
+                    ),
+                    Center(child: glyph),
+                  ],
+                ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Flexible(
@@ -172,6 +195,26 @@ class _AppTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Afiş üzerindeki yumuşak dekoratif daire (Duyurular görseliyle aynı doku).
+class _SoftCircle extends StatelessWidget {
+  const _SoftCircle({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: opacity),
       ),
     );
   }

@@ -16,6 +16,11 @@ class Symbols {
     fontFamily: _fontFamily,
     matchTextDirection: true,
   );
+  static const arrow_left_line = IconData(
+    0xea60,
+    fontFamily: _fontFamily,
+    matchTextDirection: true,
+  );
   static const article = IconData(
     0xea7e,
     fontFamily: _fontFamily,

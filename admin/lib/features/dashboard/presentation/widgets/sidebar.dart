@@ -34,8 +34,11 @@ class AdminDrawer extends StatelessWidget {
     required this.storageSettingsVisible,
     required this.googleNewsVisible,
     required this.aiSettingsVisible,
+    required this.marketSettingsVisible,
+    required this.announcementsSettingsVisible,
     required this.pharmacySettingsVisible,
     required this.weatherSettingsVisible,
+    required this.prayerSettingsVisible,
     required this.deathNoticeSettingsVisible,
     required this.generalSettingsVisible,
     required this.securitySettingsVisible,
@@ -73,8 +76,11 @@ class AdminDrawer extends StatelessWidget {
     required this.storageSettingsSelected,
     required this.googleNewsSelected,
     required this.aiSettingsSelected,
+    required this.marketSettingsSelected,
+    required this.announcementsSettingsSelected,
     required this.pharmacySettingsSelected,
     required this.weatherSettingsSelected,
+    required this.prayerSettingsSelected,
     required this.deathNoticeSettingsSelected,
     required this.generalSettingsSelected,
     required this.securitySettingsSelected,
@@ -112,8 +118,11 @@ class AdminDrawer extends StatelessWidget {
     required this.onStorageSettingsSelected,
     required this.onGoogleNewsSelected,
     required this.onAiSettingsSelected,
+    required this.onMarketSettingsSelected,
+    required this.onAnnouncementsSettingsSelected,
     required this.onPharmacySettingsSelected,
     required this.onWeatherSettingsSelected,
+    required this.onPrayerSettingsSelected,
     required this.onDeathNoticeSettingsSelected,
     required this.onGeneralSettingsSelected,
     required this.onSecuritySettingsSelected,
@@ -143,8 +152,11 @@ class AdminDrawer extends StatelessWidget {
   final bool storageSettingsVisible;
   final bool googleNewsVisible;
   final bool aiSettingsVisible;
+  final bool marketSettingsVisible;
+  final bool announcementsSettingsVisible;
   final bool pharmacySettingsVisible;
   final bool weatherSettingsVisible;
+  final bool prayerSettingsVisible;
   final bool deathNoticeSettingsVisible;
   final bool generalSettingsVisible;
   final bool securitySettingsVisible;
@@ -182,8 +194,11 @@ class AdminDrawer extends StatelessWidget {
   final bool storageSettingsSelected;
   final bool googleNewsSelected;
   final bool aiSettingsSelected;
+  final bool marketSettingsSelected;
+  final bool announcementsSettingsSelected;
   final bool pharmacySettingsSelected;
   final bool weatherSettingsSelected;
+  final bool prayerSettingsSelected;
   final bool deathNoticeSettingsSelected;
   final bool generalSettingsSelected;
   final bool securitySettingsSelected;
@@ -221,8 +236,11 @@ class AdminDrawer extends StatelessWidget {
   final VoidCallback onStorageSettingsSelected;
   final VoidCallback onGoogleNewsSelected;
   final VoidCallback onAiSettingsSelected;
+  final VoidCallback onMarketSettingsSelected;
+  final VoidCallback onAnnouncementsSettingsSelected;
   final VoidCallback onPharmacySettingsSelected;
   final VoidCallback onWeatherSettingsSelected;
+  final VoidCallback onPrayerSettingsSelected;
   final VoidCallback onDeathNoticeSettingsSelected;
   final VoidCallback onGeneralSettingsSelected;
   final VoidCallback onSecuritySettingsSelected;
@@ -264,8 +282,11 @@ class AdminDrawer extends StatelessWidget {
           storageSettingsVisible: storageSettingsVisible,
           googleNewsVisible: googleNewsVisible,
           aiSettingsVisible: aiSettingsVisible,
+          marketSettingsVisible: marketSettingsVisible,
+          announcementsSettingsVisible: announcementsSettingsVisible,
           pharmacySettingsVisible: pharmacySettingsVisible,
           weatherSettingsVisible: weatherSettingsVisible,
+          prayerSettingsVisible: prayerSettingsVisible,
           deathNoticeSettingsVisible: deathNoticeSettingsVisible,
           generalSettingsVisible: generalSettingsVisible,
           securitySettingsVisible: securitySettingsVisible,
@@ -303,8 +324,11 @@ class AdminDrawer extends StatelessWidget {
           storageSettingsSelected: storageSettingsSelected,
           googleNewsSelected: googleNewsSelected,
           aiSettingsSelected: aiSettingsSelected,
+          marketSettingsSelected: marketSettingsSelected,
+          announcementsSettingsSelected: announcementsSettingsSelected,
           pharmacySettingsSelected: pharmacySettingsSelected,
           weatherSettingsSelected: weatherSettingsSelected,
+          prayerSettingsSelected: prayerSettingsSelected,
           deathNoticeSettingsSelected: deathNoticeSettingsSelected,
           generalSettingsSelected: generalSettingsSelected,
           securitySettingsSelected: securitySettingsSelected,
@@ -342,8 +366,11 @@ class AdminDrawer extends StatelessWidget {
           onStorageSettingsSelected: onStorageSettingsSelected,
           onGoogleNewsSelected: onGoogleNewsSelected,
           onAiSettingsSelected: onAiSettingsSelected,
+          onMarketSettingsSelected: onMarketSettingsSelected,
+          onAnnouncementsSettingsSelected: onAnnouncementsSettingsSelected,
           onPharmacySettingsSelected: onPharmacySettingsSelected,
           onWeatherSettingsSelected: onWeatherSettingsSelected,
+          onPrayerSettingsSelected: onPrayerSettingsSelected,
           onDeathNoticeSettingsSelected: onDeathNoticeSettingsSelected,
           onGeneralSettingsSelected: onGeneralSettingsSelected,
           onSecuritySettingsSelected: onSecuritySettingsSelected,
@@ -380,8 +407,11 @@ class Sidebar extends StatefulWidget {
     required this.storageSettingsVisible,
     required this.googleNewsVisible,
     required this.aiSettingsVisible,
+    required this.marketSettingsVisible,
+    required this.announcementsSettingsVisible,
     required this.pharmacySettingsVisible,
     required this.weatherSettingsVisible,
+    required this.prayerSettingsVisible,
     required this.deathNoticeSettingsVisible,
     required this.generalSettingsVisible,
     required this.securitySettingsVisible,
@@ -419,8 +449,11 @@ class Sidebar extends StatefulWidget {
     required this.storageSettingsSelected,
     required this.googleNewsSelected,
     required this.aiSettingsSelected,
+    required this.marketSettingsSelected,
+    required this.announcementsSettingsSelected,
     required this.pharmacySettingsSelected,
     required this.weatherSettingsSelected,
+    required this.prayerSettingsSelected,
     required this.deathNoticeSettingsSelected,
     required this.generalSettingsSelected,
     required this.securitySettingsSelected,
@@ -458,8 +491,11 @@ class Sidebar extends StatefulWidget {
     required this.onStorageSettingsSelected,
     required this.onGoogleNewsSelected,
     required this.onAiSettingsSelected,
+    required this.onMarketSettingsSelected,
+    required this.onAnnouncementsSettingsSelected,
     required this.onPharmacySettingsSelected,
     required this.onWeatherSettingsSelected,
+    required this.onPrayerSettingsSelected,
     required this.onDeathNoticeSettingsSelected,
     required this.onGeneralSettingsSelected,
     required this.onSecuritySettingsSelected,
@@ -490,8 +526,11 @@ class Sidebar extends StatefulWidget {
   final bool storageSettingsVisible;
   final bool googleNewsVisible;
   final bool aiSettingsVisible;
+  final bool marketSettingsVisible;
+  final bool announcementsSettingsVisible;
   final bool pharmacySettingsVisible;
   final bool weatherSettingsVisible;
+  final bool prayerSettingsVisible;
   final bool deathNoticeSettingsVisible;
   final bool generalSettingsVisible;
   final bool securitySettingsVisible;
@@ -529,8 +568,11 @@ class Sidebar extends StatefulWidget {
   final bool storageSettingsSelected;
   final bool googleNewsSelected;
   final bool aiSettingsSelected;
+  final bool marketSettingsSelected;
+  final bool announcementsSettingsSelected;
   final bool pharmacySettingsSelected;
   final bool weatherSettingsSelected;
+  final bool prayerSettingsSelected;
   final bool deathNoticeSettingsSelected;
   final bool generalSettingsSelected;
   final bool securitySettingsSelected;
@@ -568,8 +610,11 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onStorageSettingsSelected;
   final VoidCallback onGoogleNewsSelected;
   final VoidCallback onAiSettingsSelected;
+  final VoidCallback onMarketSettingsSelected;
+  final VoidCallback onAnnouncementsSettingsSelected;
   final VoidCallback onPharmacySettingsSelected;
   final VoidCallback onWeatherSettingsSelected;
+  final VoidCallback onPrayerSettingsSelected;
   final VoidCallback onDeathNoticeSettingsSelected;
   final VoidCallback onGeneralSettingsSelected;
   final VoidCallback onSecuritySettingsSelected;
@@ -658,8 +703,11 @@ class _SidebarState extends State<Sidebar> {
     if (data.storageSettingsSelected ||
         data.googleNewsSelected ||
         data.aiSettingsSelected ||
+        data.marketSettingsSelected ||
+        data.announcementsSettingsSelected ||
         data.pharmacySettingsSelected ||
         data.weatherSettingsSelected ||
+        data.prayerSettingsSelected ||
         data.deathNoticeSettingsSelected) {
       return _modulesGroup;
     }
@@ -773,15 +821,21 @@ class _SidebarState extends State<Sidebar> {
         widget.storageSettingsSelected ||
         widget.googleNewsSelected ||
         widget.aiSettingsSelected ||
+        widget.marketSettingsSelected ||
+        widget.announcementsSettingsSelected ||
         widget.pharmacySettingsSelected ||
         widget.weatherSettingsSelected ||
+        widget.prayerSettingsSelected ||
         widget.deathNoticeSettingsSelected;
     final modulesVisible =
         widget.storageSettingsVisible ||
         widget.googleNewsVisible ||
         widget.aiSettingsVisible ||
+        widget.marketSettingsVisible ||
+        widget.announcementsSettingsVisible ||
         widget.pharmacySettingsVisible ||
         widget.weatherSettingsVisible ||
+        widget.prayerSettingsVisible ||
         widget.deathNoticeSettingsVisible;
     final settingsVisible =
         widget.generalSettingsVisible ||
@@ -1108,6 +1162,15 @@ class _SidebarState extends State<Sidebar> {
                             onTap: () =>
                                 _select(context, widget.onAiSettingsSelected),
                           ),
+                        if (widget.marketSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.marketSettings'),
+                            selected: widget.marketSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onMarketSettingsSelected,
+                            ),
+                          ),
                         if (widget.pharmacySettingsVisible)
                           SidebarSubItem(
                             label: context.t('nav.pharmacySettings'),
@@ -1126,6 +1189,15 @@ class _SidebarState extends State<Sidebar> {
                               widget.onWeatherSettingsSelected,
                             ),
                           ),
+                        if (widget.prayerSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.prayerSettings'),
+                            selected: widget.prayerSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onPrayerSettingsSelected,
+                            ),
+                          ),
                         if (widget.deathNoticeSettingsVisible)
                           SidebarSubItem(
                             label: context.t('nav.deathNoticeSettings'),
@@ -1133,6 +1205,15 @@ class _SidebarState extends State<Sidebar> {
                             onTap: () => _select(
                               context,
                               widget.onDeathNoticeSettingsSelected,
+                            ),
+                          ),
+                        if (widget.announcementsSettingsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.announcementsSettings'),
+                            selected: widget.announcementsSettingsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onAnnouncementsSettingsSelected,
                             ),
                           ),
                       ],

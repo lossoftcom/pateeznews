@@ -2301,6 +2301,75 @@ class _FakeAdminModuleSettingsRepository
   );
 
   WeatherSettingsData? savedWeatherSettings;
+  AnnouncementPreviewItem? savedAnnouncement;
+  String? toggledAnnouncementId;
+  bool? toggledAnnouncementActive;
+  String? deletedAnnouncementId;
+  MarketSettingsData marketSettings = const MarketSettingsData(
+    languageCode: 'tr',
+    enabled: true,
+    provider: 'genelpara',
+    altinApiKey: '',
+    altinApiBaseUrl: 'https://altinapi.com/api/v1',
+    genelParaBaseUrl: 'https://api.genelpara.com/json/',
+    updateIntervalSeconds: 300,
+    currencySymbols: [
+      'USD',
+      'EUR',
+      'BTC',
+      'GBP',
+      'CHF',
+      'CAD',
+      'AUD',
+      'JPY',
+      'SAR',
+      'KWD',
+      'NOK',
+      'SEK',
+      'DKK',
+      'RUB',
+      'CNY',
+      'AED',
+    ],
+    goldSymbols: [
+      'HAS',
+      'ONS',
+      'AYAR22',
+      'GRAM',
+      'ALTINGUMUS',
+      'CEYREK',
+      'YARIM',
+      'TAM',
+      'CUMHURIYET',
+      'GREMSE',
+      'AYAR14',
+      'GUMUS',
+      'AYAR18',
+      'RESAT',
+      'ATA',
+      'BESLI',
+      'HAMIT',
+      'IKIBUCUK',
+    ],
+  );
+  MarketSettingsData? savedMarketSettings;
+  PrayerSettingsData prayerSettings = const PrayerSettingsData(
+    languageCode: 'tr',
+    enabled: true,
+    diyanetBaseUrl: 'https://namazvakitleri.diyanet.gov.tr',
+    locationName: 'Niğde',
+    locationCountry: 'Türkiye',
+    locationStateId: 561,
+    locationCityId: 9766,
+    timezone: 'Europe/Istanbul',
+    refreshLeadDays: 3,
+    cacheDays: 370,
+    ayahEnabled: true,
+    ayahStartDate: '2026-06-05',
+    quranApiBaseUrl: 'https://t061.diyanet.gov.tr/apigateway/acikkaynakkuran',
+    quranApiToken: '',
+  );
+  PrayerSettingsData? savedPrayerSettings;
   var dutyRefreshCount = 0;
   var deathRefreshCount = 0;
 
@@ -2396,6 +2465,268 @@ class _FakeAdminModuleSettingsRepository
       total: 1,
       cache: ModuleCacheInfo(source: 'database', hit: true, stale: false),
     );
+  }
+
+  @override
+  Future<MarketSettingsData> fetchMarketSettings(String languageCode) async {
+    return marketSettings.copyWith(languageCode: languageCode);
+  }
+
+  @override
+  Future<MarketSettingsData> saveMarketSettings({
+    required AdminSession session,
+    required MarketSettingsData settings,
+  }) async {
+    savedMarketSettings = settings;
+    marketSettings = settings;
+    return settings;
+  }
+
+  @override
+  Future<MarketPreviewData> fetchMarketPreview({
+    bool forceRefresh = false,
+  }) async {
+    return const MarketPreviewData(
+      enabled: true,
+      provider: 'genelpara',
+      source: 'GenelPara',
+      serviceDateLabel: '5 Haziran 2026',
+      fetchedAt: '2026-06-05T19:30:00.000Z',
+      updateIntervalSeconds: 300,
+      currencies: [
+        MarketPreviewRate(
+          id: 'currency-usd',
+          symbol: 'USD',
+          name: 'Amerikan Doları',
+          bid: 32.41,
+          ask: 32.48,
+          changePercent: 0.32,
+          isUp: true,
+          currencySymbol: '₺',
+        ),
+      ],
+      gold: [
+        MarketPreviewRate(
+          id: 'gold-gram',
+          symbol: 'GRAM',
+          name: 'Gram Altın',
+          bid: 2460.12,
+          ask: 2468.44,
+          changePercent: 0.74,
+          isUp: true,
+          currencySymbol: '₺',
+        ),
+      ],
+      cache: ModuleCacheInfo(source: 'database', hit: true, stale: false),
+    );
+  }
+
+  @override
+  Future<PrayerSettingsData> fetchPrayerSettings(String languageCode) async {
+    return prayerSettings.copyWith(languageCode: languageCode);
+  }
+
+  @override
+  Future<PrayerSettingsData> savePrayerSettings({
+    required AdminSession session,
+    required PrayerSettingsData settings,
+  }) async {
+    savedPrayerSettings = settings;
+    prayerSettings = settings;
+    return settings;
+  }
+
+  @override
+  Future<PrayerPreviewData> fetchPrayerPreview({
+    bool forceRefresh = false,
+  }) async {
+    return const PrayerPreviewData(
+      enabled: true,
+      source: 'Diyanet Namaz Vakitleri',
+      location: 'Niğde',
+      country: 'Türkiye',
+      timezone: 'Europe/Istanbul',
+      serviceDateLabel: '5 Haziran 2026',
+      fetchedAt: '2026-06-05T19:30:00.000Z',
+      today: PrayerPreviewDay(
+        date: '2026-06-05',
+        gregorianDateLabel: '5 Haziran 2026',
+        hijriDateLabel: '19 Zilhicce 1447',
+        qiblaAngle: '147°',
+        times: [
+          PrayerPreviewTime(key: 'imsak', name: 'İmsak', time: '03:38'),
+          PrayerPreviewTime(key: 'gunes', name: 'Güneş', time: '05:21'),
+          PrayerPreviewTime(key: 'ogle', name: 'Öğle', time: '12:58'),
+          PrayerPreviewTime(key: 'ikindi', name: 'İkindi', time: '16:54'),
+          PrayerPreviewTime(key: 'aksam', name: 'Akşam', time: '20:22'),
+          PrayerPreviewTime(key: 'yatsi', name: 'Yatsı', time: '21:58'),
+        ],
+      ),
+      days: [],
+      dailyAyah: PrayerPreviewAyah(
+        surahName: 'Fâtiha',
+        verseNumber: 1,
+        arabicText: '',
+        translation: 'Rahmân ve Rahîm olan Allah’ın adıyla.',
+        source: 'Diyanet Kur’an API',
+      ),
+      cache: ModuleCacheInfo(source: 'database', hit: true, stale: false),
+    );
+  }
+
+  @override
+  Future<List<AnnouncementSourceData>> fetchAnnouncementSources({
+    bool includeInactive = true,
+  }) async {
+    return const [
+      AnnouncementSourceData(
+        id: 'source-1',
+        sourceKey: 'nigde-valiligi',
+        name: 'Niğde Valiliği',
+        sourceType: 'institution',
+        categoryHint: 'official',
+        district: 'merkez',
+        websiteUrl: 'https://www.nigde.gov.tr',
+        listUrl: 'https://www.nigde.gov.tr/duyurular',
+        socialUrl: '',
+        facebookUrl: '',
+        instagramUrl: '',
+        crawlStrategy: 'auto',
+        isActive: true,
+        crawlIntervalMinutes: 20,
+        lastCheckedAt: '2026-06-06T09:00:00.000Z',
+        lastSuccessAt: '2026-06-06T09:00:00.000Z',
+        lastError: '',
+        sortOrder: 10,
+      ),
+    ];
+  }
+
+  @override
+  Future<AnnouncementSourceData> saveAnnouncementSource({
+    required AdminSession session,
+    required AnnouncementSourceData source,
+  }) async {
+    return source;
+  }
+
+  @override
+  Future<void> deleteAnnouncementSource({
+    required AdminSession session,
+    required String id,
+  }) async {}
+
+  @override
+  Future<AnnouncementPreviewData> fetchAnnouncementPreview() async {
+    return const AnnouncementPreviewData(
+      city: 'Niğde',
+      source: 'Niğde Duyuru Ağı',
+      serviceDateLabel: '6 Haziran 2026',
+      fetchedAt: '2026-06-06T09:00:00.000Z',
+      updateIntervalMinutes: 20,
+      announcements: [
+        AnnouncementPreviewItem(
+          id: 'announcement-1',
+          category: 'official',
+          district: 'merkez',
+          source: 'Niğde Valiliği',
+          sourceKey: 'nigde-valiligi',
+          title: 'Kuvvetli Rüzgâr Uyarısı',
+          summary: 'Meteoroloji değerlendirmesine göre uyarı yapılmıştır.',
+          body:
+              'Meteoroloji değerlendirmesine göre Niğde genelinde kuvvetli rüzgâr beklenmektedir.',
+          place: 'Niğde geneli',
+          timeLabel: 'Bugün 10:30',
+          statusLabel: 'Uyarı',
+          scheduleLabel: '',
+          imageUrl: '',
+          sourceUrl: 'https://www.nigde.gov.tr/duyurular',
+          canonicalUrl: 'https://www.nigde.gov.tr/duyurular',
+          linkedPostId: '',
+          linkedPostTitle: '',
+          linkedPostSlug: '',
+          linkedPostThumbnailUrl: '',
+          publishedAt: '2026-06-06T09:00:00.000Z',
+          startsAt: '',
+          endsAt: '',
+          isActive: true,
+        ),
+      ],
+      total: 1,
+      officialCount: 1,
+      powerCount: 0,
+      roadCount: 0,
+      activeSources: 1,
+    );
+  }
+
+  @override
+  Future<AnnouncementRefreshResult> refreshAnnouncements({
+    required AdminSession session,
+  }) async {
+    return AnnouncementRefreshResult(
+      preview: await fetchAnnouncementPreview(),
+      sourcesChecked: 1,
+      candidatesFound: 1,
+      insertedCount: 1,
+      updatedCount: 0,
+      skippedCount: 0,
+      errors: const [],
+    );
+  }
+
+  @override
+  Future<List<AnnouncementRunData>> fetchAnnouncementRuns() async {
+    return const [
+      AnnouncementRunData(
+        id: 'run-1',
+        runType: 'manual',
+        status: 'success',
+        startedAt: '2026-06-06T09:00:00.000Z',
+        finishedAt: '2026-06-06T09:01:00.000Z',
+        candidatesFound: 1,
+        insertedCount: 1,
+        updatedCount: 0,
+        skippedCount: 0,
+        errorMessage: '',
+        sourceName: '',
+      ),
+    ];
+  }
+
+  @override
+  Future<AnnouncementPreviewItem> saveAnnouncement({
+    required AdminSession session,
+    required AnnouncementPreviewItem announcement,
+  }) async {
+    savedAnnouncement = announcement;
+    return announcement;
+  }
+
+  @override
+  Future<AnnouncementPreviewItem> setAnnouncementActive({
+    required AdminSession session,
+    required String id,
+    required bool isActive,
+  }) async {
+    toggledAnnouncementId = id;
+    toggledAnnouncementActive = isActive;
+    if (savedAnnouncement?.id == id) {
+      return savedAnnouncement!.copyWith(isActive: isActive);
+    }
+    final preview = await fetchAnnouncementPreview();
+    final item = preview.announcements.firstWhere(
+      (announcement) => announcement.id == id,
+    );
+    return item.copyWith(isActive: isActive);
+  }
+
+  @override
+  Future<void> deleteAnnouncement({
+    required AdminSession session,
+    required String id,
+  }) async {
+    deletedAnnouncementId = id;
   }
 }
 
@@ -3106,7 +3437,7 @@ void main() {
   testWidgets('Yorumlar menüsü kullanıcıların üzerinde yorum yönetimini açar', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.physicalSize = const Size(2560, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -3341,6 +3672,118 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(newsRepository.toggledStatusPostId, '23');
+  });
+
+  testWidgets('Boş içindekiler tabında AI modalı yeni taslak olarak açılır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Haber'), findsOneWidget);
+
+    await tester.tap(find.text('İçindekiler').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yapay Zeka İle Üret'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yapay Zeka İçerik Üretici'), findsOneWidget);
+    expect(find.text('İçerik Taslağı Oluştur'), findsOneWidget);
+    expect(find.text('Düzelt'), findsNothing);
+    expect(find.textContaining('Blok tipi: toc'), findsNothing);
+    expect(
+      find.textContaining('Blok başlığı: Table of Contents'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('Boş yapı sekmelerinden çıkarken format onayı gösterilmez', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Haber'), findsOneWidget);
+
+    Future<void> expectCleanTabSwitch(String tabLabel) async {
+      await tester.tap(find.text(tabLabel).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Format değiştirilsin mi?'), findsNothing);
+
+      await tester.tap(find.text('Makale').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Format değiştirilsin mi?'), findsNothing);
+    }
+
+    await expectCleanTabSwitch('Anket');
+    await expectCleanTabSwitch('İçindekiler');
+    await expectCleanTabSwitch('Tarif');
+    await expectCleanTabSwitch('Etkinlik');
+  });
+
+  testWidgets('Sekmeler varsayılan Schema.org türünü doğru seçer', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Haber Makalesi (NewsArticle)'), findsOneWidget);
+
+    Future<void> expectTabSchema(String tabLabel, String schemaLabel) async {
+      await tester.tap(find.text(tabLabel).first);
+      await tester.pumpAndSettle();
+      expect(find.text(schemaLabel), findsOneWidget);
+      expect(find.text('Format değiştirilsin mi?'), findsNothing);
+    }
+
+    await expectTabSchema('Test (Quiz)', 'Quiz/Test (Quiz)');
+    await expectTabSchema('Anket', 'Haber Makalesi (NewsArticle)');
+    await expectTabSchema('Video', 'Video (VideoObject)');
+    await expectTabSchema('İçindekiler', 'Haber Makalesi (NewsArticle)');
+    await expectTabSchema('Tarif', 'Tarif (Recipe)');
+    await expectTabSchema('Etkinlik', 'Etkinlik (Event)');
   });
 
   testWidgets('Hikayeler menüsü yorumların üzerinde hikaye yönetimini açar', (
@@ -4490,13 +4933,15 @@ void main() {
     expect(find.text('Anketi Geliştirerek Hazırla'), findsNothing);
     expect(find.text('Anketi Metne Sadık Yerleştir'), findsNothing);
     expect(find.text('Videoyu Geliştirerek Hazırla'), findsNothing);
+    expect(find.text('Video İçerik Üretici'), findsOneWidget);
+    expect(find.text('İçindekiler İçerik Üretici'), findsOneWidget);
     expect(find.text('Haber Hazırla 1'), findsOneWidget);
-    expect(find.byTooltip('Promtu düzenle'), findsOneWidget);
-    expect(find.byTooltip('Promtu sil'), findsOneWidget);
+    expect(find.byTooltip('Promtu düzenle'), findsNWidgets(5));
+    expect(find.byTooltip('Promtu sil'), findsNWidgets(5));
 
     await tester.ensureVisible(find.text('Haber Hazırla 1'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Promtu düzenle').first);
+    await tester.tap(find.byTooltip('Promtu düzenle').last);
     await tester.pumpAndSettle();
 
     expect(
@@ -4529,11 +4974,10 @@ void main() {
     expect(aiRepository.savedPromptId, 'format-1');
     expect(aiRepository.savedPrompt?.prompt, 'Düzenlenmiş sistem talimatı.');
 
-    await tester.tap(find.byTooltip('Promtu sil').first);
+    await tester.tap(find.byTooltip('Promtu sil').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Düzenlenmiş Promt'), findsNothing);
-    expect(find.byTooltip('Promtu sil'), findsNothing);
     expect(aiRepository.deletedPromptId, 'format-1');
 
     await tester.ensureVisible(find.text('Yeni Promt Ekle'));
@@ -4772,6 +5216,53 @@ void main() {
     },
   );
 
+  testWidgets('Namaz vakitleri ayarları Diyanet kaynak formunu açar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Namaz Vakitleri Ayarları'));
+    await tester.tap(find.text('Namaz Vakitleri Ayarları'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Namaz Vakitleri Ayarları'), findsOneWidget);
+    expect(find.text('Şehir Yönetimi'), findsWidgets);
+    expect(find.text('Canlı Önizleme'), findsOneWidget);
+    expect(find.text('Namaz Vakitleri Aktif'), findsOneWidget);
+    expect(find.text('Diyanet kaynak URL'), findsOneWidget);
+    expect(find.text('Diyanet il ID'), findsOneWidget);
+    expect(find.text('Diyanet şehir ID'), findsOneWidget);
+    expect(find.text('Türkiye / Niğde'), findsOneWidget);
+    expect(find.text('Diyanet şehir ID 9766'), findsOneWidget);
+    expect(find.text('Değişiklikleri Kaydet'), findsOneWidget);
+    expect(find.textContaining('Awqat'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Canlı Önizleme'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Veriyi Yenile'), findsOneWidget);
+    expect(find.text('Niğde'), findsWidgets);
+    expect(find.text('Günün Ayeti'), findsOneWidget);
+    expect(find.text('İmsak'), findsOneWidget);
+    expect(find.text('Yatsı'), findsOneWidget);
+  });
+
   testWidgets(
     'Ölüm ilanları ayarı konum yönetimi ve önizleme ekranlarını açar',
     (tester) async {
@@ -4791,6 +5282,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Modüller'));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const ValueKey('admin-sidebar')),
+        const Offset(0, -90),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Ölüm İlanları Ayarı'));
       await tester.pumpAndSettle();
@@ -4870,6 +5366,72 @@ void main() {
       expect(find.text('ÖĞLE - HIDIRLIK'), findsOneWidget);
     },
   );
+
+  testWidgets('Duyuru ayarları yayındaki haberi duyuruya bağlar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final moduleRepository = _FakeAdminModuleSettingsRepository();
+    final newsRepository = _FakeAdminNewsRepository();
+
+    await _pumpAdminApp(
+      tester,
+      moduleSettingsRepository: moduleRepository,
+      newsRepository: newsRepository,
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Modüller'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const ValueKey('admin-sidebar')),
+      const Offset(0, -260),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Duyuru Ayarları'));
+    await tester.tap(find.text('Duyuru Ayarları'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Canlı Önizleme'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Düzenle'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bağlı haber'), findsOneWidget);
+    await tester.ensureVisible(find.text('Haber Seç'));
+    await tester.tap(find.text('Haber Seç'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Duyuruya Haber Bağla'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, 'ruh');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Niğde Ruhun').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Değiştir'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet').last);
+    await tester.pumpAndSettle();
+
+    expect(moduleRepository.savedAnnouncement?.linkedPostId, '23');
+    expect(
+      moduleRepository.savedAnnouncement?.linkedPostTitle,
+      contains('Niğde Ruhun'),
+    );
+  });
 
   testWidgets('Beni hatırla giriş bilgilerini kaydeder', (tester) async {
     await _pumpAdminApp(tester);

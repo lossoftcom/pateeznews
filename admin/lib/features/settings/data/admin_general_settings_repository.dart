@@ -19,6 +19,12 @@ enum GeneralSettingsLogoField {
 
   final String column;
   final String uploadFilename;
+
+  String get uploadBaseName {
+    final extensionIndex = uploadFilename.lastIndexOf('.');
+    if (extensionIndex <= 0) return uploadFilename;
+    return uploadFilename.substring(0, extensionIndex);
+  }
 }
 
 class GeneralSettingsData {
@@ -349,7 +355,9 @@ class SupabaseAdminGeneralSettingsRepository
     request.headers.addAll(await adminAuthHeaders());
     request.fields['type'] = 'logo';
     request.fields['lang'] = _cleanLanguageCode(languageCode);
-    request.fields['customFilename'] = field.uploadFilename;
+    request.fields['customPath'] = _cleanLanguageCode(languageCode);
+    request.fields['customFilename'] =
+        '${field.uploadBaseName}-${DateTime.now().millisecondsSinceEpoch}';
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: fileName),
     );
@@ -372,7 +380,8 @@ class SupabaseAdminGeneralSettingsRepository
     if (decoded is! Map) {
       throw const AdminGeneralSettingsException('Geçersiz yükleme yanıtı');
     }
-    final src = decoded['src']?.toString() ?? '';
+    final src =
+        decoded['publicSrc']?.toString() ?? decoded['src']?.toString() ?? '';
     if (src.isEmpty) {
       throw const AdminGeneralSettingsException('Logo URL alınamadı');
     }

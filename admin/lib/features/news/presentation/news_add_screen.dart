@@ -20,6 +20,7 @@ import '../../../shared/widgets/admin_rich_text_editor.dart'
         adminQuillDocumentFromJson,
         adminQuillHtml,
         adminSetQuillHtml;
+import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/media_library_dialog.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import 'news_models.dart';
@@ -62,9 +63,47 @@ const _allowedAiSchemaTypes = {
   'AnalysisNewsArticle',
   'Article',
   'Quiz',
+  'VideoObject',
   'Recipe',
   'Event',
 };
+const _editorDirtyIgnoredKeys = {
+  'id',
+  'type',
+  'orderNumber',
+  'allowMultiple',
+  'answerCount',
+  'pollColumns',
+  'quizType',
+  'showResults',
+};
+const _schemaTypeOptions = [
+  _SchemaTypeOption('NewsArticle', 'newsAdd.schemaType.newsArticle'),
+  _SchemaTypeOption(
+    'ReportageNewsArticle',
+    'newsAdd.schemaType.reportageNewsArticle',
+  ),
+  _SchemaTypeOption(
+    'OpinionNewsArticle',
+    'newsAdd.schemaType.opinionNewsArticle',
+  ),
+  _SchemaTypeOption(
+    'AnalysisNewsArticle',
+    'newsAdd.schemaType.analysisNewsArticle',
+  ),
+  _SchemaTypeOption('Article', 'newsAdd.schemaType.article'),
+  _SchemaTypeOption('Quiz', 'newsAdd.schemaType.quiz'),
+  _SchemaTypeOption('VideoObject', 'newsAdd.schemaType.videoObject'),
+  _SchemaTypeOption('Recipe', 'newsAdd.schemaType.recipe'),
+  _SchemaTypeOption('Event', 'newsAdd.schemaType.event'),
+];
+
+class _SchemaTypeOption {
+  const _SchemaTypeOption(this.value, this.labelKey);
+
+  final String value;
+  final String labelKey;
+}
 
 class NewsAddScreen extends StatefulWidget {
   const NewsAddScreen({
@@ -983,6 +1022,15 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _setEntryId(entry, preferred: _text(row['id']));
       entry.titleController.text = _text(row['title']);
       entry.imageUrl = _nullableText(row['image']);
+      entry.minScoreController.text = _scoreText(row['minScore']);
+      entry.maxScoreController.text = _scoreText(row['maxScore']);
+      final answerCount = _optionalInt(row['answerCount']);
+      if (entry.minScoreController.text.isEmpty && answerCount != null) {
+        entry.minScoreController.text = answerCount.toString();
+      }
+      if (entry.maxScoreController.text.isEmpty && answerCount != null) {
+        entry.maxScoreController.text = answerCount.toString();
+      }
       adminSetQuillHtml(entry.descriptionController, _text(row['description']));
       results.add(entry);
     }
@@ -1003,6 +1051,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         answer.imageUrl = _nullableText(answerRow['image']);
         answer.resultId = _nullableText(answerRow['resultId']);
         answer.isCorrect = _bool(answerRow['isCorrect']);
+        answer.explanationController.text = _firstNonEmpty([
+          _text(answerRow['explanation']),
+          _text(answerRow['correctExplanation']),
+        ]);
         entry.answers.add(answer);
       }
       if (entry.answers.isEmpty) entry.ensureAnswerCount(2);
@@ -1225,6 +1277,269 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       return context.t('newsAdd.errorCategoryRequired');
     }
     return null;
+  }
+
+  Future<void> _handleClearEditor() async {
+    if (_saving) return;
+    if (_hasEditorInputData) {
+      final confirmed = await showAppConfirmationDialog(
+        context,
+        title: context.t('newsAdd.clearConfirmTitle'),
+        message: context.t('newsAdd.clearConfirmMessage'),
+        cancelLabel: context.t('common.cancel'),
+        confirmLabel: context.t('newsAdd.clear'),
+        danger: true,
+      );
+      if (!confirmed || !mounted) return;
+    }
+    setState(() {
+      _resetEditorState();
+      _applyBootstrapDefaults();
+    });
+    _showEditorMessage(context.t('newsAdd.cleared'));
+  }
+
+  bool get _hasEditorInputData {
+    final controllers = [
+      _titleController,
+      _summaryController,
+      _seoTitleController,
+      _slugController,
+      _metaDescriptionController,
+      _keywordsController,
+      _publishAtController,
+      _quizEndDateController,
+      _coverAltController,
+      _focusKeywordsController,
+    ];
+    if (controllers.any((controller) => controller.text.trim().isNotEmpty)) {
+      return true;
+    }
+    if ((_coverImageUrl?.trim().isNotEmpty ?? false) ||
+        _keywords.isNotEmpty ||
+        _faqDataForStorage().isNotEmpty) {
+      return true;
+    }
+    final hasAnswerSettingsChanged =
+        (_activeTab == NewsAddFormatTab.quiz ||
+            _activeTab == NewsAddFormatTab.poll) &&
+        (_pollAllowMulti || !_pollShowResults);
+    if (_mansetSlider ||
+        _pinToTop ||
+        _factCheck ||
+        hasAnswerSettingsChanged ||
+        _schemaType != _defaultSchemaTypeForActiveTab) {
+      return true;
+    }
+    if (_languageCode != _resetDefaultLanguageCode ||
+        _mainCategory.trim() != _resetDefaultMainCategory.trim() ||
+        (_subCategory?.trim().isNotEmpty ?? false) ||
+        (_thirdCategory?.trim().isNotEmpty ?? false)) {
+      return true;
+    }
+    return _hasActiveTabContentInputData;
+  }
+
+  String get _defaultSchemaTypeForActiveTab {
+    return _defaultSchemaTypeForTab(_activeTab);
+  }
+
+  String _defaultSchemaTypeForTab(NewsAddFormatTab tab) {
+    return switch (tab) {
+      NewsAddFormatTab.quiz => 'Quiz',
+      NewsAddFormatTab.video => 'VideoObject',
+      NewsAddFormatTab.recipe => 'Recipe',
+      NewsAddFormatTab.event => 'Event',
+      _ => 'NewsArticle',
+    };
+  }
+
+  String get _resetDefaultLanguageCode {
+    if (_bootstrap.languages.any((item) => item.code == 'tr')) return 'tr';
+    return _bootstrap.languages.isEmpty
+        ? 'tr'
+        : _bootstrap.languages.first.code;
+  }
+
+  String get _resetDefaultMainCategory {
+    final languageCode = _resetDefaultLanguageCode;
+    if (languageCode == 'tr') return 'Niğde';
+    final roots = _rootCategoriesForLanguage(languageCode);
+    return roots.isEmpty ? 'Niğde' : roots.first.label;
+  }
+
+  bool _hasMeaningfulEditorValue(Object? value, {String? key}) {
+    if (key != null && _editorDirtyIgnoredKeys.contains(key)) return false;
+    if (value == null) return false;
+    if (value is String) {
+      final text = value.trim();
+      if (text.isEmpty) return false;
+      return !_isDefaultEditorValue(key, text);
+    }
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is Map) {
+      for (final entry in value.entries) {
+        if (_hasMeaningfulEditorValue(entry.value, key: entry.key.toString())) {
+          return true;
+        }
+      }
+      return false;
+    }
+    if (value is Iterable) {
+      for (final item in value) {
+        if (_hasMeaningfulEditorValue(item)) return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  bool _isDefaultEditorValue(String? key, String value) {
+    return switch (key) {
+      'layout' => value == 'list',
+      'level1' || 'level2' || 'level3' => value == 'none',
+      'questionSorting' => value == 'asc',
+      'registrationType' => value == 'none',
+      'title' => value == 'Table of Contents',
+      _ => false,
+    };
+  }
+
+  bool get _hasActiveTabContentInputData {
+    return switch (_activeTab) {
+      NewsAddFormatTab.poll => _pollQuestions.any(_hasPollQuestionInputData),
+      NewsAddFormatTab.contents => _hasTocInputData,
+      NewsAddFormatTab.recipe => _hasRecipeInputData,
+      NewsAddFormatTab.event => _hasEventInputData,
+      _ => _itemsForStorage().any((item) => _hasMeaningfulEditorValue(item)),
+    };
+  }
+
+  bool _hasPollQuestionInputData(PollQuestionBlockEntry block) {
+    if (_hasTextInput(block.titleController) ||
+        _hasTextInput(block.sourceController) ||
+        _hasRichTextInput(block.descriptionController) ||
+        _hasStringInput(block.imageUrl) ||
+        block.showOnHomepage) {
+      return true;
+    }
+    return block.answers.any((answer) {
+      return _hasTextInput(answer.answerController) ||
+          _hasStringInput(answer.imageUrl) ||
+          _int(answer.votesController.text) > 0;
+    });
+  }
+
+  bool get _hasTocInputData {
+    if (_tocBlock.level1Style != 'none' ||
+        _tocBlock.level2Style != 'none' ||
+        _tocBlock.level3Style != 'none' ||
+        _tocBlock.showLevel1InText ||
+        _tocBlock.showLevel2InText ||
+        _tocBlock.showLevel3InText) {
+      return true;
+    }
+    return _tocBlock.items.any((item) {
+      return _hasTextInput(item.titleController) ||
+          _hasTextInput(item.parentLinkController) ||
+          _hasStringInput(item.imageUrl) ||
+          _hasTextInput(item.imageDescriptionController) ||
+          _hasRichTextInput(item.contentController);
+    });
+  }
+
+  bool get _hasRecipeInputData {
+    if (_hasTextInput(_recipeBlock.prepTimeController) ||
+        _hasTextInput(_recipeBlock.cookTimeController) ||
+        _hasTextInput(_recipeBlock.servingController) ||
+        _hasStringInput(_recipeBlock.difficulty)) {
+      return true;
+    }
+    if (_recipeBlock.ingredients.any(
+      (item) => _hasTextInput(item.textController),
+    )) {
+      return true;
+    }
+    if (_recipeBlock.nutrition.any(
+      (item) =>
+          _hasTextInput(item.labelController) ||
+          _hasTextInput(item.valueController),
+    )) {
+      return true;
+    }
+    if (_recipeBlock.directions.any((item) {
+      return _hasTextInput(item.titleController) ||
+          _hasStringInput(item.imageUrl) ||
+          _hasTextInput(item.imageDescriptionController) ||
+          _hasRichTextInput(item.contentController);
+    })) {
+      return true;
+    }
+    return _hasMeaningfulEditorValue(
+      _serializeVideoBlock(_recipeVideoBlock, 2),
+    );
+  }
+
+  bool get _hasEventInputData {
+    if (_hasTextInput(_eventBlock.startDateTimeController) ||
+        _hasTextInput(_eventBlock.endDateTimeController) ||
+        _hasTextInput(_eventBlock.organizerController) ||
+        _hasTextInput(_eventBlock.venueNameController) ||
+        _hasTextInput(_eventBlock.addressController) ||
+        _hasTextInput(_eventBlock.latitudeController) ||
+        _hasTextInput(_eventBlock.longitudeController) ||
+        _hasTextInput(_eventBlock.ticketUrlController) ||
+        _hasTextInput(_eventBlock.ticketPriceController) ||
+        _hasTextInput(_eventBlock.capacityController) ||
+        _hasTextInput(_eventBlock.scheduleTitleController) ||
+        _hasTextInput(_eventBlock.highlightsTitleController) ||
+        _hasTextInput(_eventBlock.speakersTitleController) ||
+        _eventBlock.registrationType != 'none') {
+      return true;
+    }
+    if (_eventBlock.schedule.any((item) {
+      return _hasTextInput(item.dateController) ||
+          _hasTextInput(item.timeController) ||
+          _hasTextInput(item.titleController) ||
+          _hasTextInput(item.descriptionController) ||
+          _hasStringInput(item.imageUrl) ||
+          _hasTextInput(item.imageDescriptionController);
+    })) {
+      return true;
+    }
+    if (_eventBlock.highlights.any((item) {
+      return _hasTextInput(item.labelController) ||
+          _hasTextInput(item.valueController);
+    })) {
+      return true;
+    }
+    if (_eventBlock.speakers.any((item) {
+      return _hasTextInput(item.nameController) ||
+          _hasTextInput(item.roleController) ||
+          _hasStringInput(item.imageUrl) ||
+          _hasTextInput(item.imageDescriptionController) ||
+          _hasRichTextInput(item.bioController);
+    })) {
+      return true;
+    }
+    return _serializeContentBlocks(
+      _eventContentBlocks,
+      _Sort.asc,
+      offset: 1,
+    ).any(_hasMeaningfulEditorValue);
+  }
+
+  bool _hasTextInput(TextEditingController controller) {
+    return controller.text.trim().isNotEmpty;
+  }
+
+  bool _hasRichTextInput(quill.QuillController controller) {
+    return controller.document.toPlainText().trim().isNotEmpty;
+  }
+
+  bool _hasStringInput(String? value) {
+    return value?.trim().isNotEmpty ?? false;
   }
 
   Map<String, Object?> _buildPostValues(String status) {
@@ -1607,16 +1922,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       'quizData': {
         'quizType': _quizSubTab.name,
         'results': [
-          for (final result in _quizResults)
-            {
-              'id': _entryId(result),
-              'title': result.titleController.text.trim(),
-              'image': result.imageUrl ?? '',
-              'description': adminQuillHtml(result.descriptionController),
-              'minScore': 0,
-              'maxScore': 0,
-              'answerCount': 0,
-            },
+          for (final result in _quizResults) _serializeQuizResult(result),
         ],
         'questions': [
           for (final question in _quizQuestions)
@@ -1628,13 +1934,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
               'layout': _quizLayoutText(question.layout),
               'answers': [
                 for (final answer in question.answers)
-                  {
-                    'id': _entryId(answer),
-                    'text': answer.answerController.text.trim(),
-                    'image': answer.imageUrl ?? '',
-                    'resultId': answer.resultId ?? '',
-                    'isCorrect': answer.isCorrect,
-                  },
+                  _serializeQuizAnswer(answer),
               ],
             },
         ],
@@ -1644,6 +1944,33 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         'endDate': _quizEndDateController.text.trim(),
       },
     };
+  }
+
+  Map<String, Object?> _serializeQuizResult(QuizResultBlockEntry result) {
+    final row = <String, Object?>{
+      'id': _entryId(result),
+      'title': result.titleController.text.trim(),
+      'image': result.imageUrl ?? '',
+      'description': adminQuillHtml(result.descriptionController),
+    };
+    final minScore = _optionalInt(result.minScoreController.text);
+    final maxScore = _optionalInt(result.maxScoreController.text);
+    if (minScore != null) row['minScore'] = minScore;
+    if (maxScore != null) row['maxScore'] = maxScore;
+    return row;
+  }
+
+  Map<String, Object?> _serializeQuizAnswer(QuizQuestionAnswerEntry answer) {
+    final row = <String, Object?>{
+      'id': _entryId(answer),
+      'text': answer.answerController.text.trim(),
+      'image': answer.imageUrl ?? '',
+      'resultId': answer.resultId ?? '',
+      'isCorrect': answer.isCorrect,
+    };
+    final explanation = answer.explanationController.text.trim();
+    if (explanation.isNotEmpty) row['explanation'] = explanation;
+    return row;
   }
 
   Map<String, Object?> _serializeTocItem() {
@@ -1933,6 +2260,19 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  int? _optionalInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty) return null;
+    return int.tryParse(text);
+  }
+
+  String _scoreText(Object? value) {
+    final number = _optionalInt(value);
+    return number == null ? '' : number.toString();
   }
 
   bool _bool(Object? value) {
@@ -2230,16 +2570,34 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   void _handleFormatTabChanged(NewsAddFormatTab tab) {
-    setState(() {
-      _activeTab = tab;
-      if (tab == NewsAddFormatTab.recipe) {
-        _schemaType = 'Recipe';
-      } else if (tab == NewsAddFormatTab.event) {
-        _schemaType = 'Event';
-      } else if (_schemaType == 'Recipe' || _schemaType == 'Event') {
-        _schemaType = 'NewsArticle';
-      }
-    });
+    unawaited(_confirmFormatTabChange(tab));
+  }
+
+  Future<void> _confirmFormatTabChange(NewsAddFormatTab tab) async {
+    if (_saving || tab == _activeTab) return;
+    if (_hasEditorInputData) {
+      final confirmed = await showAppConfirmationDialog(
+        context,
+        title: context.t('newsAdd.tabSwitchConfirmTitle'),
+        message: context.t('newsAdd.tabSwitchConfirmMessage'),
+        cancelLabel: context.t('common.cancel'),
+        confirmLabel: context.t('newsAdd.tabSwitchConfirmAction'),
+        danger: true,
+      );
+      if (!confirmed || !mounted) return;
+      setState(() {
+        _resetEditorState();
+        _applyBootstrapDefaults();
+        _applyFormatTab(tab);
+      });
+      return;
+    }
+    setState(() => _applyFormatTab(tab));
+  }
+
+  void _applyFormatTab(NewsAddFormatTab tab) {
+    _activeTab = tab;
+    _schemaType = _defaultSchemaTypeForTab(tab);
   }
 
   void _handleTocStyleChanged(int level, String value) {
@@ -3235,7 +3593,11 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(onBack: widget.onBackToNews),
+                _Header(
+                  onBack: widget.onBackToNews,
+                  onClear: () => unawaited(_handleClearEditor()),
+                  onNewsTap: widget.onBackToNews,
+                ),
                 const SizedBox(height: 18),
                 if (isCompact)
                   Column(
@@ -3301,7 +3663,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   Future<void> _openAiContentGenerator() async {
     final initialContent = _currentAiContentSeed();
     final targetTab = _activeTab;
-    final draft = await showDialog<AdminNewsAiDraft>(
+    final result = await showDialog<_AiContentGeneratorResult>(
       context: context,
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
       builder: (dialogContext) {
@@ -3317,8 +3679,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         );
       },
     );
-    if (draft == null || !mounted) return;
-    _applyAiDraft(draft, targetTab);
+    if (result == null || !mounted) return;
+    _applyAiDraft(result.draft, targetTab, sourceImage: result.sourceImage);
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
   }
 
@@ -3409,7 +3771,17 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       if (results.isNotEmpty) {
         addField(
           'Quiz sonuçları',
-          results.map((row) => _text(row['title'])).join(', '),
+          results
+              .map((row) {
+                final title = _text(row['title']);
+                final minScore = _scoreText(row['minScore']);
+                final maxScore = _scoreText(row['maxScore']);
+                final range = minScore.isNotEmpty || maxScore.isNotEmpty
+                    ? ' ($minScore-$maxScore doğru)'
+                    : '';
+                return '$title$range';
+              })
+              .join(', '),
         );
       }
       for (final row in _mapList(data['questions'])) {
@@ -3419,6 +3791,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             .where((answer) => answer.trim().isNotEmpty)
             .join(', ');
         addField('Quiz cevapları', answers);
+        final explanations = _mapList(row['answers'])
+            .where((answer) => _bool(answer['isCorrect']))
+            .map((answer) => _text(answer['explanation']))
+            .where((text) => text.trim().isNotEmpty)
+            .join(' | ');
+        addField('Doğru cevap açıklaması', explanations);
       }
       return;
     }
@@ -3468,6 +3846,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   bool _hasUsefulAiContentSeedItem(Map<String, Object?> item) {
+    if (_text(item['type']) == 'toc') {
+      return _hasUsefulTocAiContentSeedItem(item);
+    }
     return _text(item['title']).isNotEmpty ||
         _text(item['description']).isNotEmpty ||
         _text(item['source']).isNotEmpty ||
@@ -3475,12 +3856,30 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _text(item['altText']).isNotEmpty;
   }
 
-  void _applyAiDraft(AdminNewsAiDraft draft, NewsAddFormatTab targetTab) {
+  bool _hasUsefulTocAiContentSeedItem(Map<String, Object?> item) {
+    final data = _map(item['tocData']);
+    for (final row in _mapList(data['items'])) {
+      if (_text(row['title']).isNotEmpty ||
+          _text(row['parentId']).isNotEmpty ||
+          _text(row['image']).isNotEmpty ||
+          _text(row['imageDescription']).isNotEmpty ||
+          _plainTextFromAiHtml(_text(row['content'])).isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _applyAiDraft(
+    AdminNewsAiDraft draft,
+    NewsAddFormatTab targetTab, {
+    _AiSelectedSourceImage? sourceImage,
+  }) {
     if (targetTab != NewsAddFormatTab.article) {
-      _applyAiDraftToStructuredTab(draft, targetTab);
+      _applyAiDraftToStructuredTab(draft, targetTab, sourceImage: sourceImage);
       return;
     }
-    final blocks = _contentBlocksFromAiDraft(draft);
+    final blocks = _contentBlocksFromAiDraft(draft, sourceImage: sourceImage);
     _hydrating = true;
     setState(() {
       _activeTab = NewsAddFormatTab.article;
@@ -3495,36 +3894,78 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   void _applyAiDraftToStructuredTab(
     AdminNewsAiDraft draft,
-    NewsAddFormatTab targetTab,
-  ) {
-    final item = _tabStorageItemFromAiDraft(draft, targetTab);
+    NewsAddFormatTab targetTab, {
+    _AiSelectedSourceImage? sourceImage,
+  }) {
+    final item = targetTab == NewsAddFormatTab.poll
+        ? null
+        : _tabStorageItemFromAiDraft(draft, targetTab);
+    final pollItems = targetTab == NewsAddFormatTab.poll
+        ? _pollStorageItemsFromAiDraft(draft)
+        : const <Map<String, Object?>>[];
     _hydrating = true;
     setState(() {
       _activeTab = targetTab;
       _applyAiDraftCommonFields(draft);
-      if (item != null) {
-        switch (targetTab) {
-          case NewsAddFormatTab.quiz:
+      if (sourceImage != null) {
+        _applySelectedSourceImageToCover(draft, sourceImage);
+      }
+      switch (targetTab) {
+        case NewsAddFormatTab.quiz:
+          if (item != null) {
             _hydrateQuizItem(item);
-          case NewsAddFormatTab.poll:
-            _replacePollQuestions([_pollFromItem(item)]);
-          case NewsAddFormatTab.video:
+          }
+        case NewsAddFormatTab.poll:
+          final blocks = pollItems.map(_pollFromItem).toList();
+          _replacePollQuestions(
+            blocks.isEmpty ? [PollQuestionBlockEntry()] : blocks,
+          );
+        case NewsAddFormatTab.video:
+          final blocks = <Object>[];
+          if (item != null) {
             final block = ArticleVideoBlockEntry();
             _hydrateVideoBlock(block, item);
-            _replaceContentBlocks(_videoBlocks, [block]);
-          case NewsAddFormatTab.contents:
+            blocks.add(block);
+          }
+          for (final aiItem in draft.items) {
+            final block = _contentBlockFromAiItem(aiItem);
+            if (block != null) blocks.add(block);
+          }
+          if (blocks.isNotEmpty) {
+            _replaceContentBlocks(_videoBlocks, blocks);
+          }
+        case NewsAddFormatTab.contents:
+          if (item != null) {
             _hydrateTocItem(item);
-          case NewsAddFormatTab.recipe:
+          }
+        case NewsAddFormatTab.recipe:
+          if (item != null) {
             _hydrateRecipeItem(item);
-          case NewsAddFormatTab.event:
+          }
+        case NewsAddFormatTab.event:
+          if (item != null) {
             _hydrateEventItem(item);
-          case NewsAddFormatTab.article:
-            break;
-        }
+          }
+        case NewsAddFormatTab.article:
+          break;
       }
       _syncAiAutoMarkers();
     });
     _hydrating = false;
+  }
+
+  void _applySelectedSourceImageToCover(
+    AdminNewsAiDraft draft,
+    _AiSelectedSourceImage sourceImage,
+  ) {
+    if ((_coverImageUrl?.trim().isNotEmpty ?? false)) return;
+    _coverImageUrl = sourceImage.mediaSrc;
+    if (_coverAltController.text.trim().isEmpty) {
+      _coverAltController.text = _firstNonEmpty([
+        sourceImage.altText,
+        draft.title,
+      ]);
+    }
   }
 
   void _applyAiDraftCommonFields(AdminNewsAiDraft draft) {
@@ -3587,16 +4028,23 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     final tabItem = draft.tabItem;
     if (tabItem.isEmpty) return null;
     final type = _storageTypeForAiTab(targetTab);
-    final title = _firstNonEmpty([
-      _text(tabItem['title']),
-      draft.mainContentTitle,
-      draft.title,
-    ]);
     final description = _firstNonEmpty([
       _text(tabItem['descriptionHtml']),
       draft.mainContentHtml,
       draft.summary,
     ]);
+    final title = targetTab == NewsAddFormatTab.poll
+        ? _firstNonEmpty([
+            _text(tabItem['title']),
+            _pollQuestionTitleFallback(description),
+            draft.mainContentTitle,
+            draft.title,
+          ])
+        : _firstNonEmpty([
+            _text(tabItem['title']),
+            draft.mainContentTitle,
+            draft.title,
+          ]);
     final item = <String, Object?>{
       'id': _firstNonEmpty([_text(tabItem['id']), 'ai-$type']),
       'type': type,
@@ -3628,6 +4076,102 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return item;
   }
 
+  List<Map<String, Object?>> _pollStorageItemsFromAiDraft(
+    AdminNewsAiDraft draft,
+  ) {
+    final tabItem = draft.tabItem;
+    if (tabItem.isEmpty) return const [];
+    final pollData = _map(tabItem['pollData']);
+    final questions = _mapList(pollData['questions']);
+    if (questions.isEmpty) {
+      final fallback = _tabStorageItemFromAiDraft(draft, NewsAddFormatTab.poll);
+      return fallback == null ? const [] : [fallback];
+    }
+
+    final items = <Map<String, Object?>>[];
+    for (var index = 0; index < questions.length; index++) {
+      final item = _pollQuestionStorageItemFromAiDraft(
+        draft,
+        tabItem,
+        questions[index],
+        index,
+      );
+      if (_hasUsefulAiContentSeedItem(item) ||
+          _mapList(item['options']).isNotEmpty) {
+        items.add(item);
+      }
+    }
+    if (items.isNotEmpty) return items;
+    final fallback = _tabStorageItemFromAiDraft(draft, NewsAddFormatTab.poll);
+    return fallback == null ? const [] : [fallback];
+  }
+
+  Map<String, Object?> _pollQuestionStorageItemFromAiDraft(
+    AdminNewsAiDraft draft,
+    Map<String, Object?> tabItem,
+    Map<String, Object?> question,
+    int index,
+  ) {
+    final rawDescription = _firstNonEmpty([
+      _text(question['descriptionHtml']),
+      _text(question['description']),
+      if (index == 0) _text(tabItem['descriptionHtml']),
+    ]);
+    final title = _firstNonEmpty([
+      _text(question['title']),
+      _text(question['question']),
+      _pollQuestionTitleFallback(rawDescription),
+      if (index == 0) _text(tabItem['title']),
+      draft.mainContentTitle,
+      draft.title,
+    ]);
+    final questionColumns = _int(question['pollColumns']);
+    final tabColumns = _int(tabItem['pollColumns']);
+    final options = _aiPollOptionsForQuestion(
+      _firstNonEmptyObject([
+        question['options'],
+        question['answers'],
+        question['choices'],
+      ]),
+      index,
+    );
+
+    return {
+      'id': _firstNonEmpty([
+        _text(question['id']),
+        'ai-poll-question-${index + 1}',
+      ]),
+      'type': 'poll',
+      'title': title,
+      'description': rawDescription,
+      'source': _firstNonEmpty([
+        _text(question['source']),
+        _text(tabItem['source']),
+      ]),
+      'mediaUrl': _firstNonEmpty([
+        _text(question['mediaUrl']),
+        _text(question['image']),
+        if (index == 0) _text(tabItem['mediaUrl']),
+      ]),
+      'altText': '',
+      'showOnHomepage': question.containsKey('showOnHomepage')
+          ? _bool(question['showOnHomepage'])
+          : _bool(tabItem['showOnHomepage']),
+      'orderNumber': index + 1,
+      'isImagePoll': question.containsKey('isImagePoll')
+          ? _bool(question['isImagePoll'])
+          : _bool(tabItem['isImagePoll']),
+      'pollColumns': questionColumns == 3
+          ? 3
+          : questionColumns == 2
+          ? 2
+          : tabColumns == 3
+          ? 3
+          : 2,
+      'options': options,
+    };
+  }
+
   String _storageTypeForAiTab(NewsAddFormatTab tab) {
     return switch (tab) {
       NewsAddFormatTab.contents => 'toc',
@@ -3648,6 +4192,40 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return '';
   }
 
+  Object? _firstNonEmptyObject(List<Object?> values) {
+    for (final value in values) {
+      if (value is List && value.isNotEmpty) return value;
+      if (value is Map && value.isNotEmpty) return value;
+      if (value is String && value.trim().isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  String _pollQuestionTitleFallback(String description) {
+    final plain = _plainTextFromAiHtml(description);
+    if (plain.isEmpty) return '';
+    final questionMark = plain.indexOf('?');
+    if (questionMark >= 0 && questionMark < 220) {
+      return plain.substring(0, questionMark + 1).trim();
+    }
+    return plain.length > 180 ? plain.substring(0, 180).trim() : plain;
+  }
+
+  String _plainTextFromAiHtml(String value) {
+    return value
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'</p>|</h[1-6]>|</li>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   List<Map<String, Object?>> _aiPollOptions(Object? value) {
     if (value is! List) return const [];
     return [
@@ -3666,12 +4244,36 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ];
   }
 
+  List<Map<String, Object?>> _aiPollOptionsForQuestion(
+    Object? value,
+    int questionIndex,
+  ) {
+    final options = _aiPollOptions(value);
+    return [
+      for (var index = 0; index < options.length; index++)
+        {
+          ...options[index],
+          'id': 'ai-poll-q${questionIndex + 1}-option-${index + 1}',
+        },
+    ];
+  }
+
   String _aiPollOptionText(Object? value) {
-    if (value is Map) return _text(value['text']).trim();
+    if (value is Map) {
+      return _firstNonEmpty([
+        _text(value['text']),
+        _text(value['label']),
+        _text(value['title']),
+        _text(value['value']),
+      ]);
+    }
     return _text(value).trim();
   }
 
-  List<Object> _contentBlocksFromAiDraft(AdminNewsAiDraft draft) {
+  List<Object> _contentBlocksFromAiDraft(
+    AdminNewsAiDraft draft, {
+    _AiSelectedSourceImage? sourceImage,
+  }) {
     final blocks = <Object>[];
     final sections = splitAdminNewsAiContentSections(
       title: draft.mainContentTitle,
@@ -3688,7 +4290,55 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       final block = _contentBlockFromAiItem(item);
       if (block != null) blocks.add(block);
     }
+    if (sourceImage != null) {
+      _applySelectedSourceImageToBlocks(blocks, draft, sourceImage);
+    }
     return blocks;
+  }
+
+  void _applySelectedSourceImageToBlocks(
+    List<Object> blocks,
+    AdminNewsAiDraft draft,
+    _AiSelectedSourceImage sourceImage,
+  ) {
+    for (final block in blocks.whereType<ArticleImageBlockEntry>()) {
+      if ((block.imageUrl ?? '').trim().isNotEmpty) continue;
+      _fillSelectedSourceImageBlock(block, draft, sourceImage);
+      return;
+    }
+
+    final block = ArticleImageBlockEntry();
+    _fillSelectedSourceImageBlock(block, draft, sourceImage);
+    final firstTextIndex = blocks.indexWhere(
+      (item) => item is ArticleTextBlockEntry,
+    );
+    blocks.insert(
+      firstTextIndex < 0 ? blocks.length : firstTextIndex + 1,
+      block,
+    );
+  }
+
+  void _fillSelectedSourceImageBlock(
+    ArticleImageBlockEntry block,
+    AdminNewsAiDraft draft,
+    _AiSelectedSourceImage sourceImage,
+  ) {
+    block.imageUrl = sourceImage.mediaSrc;
+    if (block.titleController.text.trim().isEmpty) {
+      block.titleController.text = _firstNonEmpty([
+        sourceImage.altText,
+        draft.title,
+      ]);
+    }
+    if (block.altTextController.text.trim().isEmpty) {
+      block.altTextController.text = _firstNonEmpty([
+        sourceImage.altText,
+        draft.title,
+      ]);
+    }
+    if (block.sourceController.text.trim().isEmpty) {
+      block.sourceController.text = sourceImage.originalUrl;
+    }
   }
 
   Object? _contentBlockFromAiItem(AdminNewsAiItem item) {
@@ -4301,6 +4951,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       for (var index = 0; index < visibleResults.length; index++) ...[
         QuizResultBlockCard(
           titleController: visibleResults[index].titleController,
+          minScoreController: visibleResults[index].minScoreController,
+          maxScoreController: visibleResults[index].maxScoreController,
           descriptionController: visibleResults[index].descriptionController,
           blockNumber: _quizSort == NewsAddQuizSort.hide
               ? null
@@ -4308,6 +4960,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
                     ? resultCount - index
                     : index + 1),
           imageUrl: visibleResults[index].imageUrl,
+          showScoreRange: _quizQuestionType != QuizQuestionType.personality,
           canMoveUp: resultCount > 1 && index > 0,
           canMoveDown: resultCount > 1 && index < resultCount - 1,
           onDelete: () => _handleRemoveQuizResult(visibleResults[index]),
@@ -5104,46 +5757,111 @@ class _DropdownField extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
-  const _Header({this.onBack});
+  const _Header({this.onBack, this.onClear, this.onNewsTap});
 
   final VoidCallback? onBack;
+  final VoidCallback? onClear;
+  final VoidCallback? onNewsTap;
 
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-      child: Row(
-        children: [
-          if (onBack != null) ...[
-            _BackButton(onTap: onBack!),
-            const SizedBox(width: 16),
-          ],
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final titleGroup = Row(
             children: [
-              Text(
-                context.t('newsAdd.title'),
-                style: const TextStyle(
-                  color: AppColors.deepOcean,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                context.t('newsAdd.subtitle'),
-                style: const TextStyle(
-                  color: AppColors.inkSoft,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
+              if (onBack != null) ...[
+                _BackButton(onTap: onBack!),
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.t('newsAdd.title'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      context.t('newsAdd.subtitle'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-        ],
+          );
+          final actions = _HeaderActions(
+            onClear: onClear,
+            onNewsTap: onNewsTap,
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                titleGroup,
+                const SizedBox(height: 14),
+                Align(alignment: Alignment.centerRight, child: actions),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: titleGroup),
+              const SizedBox(width: 16),
+              actions,
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+class _HeaderActions extends StatelessWidget {
+  const _HeaderActions({this.onClear, this.onNewsTap});
+
+  final VoidCallback? onClear;
+  final VoidCallback? onNewsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _PillButton(
+          icon: Icons.cleaning_services_outlined,
+          label: 'newsAdd.clear',
+          onTap: onClear,
+          background: Colors.white,
+          foreground: AppColors.inkSoft,
+          borderColor: AppColors.line,
+        ),
+        const SizedBox(width: 10),
+        _PillButton(
+          icon: Icons.list_alt_outlined,
+          label: 'newsAdd.newsList',
+          onTap: onNewsTap,
+          background: AppColors.deepOcean,
+        ),
+      ],
     );
   }
 }
@@ -5663,24 +6381,12 @@ class _FormBody extends StatelessWidget {
         const _FieldLabel('newsAdd.schemaType'),
         _DropdownField(
           value: schemaType,
-          items: const [
-            DropdownMenuItem(value: 'NewsArticle', child: Text('NewsArticle')),
-            DropdownMenuItem(
-              value: 'ReportageNewsArticle',
-              child: Text('ReportageNewsArticle'),
-            ),
-            DropdownMenuItem(
-              value: 'OpinionNewsArticle',
-              child: Text('OpinionNewsArticle'),
-            ),
-            DropdownMenuItem(
-              value: 'AnalysisNewsArticle',
-              child: Text('AnalysisNewsArticle'),
-            ),
-            DropdownMenuItem(value: 'Article', child: Text('Article')),
-            DropdownMenuItem(value: 'Quiz', child: Text('Quiz')),
-            DropdownMenuItem(value: 'Recipe', child: Text('Recipe')),
-            DropdownMenuItem(value: 'Event', child: Text('Event')),
+          items: [
+            for (final option in _schemaTypeOptions)
+              DropdownMenuItem(
+                value: option.value,
+                child: Text(context.t(option.labelKey)),
+              ),
           ],
           onChanged: onSchemaChanged,
         ),
@@ -5830,6 +6536,25 @@ class _AiButton extends StatelessWidget {
   }
 }
 
+class _AiContentGeneratorResult {
+  const _AiContentGeneratorResult({required this.draft, this.sourceImage});
+
+  final AdminNewsAiDraft draft;
+  final _AiSelectedSourceImage? sourceImage;
+}
+
+class _AiSelectedSourceImage {
+  const _AiSelectedSourceImage({
+    required this.mediaSrc,
+    required this.originalUrl,
+    required this.altText,
+  });
+
+  final String mediaSrc;
+  final String originalUrl;
+  final String altText;
+}
+
 class _AiContentGeneratorDialog extends StatefulWidget {
   const _AiContentGeneratorDialog({
     required this.languageCode,
@@ -5862,11 +6587,14 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   late final TextEditingController _topicController;
   late final TextEditingController _notesController;
   final _sourceReader = const AdminNewsSourceReader();
+  final _mediaService = MediaService();
 
   var _tone = 'neutral';
   var _contentType = 'article';
   var _outputTarget = 'all';
   var _includeSeo = true;
+  var _deepResearch = false;
+  var _preserveSource = false;
   var _generating = false;
   var _readingSource = false;
   String? _generationError;
@@ -5874,7 +6602,27 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   var _sourceUrlStatusIsError = false;
   AdminNewsSourceArticle? _sourceArticle;
   String? _sourceArticleUrl;
+  _AiSelectedSourceImage? _selectedSourceImage;
+  var _sourceImageUploading = false;
+  double? _sourceImageUploadProgress;
+  String? _sourceImageStatus;
+  var _sourceImageStatusIsError = false;
   final _itemCounts = <String, int>{};
+
+  bool get _usesInteractiveAiFormat {
+    return widget.formatType == 'quiz' || widget.formatType == 'poll';
+  }
+
+  bool get _usesContentsAiFormat {
+    final formatType = widget.formatType.trim().toLowerCase();
+    return formatType == 'contents' ||
+        formatType == 'toc' ||
+        formatType == 'table of contents';
+  }
+
+  bool get _usesTabOwnedAiItems {
+    return _usesInteractiveAiFormat || _usesContentsAiFormat;
+  }
 
   List<_AddBtn> get _aiItemOptions => const [
     _AddBtn('newsAdd.add.text', Icons.text_fields, Color(0xFF2C3E50)),
@@ -5909,20 +6657,49 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   void initState() {
     super.initState();
     _sourceUrlController = TextEditingController();
+    _sourceUrlController.addListener(_handleSourceUrlChanged);
     _topicController = TextEditingController(text: widget.initialTopic);
     _notesController = TextEditingController(text: widget.initialNotes);
+    if (_usesInteractiveAiFormat) {
+      _tone = 'entertaining';
+    }
   }
 
   @override
   void dispose() {
+    _sourceUrlController.removeListener(_handleSourceUrlChanged);
     _sourceUrlController.dispose();
     _topicController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
+  List<AdminNewsSourceImage> get _currentSourceImages {
+    final url = _sourceUrlController.text.trim();
+    final article = _sourceArticle;
+    if (article == null || _sourceArticleUrl != url) {
+      return const <AdminNewsSourceImage>[];
+    }
+    return article.images;
+  }
+
+  void _handleSourceUrlChanged() {
+    final articleUrl = _sourceArticleUrl;
+    if (articleUrl == null || _sourceUrlController.text.trim() == articleUrl) {
+      return;
+    }
+    setState(() {
+      _sourceArticle = null;
+      _sourceArticleUrl = null;
+      _selectedSourceImage = null;
+      _sourceImageStatus = null;
+      _sourceImageStatusIsError = false;
+      _sourceImageUploadProgress = null;
+    });
+  }
+
   Future<void> _handleGenerate() async {
-    if (_generating || _readingSource) return;
+    if (_generating || _readingSource || _sourceImageUploading) return;
     setState(() {
       _generating = true;
       _generationError = null;
@@ -5939,13 +6716,22 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           includeSeo: _includeSeo,
           topic: _topicForGenerate(sourceArticle),
           sourceNotes: _sourceNotesForGenerate(),
-          itemCounts: _normalizedItemCounts(),
+          itemCounts: _usesTabOwnedAiItems
+              ? const <String, int>{}
+              : _normalizedItemCounts(),
+          deepResearch: _usesInteractiveAiFormat && _deepResearch,
+          preserveSource: _preserveSource,
           formatType: widget.formatType,
           formatSubtype: widget.formatSubtype,
         ),
       );
       if (!mounted) return;
-      Navigator.of(context).pop(draft);
+      Navigator.of(context).pop(
+        _AiContentGeneratorResult(
+          draft: draft,
+          sourceImage: _selectedSourceImage,
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -5956,7 +6742,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   }
 
   Future<void> _handleReadSourceUrl() async {
-    if (_readingSource || _generating) return;
+    if (_readingSource || _generating || _sourceImageUploading) return;
     try {
       await _readSourceUrlIfNeeded(fillFields: true, force: true);
     } catch (_) {
@@ -5977,6 +6763,10 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       _readingSource = true;
       _sourceUrlStatus = null;
       _sourceUrlStatusIsError = false;
+      _selectedSourceImage = null;
+      _sourceImageStatus = null;
+      _sourceImageStatusIsError = false;
+      _sourceImageUploadProgress = null;
     });
     try {
       final article = await _sourceReader.read(url);
@@ -6012,6 +6802,73 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     _topicController.text = currentContent.isEmpty
         ? sourceBlock
         : '$currentContent\n\n$sourceBlock';
+  }
+
+  Future<void> _handleOpenSourceImages() async {
+    final images = _currentSourceImages;
+    if (images.isEmpty || _sourceImageUploading) return;
+    final selected = await showDialog<AdminNewsSourceImage>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (_) => _SourceImagesPickerDialog(
+        images: images,
+        selectedUrl: _selectedSourceImage?.originalUrl,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    await _uploadSelectedSourceImage(selected);
+  }
+
+  Future<void> _uploadSelectedSourceImage(AdminNewsSourceImage image) async {
+    if (_sourceImageUploading) return;
+    setState(() {
+      _sourceImageUploading = true;
+      _sourceImageUploadProgress = 0;
+      _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageUploading');
+      _sourceImageStatusIsError = false;
+    });
+    try {
+      final result = await _mediaService.uploadRemoteImage(
+        imageUrl: image.url,
+        onTransferProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            _sourceImageUploadProgress = progress.progress;
+          });
+        },
+      );
+      if (!mounted) return;
+      if (result == null) {
+        setState(() {
+          _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageError');
+          _sourceImageStatusIsError = true;
+        });
+        return;
+      }
+      setState(() {
+        _selectedSourceImage = _AiSelectedSourceImage(
+          mediaSrc: result.src,
+          originalUrl: image.url,
+          altText: image.alt,
+        );
+        _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageReady');
+        _sourceImageStatusIsError = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _sourceImageStatus =
+            '${context.t('newsAdd.aiModal.sourceImageError')} $error';
+        _sourceImageStatusIsError = true;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sourceImageUploading = false;
+          _sourceImageUploadProgress = null;
+        });
+      }
+    }
   }
 
   String _topicForGenerate(AdminNewsSourceArticle? article) {
@@ -6126,7 +6983,8 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                 Column(
                   children: [
                     _AiModalHeader(
-                      onClose: _generating || _readingSource
+                      onClose:
+                          _generating || _readingSource || _sourceImageUploading
                           ? null
                           : () => Navigator.of(context).pop(),
                     ),
@@ -6145,14 +7003,18 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                               !railLayout,
                               dense,
                             );
-                            final items = _AiModalItemPlanner(
-                              items: _aiItemOptions,
-                              counts: _itemCounts,
-                              enabled: !_generating,
-                              onAdd: _addAiItem,
-                              onRemove: _removeAiItem,
-                              onClear: _clearAiItems,
-                            );
+                            final showItemPlanner = !_usesTabOwnedAiItems;
+                            final items = showItemPlanner
+                                ? _AiModalItemPlanner(
+                                    items: _aiItemOptions,
+                                    counts: _itemCounts,
+                                    enabled: !_generating,
+                                    onAdd: _addAiItem,
+                                    onRemove: _removeAiItem,
+                                    onClear: _clearAiItems,
+                                  )
+                                : null;
+                            final notes = _buildAiNotesPanel(context, dense);
 
                             if (!railLayout) {
                               return SingleChildScrollView(
@@ -6162,7 +7024,11 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                                   children: [
                                     form,
                                     SizedBox(height: dense ? 12 : 16),
-                                    items,
+                                    if (items != null) ...[
+                                      items,
+                                      SizedBox(height: dense ? 12 : 14),
+                                    ],
+                                    notes,
                                   ],
                                 ),
                               );
@@ -6177,7 +7043,19 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                                 const SizedBox(width: 22),
                                 SizedBox(
                                   width: railWidth,
-                                  child: SingleChildScrollView(child: items),
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        if (items != null) ...[
+                                          items,
+                                          SizedBox(height: dense ? 12 : 14),
+                                        ],
+                                        notes,
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ],
                             );
@@ -6190,10 +7068,12 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                     _AiModalFooter(
                       generating: _generating,
                       revisionMode: widget.revisionMode,
-                      onClose: _generating || _readingSource
+                      onClose:
+                          _generating || _readingSource || _sourceImageUploading
                           ? null
                           : () => Navigator.of(context).pop(),
-                      onGenerate: _generating || _readingSource
+                      onGenerate:
+                          _generating || _readingSource || _sourceImageUploading
                           ? null
                           : () => unawaited(_handleGenerate()),
                     ),
@@ -6209,6 +7089,11 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   }
 
   Widget _buildSelectGrid(BuildContext context, bool compact) {
+    final primaryContentTypeLabel = widget.formatType == 'video'
+        ? 'newsAdd.aiModal.content.video'
+        : _usesContentsAiFormat
+        ? 'newsAdd.aiModal.content.contents'
+        : 'newsAdd.aiModal.content.article';
     final tone = _AiGeneratorSelect(
       label: 'newsAdd.aiModal.tone',
       value: _tone,
@@ -6248,7 +7133,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       items: [
         DropdownMenuItem(
           value: 'article',
-          child: Text(context.t('newsAdd.aiModal.content.article')),
+          child: Text(context.t(primaryContentTypeLabel)),
         ),
         DropdownMenuItem(
           value: 'breaking',
@@ -6322,6 +7207,17 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   }
 
   Widget _buildAiForm(BuildContext context, bool compact, bool dense) {
+    final sourceImages = _currentSourceImages;
+    final topicLines = sourceImages.isNotEmpty
+        ? (dense ? 8 : 9)
+        : (dense ? 11 : 12);
+    final topicInput = _TextInputBox(
+      controller: _topicController,
+      hintTextKey: 'newsAdd.aiModal.topicHint',
+      minLines: topicLines,
+      maxLines: topicLines,
+      fontSize: 13.5,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -6339,14 +7235,52 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         ),
         SizedBox(height: dense ? 12 : 14),
         const _FieldLabel('newsAdd.aiModal.topic', icon: Icons.auto_awesome),
-        _TextInputBox(
-          controller: _topicController,
-          hintTextKey: 'newsAdd.aiModal.topicHint',
-          minLines: dense ? 4 : 5,
-          maxLines: dense ? 4 : 5,
-          fontSize: 13.5,
-        ),
-        SizedBox(height: dense ? 12 : 14),
+        if (sourceImages.isEmpty)
+          topicInput
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final canUseSidePanel = !compact && constraints.maxWidth >= 620;
+              final preview = _SourceImagePreview(
+                images: sourceImages,
+                selectedImage: _selectedSourceImage,
+                uploading: _sourceImageUploading,
+                uploadProgress: _sourceImageUploadProgress,
+                status: _sourceImageStatus,
+                statusIsError: _sourceImageStatusIsError,
+                sidePanel: canUseSidePanel,
+                onTap: _sourceImageUploading
+                    ? null
+                    : () => unawaited(_handleOpenSourceImages()),
+              );
+              if (!canUseSidePanel) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [topicInput, const SizedBox(height: 10), preview],
+                );
+              }
+              final panelWidth = (constraints.maxWidth * 0.26).clamp(
+                184.0,
+                210.0,
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: topicInput),
+                  const SizedBox(width: 12),
+                  SizedBox(width: panelWidth, child: preview),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAiNotesPanel(BuildContext context, bool dense) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         const _FieldLabel(
           'newsAdd.aiModal.sourceNotes',
           icon: Icons.fact_check_outlined,
@@ -6354,14 +7288,21 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         _TextInputBox(
           controller: _notesController,
           hintTextKey: 'newsAdd.aiModal.sourceNotesHint',
-          minLines: dense ? 4 : 5,
-          maxLines: dense ? 4 : 5,
+          minLines: dense ? 3 : 4,
+          maxLines: dense ? 3 : 4,
           fontSize: 13,
         ),
-        SizedBox(height: dense ? 12 : 16),
+        SizedBox(height: dense ? 10 : 12),
         _AiModalOptions(
           includeSeo: _includeSeo,
+          showDeepResearch: _usesInteractiveAiFormat,
+          deepResearch: _deepResearch,
+          preserveSource: _preserveSource,
           onSeoChanged: (value) => setState(() => _includeSeo = value),
+          onDeepResearchChanged: (value) =>
+              setState(() => _deepResearch = value),
+          onPreserveSourceChanged: (value) =>
+              setState(() => _preserveSource = value),
         ),
       ],
     );
@@ -6592,11 +7533,566 @@ class _AiSourceUrlField extends StatelessWidget {
   }
 }
 
+class _SourceImagePreview extends StatelessWidget {
+  const _SourceImagePreview({
+    required this.images,
+    required this.selectedImage,
+    required this.uploading,
+    required this.uploadProgress,
+    required this.status,
+    required this.statusIsError,
+    required this.onTap,
+    this.sidePanel = false,
+  });
+
+  final List<AdminNewsSourceImage> images;
+  final _AiSelectedSourceImage? selectedImage;
+  final bool uploading;
+  final double? uploadProgress;
+  final String? status;
+  final bool statusIsError;
+  final VoidCallback? onTap;
+  final bool sidePanel;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewUrl = selectedImage?.originalUrl ?? images.first.url;
+    final statusText = status?.trim() ?? '';
+    final enabled = onTap != null;
+    final child = sidePanel
+        ? _buildSidePanel(context, previewUrl, statusText)
+        : _buildInlinePanel(context, previewUrl, statusText);
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.surface.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: _newsAddStrongLine),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInlinePanel(
+    BuildContext context,
+    String previewUrl,
+    String statusText,
+  ) {
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          child: SizedBox(
+            width: 96,
+            height: 62,
+            child: Image.network(
+              previewUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const _SourceImageFallback(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SourceImagePreviewText(
+            images: images,
+            uploading: uploading,
+            uploadProgress: uploadProgress,
+            statusText: statusText,
+            statusIsError: statusIsError,
+          ),
+        ),
+        const SizedBox(width: 10),
+        _SourceImagePreviewAction(selected: selectedImage != null),
+      ],
+    );
+  }
+
+  Widget _buildSidePanel(
+    BuildContext context,
+    String previewUrl,
+    String statusText,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          child: SizedBox(
+            height: 58,
+            child: Image.network(
+              previewUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const _SourceImageFallback(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _SourceImagePreviewText(
+          images: images,
+          uploading: uploading,
+          uploadProgress: uploadProgress,
+          statusText: statusText,
+          statusIsError: statusIsError,
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _SourceImagePreviewAction(
+            selected: selectedImage != null,
+            compact: true,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SourceImagePreviewText extends StatelessWidget {
+  const _SourceImagePreviewText({
+    required this.images,
+    required this.uploading,
+    required this.uploadProgress,
+    required this.statusText,
+    required this.statusIsError,
+  });
+
+  final List<AdminNewsSourceImage> images;
+  final bool uploading;
+  final double? uploadProgress;
+  final String statusText;
+  final bool statusIsError;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.image_search_outlined,
+              size: 15,
+              color: AppColors.deepOcean,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                context.t('newsAdd.aiModal.sourceImages'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.deepOcean,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${images.length} ${context.t('newsAdd.aiModal.sourceImagesFound')}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: _newsAddTabMuted,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
+        ),
+        if (uploading) ...[
+          const SizedBox(height: 7),
+          LinearProgressIndicator(
+            minHeight: 3,
+            value: uploadProgress,
+            color: AppColors.deepOcean,
+            backgroundColor: _newsAddSoftLine,
+          ),
+        ] else if (statusText.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          Text(
+            statusText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: statusIsError
+                  ? AppColors.actionRed
+                  : const Color(0xFF1F8B3D),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SourceImagePreviewAction extends StatelessWidget {
+  const _SourceImagePreviewAction({
+    required this.selected,
+    this.compact = false,
+  });
+
+  final bool selected;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 30.0 : 34.0;
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.deepOcean,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      child: Icon(
+        selected ? Icons.check : Icons.grid_view,
+        color: Colors.white,
+        size: compact ? 15 : 16,
+      ),
+    );
+  }
+}
+
+class _SourceImagesPickerDialog extends StatefulWidget {
+  const _SourceImagesPickerDialog({
+    required this.images,
+    required this.selectedUrl,
+  });
+
+  final List<AdminNewsSourceImage> images;
+  final String? selectedUrl;
+
+  @override
+  State<_SourceImagesPickerDialog> createState() =>
+      _SourceImagesPickerDialogState();
+}
+
+class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
+  String? _selectedUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedUrl = widget.selectedUrl?.trim().isNotEmpty == true
+        ? widget.selectedUrl!.trim()
+        : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final width = (size.width * 0.62).clamp(720.0, 980.0);
+    final height = (size.height * 0.68).clamp(500.0, 680.0);
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 42),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: _newsAddStrongLine),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.14),
+              blurRadius: 32,
+              offset: const Offset(0, 18),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            _SourceImagesDialogHeader(onClose: () => Navigator.pop(context)),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final crossAxisCount = (constraints.maxWidth / 170)
+                        .floor()
+                        .clamp(3, 5)
+                        .toInt();
+                    return GridView.builder(
+                      itemCount: widget.images.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.08,
+                      ),
+                      itemBuilder: (context, index) {
+                        final image = widget.images[index];
+                        return _SourceImageTile(
+                          image: image,
+                          selected: image.url == _selectedUrl,
+                          onTap: () => setState(() => _selectedUrl = image.url),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+            _SourceImagesDialogFooter(
+              onClose: () => Navigator.pop(context),
+              onUse: _selectedUrl == null
+                  ? null
+                  : () {
+                      final selected = widget.images.firstWhere(
+                        (image) => image.url == _selectedUrl,
+                      );
+                      Navigator.pop(context, selected);
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SourceImagesDialogHeader extends StatelessWidget {
+  const _SourceImagesDialogHeader({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 18, 16, 18),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              context.t('newsAdd.aiModal.sourceImagesDialogTitle'),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClose,
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.close, size: 20, color: AppColors.iconMuted),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceImagesDialogFooter extends StatelessWidget {
+  const _SourceImagesDialogFooter({required this.onClose, required this.onUse});
+
+  final VoidCallback onClose;
+  final VoidCallback? onUse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          _PillButton(
+            icon: Icons.close,
+            label: 'newsAdd.aiModal.close',
+            onTap: onClose,
+            background: Colors.white,
+            foreground: AppColors.inkSoft,
+            borderColor: _newsAddStrongLine,
+            height: 38,
+          ),
+          const SizedBox(width: 10),
+          _PillButton(
+            icon: Icons.check_circle_outline,
+            label: 'newsAdd.aiModal.sourceImageUse',
+            onTap: onUse,
+            background: AppColors.deepOcean,
+            foreground: Colors.white,
+            height: 38,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceImageTile extends StatelessWidget {
+  const _SourceImageTile({
+    required this.image,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AdminNewsSourceImage image;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(image.url);
+    final label = image.alt.trim().isNotEmpty
+        ? image.alt.trim()
+        : uri?.host ?? image.url;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: selected ? const Color(0xFF10B981) : _newsAddStrongLine,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      image.url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const _SourceImageFallback(),
+                    ),
+                    if (selected)
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Container(
+                          margin: const EdgeInsets.all(8),
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981),
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.value,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 15,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: _newsAddSoftLine)),
+                ),
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SourceImageFallback extends StatelessWidget {
+  const _SourceImageFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.broken_image_outlined,
+        size: 24,
+        color: AppColors.iconMuted,
+      ),
+    );
+  }
+}
+
 class _AiModalOptions extends StatelessWidget {
-  const _AiModalOptions({required this.includeSeo, required this.onSeoChanged});
+  const _AiModalOptions({
+    required this.includeSeo,
+    required this.showDeepResearch,
+    required this.deepResearch,
+    required this.preserveSource,
+    required this.onSeoChanged,
+    required this.onDeepResearchChanged,
+    required this.onPreserveSourceChanged,
+  });
 
   final bool includeSeo;
+  final bool showDeepResearch;
+  final bool deepResearch;
+  final bool preserveSource;
   final ValueChanged<bool> onSeoChanged;
+  final ValueChanged<bool> onDeepResearchChanged;
+  final ValueChanged<bool> onPreserveSourceChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -6607,50 +8103,98 @@ class _AiModalOptions extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.value),
         border: Border.all(color: _newsAddSoftLine),
       ),
-      child: Row(
-        children: [
-          _AiModalToggle(
-            label: 'newsAdd.aiModal.includeSeo',
-            value: includeSeo,
-            onChanged: onSeoChanged,
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final spacing = constraints.maxWidth < 420 ? 6.0 : 10.0;
+          final fontSize = constraints.maxWidth < 420
+              ? 11.0
+              : constraints.maxWidth < 480
+              ? 11.5
+              : 12.0;
+          final toggles = [
+            _AiModalOptionToggle(
+              label: 'newsAdd.aiModal.includeSeo',
+              value: includeSeo,
+              onChanged: onSeoChanged,
+              activeColor: AppColors.deepOcean,
+              fontSize: fontSize,
+            ),
+            _AiModalOptionToggle(
+              label: 'newsAdd.aiModal.preserveSource',
+              value: preserveSource,
+              onChanged: onPreserveSourceChanged,
+              activeColor: AppColors.deepOcean,
+              fontSize: fontSize,
+            ),
+            if (showDeepResearch)
+              _AiModalOptionToggle(
+                label: 'newsAdd.aiModal.deepResearch',
+                value: deepResearch,
+                onChanged: onDeepResearchChanged,
+                activeColor: AppColors.warmHorizon,
+                fontSize: fontSize,
+              ),
+          ];
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              for (var index = 0; index < toggles.length; index++) ...[
+                if (index > 0) SizedBox(width: spacing),
+                Expanded(child: toggles[index]),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _AiModalToggle extends StatelessWidget {
-  const _AiModalToggle({
+class _AiModalOptionToggle extends StatelessWidget {
+  const _AiModalOptionToggle({
     required this.label,
     required this.value,
     required this.onChanged,
+    required this.activeColor,
+    required this.fontSize,
   });
 
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final Color activeColor;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       children: [
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              context.t(label),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
+              style: TextStyle(
+                color: AppColors.inkSoft,
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
         _ToggleSwitch(
           value: value,
           onChanged: onChanged,
-          activeColor: AppColors.deepOcean,
+          activeColor: activeColor,
           showCheckIcon: true,
-        ),
-        const SizedBox(width: 10),
-        Text(
-          context.t(label),
-          style: const TextStyle(
-            color: AppColors.inkSoft,
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-          ),
         ),
       ],
     );
@@ -9232,13 +10776,17 @@ class _PublishActionButton extends StatelessWidget {
               else
                 SymbolIcon(icon, color: fg, size: 15),
               const SizedBox(width: 8),
-              Text(
-                context.t(label),
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
+              Flexible(
+                child: Text(
+                  context.t(label),
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ],

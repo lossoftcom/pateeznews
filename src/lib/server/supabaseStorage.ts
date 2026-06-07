@@ -169,6 +169,7 @@ export function contentTypeForFilename(filename: string, fallback = 'application
     jpeg: 'image/jpeg',
     png: 'image/png',
     gif: 'image/gif',
+    ico: 'image/x-icon',
     svg: 'image/svg+xml',
     avif: 'image/avif',
     mp4: 'video/mp4',

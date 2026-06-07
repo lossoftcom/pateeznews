@@ -113,13 +113,30 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     required String languageCode,
     required List<AdminAiPrompt> prompts,
   }) async {
-    if (prompts.isNotEmpty) return prompts;
-    final saved = await widget.repository.savePrompt(
-      session: widget.session,
-      languageCode: languageCode,
-      data: adminNewsAiDefaultPromptData,
-    );
-    return [saved];
+    final defaults = prompts.isEmpty
+        ? adminAiDefaultPromptDataList
+        : const [
+            adminQuizAiDefaultPromptData,
+            adminPollAiDefaultPromptData,
+            adminVideoAiDefaultPromptData,
+            adminContentsAiDefaultPromptData,
+          ];
+    final normalizedTitles = {
+      for (final prompt in prompts) _normalizePromptTitle(prompt.title),
+    };
+    final savedDefaults = <AdminAiPrompt>[];
+    for (final data in defaults) {
+      final titleKey = _normalizePromptTitle(data.title);
+      if (normalizedTitles.contains(titleKey)) continue;
+      final saved = await widget.repository.savePrompt(
+        session: widget.session,
+        languageCode: languageCode,
+        data: data,
+      );
+      savedDefaults.add(saved);
+      normalizedTitles.add(titleKey);
+    }
+    return [...savedDefaults, ...prompts];
   }
 
   Future<void> _saveGoogleSettings() async {
@@ -1826,6 +1843,10 @@ String _selectModelAfterFetch({
           .firstOrNull ??
       models.firstOrNull ??
       current;
+}
+
+String _normalizePromptTitle(String value) {
+  return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 }
 
 String _cleanLanguageCode(String value) {

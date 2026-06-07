@@ -10,7 +10,7 @@ function stringValue(value: unknown) {
 }
 
 export function readRuntimeEnv(name: string) {
-  const metaEnv = import.meta.env as Record<string, string | undefined>;
+  const metaEnv = ((import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env || {});
   return (
     stringValue((cloudflareEnv as RuntimeEnv)[name]) ||
     stringValue(process.env[name]) ||

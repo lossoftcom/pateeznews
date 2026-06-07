@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter/services.dart';
 
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -19,17 +20,23 @@ const _quizResultDescriptionBodyHeight = 148.0;
 class QuizResultBlockEntry {
   QuizResultBlockEntry()
     : titleController = TextEditingController(),
+      minScoreController = TextEditingController(),
+      maxScoreController = TextEditingController(),
       descriptionController = quill.QuillController(
         document: adminQuillDocumentFromJson(adminEmptyQuillDeltaJson),
         selection: const TextSelection.collapsed(offset: 0),
       );
 
   final TextEditingController titleController;
+  final TextEditingController minScoreController;
+  final TextEditingController maxScoreController;
   final quill.QuillController descriptionController;
   String? imageUrl;
 
   void dispose() {
     titleController.dispose();
+    minScoreController.dispose();
+    maxScoreController.dispose();
     descriptionController.dispose();
   }
 }
@@ -38,9 +45,12 @@ class QuizResultBlockCard extends StatelessWidget {
   const QuizResultBlockCard({
     super.key,
     required this.titleController,
+    required this.minScoreController,
+    required this.maxScoreController,
     required this.descriptionController,
     required this.blockNumber,
     required this.imageUrl,
+    required this.showScoreRange,
     required this.canMoveUp,
     required this.canMoveDown,
     required this.onDelete,
@@ -50,9 +60,12 @@ class QuizResultBlockCard extends StatelessWidget {
   });
 
   final TextEditingController titleController;
+  final TextEditingController minScoreController;
+  final TextEditingController maxScoreController;
   final quill.QuillController descriptionController;
   final int? blockNumber;
   final String? imageUrl;
+  final bool showScoreRange;
   final bool canMoveUp;
   final bool canMoveDown;
   final VoidCallback onDelete;
@@ -138,6 +151,13 @@ class QuizResultBlockCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (showScoreRange) ...[
+                    const SizedBox(height: 14),
+                    _ScoreRangePanel(
+                      minScoreController: minScoreController,
+                      maxScoreController: maxScoreController,
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   LayoutBuilder(
                     builder: (context, constraints) {
@@ -187,6 +207,124 @@ class QuizResultBlockCard extends StatelessWidget {
               onDelete: onDelete,
               onMoveUp: onMoveUp,
               onMoveDown: onMoveDown,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreRangePanel extends StatelessWidget {
+  const _ScoreRangePanel({
+    required this.minScoreController,
+    required this.maxScoreController,
+  });
+
+  final TextEditingController minScoreController;
+  final TextEditingController maxScoreController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _quizResultBlockStrongLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _QuizResultFieldLabel('newsAdd.quiz.correctScoreRange'),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            children: [
+              _ScoreNumberInput(
+                controller: minScoreController,
+                label: 'newsAdd.quiz.minCorrect',
+                hintText: '0',
+              ),
+              _ScoreNumberInput(
+                controller: maxScoreController,
+                label: 'newsAdd.quiz.maxCorrect',
+                hintText: '4',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreNumberInput extends StatelessWidget {
+  const _ScoreNumberInput({
+    required this.controller,
+    required this.label,
+    required this.hintText,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hintText;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 132,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, left: 2),
+            child: Text(
+              context.t(label),
+              style: const TextStyle(
+                color: _quizResultBlockMutedText,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ),
+          Container(
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: _quizResultBlockStrongLine),
+            ),
+            child: TextField(
+              controller: controller,
+              maxLines: 1,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              cursorColor: AppColors.deepOcean,
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+              decoration: InputDecoration(
+                hintText: hintText,
+                hintStyle: const TextStyle(
+                  color: AppColors.placeholder,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+              ),
             ),
           ),
         ],

@@ -28,15 +28,19 @@ class QuizQuestionResultOption {
 }
 
 class QuizQuestionAnswerEntry {
-  QuizQuestionAnswerEntry() : answerController = TextEditingController();
+  QuizQuestionAnswerEntry()
+    : answerController = TextEditingController(),
+      explanationController = TextEditingController();
 
   final TextEditingController answerController;
+  final TextEditingController explanationController;
   String? imageUrl;
   String? resultId;
   bool isCorrect = false;
 
   void dispose() {
     answerController.dispose();
+    explanationController.dispose();
   }
 }
 
@@ -778,10 +782,10 @@ class _DescriptionPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _QuizQuestionFieldLabel('newsAdd.quiz.resultDescription'),
+        const _QuizQuestionFieldLabel('newsAdd.quiz.questionDescription'),
         _QuizQuestionDescriptionEditor(
           controller: controller,
-          placeholder: 'newsAdd.quiz.resultDescriptionHint',
+          placeholder: 'newsAdd.quiz.questionDescriptionHint',
         ),
       ],
     );
@@ -1157,6 +1161,10 @@ class _QuizAnswerCardState extends State<_QuizAnswerCard> {
       ),
       QuizQuestionType.checklist => null,
     };
+    final showCorrectExplanation =
+        widget.quizType == QuizQuestionType.trivia &&
+        (widget.entry.isCorrect ||
+            widget.entry.explanationController.text.trim().isNotEmpty);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -1206,6 +1214,10 @@ class _QuizAnswerCardState extends State<_QuizAnswerCard> {
                           onRemove: widget.onRemove,
                         ),
                 ),
+                if (showCorrectExplanation)
+                  _CorrectExplanationRow(
+                    controller: widget.entry.explanationController,
+                  ),
                 if (widget.showImage && control != null) control,
               ],
             ),
@@ -1216,6 +1228,80 @@ class _QuizAnswerCardState extends State<_QuizAnswerCard> {
               right: -9,
               child: _AnswerDeleteButton(onPressed: widget.onRemove),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CorrectExplanationRow extends StatelessWidget {
+  const _CorrectExplanationRow({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFBFDFE),
+        border: Border(top: BorderSide(color: _quizQuestionBlockStrongLine)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 7, left: 2),
+            child: Text(
+              context.t('newsAdd.quiz.correctAnswerExplanation'),
+              style: const TextStyle(
+                color: _quizQuestionBlockMutedText,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: _quizQuestionBlockStrongLine),
+            ),
+            child: TextField(
+              controller: controller,
+              minLines: 2,
+              maxLines: 3,
+              cursorColor: AppColors.deepOcean,
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                height: 1.35,
+                letterSpacing: 0,
+              ),
+              decoration: InputDecoration(
+                hintText: context.t(
+                  'newsAdd.quiz.correctAnswerExplanationHint',
+                ),
+                hintStyle: const TextStyle(
+                  color: AppColors.placeholder,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w400,
+                  height: 1.35,
+                  letterSpacing: 0,
+                ),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+              ),
+            ),
+          ),
         ],
       ),
     );

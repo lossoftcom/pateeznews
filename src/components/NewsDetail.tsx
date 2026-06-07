@@ -260,10 +260,13 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
     }
 
     return results.find((result: any) => {
-      const minScore = Number.isFinite(Number(result?.minScore)) ? Number(result.minScore) : 0;
-      const maxScore = Number.isFinite(Number(result?.maxScore)) ? Number(result.maxScore) : questions.length;
-      const answerCount = Number.isFinite(Number(result?.answerCount)) ? Number(result.answerCount) : null;
-      if (answerCount !== null) return score === answerCount;
+      const hasMinScore = result?.minScore !== undefined && result?.minScore !== null && result?.minScore !== '';
+      const hasMaxScore = result?.maxScore !== undefined && result?.maxScore !== null && result?.maxScore !== '';
+      const hasAnswerCount = result?.answerCount !== undefined && result?.answerCount !== null && result?.answerCount !== '';
+      const minScore = hasMinScore && Number.isFinite(Number(result?.minScore)) ? Number(result.minScore) : 0;
+      const maxScore = hasMaxScore && Number.isFinite(Number(result?.maxScore)) ? Number(result.maxScore) : questions.length;
+      const answerCount = hasAnswerCount && Number.isFinite(Number(result?.answerCount)) ? Number(result.answerCount) : null;
+      if (!hasMinScore && !hasMaxScore && answerCount !== null) return score === answerCount;
       return score >= minScore && score <= maxScore;
     }) || results[results.length - 1];
   }, [questions, quizType, results, score, selectedAnswers]);
@@ -300,10 +303,17 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
       <div className="space-y-6">
         {questions.map((question: any, questionIndex: number) => {
           const selected = selectedAnswers[question.id] || [];
+          const reveal = canShowResult && quizType === 'trivia';
           const layout = question.layout === 'grid3' ? 'md:grid-cols-3' : question.layout === 'grid2' ? 'md:grid-cols-2' : 'grid-cols-1';
           const hasPortraitAnswerImage = (question.answers || []).some((answer: any) => (
             !!answer.image && answerImageOrientations[`${question.id}:${answer.id}`] === 'portrait'
           ));
+          const correctAnswerExplanations = reveal
+            ? (question.answers || [])
+              .filter((answer: any) => !!answer.isCorrect)
+              .map((answer: any) => String(answer?.explanation || answer?.correctExplanation || '').trim())
+              .filter((explanation: string) => explanation.length > 0)
+            : [];
           return (
             <div key={question.id} className="rounded-[5px] border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
               <div className="flex items-start gap-3 md:gap-4">
@@ -323,7 +333,6 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
               <div className={`mt-5 grid ${layout} gap-4`}>
                 {(question.answers || []).map((answer: any) => {
                   const isSelected = selected.includes(answer.id);
-                  const reveal = canShowResult && quizType === 'trivia';
                   const hasImage = !!answer.image;
                   const correctnessClass = reveal && answer.isCorrect
                     ? 'border-palette-red bg-palette-red/5 text-palette-red ring-1 ring-palette-red/10'
@@ -368,6 +377,21 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
                   );
                 })}
               </div>
+
+              {correctAnswerExplanations.length > 0 && (
+                <div className="mt-4 rounded-[4px] border border-palette-red/15 bg-palette-red/5 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-palette-red/70">Cevap sonrası açıklama</p>
+                  <div className="mt-2 space-y-2">
+                    {correctAnswerExplanations.map((explanation: string, explanationIndex: number) => (
+                      <div
+                        key={`${question.id}-explanation-${explanationIndex}`}
+                        className="rich-text-content text-sm font-semibold leading-relaxed text-gray-700"
+                        dangerouslySetInnerHTML={{ __html: explanation }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

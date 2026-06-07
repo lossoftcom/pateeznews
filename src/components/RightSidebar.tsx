@@ -40,6 +40,8 @@ type DeathNotice = {
    description: string;
 };
 
+const SIDEBAR_TIMEZONE = 'Europe/Istanbul';
+
 const MemorialDoveIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
    <svg viewBox="0 0 64 64" aria-hidden="true" className={className} fill="none">
       {/* Dove body */}
@@ -167,6 +169,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    const [activePharmacyDistrict, setActivePharmacyDistrict] = useState('MERKEZ');
    const [newsletterEmail, setNewsletterEmail] = useState('');
    const [newsletterLoading, setNewsletterLoading] = useState(false);
+   const hasSidebarData = Boolean(initialSidebarData || liveSidebar || livePharmacyData || liveDeathData);
 
    useEffect(() => {
       let isMounted = true;
@@ -351,7 +354,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    const currentWeatherIsDay = liveWeather?.current?.isDay;
    const forecast: ForecastItem[] = liveWeather?.forecast?.length
       ? liveWeather.forecast.map((day: any) => ({
-         day: new Intl.DateTimeFormat(currentLang.code || 'tr', { weekday: 'short' }).format(new Date(day.day)),
+         day: new Intl.DateTimeFormat(currentLang.code || 'tr', { weekday: 'short', timeZone: SIDEBAR_TIMEZONE }).format(new Date(day.day)),
          icon: weatherIcon(day.weatherCode),
          temp: `${day.max}°`,
       }))
@@ -376,14 +379,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
       : [];
    const selectedPharmacies = dutyPharmacies.filter((pharmacy) => pharmacy.district === activeDistrict);
    const pharmacyUpdatedAt = livePharmacyData?.fetchedAt
-      ? new Intl.DateTimeFormat(currentLang.code || 'tr', { hour: '2-digit', minute: '2-digit' }).format(new Date(livePharmacyData.fetchedAt))
+      ? new Intl.DateTimeFormat(currentLang.code || 'tr', { hour: '2-digit', minute: '2-digit', timeZone: SIDEBAR_TIMEZONE }).format(new Date(livePharmacyData.fetchedAt))
       : null;
    const deathNotices = Array.isArray(liveDeathData?.notices)
       ? liveDeathData.notices as DeathNotice[]
       : [];
    const visibleDeathNotices = deathNotices.slice(0, 3);
    const deathUpdatedAt = liveDeathData?.fetchedAt
-      ? new Intl.DateTimeFormat(currentLang.code || 'tr', { hour: '2-digit', minute: '2-digit' }).format(new Date(liveDeathData.fetchedAt))
+      ? new Intl.DateTimeFormat(currentLang.code || 'tr', { hour: '2-digit', minute: '2-digit', timeZone: SIDEBAR_TIMEZONE }).format(new Date(liveDeathData.fetchedAt))
       : null;
 
    const openHref = (href?: string) => {
@@ -408,7 +411,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
       }
    };
 
-   if (loading) {
+   if (loading && !hasSidebarData) {
       return <RightSidebarSkeleton />;
    }
 

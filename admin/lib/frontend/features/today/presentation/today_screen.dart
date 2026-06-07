@@ -10,7 +10,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/feature_app_bar.dart';
 import '../../etkinlik/data/etkinlik_mock.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
-import '../../pharmacy/data/pharmacy_mock.dart';
+import '../../pharmacy/data/pharmacy_repository.dart';
 import '../../pharmacy/presentation/pharmacy_screen.dart';
 import '../../weather/data/weather_mock.dart';
 import '../../weather/presentation/weather_screen.dart';
@@ -23,7 +23,12 @@ const Color _violet = Color(0xFF6C5CE7);
 /// kolayca anlayacağı netlikte toplar: hava, nöbetçi eczane, namaz vakitleri ve
 /// günün etkinliği. Kartlara dokununca ilgili tam sayfaya gidilir.
 class TodayScreen extends StatelessWidget {
-  const TodayScreen({super.key});
+  const TodayScreen({
+    super.key,
+    this.dutyPharmacyData = const DutyPharmacyData.empty(),
+  });
+
+  final DutyPharmacyData dutyPharmacyData;
 
   void _push(BuildContext context, Widget page) {
     Navigator.of(context).push(
@@ -52,7 +57,7 @@ class TodayScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final pharmacy = PharmacyMock.all.first;
+    final pharmacy = dutyPharmacyData.primaryPharmacy;
     final event = EtkinlikMock.all.first;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -99,9 +104,14 @@ class TodayScreen extends StatelessWidget {
                       accent: _eczaneRed,
                       icon: Symbols.capsule_fill,
                       eyebrow: 'NÖBETÇİ ECZANE',
-                      title: pharmacy.name,
-                      subtitle: pharmacy.address,
-                      onTap: () => _push(context, const PharmacyScreen()),
+                      title: pharmacy?.name ?? 'Nöbetçi eczane listesi',
+                      subtitle: pharmacy?.address.isNotEmpty == true
+                          ? pharmacy!.address
+                          : 'Canlı listeyi görüntüle',
+                      onTap: () => _push(
+                        context,
+                        PharmacyScreen(initialData: dutyPharmacyData),
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),

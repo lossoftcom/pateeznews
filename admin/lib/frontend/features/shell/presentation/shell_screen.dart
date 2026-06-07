@@ -11,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../account/presentation/account_sign_in_screen.dart';
+import '../../announcements/data/announcements_repository.dart';
 import '../../announcements/presentation/announcements_screen.dart';
 import '../../apps/data/app_item.dart';
 import '../../apps/presentation/app_feature_screen.dart';
@@ -18,11 +19,17 @@ import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
 import '../../home/presentation/home_screen.dart';
+import '../../markets/data/markets_repository.dart';
 import '../../markets/presentation/markets_screen.dart';
+import '../../obituaries/data/death_notice_repository.dart';
 import '../../obituaries/presentation/obituaries_screen.dart';
+import '../../pharmacy/data/pharmacy_repository.dart';
 import '../../pharmacy/presentation/pharmacy_screen.dart';
+import '../../prayer_times/data/prayer_times_repository.dart';
+import '../../prayer_times/presentation/prayer_times_screen.dart';
 import '../../profile/data/profile_content.dart';
 import '../../profile/presentation/profile_screen.dart';
+import '../../weather/data/weather_repository.dart';
 import '../../weather/presentation/weather_screen.dart';
 import '../data/app_shell_repository.dart';
 import 'widgets/pateez_bottom_nav.dart';
@@ -38,6 +45,12 @@ class ShellScreen extends StatefulWidget {
     super.key,
     this.accountPage,
     this.shellData = const AppShellData.empty(),
+    this.dutyPharmacyData = const DutyPharmacyData.empty(),
+    this.deathNoticeData = const DeathNoticeData.empty(),
+    this.weatherData = const WeatherData.empty(),
+    this.marketsData = const MarketsData.empty(),
+    this.prayerTimesData = const PrayerTimesData.empty(),
+    this.announcementData = const AnnouncementData.empty(),
     this.authState,
     this.authLoading = false,
     this.onSignIn,
@@ -47,6 +60,12 @@ class ShellScreen extends StatefulWidget {
 
   final Widget? accountPage;
   final AppShellData shellData;
+  final DutyPharmacyData dutyPharmacyData;
+  final DeathNoticeData deathNoticeData;
+  final WeatherData weatherData;
+  final MarketsData marketsData;
+  final PrayerTimesData prayerTimesData;
+  final AnnouncementData announcementData;
   final FrontendAuthState? authState;
   final bool authLoading;
   final FrontendSignInCallback? onSignIn;
@@ -219,6 +238,17 @@ class _ShellScreenState extends State<ShellScreen>
     setState(() => _menuOpen = true);
   }
 
+  void _showSubmitNewsHint() {
+    _closeMenu();
+    _closeAccountMenu();
+    _closeAppsSheet();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('WhatsApp haber gönderme hattı hazırlanıyor.'),
+      ),
+    );
+  }
+
   void _closeMenu() {
     if (!_menuOpen) return;
     setState(() => _menuOpen = false);
@@ -296,10 +326,8 @@ class _ShellScreenState extends State<ShellScreen>
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) => CategoryScreen(
-          categoryName: item.label,
-          categoryType: item.type,
-        ),
+        pageBuilder: (_, _, _) =>
+            CategoryScreen(categoryName: item.label, categoryType: item.type),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -347,12 +375,22 @@ class _ShellScreenState extends State<ShellScreen>
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
         pageBuilder: (_, _, _) => switch (item.id) {
-          'nobetci-eczane' => const PharmacyScreen(),
-          'duyurular' => const AnnouncementsScreen(),
+          'nobetci-eczane' => PharmacyScreen(
+            initialData: widget.dutyPharmacyData,
+          ),
+          'duyurular' => AnnouncementsScreen(
+            initialData: widget.announcementData,
+          ),
           'etkinlik' => const EtkinlikScreen(),
-          'hava-durumu' => const WeatherScreen(),
-          'doviz-altin' => const MarketsScreen(),
-          'olum-ilanlari' => const ObituariesScreen(),
+          'hava-durumu' => WeatherScreen(initialData: widget.weatherData),
+          'namaz-vakitleri' => PrayerTimesScreen(
+            initialData: widget.prayerTimesData,
+          ),
+          'doviz-altin' => MarketsScreen(initialData: widget.marketsData),
+          'olum-ilanlari' => ObituariesScreen(
+            initialData: widget.deathNoticeData,
+            authState: widget.authState,
+          ),
           _ => AppFeatureScreen(item: item),
         },
         transitionsBuilder: (context, animation, secondary, child) {
@@ -502,7 +540,9 @@ class _ShellScreenState extends State<ShellScreen>
           children: [
             HomeScreen(
               shellSettings: widget.shellData.siteSettings,
+              dutyPharmacyData: widget.dutyPharmacyData,
               onMenuTap: _openMenu,
+              onSubmitNewsTap: _showSubmitNewsHint,
               onPharmacyTap: () => _openApp(AppItems.nobetciEczane),
             ),
             const SectionPlaceholder(

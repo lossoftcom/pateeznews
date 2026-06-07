@@ -49,9 +49,9 @@ void main() {
     expect(find.text('Giriş yap'), findsOneWidget);
     expect(find.text('Üye ol'), findsOneWidget);
     expect(find.text('Anasayfa'), findsNothing);
-    expect(find.byIcon(Symbols.chevron_left_rounded), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_left_line), findsOneWidget);
 
-    await tester.tap(find.byIcon(Symbols.chevron_left_rounded));
+    await tester.tap(find.byIcon(Symbols.arrow_left_line));
     await tester.pumpAndSettle();
 
     expect(find.text('Anasayfa'), findsOneWidget);

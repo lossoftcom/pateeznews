@@ -9,6 +9,7 @@ const Color _eczaneRed = Color(0xFFE30613); // Nöbetçi Eczane (logo)
 const Color _etkinlikViolet = Color(0xFF6C5CE7); // Etkinlik
 const Color _havaSky = Color(0xFF2D9CDB); // Hava Durumu
 const Color _dovizGreen = Color(0xFF1FA971); // Döviz & Altın
+const Color _namazTeal = Color(0xFF12A18C); // Namaz Vakitleri
 
 /// Nöbetçi Eczane resmi logosu — gerçek görselin optimize webp kopyası.
 const String _eczaneLogoAsset = 'assets/images/nobetci_eczane.webp';
@@ -116,13 +117,26 @@ class AppItems {
     glyph: (size, color) => Icon(Symbols.leaf_line, size: size, color: color),
   );
 
+  static final namazVakitleri = AppItem(
+    id: 'namaz-vakitleri',
+    label: 'Namaz Vakitleri',
+    accent: _namazTeal,
+    tagline: 'Günlük vakitler ve kalan süre',
+    description:
+        'Bulunduğun ilin günlük namaz vakitleri, sıradaki vakte kalan süre ve '
+        'günün ayeti Diyanet kaynaklı canlı verilerle burada gösterilir.',
+    glyph: (size, color) =>
+        Icon(Symbols.moon_clear_fill, size: size, color: color),
+  );
+
   /// "Uygulamalar" sheet'inde gösterilecek sıralı liste.
   static final all = <AppItem>[
     nobetciEczane,
     etkinlik,
     duyurular,
-    havaDurumu,
     olumIlanlari,
+    havaDurumu,
+    namazVakitleri,
     dovizAltin,
   ];
 }

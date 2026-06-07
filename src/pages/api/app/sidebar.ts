@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { ensureAppSchema, json } from '@/lib/server/appDb';
+import { fetchMarketsPayload } from '@/lib/server/marketsData';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 const WEATHER_REFRESH_MS = 30 * 60 * 1000;
@@ -241,7 +242,11 @@ const cacheMatchesSettings = (payload: any, settings: WeatherSettings) => {
   );
 };
 
-const fetchSidebarFresh = async (cacheKey: string, settings: WeatherSettings) => {
+const fetchSidebarFresh = async (
+  cacheKey: string,
+  languageCode: string,
+  settings: WeatherSettings
+) => {
   const existing = refreshInFlight.get(cacheKey);
   if (existing && Date.now() - existing.startedAt < SIDEBAR_REFRESH_LOCK_MS) {
     return existing.promise;
@@ -249,44 +254,46 @@ const fetchSidebarFresh = async (cacheKey: string, settings: WeatherSettings) =>
   if (existing) refreshInFlight.delete(cacheKey);
 
   const promise = (async () => {
-    const [weather, usdTry, btc, gold] = await Promise.all([
+    const [weather, marketPayload, btc] = await Promise.all([
       fetchWeather(settings),
-      fetchJson<any>('https://api.frankfurter.dev/v1/latest?from=USD&to=TRY,EUR', 2500),
+      fetchMarketsPayload(languageCode, false),
       fetchJson<any>('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true', 2500),
-      fetchJson<any>('https://api.gold-api.com/price/XAU', 2500),
     ]);
 
-    const usdTryRate = Number(usdTry?.rates?.TRY || 0);
-    const usdEurRate = Number(usdTry?.rates?.EUR || 0);
-    const eurTryRate = usdTryRate && usdEurRate ? usdTryRate / usdEurRate : 0;
-    const goldGramTry = Number(gold?.price || 0) && usdTryRate
-      ? (Number(gold.price) * usdTryRate) / 31.1034768
-      : 0;
+    const currencyBySymbol = new Map(
+      (marketPayload.currencies || []).map((item) => [item.symbol, item])
+    );
+    const goldById = new Map(
+      (marketPayload.gold || []).map((item) => [item.id, item])
+    );
+    const usdTry = currencyBySymbol.get('USD');
+    const eurTry = currencyBySymbol.get('EUR');
+    const gramGold = goldById.get('gold:GRAM') || marketPayload.gold?.[0];
 
     const markets = [
       {
         symbol: 'USDT',
         nameKey: 'right.markets.usdt_try',
-        price: usdTryRate ? round(usdTryRate, 2).toLocaleString('tr-TR') : null,
-        change: null,
-        isUp: true,
-        source: 'Frankfurter',
+        price: usdTry?.ask ? round(usdTry.ask, 2).toLocaleString('tr-TR') : null,
+        change: usdTry?.changePercent ?? null,
+        isUp: usdTry?.isUp ?? true,
+        source: marketPayload.source,
       },
       {
         symbol: 'EUR',
         nameKey: 'right.markets.eur_try',
-        price: eurTryRate ? round(eurTryRate, 2).toLocaleString('tr-TR') : null,
-        change: null,
-        isUp: true,
-        source: 'Frankfurter',
+        price: eurTry?.ask ? round(eurTry.ask, 2).toLocaleString('tr-TR') : null,
+        change: eurTry?.changePercent ?? null,
+        isUp: eurTry?.isUp ?? true,
+        source: marketPayload.source,
       },
       {
         symbol: 'GA',
         nameKey: 'right.markets.gold_gram',
-        price: goldGramTry ? round(goldGramTry, 2).toLocaleString('tr-TR') : null,
-        change: null,
-        isUp: true,
-        source: 'Gold API',
+        price: gramGold?.ask ? round(gramGold.ask, 2).toLocaleString('tr-TR') : null,
+        change: gramGold?.changePercent ?? null,
+        isUp: gramGold?.isUp ?? true,
+        source: marketPayload.source,
       },
       {
         symbol: 'BTC',
@@ -349,7 +356,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   if (hasMatchingCache) {
-    void fetchSidebarFresh(cacheKey, weatherSettings).catch(() => null);
+    void fetchSidebarFresh(cacheKey, languageCode, weatherSettings).catch(() => null);
     return json({
       ...cached.payload,
       cache: {
@@ -361,7 +368,7 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
-  const fresh = await fetchSidebarFresh(cacheKey, weatherSettings);
+  const fresh = await fetchSidebarFresh(cacheKey, languageCode, weatherSettings);
   return json({
     ...fresh,
     cache: {

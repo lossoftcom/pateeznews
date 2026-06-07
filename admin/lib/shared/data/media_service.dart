@@ -180,6 +180,75 @@ class MediaService {
     );
   }
 
+  Future<MediaItem?> uploadRemoteImage({
+    required String imageUrl,
+    ValueChanged<double>? onUploadProgress,
+    ValueChanged<MediaTransferProgress>? onTransferProgress,
+  }) async {
+    final remoteUri = Uri.tryParse(imageUrl.trim());
+    if (remoteUri == null ||
+        (remoteUri.scheme != 'http' && remoteUri.scheme != 'https')) {
+      return null;
+    }
+
+    final uri = _resolve('/api/storage/upload');
+    final request = http.MultipartRequest('POST', uri);
+    if (!kIsWeb) {
+      request.headers['Origin'] = '${uri.scheme}://${uri.authority}';
+    }
+    request.headers.addAll(await adminAuthHeaders());
+    request.fields['type'] = 'image';
+    request.fields['remoteUrl'] = remoteUri.toString();
+
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
+    late final http.Response response;
+    try {
+      onTransferProgress?.call(
+        const MediaTransferProgress(
+          phase: 'downloading',
+          progress: null,
+          remaining: null,
+        ),
+      );
+      final streamed = await client.send(request).timeout(_uploadTimeout);
+      onUploadProgress?.call(1);
+      onTransferProgress?.call(
+        const MediaTransferProgress(
+          phase: 'processing',
+          progress: null,
+          remaining: null,
+        ),
+      );
+      response = await http.Response.fromStream(streamed).timeout(_timeout);
+    } finally {
+      if (closeClient) client.close();
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) return null;
+    onTransferProgress?.call(
+      const MediaTransferProgress(
+        phase: 'done',
+        progress: 1,
+        remaining: Duration.zero,
+      ),
+    );
+
+    return MediaItem(
+      id: (decoded['id'] ?? '').toString(),
+      value: (decoded['value'] ?? _remoteImageFileName(remoteUri, ''))
+          .toString(),
+      size: (decoded['size'] as num?)?.toInt() ?? 0,
+      date: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      type: (decoded['type'] ?? 'image').toString(),
+      src: (decoded['src'] ?? '').toString(),
+      thumb: decoded['thumb']?.toString(),
+      path: (decoded['id'] ?? '').toString().split('/').first,
+    );
+  }
+
   Future<http.StreamedResponse> _sendMultipartWithProgress(
     http.Client client,
     http.MultipartRequest request, {
@@ -402,3 +471,58 @@ class MediaService {
     }
   }
 }
+
+String _remoteImageFileName(Uri uri, String contentType) {
+  final lastSegment = uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
+  final decoded = Uri.decodeComponent(lastSegment).trim();
+  final fallback = 'source-image-${DateTime.now().millisecondsSinceEpoch}';
+  final name = decoded.isEmpty ? fallback : decoded;
+  final pathExt = _extensionFromPath(name);
+  final contentExt = _extensionFromContentType(contentType);
+  final ext = contentExt.isNotEmpty
+      ? contentExt
+      : pathExt.isNotEmpty
+      ? pathExt
+      : 'jpg';
+  final dotIndex = name.lastIndexOf('.');
+  final base = dotIndex > 0 ? name.substring(0, dotIndex) : name;
+  final safeBase = base.trim().isEmpty ? fallback : base.trim();
+  return '$safeBase.$ext';
+}
+
+String _extensionFromPath(String path) {
+  final cleanPath = path.split('?').first.split('#').first.toLowerCase();
+  final dotIndex = cleanPath.lastIndexOf('.');
+  if (dotIndex < 0 || dotIndex == cleanPath.length - 1) return '';
+  final ext = cleanPath.substring(dotIndex + 1);
+  return _knownImageExtensions.contains(ext) ? ext : '';
+}
+
+String _extensionFromContentType(String contentType) {
+  final normalized = contentType.toLowerCase().split(';').first.trim();
+  return switch (normalized) {
+    'image/jpeg' || 'image/jpg' => 'jpg',
+    'image/png' => 'png',
+    'image/webp' => 'webp',
+    'image/gif' => 'gif',
+    'image/avif' => 'avif',
+    'image/bmp' => 'bmp',
+    'image/heic' => 'heic',
+    'image/heif' => 'heif',
+    'image/svg+xml' => 'svg',
+    _ => '',
+  };
+}
+
+const _knownImageExtensions = {
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'gif',
+  'avif',
+  'bmp',
+  'heic',
+  'heif',
+  'svg',
+};

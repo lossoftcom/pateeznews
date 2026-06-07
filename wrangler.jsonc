@@ -1,9 +1,12 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "pateeznews",
-  "main": "@astrojs/cloudflare/entrypoints/server",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-05-31",
   "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["*/30 * * * *"]
+  },
   "dev": {
     "inspector_port": 0
   },

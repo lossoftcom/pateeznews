@@ -226,6 +226,29 @@ export interface SiteSettings {
   weather_longitude?: number;
   weather_timezone?: string;
   weather_update_interval_minutes?: number;
+  // Market Settings
+  market_enabled?: boolean;
+  market_provider?: string;
+  market_altinapi_key?: string;
+  market_altinapi_base_url?: string;
+  market_genelpara_base_url?: string;
+  market_update_interval_seconds?: number;
+  market_currency_symbols?: string;
+  market_gold_symbols?: string;
+  // Prayer Times Settings
+  prayer_enabled?: boolean;
+  prayer_diyanet_base_url?: string;
+  prayer_location_name?: string;
+  prayer_location_country?: string;
+  prayer_location_state_id?: number;
+  prayer_location_city_id?: number;
+  prayer_timezone?: string;
+  prayer_refresh_lead_days?: number;
+  prayer_cache_days?: number;
+  daily_ayah_enabled?: boolean;
+  daily_ayah_start_date?: string;
+  daily_ayah_quran_api_base_url?: string;
+  daily_ayah_quran_api_token?: string;
   // Font Settings
   site_primary_font?: string;
   site_title_font?: string;

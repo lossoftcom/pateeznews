@@ -2327,22 +2327,6 @@ const _defaultDeathNoticeLocations = [
     isDefault: true,
     active: true,
   ),
-  _DeathNoticeLocation(
-    country: 'Türkiye',
-    city: 'İstanbul',
-    source: 'ibb.istanbul/vefat-edenler',
-    districts: ['Kadıköy', 'Üsküdar', 'Şişli', 'Bakırköy'],
-    isDefault: false,
-    active: true,
-  ),
-  _DeathNoticeLocation(
-    country: 'Almanya',
-    city: 'Berlin',
-    source: 'Berlin resmi duyuru kaynağı',
-    districts: ['Mitte', 'Kreuzberg', 'Neukölln'],
-    isDefault: false,
-    active: false,
-  ),
 ];
 
 class _DeathNoticeLocation {
