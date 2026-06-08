@@ -2155,7 +2155,7 @@ String _publicUrl(String value) {
   final base = !kIsWeb
       ? switch (defaultTargetPlatform) {
           TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-          _ => Uri.parse('http://localhost:4321'),
+          _ => Uri.parse('http://127.0.0.1:4321'),
         }
       : Uri.base;
   return base.resolve(value).toString();

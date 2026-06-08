@@ -2753,6 +2753,26 @@ const Map<String, String> adminArTranslations = <String, String>{
   "newsAdd.cleared": "تم مسح النموذج.",
   "newsAdd.contentInfo": "معلومات المحتوى",
   "newsAdd.manset": "سلايدر العناوين",
+  "newsAdd.mansetImageTitle": "صورة سلايدر العناوين",
+  "newsAdd.mansetImageSubtitle": "صورة مربعة تستخدم في سلايدر الصفحة الرئيسية",
+  "newsAdd.mansetImageHelp":
+      "لا يتم تفعيل سلايدر العناوين إلا بعد اختيار صورة مربعة (1:1). لن يبقى المفتاح مفعلا بدون صورة.",
+  "newsAdd.mansetImagePickLabel": "صورة العنوان",
+  "newsAdd.mansetImageRulesTitle": "قواعد الصورة",
+  "newsAdd.mansetImageRuleSquare":
+      "يجب أن تكون الصورة المختارة مربعة. الملفات غير المربعة تظهر تحذيرا ولا يتم قبولها.",
+  "newsAdd.mansetImageRuleRequired":
+      "لا يمكن تفعيل مفتاح سلايدر العناوين قبل اختيار صورة.",
+  "newsAdd.mansetImageRuleSeparate":
+      "يتم حفظ هذه الصورة بشكل منفصل عن غلاف الخبر وتستخدم في سلايدر العناوين.",
+  "newsAdd.mansetImageEmptyBadge": "لم يتم اختيار صورة مربعة بعد",
+  "newsAdd.mansetImageExistingBadge": "صورة العنوان المحفوظة محددة",
+  "newsAdd.mansetImageSizeBadge": "تم التحقق من المربع: {width} x {height} px",
+  "newsAdd.mansetImageRequiredError": "يجب اختيار صورة مربعة لسلايدر العناوين.",
+  "newsAdd.mansetImageLoadError":
+      "تعذر قراءة أبعاد الصورة. يرجى اختيار صورة أخرى.",
+  "newsAdd.mansetImageSquareError":
+      "يجب أن تكون صورة العنوان مربعة. الصورة المختارة: {width} x {height} px.",
   "newsAdd.pin": "تثبيت في الأعلى",
   "newsAdd.ai": "أنشئ بالذكاء الاصطناعي",
   "newsAdd.articleTitle": "عنوان الخبر",

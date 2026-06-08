@@ -19,6 +19,7 @@ import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
 import '../../home/presentation/home_screen.dart';
+import '../../../core/mock/home_mock_data.dart';
 import '../../markets/data/markets_repository.dart';
 import '../../markets/presentation/markets_screen.dart';
 import '../../obituaries/data/death_notice_repository.dart';
@@ -51,6 +52,7 @@ class ShellScreen extends StatefulWidget {
     this.marketsData = const MarketsData.empty(),
     this.prayerTimesData = const PrayerTimesData.empty(),
     this.announcementData = const AnnouncementData.empty(),
+    this.featuredItems = const [],
     this.authState,
     this.authLoading = false,
     this.onSignIn,
@@ -66,6 +68,7 @@ class ShellScreen extends StatefulWidget {
   final MarketsData marketsData;
   final PrayerTimesData prayerTimesData;
   final AnnouncementData announcementData;
+  final List<FeaturedNews> featuredItems;
   final FrontendAuthState? authState;
   final bool authLoading;
   final FrontendSignInCallback? onSignIn;
@@ -541,6 +544,7 @@ class _ShellScreenState extends State<ShellScreen>
             HomeScreen(
               shellSettings: widget.shellData.siteSettings,
               dutyPharmacyData: widget.dutyPharmacyData,
+              featuredItems: widget.featuredItems,
               onMenuTap: _openMenu,
               onSubmitNewsTap: _showSubmitNewsHint,
               onPharmacyTap: () => _openApp(AppItems.nobetciEczane),

@@ -499,7 +499,7 @@ class SupabaseAdminPagesRepository implements AdminPagesRepository {
     if (!kIsWeb) {
       final host = defaultTargetPlatform == TargetPlatform.android
           ? 'http://10.0.2.2:4321'
-          : 'http://localhost:4321';
+          : 'http://127.0.0.1:4321';
       return Uri.parse(host).resolve(path);
     }
     return Uri.base.resolve(path);

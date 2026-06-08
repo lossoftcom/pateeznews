@@ -549,6 +549,11 @@ export const dataService = {
             mediaUrl: (cardData as any)?.mediaUrl ?? post?.media_url ?? '',
             thumbnail: (cardData as any)?.thumbnail ?? post?.thumbnail_url ?? '',
             thumbnailAlt: post?.thumbnail_alt ?? (cardData as any)?.thumbnailAlt,
+            mansetImageUrl:
+                (cardData as any)?.mansetImageUrl ??
+                (cardData as any)?.featuredImageUrl ??
+                (cardData as any)?.headlineImageUrl ??
+                '',
             likes: post?.likes_count ?? (cardData as any)?.likes ?? 0,
             dislikes: post?.dislikes_count ?? (cardData as any)?.dislikes ?? 0,
             comments: post?.comments_count ?? (cardData as any)?.comments ?? 0,

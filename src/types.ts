@@ -44,6 +44,7 @@ export interface NewsItem {
   mediaList?: string[];
   thumbnail: string;
   thumbnailAlt?: string;
+  mansetImageUrl?: string;
   coverThumbnail?: string;
   optimizedThumbnail?: OptimizedImage;
   optimizedCoverThumbnail?: OptimizedImage;

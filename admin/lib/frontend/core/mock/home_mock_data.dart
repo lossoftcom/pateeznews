@@ -33,6 +33,7 @@ class FeaturedNews {
     required this.imageUrl,
     required this.publishedAt,
     required this.source,
+    this.slug = '',
     this.isBreaking = false,
     this.isLive = false,
   });
@@ -44,6 +45,7 @@ class FeaturedNews {
   final String imageUrl;
   final DateTime publishedAt;
   final String source;
+  final String slug;
   final bool isBreaking;
   final bool isLive;
 }

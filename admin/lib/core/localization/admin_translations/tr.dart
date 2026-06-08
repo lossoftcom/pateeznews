@@ -2783,6 +2783,28 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "newsAdd.cleared": "Form temizlendi.",
   "newsAdd.contentInfo": "İçerik Bilgileri",
   "newsAdd.manset": "Manşet Slider",
+  "newsAdd.mansetImageTitle": "Manşet Slider Görseli",
+  "newsAdd.mansetImageSubtitle":
+      "Ana sayfa sliderında kullanılacak kare görsel",
+  "newsAdd.mansetImageHelp":
+      "Manşet Slider yalnızca kare (1:1) bir görsel seçildiğinde aktif edilir. Görsel eklenmeden switch açık kalmaz.",
+  "newsAdd.mansetImagePickLabel": "Manşet Görseli",
+  "newsAdd.mansetImageRulesTitle": "Görsel kuralları",
+  "newsAdd.mansetImageRuleSquare":
+      "Seçilen görsel kare olmalıdır. Kare olmayan dosyalarda sistem uyarı verir ve seçim kabul edilmez.",
+  "newsAdd.mansetImageRuleRequired":
+      "Görsel seçilmeden Manşet Slider switch'i aktif edilemez.",
+  "newsAdd.mansetImageRuleSeparate":
+      "Bu görsel haber kapağından ayrı saklanır ve manşet slider alanında kullanılır.",
+  "newsAdd.mansetImageEmptyBadge": "Henüz kare manşet görseli seçilmedi",
+  "newsAdd.mansetImageExistingBadge": "Kayıtlı manşet görseli seçili",
+  "newsAdd.mansetImageSizeBadge": "Kare doğrulandı: {width} x {height} px",
+  "newsAdd.mansetImageRequiredError":
+      "Manşet Slider için kare bir manşet görseli seçmelisiniz.",
+  "newsAdd.mansetImageLoadError":
+      "Görsel boyutu okunamadı. Lütfen farklı bir görsel seçin.",
+  "newsAdd.mansetImageSquareError":
+      "Manşet görseli kare olmalıdır. Seçilen görsel: {width} x {height} px.",
   "newsAdd.pin": "Başa Tuttur",
   "newsAdd.ai": "Yapay Zeka İle Üret",
   "newsAdd.articleTitle": "Haber Başlığı",

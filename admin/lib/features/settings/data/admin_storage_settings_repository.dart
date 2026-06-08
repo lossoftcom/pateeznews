@@ -126,7 +126,7 @@ class SupabaseAdminStorageSettingsRepository
     if (kIsWeb) return Uri.base.resolve(path);
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => Uri.parse('http://10.0.2.2:4321').resolve(path),
-      _ => Uri.parse('http://localhost:4321').resolve(path),
+      _ => Uri.parse('http://127.0.0.1:4321').resolve(path),
     };
   }
 }

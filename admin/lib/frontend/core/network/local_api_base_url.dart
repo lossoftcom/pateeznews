@@ -8,7 +8,10 @@ Uri frontendLocalApiBaseUrl({String configuredBaseUrl = ''}) {
   if (kIsWeb) return Uri.base;
   return switch (defaultTargetPlatform) {
     TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-    _ => Uri.parse('http://localhost:4321'),
+    // Windows: dart:io localhost → 127.0.0.1 (IPv4), Node.js localhost → ::1 (IPv6)
+    // çakışmasını önlemek için Windows'ta explicit IPv4 kullanıyoruz.
+    TargetPlatform.windows => Uri.parse('http://127.0.0.1:4321'),
+    _ => Uri.parse('http://127.0.0.1:4321'),
   };
 }
 

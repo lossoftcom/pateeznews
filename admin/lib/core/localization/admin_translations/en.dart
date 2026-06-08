@@ -2803,6 +2803,28 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.cleared": "Form cleared.",
   "newsAdd.contentInfo": "Content Information",
   "newsAdd.manset": "Headline Slider",
+  "newsAdd.mansetImageTitle": "Headline Slider Image",
+  "newsAdd.mansetImageSubtitle":
+      "Square visual used in the home headline slider",
+  "newsAdd.mansetImageHelp":
+      "Headline Slider is enabled only after a square (1:1) image is selected. The switch will not stay active without an image.",
+  "newsAdd.mansetImagePickLabel": "Headline Image",
+  "newsAdd.mansetImageRulesTitle": "Image rules",
+  "newsAdd.mansetImageRuleSquare":
+      "The selected image must be square. Non-square files trigger a warning and are not accepted.",
+  "newsAdd.mansetImageRuleRequired":
+      "The Headline Slider switch cannot be enabled before choosing an image.",
+  "newsAdd.mansetImageRuleSeparate":
+      "This image is stored separately from the news cover and is used in the headline slider.",
+  "newsAdd.mansetImageEmptyBadge": "No square headline image selected yet",
+  "newsAdd.mansetImageExistingBadge": "Saved headline image selected",
+  "newsAdd.mansetImageSizeBadge": "Square verified: {width} x {height} px",
+  "newsAdd.mansetImageRequiredError":
+      "Choose a square headline image for Headline Slider.",
+  "newsAdd.mansetImageLoadError":
+      "Image dimensions could not be read. Please choose another image.",
+  "newsAdd.mansetImageSquareError":
+      "Headline image must be square. Selected image: {width} x {height} px.",
   "newsAdd.pin": "Pin to Top",
   "newsAdd.ai": "Generate with AI",
   "newsAdd.articleTitle": "News Title",

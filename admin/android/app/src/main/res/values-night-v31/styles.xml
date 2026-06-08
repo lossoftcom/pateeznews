@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ (API 31+) koyu mod açılış teması.
+         Uygulama her zaman açık (beyaz) temada çalıştığı için splash zemini de
+         beyaz tutulur; launcher ikonu şeffaf drawable ile gizlenir ve markalı
+         Flutter açılış ekranına (PateezLogoIntro) kusursuz geçilir. iOS native
+         LaunchScreen'in boş beyaz davranışıyla birebir eşleşir. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_transparent</item>
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>

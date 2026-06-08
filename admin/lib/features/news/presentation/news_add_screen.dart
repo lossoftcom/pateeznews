@@ -220,6 +220,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   String? _thirdCategory;
   String? _autoSubCategory;
   String? _coverImageUrl;
+  String? _mansetImageUrl;
   final _keywords = <String>[];
   final _focusKeywordsController = TextEditingController();
   final _faqEntries = <_FaqEntry>[];
@@ -373,6 +374,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _thirdCategory = null;
     _autoSubCategory = null;
     _coverImageUrl = null;
+    _mansetImageUrl = null;
     _editingPostId = widget.postId;
     _loadedPublisherId = null;
     _loadedCardData = const {};
@@ -440,6 +442,16 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _coverImageUrl = post.thumbnailUrl.trim().isEmpty
         ? null
         : post.thumbnailUrl;
+    final loadedMansetImage = _text(
+      post.cardData['mansetImageUrl'] ??
+          post.cardData['featuredImageUrl'] ??
+          post.cardData['headlineImageUrl'],
+    );
+    _mansetImageUrl = loadedMansetImage.isNotEmpty
+        ? loadedMansetImage
+        : (_mansetSlider && post.thumbnailUrl.trim().isNotEmpty
+              ? post.thumbnailUrl
+              : null);
     _setControllerText(
       _publishAtController,
       post.publishedAt == null ? '' : _formatEditorDate(post.publishedAt!),
@@ -1391,6 +1403,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (_selectedCategory.trim().isEmpty) {
       return context.t('newsAdd.errorCategoryRequired');
     }
+    if (_mansetSlider && (_mansetImageUrl?.trim().isEmpty ?? true)) {
+      return context.t('newsAdd.mansetImageRequiredError');
+    }
     return null;
   }
 
@@ -1431,6 +1446,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       return true;
     }
     if ((_coverImageUrl?.trim().isNotEmpty ?? false) ||
+        (_mansetImageUrl?.trim().isNotEmpty ?? false) ||
         _keywords.isNotEmpty ||
         _faqDataForStorage().isNotEmpty) {
       return true;
@@ -2289,6 +2305,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ]) {
       cardData.remove(key);
     }
+    final mansetImageUrl = _mansetImageUrl?.trim() ?? '';
+    if (mansetImageUrl.isEmpty) {
+      cardData.remove('mansetImageUrl');
+    } else {
+      cardData['mansetImageUrl'] = mansetImageUrl;
+    }
     Map<String, Object?>? featured = items
         .where((item) => item['showOnHomepage'] == true)
         .cast<Map<String, Object?>?>()
@@ -2554,6 +2576,104 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────────
+  Future<void> _handleMansetChanged(bool value) async {
+    if (!value) {
+      setState(() => _mansetSlider = false);
+      return;
+    }
+
+    final selected = await _openMansetImageDialog();
+    if (!mounted || selected == null) return;
+
+    setState(() {
+      _mansetImageUrl = selected;
+      _mansetSlider = true;
+    });
+  }
+
+  Future<String?> _openMansetImageDialog() {
+    return showDialog<String>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (dialogContext) {
+        return _MansetImageDialog(
+          initialImageUrl: _mansetImageUrl,
+          onValidateImage: _validateMansetImageSelection,
+        );
+      },
+    );
+  }
+
+  Future<Size?> _validateMansetImageSelection(String imageUrl) async {
+    final size = await _loadImageSize(imageUrl);
+    if (!mounted) return null;
+    if (size == null) {
+      _showEditorMessage(
+        context.t('newsAdd.mansetImageLoadError'),
+        isError: true,
+      );
+      return null;
+    }
+    if (!_isSquareImageSize(size)) {
+      _showEditorMessage(
+        context
+            .t('newsAdd.mansetImageSquareError')
+            .replaceAll('{width}', size.width.round().toString())
+            .replaceAll('{height}', size.height.round().toString()),
+        isError: true,
+      );
+      return null;
+    }
+    return size;
+  }
+
+  Future<Size?> _loadImageSize(String imageUrl) async {
+    final raw = imageUrl.trim();
+    if (raw.isEmpty) return null;
+    final resolvedUrl = raw.startsWith('http')
+        ? raw
+        : MediaService().resolveImageUrl(raw);
+    final provider = NetworkImage(resolvedUrl);
+    final completer = Completer<Size?>();
+    late final ImageStream stream;
+    late final ImageStreamListener listener;
+
+    listener = ImageStreamListener(
+      (imageInfo, _) {
+        if (!completer.isCompleted) {
+          completer.complete(
+            Size(
+              imageInfo.image.width.toDouble(),
+              imageInfo.image.height.toDouble(),
+            ),
+          );
+        }
+        stream.removeListener(listener);
+      },
+      onError: (_, _) {
+        if (!completer.isCompleted) {
+          completer.complete(null);
+        }
+        stream.removeListener(listener);
+      },
+    );
+
+    stream = provider.resolve(const ImageConfiguration());
+    stream.addListener(listener);
+
+    return completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () {
+        stream.removeListener(listener);
+        return null;
+      },
+    );
+  }
+
+  bool _isSquareImageSize(Size size) {
+    return (size.width - size.height).abs() <= 1;
+  }
+
   void _handleAddFaq() {
     setState(() {
       _faqEntries.add(_FaqEntry());
@@ -3780,7 +3900,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           keywords: _keywords,
           mansetSlider: _mansetSlider,
           pinToTop: _pinToTop,
-          onMansetChanged: (value) => setState(() => _mansetSlider = value),
+          onMansetChanged: (value) => unawaited(_handleMansetChanged(value)),
           onPinChanged: (value) => setState(() => _pinToTop = value),
           onSchemaChanged: (value) =>
               setState(() => _schemaType = value ?? 'NewsArticle'),
@@ -6422,6 +6542,598 @@ class _DashedBorderPainter extends CustomPainter {
 // ──────────────────────────────────────────────────────────────────────────────
 // Content Info card
 // ──────────────────────────────────────────────────────────────────────────────
+
+class _MansetImageDialog extends StatefulWidget {
+  const _MansetImageDialog({
+    required this.initialImageUrl,
+    required this.onValidateImage,
+  });
+
+  final String? initialImageUrl;
+  final Future<Size?> Function(String imageUrl) onValidateImage;
+
+  @override
+  State<_MansetImageDialog> createState() => _MansetImageDialogState();
+}
+
+class _MansetImageDialogState extends State<_MansetImageDialog> {
+  String? _imageUrl;
+  Size? _imageSize;
+  var _checking = false;
+  var _hover = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _imageUrl = widget.initialImageUrl?.trim().isEmpty ?? true
+        ? null
+        : widget.initialImageUrl!.trim();
+  }
+
+  Future<void> _openMediaLibrary() async {
+    if (_checking) return;
+    final selected = await showMediaLibraryDialog(context);
+    if (selected == null || !mounted) return;
+    await _applySelectedImage(selected);
+  }
+
+  Future<void> _openUrlDialog() async {
+    if (_checking) return;
+    final selected = await showUrlImageDialog(context);
+    if (selected == null || selected.trim().isEmpty || !mounted) return;
+    await _applySelectedImage(selected.trim());
+  }
+
+  Future<void> _applySelectedImage(String value) async {
+    setState(() => _checking = true);
+    final size = await widget.onValidateImage(value);
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      if (size != null) {
+        _imageUrl = value.trim();
+        _imageSize = size;
+        _hover = false;
+      }
+    });
+  }
+
+  void _clearImage() {
+    setState(() {
+      _imageUrl = null;
+      _imageSize = null;
+      _hover = false;
+    });
+  }
+
+  String _resolvedImageUrl(String value) {
+    if (value.startsWith('http')) return value;
+    return MediaService().resolveImageUrl(value, width: 720, quality: 90);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.sizeOf(context);
+    final width = (media.width - 48).clamp(280.0, 760.0).toDouble();
+    final maxHeight = (media.height - 64).clamp(360.0, 760.0).toDouble();
+    final hasImage = _imageUrl?.trim().isNotEmpty ?? false;
+    final canSave = hasImage && !_checking;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MansetImageDialogHeader(
+              onClose: () => Navigator.of(context).pop(),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _MansetImageNotice(),
+                    const SizedBox(height: 18),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compact = constraints.maxWidth < 620;
+                        final preview = _MansetImagePreview(
+                          imageUrl: _imageUrl,
+                          imageSize: _imageSize,
+                          checking: _checking,
+                          hover: _hover,
+                          onHoverChanged: (value) =>
+                              setState(() => _hover = value),
+                          onPickImage: () => unawaited(_openMediaLibrary()),
+                          onUrlTap: _checking
+                              ? null
+                              : () => unawaited(_openUrlDialog()),
+                          onClear: _clearImage,
+                          resolvedImageUrl: _resolvedImageUrl,
+                        );
+                        final rules = const _MansetImageRules();
+                        if (compact) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              preview,
+                              const SizedBox(height: 16),
+                              rules,
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(width: 278, child: preview),
+                            const SizedBox(width: 18),
+                            Expanded(child: rules),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            _MansetImageDialogFooter(
+              onCancel: () => Navigator.of(context).pop(),
+              onSave: canSave
+                  ? () => Navigator.of(context).pop(_imageUrl!.trim())
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MansetImageDialogHeader extends StatelessWidget {
+  const _MansetImageDialogHeader({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 18, 16, 18),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(
+                color: AppColors.actionRed.withValues(alpha: 0.16),
+              ),
+            ),
+            child: const Icon(
+              Icons.slideshow_outlined,
+              size: 17,
+              color: AppColors.actionRed,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.t('newsAdd.mansetImageTitle'),
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  context.t('newsAdd.mansetImageSubtitle'),
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClose,
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.close, size: 20, color: AppColors.iconMuted),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MansetImageNotice extends StatelessWidget {
+  const _MansetImageNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddSoftLine),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 17, color: AppColors.deepOcean),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.t('newsAdd.mansetImageHelp'),
+              style: const TextStyle(
+                color: AppColors.inkSoft,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                height: 1.45,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MansetImagePreview extends StatelessWidget {
+  const _MansetImagePreview({
+    required this.imageUrl,
+    required this.imageSize,
+    required this.checking,
+    required this.hover,
+    required this.onHoverChanged,
+    required this.onPickImage,
+    required this.onUrlTap,
+    required this.onClear,
+    required this.resolvedImageUrl,
+  });
+
+  final String? imageUrl;
+  final Size? imageSize;
+  final bool checking;
+  final bool hover;
+  final ValueChanged<bool> onHoverChanged;
+  final VoidCallback onPickImage;
+  final VoidCallback? onUrlTap;
+  final VoidCallback onClear;
+  final String Function(String value) resolvedImageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = imageUrl?.trim();
+    final hasImage = current != null && current.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.t('newsAdd.mansetImagePickLabel'),
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.35,
+          ),
+        ),
+        const SizedBox(height: 10),
+        AspectRatio(
+          aspectRatio: 1,
+          child: GestureDetector(
+            onTap: checking ? null : onPickImage,
+            child: MouseRegion(
+              onEnter: (_) => onHoverChanged(true),
+              onExit: (_) => onHoverChanged(false),
+              cursor: checking
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.click,
+              child: DashedRect(
+                strokeWidth: 1.35,
+                color: hasImage
+                    ? AppColors.actionRed.withValues(alpha: 0.34)
+                    : _newsAddStrongLine,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (hasImage)
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.value,
+                            ),
+                            child: Image.network(
+                              resolvedImageUrl(current),
+                              fit: BoxFit.cover,
+                              alignment: Alignment.center,
+                              filterQuality: FilterQuality.high,
+                              isAntiAlias: true,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, _, _) => Center(
+                                child: _UploadStub(onUrlTap: onUrlTap),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Center(child: _UploadStub(onUrlTap: onUrlTap)),
+                      if (checking)
+                        ColoredBox(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.deepOcean,
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (hasImage && hover && !checking)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _CoverImageActionButton(
+                                icon: Icons.edit_outlined,
+                                color: AppColors.deepOcean,
+                                onTap: onPickImage,
+                              ),
+                              const SizedBox(width: 8),
+                              _CoverImageActionButton(
+                                icon: Icons.delete_outline_rounded,
+                                color: AppColors.actionRed,
+                                onTap: onClear,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _MansetImageSizeBadge(imageSize: imageSize, hasImage: hasImage),
+      ],
+    );
+  }
+}
+
+class _MansetImageSizeBadge extends StatelessWidget {
+  const _MansetImageSizeBadge({
+    required this.imageSize,
+    required this.hasImage,
+  });
+
+  final Size? imageSize;
+  final bool hasImage;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = imageSize == null
+        ? context.t(
+            hasImage
+                ? 'newsAdd.mansetImageExistingBadge'
+                : 'newsAdd.mansetImageEmptyBadge',
+          )
+        : context
+              .t('newsAdd.mansetImageSizeBadge')
+              .replaceAll('{width}', imageSize!.width.round().toString())
+              .replaceAll('{height}', imageSize!.height.round().toString());
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: hasImage
+            ? const Color(0xFF10B981).withValues(alpha: 0.08)
+            : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(
+          color: hasImage
+              ? const Color(0xFF10B981).withValues(alpha: 0.18)
+              : _newsAddSoftLine,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            hasImage ? Icons.check_circle_outline : Icons.crop_square_outlined,
+            size: 15,
+            color: hasImage ? const Color(0xFF047857) : AppColors.inkSoft,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: hasImage ? const Color(0xFF047857) : AppColors.inkSoft,
+                fontSize: 11.8,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MansetImageRules extends StatelessWidget {
+  const _MansetImageRules();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddStrongLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.t('newsAdd.mansetImageRulesTitle'),
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _MansetImageRuleRow(
+            icon: Icons.crop_square_outlined,
+            textKey: 'newsAdd.mansetImageRuleSquare',
+          ),
+          const SizedBox(height: 10),
+          _MansetImageRuleRow(
+            icon: Icons.toggle_on_outlined,
+            textKey: 'newsAdd.mansetImageRuleRequired',
+          ),
+          const SizedBox(height: 10),
+          _MansetImageRuleRow(
+            icon: Icons.image_outlined,
+            textKey: 'newsAdd.mansetImageRuleSeparate',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MansetImageRuleRow extends StatelessWidget {
+  const _MansetImageRuleRow({required this.icon, required this.textKey});
+
+  final IconData icon;
+  final String textKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.deepOcean.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: AppColors.deepOcean.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Icon(icon, size: 15, color: AppColors.deepOcean),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            context.t(textKey),
+            style: const TextStyle(
+              color: AppColors.inkSoft,
+              fontSize: 12.4,
+              fontWeight: FontWeight.w600,
+              height: 1.45,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MansetImageDialogFooter extends StatelessWidget {
+  const _MansetImageDialogFooter({
+    required this.onCancel,
+    required this.onSave,
+  });
+
+  final VoidCallback onCancel;
+  final VoidCallback? onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          _PillButton(
+            icon: Icons.close,
+            label: 'common.cancel',
+            onTap: onCancel,
+            background: Colors.white,
+            foreground: AppColors.inkSoft,
+            borderColor: _newsAddStrongLine,
+            height: 38,
+          ),
+          const SizedBox(width: 10),
+          _PillButton(
+            icon: Icons.check_circle_outline,
+            label: 'common.save',
+            onTap: onSave,
+            background: AppColors.deepOcean,
+            foreground: Colors.white,
+            height: 38,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ContentInfoCard extends StatelessWidget {
   const _ContentInfoCard({

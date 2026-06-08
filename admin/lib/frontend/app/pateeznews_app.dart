@@ -13,6 +13,7 @@ import '../core/theme/app_typography.dart';
 import '../core/theme/frontend_font_settings.dart';
 import '../features/account/data/frontend_auth_repository.dart';
 import '../features/announcements/data/announcements_repository.dart';
+import '../features/home/data/home_repository.dart';
 import '../features/markets/data/markets_repository.dart';
 import '../features/obituaries/data/death_notice_repository.dart';
 import '../features/pharmacy/data/pharmacy_repository.dart';
@@ -20,6 +21,7 @@ import '../features/prayer_times/data/prayer_times_repository.dart';
 import '../features/shell/data/app_shell_repository.dart';
 import '../features/shell/presentation/shell_screen.dart';
 import '../features/splash/presentation/splash_screen.dart';
+import '../core/mock/home_mock_data.dart';
 import '../features/weather/data/weather_repository.dart';
 
 class PateeznewsApp extends StatefulWidget {
@@ -34,6 +36,7 @@ class PateeznewsApp extends StatefulWidget {
     this.marketsRepository = const MarketsRepository(),
     this.prayerTimesRepository = const PrayerTimesRepository(),
     this.announcementsRepository = const AnnouncementsRepository(),
+    this.homeRepository = const HomeRepository(),
     this.authRepository = const FrontendAuthRepository(),
     this.adminSessionStore = const AdminSessionStore(),
     this.adminApp,
@@ -48,6 +51,7 @@ class PateeznewsApp extends StatefulWidget {
   final MarketsRepository marketsRepository;
   final PrayerTimesRepository prayerTimesRepository;
   final AnnouncementsRepository announcementsRepository;
+  final HomeRepository homeRepository;
   final FrontendAuthRepository authRepository;
   final AdminSessionStore adminSessionStore;
   final Widget? adminApp;
@@ -65,6 +69,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   var _marketsData = const MarketsData.empty();
   var _prayerTimesData = const PrayerTimesData.empty();
   var _announcementData = const AnnouncementData.empty();
+  List<FeaturedNews> _featuredItems = const [];
   FrontendAuthState? _authState;
   var _authLoading = true;
   var _adminOpen = false;
@@ -102,6 +107,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
         _loadMarketsData(),
         _loadPrayerTimesData(),
         _loadAnnouncementData(),
+        _loadFeaturedData(),
         _restoreAuthState(),
       ]).timeout(_maxSplash);
     } catch (_) {
@@ -165,6 +171,12 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     final data = await widget.announcementsRepository.fetch();
     if (!mounted) return;
     setState(() => _announcementData = data);
+  }
+
+  Future<void> _loadFeaturedData() async {
+    final items = await widget.homeRepository.fetchFeatured();
+    if (!mounted) return;
+    setState(() => _featuredItems = items);
   }
 
   /// App bar'daki ağ logosunu ([HomeAppBar] içinde `Image.network`) splash
@@ -272,6 +284,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
                 marketsData: _marketsData,
                 prayerTimesData: _prayerTimesData,
                 announcementData: _announcementData,
+                featuredItems: _featuredItems,
                 authState: _authState,
                 authLoading: _authLoading,
                 onSignIn: _signIn,

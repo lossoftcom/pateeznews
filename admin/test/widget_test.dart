@@ -3746,6 +3746,52 @@ void main() {
     expect(find.text('Toplam item: 0'), findsOneWidget);
   });
 
+  testWidgets('Manşet slider görsel olmadan aktif kalmaz', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Haber'), findsOneWidget);
+
+    Finder mansetSwitch() => find
+        .byWidgetPredicate(
+          (widget) => widget.runtimeType.toString() == '_ToggleSwitch',
+        )
+        .first;
+
+    await tester.tap(mansetSwitch());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Manşet Slider Görseli'), findsOneWidget);
+    expect(
+      find.textContaining('Görsel eklenmeden switch açık kalmaz'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(of: find.byType(Dialog), matching: find.text('İptal')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Manşet Slider Görseli'), findsNothing);
+
+    await tester.tap(mansetSwitch());
+    await tester.pumpAndSettle();
+    expect(find.text('Manşet Slider Görseli'), findsOneWidget);
+  });
+
   testWidgets('Boş yapı sekmelerinden çıkarken format onayı gösterilmez', (
     tester,
   ) async {

@@ -94,7 +94,12 @@ const formatSlideDate = (value: string) => {
 };
 
 const mapNewsToSlide = (news: NewsItem): MansetSlide | null => {
-    const image = news.coverThumbnail || news.thumbnail || news.mediaList?.[0] || news.mediaUrl;
+    const image =
+        news.mansetImageUrl ||
+        news.coverThumbnail ||
+        news.thumbnail ||
+        news.mediaList?.[0] ||
+        news.mediaUrl;
     if (!image) return null;
 
     const title = stripHtml(news.seoTitle || news.title || '');

@@ -27,6 +27,7 @@ class HomeScreen extends StatefulWidget {
     super.key,
     this.shellSettings = const AppShellSettings.empty(),
     this.dutyPharmacyData = const DutyPharmacyData.empty(),
+    this.featuredItems = const [],
     this.onMenuTap,
     this.onSubmitNewsTap,
     this.onPharmacyTap,
@@ -34,6 +35,7 @@ class HomeScreen extends StatefulWidget {
 
   final AppShellSettings shellSettings;
   final DutyPharmacyData dutyPharmacyData;
+  final List<FeaturedNews> featuredItems;
   final VoidCallback? onMenuTap;
   final VoidCallback? onSubmitNewsTap;
   final VoidCallback? onPharmacyTap;
@@ -162,7 +164,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: AppColors.surface,
                                 ),
                                 child: FeaturedSlider(
-                                  items: HomeMockData.featured,
+                                  items: widget.featuredItems.isNotEmpty
+                                      ? widget.featuredItems
+                                      : HomeMockData.featured,
                                 ),
                               )
                               .animate()
