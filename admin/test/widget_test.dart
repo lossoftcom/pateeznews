@@ -3711,6 +3711,41 @@ void main() {
     );
   });
 
+  testWidgets('Etkinlik tabında AI modalı item planner ile açılır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Haber'), findsOneWidget);
+
+    await tester.tap(find.text('Etkinlik').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yapay Zeka İle Üret'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yapay Zeka İçerik Üretici'), findsOneWidget);
+    expect(find.text('Etkinlik'), findsWidgets);
+    expect(find.text('Etkinlik Görselleri'), findsOneWidget);
+    expect(find.text('AI ile Eklenecek Itemler'), findsOneWidget);
+    expect(find.text('Metin Ekle'), findsWidgets);
+    expect(find.text('Toplam item: 0'), findsOneWidget);
+  });
+
   testWidgets('Boş yapı sekmelerinden çıkarken format onayı gösterilmez', (
     tester,
   ) async {
@@ -4935,9 +4970,11 @@ void main() {
     expect(find.text('Videoyu Geliştirerek Hazırla'), findsNothing);
     expect(find.text('Video İçerik Üretici'), findsOneWidget);
     expect(find.text('İçindekiler İçerik Üretici'), findsOneWidget);
+    expect(find.text('Tarif İçerik Üretici'), findsOneWidget);
+    expect(find.text('Etkinlik İçerik Üretici'), findsOneWidget);
     expect(find.text('Haber Hazırla 1'), findsOneWidget);
-    expect(find.byTooltip('Promtu düzenle'), findsNWidgets(5));
-    expect(find.byTooltip('Promtu sil'), findsNWidgets(5));
+    expect(find.byTooltip('Promtu düzenle'), findsNWidgets(7));
+    expect(find.byTooltip('Promtu sil'), findsNWidgets(7));
 
     await tester.ensureVisible(find.text('Haber Hazırla 1'));
     await tester.pumpAndSettle();

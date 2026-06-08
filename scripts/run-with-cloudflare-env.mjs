@@ -12,7 +12,37 @@ if (!command) {
 
 const cwd = process.cwd();
 const env = withLocalBinPath(mergedCloudflareEnv(cwd), cwd);
-const child = process.platform === 'win32'
+env.PATEEZNEWS_PROJECT_ROOT = cwd;
+let shuttingDown = false;
+const localStorageServer = shouldStartLocalStorageServer(command, args)
+  ? spawn(process.execPath, ['./scripts/local-storage-server.mjs'], {
+    cwd,
+    env,
+    stdio: 'inherit',
+  })
+  : null;
+let child;
+
+if (localStorageServer) {
+  localStorageServer.on('exit', (code, signal) => {
+    if (shuttingDown) return;
+    const detail = signal ? `signal ${signal}` : `exit code ${code ?? 0}`;
+    console.error(`Local storage server stopped unexpectedly (${detail}).`);
+    shuttingDown = true;
+    if (child && !child.killed) child.kill();
+    process.exit(code && code > 0 ? code : 1);
+  });
+
+  localStorageServer.on('error', (error) => {
+    if (shuttingDown) return;
+    console.error(error.message);
+    shuttingDown = true;
+    if (child && !child.killed) child.kill();
+    process.exit(1);
+  });
+}
+
+child = process.platform === 'win32'
   ? spawn(process.env.ComSpec || 'cmd.exe', [
     '/d',
     '/s',
@@ -44,6 +74,10 @@ function quoteWindowsArg(value) {
 }
 
 child.on('exit', (code, signal) => {
+  shuttingDown = true;
+  if (localStorageServer && !localStorageServer.killed) {
+    localStorageServer.kill();
+  }
   if (signal) {
     process.kill(process.pid, signal);
     return;
@@ -52,6 +86,14 @@ child.on('exit', (code, signal) => {
 });
 
 child.on('error', (error) => {
+  shuttingDown = true;
+  if (localStorageServer && !localStorageServer.killed) {
+    localStorageServer.kill();
+  }
   console.error(error.message);
   process.exit(1);
 });
+
+function shouldStartLocalStorageServer(command, args) {
+  return command === 'astro' && args[0] === 'dev';
+}

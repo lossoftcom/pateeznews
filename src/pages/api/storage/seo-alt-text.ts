@@ -4,6 +4,7 @@ import path from 'path';
 import sharp from 'sharp';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
+import { LOCAL_UPLOAD_ROOT } from '@/lib/server/localUploadStorage';
 import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
 import { buildAltTextFallback, cleanAiScalarText, extractJsonStringField, htmlToPlainText, isBoilerplateAiText } from '@/lib/mediaSeoText';
 
@@ -276,7 +277,7 @@ export const POST: APIRoute = async ({ request }) => {
         const settings = await fetchAiSettings(languageCode);
         if (!settings?.google_ai_api_key) return json({ error: 'Google AI API key not configured' }, 400);
 
-        const uploadRootDir = path.resolve(process.cwd(), 'Upload');
+        const uploadRootDir = LOCAL_UPLOAD_ROOT;
         const baseDir = path.resolve(uploadRootDir, 'image');
         const localId = parseLocalImageRef(src);
         const candidateId = localId ? getCandidateId(baseDir, localId) : null;

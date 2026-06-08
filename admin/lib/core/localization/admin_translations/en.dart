@@ -2824,6 +2824,10 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.aiModal.sourceImages": "Source Images",
   "newsAdd.aiModal.sourceImagesFound": "images found",
   "newsAdd.aiModal.sourceImagesDialogTitle": "Source Images",
+  "newsAdd.aiModal.eventImages": "Event Images",
+  "newsAdd.aiModal.eventImagesHint":
+      "Upload or select poster, flyer, or schedule images.",
+  "newsAdd.aiModal.eventImagesSelect": "Upload / Select Image",
   "newsAdd.aiModal.sourceImageUse": "Use Image",
   "newsAdd.aiModal.sourceImageUploading": "Uploading image...",
   "newsAdd.aiModal.sourceImageReady":
@@ -2866,6 +2870,8 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.aiModal.content.article": "Article News",
   "newsAdd.aiModal.content.video": "Video News",
   "newsAdd.aiModal.content.contents": "Contents",
+  "newsAdd.aiModal.content.recipe": "Recipe",
+  "newsAdd.aiModal.content.event": "Event",
   "newsAdd.aiModal.content.breaking": "Breaking News",
   "newsAdd.aiModal.content.analysis": "Analysis",
   "newsAdd.aiModal.content.interview": "Interview",

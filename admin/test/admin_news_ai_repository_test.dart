@@ -400,10 +400,16 @@ void main() {
     expect(generationConfig['temperature'], 0.62);
     expect(systemPrompt, contains('Anket İçerik Mimarı'));
     expect(prompt, contains('Aktif Format/Tab: Anket'));
+    expect(prompt, contains('quiz/test akışından bağımsızdır'));
+    expect(
+      prompt,
+      contains('quizData, results, isCorrect veya resultId üretme'),
+    );
     expect(prompt, contains('tabItem.type kesin "poll" olsun'));
     expect(prompt, contains('pollData.questions'));
+    expect(prompt, contains('boş string olamaz'));
     expect(prompt, contains('Kaynakta 15 anket sorusu varsa'));
-    expect(prompt, contains('soru metnini descriptionHtml içine gömme'));
+    expect(prompt, contains('yalnız descriptionHtml içine gömme'));
     expect(prompt, contains('tabItem.options geriye uyumluluk'));
     expect(prompt, contains('isImagePoll metin ağırlıklı ankette false'));
     expect(prompt, contains('items boş dizi olsun'));
@@ -424,6 +430,240 @@ void main() {
     expect(draft.tabItem['type'], 'poll');
     expect(draft.tabItem['options'], isA<List<Object?>>());
     expect(draft.tabItem['pollData'], isA<Map<String, Object?>>());
+  });
+
+  test(
+    'poll formatı quiz promptundan ayrı özel anket promptunu kullanır',
+    () async {
+      Map<String, Object?>? capturedBody;
+      final repository = GeminiAdminNewsAiRepository(
+        settingsRepository: const _FakeAiSettingsRepository(
+          prompts: [
+            AdminAiPrompt(
+              id: 'prompt-quiz',
+              title: 'Quiz İçerik Üretici',
+              prompt: 'Özel quiz promptu',
+              languageCode: 'tr',
+              isActive: true,
+            ),
+            AdminAiPrompt(
+              id: 'prompt-poll',
+              title: 'Anket İçerik Üretici',
+              prompt: 'Özel anket promptu',
+              languageCode: 'tr',
+              isActive: true,
+            ),
+            _fakeActiveNewsPrompt,
+          ],
+        ),
+        httpClient: MockClient((request) async {
+          capturedBody = jsonDecode(request.body) as Map<String, Object?>;
+          return _jsonResponse({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'text': jsonEncode(
+                        _draftJson(
+                          items: const [],
+                          tabItem: {
+                            'type': 'poll',
+                            'title': 'Niğde için hangi başlık öne çıkmalı?',
+                            'descriptionHtml': '<p>Okur önceliğini seçsin.</p>',
+                            'source': '',
+                            'mediaUrl': '',
+                            'showOnHomepage': false,
+                            'isImagePoll': false,
+                            'pollColumns': 2,
+                            'options': [
+                              {
+                                'id': 'o1',
+                                'text': 'Ulaşım',
+                                'image': '',
+                                'votes': 0,
+                              },
+                              {
+                                'id': 'o2',
+                                'text': 'Turizm',
+                                'image': '',
+                                'votes': 0,
+                              },
+                            ],
+                            'pollData': {
+                              'questions': [
+                                {
+                                  'id': 'q1',
+                                  'title':
+                                      'Niğde için hangi başlık öne çıkmalı?',
+                                  'descriptionHtml':
+                                      '<p>Okur önceliğini seçsin.</p>',
+                                  'source': '',
+                                  'mediaUrl': '',
+                                  'showOnHomepage': false,
+                                  'isImagePoll': false,
+                                  'pollColumns': 2,
+                                  'options': [
+                                    {
+                                      'id': 'q1o1',
+                                      'text': 'Ulaşım',
+                                      'image': '',
+                                      'votes': 0,
+                                    },
+                                    {
+                                      'id': 'q1o2',
+                                      'text': 'Turizm',
+                                      'image': '',
+                                      'votes': 0,
+                                    },
+                                  ],
+                                },
+                              ],
+                            },
+                          },
+                        ),
+                      ),
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      await repository.generateDraft(
+        const AdminNewsAiDraftRequest(
+          languageCode: 'tr',
+          category: 'Niğde',
+          tone: 'entertaining',
+          contentType: 'article',
+          outputTarget: 'all',
+          includeSeo: true,
+          topic: 'Niğde için anket hazırla',
+          sourceNotes: '',
+          itemCounts: {},
+          formatType: 'poll',
+        ),
+      );
+
+      final systemInstruction =
+          capturedBody!['system_instruction'] as Map<String, Object?>;
+      final systemParts = systemInstruction['parts'] as List<Object?>;
+      final systemPrompt =
+          (systemParts.single as Map<String, Object?>)['text'] as String;
+
+      expect(systemPrompt, contains('Özel anket promptu'));
+      expect(systemPrompt, isNot(contains('Özel quiz promptu')));
+    },
+  );
+
+  test('poll formatı boş soru başlığını açıklamadan normalleştirir', () async {
+    final repository = GeminiAdminNewsAiRepository(
+      settingsRepository: const _FakeAiSettingsRepository(),
+      httpClient: MockClient((request) async {
+        return _jsonResponse({
+          'candidates': [
+            {
+              'content': {
+                'parts': [
+                  {
+                    'text': jsonEncode(
+                      _draftJson(
+                        items: const [],
+                        tabItem: {
+                          'type': 'poll',
+                          'title': '',
+                          'descriptionHtml': '<p>Genel anket açıklaması.</p>',
+                          'source': '',
+                          'mediaUrl': '',
+                          'showOnHomepage': false,
+                          'isImagePoll': false,
+                          'pollColumns': 2,
+                          'options': [
+                            {
+                              'id': 'o1',
+                              'text': 'Cevahir Uzkurt',
+                              'image': '',
+                              'votes': 0,
+                            },
+                            {
+                              'id': 'o2',
+                              'text': 'Ömer Fethi Gürer',
+                              'image': '',
+                              'votes': 0,
+                            },
+                          ],
+                          'pollData': {
+                            'questions': [
+                              {
+                                'id': 'q1',
+                                'title': '',
+                                'descriptionHtml':
+                                    '<p>Yerel sorunların meclis ve merkezi yönetim düzeyindeki takibini kim daha iyi yapıyor?</p>',
+                                'source': '',
+                                'mediaUrl': '',
+                                'showOnHomepage': false,
+                                'isImagePoll': false,
+                                'pollColumns': 2,
+                                'options': [
+                                  {
+                                    'id': 'q1o1',
+                                    'text': 'Cevahir Uzkurt',
+                                    'image': '',
+                                    'votes': 0,
+                                  },
+                                  {
+                                    'id': 'q1o2',
+                                    'text': 'Ömer Fethi Gürer',
+                                    'image': '',
+                                    'votes': 0,
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                      ),
+                    ),
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }),
+    );
+
+    final draft = await repository.generateDraft(
+      const AdminNewsAiDraftRequest(
+        languageCode: 'tr',
+        category: 'Niğde',
+        tone: 'entertaining',
+        contentType: 'article',
+        outputTarget: 'all',
+        includeSeo: true,
+        topic: 'Niğde siyaset anketi',
+        sourceNotes: '',
+        itemCounts: {},
+        formatType: 'poll',
+      ),
+    );
+
+    final tabItem = draft.tabItem;
+    final pollData = tabItem['pollData'] as Map<String, Object?>;
+    final questions = pollData['questions'] as List<Object?>;
+    final firstQuestion = questions.single as Map<String, Object?>;
+
+    expect(tabItem, isNot(contains('quizData')));
+    expect(
+      firstQuestion['title'],
+      'Yerel sorunların meclis ve merkezi yönetim düzeyindeki takibini kim daha iyi yapıyor?',
+    );
+    expect(
+      tabItem['title'],
+      'Yerel sorunların meclis ve merkezi yönetim düzeyindeki takibini kim daha iyi yapıyor?',
+    );
   });
 
   test(
@@ -618,7 +858,12 @@ void main() {
           includeSeo: true,
           topic: 'Quantum computing revolutionizing information processing',
           sourceNotes:
-              'Table of Contents\nIntroduction\nUnderstanding Quantum Mechanics',
+              'Table of Contents\nIntroduction\nUnderstanding Quantum Mechanics\n'
+              'Kaynak HTML başlık hiyerarşisi ve bölüm metni:\n'
+              '[LI L1] Introduction\n'
+              '[LI L2] Understanding Quantum Mechanics\n'
+              '[H3 L1] Introduction\n'
+              '[H3 L2] Understanding Quantum Mechanics',
           itemCounts: {},
           preserveSource: true,
           formatType: 'contents',
@@ -664,6 +909,12 @@ void main() {
       expect(prompt, contains('tabItem.type kesin "toc" olsun'));
       expect(prompt, contains('tabItem.tocData.items'));
       expect(prompt, contains('Genel "items" boş dizi olsun'));
+      expect(prompt, contains('Kaynak HTML başlık hiyerarşisi'));
+      expect(prompt, contains('[LI L1]/[LI L2]'));
+      expect(prompt, contains('[H2]/[H3]'));
+      expect(prompt, contains('level1 ve level2 için "decimal" kullan'));
+      expect(prompt, contains('Table of Contents listesi gövde bölüm'));
+      expect(prompt, contains('parentId hiyerarşik kaynakta tam üst'));
       expect(
         prompt,
         contains('Olduğu gibi kalsın açıkken Table of Contents/İçindekiler'),
@@ -1296,6 +1547,603 @@ void main() {
     expect(thinkingConfig['thinkingLevel'], 'minimal');
   });
 
+  test(
+    'recipe formatı tarif verisini kendi prompt ve şemasıyla ister',
+    () async {
+      Map<String, Object?>? capturedBody;
+      final repository = GeminiAdminNewsAiRepository(
+        settingsRepository: const _FakeAiSettingsRepository(),
+        httpClient: MockClient((request) async {
+          capturedBody = jsonDecode(request.body) as Map<String, Object?>;
+          return _jsonResponse({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'text': jsonEncode(
+                        _draftJson(items: const [], tabItem: _recipeTabItem()),
+                      ),
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      final draft = await repository.generateDraft(
+        const AdminNewsAiDraftRequest(
+          languageCode: 'tr',
+          category: 'Yemek',
+          tone: 'neutral',
+          contentType: 'article',
+          outputTarget: 'all',
+          includeSeo: true,
+          topic: 'Creamy spinach and mushroom quiche tarifini ekle',
+          sourceNotes: '',
+          itemCounts: {},
+          preserveSource: true,
+          formatType: 'recipe',
+        ),
+      );
+
+      final body = capturedBody!;
+      final contents = body['contents'] as List<Object?>;
+      final userContent = contents.single as Map<String, Object?>;
+      final parts = userContent['parts'] as List<Object?>;
+      final prompt = (parts.single as Map<String, Object?>)['text'] as String;
+      final systemInstruction =
+          body['system_instruction'] as Map<String, Object?>;
+      final systemParts = systemInstruction['parts'] as List<Object?>;
+      final systemPrompt =
+          (systemParts.single as Map<String, Object?>)['text'] as String;
+      final generationConfig = body['generationConfig'] as Map<String, Object?>;
+      final schema =
+          generationConfig['responseJsonSchema'] as Map<String, Object?>;
+      final properties = schema['properties'] as Map<String, Object?>;
+      final tabItemSchema = properties['tabItem'] as Map<String, Object?>;
+      final tabItemProperties =
+          tabItemSchema['properties'] as Map<String, Object?>;
+      final tabItemTypeSchema =
+          tabItemProperties['type'] as Map<String, Object?>;
+      final tabItemRequired = tabItemSchema['required'] as List<Object?>;
+      final recipeDataSchema =
+          tabItemProperties['recipeData'] as Map<String, Object?>;
+      final recipeDataProperties =
+          recipeDataSchema['properties'] as Map<String, Object?>;
+      final recipeDataRequired = recipeDataSchema['required'] as List<Object?>;
+      final ingredientsSchema =
+          recipeDataProperties['ingredients'] as Map<String, Object?>;
+      final ingredientItemSchema =
+          ingredientsSchema['items'] as Map<String, Object?>;
+      final nutritionSchema =
+          recipeDataProperties['nutrition'] as Map<String, Object?>;
+      final nutritionItemSchema =
+          nutritionSchema['items'] as Map<String, Object?>;
+      final difficultySchema =
+          recipeDataProperties['difficulty'] as Map<String, Object?>;
+      final directionsSchema =
+          recipeDataProperties['directions'] as Map<String, Object?>;
+      final directionItemSchema =
+          directionsSchema['items'] as Map<String, Object?>;
+
+      expect(systemPrompt, contains('Tarif İçerik Mimarı'));
+      expect(prompt, contains('Aktif Format/Tab: Tarif'));
+      expect(prompt, contains('İçerik Türü: Tarif'));
+      expect(prompt, contains('tabItem.type kesin "recipe" olsun'));
+      expect(prompt, contains('recipeData.prepTime'));
+      expect(prompt, contains('recipeData.difficulty teknik select value'));
+      expect(prompt, contains('Intermediate/Medium/Orta'));
+      expect(prompt, contains('recipeData.ingredients'));
+      expect(prompt, contains('recipeData.nutrition'));
+      expect(prompt, contains('recipeData.directions'));
+      expect(prompt, contains('recipeData.videoTitle'));
+      expect(prompt, contains('videoDescriptionHtml'));
+      expect(prompt, contains('videoUrl'));
+      expect(prompt, contains('Tarif tabındaki "Yemek Videosu"'));
+      expect(prompt, contains('Genel "items" boş dizi olsun'));
+      expect(prompt, contains('Olduğu gibi kalsın açıkken mevcut tarif'));
+      expect(prompt, contains('Derin araştırma kapalıdır'));
+      expect(tabItemTypeSchema['enum'], ['recipe']);
+      expect(tabItemRequired, contains('recipeData'));
+      expect(
+        recipeDataRequired,
+        containsAll([
+          'prepTime',
+          'cookTime',
+          'serving',
+          'difficulty',
+          'ingredients',
+          'nutrition',
+          'directions',
+          'videoTitle',
+          'videoDescriptionHtml',
+          'videoUrl',
+        ]),
+      );
+      expect(difficultySchema['enum'], ['', 'easy', 'medium', 'hard']);
+      expect(ingredientItemSchema['required'], contains('text'));
+      expect(nutritionItemSchema['required'], containsAll(['label', 'value']));
+      expect(
+        directionItemSchema['required'],
+        containsAll(['id', 'title', 'content', 'orderNumber']),
+      );
+      expect(tabItemProperties, isNot(contains('quizData')));
+      expect(tabItemProperties, isNot(contains('pollData')));
+      expect(tabItemProperties, isNot(contains('tocData')));
+      expect(draft.items, isEmpty);
+      expect(draft.tabItem['type'], 'recipe');
+      expect(draft.tabItem['recipeData'], isA<Map<String, Object?>>());
+      expect(
+        (draft.tabItem['recipeData'] as Map<String, Object?>)['videoUrl'],
+        'https://youtu.be/test-recipe-video',
+      );
+    },
+  );
+
+  test(
+    'recipe derin araştırma önce googleSearch yapar sonra tarif taslağı üretir',
+    () async {
+      final capturedBodies = <Map<String, Object?>>[];
+      final repository = GeminiAdminNewsAiRepository(
+        settingsRepository: const _FakeAiSettingsRepository(),
+        httpClient: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, Object?>;
+          capturedBodies.add(body);
+          if (capturedBodies.length == 1) {
+            return _jsonResponse({
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {
+                        'text':
+                            'Tarif araştırma notu: Quiche için porsiyon başına protein değeri yaklaşık 10g olarak kullanılabilir.',
+                      },
+                    ],
+                  },
+                },
+              ],
+            });
+          }
+          return _jsonResponse({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'text': jsonEncode(
+                        _draftJson(items: const [], tabItem: _recipeTabItem()),
+                      ),
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      await repository.generateDraft(
+        const AdminNewsAiDraftRequest(
+          languageCode: 'tr',
+          category: 'Yemek',
+          tone: 'neutral',
+          contentType: 'article',
+          outputTarget: 'all',
+          includeSeo: true,
+          topic: 'Creamy spinach and mushroom quiche',
+          sourceNotes: '',
+          itemCounts: {},
+          deepResearch: true,
+          formatType: 'recipe',
+        ),
+      );
+
+      expect(capturedBodies, hasLength(2));
+
+      final researchBody = capturedBodies.first;
+      final researchTools = researchBody['tools'] as List<Object?>;
+      final researchContents = researchBody['contents'] as List<Object?>;
+      final researchUserContent =
+          researchContents.single as Map<String, Object?>;
+      final researchParts = researchUserContent['parts'] as List<Object?>;
+      final researchPrompt =
+          (researchParts.single as Map<String, Object?>)['text'] as String;
+      expect(researchTools.single, contains('googleSearch'));
+      expect(researchPrompt, contains('Google Search ile tarif'));
+      expect(researchPrompt, contains('Besin değerlerinde'));
+      expect(researchPrompt, contains('porsiyon başına'));
+
+      final body = capturedBodies.last;
+      final generationConfig = body['generationConfig'] as Map<String, Object?>;
+      final contents = body['contents'] as List<Object?>;
+      final userContent = contents.single as Map<String, Object?>;
+      final parts = userContent['parts'] as List<Object?>;
+      final prompt = (parts.single as Map<String, Object?>)['text'] as String;
+      final systemInstruction =
+          body['system_instruction'] as Map<String, Object?>;
+      final systemParts = systemInstruction['parts'] as List<Object?>;
+      final systemPrompt =
+          (systemParts.single as Map<String, Object?>)['text'] as String;
+
+      expect(body, isNot(contains('tools')));
+      expect(generationConfig['responseMimeType'], 'application/json');
+      expect(systemPrompt, contains('Tarif İçerik Mimarı'));
+      expect(prompt, contains('Derin Araştırma: Tamamlandı'));
+      expect(prompt, contains('Google Search araştırma sonuçları'));
+      expect(prompt, contains('Tarif araştırma notu'));
+    },
+  );
+
+  test(
+    'event formatı etkinlik verisini kendi prompt ve şemasıyla ister',
+    () async {
+      Map<String, Object?>? capturedBody;
+      final repository = GeminiAdminNewsAiRepository(
+        settingsRepository: const _FakeAiSettingsRepository(),
+        httpClient: MockClient((request) async {
+          capturedBody = jsonDecode(request.body) as Map<String, Object?>;
+          return _jsonResponse({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'text': jsonEncode(
+                        _draftJson(items: const [], tabItem: _eventTabItem()),
+                      ),
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      final draft = await repository.generateDraft(
+        const AdminNewsAiDraftRequest(
+          languageCode: 'tr',
+          category: 'Etkinlik',
+          tone: 'neutral',
+          contentType: 'article',
+          outputTarget: 'all',
+          includeSeo: true,
+          topic: '3. Tiyatro Festivali başlıyor',
+          sourceNotes: '',
+          itemCounts: {},
+          preserveSource: true,
+          formatType: 'event',
+        ),
+      );
+
+      final body = capturedBody!;
+      final contents = body['contents'] as List<Object?>;
+      final userContent = contents.single as Map<String, Object?>;
+      final parts = userContent['parts'] as List<Object?>;
+      final prompt = (parts.single as Map<String, Object?>)['text'] as String;
+      final systemInstruction =
+          body['system_instruction'] as Map<String, Object?>;
+      final systemParts = systemInstruction['parts'] as List<Object?>;
+      final systemPrompt =
+          (systemParts.single as Map<String, Object?>)['text'] as String;
+      final generationConfig = body['generationConfig'] as Map<String, Object?>;
+      final schema =
+          generationConfig['responseJsonSchema'] as Map<String, Object?>;
+      final properties = schema['properties'] as Map<String, Object?>;
+      final tabItemSchema = properties['tabItem'] as Map<String, Object?>;
+      final tabItemProperties =
+          tabItemSchema['properties'] as Map<String, Object?>;
+      final tabItemTypeSchema =
+          tabItemProperties['type'] as Map<String, Object?>;
+      final tabItemRequired = tabItemSchema['required'] as List<Object?>;
+      final eventDataSchema =
+          tabItemProperties['eventData'] as Map<String, Object?>;
+      final eventDataProperties =
+          eventDataSchema['properties'] as Map<String, Object?>;
+      final eventDataRequired = eventDataSchema['required'] as List<Object?>;
+      final registrationSchema =
+          eventDataProperties['registrationType'] as Map<String, Object?>;
+      final scheduleSchema =
+          eventDataProperties['schedule'] as Map<String, Object?>;
+      final scheduleItemSchema =
+          scheduleSchema['items'] as Map<String, Object?>;
+      final highlightsSchema =
+          eventDataProperties['highlights'] as Map<String, Object?>;
+      final highlightItemSchema =
+          highlightsSchema['items'] as Map<String, Object?>;
+      final speakersSchema =
+          eventDataProperties['speakers'] as Map<String, Object?>;
+      final speakerItemSchema = speakersSchema['items'] as Map<String, Object?>;
+
+      expect(systemPrompt, contains('Etkinlik İçerik Mimarı'));
+      expect(prompt, contains('Aktif Format/Tab: Etkinlik'));
+      expect(prompt, contains('İçerik Türü: Etkinlik'));
+      expect(prompt, contains('tabItem.type kesin "event" olsun'));
+      expect(prompt, contains('eventData.startDateTime'));
+      expect(prompt, contains('registrationType teknik select value'));
+      expect(prompt, contains('eventData.schedule'));
+      expect(prompt, contains('eventData.highlights'));
+      expect(prompt, contains('eventData.speakers'));
+      expect(prompt, contains('afiş/poster/program'));
+      expect(prompt, contains('Genel "items" boş dizi olsun'));
+      expect(prompt, contains('Olduğu gibi kalsın açıkken mevcut etkinlik'));
+      expect(prompt, contains('Derin araştırma kapalıdır'));
+      expect(tabItemTypeSchema['enum'], ['event']);
+      expect(tabItemRequired, contains('eventData'));
+      expect(
+        eventDataRequired,
+        containsAll([
+          'startDateTime',
+          'endDateTime',
+          'organizer',
+          'venueName',
+          'address',
+          'registrationType',
+          'schedule',
+          'highlights',
+          'speakers',
+        ]),
+      );
+      expect(registrationSchema['enum'], [
+        'none',
+        'required',
+        'tickets',
+        'external',
+      ]);
+      expect(
+        scheduleItemSchema['required'],
+        containsAll(['id', 'date', 'time', 'title', 'description']),
+      );
+      expect(highlightItemSchema['required'], containsAll(['label', 'value']));
+      expect(
+        speakerItemSchema['required'],
+        containsAll(['id', 'name', 'role', 'bio']),
+      );
+      expect(tabItemProperties, isNot(contains('quizData')));
+      expect(tabItemProperties, isNot(contains('pollData')));
+      expect(tabItemProperties, isNot(contains('tocData')));
+      expect(tabItemProperties, isNot(contains('recipeData')));
+      expect(draft.items, isEmpty);
+      expect(draft.tabItem['type'], 'event');
+      expect(draft.tabItem['eventData'], isA<Map<String, Object?>>());
+    },
+  );
+
+  test('event formatı seçili ek item planını items içinde ister', () async {
+    Map<String, Object?>? capturedBody;
+    final repository = GeminiAdminNewsAiRepository(
+      settingsRepository: const _FakeAiSettingsRepository(),
+      httpClient: MockClient((request) async {
+        capturedBody = jsonDecode(request.body) as Map<String, Object?>;
+        return _jsonResponse({
+          'candidates': [
+            {
+              'content': {
+                'parts': [
+                  {
+                    'text': jsonEncode(
+                      _draftJson(
+                        tabItem: _eventTabItem(),
+                        items: [
+                          _textItem('Festivalden öne çıkanlar'),
+                          _imageItem('Festival afişleri'),
+                        ],
+                      ),
+                    ),
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }),
+    );
+
+    final draft = await repository.generateDraft(
+      const AdminNewsAiDraftRequest(
+        languageCode: 'tr',
+        category: 'Etkinlik',
+        tone: 'neutral',
+        contentType: 'article',
+        outputTarget: 'all',
+        includeSeo: true,
+        topic: '3. Tiyatro Festivali başlıyor',
+        sourceNotes: '',
+        itemCounts: {'text': 1, 'image': 1},
+        formatType: 'event',
+      ),
+    );
+
+    final body = capturedBody!;
+    final contents = body['contents'] as List<Object?>;
+    final userContent = contents.single as Map<String, Object?>;
+    final parts = userContent['parts'] as List<Object?>;
+    final prompt = (parts.single as Map<String, Object?>)['text'] as String;
+
+    expect(prompt, contains('- text: 1 adet'));
+    expect(prompt, contains('- image: 1 adet'));
+    expect(prompt, contains('Kullanıcı ayrıca item seçtiyse'));
+    expect(
+      prompt,
+      contains('"items" içinde yalnız seçili item planındaki ek blokları üret'),
+    );
+    expect(prompt, contains('Her item.title dolu'));
+    expect(
+      prompt,
+      contains('Etkinlik programını, notları veya konuşmacı listesini'),
+    );
+    expect(draft.items.map((item) => item.type), ['text', 'image']);
+    expect(draft.tabItem['type'], 'event');
+  });
+
+  test(
+    'event görseli Gemini request gövdesine inlineData olarak eklenir',
+    () async {
+      Map<String, Object?>? capturedBody;
+      final repository = GeminiAdminNewsAiRepository(
+        settingsRepository: const _FakeAiSettingsRepository(),
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            expect(request.url.toString(), 'https://cdn.test/poster.jpg');
+            return http.Response.bytes(
+              [1, 2, 3],
+              200,
+              headers: {'content-type': 'image/jpeg'},
+            );
+          }
+          capturedBody = jsonDecode(request.body) as Map<String, Object?>;
+          return _jsonResponse({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'text': jsonEncode(
+                        _draftJson(items: const [], tabItem: _eventTabItem()),
+                      ),
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      await repository.generateDraft(
+        const AdminNewsAiDraftRequest(
+          languageCode: 'tr',
+          category: 'Etkinlik',
+          tone: 'neutral',
+          contentType: 'article',
+          outputTarget: 'all',
+          includeSeo: true,
+          topic: 'Afişteki tiyatro festivalini ekle',
+          sourceNotes: '',
+          itemCounts: {},
+          formatType: 'event',
+          sourceImageUrls: ['https://cdn.test/poster.jpg'],
+        ),
+      );
+
+      final contents = capturedBody!['contents'] as List<Object?>;
+      final userContent = contents.single as Map<String, Object?>;
+      final parts = userContent['parts'] as List<Object?>;
+      expect(parts, hasLength(3));
+      expect(
+        (parts[1] as Map<String, Object?>)['text'],
+        contains('Etkinlik görselleri eklendi'),
+      );
+      final inlineData =
+          (parts[2] as Map<String, Object?>)['inlineData']
+              as Map<String, Object?>;
+      expect(inlineData['mimeType'], 'image/jpeg');
+      expect(inlineData['data'], base64Encode([1, 2, 3]));
+    },
+  );
+
+  test(
+    'event derin araştırma önce googleSearch yapar sonra etkinlik taslağı üretir',
+    () async {
+      final capturedBodies = <Map<String, Object?>>[];
+      final repository = GeminiAdminNewsAiRepository(
+        settingsRepository: const _FakeAiSettingsRepository(),
+        httpClient: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, Object?>;
+          capturedBodies.add(body);
+          if (capturedBodies.length == 1) {
+            return _jsonResponse({
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {
+                        'text':
+                            'Etkinlik araştırma notu: Festival 27 Nisan - 2 Mayıs 2026 tarihleri arasında yapılacak.',
+                      },
+                    ],
+                  },
+                },
+              ],
+            });
+          }
+          return _jsonResponse({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'text': jsonEncode(
+                        _draftJson(items: const [], tabItem: _eventTabItem()),
+                      ),
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      await repository.generateDraft(
+        const AdminNewsAiDraftRequest(
+          languageCode: 'tr',
+          category: 'Etkinlik',
+          tone: 'neutral',
+          contentType: 'article',
+          outputTarget: 'all',
+          includeSeo: true,
+          topic: '3. Tiyatro Festivali',
+          sourceNotes: '',
+          itemCounts: {},
+          deepResearch: true,
+          formatType: 'event',
+        ),
+      );
+
+      expect(capturedBodies, hasLength(2));
+
+      final researchBody = capturedBodies.first;
+      final researchTools = researchBody['tools'] as List<Object?>;
+      final researchContents = researchBody['contents'] as List<Object?>;
+      final researchUserContent =
+          researchContents.single as Map<String, Object?>;
+      final researchParts = researchUserContent['parts'] as List<Object?>;
+      final researchPrompt =
+          (researchParts.single as Map<String, Object?>)['text'] as String;
+      expect(researchTools.single, contains('googleSearch'));
+      expect(researchPrompt, contains('Google Search ile etkinlik'));
+      expect(
+        researchPrompt,
+        contains('güvenilir etkinlik sayfalarını araştır'),
+      );
+      expect(researchPrompt, contains('kayıt/bilet'));
+
+      final body = capturedBodies.last;
+      final generationConfig = body['generationConfig'] as Map<String, Object?>;
+      final contents = body['contents'] as List<Object?>;
+      final userContent = contents.single as Map<String, Object?>;
+      final parts = userContent['parts'] as List<Object?>;
+      final prompt = (parts.single as Map<String, Object?>)['text'] as String;
+      final systemInstruction =
+          body['system_instruction'] as Map<String, Object?>;
+      final systemParts = systemInstruction['parts'] as List<Object?>;
+      final systemPrompt =
+          (systemParts.single as Map<String, Object?>)['text'] as String;
+
+      expect(body, isNot(contains('tools')));
+      expect(generationConfig['responseMimeType'], 'application/json');
+      expect(systemPrompt, contains('Etkinlik İçerik Mimarı'));
+      expect(prompt, contains('Derin Araştırma: Tamamlandı'));
+      expect(prompt, contains('Google Search araştırma sonuçları'));
+      expect(prompt, contains('Etkinlik araştırma notu'));
+    },
+  );
+
   test('aktif format schema sadece kendi tabItem alanını taşır', () async {
     final cases = [
       ('poll', 'poll', 'options'),
@@ -1567,6 +2415,100 @@ Map<String, Object?> _textItem(String title) {
     'type': 'text',
     'title': title,
     'descriptionHtml': '<p>Kaynak metinden gelen ek bilgi.</p>',
+  };
+}
+
+Map<String, Object?> _imageItem(String title) {
+  return {
+    'type': 'image',
+    'title': title,
+    'descriptionHtml': '<p>Etkinlik görselleri için kısa açıklama.</p>',
+    'source': '',
+    'altText': title,
+  };
+}
+
+Map<String, Object?> _recipeTabItem() {
+  return {
+    'type': 'recipe',
+    'title': 'Creamy spinach and mushroom quiche',
+    'descriptionHtml':
+        '<p>With its wholesome ingredients and satisfying taste.</p>',
+    'source': '',
+    'mediaUrl': '',
+    'altText': '',
+    'showOnHomepage': false,
+    'recipeData': {
+      'prepTime': '15 min',
+      'cookTime': '35 min',
+      'serving': '6',
+      'difficulty': 'medium',
+      'ingredients': [
+        {'text': '1 prepared pie crust'},
+        {'text': '2 cups fresh spinach leaves, chopped'},
+      ],
+      'nutrition': [
+        {'label': 'Calories', 'value': '280 per serving'},
+        {'label': 'Protein', 'value': '10g'},
+      ],
+      'directions': [
+        {
+          'id': '1',
+          'title': 'Prepare the Crust',
+          'content': '<p>Pre-bake the crust at 375°F (190°C).</p>',
+          'image': '',
+          'imageDescription': '',
+          'orderNumber': 1,
+        },
+      ],
+      'videoTitle': 'Creamy spinach quiche video',
+      'videoDescriptionHtml': '<p>Watch the quiche preparation steps.</p>',
+      'videoUrl': 'https://youtu.be/test-recipe-video',
+    },
+  };
+}
+
+Map<String, Object?> _eventTabItem() {
+  return {
+    'type': 'event',
+    'title': '3. Tiyatro Festivali Başlıyor',
+    'descriptionHtml':
+        '<p>Festival kapsamında farklı oyunlar izleyiciyle buluşacak.</p>',
+    'source': '',
+    'mediaUrl': '',
+    'altText': '',
+    'showOnHomepage': false,
+    'eventData': {
+      'startDateTime': '27.04.2026 --:--',
+      'endDateTime': '02.05.2026 --:--',
+      'organizer': 'Belediye',
+      'venueName': '',
+      'address': '',
+      'latitude': '',
+      'longitude': '',
+      'registrationType': 'none',
+      'ticketUrl': '',
+      'ticketPrice': '',
+      'capacity': '',
+      'scheduleTitle': 'Etkinlik Programı',
+      'highlightsTitle': 'Etkinlik Notları',
+      'speakersTitle': 'Konuşmacılar ve Konuklar',
+      'schedule': [
+        {
+          'id': '1',
+          'date': '27.04.2026',
+          'time': '',
+          'title': 'Açılış Oyunu',
+          'description': 'Festivalin ilk programı.',
+          'image': '',
+          'imageDescription': '',
+        },
+      ],
+      'highlights': [
+        {'label': 'Tarih', 'value': '27 Nisan - 2 Mayıs 2026'},
+      ],
+      'speakers': <Map<String, Object?>>[],
+    },
   };
 }
 

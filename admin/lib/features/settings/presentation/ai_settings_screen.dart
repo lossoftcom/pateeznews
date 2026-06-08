@@ -120,6 +120,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             adminPollAiDefaultPromptData,
             adminVideoAiDefaultPromptData,
             adminContentsAiDefaultPromptData,
+            adminRecipeAiDefaultPromptData,
+            adminEventAiDefaultPromptData,
           ];
     final normalizedTitles = {
       for (final prompt in prompts) _normalizePromptTitle(prompt.title),

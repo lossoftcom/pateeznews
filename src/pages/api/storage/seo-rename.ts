@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
+import { LOCAL_UPLOAD_ROOT } from '@/lib/server/localUploadStorage';
 import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
 import { buildSeoFilenameFallback, cleanAiScalarText, extractJsonStringField, isBoilerplateAiText, toSeoSlug } from '@/lib/mediaSeoText';
 
@@ -282,7 +283,7 @@ export const POST: APIRoute = async ({ request }) => {
         if (!ref) return json({ error: 'Local storage file required' }, 400);
         await requireStorageAdminRequest(request, ref.type);
 
-        const uploadRootDir = path.resolve(process.cwd(), 'Upload');
+        const uploadRootDir = LOCAL_UPLOAD_ROOT;
         const baseDir = path.resolve(uploadRootDir, ref.type);
         const candidateId = getCandidateId(baseDir, ref.id);
         if (!candidateId) return json({ error: 'File not found' }, 404);

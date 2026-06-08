@@ -56,6 +56,11 @@ const _newsAddTabMuted = Color(0xFF5F6F78);
 const _newsAddUploadInk = Color(0xFF6D7B83);
 const _newsAddActionHeight = 42.0;
 const _newsAddCoverVisualHeight = 160.0;
+const _newsAddAutoSubCategoryAliases = <NewsAddFormatTab, List<String>>{
+  NewsAddFormatTab.quiz: ['test', 'testler', 'quiz', 'quizzes'],
+  NewsAddFormatTab.poll: ['anket', 'anketler', 'poll', 'polls'],
+  NewsAddFormatTab.video: ['video', 'videolar', 'videos'],
+};
 const _allowedAiSchemaTypes = {
   'NewsArticle',
   'ReportageNewsArticle',
@@ -97,6 +102,51 @@ const _schemaTypeOptions = [
   _SchemaTypeOption('Recipe', 'newsAdd.schemaType.recipe'),
   _SchemaTypeOption('Event', 'newsAdd.schemaType.event'),
 ];
+
+String _normalizeNewsAddCategoryLabel(String value) {
+  return value
+      .trim()
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ş', 's')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+bool _isHiddenNewsAddSubCategory(AdminNewsEditorCategory category) {
+  return _normalizeNewsAddCategoryLabel(category.label).startsWith('haftanin ');
+}
+
+const _recipeDifficultyValues = {'easy', 'medium', 'hard'};
+
+String _normalizeRecipeDifficulty(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized.isEmpty) return '';
+  if (_recipeDifficultyValues.contains(normalized)) return normalized;
+  if (normalized.contains('easy') ||
+      normalized.contains('beginner') ||
+      normalized.contains('simple') ||
+      normalized.contains('kolay')) {
+    return 'easy';
+  }
+  if (normalized.contains('medium') ||
+      normalized.contains('intermediate') ||
+      normalized.contains('moderate') ||
+      normalized.contains('orta')) {
+    return 'medium';
+  }
+  if (normalized.contains('hard') ||
+      normalized.contains('advanced') ||
+      normalized.contains('difficult') ||
+      normalized.contains('challenging') ||
+      normalized.contains('zor')) {
+    return 'hard';
+  }
+  return '';
+}
 
 class _SchemaTypeOption {
   const _SchemaTypeOption(this.value, this.labelKey);
@@ -168,6 +218,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   var _mainCategory = 'Niğde';
   String? _subCategory;
   String? _thirdCategory;
+  String? _autoSubCategory;
   String? _coverImageUrl;
   final _keywords = <String>[];
   final _focusKeywordsController = TextEditingController();
@@ -320,6 +371,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _mainCategory = 'Niğde';
     _subCategory = null;
     _thirdCategory = null;
+    _autoSubCategory = null;
     _coverImageUrl = null;
     _editingPostId = widget.postId;
     _loadedPublisherId = null;
@@ -366,6 +418,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _mainCategory = roots.first.label;
       _subCategory = null;
       _thirdCategory = null;
+      _autoSubCategory = null;
     }
   }
 
@@ -412,6 +465,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   void _applyCategorySelection(String category) {
+    _autoSubCategory = null;
     final label = category.trim();
     final roots = _rootCategoriesForLanguage(_languageCode);
     if (label.isEmpty) {
@@ -482,9 +536,35 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     }
     if (parent == null) return const [];
     final parentId = parent.id;
-    return _categoriesForLanguage(
-      _languageCode,
-    ).where((item) => item.parentId == parentId).toList();
+    return _categoriesForLanguage(_languageCode)
+        .where(
+          (item) =>
+              item.parentId == parentId && !_isHiddenNewsAddSubCategory(item),
+        )
+        .toList();
+  }
+
+  AdminNewsEditorCategory? _defaultSubCategoryForTab(NewsAddFormatTab tab) {
+    final aliases = _newsAddAutoSubCategoryAliases[tab];
+    if (aliases == null) return null;
+    final normalizedAliases = aliases
+        .map(_normalizeNewsAddCategoryLabel)
+        .toSet();
+    for (final category in _childrenOfCategory(_mainCategory)) {
+      if (normalizedAliases.contains(
+        _normalizeNewsAddCategoryLabel(category.label),
+      )) {
+        return category;
+      }
+    }
+    return null;
+  }
+
+  bool _isCurrentTabDefaultSubCategory(String value) {
+    final autoSubCategory = _autoSubCategory?.trim();
+    if (autoSubCategory == null || autoSubCategory.isEmpty) return false;
+    return _normalizeNewsAddCategoryLabel(value) ==
+        _normalizeNewsAddCategoryLabel(autoSubCategory);
   }
 
   AdminNewsEditorCategory? _categoryById(String id) {
@@ -983,6 +1063,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   PollQuestionBlockEntry _pollFromItem(Map<String, Object?> item) {
     final block = PollQuestionBlockEntry(answerCount: 0);
     _hydrateCommonBlock(block, item);
+    block.titleController.text = _text(item['title']);
+    block.sourceController.text = _text(item['source']);
     adminSetQuillHtml(block.descriptionController, _text(item['description']));
     block.imageUrl = _nullableText(item['mediaUrl']);
     block.showOnHomepage = _bool(item['showOnHomepage']);
@@ -1105,7 +1187,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _recipeBlock.prepTimeController.text = _text(data['prepTime']);
     _recipeBlock.cookTimeController.text = _text(data['cookTime']);
     _recipeBlock.servingController.text = _text(data['serving']);
-    _recipeBlock.difficulty = _text(data['difficulty']);
+    _recipeBlock.difficulty = _normalizeRecipeDifficulty(
+      _text(data['difficulty']),
+    );
     for (final entry in _recipeBlock.ingredients) {
       entry.dispose();
     }
@@ -1147,6 +1231,37 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     }
     if (_recipeBlock.directions.isEmpty) {
       _recipeBlock.directions.add(RecipeDirectionEntry());
+    }
+  }
+
+  void _hydrateRecipeVideoBlockFromRecipeItem(Map<String, Object?> item) {
+    final data = _map(item['recipeData']);
+    final title = _firstNonEmpty([
+      _text(data['videoTitle']),
+      _text(data['videoName']),
+      _text(data['videoHeading']),
+    ]);
+    final description = _firstNonEmpty([
+      _text(data['videoDescriptionHtml']),
+      _text(data['videoDescription']),
+    ]);
+    final videoUrl = _firstNonEmpty([
+      _text(data['videoUrl']),
+      _text(data['videoURL']),
+      _text(data['youtubeUrl']),
+      _text(data['youtubeURL']),
+      _text(item['mediaUrl']),
+    ]);
+    if (title.isEmpty && description.isEmpty && videoUrl.isEmpty) return;
+
+    if (title.isNotEmpty) {
+      _recipeVideoBlock.titleController.text = title;
+    }
+    if (description.isNotEmpty) {
+      adminSetQuillHtml(_recipeVideoBlock.descriptionController, description);
+    }
+    if (videoUrl.isNotEmpty) {
+      _recipeVideoBlock.mediaUrl = videoUrl;
     }
   }
 
@@ -1331,9 +1446,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _schemaType != _defaultSchemaTypeForActiveTab) {
       return true;
     }
+    final subCategory = _subCategory?.trim() ?? '';
+    final hasManualSubCategory =
+        subCategory.isNotEmpty && !_isCurrentTabDefaultSubCategory(subCategory);
     if (_languageCode != _resetDefaultLanguageCode ||
         _mainCategory.trim() != _resetDefaultMainCategory.trim() ||
-        (_subCategory?.trim().isNotEmpty ?? false) ||
+        hasManualSubCategory ||
         (_thirdCategory?.trim().isNotEmpty ?? false)) {
       return true;
     }
@@ -2596,8 +2714,27 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   void _applyFormatTab(NewsAddFormatTab tab) {
+    final currentAutoSubCategory = _autoSubCategory?.trim();
+    final hasCurrentAutoSubCategory =
+        currentAutoSubCategory != null &&
+        currentAutoSubCategory.isNotEmpty &&
+        _subCategory != null &&
+        _normalizeNewsAddCategoryLabel(_subCategory!) ==
+            _normalizeNewsAddCategoryLabel(currentAutoSubCategory);
     _activeTab = tab;
     _schemaType = _defaultSchemaTypeForTab(tab);
+    final defaultSubCategory = _defaultSubCategoryForTab(tab);
+    if (defaultSubCategory != null) {
+      _subCategory = defaultSubCategory.label;
+      _thirdCategory = null;
+      _autoSubCategory = defaultSubCategory.label;
+    } else if (hasCurrentAutoSubCategory) {
+      _subCategory = null;
+      _thirdCategory = null;
+      _autoSubCategory = null;
+    } else {
+      _autoSubCategory = null;
+    }
   }
 
   void _handleTocStyleChanged(int level, String value) {
@@ -2653,7 +2790,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   void _handleRecipeDifficultyChanged(String value) {
     setState(() {
-      _recipeBlock.difficulty = value;
+      _recipeBlock.difficulty = _normalizeRecipeDifficulty(value);
     });
   }
 
@@ -3680,7 +3817,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       },
     );
     if (result == null || !mounted) return;
-    _applyAiDraft(result.draft, targetTab, sourceImage: result.sourceImage);
+    _applyAiDraft(
+      result.draft,
+      targetTab,
+      sourceImage: result.sourceImage,
+      eventImages: result.eventImages,
+    );
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
   }
 
@@ -3800,10 +3942,29 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       }
       return;
     }
+    if (type == 'poll') {
+      addField('Anket sorusu', _text(item['title']));
+      addField(
+        'Anket açıklaması',
+        _plainTextFromAiHtml(_text(item['description'])),
+      );
+      final answers = _mapList(item['options'])
+          .map((answer) => _text(answer['text']))
+          .where((answer) => answer.trim().isNotEmpty)
+          .join(', ');
+      addField('Anket cevapları', answers);
+      return;
+    }
     if (type == 'toc') {
       final data = _map(item['tocData']);
+      final styles = _map(data['linkListStyle']);
+      addField('İçindekiler seviye 1 stili', _text(styles['level1']));
+      addField('İçindekiler seviye 2 stili', _text(styles['level2']));
+      addField('İçindekiler seviye 3 stili', _text(styles['level3']));
       for (final row in _mapList(data['items'])) {
+        addField('İçindekiler id', _text(row['id']));
         addField('İçindekiler başlığı', _text(row['title']));
+        addField('İçindekiler üst bağlantı', _text(row['parentId']));
         addField('İçindekiler metni', _text(row['content']));
       }
       return;
@@ -3849,6 +4010,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (_text(item['type']) == 'toc') {
       return _hasUsefulTocAiContentSeedItem(item);
     }
+    if (_text(item['type']) == 'poll') {
+      return _hasUsefulPollAiContentSeedItem(item);
+    }
     return _text(item['title']).isNotEmpty ||
         _text(item['description']).isNotEmpty ||
         _text(item['source']).isNotEmpty ||
@@ -3870,13 +4034,36 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return false;
   }
 
+  bool _hasUsefulPollAiContentSeedItem(Map<String, Object?> item) {
+    if (_text(item['title']).isNotEmpty ||
+        _plainTextFromAiHtml(_text(item['description'])).isNotEmpty ||
+        _text(item['source']).isNotEmpty ||
+        _text(item['mediaUrl']).isNotEmpty) {
+      return true;
+    }
+    for (final option in _mapList(item['options'])) {
+      if (_text(option['text']).isNotEmpty ||
+          _text(option['image']).isNotEmpty ||
+          _int(option['votes']) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void _applyAiDraft(
     AdminNewsAiDraft draft,
     NewsAddFormatTab targetTab, {
     _AiSelectedSourceImage? sourceImage,
+    List<_AiSelectedSourceImage> eventImages = const [],
   }) {
     if (targetTab != NewsAddFormatTab.article) {
-      _applyAiDraftToStructuredTab(draft, targetTab, sourceImage: sourceImage);
+      _applyAiDraftToStructuredTab(
+        draft,
+        targetTab,
+        sourceImage: sourceImage,
+        eventImages: eventImages,
+      );
       return;
     }
     final blocks = _contentBlocksFromAiDraft(draft, sourceImage: sourceImage);
@@ -3896,6 +4083,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     AdminNewsAiDraft draft,
     NewsAddFormatTab targetTab, {
     _AiSelectedSourceImage? sourceImage,
+    List<_AiSelectedSourceImage> eventImages = const [],
   }) {
     final item = targetTab == NewsAddFormatTab.poll
         ? null
@@ -3907,8 +4095,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     setState(() {
       _activeTab = targetTab;
       _applyAiDraftCommonFields(draft);
-      if (sourceImage != null) {
-        _applySelectedSourceImageToCover(draft, sourceImage);
+      final coverSourceImage =
+          sourceImage ?? (eventImages.isNotEmpty ? eventImages.first : null);
+      if (coverSourceImage != null) {
+        _applySelectedSourceImageToCover(draft, coverSourceImage);
       }
       switch (targetTab) {
         case NewsAddFormatTab.quiz:
@@ -3941,17 +4131,67 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         case NewsAddFormatTab.recipe:
           if (item != null) {
             _hydrateRecipeItem(item);
+            _hydrateRecipeVideoBlockFromRecipeItem(item);
           }
         case NewsAddFormatTab.event:
           if (item != null) {
             _hydrateEventItem(item);
           }
+          _applySelectedEventImagesToEventBlocks(draft, eventImages);
         case NewsAddFormatTab.article:
           break;
       }
       _syncAiAutoMarkers();
     });
     _hydrating = false;
+  }
+
+  void _applySelectedEventImagesToEventBlocks(
+    AdminNewsAiDraft draft,
+    List<_AiSelectedSourceImage> eventImages,
+  ) {
+    final images = <_AiSelectedSourceImage>[];
+    final seen = <String>{};
+    for (final image in eventImages) {
+      final mediaSrc = image.mediaSrc.trim();
+      if (mediaSrc.isEmpty || !seen.add(mediaSrc)) continue;
+      images.add(image);
+      if (images.length >= 5) break;
+    }
+    if (images.isEmpty) return;
+    final existing = <String>{
+      for (final block in _eventContentBlocks)
+        if (block is ArticleImageBlockEntry)
+          if ((block.imageUrl ?? '').trim().isNotEmpty) block.imageUrl!.trim(),
+      for (final block in _eventContentBlocks)
+        if (block is ArticleSliderImageBlockEntry)
+          for (final imageUrl in block.imageUrls)
+            if (imageUrl.trim().isNotEmpty) imageUrl.trim(),
+    };
+    final freshImages = [
+      for (final image in images)
+        if (!existing.contains(image.mediaSrc.trim())) image,
+    ];
+    if (freshImages.isEmpty) return;
+
+    if (freshImages.length == 1) {
+      final block = ArticleImageBlockEntry();
+      _fillSelectedSourceImageBlock(block, draft, freshImages.first);
+      _eventContentBlocks.insert(0, block);
+      return;
+    }
+
+    final block = ArticleSliderImageBlockEntry();
+    block.titleController.text = _firstNonEmpty([
+      draft.title,
+      context.t('newsAdd.aiModal.eventImages'),
+    ]);
+    block.sourceController.text = freshImages
+        .map((image) => image.originalUrl)
+        .where((url) => url.trim().isNotEmpty)
+        .join('\n');
+    block.imageUrls.addAll(freshImages.map((image) => image.mediaSrc));
+    _eventContentBlocks.insert(0, block);
   }
 
   void _applySelectedSourceImageToCover(
@@ -5314,19 +5554,23 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             _mainCategory = roots.isEmpty ? '' : roots.first.label;
             _subCategory = null;
             _thirdCategory = null;
+            _autoSubCategory = null;
           }),
           onMainChanged: (value) => setState(() {
             _mainCategory = value ?? '';
             _subCategory = null;
             _thirdCategory = null;
+            _autoSubCategory = null;
           }),
           onSubChanged: (value) => setState(() {
             _subCategory = value?.trim().isEmpty ?? true ? null : value;
             _thirdCategory = null;
+            _autoSubCategory = null;
           }),
-          onThirdChanged: (value) => setState(
-            () => _thirdCategory = value?.trim().isEmpty ?? true ? null : value,
-          ),
+          onThirdChanged: (value) => setState(() {
+            _thirdCategory = value?.trim().isEmpty ?? true ? null : value;
+            _autoSubCategory = null;
+          }),
         ),
         const SizedBox(height: 18),
         _PublishCard(
@@ -6537,10 +6781,15 @@ class _AiButton extends StatelessWidget {
 }
 
 class _AiContentGeneratorResult {
-  const _AiContentGeneratorResult({required this.draft, this.sourceImage});
+  const _AiContentGeneratorResult({
+    required this.draft,
+    this.sourceImage,
+    this.eventImages = const <_AiSelectedSourceImage>[],
+  });
 
   final AdminNewsAiDraft draft;
   final _AiSelectedSourceImage? sourceImage;
+  final List<_AiSelectedSourceImage> eventImages;
 }
 
 class _AiSelectedSourceImage {
@@ -6607,6 +6856,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   double? _sourceImageUploadProgress;
   String? _sourceImageStatus;
   var _sourceImageStatusIsError = false;
+  final _selectedEventImages = <_AiSelectedSourceImage>[];
   final _itemCounts = <String, int>{};
 
   bool get _usesInteractiveAiFormat {
@@ -6620,8 +6870,24 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         formatType == 'table of contents';
   }
 
+  bool get _usesRecipeAiFormat {
+    return widget.formatType.trim().toLowerCase() == 'recipe';
+  }
+
+  bool get _usesEventAiFormat {
+    return widget.formatType.trim().toLowerCase() == 'event';
+  }
+
+  bool get _usesDeepResearchAiFormat {
+    return _usesInteractiveAiFormat ||
+        _usesRecipeAiFormat ||
+        _usesEventAiFormat;
+  }
+
   bool get _usesTabOwnedAiItems {
-    return _usesInteractiveAiFormat || _usesContentsAiFormat;
+    return _usesInteractiveAiFormat ||
+        _usesContentsAiFormat ||
+        _usesRecipeAiFormat;
   }
 
   List<_AddBtn> get _aiItemOptions => const [
@@ -6719,10 +6985,17 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           itemCounts: _usesTabOwnedAiItems
               ? const <String, int>{}
               : _normalizedItemCounts(),
-          deepResearch: _usesInteractiveAiFormat && _deepResearch,
+          deepResearch: _usesDeepResearchAiFormat && _deepResearch,
           preserveSource: _preserveSource,
           formatType: widget.formatType,
           formatSubtype: widget.formatSubtype,
+          sourceImageUrls: _usesEventAiFormat
+              ? [
+                  for (final image in _selectedEventImages)
+                    if (image.originalUrl.trim().isNotEmpty)
+                      image.originalUrl.trim(),
+                ]
+              : const <String>[],
         ),
       );
       if (!mounted) return;
@@ -6730,6 +7003,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         _AiContentGeneratorResult(
           draft: draft,
           sourceImage: _selectedSourceImage,
+          eventImages: _selectedEventImages.toList(growable: false),
         ),
       );
     } catch (error) {
@@ -6797,7 +7071,9 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
 
   void _applySourceArticleToInputs(AdminNewsSourceArticle article) {
     final currentContent = _topicController.text.trim();
-    final sourceBlock = article.toPromptBlock();
+    final sourceBlock = article.toPromptBlock(
+      includeStructureHints: _usesContentsAiFormat,
+    );
     if (currentContent.contains('Kaynak URL: ${article.url}')) return;
     _topicController.text = currentContent.isEmpty
         ? sourceBlock
@@ -6817,6 +7093,45 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     );
     if (selected == null || !mounted) return;
     await _uploadSelectedSourceImage(selected);
+  }
+
+  Future<void> _handleOpenEventImages() async {
+    if (_generating || _readingSource || _sourceImageUploading) return;
+    final selected = await showMediaLibraryMultiDialog(
+      context,
+      mediaService: _mediaService,
+    );
+    if (selected == null || selected.isEmpty || !mounted) return;
+    final next = <_AiSelectedSourceImage>[];
+    final seen = <String>{};
+    for (final mediaSrc in [
+      ..._selectedEventImages.map((image) => image.mediaSrc),
+      ...selected,
+    ]) {
+      final normalized = mediaSrc.trim();
+      if (normalized.isEmpty || !seen.add(normalized)) continue;
+      next.add(
+        _AiSelectedSourceImage(
+          mediaSrc: normalized,
+          originalUrl: _mediaService.resolveUrl(normalized),
+          altText: '',
+        ),
+      );
+      if (next.length >= 5) break;
+    }
+    setState(() {
+      _selectedEventImages
+        ..clear()
+        ..addAll(next);
+    });
+  }
+
+  void _handleRemoveEventImage(_AiSelectedSourceImage image) {
+    setState(() {
+      _selectedEventImages.removeWhere(
+        (item) => item.mediaSrc == image.mediaSrc,
+      );
+    });
   }
 
   Future<void> _uploadSelectedSourceImage(AdminNewsSourceImage image) async {
@@ -6876,7 +7191,9 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     if (article == null || topic.contains('Kaynak URL: ${article.url}')) {
       return topic;
     }
-    final sourceBlock = article.toPromptBlock();
+    final sourceBlock = article.toPromptBlock(
+      includeStructureHints: _usesContentsAiFormat,
+    );
     return topic.isEmpty ? sourceBlock : '$topic\n\n$sourceBlock';
   }
 
@@ -7093,6 +7410,10 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         ? 'newsAdd.aiModal.content.video'
         : _usesContentsAiFormat
         ? 'newsAdd.aiModal.content.contents'
+        : _usesRecipeAiFormat
+        ? 'newsAdd.aiModal.content.recipe'
+        : _usesEventAiFormat
+        ? 'newsAdd.aiModal.content.event'
         : 'newsAdd.aiModal.content.article';
     final tone = _AiGeneratorSelect(
       label: 'newsAdd.aiModal.tone',
@@ -7208,7 +7529,9 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
 
   Widget _buildAiForm(BuildContext context, bool compact, bool dense) {
     final sourceImages = _currentSourceImages;
-    final topicLines = sourceImages.isNotEmpty
+    final topicLines = _usesEventAiFormat
+        ? (dense ? 7 : 8)
+        : sourceImages.isNotEmpty
         ? (dense ? 8 : 9)
         : (dense ? 11 : 12);
     final topicInput = _TextInputBox(
@@ -7235,7 +7558,41 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         ),
         SizedBox(height: dense ? 12 : 14),
         const _FieldLabel('newsAdd.aiModal.topic', icon: Icons.auto_awesome),
-        if (sourceImages.isEmpty)
+        if (_usesEventAiFormat)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final canUseSidePanel = !compact && constraints.maxWidth >= 620;
+              final eventImages = _EventAiImagePicker(
+                images: _selectedEventImages,
+                enabled: !_generating && !_readingSource,
+                onPick: () => unawaited(_handleOpenEventImages()),
+                onRemove: _handleRemoveEventImage,
+              );
+              if (!canUseSidePanel) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    topicInput,
+                    const SizedBox(height: 10),
+                    eventImages,
+                  ],
+                );
+              }
+              final panelWidth = (constraints.maxWidth * 0.28).clamp(
+                204.0,
+                232.0,
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: topicInput),
+                  const SizedBox(width: 12),
+                  SizedBox(width: panelWidth, child: eventImages),
+                ],
+              );
+            },
+          )
+        else if (sourceImages.isEmpty)
           topicInput
         else
           LayoutBuilder(
@@ -7295,7 +7652,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         SizedBox(height: dense ? 10 : 12),
         _AiModalOptions(
           includeSeo: _includeSeo,
-          showDeepResearch: _usesInteractiveAiFormat,
+          showDeepResearch: _usesDeepResearchAiFormat,
           deepResearch: _deepResearch,
           preserveSource: _preserveSource,
           onSeoChanged: (value) => setState(() => _includeSeo = value),
@@ -7764,6 +8121,321 @@ class _SourceImagePreviewAction extends StatelessWidget {
         selected ? Icons.check : Icons.grid_view,
         color: Colors.white,
         size: compact ? 15 : 16,
+      ),
+    );
+  }
+}
+
+class _EventAiImagePicker extends StatelessWidget {
+  const _EventAiImagePicker({
+    required this.images,
+    required this.enabled,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final List<_AiSelectedSourceImage> images;
+  final bool enabled;
+  final VoidCallback onPick;
+  final ValueChanged<_AiSelectedSourceImage> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaService = MediaService();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddStrongLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.actionRed.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: const Icon(
+                  Icons.photo_library_outlined,
+                  size: 16,
+                  color: AppColors.actionRed,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  context.t('newsAdd.aiModal.eventImages'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              _EventAiImageCount(count: images.length),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            context.t('newsAdd.aiModal.eventImagesHint'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _newsAddTabMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (images.isEmpty)
+            _EventAiEmptyImageBox(enabled: enabled, onTap: onPick)
+          else
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (final image in images)
+                  _EventAiImageThumb(
+                    imageUrl: mediaService.resolveImageUrl(
+                      image.mediaSrc,
+                      width: 160,
+                      quality: 85,
+                    ),
+                    enabled: enabled,
+                    onRemove: () => onRemove(image),
+                  ),
+                if (images.length < 5)
+                  _EventAiAddImageThumb(enabled: enabled, onTap: onPick),
+              ],
+            ),
+          if (images.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: _EventAiImageButton(enabled: enabled, onTap: onPick),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EventAiImageCount extends StatelessWidget {
+  const _EventAiImageCount({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: count > 0
+            ? AppColors.deepOcean.withValues(alpha: 0.08)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddSoftLine),
+      ),
+      child: Text(
+        '$count/5',
+        style: TextStyle(
+          color: count > 0 ? AppColors.deepOcean : AppColors.iconMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _EventAiEmptyImageBox extends StatelessWidget {
+  const _EventAiEmptyImageBox({required this.enabled, required this.onTap});
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: Container(
+          height: 78,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: _newsAddStrongLine,
+              style: BorderStyle.solid,
+            ),
+          ),
+          child: _EventAiImageButton(enabled: enabled, onTap: onTap),
+        ),
+      ),
+    );
+  }
+}
+
+class _EventAiImageButton extends StatelessWidget {
+  const _EventAiImageButton({required this.enabled, required this.onTap});
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.62,
+          child: Container(
+            width: double.infinity,
+            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.deepOcean,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.add_photo_alternate_outlined,
+                  size: 15,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    context.t('newsAdd.aiModal.eventImagesSelect'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EventAiAddImageThumb extends StatelessWidget {
+  const _EventAiAddImageThumb({required this.enabled, required this.onTap});
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: Container(
+          width: 54,
+          height: 54,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: _newsAddStrongLine),
+          ),
+          child: Icon(
+            Icons.add,
+            size: 22,
+            color: enabled ? AppColors.deepOcean : AppColors.iconMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EventAiImageThumb extends StatelessWidget {
+  const _EventAiImageThumb({
+    required this.imageUrl,
+    required this.enabled,
+    required this.onRemove,
+  });
+
+  final String imageUrl;
+  final bool enabled;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const _SourceImageFallback(),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: MouseRegion(
+              cursor: enabled
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: enabled ? onRemove : null,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.actionRed,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(Icons.close, size: 11, color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -10197,8 +10869,16 @@ class _CoverCardState extends State<_CoverCard> {
     setState(() => _coverHover = false);
   }
 
+  String _resolvedCoverImageUrl(String value) {
+    if (value.startsWith('http')) return value;
+    return MediaService().resolveImageUrl(value, width: 720, quality: 90);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final imageUrl = widget.imageUrl?.trim();
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
     return _SectionCard(
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
       child: Column(
@@ -10225,57 +10905,53 @@ class _CoverCardState extends State<_CoverCard> {
               child: DashedRect(
                 strokeWidth: 1.35,
                 child: Container(
-                  height: _newsAddCoverVisualHeight,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: AppColors.surface.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(AppRadius.value),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: widget.imageUrl != null
+                  child: hasImage
                       ? Stack(
                           children: [
-                            Positioned.fill(
-                              child: Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadius.value,
-                                  ),
-                                  child: Image.network(
-                                    widget.imageUrl!.startsWith('http')
-                                        ? widget.imageUrl!
-                                        : MediaService().resolveImageUrl(
-                                            widget.imageUrl!,
-                                            width: 720,
-                                            quality: 90,
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.value,
+                                ),
+                                child: Image.network(
+                                  _resolvedCoverImageUrl(imageUrl),
+                                  width: double.infinity,
+                                  cacheWidth: 720,
+                                  fit: BoxFit.fitWidth,
+                                  alignment: Alignment.topCenter,
+                                  filterQuality: FilterQuality.high,
+                                  isAntiAlias: true,
+                                  gaplessPlayback: true,
+                                  loadingBuilder: (_, child, loadingProgress) {
+                                    if (loadingProgress == null) {
+                                      return child;
+                                    }
+                                    return const SizedBox(
+                                      height: _newsAddCoverVisualHeight,
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.deepOcean,
                                           ),
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    cacheWidth: 720,
-                                    fit: BoxFit.cover,
-                                    alignment: Alignment.center,
-                                    filterQuality: FilterQuality.high,
-                                    isAntiAlias: true,
-                                    gaplessPlayback: true,
-                                    loadingBuilder:
-                                        (_, child, loadingProgress) {
-                                          if (loadingProgress == null) {
-                                            return child;
-                                          }
-                                          return const Center(
-                                            child: SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: AppColors.deepOcean,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                    errorBuilder: (_, _, _) =>
-                                        _UploadStub(onUrlTap: _openUrlDialog),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (_, _, _) => SizedBox(
+                                    height: _newsAddCoverVisualHeight,
+                                    child: _UploadStub(
+                                      onUrlTap: _openUrlDialog,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -10303,12 +10979,17 @@ class _CoverCardState extends State<_CoverCard> {
                               ),
                           ],
                         )
-                      : Center(child: _UploadStub(onUrlTap: _openUrlDialog)),
+                      : SizedBox(
+                          height: _newsAddCoverVisualHeight,
+                          child: Center(
+                            child: _UploadStub(onUrlTap: _openUrlDialog),
+                          ),
+                        ),
                 ),
               ),
             ),
           ),
-          if (widget.imageUrl != null) ...[
+          if (hasImage) ...[
             const SizedBox(height: 14),
             _CoverAltTextPanel(controller: widget.altController),
           ],

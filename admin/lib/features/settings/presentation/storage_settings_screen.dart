@@ -5,6 +5,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../data/admin_storage_settings_repository.dart';
 
 class StorageSettingsScreen extends StatefulWidget {
   const StorageSettingsScreen({super.key});
@@ -18,9 +19,19 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   final _secretKeyController = TextEditingController();
   final _bucketController = TextEditingController();
   final _regionController = TextEditingController();
+  final _repository = const SupabaseAdminStorageSettingsRepository();
 
   var _activeStorage = 'storageSettings.option.localStorage';
   var _selectedProvider = _StorageProvider.awsS3;
+  var _providerValues = <String, Map<String, String>>{};
+  var _loading = true;
+  var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
 
   @override
   void dispose() {
@@ -31,10 +42,87 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     super.dispose();
   }
 
+  Future<void> _loadSettings() async {
+    try {
+      final settings = await _repository.fetchSettings();
+      if (!mounted) return;
+      setState(() {
+        _activeStorage = settings.activeStorageKey;
+        _selectedProvider = _StorageProvider.fromId(
+          settings.selectedProviderId,
+        );
+        _providerValues = {
+          for (final entry in settings.providers.entries)
+            entry.key: Map<String, String>.of(entry.value),
+        };
+        _applyProviderValues(_selectedProvider);
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _saveSettings() async {
+    if (_saving) return;
+    _rememberProviderValues(_selectedProvider);
+    setState(() => _saving = true);
+    try {
+      final saved = await _repository.saveSettings(
+        AdminStorageSettingsData(
+          activeStorageKey: _activeStorage,
+          selectedProviderId: _selectedProvider.id,
+          providers: _providerValues,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _activeStorage = saved.activeStorageKey;
+        _selectedProvider = _StorageProvider.fromId(saved.selectedProviderId);
+        _providerValues = {
+          for (final entry in saved.providers.entries)
+            entry.key: Map<String, String>.of(entry.value),
+        };
+        _applyProviderValues(_selectedProvider);
+        _saving = false;
+      });
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   void _showSavedMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.t('storageSettings.saveSuccess'))),
     );
+  }
+
+  void _rememberProviderValues(_StorageProvider provider) {
+    final keys = provider.settingKeys;
+    _providerValues = {
+      ..._providerValues,
+      provider.id: {
+        keys[0]: _accessKeyController.text.trim(),
+        keys[1]: _secretKeyController.text.trim(),
+        keys[2]: _bucketController.text.trim(),
+        keys[3]: _regionController.text.trim(),
+      },
+    };
+  }
+
+  void _applyProviderValues(_StorageProvider provider) {
+    final keys = provider.settingKeys;
+    final values = _providerValues[provider.id] ?? const <String, String>{};
+    _accessKeyController.text = values[keys[0]] ?? '';
+    _secretKeyController.text = values[keys[1]] ?? '';
+    _bucketController.text = values[keys[2]] ?? '';
+    _regionController.text = values[keys[3]] ?? '';
   }
 
   @override
@@ -42,6 +130,12 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+
+        if (_loading) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.actionRed),
+          );
+        }
 
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
@@ -76,7 +170,11 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                     _ProviderSettingsCard(
                       selectedProvider: _selectedProvider,
                       onProviderChanged: (provider) {
-                        setState(() => _selectedProvider = provider);
+                        _rememberProviderValues(_selectedProvider);
+                        setState(() {
+                          _selectedProvider = provider;
+                          _applyProviderValues(provider);
+                        });
                       },
                       accessKeyController: _accessKeyController,
                       secretKeyController: _secretKeyController,
@@ -89,7 +187,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                       child: _PrimaryButton(
                         label: 'Save Changes',
                         icon: Symbols.check,
-                        onPressed: _showSavedMessage,
+                        onPressed: _saving ? () {} : () => _saveSettings(),
                       ),
                     ),
                   ],
@@ -612,15 +710,58 @@ class _StorageField {
 }
 
 enum _StorageProvider {
-  awsS3('storageSettings.provider.awsS3'),
-  cloudflareR2('storageSettings.provider.cloudflareR2'),
-  backblazeB2('storageSettings.provider.backblazeB2'),
-  bunnyNet('storageSettings.provider.bunnyNet'),
-  googleDrive('storageSettings.provider.googleDrive');
+  awsS3('awsS3', 'storageSettings.provider.awsS3'),
+  cloudflareR2('cloudflareR2', 'storageSettings.provider.cloudflareR2'),
+  backblazeB2('backblazeB2', 'storageSettings.provider.backblazeB2'),
+  bunnyNet('bunnyNet', 'storageSettings.provider.bunnyNet'),
+  googleDrive('googleDrive', 'storageSettings.provider.googleDrive');
 
-  const _StorageProvider(this.labelKey);
+  const _StorageProvider(this.id, this.labelKey);
 
+  final String id;
   final String labelKey;
+
+  static _StorageProvider fromId(String id) {
+    return _StorageProvider.values.firstWhere(
+      (provider) => provider.id == id,
+      orElse: () => _StorageProvider.awsS3,
+    );
+  }
+
+  List<String> get settingKeys {
+    return switch (this) {
+      _StorageProvider.awsS3 => [
+        'accessKey',
+        'secretKey',
+        'bucketName',
+        'region',
+      ],
+      _StorageProvider.cloudflareR2 => [
+        'accountId',
+        'accessKey',
+        'secretKey',
+        'bucketName',
+      ],
+      _StorageProvider.backblazeB2 => [
+        'keyId',
+        'applicationKey',
+        'bucketName',
+        'endpoint',
+      ],
+      _StorageProvider.bunnyNet => [
+        'storageZoneName',
+        'accessKey',
+        'hostname',
+        'pullZoneUrl',
+      ],
+      _StorageProvider.googleDrive => [
+        'clientId',
+        'clientSecret',
+        'refreshToken',
+        'folderId',
+      ],
+    };
+  }
 
   List<_StorageField> fields({
     required TextEditingController accessKeyController,

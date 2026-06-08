@@ -13,6 +13,7 @@ class AdminNewsSourceArticle {
     required this.author,
     required this.publishedAt,
     required this.bodyText,
+    required this.structuredBodyText,
     required this.images,
   });
 
@@ -22,17 +23,22 @@ class AdminNewsSourceArticle {
   final String author;
   final String publishedAt;
   final String bodyText;
+  final String structuredBodyText;
   final List<AdminNewsSourceImage> images;
 
   String get topicHint => title.isNotEmpty ? title : _firstUsefulLine(bodyText);
 
-  String toPromptBlock() {
+  String toPromptBlock({bool includeStructureHints = false}) {
     final lines = <String>[
       'Kaynak URL: $url',
       if (title.isNotEmpty) 'Kaynak başlık: $title',
       if (description.isNotEmpty) 'Kaynak açıklama: $description',
       if (publishedAt.isNotEmpty) 'Yayın tarihi: $publishedAt',
       if (author.isNotEmpty) 'Yazar/Kaynak: $author',
+      if (includeStructureHints && structuredBodyText.isNotEmpty) ...[
+        'Kaynak HTML başlık hiyerarşisi ve bölüm metni:',
+        structuredBodyText,
+      ],
       'Kaynak metni:',
       bodyText,
     ];
@@ -96,6 +102,9 @@ class AdminNewsSourceReader {
       structured.bodyText,
       structuredQuizText,
     ]);
+    final htmlStructuredBodyText = _cleanBodyText(
+      _extractStructuredMainText(document),
+    );
     final bodyText = _cleanBodyText(
       _firstNonEmpty([structuredBodyText, _extractMainText(document)]),
     );
@@ -114,6 +123,7 @@ class AdminNewsSourceReader {
       author: _cleanLine(structured.author),
       publishedAt: _cleanLine(structured.publishedAt),
       bodyText: bodyText,
+      structuredBodyText: htmlStructuredBodyText,
       images: images,
     );
   }
@@ -602,8 +612,46 @@ String _jsonText(Object? value) {
 }
 
 String _extractMainText(dom.Document document) {
+  final candidates = _mainTextCandidates(document);
+  var bestText = '';
+  var bestScore = 0;
+  for (final candidate in candidates) {
+    final lines = _extractTextLines(candidate);
+    final text = lines.join('\n');
+    final score = text.length + (lines.length * 24);
+    if (score > bestScore) {
+      bestScore = score;
+      bestText = text;
+    }
+  }
+  if (bestText.length >= 80 || document.body == null) return bestText;
+  final bodyLines = _extractTextLines(document.body!);
+  if (bodyLines.isEmpty) return bestText;
+  return bodyLines.join('\n');
+}
+
+String _extractStructuredMainText(dom.Document document) {
+  final candidates = _mainTextCandidates(document);
+  var bestText = '';
+  var bestScore = 0;
+  for (final candidate in candidates) {
+    final lines = _extractStructuredTextLines(candidate);
+    final text = lines.join('\n');
+    final score = text.length + (lines.length * 24);
+    if (score > bestScore) {
+      bestScore = score;
+      bestText = text;
+    }
+  }
+  if (bestText.length >= 80 || document.body == null) return bestText;
+  final bodyLines = _extractStructuredTextLines(document.body!);
+  if (bodyLines.isEmpty) return bestText;
+  return bodyLines.join('\n');
+}
+
+List<dom.Element> _mainTextCandidates(dom.Document document) {
   final candidates = <dom.Element>[];
-  final selectors = [
+  const selectors = [
     'article',
     '[itemprop="articleBody"]',
     '[property="articleBody"]',
@@ -624,21 +672,7 @@ String _extractMainText(dom.Document document) {
       if (seen.add(element)) candidates.add(element);
     }
   }
-  var bestText = '';
-  var bestScore = 0;
-  for (final candidate in candidates) {
-    final lines = _extractTextLines(candidate);
-    final text = lines.join('\n');
-    final score = text.length + (lines.length * 24);
-    if (score > bestScore) {
-      bestScore = score;
-      bestText = text;
-    }
-  }
-  if (bestText.length >= 80 || document.body == null) return bestText;
-  final bodyLines = _extractTextLines(document.body!);
-  if (bodyLines.isEmpty) return bestText;
-  return bodyLines.join('\n');
+  return candidates;
 }
 
 List<String> _extractTextLines(dom.Element root) {
@@ -655,6 +689,84 @@ List<String> _extractTextLines(dom.Element root) {
     lines.add(text);
   }
   return lines;
+}
+
+List<String> _extractStructuredTextLines(dom.Element root) {
+  final lines = <String>[];
+  final seen = <String>{};
+  final nodes = root.querySelectorAll('h1, h2, h3, h4, p, li');
+  for (final node in nodes) {
+    final tag = node.localName?.toLowerCase() ?? '';
+    final isListItem = tag == 'li';
+    final text = isListItem ? _directListItemText(node) : _cleanLine(node.text);
+    if (text.isEmpty) continue;
+    if (_isStopLine(text) && lines.length >= 2) break;
+    if (_shouldSkipLine(text)) continue;
+    if (isListItem && _hasArticleTextChild(node)) continue;
+
+    final marker = switch (tag) {
+      'h1' || 'h2' || 'h3' || 'h4' => _headingMarker(node, tag),
+      'li' => '[LI L${_listDepth(node)}]',
+      'p' => _paragraphMarker(node),
+      _ => '',
+    };
+    if (marker.isEmpty) continue;
+    final line = '$marker $text';
+    if (!seen.add(line.toLowerCase())) continue;
+    lines.add(line);
+  }
+  return lines;
+}
+
+String _headingMarker(dom.Element element, String tag) {
+  final depth = _listDepth(element);
+  final suffix = depth > 0 ? ' L$depth' : '';
+  return '[${tag.toUpperCase()}$suffix]';
+}
+
+String _paragraphMarker(dom.Element element) {
+  final depth = _listDepth(element);
+  return depth > 0 ? '[P L$depth]' : '[P]';
+}
+
+String _directListItemText(dom.Element element) {
+  final buffer = StringBuffer();
+  for (final node in element.nodes) {
+    if (node is dom.Text) {
+      buffer.write(' ${node.text} ');
+      continue;
+    }
+    if (node is! dom.Element) continue;
+    final tag = node.localName?.toLowerCase() ?? '';
+    if (tag == 'ul' || tag == 'ol') continue;
+    buffer.write(' ${node.text} ');
+  }
+  return _cleanLine(buffer.toString());
+}
+
+bool _hasArticleTextChild(dom.Element element) {
+  return element.children.any((child) {
+    final tag = child.localName?.toLowerCase() ?? '';
+    return tag == 'h1' ||
+        tag == 'h2' ||
+        tag == 'h3' ||
+        tag == 'h4' ||
+        tag == 'p';
+  });
+}
+
+int _listDepth(dom.Element element) {
+  var depth = 0;
+  dom.Element? current = element.localName?.toLowerCase() == 'li'
+      ? element
+      : element.parent;
+  while (current != null) {
+    if (current.localName?.toLowerCase() == 'li') depth++;
+    current = current.parent;
+  }
+  if (depth < 0) return 0;
+  if (depth > 6) return 6;
+  return depth;
 }
 
 bool _shouldSkipLine(String value) {

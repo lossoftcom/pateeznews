@@ -1,35 +1,14 @@
 import type { APIRoute } from 'astro';
-import path from 'path';
-import {
-  getStorageType,
-  adminStorageClient,
-  storageObjectPath,
-  STORAGE_TYPES,
-  type StorageType,
-} from '@/lib/server/supabaseStorage';
+import { getStorageType } from '@/lib/server/supabaseStorage';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
+import {
+  deleteLocalMediaRecords,
+  getStorageSettings,
+  isLocalStorageActive,
+} from '@/lib/server/storageSettings';
+import { deleteLocalStorageFile } from '@/lib/server/localStorageProxy';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
-
-function videoThumbObjectPath(objectPath: string) {
-  const parsed = path.posix.parse(objectPath);
-  return `${parsed.dir ? `${parsed.dir}/` : ''}${parsed.name}_thumb.webp`;
-}
-
-function objectCandidates(rawId: string, typeHint?: StorageType | null) {
-  const types = typeHint ? [typeHint, ...STORAGE_TYPES.filter((type) => type !== typeHint)] : [...STORAGE_TYPES];
-  const candidates = new Set<string>();
-  for (const type of types) {
-    try {
-      const objectPath = storageObjectPath(type, rawId);
-      candidates.add(objectPath);
-      if (type === 'video') candidates.add(videoThumbObjectPath(objectPath));
-    } catch {
-      // Ignore invalid path candidates and let the final remove call decide.
-    }
-  }
-  return Array.from(candidates);
-}
 
 export const DELETE: APIRoute = async ({ params, request }) => {
   try {
@@ -60,19 +39,23 @@ export const DELETE: APIRoute = async ({ params, request }) => {
       : null;
 
     await requireStorageAdminRequest(request, typeHint);
-    const client = adminStorageClient();
-    const paths = objectCandidates(rawId, typeHint);
-    if (!paths.length) {
-      return new Response(JSON.stringify({ error: 'Invalid file ID' }), {
-        status: 400,
+    const storageSettings = await getStorageSettings();
+
+    if (!isLocalStorageActive(storageSettings)) {
+      return new Response(JSON.stringify({
+        error: `Selected storage provider is not implemented: ${storageSettings.activeStorage}`,
+      }), {
+        status: 501,
         headers: jsonHeaders,
       });
     }
 
-    const { data, error } = await client.storage.from('media').remove(paths);
-    if (error) throw error;
+    const result = await deleteLocalStorageFile({ id: rawId, type: typeHint });
+    for (const item of result.deleted || []) {
+      await deleteLocalMediaRecords(item.type, item.ids || []);
+    }
 
-    return new Response(JSON.stringify({ success: true, deleted: data || [], paths }), {
+    return new Response(JSON.stringify(result), {
       status: 200,
       headers: jsonHeaders,
     });

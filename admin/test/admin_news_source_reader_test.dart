@@ -106,6 +106,82 @@ void main() {
     expect(article.images.last.alt, 'Milli takım oyuncuları');
   });
 
+  test('içindekiler için HTML başlık hiyerarşisini ayrı prompta ekler', () async {
+    final reader = AdminNewsSourceReader(
+      httpClient: MockClient((request) async {
+        return _htmlResponse('''
+<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="Quantum computing revolutionizing information processing">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "NewsArticle",
+        "headline": "Quantum computing revolutionizing information processing",
+        "articleBody": "Short JSON-LD summary only. It does not include the table of contents headings or nested section paragraphs from the HTML body."
+      }
+    </script>
+  </head>
+  <body>
+    <article>
+      <h1>Quantum computing revolutionizing information processing</h1>
+      <h2>Table of Contents</h2>
+      <ul>
+        <li>Introduction
+          <ul>
+            <li>Understanding Quantum Mechanics</li>
+          </ul>
+        </li>
+        <li>Ethical and Societal Implications</li>
+      </ul>
+      <ul>
+        <li>
+          <h3>Introduction</h3>
+          <p>Quantum computing stands at the forefront of technological innovation.</p>
+          <ul>
+            <li>
+              <h3>Understanding Quantum Mechanics</h3>
+              <p>Quantum mechanics governs the behavior of particles at the subatomic level.</p>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <h3>Ethical and Societal Implications</h3>
+          <p>Quantum computing raises ethical and societal concerns.</p>
+        </li>
+      </ul>
+    </article>
+  </body>
+</html>
+''');
+      }),
+    );
+
+    final article = await reader.read(
+      'https://varient.codingest.com/quantum-computing-revolutionizing-information-processing',
+    );
+    final defaultPrompt = article.toPromptBlock();
+    final contentsPrompt = article.toPromptBlock(includeStructureHints: true);
+
+    expect(article.bodyText, contains('Short JSON-LD summary only.'));
+    expect(defaultPrompt, isNot(contains('Kaynak HTML başlık hiyerarşisi')));
+    expect(
+      contentsPrompt,
+      contains('Kaynak HTML başlık hiyerarşisi ve bölüm metni:'),
+    );
+    expect(contentsPrompt, contains('[LI L1] Introduction'));
+    expect(contentsPrompt, contains('[LI L2] Understanding Quantum Mechanics'));
+    expect(contentsPrompt, contains('[H3 L1] Introduction'));
+    expect(contentsPrompt, contains('[H3 L2] Understanding Quantum Mechanics'));
+    expect(
+      contentsPrompt,
+      contains(
+        '[P L2] Quantum mechanics governs the behavior of particles at the subatomic level.',
+      ),
+    );
+  });
+
   test('haber içindeki öneri görsellerini kaynak görsel saymaz', () async {
     final reader = AdminNewsSourceReader(
       httpClient: MockClient((request) async {

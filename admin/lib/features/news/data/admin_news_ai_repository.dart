@@ -21,6 +21,7 @@ class AdminNewsAiDraftRequest {
     this.preserveSource = false,
     this.formatType = 'article',
     this.formatSubtype = '',
+    this.sourceImageUrls = const <String>[],
   });
 
   final String languageCode;
@@ -37,6 +38,7 @@ class AdminNewsAiDraftRequest {
   final bool preserveSource;
   final String formatType;
   final String formatSubtype;
+  final List<String> sourceImageUrls;
 }
 
 class AdminNewsAiDraft {
@@ -295,6 +297,7 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
       preserveSource: request.preserveSource,
       formatType: request.formatType,
       formatSubtype: request.formatSubtype,
+      sourceImageUrls: request.sourceImageUrls,
     );
   }
 
@@ -312,7 +315,9 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
       'Content-Type': 'application/json',
       'x-goog-api-key': apiKey,
     };
-    final body = jsonEncode(_buildRequestBody(request, model, systemPrompt));
+    final body = jsonEncode(
+      await _buildRequestBody(request, model, systemPrompt),
+    );
     late final http.Response response;
     try {
       response =
@@ -348,11 +353,11 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
     return AdminNewsAiDraft.fromJson(draftJson);
   }
 
-  Map<String, Object?> _buildRequestBody(
+  Future<Map<String, Object?>> _buildRequestBody(
     AdminNewsAiDraftRequest request,
     String model,
     String systemPrompt,
-  ) {
+  ) async {
     final schema = _draftJsonSchemaFor(request);
     final generationConfig = <String, Object?>{
       'candidateCount': 1,
@@ -367,6 +372,11 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
       generationConfig['thinkingConfig'] = thinkingConfig;
     }
 
+    final userParts = <Map<String, Object?>>[
+      {'text': _buildUserPrompt(request)},
+      ...await _sourceImageParts(request),
+    ];
+
     final body = <String, Object?>{
       'system_instruction': {
         'parts': [
@@ -374,16 +384,58 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
         ],
       },
       'contents': [
-        {
-          'role': 'user',
-          'parts': [
-            {'text': _buildUserPrompt(request)},
-          ],
-        },
+        {'role': 'user', 'parts': userParts},
       ],
       'generationConfig': generationConfig,
     };
     return body;
+  }
+
+  Future<List<Map<String, Object?>>> _sourceImageParts(
+    AdminNewsAiDraftRequest request,
+  ) async {
+    if (!_isEventFormat(request.formatType)) return const [];
+    final urls = [
+      for (final url in request.sourceImageUrls)
+        if (url.trim().isNotEmpty) url.trim(),
+    ];
+    if (urls.isEmpty) return const [];
+
+    final parts = <Map<String, Object?>>[
+      {
+        'text':
+            'Etkinlik görselleri eklendi. Afiş/poster/program görsellerindeki okunabilir metinleri birincil kaynak gibi analiz et; okunmayan küçük yazıları tahmin etme.',
+      },
+    ];
+    for (final url in urls.take(5)) {
+      final uri = Uri.tryParse(url);
+      if (uri == null || !uri.hasScheme) continue;
+      late final http.Response response;
+      try {
+        response = await (httpClient?.get(uri) ?? http.get(uri)).timeout(
+          const Duration(seconds: 12),
+        );
+      } on TimeoutException {
+        continue;
+      } on Object {
+        continue;
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) continue;
+      final mimeType = _imageMimeType(url, response.headers['content-type']);
+      if (mimeType.isEmpty || response.bodyBytes.isEmpty) continue;
+      parts.add({
+        'inlineData': {
+          'mimeType': mimeType,
+          'data': base64Encode(response.bodyBytes),
+        },
+      });
+    }
+    if (parts.length == 1) {
+      throw const AdminNewsAiException(
+        'Etkinlik görseli AI analizi için okunamadı.',
+      );
+    }
+    return parts;
   }
 
   Future<String> _fetchDeepResearchNotes({
@@ -479,7 +531,7 @@ class GeminiAdminNewsAiRepository implements AdminNewsAiRepository {
         'parts': [
           {
             'text':
-                'Sen güvenilir web araştırması yapan Türkçe haber/quiz/anket araştırmacısısın. Yanlış veya doğrulanamayan bilgi yazma.',
+                'Sen güvenilir web araştırması yapan Türkçe haber/quiz/anket/tarif araştırmacısısın. Yanlış veya doğrulanamayan bilgi yazma.',
           },
         ],
       },
@@ -629,6 +681,18 @@ Kesin çıktı:
       }
       return adminContentsAiDefaultSystemPrompt;
     }
+    if (_isRecipeFormat(formatType)) {
+      for (final prompt in activePrompts) {
+        if (_isRecipePromptTitle(prompt.title)) return prompt.prompt.trim();
+      }
+      return adminRecipeAiDefaultSystemPrompt;
+    }
+    if (_isEventFormat(formatType)) {
+      for (final prompt in activePrompts) {
+        if (_isEventPromptTitle(prompt.title)) return prompt.prompt.trim();
+      }
+      return adminEventAiDefaultSystemPrompt;
+    }
     for (final prompt in activePrompts) {
       if (!_isDedicatedFormatPromptTitle(prompt.title)) {
         return prompt.prompt.trim();
@@ -686,13 +750,14 @@ String _toneInstruction(String tone) {
 
 String _sourceRewriteRule(AdminNewsAiDraftRequest request) {
   if (request.preserveSource) {
-    return '- Olduğu gibi kalsın modu açık: kaynak metni, soru/cevapları, anket seçeneklerini, video başlığı/açıklamasını, içindekiler madde başlıklarını/bölüm metinlerini ve sonuç açıklamalarını aynen taşı; yalnız CMS alanlarına yerleştir.';
+    return '- Olduğu gibi kalsın modu açık: kaynak metni, soru/cevapları, anket seçeneklerini, video başlığı/açıklamasını, içindekiler madde başlıklarını/bölüm metinlerini, tarif süre/malzeme/besin/adım metinlerini, etkinlik tarih/saat/mekan/program/not/konuşmacı metinlerini ve sonuç açıklamalarını aynen taşı; yalnız CMS alanlarına yerleştir.';
   }
   return '- Alıntı dışındaki anlatımı güvenli eş anlamlılar ve doğal cümle yapılarıyla profesyonelce yenile; anlamı değiştirme.';
 }
 
 bool _usesGoogleSearchGrounding(AdminNewsAiDraftRequest request) {
-  return request.deepResearch && _isInteractiveFormat(request.formatType);
+  return request.deepResearch &&
+      _supportsDeepResearchFormat(request.formatType);
 }
 
 bool _isQuizFormat(String formatType) {
@@ -714,8 +779,22 @@ bool _isContentsFormat(String formatType) {
   };
 }
 
+bool _isRecipeFormat(String formatType) {
+  return formatType.trim().toLowerCase() == 'recipe';
+}
+
+bool _isEventFormat(String formatType) {
+  return formatType.trim().toLowerCase() == 'event';
+}
+
 bool _isInteractiveFormat(String formatType) {
   return _isQuizFormat(formatType) || _isPollFormat(formatType);
+}
+
+bool _supportsDeepResearchFormat(String formatType) {
+  return _isInteractiveFormat(formatType) ||
+      _isRecipeFormat(formatType) ||
+      _isEventFormat(formatType);
 }
 
 bool _isQuizPromptTitle(String title) {
@@ -742,6 +821,19 @@ bool _isContentsPromptTitle(String title) {
       normalized.contains('table of contents');
 }
 
+bool _isRecipePromptTitle(String title) {
+  final normalized = title.trim().toLowerCase();
+  return normalized.contains('tarif') || normalized.contains('recipe');
+}
+
+bool _isEventPromptTitle(String title) {
+  final normalized = title.trim().toLowerCase();
+  return normalized.contains('etkinlik') ||
+      normalized.contains('event') ||
+      normalized.contains('festival') ||
+      normalized.contains('program');
+}
+
 bool _isInteractivePromptTitle(String title) {
   return _isQuizPromptTitle(title) || _isPollPromptTitle(title);
 }
@@ -749,10 +841,28 @@ bool _isInteractivePromptTitle(String title) {
 bool _isDedicatedFormatPromptTitle(String title) {
   return _isInteractivePromptTitle(title) ||
       _isVideoPromptTitle(title) ||
-      _isContentsPromptTitle(title);
+      _isContentsPromptTitle(title) ||
+      _isRecipePromptTitle(title) ||
+      _isEventPromptTitle(title);
 }
 
 String _deepResearchSettingsLine(AdminNewsAiDraftRequest request) {
+  if (_isEventFormat(request.formatType)) {
+    if (request.deepResearchCompleted) {
+      return '- Derin Araştırma: Tamamlandı. Google Search araştırma notları editör notlarına eklendi; etkinlikte eksik tarih, mekan, adres, organizatör, bilet/kayıt ve program alanları yalnız bu doğrulanabilir notlarla tamamlanabilir.';
+    }
+    return request.deepResearch
+        ? '- Derin Araştırma: Açık. Google Search grounding ile eksik etkinlik tarihi, mekan, adres, organizatör, bilet/kayıt ve program bilgilerini araştır.'
+        : '- Derin Araştırma: Kapalı. Etkinlik alanlarında yalnız verilen konu, kaynak metin, kaynak linki ve seçilen görsellerden çıkarılan bilgiyi kullan.';
+  }
+  if (_isRecipeFormat(request.formatType)) {
+    if (request.deepResearchCompleted) {
+      return '- Derin Araştırma: Tamamlandı. Google Search araştırma notları editör notlarına eklendi; tarifte eksik süre, porsiyon, zorluk ve besin değeri alanları yalnız bu doğrulanabilir notlarla tamamlanabilir.';
+    }
+    return request.deepResearch
+        ? '- Derin Araştırma: Açık. Google Search grounding ile eksik tarif süreleri, porsiyon, zorluk ve besin değeri araştırması yap.'
+        : '- Derin Araştırma: Kapalı. Tarif alanlarında yalnız verilen konu, kaynak metin ve kaynak linkinden çıkarılan bilgiyi kullan.';
+  }
   if (!_isInteractiveFormat(request.formatType)) return '';
   final contentLabel = _isPollFormat(request.formatType) ? 'ankette' : 'quizde';
   final contentType = _isPollFormat(request.formatType) ? 'anket' : 'quiz';
@@ -779,10 +889,10 @@ String _preserveSourceInstruction(AdminNewsAiDraftRequest request) {
 
 Olduğu gibi kalsın modu:
 - Kaynak metin, soru, cevap, sonuç ve açıklama cümlelerini yeniden yazma, eş anlamlıya çevirme, kısaltma, genişletme veya anlatımını değiştirme.
-	- Görevin metni düzenlemek değil, doğru CMS alanlarına yerleştirmektir: title, summary, mainContentHtml, items, tabItem, questions, answers, results ve video alanlarını kaynak sırasına göre doldur.
-	- Kaynakta açıkça etiketlenmiş veya köşeli parantezle verilmiş bölüm işaretlerini ([Başlık], [Spot], [Ara Başlık], [İçindekiler], [Madde], [Üst Bağlantı], [Görsel Açıklaması], [İçerik], [Video Başlığı], [Video Açıklaması], [Video URL], [Soru], [Cevap], [Sonuç], [Item: Metin] gibi) alan eşleme işareti olarak kullan. Etiket içerik değilse final metne yazma; etiketin yanındaki metni ilgili alana aynen taşı.
+	- Görevin metni düzenlemek değil, doğru CMS alanlarına yerleştirmektir: title, summary, mainContentHtml, items, tabItem, questions, answers, results, video alanları, recipeData ve eventData alanlarını kaynak sırasına göre doldur.
+	- Kaynakta açıkça etiketlenmiş veya köşeli parantezle verilmiş bölüm işaretlerini ([Başlık], [Spot], [Ara Başlık], [İçindekiler], [Madde], [Üst Bağlantı], [Görsel Açıklaması], [İçerik], [Video Başlığı], [Video Açıklaması], [Video URL], [Tarif Başlığı], [Hazırlık Süresi], [Pişirme Süresi], [Porsiyon], [Zorluk], [Malzeme], [Besin], [Adım], [Etkinlik Tarihi], [Etkinlik Saati], [Mekan], [Organizatör], [Program], [Not], [Konuşmacı], [Soru], [Cevap], [Sonuç], [Item: Metin] gibi) alan eşleme işareti olarak kullan. Etiket içerik değilse final metne yazma; etiketin yanındaki metni ilgili alana aynen taşı.
 	- SEO açık olduğunda seoTitle, slug, metaDescription, schemaType, keywords ve FAQ üret; bu alanlar kaynak metnin yerleşimini tamamlar ama kaynak cümleleri değiştirme izni vermez.
-	- Kaynakta olmayan soru, cevap, anket seçeneği, video URL, sonuç, ara başlık, iddia, tarih, sayı veya açıklama üretme. Yalnız teknik CMS alanları (id, layout, resultId, isCorrect, questionSorting, allowMultiple, showResults, endDate, isImagePoll, pollColumns, votes, showOnHomepage) kaynak anlamını koruyacak şekilde tamamlanabilir.
+	- Kaynakta olmayan soru, cevap, anket seçeneği, video URL, tarif malzemesi, tarif adımı, etkinlik programı, etkinlik tarihi, mekan, konuşmacı, sonuç, ara başlık, iddia, tarih, sayı veya açıklama üretme. Yalnız teknik CMS alanları (id, layout, resultId, isCorrect, questionSorting, allowMultiple, showResults, endDate, isImagePoll, pollColumns, votes, showOnHomepage, orderNumber, registrationType) kaynak anlamını koruyacak şekilde tamamlanabilir.
 $toneRule''';
 }
 
@@ -816,6 +926,12 @@ String _interactiveDeepResearchInstruction(AdminNewsAiDraftRequest request) {
 }
 
 String _buildDeepResearchPrompt(AdminNewsAiDraftRequest request) {
+  if (_isEventFormat(request.formatType)) {
+    return _buildEventDeepResearchPrompt(request);
+  }
+  if (_isRecipeFormat(request.formatType)) {
+    return _buildRecipeDeepResearchPrompt(request);
+  }
   final isPoll = _isPollFormat(request.formatType);
   final targetLabel = isPoll ? 'anket' : 'quiz/test';
   final outputIdeaLabel = isPoll
@@ -856,6 +972,61 @@ Araştırma hedefi:
 ''';
 }
 
+String _buildEventDeepResearchPrompt(AdminNewsAiDraftRequest request) {
+  return '''
+Google Search ile etkinlik için güvenilir araştırma yap.
+
+Konu, link veya kaynak etkinlik:
+${request.topic.trim()}
+
+Editör notları:
+${request.sourceNotes.trim().isEmpty ? 'Yok' : request.sourceNotes.trim()}
+
+Araştırma hedefi:
+- Verilen link/metin/görsel temel kaynak kabul edilecek; kaynakta dolu olan başlık, açıklama, tarih, saat, mekan, organizatör, program, bilet/kayıt ve konuşmacı bilgileri değiştirilmeyecek.
+- Kaynakta eksik kalan başlangıç/bitiş zamanı, mekan adı, adres, organizatör, bilet/kayıt URL'si, ücret, kontenjan, program ve notlar için resmi kurum, mekan, belediye, bilet platformu veya güvenilir etkinlik sayfalarını araştır.
+- Etkinlik geçmiş/future bilgisini net tarih üzerinden kur; tarih/saat yoksa tahmin etme.
+- Program, yaş sınırı, ücret, kontenjan ve konuşmacı bilgilerini yalnız doğrulanabilir kaynaklarda açıkça geçiyorsa öner.
+- Koordinat sadece güvenilir harita/adres kaynağı açıkça veriyorsa yazılabilir; emin değilsen boş bırak.
+- Görsel URL üretme; admin seçtiği görselleri ayrıca CMS bloklarına yerleştirecek.
+- Çelişkili veya doğrulanamayan bilgiyi "kullanma" diye işaretle.
+
+Çıktı JSON olmasın. Türkçe kısa araştırma raporu ver:
+1. Doğrulanabilir etkinlik bilgileri
+2. Eksik alanları tamamlamak için önerilen tarih, mekan, adres, kayıt/bilet, program ve not bilgileri
+3. Çelişkili veya kullanılmaması gereken bilgiler
+4. Yararlanılan kaynak/site adları veya URL'ler
+''';
+}
+
+String _buildRecipeDeepResearchPrompt(AdminNewsAiDraftRequest request) {
+  return '''
+Google Search ile tarif için güvenilir araştırma yap.
+
+Konu veya kaynak tarif:
+${request.topic.trim()}
+
+Editör notları:
+${request.sourceNotes.trim().isEmpty ? 'Yok' : request.sourceNotes.trim()}
+
+Araştırma hedefi:
+- Verilen link/metin temel kaynak kabul edilecek; kaynakta dolu olan başlık, açıklama, süre, porsiyon, zorluk, malzeme, besin değeri ve adım metinleri değiştirilmeyecek.
+- Kaynakta eksik kalan prepTime, cookTime, serving, difficulty ve nutrition değerleri için güvenilir tarif/nutrition kaynaklarından makul, porsiyon başına kullanılabilir değerleri araştır.
+- Besin değerlerinde Calories, Total Fat, Saturated Fat, Cholesterol, Sodium, Total Carbohydrates, Dietary Fiber, Sugars ve Protein varsa değer ve birimleri yakala.
+- Malzeme listesi veya tarif adımı uydurma; yalnız kaynakta açıkça verilen malzeme ve adımları kullan.
+- Sağlık iddiası, diyet iddiası veya kesin tıbbi yorum yazma.
+- Görsel, video veya medya URL üretme; admin ekleyecek.
+- Çelişkili veya doğrulanamayan değeri "kullanma" diye işaretle.
+
+Çıktı JSON olmasın. Türkçe kısa araştırma raporu ver:
+1. Doğrulanabilir tarif bilgileri
+2. Eksik alanları tamamlamak için önerilen süre, porsiyon, zorluk ve besin değerleri
+3. Besin değerlerinde kullanılan porsiyon varsayımı
+4. Kullanılmaması gereken şüpheli veya çelişkili bilgiler
+5. Yararlanılan kaynak/site adları veya URL'ler
+''';
+}
+
 String _contentTypeInstruction(
   String contentType, {
   required String formatType,
@@ -867,6 +1038,14 @@ String _contentTypeInstruction(
   if (_isContentsFormat(formatType) &&
       contentType.trim().toLowerCase() == 'article') {
     return 'İçindekiler/Listeli İçerik: başlık, spot, içindekiler listesi, bölüm metinleri, üst bağlantılar ve SEO alanları eksiksiz hazırlansın.';
+  }
+  if (_isRecipeFormat(formatType) &&
+      contentType.trim().toLowerCase() == 'article') {
+    return 'Tarif: başlık, spot, tarif açıklaması, hazırlık/pişirme süresi, porsiyon, zorluk, malzemeler, besin değerleri, adımlar ve SEO Recipe alanları eksiksiz hazırlansın.';
+  }
+  if (_isEventFormat(formatType) &&
+      contentType.trim().toLowerCase() == 'article') {
+    return 'Etkinlik: başlık, spot, etkinlik açıklaması, tarih/saat, mekan, adres, organizatör, bilet/kayıt, program, notlar, konuşmacılar ve SEO Event alanları eksiksiz hazırlansın.';
   }
   return switch (contentType) {
     'breaking' =>
@@ -920,8 +1099,11 @@ String _outputTargetInstruction(String outputTarget, bool includeSeo) {
 
 String _sectionMappingInstruction(AdminNewsAiDraftRequest request) {
   final textCount = request.itemCounts['text'] ?? 0;
+  final requestedItemCount = _requestedAiItemCount(request);
   final isVideo = _isVideoFormat(request.formatType);
   final isContents = _isContentsFormat(request.formatType);
+  final isRecipe = _isRecipeFormat(request.formatType);
+  final isEvent = _isEventFormat(request.formatType);
   if (request.preserveSource) {
     if (isVideo) {
       if (textCount <= 0) {
@@ -930,7 +1112,16 @@ String _sectionMappingInstruction(AdminNewsAiDraftRequest request) {
       return '- Olduğu gibi kalsın açık: ilk video bloğunu aynen tabItem içine yerleştir. Ayrıca $textCount adet text item için kaynakta işaretli veya doğal ayrılmış ek blokları cümle değiştirmeden kullan; tabItem video verisini items içine kopyalama.';
     }
     if (isContents) {
-      return '- Olduğu gibi kalsın açık: kaynakta Table of Contents/İçindekiler listesi ve bölüm metinleri varsa her başlığı kaynak sırasıyla tabItem.tocData.items içine yerleştir; bölüm metinlerini cümle değiştirmeden ilgili item.content alanına taşı. Genel "items" boş dizi olsun.';
+      return '- Olduğu gibi kalsın açık: kaynakta Table of Contents/İçindekiler listesi, "Kaynak HTML başlık hiyerarşisi ve bölüm metni" bloğu veya H2/H3/H4 bölüm akışı varsa her başlığı kaynak sırasıyla tabItem.tocData.items içine yerleştir; üst-alt ilişkiyi parentId alanına, bölüm metinlerini cümle değiştirmeden ilgili item.content alanına taşı. Genel "items" boş dizi olsun.';
+    }
+    if (isRecipe) {
+      return '- Olduğu gibi kalsın açık: tarif başlığı, açıklama, süreler, porsiyon, zorluk, malzemeler, besin değerleri, adımlar ve kaynakta verilen yemek videosu başlık/açıklama/URL bilgisini kaynak sırasıyla tabItem.recipeData içine cümle/değer değiştirmeden yerleştir. Genel "items" boş dizi olsun.';
+    }
+    if (isEvent) {
+      if (requestedItemCount > 0) {
+        return '- Olduğu gibi kalsın açık: etkinlik başlığı, açıklama, tarih/saat, mekan, organizatör, adres, program, not ve konuşmacı bilgilerini kaynak/görsel sırasıyla tabItem.eventData içine cümle/değer değiştirmeden yerleştir. Ayrıca seçili item planındaki ek itemleri tam adetle "items" içinde üret; tabItem.eventData program/not/konuşmacı verisini aynen kopyalayıp şişirme, her item etkinlik kaynağındaki farklı ve gerçek bir bilgi açısına dayansın.';
+      }
+      return '- Olduğu gibi kalsın açık: etkinlik başlığı, açıklama, tarih/saat, mekan, organizatör, adres, program, not ve konuşmacı bilgilerini kaynak/görsel sırasıyla tabItem.eventData içine cümle/değer değiştirmeden yerleştir. Genel "items" boş dizi olsun.';
     }
     if (request.formatType.trim().toLowerCase() != 'article') {
       if (textCount <= 0) {
@@ -952,6 +1143,15 @@ String _sectionMappingInstruction(AdminNewsAiDraftRequest request) {
   if (isContents) {
     return '- Aktif format içindekiler/listeli içeriktir; tüm liste ve bölüm verileri tabItem.tocData.items içinde üretilecek. Genel "items" dizisi boş kalsın; içindekiler maddelerini items içine kopyalama.';
   }
+  if (isRecipe) {
+    return '- Aktif format tariftir; ana tarif verisi ve tarif tabındaki Yemek Videosu alt bloğuna ait başlık/açıklama/URL tabItem.recipeData içinde üretilecek. Genel "items" dizisi boş kalsın; tarif veya yemek videosu verisini items içine kopyalama.';
+  }
+  if (isEvent) {
+    if (requestedItemCount > 0) {
+      return '- Aktif format etkinliktir; ana etkinlik verisi tabItem.eventData içinde üretilecek. Kullanıcı ayrıca item seçtiyse "items" içinde yalnız seçili item planındaki ek blokları üret; eventData programı/notları/konuşmacıları items içine kopyalama, item başlık ve açıklamalarını etkinlik kaynağındaki gerçek farklı detaylardan yaz.';
+    }
+    return '- Aktif format etkinliktir; ana etkinlik verisi tabItem.eventData içinde üretilecek. Genel "items" dizisi boş kalsın; etkinlik programı/notları/konuşmacıları items içine kopyalama.';
+  }
   if (request.formatType.trim().toLowerCase() != 'article') {
     if (textCount <= 0) {
       return '- Aktif format article değildir; mainContentHtml kısa giriş olabilir, ana tab verisi tabItem içinde üretilecek. Ek item seçilmediyse "items" boş dizi olsun.';
@@ -962,6 +1162,13 @@ String _sectionMappingInstruction(AdminNewsAiDraftRequest request) {
     return '- Text item seçilmediyse mainContentHtml ana akışı korusun. Kısa haberde h2 üretme; uzun ve gerçek bölüm ayrımı olan kaynakta 2-4 arası anlamlı h2 kullanılabilir. "items" boş dizi olsun.';
   }
   return '- Seçili text itemler zaten ayrı blok olacağı için mainContentHtml h2 sayısını yalnız haberin doğal ana bölümleriyle sınırlı tut; kısa haberde h2 üretme, uzun ve gerçek bölümlü haberde 2-4 arası anlamlı h2 kullanılabilir. Ayrıca kullanıcı isteği için tam $textCount adet text item üret; bu text itemler kısa ara başlık parçası veya mainContentHtml kopyası olmasın, kaynakta bulunan ek arka plan, takvim veya dikkat çeken detayı bağımsız blok yapsın.';
+}
+
+int _requestedAiItemCount(AdminNewsAiDraftRequest request) {
+  return request.itemCounts.values.fold<int>(
+    0,
+    (total, count) => count > 0 ? total + count : total,
+  );
 }
 
 String _formatTypeInstruction(String formatType, String formatSubtype) {
@@ -1000,11 +1207,11 @@ ${_quizToneStyleInstruction(request)}
 ${_interactiveDeepResearchInstruction(request)}''',
     'poll' =>
       '''
-- Aktif tab ankettir. Article akışını bozma: mainContentHtml yalnız kısa, davetkar bir giriş olabilir; items boş dizi olsun.
+- Aktif tab ankettir. Bu akış quiz/test akışından bağımsızdır; quizData, results, isCorrect veya resultId üretme. Article akışını bozma: mainContentHtml yalnız kısa, davetkar bir giriş olabilir; items boş dizi olsun.
 - tabItem.type kesin "poll" olsun; tabItem.title ve tabItem.descriptionHtml dolu olsun.
 - Kullanıcı yalnız konu verdiyse anket mimarisini sen kur: soru sayısı, seçenek sayısı, seçenek tonu, layout, isImagePoll ve pollColumns değerlerini konuya göre profesyonel seç. Tek soru yeterliyse 1 soru; zengin kaynak veya editörün verdiği çok sorulu anket varsa tamamını taşı. Kaynakta 15 anket sorusu varsa pollData.questions tam 15 soru içersin.
 - tabItem.title genel anket başlığıdır; tabItem.descriptionHtml kısa giriş/bağlamdır. Tek tek oylanacak soruların tamamı tabItem.pollData.questions içinde olmalıdır.
-- pollData.questions her soruda id, title, descriptionHtml, source, mediaUrl, showOnHomepage, isImagePoll, pollColumns ve options alanlarını taşısın. Her question.title dolu ve net bir anket sorusu olsun; soru metnini descriptionHtml içine gömme.
+- pollData.questions her soruda id, title, descriptionHtml, source, mediaUrl, showOnHomepage, isImagePoll, pollColumns ve options alanlarını taşısın. Her question.title dolu ve net bir anket sorusu olsun; boş string olamaz. Soru başlığı editördeki "Anket Sorusu / Başlık" inputuna gidecek ana metindir; soru metnini yalnız descriptionHtml içine gömme.
 - Her question.options her seçenekte id, text, image ve votes alanlarını taşısın. text kısa, doğal, aynı ölçekte karşılaştırılabilir ve birbirinden ayırt edilebilir olsun. votes yeni anket için 0 olsun.
 - tabItem.options geriye uyumluluk için ilk anket sorusunun options alanını aynen yansıtabilir; asıl çoklu soru verisi pollData.questions içindedir.
 - Kaynakta hazır anket sorusu ve seçenekleri varsa eksiltme; "Olduğu gibi kalsın" açık değilse anlamı koruyarak özgünleştir. Kaynakta seçenek yoksa konuya göre dengeli seçenekler üret ama kaynak dışı iddia, tarih, sayı veya kişi isnadı ekleme.
@@ -1030,11 +1237,13 @@ ${_interactiveDeepResearchInstruction(request)}''',
 - tabItem.type kesin "toc" olsun. tabItem.title kaynakta özel içindekiler/list başlığı varsa onu, yoksa "Table of Contents" değerini taşısın.
 - tabItem.descriptionHtml kaynakta listeye ait kısa açıklama varsa dolsun; yoksa boş string olabilir. Bölüm metinlerini descriptionHtml içine yığma.
 - tabItem.tocData.linkListStyle zorunludur; level1, level2 ve level3 alanları "none", "decimal", "decimal-leading-zero", "circle", "disc", "square", "lower-alpha", "upper-alpha", "lower-roman" veya "upper-roman" değerlerinden biri olsun.
-- tabItem.tocData.showInText zorunludur; level1, level2 ve level3 boolean dönsün. Kaynakta liste stilinin metin içinde görüneceği açıkça istenmiyorsa false kullan.
-- tabItem.tocData.items kaynakta Table of Contents/İçindekiler listesinde kaç başlık varsa tamamını kaynak sırasıyla taşısın. Kullanıcı yalnız konu verdiyse 4-8 anlamlı bölüm üret; kaynakta 10 bölüm varsa 10 bölümün tamamını taşı.
+- Kaynak hiyerarşikse veya "Kaynak HTML başlık hiyerarşisi ve bölüm metni" bloğunda [LI L1]/[LI L2], [H2]/[H3] ya da [H3 L1]/[H3 L2] işaretleri varsa level1 ve level2 için "decimal" kullan; üçüncü seviye yoksa level3 "none" kalsın. Kaynak düz listeyse yalnız level1 "decimal", diğer seviyeler "none" olabilir.
+- tabItem.tocData.showInText zorunludur; level1, level2 ve level3 boolean dönsün. Kaynakta liste numaralarının metin içinde görüneceği açıkça istenmiyorsa false kullan.
+- tabItem.tocData.items kaynakta Table of Contents/İçindekiler listesinde, "Kaynak HTML başlık hiyerarşisi ve bölüm metni" bloğunda veya H2/H3/H4 bölüm akışında kaç başlık varsa tamamını kaynak sırasıyla taşısın. Kullanıcı yalnız konu verdiyse 4-8 anlamlı bölüm üret; kaynakta 10 bölüm varsa 10 bölümün tamamını taşı.
+- Table of Contents listesi gövde bölüm başlıklarından daha kısa veya düz görünüyorsa gövdedeki H2/H3/H4 ya da [H* L*] akışı esas alınır; hiçbir gerçek alt başlığı parent madde içinde eritme veya tek iteme özetleme.
 - Her item içinde id, title, parentId, image, imageDescription, content ve orderNumber alanları eksiksiz olsun. title boş kalmasın; content ilgili başlığın metnidir ve boş kalmasın.
-- id değerleri stabil ve kısa olsun: düz listede "1", "2", "3"; hiyerarşik listede üst madde "1", alt madde "1.1", üçüncü seviye "1.1.1" gibi olabilir.
-- parentId yalnız kaynakta hiyerarşi açıkça varsa üst maddenin id değerini taşısın; düz listede boş string kalsın. Üst bağlantı uydurma.
+- id değerleri stabil ve kısa olsun: düz listede "1", "2", "3"; hiyerarşik listede üst madde "1", alt madde "1.1", üçüncü seviye "1.1.1" gibi olsun.
+- parentId hiyerarşik kaynakta tam üst maddenin id değerini taşısın: "1.1" için parentId "1", "1.1.1" için parentId "1.1". En üst seviye maddelerde parentId boş string kalsın. Üst bağlantı alanı boş kalıyorsa yalnız kaynak gerçekten düz listedir.
 - orderNumber ekrandaki sıra numarasıdır; 1'den başlasın ve kaynak sırasını izlesin.
 - image ve imageDescription yalnız kaynakta o maddeye ait açık görsel URL/açıklama varsa dolsun; yoksa boş string kalsın. Görsel URL uydurma.
 - content HTML sadece p, ul, ol, li ve strong kullansın. İçerikte h2/h3 üretme; başlık zaten item.title alanındadır.
@@ -1043,16 +1252,39 @@ ${_interactiveDeepResearchInstruction(request)}''',
 ${_tocSourceTextInstruction(request)}''',
     'recipe' =>
       '''
-- Aktif tab tariftir. tabItem.type kesin "recipe" olsun.
-- recipeData.ingredients ve recipeData.directions alanlarını kaynakta verilen sıraya göre eksiksiz ve okunur doldur.
-- prepTime, cookTime, serving, difficulty ve nutrition yalnız kaynakta açıkça varsa dolsun; yoksa boş bırak, tahmin etme.
-- directions içinde 3-8 adım uygundur; her adımda title ve content dolu olsun, görsel URL uydurma.''',
+- Aktif tab tariftir. Article akışındaki genel başlık, spot, SEO, FAQ, "Olduğu gibi kalsın" ve kaynak okuma davranışı korunur; ancak tarif verisinin tamamı tabItem.recipeData içindedir.
+- tabItem.type kesin "recipe" olsun. tabItem.title tarif bloğu başlığıdır; boş bırakma, descriptionHtml içine gömme.
+- tabItem.descriptionHtml tarifin kısa giriş/açıklama metnidir; kaynakta giriş açıklaması varsa onu kullan, yoksa 1 kısa paragraf yazılabilir.
+- recipeData.prepTime, cookTime ve serving alanlarını kaynakta açıkça verilen değerlerle doldur. Kaynakta "Prep Time 15 min", "Cook Time 35 min", "Serving 6" gibi alanlar varsa süre/porsiyon kelimelerini ve değerleri aynen taşı.
+- recipeData.difficulty teknik select value'dur; yalnız "easy", "medium", "hard" veya kaynakta zorluk yoksa "" dön. Easy/Beginner/Kolay değerlerini "easy", Intermediate/Medium/Orta değerlerini "medium", Advanced/Hard/Zor değerlerini "hard" olarak map et.
+- recipeData.ingredients kaynakta kaç malzeme varsa tamamını kaynak sırasıyla taşısın. Her ingredient.text tek satır malzemedir; miktar, birim, parantez içi açıklama ve opsiyonel notlar değiştirilmez.
+- recipeData.nutrition kaynakta kaç besin değeri varsa tamamını label/value olarak taşısın. "Protein" gibi değeri boş gelen satırlarda kaynakta değer yoksa value boş string kalabilir.
+- recipeData.directions kaynakta kaç adım varsa tamamını kaynak sırasıyla taşısın. Her adımda id, title, content, image, imageDescription ve orderNumber dolu şema alanları dönsün; image ve imageDescription kaynakta yoksa boş string.
+- direction.title adım başlığıdır; content içine tekrar gömme. direction.content HTML sadece p, ul, ol, li ve strong kullansın.
+- recipeData.videoTitle, videoDescriptionHtml ve videoUrl yalnız Tarif tabındaki "Yemek Videosu" alt bloğu içindir; genel Video tabı değildir. Kaynakta "Yemek Videosu Başlığı", "Yemek Videosu Açıklaması", "Video URL", YouTube veya embed linki varsa bu alanlara taşı. Kaynakta video bilgisi yoksa üçü de boş string kalsın. Video item üretme; items boş kalsın.
+- mainContentHtml tarif için kısa giriş olabilir; malzeme, besin değeri, adımlar ve yemek videosu bilgisini mainContentHtml içine yığma. Genel items dizisi boş olsun; tarif verisini items içine kopyalama.
+- Görsel URL, video URL, embed, pişirme sıcaklığı, süre, porsiyon, besin değeri veya malzeme uydurma; videoUrl yalnız kaynakta açıkça verilen link ise dolsun.
+${_recipeSourceTextInstruction(request)}
+${_recipeDeepResearchInstruction(request)}''',
     'event' =>
       '''
-- Aktif tab etkinliktir. tabItem.type kesin "event" olsun.
-- eventData startDateTime, endDateTime, organizer, venueName, address, ticketUrl, ticketPrice, capacity gibi alanları yalnız kaynakta açıkça varsa doldur; tarih, ücret, kontenjan veya koordinat tahmin etme.
-- schedule, highlights ve speakers listelerini yalnız kaynakta açıkça geçen bilgilerden üret; kaynakta yoksa boş dizi döndür.
-- registrationType yalnız kaynak kayıt veya bilet bilgisi veriyorsa "required", "tickets" veya "external" olabilir; aksi halde "none" olsun.''',
+- Aktif tab etkinliktir. Article akışındaki genel başlık, spot, SEO, FAQ, "Olduğu gibi kalsın" ve kaynak okuma davranışı korunur; ancak etkinlik verisinin tamamı tabItem.eventData içindedir.
+- tabItem.type kesin "event" olsun. tabItem.title etkinlik bloğu başlığıdır; boş bırakma, descriptionHtml içine gömme.
+- tabItem.descriptionHtml etkinlik için kısa giriş/açıklama metnidir; kaynakta giriş açıklaması varsa onu kullan, yoksa yalnız kaynak/görselin izin verdiği ölçüde 1 kısa paragraf yaz.
+- eventData.startDateTime ve endDateTime alanları CMS input formatına uygun metin olmalı: "gg.aa.yyyy --:--" veya kaynakta saat varsa "gg.aa.yyyy HH:mm". Tarih/saat yoksa boş string; yıl, ay, gün veya saat tahmin etme.
+- eventData.organizer, venueName, address, ticketUrl, ticketPrice ve capacity alanlarını yalnız kaynakta, linkte, araştırma notlarında veya okunabilir görsel metninde açıkça varsa doldur.
+- eventData.latitude ve longitude yalnız güvenilir kaynakta koordinat açıkça varsa string olarak yaz; adresi koordinata çevirerek tahmin etme.
+- eventData.registrationType teknik select value'dur; yalnız "none", "required", "tickets" veya "external" dön. Biletli/ücretli etkinlikte "tickets", harici kayıt linki varsa "external", kayıt/rezervasyon gerekiyor ama bilet yoksa "required", açık bilgi yoksa "none".
+- eventData.scheduleTitle, highlightsTitle ve speakersTitle alanları boş kalmasın; içerik yoksa varsayılan kısa başlıklar kullanılabilir.
+- eventData.schedule kaynakta veya görselde kaç program/oturum/oyun/konser gösteriliyorsa okunabildiği kadarıyla kaynak sırasıyla taşısın. Her schedule item id, date, time, title, description, image ve imageDescription alanlarını taşısın; image URL uydurma.
+- schedule.date CMS satırı için "gg.aa.yyyy" biçiminde veya kaynakta yazıldığı biçimde; schedule.time kaynakta görünen saat aralığıdır. Açık saat yoksa boş string.
+- eventData.highlights etkinlik notlarıdır: yaş sınırı, ücretsiz/ücretli bilgi, kayıt şartı, süre, festival aralığı, erişim, kontenjan gibi açık bilgiler label/value olarak yazılır. Açık bilgi yoksa boş dizi.
+- eventData.speakers yalnız kaynakta konuşmacı, sanatçı, moderatör, eğitmen veya konuk bilgisi varsa doldur; yoksa boş dizi. Kişi adı/rol uydurma.
+- Seçilen etkinlik görselleri varsa afiş/poster/program görsellerindeki okunabilir metinleri birincil kaynak gibi kullan. Düşük çözünürlüklü veya okunmayan küçük yazıları tahmin etme; yalnız net okunan isim/tarih/saat/mekan bilgisini yaz.
+${_eventItemsInstruction(request)}
+- Görsel URL, bilet URL'si, mekan, konuşmacı, koordinat, tarih, saat, fiyat veya kontenjan uydurma.
+${_eventSourceTextInstruction(request)}
+${_eventDeepResearchInstruction(request)}''',
     _ =>
       '''
 - Aktif tab makale haberdir. Mevcut article üretim davranışı korunur.
@@ -1091,9 +1323,70 @@ String _videoSourceTextInstruction(AdminNewsAiDraftRequest request) {
 
 String _tocSourceTextInstruction(AdminNewsAiDraftRequest request) {
   if (request.preserveSource) {
-    return '- Olduğu gibi kalsın açıkken Table of Contents/İçindekiler başlıklarını, hiyerarşisini ve her başlığın bölüm metnini aynen taşı. Başlıkları yeniden yazma, bölüm metnini özetleme, paragrafları eksiltme; yalnız id, parentId, orderNumber, linkListStyle ve showInText gibi teknik CMS alanlarını tamamla.';
+    return '- Olduğu gibi kalsın açıkken Table of Contents/İçindekiler başlıklarını, "Kaynak HTML başlık hiyerarşisi ve bölüm metni" içindeki [LI L*], [H*] ve [H* L*] işaretlerini, hiyerarşiyi ve her başlığın bölüm metnini aynen taşı. Başlıkları yeniden yazma, bölüm metnini özetleme, paragrafları eksiltme; yalnız id, parentId, orderNumber, linkListStyle ve showInText gibi teknik CMS alanlarını tamamla.';
   }
-  return '- Kaynakta hazır içindekiler listesi ve bölüm metinleri varsa tümünü eksiltme. Başlık sırasını, üst-alt ilişkiyi, özel adları, tarihleri, rakamları ve alıntıları koru; kaynakta olmayan yeni madde, görsel, üst bağlantı veya açıklama ekleme.';
+  return '- Kaynakta hazır içindekiler listesi, H2/H3/H4 başlık akışı veya "Kaynak HTML başlık hiyerarşisi ve bölüm metni" bloğu varsa tümünü eksiltme. Başlık sırasını, üst-alt ilişkiyi, özel adları, tarihleri, rakamları ve alıntıları koru; kaynakta olmayan yeni madde, görsel, üst bağlantı veya açıklama ekleme.';
+}
+
+String _recipeSourceTextInstruction(AdminNewsAiDraftRequest request) {
+  if (request.preserveSource) {
+    return '- Olduğu gibi kalsın açıkken mevcut tarif başlığı, spot, açıklama, hazırlık süresi, pişirme süresi, porsiyon, malzeme satırları, besin değeri label/value çiftleri, adım başlık/içerikleri ve yemek videosu başlık/açıklama/URL bilgisini aynen taşı. Zorluk alanı teknik select value olduğu için kaynak zorluk metnini yalnız easy/medium/hard değerlerinden birine map et. Yalnız id, type, orderNumber ve boş teknik CMS alanlarını tamamla.';
+  }
+  return '- Kaynakta hazır tarif varsa başlık, açıklama, süreler, porsiyon, zorluk, malzemeler, besin değerleri, adımlar ve yemek videosu başlık/açıklama/URL bilgisini eksiltme. Kopya gibi görünmeyecek şekilde genel açıklama, video açıklaması ve adım anlatımını profesyonel mutfak editörü diliyle düzenleyebilirsin; video URL, miktarları, birimleri, süreleri, sıcaklıkları, sıra mantığını ve besin değerlerini değiştirme.';
+}
+
+String _eventSourceTextInstruction(AdminNewsAiDraftRequest request) {
+  if (request.preserveSource) {
+    return '- Olduğu gibi kalsın açıkken mevcut etkinlik başlığı, spot, açıklama, tarih/saat, mekan, organizatör, adres, program, not, bilet/kayıt ve konuşmacı metinlerini aynen taşı. Yalnız id, type, registrationType ve boş teknik CMS alanlarını tamamla.';
+  }
+  return '- Kaynakta hazır etkinlik varsa başlık, açıklama, tarih/saat, mekan, organizatör, adres, program, notlar, bilet/kayıt ve konuşmacı bilgilerini eksiltme. Kopya gibi görünmeyecek şekilde genel açıklamayı profesyonel kültür-sanat/etkinlik editörü diliyle düzenleyebilirsin; tarihleri, saatleri, mekanları, isimleri, ücretleri ve program sırasını değiştirme.';
+}
+
+String _eventItemsInstruction(AdminNewsAiDraftRequest request) {
+  if (_requestedAiItemCount(request) <= 0) {
+    return '- mainContentHtml etkinlik için kısa giriş olabilir; program, not ve konuşmacı verilerini mainContentHtml içine yığma. Genel items dizisi boş olsun; etkinlik verisini items içine kopyalama.';
+  }
+  return '''
+- mainContentHtml etkinlik için kısa giriş olabilir; program, not ve konuşmacı verilerini mainContentHtml içine yığma.
+- Kullanıcı sağdaki AI item panelinden ne seçtiyse items dizisinde sadece o tipleri ve tam o adetleri üret.
+- Her item.title dolu, kısa ve etkinliğe özgü olsun; her item.descriptionHtml etkinlik kaynağına/görsele dayanan gerçek ek açıklama taşısın.
+- Seçilen image/slider/video/audio/file/social/iframe itemlerinde medya URL uydurma; sadece başlık, açıklama, altText ve source alanlarını kaynak metne göre doldur. Görselleri admin seçtiği medya bloklarıyla ayrıca ekleyecek.
+- Etkinlik programını, notları veya konuşmacı listesini items içine düz kopya olarak çoğaltma; itemler kaynakta bulunan ama tab verisini destekleyen farklı ek bilgi açıları olsun.''';
+}
+
+String _recipeDeepResearchInstruction(AdminNewsAiDraftRequest request) {
+  if (request.deepResearchCompleted) {
+    if (request.preserveSource) {
+      return '- Derin araştırma tamamlandı; kaynakta dolu olan tarif metin/değerleri aynen kalır. Yalnız kaynakta eksik olan süre, porsiyon, zorluk veya besin değeri alanlarını editör notlarındaki Google Search araştırma sonuçlarıyla tamamla; notlarda doğrulanmayan değeri yazma.';
+    }
+    return '- Derin araştırma tamamlandı; editör notlarındaki Google Search araştırma sonuçlarını kaynak kabul et. Eksik süre, porsiyon, zorluk ve besin değeri alanlarını bu notlarla tamamla; doğrulanmayan, çelişkili veya şüpheli değeri tarif verisine dönüştürme.';
+  }
+  if (!request.deepResearch) {
+    return '- Derin araştırma kapalıdır; kaynakta olmayan süre, porsiyon, zorluk, besin değeri, malzeme, adım veya sağlık iddiası ekleme.';
+  }
+  return '''
+- Derin araştırma açıktır: Google Search grounding ile verilen tarifin güvenilir kaynaklardaki süre, porsiyon, zorluk ve besin değeri bilgisini araştır.
+- Kaynakta dolu olan tarif metni, malzeme, adım, süre, porsiyon, zorluk ve besin değeri değerlerini değiştirme; araştırma yalnız eksik alanları tamamlamak içindir.
+- Besin değerlerini porsiyon başına ve yaygın birimlerle yaz; değer aralığı şüpheli veya çelişkiliyse boş bırak.
+- Malzeme listesi ve tarif adımı üretmek için web araştırması kullanma; bunlar yalnız verilen kaynak/metinden gelir.
+- Web araştırmasını kopya metin üretmek için değil; eksik alan doğrulama, SEO başlık/meta/keywords ve FAQ alanlarını güçlendirmek için kullan.''';
+}
+
+String _eventDeepResearchInstruction(AdminNewsAiDraftRequest request) {
+  if (request.deepResearchCompleted) {
+    if (request.preserveSource) {
+      return '- Derin araştırma tamamlandı; kaynakta dolu olan etkinlik metin/değerleri aynen kalır. Yalnız kaynakta eksik olan tarih, saat, mekan, adres, organizatör, kayıt/bilet, program, not veya konuşmacı alanlarını editör notlarındaki Google Search araştırma sonuçlarıyla tamamla; notlarda doğrulanmayan bilgiyi yazma.';
+    }
+    return '- Derin araştırma tamamlandı; editör notlarındaki Google Search araştırma sonuçlarını kaynak kabul et. Eksik etkinlik alanlarını bu notlarla tamamla; doğrulanmayan, çelişkili veya şüpheli bilgiyi etkinlik verisine dönüştürme.';
+  }
+  if (!request.deepResearch) {
+    return '- Derin araştırma kapalıdır; kaynakta veya seçilen görsellerde olmayan tarih, saat, mekan, organizatör, adres, bilet/kayıt, kontenjan, program, not, konuşmacı veya koordinat ekleme.';
+  }
+  return '''
+- Derin araştırma açıktır: Google Search grounding ile verilen etkinliğin resmi/güvenilir kaynaklardaki tarih, saat, mekan, adres, organizatör, kayıt/bilet, program, not ve konuşmacı bilgisini araştır.
+- Kaynakta dolu olan etkinlik metni, program sırası, tarih, saat, mekan ve kişi adlarını değiştirme; araştırma yalnız eksik alanları tamamlamak içindir.
+- Etkinlik geçmiş/future ve saat bilgisini resmi kaynakta doğrulamadan yazma.
+- Web araştırmasını kopya metin üretmek için değil; eksik alan doğrulama, SEO başlık/meta/keywords ve FAQ alanlarını güçlendirmek için kullan.''';
 }
 
 int _maxOutputTokensFor(AdminNewsAiDraftRequest _) => 8192;
@@ -1190,8 +1483,12 @@ AdminNewsAiDraft _enrichDraft(
   AdminNewsAiDraftRequest request,
 ) {
   var enrichedDraft = draft;
+  if (_isPollFormat(request.formatType)) {
+    enrichedDraft = _draftWithNormalizedPollData(enrichedDraft);
+  }
   if (request.preserveSource && _isPollFormat(request.formatType)) {
     enrichedDraft = _draftWithPreservedPollSource(enrichedDraft, request);
+    enrichedDraft = _draftWithNormalizedPollData(enrichedDraft);
   }
   if (!request.includeSeo) return enrichedDraft;
   final source = '${request.topic}\n${request.sourceNotes}';
@@ -1219,6 +1516,135 @@ AdminNewsAiDraft _enrichDraft(
     mainContentHtml: enrichedDraft.mainContentHtml,
     items: enrichedDraft.items,
     tabItem: enrichedDraft.tabItem,
+  );
+}
+
+AdminNewsAiDraft _draftWithNormalizedPollData(AdminNewsAiDraft draft) {
+  final tabItem = draft.tabItem;
+  if (tabItem.isEmpty) return draft;
+
+  final pollData = _map(tabItem['pollData']);
+  final sourceQuestions = _mapList(pollData['questions']);
+  final fallbackQuestions = sourceQuestions.isEmpty
+      ? [
+          {
+            'id': _cleanText(tabItem['id']),
+            'title': _cleanText(tabItem['title']),
+            'descriptionHtml': _cleanHtml(tabItem['descriptionHtml']),
+            'source': _cleanText(tabItem['source']),
+            'mediaUrl': _cleanText(tabItem['mediaUrl']),
+            'showOnHomepage': _boolFromJson(tabItem['showOnHomepage']),
+            'isImagePoll': _boolFromJson(tabItem['isImagePoll']),
+            'pollColumns': _pollColumnsFromJson(tabItem['pollColumns']),
+            'options': _normalizePollOptions(tabItem['options'], 'poll-q1'),
+          },
+        ]
+      : sourceQuestions;
+  final normalizedQuestions = <Map<String, Object?>>[];
+
+  for (var index = 0; index < fallbackQuestions.length; index++) {
+    final question = fallbackQuestions[index];
+    final rawDescription = _firstNonEmptyString([
+      _cleanHtml(question['descriptionHtml']),
+      _cleanHtml(question['description']),
+      if (index == 0) _cleanHtml(tabItem['descriptionHtml']),
+      draft.mainContentHtml,
+      draft.summary,
+    ]);
+    final title = _firstNonEmptyString([
+      _cleanText(question['title']),
+      _cleanText(question['question']),
+      _cleanText(question['label']),
+      _cleanText(question['name']),
+      _pollQuestionTitleFromDescription(rawDescription),
+      if (index == 0) _cleanText(tabItem['title']),
+      draft.mainContentTitle,
+      draft.title,
+    ]);
+    final options = _normalizePollOptions(
+      _firstNonEmptyPollOptions([
+        question['options'],
+        question['answers'],
+        question['choices'],
+        if (index == 0) tabItem['options'],
+      ]),
+      'poll-q${index + 1}',
+    );
+    final questionTitle = title.isEmpty ? 'Anket sorusu ${index + 1}' : title;
+
+    normalizedQuestions.add({
+      ...question,
+      'id': _firstNonEmptyString([
+        _cleanText(question['id']),
+        'poll-q${index + 1}',
+      ]),
+      'title': questionTitle,
+      'descriptionHtml': rawDescription.isEmpty
+          ? _sourcePollQuestionDescription(questionTitle)
+          : rawDescription,
+      'source': _firstNonEmptyString([
+        _cleanText(question['source']),
+        _cleanText(tabItem['source']),
+      ]),
+      'mediaUrl': _firstNonEmptyString([
+        _cleanText(question['mediaUrl']),
+        _cleanText(question['image']),
+        if (index == 0) _cleanText(tabItem['mediaUrl']),
+      ]),
+      'showOnHomepage': question.containsKey('showOnHomepage')
+          ? _boolFromJson(question['showOnHomepage'])
+          : _boolFromJson(tabItem['showOnHomepage']),
+      'isImagePoll': question.containsKey('isImagePoll')
+          ? _boolFromJson(question['isImagePoll'])
+          : _boolFromJson(tabItem['isImagePoll']),
+      'pollColumns': question.containsKey('pollColumns')
+          ? _pollColumnsFromJson(question['pollColumns'])
+          : _pollColumnsFromJson(tabItem['pollColumns']),
+      'options': options,
+    });
+  }
+
+  final firstQuestion = normalizedQuestions.first;
+  return AdminNewsAiDraft(
+    title: draft.title,
+    summary: draft.summary,
+    mainContentTitle: draft.mainContentTitle,
+    seoTitle: draft.seoTitle,
+    slug: draft.slug,
+    metaDescription: draft.metaDescription,
+    schemaType: draft.schemaType,
+    keywords: draft.keywords,
+    faqEntries: draft.faqEntries,
+    mainContentHtml: draft.mainContentHtml,
+    items: draft.items,
+    tabItem: {
+      ...tabItem,
+      'type': 'poll',
+      'title': _firstNonEmptyString([
+        _cleanText(tabItem['title']),
+        _cleanText(firstQuestion['title']),
+        draft.title,
+      ]),
+      'descriptionHtml': _firstNonEmptyString([
+        _cleanHtml(tabItem['descriptionHtml']),
+        draft.mainContentHtml,
+        draft.summary,
+        _cleanHtml(firstQuestion['descriptionHtml']),
+      ]),
+      'source': _cleanText(tabItem['source']),
+      'mediaUrl': _cleanText(tabItem['mediaUrl']),
+      'showOnHomepage': _boolFromJson(tabItem['showOnHomepage']),
+      'isImagePoll': _boolFromJson(tabItem['isImagePoll']),
+      'pollColumns': _pollColumnsFromJson(tabItem['pollColumns']),
+      'options': _normalizePollOptions(
+        _firstNonEmptyPollOptions([
+          tabItem['options'],
+          firstQuestion['options'],
+        ]),
+        'poll-q1',
+      ),
+      'pollData': {'questions': normalizedQuestions},
+    },
   );
 }
 
@@ -1397,6 +1823,54 @@ String _sourcePollQuestionDescription(String title) {
     return '<p>Bu soru, okurun anket konusundaki görüşünü ölçmek için hazırlandı.</p>';
   }
   return '<p>Bu soru, "$cleanTitle" başlığı üzerinden okurun görüşünü ölçmek için hazırlandı.</p>';
+}
+
+Object? _firstNonEmptyPollOptions(List<Object?> values) {
+  for (final value in values) {
+    if (value is List && value.isNotEmpty) return value;
+  }
+  return null;
+}
+
+List<Map<String, Object?>> _normalizePollOptions(
+  Object? value,
+  String idPrefix,
+) {
+  if (value is! List) return const [];
+  final options = <Map<String, Object?>>[];
+  for (final item in value) {
+    final option = _map(item);
+    final text = option.isEmpty
+        ? _cleanText(item)
+        : _firstNonEmptyString([
+            _cleanText(option['text']),
+            _cleanText(option['label']),
+            _cleanText(option['title']),
+            _cleanText(option['value']),
+            _cleanText(option['answer']),
+          ]);
+    if (text.isEmpty) continue;
+    options.add({
+      'id': _firstNonEmptyString([
+        _cleanText(option['id']),
+        '$idPrefix-o${options.length + 1}',
+      ]),
+      'text': text,
+      'image': _cleanText(option['image']),
+      'votes': _intFromJson(option['votes']),
+    });
+  }
+  return options;
+}
+
+String _pollQuestionTitleFromDescription(String html) {
+  final plain = _htmlToPlainText(html);
+  if (plain.isEmpty) return '';
+  final questionMark = plain.indexOf('?');
+  if (questionMark >= 0 && questionMark < 220) {
+    return plain.substring(0, questionMark + 1).trim();
+  }
+  return plain.length > 180 ? plain.substring(0, 180).trim() : plain;
 }
 
 String _firstNonEmptyString(List<String> values) {
@@ -1798,7 +2272,10 @@ const _draftJsonSchema = {
             'prepTime': {'type': 'string'},
             'cookTime': {'type': 'string'},
             'serving': {'type': 'string'},
-            'difficulty': {'type': 'string'},
+            'difficulty': {
+              'type': 'string',
+              'enum': ['', 'easy', 'medium', 'hard'],
+            },
             'ingredients': {
               'type': 'array',
               'items': {
@@ -2101,9 +2578,11 @@ Map<String, Object?> _tabItemJsonSchemaFor(AdminNewsAiDraftRequest request) {
       properties['tocData'] = _tocDataJsonSchema();
       required.add('tocData');
     case 'recipe':
-      properties['recipeData'] = {'type': 'object'};
+      properties['recipeData'] = _recipeDataJsonSchema();
+      required.add('recipeData');
     case 'event':
-      properties['eventData'] = {'type': 'object'};
+      properties['eventData'] = _eventDataJsonSchema();
+      required.add('eventData');
     case 'video':
       break;
   }
@@ -2199,8 +2678,16 @@ Map<String, Object?> _pollQuestionJsonSchema() {
     'additionalProperties': false,
     'properties': {
       'id': {'type': 'string'},
-      'title': {'type': 'string'},
-      'descriptionHtml': {'type': 'string'},
+      'title': {
+        'type': 'string',
+        'description':
+            'Editördeki Anket Sorusu / Başlık inputuna yazılacak dolu soru metni.',
+      },
+      'descriptionHtml': {
+        'type': 'string',
+        'description':
+            'Soru başlığını tekrar etmeyen kısa bağlam veya açıklama HTML metni.',
+      },
       'source': {'type': 'string'},
       'mediaUrl': {'type': 'string'},
       'showOnHomepage': {'type': 'boolean'},
@@ -2293,6 +2780,199 @@ Map<String, Object?> _tocItemJsonSchema() {
       'content',
       'orderNumber',
     ],
+  };
+}
+
+Map<String, Object?> _recipeDataJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'prepTime': {'type': 'string'},
+      'cookTime': {'type': 'string'},
+      'serving': {'type': 'string'},
+      'difficulty': {
+        'type': 'string',
+        'enum': ['', 'easy', 'medium', 'hard'],
+      },
+      'ingredients': {'type': 'array', 'items': _recipeIngredientJsonSchema()},
+      'nutrition': {'type': 'array', 'items': _recipeNutritionJsonSchema()},
+      'directions': {'type': 'array', 'items': _recipeDirectionJsonSchema()},
+      'videoTitle': {
+        'type': 'string',
+        'description':
+            'Tarif tabındaki Yemek Videosu başlık inputuna yazılacak metin; kaynakta yoksa boş string.',
+      },
+      'videoDescriptionHtml': {
+        'type': 'string',
+        'description':
+            'Tarif tabındaki Yemek Videosu açıklama editorüne yazılacak HTML; kaynakta yoksa boş string.',
+      },
+      'videoUrl': {
+        'type': 'string',
+        'description':
+            'Tarif tabındaki Yemek Videosu paneline eklenecek YouTube/embed/dosya URL; kaynakta yoksa boş string.',
+      },
+    },
+    'required': [
+      'prepTime',
+      'cookTime',
+      'serving',
+      'difficulty',
+      'ingredients',
+      'nutrition',
+      'directions',
+      'videoTitle',
+      'videoDescriptionHtml',
+      'videoUrl',
+    ],
+  };
+}
+
+Map<String, Object?> _recipeIngredientJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'text': {'type': 'string'},
+    },
+    'required': ['text'],
+  };
+}
+
+Map<String, Object?> _recipeNutritionJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'label': {'type': 'string'},
+      'value': {'type': 'string'},
+    },
+    'required': ['label', 'value'],
+  };
+}
+
+Map<String, Object?> _recipeDirectionJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'id': {'type': 'string'},
+      'title': {'type': 'string'},
+      'content': {'type': 'string'},
+      'image': {'type': 'string'},
+      'imageDescription': {'type': 'string'},
+      'orderNumber': {'type': 'integer'},
+    },
+    'required': [
+      'id',
+      'title',
+      'content',
+      'image',
+      'imageDescription',
+      'orderNumber',
+    ],
+  };
+}
+
+Map<String, Object?> _eventDataJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'startDateTime': {'type': 'string'},
+      'endDateTime': {'type': 'string'},
+      'organizer': {'type': 'string'},
+      'venueName': {'type': 'string'},
+      'address': {'type': 'string'},
+      'latitude': {'type': 'string'},
+      'longitude': {'type': 'string'},
+      'registrationType': {
+        'type': 'string',
+        'enum': ['none', 'required', 'tickets', 'external'],
+      },
+      'ticketUrl': {'type': 'string'},
+      'ticketPrice': {'type': 'string'},
+      'capacity': {'type': 'string'},
+      'scheduleTitle': {'type': 'string'},
+      'highlightsTitle': {'type': 'string'},
+      'speakersTitle': {'type': 'string'},
+      'schedule': {'type': 'array', 'items': _eventScheduleJsonSchema()},
+      'highlights': {'type': 'array', 'items': _eventHighlightJsonSchema()},
+      'speakers': {'type': 'array', 'items': _eventSpeakerJsonSchema()},
+    },
+    'required': [
+      'startDateTime',
+      'endDateTime',
+      'organizer',
+      'venueName',
+      'address',
+      'latitude',
+      'longitude',
+      'registrationType',
+      'ticketUrl',
+      'ticketPrice',
+      'capacity',
+      'scheduleTitle',
+      'highlightsTitle',
+      'speakersTitle',
+      'schedule',
+      'highlights',
+      'speakers',
+    ],
+  };
+}
+
+Map<String, Object?> _eventScheduleJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'id': {'type': 'string'},
+      'date': {'type': 'string'},
+      'time': {'type': 'string'},
+      'title': {'type': 'string'},
+      'description': {'type': 'string'},
+      'image': {'type': 'string'},
+      'imageDescription': {'type': 'string'},
+    },
+    'required': [
+      'id',
+      'date',
+      'time',
+      'title',
+      'description',
+      'image',
+      'imageDescription',
+    ],
+  };
+}
+
+Map<String, Object?> _eventHighlightJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'label': {'type': 'string'},
+      'value': {'type': 'string'},
+    },
+    'required': ['label', 'value'],
+  };
+}
+
+Map<String, Object?> _eventSpeakerJsonSchema() {
+  return {
+    'type': 'object',
+    'additionalProperties': false,
+    'properties': {
+      'id': {'type': 'string'},
+      'name': {'type': 'string'},
+      'role': {'type': 'string'},
+      'bio': {'type': 'string'},
+      'image': {'type': 'string'},
+      'imageDescription': {'type': 'string'},
+    },
+    'required': ['id', 'name', 'role', 'bio', 'image', 'imageDescription'],
   };
 }
 
@@ -2411,6 +3091,17 @@ String _errorMessage(Object? error) {
     if (message != null && message.isNotEmpty) return message;
   }
   return 'Google AI isteği başarısız oldu.';
+}
+
+String _imageMimeType(String url, String? contentType) {
+  final header = (contentType ?? '').split(';').first.trim().toLowerCase();
+  if (header.startsWith('image/')) return header;
+  final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.webp')) return 'image/webp';
+  if (path.endsWith('.gif')) return 'image/gif';
+  return '';
 }
 
 Map<String, Object?> _asStringKeyMap(Map<dynamic, dynamic> map) {
