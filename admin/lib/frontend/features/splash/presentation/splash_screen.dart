@@ -10,14 +10,20 @@ import 'widgets/pateez_logo_intro.dart';
 /// animasyonunu oynatır. Yükleme bitince [PateeznewsApp] bu ekrandan asıl
 /// kabuğa çapraz geçiş (cross-fade) yapar.
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.logoUrl = '', this.siteName = ''});
+
+  final String logoUrl;
+  final String siteName;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surface,
       alignment: Alignment.center,
-      child: const PateezLogoIntro(),
+      child: PateezLogoIntro(
+        logoUrl: logoUrl,
+        semanticLabel: siteName.isEmpty ? 'Pateeznews' : siteName,
+      ),
     );
   }
 }

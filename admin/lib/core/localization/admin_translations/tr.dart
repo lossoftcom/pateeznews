@@ -3103,7 +3103,7 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "newsAdd.selectedCategory": "Seçili Kategori:",
   "newsAdd.retry": "Tekrar Dene",
   "newsAdd.savedDraft": "Haber taslak olarak kaydedildi.",
-  "newsAdd.savedPublished": "Haber yayına hazır şekilde kaydedildi.",
+  "newsAdd.savedPublished": "Haber yayınlandı.",
   "newsAdd.errorTitleRequired": "Başlık zorunludur.",
   "newsAdd.errorSummaryRequired": "Özet zorunludur.",
   "newsAdd.errorCategoryRequired": "Kategori zorunludur.",

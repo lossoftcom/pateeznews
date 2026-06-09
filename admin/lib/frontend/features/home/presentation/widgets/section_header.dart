@@ -40,24 +40,34 @@ class SectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: title, style: AppTypography.titleL),
-                  if (accent != null) ...[
-                    const TextSpan(text: ' '),
-                    TextSpan(
-                      text: accent,
-                      style: AppTypography.titleL.copyWith(
-                        color: AppColors.support,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ],
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: title, style: AppTypography.titleL),
+                      if (accent != null) ...[
+                        const TextSpan(text: ' '),
+                        TextSpan(
+                          text: accent,
+                          style: AppTypography.titleL.copyWith(
+                            color: AppColors.support,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  maxLines: 1,
+                  softWrap: false,
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 8),
           if (trailing != null)
             trailing!
           else

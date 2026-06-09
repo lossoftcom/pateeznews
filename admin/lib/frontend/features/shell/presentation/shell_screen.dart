@@ -19,6 +19,8 @@ import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
 import '../../home/presentation/home_screen.dart';
+import '../../home/presentation/video_feed_screen.dart';
+import '../../home/presentation/widgets/news_video_player.dart';
 import '../../../core/mock/home_mock_data.dart';
 import '../../markets/data/markets_repository.dart';
 import '../../markets/presentation/markets_screen.dart';
@@ -53,6 +55,8 @@ class ShellScreen extends StatefulWidget {
     this.prayerTimesData = const PrayerTimesData.empty(),
     this.announcementData = const AnnouncementData.empty(),
     this.featuredItems = const [],
+    this.homeFeedItems = const [],
+    this.onRefreshHome,
     this.authState,
     this.authLoading = false,
     this.onSignIn,
@@ -69,6 +73,8 @@ class ShellScreen extends StatefulWidget {
   final PrayerTimesData prayerTimesData;
   final AnnouncementData announcementData;
   final List<FeaturedNews> featuredItems;
+  final List<NewsArticle> homeFeedItems;
+  final Future<void> Function()? onRefreshHome;
   final FrontendAuthState? authState;
   final bool authLoading;
   final FrontendSignInCallback? onSignIn;
@@ -83,10 +89,14 @@ class _ShellScreenState extends State<ShellScreen>
     with SingleTickerProviderStateMixin {
   int _index = 0;
   var _accountRouteOpen = false;
+  var _videoRouteOpen = false;
   var _menuOpen = false;
   var _accountMenuOpen = false;
   var _appsSheetOpen = false;
   var _menuDarkModeSelected = false;
+  var _videoFeedArticleId = '';
+  var _videoFeedRevealSerial = 0;
+  var _homeResetSerial = 0;
 
   late final AnimationController _appsController = AnimationController(
     vsync: this,
@@ -96,6 +106,7 @@ class _ShellScreenState extends State<ShellScreen>
 
   static const _accountNavIndex = 4;
   static const _appsNavIndex = 2;
+  static const _videoNavIndex = 1;
 
   @override
   void dispose() {
@@ -176,6 +187,60 @@ class _ShellScreenState extends State<ShellScreen>
     } finally {
       _accountRouteOpen = false;
     }
+  }
+
+  Future<void> _openVideoFeedFromNav() async {
+    _closeAccountMenu();
+    _closeAppsSheet();
+
+    final videos = dateSortedVideoArticles(widget.homeFeedItems);
+    if (videos.isEmpty) {
+      _returnHomeFromFullscreenVideo();
+      return;
+    }
+    if (_videoRouteOpen) return;
+
+    final items = videoFeedItemsFromArticles(
+      articles: videos,
+      shellSettings: widget.shellData.siteSettings,
+      navigationItems: widget.shellData.navigationItems,
+    );
+    if (items.isEmpty) {
+      _returnHomeFromFullscreenVideo();
+      return;
+    }
+
+    _videoRouteOpen = true;
+    try {
+      await Navigator.of(context).push<int>(
+        PageRouteBuilder<int>(
+          transitionDuration: const Duration(milliseconds: 180),
+          reverseTransitionDuration: const Duration(milliseconds: 120),
+          pageBuilder: (_, _, _) => NewsFullscreenVideoFeedPage(items: items),
+          transitionsBuilder: (context, animation, secondary, child) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return FadeTransition(opacity: curved, child: child);
+          },
+        ),
+      );
+      if (!mounted) return;
+      _returnHomeFromFullscreenVideo();
+    } finally {
+      _videoRouteOpen = false;
+    }
+  }
+
+  void _returnHomeFromFullscreenVideo() {
+    _closeAccountMenu();
+    _closeAppsSheet();
+    setState(() {
+      _index = 0;
+      _homeResetSerial++;
+    });
   }
 
   /// Hesap menüsündeki "Profilim" bu sayfayı açar. Kimlik alanları (ad,
@@ -544,18 +609,26 @@ class _ShellScreenState extends State<ShellScreen>
             HomeScreen(
               shellSettings: widget.shellData.siteSettings,
               dutyPharmacyData: widget.dutyPharmacyData,
+              navigationItems: widget.shellData.navigationItems,
               featuredItems: widget.featuredItems,
+              feedItems: widget.homeFeedItems,
+              onRefresh: widget.onRefreshHome,
+              resetToTopSerial: _homeResetSerial,
               onMenuTap: _openMenu,
               onSubmitNewsTap: _showSubmitNewsHint,
               onPharmacyTap: () => _openApp(AppItems.nobetciEczane),
+              onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
             ),
-            const SectionPlaceholder(
-              icon: Symbols.play_circle_outline_rounded,
-              title: 'Video akışı',
-              message:
-                  'Editör seçimi kısa videolar burada yayına alındığında '
-                  'sana özel akış hazır olacak.',
-            ),
+            _index == 1
+                ? VideoFeedScreen(
+                    feedItems: widget.homeFeedItems,
+                    shellSettings: widget.shellData.siteSettings,
+                    navigationItems: widget.shellData.navigationItems,
+                    initialArticleId: _videoFeedArticleId,
+                    revealSerial: _videoFeedRevealSerial,
+                    onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+                  )
+                : const SizedBox.shrink(),
             const SectionPlaceholder(
               icon: Symbols.grid_view_rounded,
               title: 'Pateez uygulamaları',
@@ -593,6 +666,10 @@ class _ShellScreenState extends State<ShellScreen>
           }
           if (i == _appsNavIndex) {
             _toggleAppsSheet();
+            return;
+          }
+          if (i == _videoNavIndex) {
+            _openVideoFeedFromNav();
             return;
           }
           _closeAccountMenu();

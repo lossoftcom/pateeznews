@@ -11,11 +11,17 @@ const normalizeLanguageCode = (value: unknown) => {
 
 const text = (value: unknown) => String(value || '').trim();
 
+const defaultLogoPaths = {
+  logoUrl: '/local-upload/logo/tr/pateezlogoson.png',
+  darkLogoUrl: '/local-upload/logo/tr/pateezlogodark.png',
+  faviconUrl: '/local-upload/logo/tr/pateezlogoicon.png',
+} as const;
+
 const siteSettingsPayload = (settings: SiteSettings | null) => ({
   siteName: text(settings?.site_name),
-  logoUrl: text(settings?.logo_url),
-  darkLogoUrl: text(settings?.dark_logo_url),
-  faviconUrl: text(settings?.favicon_url),
+  logoUrl: text(settings?.logo_url) || defaultLogoPaths.logoUrl,
+  darkLogoUrl: text(settings?.dark_logo_url) || defaultLogoPaths.darkLogoUrl,
+  faviconUrl: text(settings?.favicon_url) || defaultLogoPaths.faviconUrl,
 });
 
 const navigationItemPayload = (item: NavigationItem) => ({

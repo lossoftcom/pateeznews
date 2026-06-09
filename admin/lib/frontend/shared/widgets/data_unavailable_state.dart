@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/brand/default_brand_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
@@ -14,7 +15,7 @@ class DataUnavailableState extends StatelessWidget {
   final String message;
   final double minHeight;
 
-  static const _logoAsset = 'assets/images/pateez_logo.png';
+  static const _logoAsset = DefaultBrandAssets.logo;
 
   @override
   Widget build(BuildContext context) {

@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/brand/default_brand_assets.dart';
 import '../../../../core/theme/app_colors.dart';
 
 /// Markanın resmi açılış logosu animasyonu — splash, onboarding, boş durum gibi
@@ -17,11 +18,18 @@ import '../../../../core/theme/app_colors.dart';
 ///   5. Sonrasında halkalar yavaşça nabız atmaya, logo belli belirsiz nefes
 ///      almaya devam eder — yükleme sürdüğü sürece logo "canlı" durur.
 class PateezLogoIntro extends StatefulWidget {
-  const PateezLogoIntro({super.key, this.width});
+  const PateezLogoIntro({
+    super.key,
+    this.width,
+    this.logoUrl = '',
+    this.semanticLabel = 'Pateeznews',
+  });
 
   /// Logonun genişliği. Verilmezse ekran genişliğinin %66'sı (200–320 arası)
   /// kullanılır.
   final double? width;
+  final String logoUrl;
+  final String semanticLabel;
 
   @override
   State<PateezLogoIntro> createState() => _PateezLogoIntroState();
@@ -74,26 +82,46 @@ class _PateezLogoIntroState extends State<PateezLogoIntro>
     // Bloom + halkaların radyal olarak yayıldığı kare alan.
     final field = math.min(screenW * 0.92, logoW * 1.5);
 
+    // Logo görseli BİR KEZ kurulur (animasyon her karede yeniden kurmaz) — ağ
+    // logosu/asset her frame yeniden yüklenmediği için titreme / kaybolma /
+    // zıplama olmaz. Animasyon yalnızca dönüşümleri (ölçek/opaklık/bulanıklık)
+    // uygular; görselin kendisi sabit kalır.
+    final logoUrl = widget.logoUrl.trim();
+    final Widget logoImage = logoUrl.isEmpty
+        ? _DefaultLogo(width: logoW, height: logoH)
+        : Image.network(
+            logoUrl,
+            width: logoW,
+            height: logoH,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            semanticLabel: widget.semanticLabel,
+            gaplessPlayback: true,
+            // Ağ logosu inene kadar paketteki marka logosunu göster; böylece
+            // splash boyunca logo kesintisiz, hep görünür durur.
+            loadingBuilder: (context, child, progress) => progress == null
+                ? child
+                : _DefaultLogo(width: logoW, height: logoH),
+            errorBuilder: (_, _, _) => _DefaultLogo(width: logoW, height: logoH),
+          );
+
     return SizedBox.square(
       dimension: field,
       child: AnimatedBuilder(
         animation: Listenable.merge([_intro, _loop]),
-        builder: (context, _) {
+        child: logoImage,
+        builder: (context, child) {
           final loopT = _loop.value;
-          final breathe = 1 + 0.014 * math.sin(loopT * 2 * math.pi);
           final springScale = 0.86 + 0.14 * _spring.value;
           final blur = (1 - _reveal.value) * 7;
           final opacity = _reveal.value.clamp(0.0, 1.0);
-          final sheenT = _sheen.value;
-          final showSheen = sheenT > 0.0 && sheenT < 1.0;
+          // Yalnızca giriş anında bir kez, soldan sağa süzülen ışık parıltısı.
+          final introSheenT = _sheen.value;
+          final double? sheenT =
+              (introSheenT > 0.0 && introSheenT < 1.0) ? introSheenT : null;
 
-          Widget logo = Image.asset(
-            'assets/images/pateez_logo.png',
-            width: logoW,
-            height: logoH,
-            filterQuality: FilterQuality.high,
-          );
-          if (showSheen) {
+          Widget logo = child!;
+          if (sheenT != null) {
             logo = ShaderMask(
               blendMode: BlendMode.srcATop,
               shaderCallback: (rect) => _sheenShader(rect, sheenT),
@@ -145,11 +173,12 @@ class _PateezLogoIntroState extends State<PateezLogoIntro>
                 ),
               ),
 
-              // 3) Logo: spring + bulanıktan net + fade + nefes; üstünde sheen
+              // 3) Logo: bir kez yaylanarak + bulanıktan net belirir; sonra TAM
+              // opak ve sabit kalır (nefes/zıplama yok) — splash boyunca durur.
               Opacity(
                 opacity: opacity,
                 child: Transform.scale(
-                  scale: springScale * breathe,
+                  scale: springScale,
                   child: logo,
                 ),
               ),
@@ -161,19 +190,38 @@ class _PateezLogoIntroState extends State<PateezLogoIntro>
   }
 
   /// Logo üzerinden soldan sağa süzülen beyaz ışık bandı (premium parıltı).
-  Shader _sheenShader(Rect rect, double t) {
+  Shader _sheenShader(Rect rect, double t, {double peak = 0.5}) {
     final dx = (-0.2 + 1.4 * t) * rect.width;
     return LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
       colors: [
         Colors.white.withValues(alpha: 0.0),
-        Colors.white.withValues(alpha: 0.5),
+        Colors.white.withValues(alpha: peak),
         Colors.white.withValues(alpha: 0.0),
       ],
       stops: const [0.32, 0.5, 0.68],
       transform: _SweepTransform(dx),
     ).createShader(rect);
+  }
+}
+
+class _DefaultLogo extends StatelessWidget {
+  const _DefaultLogo({required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      DefaultBrandAssets.logo,
+      width: width,
+      height: height,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      semanticLabel: 'Pateeznews',
+    );
   }
 }
 

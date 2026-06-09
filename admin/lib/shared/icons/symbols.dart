@@ -125,6 +125,7 @@ class Symbols {
     fontFamily: _fontFamily,
     matchTextDirection: true,
   );
+  static const share_forward_line = ios_share_rounded;
   static const keyboard_arrow_down_rounded = keyboard_arrow_down;
   static const local_fire_department_rounded = IconData(
     0xed32,

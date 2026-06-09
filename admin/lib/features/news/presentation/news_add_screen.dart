@@ -201,6 +201,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   final _publishAtController = TextEditingController();
   final _quizEndDateController = TextEditingController();
   final _coverAltController = TextEditingController();
+  final _mainScrollController = ScrollController();
+  final _sidebarScrollController = ScrollController();
   final _articleBlocks = <Object>[ArticleTextBlockEntry()];
   final _quizResults = <QuizResultBlockEntry>[QuizResultBlockEntry()];
   final _quizQuestions = <QuizQuestionBlockEntry>[QuizQuestionBlockEntry()];
@@ -278,6 +280,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _quizEndDateController.dispose();
     _coverAltController.dispose();
     _focusKeywordsController.dispose();
+    _mainScrollController.dispose();
+    _sidebarScrollController.dispose();
     for (final block in _articleBlocks) {
       _disposeContentBlock(block);
     }
@@ -841,6 +845,93 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             .toList();
         _replaceContentBlocks(_eventContentBlocks, blocks);
     }
+    _enforceSingleHomepageSelection();
+  }
+
+  Iterable<Object> get _homepageSelectableBlocks sync* {
+    yield* _articleBlocks;
+    yield* _videoBlocks;
+    yield _recipeVideoBlock;
+    yield* _eventContentBlocks;
+    yield* _pollQuestions;
+  }
+
+  bool _homepageSelected(Object block) {
+    if (block is ArticleImageBlockEntry) return block.showOnHomepage;
+    if (block is ArticleSliderImageBlockEntry) return block.showOnHomepage;
+    if (block is ArticleVideoBlockEntry) return block.showOnHomepage;
+    if (block is ArticleAudioBlockEntry) return block.showOnHomepage;
+    if (block is ArticleFileBlockEntry) return block.showOnHomepage;
+    if (block is ArticleSocialBlockEntry) return block.showOnHomepage;
+    if (block is ArticleFlipcardBlockEntry) return block.showOnHomepage;
+    if (block is ArticleBeforeAfterBlockEntry) return block.showOnHomepage;
+    if (block is ArticleVsBlockEntry) return block.showOnHomepage;
+    if (block is ArticleReviewBlockEntry) return block.showOnHomepage;
+    if (block is ArticleQuoteBlockEntry) return block.showOnHomepage;
+    if (block is ArticleIframeBlockEntry) return block.showOnHomepage;
+    if (block is PollQuestionBlockEntry) return block.showOnHomepage;
+    return false;
+  }
+
+  void _setHomepageFlag(Object block, bool value) {
+    if (block is ArticleImageBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleSliderImageBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleVideoBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleAudioBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleFileBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleSocialBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleFlipcardBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleBeforeAfterBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleVsBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleReviewBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleQuoteBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is ArticleIframeBlockEntry) {
+      block.showOnHomepage = value;
+    } else if (block is PollQuestionBlockEntry) {
+      block.showOnHomepage = value;
+    }
+  }
+
+  void _setHomepageSelection(Object selectedBlock, bool value) {
+    setState(() {
+      if (!value) {
+        _setHomepageFlag(selectedBlock, false);
+        return;
+      }
+
+      var matched = false;
+      for (final block in _homepageSelectableBlocks) {
+        final selected = identical(block, selectedBlock);
+        if (selected) matched = true;
+        _setHomepageFlag(block, selected);
+      }
+      if (!matched) {
+        _setHomepageFlag(selectedBlock, true);
+      }
+    });
+  }
+
+  void _enforceSingleHomepageSelection() {
+    var foundSelected = false;
+    for (final block in _homepageSelectableBlocks) {
+      if (!_homepageSelected(block)) continue;
+      if (!foundSelected) {
+        foundSelected = true;
+      } else {
+        _setHomepageFlag(block, false);
+      }
+    }
   }
 
   NewsAddFormatTab _tabFromPostType(String type) {
@@ -1369,9 +1460,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         payload: AdminNewsEditorSavePayload(values: _buildPostValues(status)),
       );
       if (!mounted) return;
+      final isCreating = _editingPostId == null || _editingPostId!.isEmpty;
       setState(() {
         _saving = false;
-        if (_editingPostId == null || _editingPostId!.isEmpty) {
+        if (isCreating) {
           _resetEditorState();
           _applyBootstrapDefaults();
         } else {
@@ -1385,7 +1477,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             ? context.t('newsAdd.savedDraft')
             : context.t('newsAdd.savedPublished'),
       );
-      widget.onBackToNews?.call();
+      if (status == 'draft') widget.onBackToNews?.call();
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -3226,9 +3318,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleImageBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleSliderImagesAdded(
@@ -3271,18 +3361,14 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleSliderImageBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleVideoHomeChanged(
     ArticleVideoBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleVideoChanged(
@@ -3298,9 +3384,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleAudioBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleAudioChanged(
@@ -3313,9 +3397,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   void _handleArticleFileHomeChanged(ArticleFileBlockEntry block, bool value) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleFileChanged(ArticleFileBlockEntry block, String? fileUrl) {
@@ -3328,18 +3410,14 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleSocialBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleFlipcardHomeChanged(
     ArticleFlipcardBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleFlipcardFrontImageChanged(
@@ -3364,9 +3442,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleBeforeAfterBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleBeforeAfterBeforeImageChanged(
@@ -3388,9 +3464,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   void _handleArticleVsHomeChanged(ArticleVsBlockEntry block, bool value) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleVsMainImageChanged(
@@ -3426,9 +3500,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleReviewBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleReviewProsAdd(ArticleReviewBlockEntry block) {
@@ -3497,18 +3569,14 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleQuoteBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleArticleIframeHomeChanged(
     ArticleIframeBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   List<QuizResultBlockEntry> get _visibleQuizResults => switch (_quizSort) {
@@ -3768,9 +3836,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     PollQuestionBlockEntry block,
     bool value,
   ) {
-    setState(() {
-      block.showOnHomepage = value;
-    });
+    _setHomepageSelection(block, value);
   }
 
   void _handleTogglePollQuestionSettings(PollQuestionBlockEntry block) {
@@ -3838,42 +3904,76 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         final isCompact = constraints.maxWidth < 1180;
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
 
+        final header = _Header(
+          onBack: widget.onBackToNews,
+          onClear: () => unawaited(_handleClearEditor()),
+          onNewsTap: widget.onBackToNews,
+        );
+
+        if (isCompact) {
+          return AbsorbPointer(
+            absorbing: _saving,
+            child: SingleChildScrollView(
+              controller: _mainScrollController,
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                24,
+                horizontalPadding,
+                30,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  const SizedBox(height: 18),
+                  _buildMainColumn(context),
+                  const SizedBox(height: 20),
+                  _buildSidebar(context),
+                ],
+              ),
+            ),
+          );
+        }
+
         return AbsorbPointer(
           absorbing: _saving,
-          child: SingleChildScrollView(
+          child: Padding(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
               24,
               horizontalPadding,
-              30,
+              0,
             ),
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(
-                  onBack: widget.onBackToNews,
-                  onClear: () => unawaited(_handleClearEditor()),
-                  onNewsTap: widget.onBackToNews,
-                ),
-                const SizedBox(height: 18),
-                if (isCompact)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildMainColumn(context),
-                      const SizedBox(height: 20),
-                      _buildSidebar(context),
-                    ],
-                  )
-                else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildMainColumn(context)),
-                      const SizedBox(width: 20),
-                      SizedBox(width: 360, child: _buildSidebar(context)),
-                    ],
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _mainScrollController,
+                    padding: const EdgeInsets.only(bottom: 30),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        header,
+                        const SizedBox(height: 18),
+                        _buildMainColumn(context),
+                      ],
+                    ),
                   ),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  width: 360,
+                  child: Scrollbar(
+                    controller: _sidebarScrollController,
+                    child: SingleChildScrollView(
+                      controller: _sidebarScrollController,
+                      primary: false,
+                      padding: const EdgeInsets.only(bottom: 30),
+                      child: _buildSidebar(context),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -4194,6 +4294,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       if (blocks.isNotEmpty) {
         _replaceContentBlocks(_articleBlocks, blocks);
       }
+      _enforceSingleHomepageSelection();
       _syncAiAutoMarkers();
     });
     _hydrating = false;
@@ -4261,6 +4362,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         case NewsAddFormatTab.article:
           break;
       }
+      _enforceSingleHomepageSelection();
       _syncAiAutoMarkers();
     });
     _hydrating = false;

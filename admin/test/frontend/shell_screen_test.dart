@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pateeznews_admin/frontend/core/mock/home_mock_data.dart';
 import 'package:pateeznews_admin/frontend/core/theme/app_typography.dart';
 import 'package:pateeznews_admin/frontend/features/account/data/frontend_auth_repository.dart';
 import 'package:pateeznews_admin/frontend/features/shell/data/app_shell_repository.dart';
 import 'package:pateeznews_admin/frontend/features/shell/presentation/shell_screen.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 void main() {
   testWidgets('hesap sekmesi verilmis admin yuzeyini tiklayinca acar', (
@@ -152,6 +154,57 @@ void main() {
     expect(find.text('Admin panel'), findsNothing);
   });
 
+  testWidgets('video sekmesi tam ekran acar ve kapatinca ana sayfayi yeniler', (
+    tester,
+  ) async {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    var refreshCount = 0;
+
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShellScreen(
+          onRefreshHome: () async => refreshCount++,
+          homeFeedItems: [
+            _videoArticle(
+              id: 'old-video',
+              title: 'Daha eski video',
+              publishedAt: DateTime.utc(2026, 6, 7, 9),
+            ),
+            _videoArticle(
+              id: 'new-video',
+              title: 'En yeni video',
+              publishedAt: DateTime.utc(2026, 6, 8, 9),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+
+    await tester.tap(find.text('Video'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(find.bySemanticsLabel('Tam ekrandan çık'), findsOneWidget);
+    expect(find.text('En yeni video'), findsOneWidget);
+    expect(find.text('Anasayfa'), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('Tam ekrandan çık'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+
+    expect(find.text('Anasayfa'), findsOneWidget);
+    expect(find.text('Senin İçin'), findsOneWidget);
+    expect(find.text('En yeni'), findsNothing);
+    expect(refreshCount, 1);
+  });
+
   testWidgets('hesap girisi basarili olunca route kapanir ve avatar gorunur', (
     tester,
   ) async {
@@ -245,6 +298,29 @@ FrontendAuthState _authState({String role = 'member'}) {
       role: role,
       email: 'nasip@example.com',
     ),
+  );
+}
+
+NewsArticle _videoArticle({
+  required String id,
+  required String title,
+  required DateTime publishedAt,
+}) {
+  return NewsArticle(
+    id: id,
+    author: const NewsAuthor(name: 'Pateeznews', avatarUrl: ''),
+    region: 'Niğde',
+    category: 'Gündem',
+    title: title,
+    summary: 'Video özeti',
+    imageUrl: 'https://example.invalid/$id.jpg',
+    publishedAt: publishedAt,
+    readMinutes: 1,
+    likes: 10,
+    dislikes: 1,
+    comments: 2,
+    shares: 3,
+    videoUrl: 'https://example.invalid/$id.mp4',
   );
 }
 

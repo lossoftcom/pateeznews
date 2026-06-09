@@ -19,6 +19,26 @@ import '../data/today_mock.dart';
 const Color _eczaneRed = Color(0xFFE30613);
 const Color _violet = Color(0xFF6C5CE7);
 
+/// Tüm başlık/değer metinleri projenin DÜZ fontuyla (primaryFamily — nav/etiket
+/// fontu) yazılır; serif "başlık fontu" (titleFamily) burada kullanılmaz.
+/// Böylece "Niğde'de Bugün" sade, modern ve her gözün rahat okuyacağı durur.
+TextStyle _plain({
+  required double size,
+  required Color color,
+  FontWeight weight = FontWeight.w800,
+  double height = 1.15,
+  double letterSpacing = 0,
+}) {
+  return TextStyle(
+    fontFamily: AppTypography.primaryFamily,
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
+}
+
 /// "Niğde'de Bugün" sayfası — şehirde bugün öne çıkanları tek ekranda, herkesin
 /// kolayca anlayacağı netlikte toplar: hava, nöbetçi eczane, namaz vakitleri ve
 /// günün etkinliği. Kartlara dokununca ilgili tam sayfaya gidilir.
@@ -59,6 +79,7 @@ class TodayScreen extends StatelessWidget {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final pharmacy = dutyPharmacyData.primaryPharmacy;
     final event = EtkinlikMock.all.first;
+    final hasPharmacy = pharmacy != null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: AppTheme.lightOverlay,
@@ -87,8 +108,8 @@ class TodayScreen extends StatelessWidget {
                   _Stagger(
                     index: 0,
                     child: _InfoCard(
-                      accent: AppColors.warmHorizon,
-                      icon: Symbols.sun_cloudy_fill,
+                      accent: WeatherMock.currentKind.tint,
+                      icon: WeatherMock.currentKind.icon,
                       eyebrow: 'HAVA DURUMU',
                       title:
                           '${WeatherMock.currentTemp}° · ${WeatherMock.condition}',
@@ -104,10 +125,12 @@ class TodayScreen extends StatelessWidget {
                       accent: _eczaneRed,
                       icon: Symbols.capsule_fill,
                       eyebrow: 'NÖBETÇİ ECZANE',
-                      title: pharmacy?.name ?? 'Nöbetçi eczane listesi',
-                      subtitle: pharmacy?.address.isNotEmpty == true
-                          ? pharmacy!.address
-                          : 'Canlı listeyi görüntüle',
+                      title: hasPharmacy
+                          ? _titleCaseTr(pharmacy.name)
+                          : 'Nöbetçi eczane listesi',
+                      subtitle: hasPharmacy && pharmacy.address.isNotEmpty
+                          ? _titleCaseTr(pharmacy.address)
+                          : 'Bugün açık eczaneleri gör',
                       onTap: () => _push(
                         context,
                         PharmacyScreen(initialData: dutyPharmacyData),
@@ -158,31 +181,62 @@ class _Stagger extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Başlık — konum + büyük tarih + selam (hepsi düz font)
+// ---------------------------------------------------------------------------
+
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          children: [
+            const Icon(
+              Symbols.location_on_rounded,
+              size: 14,
+              color: AppColors.deepOcean,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Niğde',
+              style: _plain(
+                size: 12.5,
+                color: AppColors.inkSoft,
+                weight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         Text(
           '${TodayMock.weekday}, ${TodayMock.dateLabel}',
-          style: AppTypography.display.copyWith(
+          style: _plain(
+            size: 23,
             color: AppColors.inkStrong,
-            fontSize: 24,
-            height: 1.1,
+            height: 1.12,
+            letterSpacing: -0.3,
           ),
         ),
-        const SizedBox(height: AppSpacing.xs),
+        const SizedBox(height: 5),
         Text(
           TodayMock.greeting,
-          style: AppTypography.body.copyWith(color: AppColors.inkSoft),
+          style: AppTypography.body.copyWith(
+            color: AppColors.inkSoft,
+            fontSize: 14.5,
+          ),
         ),
       ],
     );
   }
 }
 
-/// Hava / eczane gibi tek satırlık, dokununca tam sayfaya giden bilgi kartı.
+// ---------------------------------------------------------------------------
+// Tek satırlık bilgi kartı (hava / eczane) — dokununca tam sayfa
+// ---------------------------------------------------------------------------
+
 class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.accent,
@@ -213,11 +267,7 @@ class _InfoCard extends StatelessWidget {
           ),
           if (onTap != null) ...[
             const SizedBox(width: AppSpacing.sm),
-            const Icon(
-              Symbols.arrow_forward_rounded,
-              size: 18,
-              color: AppColors.support,
-            ),
+            const _GoArrow(),
           ],
         ],
       ),
@@ -237,29 +287,29 @@ class _EventCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: _violet.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(11),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   event.day,
-                  style: AppTypography.titleS.copyWith(
+                  style: _plain(
+                    size: 18,
                     color: _violet,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
                     height: 1,
                   ),
                 ),
                 Text(
                   event.month,
-                  style: AppTypography.eyebrow.copyWith(
+                  style: _plain(
+                    size: 9,
                     color: _violet,
-                    fontSize: 9,
+                    weight: FontWeight.w700,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -275,16 +325,16 @@ class _EventCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          const Icon(
-            Symbols.arrow_forward_rounded,
-            size: 18,
-            color: AppColors.support,
-          ),
+          const _GoArrow(),
         ],
       ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Namaz vakitleri kartı
+// ---------------------------------------------------------------------------
 
 class _PrayerCard extends StatelessWidget {
   const _PrayerCard();
@@ -307,12 +357,19 @@ class _PrayerCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Text(
-                'Sıradaki: ${next.name} ${next.time}',
-                style: AppTypography.meta.copyWith(
-                  color: AppColors.deepOcean,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.deepOcean.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Text(
+                  'Sıradaki: ${next.name} ${next.time}',
+                  style: _plain(
+                    size: 11.5,
+                    color: AppColors.deepOcean,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -343,11 +400,14 @@ class _PrayerCell extends StatelessWidget {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 9),
         decoration: isNext
             ? BoxDecoration(
-                color: AppColors.deepOcean.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(4),
+                color: AppColors.deepOcean.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.deepOcean.withValues(alpha: 0.16),
+                ),
               )
             : null,
         child: Column(
@@ -356,10 +416,10 @@ class _PrayerCell extends StatelessWidget {
               prayer.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.meta.copyWith(
+              style: _plain(
+                size: 10,
                 color: isNext ? AppColors.deepOcean : AppColors.support,
-                fontSize: 10,
-                fontWeight: isNext ? FontWeight.w700 : FontWeight.w500,
+                weight: isNext ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
             const SizedBox(height: 3),
@@ -367,10 +427,9 @@ class _PrayerCell extends StatelessWidget {
               prayer.time,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.titleS.copyWith(
+              style: _plain(
+                size: 12.5,
                 color: isNext ? AppColors.deepOcean : AppColors.ink,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
               ),
             ),
           ],
@@ -379,6 +438,10 @@ class _PrayerCell extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Ortak parçalar
+// ---------------------------------------------------------------------------
 
 class _CardShell extends StatelessWidget {
   const _CardShell({required this.child, this.onTap});
@@ -391,17 +454,25 @@ class _CardShell extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.line),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 14,
+            offset: Offset(0, 7),
+          ),
+        ],
       ),
       child: child,
     );
     if (onTap == null) return content;
     return Material(
       color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(12),
         child: content,
       ),
     );
@@ -416,14 +487,36 @@ class _IconSquare extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 46,
-      height: 46,
+      width: 50,
+      height: 50,
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(12),
       ),
       alignment: Alignment.center,
-      child: Icon(icon, size: 24, color: accent),
+      child: Icon(icon, size: 25, color: accent),
+    );
+  }
+}
+
+class _GoArrow extends StatelessWidget {
+  const _GoArrow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceSoft,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: const Icon(
+        Symbols.arrow_forward_rounded,
+        size: 16,
+        color: AppColors.deepOcean,
+      ),
     );
   }
 }
@@ -457,10 +550,10 @@ class _Texts extends StatelessWidget {
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: AppTypography.titleM.copyWith(
+          style: _plain(
+            size: 16,
             color: AppColors.inkStrong,
-            fontSize: 15.5,
-            fontWeight: FontWeight.w800,
+            height: 1.15,
           ),
         ),
         const SizedBox(height: 2),
@@ -473,4 +566,18 @@ class _Texts extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Türkçe-duyarlı "Sadece Baş Harf" biçimi. Veri BÜYÜK HARF gelse de
+/// ("CAN ECZANESI") okunur biçime çevrilir ("Can Eczanesi").
+String _titleCaseTr(String input) {
+  final words = input.trim().split(RegExp(r'\s+'));
+  for (var i = 0; i < words.length; i++) {
+    final word = words[i];
+    if (word.isEmpty) continue;
+    final lower = word.replaceAll('İ', 'i').toLowerCase();
+    final first = lower[0] == 'i' ? 'İ' : lower[0].toUpperCase();
+    words[i] = first + lower.substring(1);
+  }
+  return words.join(' ');
 }

@@ -38,7 +38,7 @@ class _Cover extends StatelessWidget {
   Widget build(BuildContext context) {
     return CachedImage(
       url: imageUrl,
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
       errorWidget: Container(
         color: AppColors.surfaceInk,
         alignment: Alignment.center,

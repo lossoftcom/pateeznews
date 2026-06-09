@@ -34,6 +34,7 @@ class FeaturedNews {
     required this.publishedAt,
     required this.source,
     this.slug = '',
+    this.imageAspectRatio,
     this.isBreaking = false,
     this.isLive = false,
   });
@@ -46,6 +47,7 @@ class FeaturedNews {
   final DateTime publishedAt;
   final String source;
   final String slug;
+  final double? imageAspectRatio;
   final bool isBreaking;
   final bool isLive;
 }
@@ -100,6 +102,15 @@ class NewsArticle {
     required this.dislikes,
     required this.comments,
     required this.shares,
+    this.views = 0,
+    this.saves = 0,
+    this.slug = '',
+    this.imageAspectRatio,
+    this.isManset = false,
+    this.isPinned = false,
+    this.sliderImages = const [],
+    this.videoUrl = '',
+    this.audioUrl = '',
   });
 
   final String id;
@@ -115,10 +126,24 @@ class NewsArticle {
   final int dislikes;
   final int comments;
   final int shares;
+  final int views;
+  final int saves;
+  final String slug;
+  final double? imageAspectRatio;
+  final bool isManset;
+  final bool isPinned;
 
-  /// Mock için hesaplanan görüntülenme. Gerçek API entegrasyonunda bu alan
-  /// constructor'a taşınır.
-  int get views => likes * 10 + comments * 5;
+  /// Ana sayfada "slider" bloğu seçiliyse gösterilecek görseller (sırayla).
+  /// Boşsa tek görsel / kapak gösterilir.
+  final List<String> sliderImages;
+
+  /// Ana sayfada "video" bloğu seçiliyse oynatılacak video (yerel/uzak/YouTube/
+  /// Shorts). Boşsa slider / görsel / kapak gösterilir.
+  final String videoUrl;
+
+  /// Ana sayfada "ses" bloğu seçiliyse çalınacak ses (yerel/uzak dosya veya
+  /// YouTube Music). Boşsa video / slider / görsel / kapak gösterilir.
+  final String audioUrl;
 }
 
 class _Authors {

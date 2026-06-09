@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/mock/home_mock_data.dart';
@@ -27,18 +28,28 @@ class HomeScreen extends StatefulWidget {
     super.key,
     this.shellSettings = const AppShellSettings.empty(),
     this.dutyPharmacyData = const DutyPharmacyData.empty(),
+    this.navigationItems = const [],
     this.featuredItems = const [],
+    this.feedItems = const [],
+    this.onRefresh,
+    this.resetToTopSerial = 0,
     this.onMenuTap,
     this.onSubmitNewsTap,
     this.onPharmacyTap,
+    this.onFullscreenVideoExit,
   });
 
   final AppShellSettings shellSettings;
   final DutyPharmacyData dutyPharmacyData;
+  final List<AppShellNavigationItem> navigationItems;
   final List<FeaturedNews> featuredItems;
+  final List<NewsArticle> feedItems;
+  final Future<void> Function()? onRefresh;
+  final int resetToTopSerial;
   final VoidCallback? onMenuTap;
   final VoidCallback? onSubmitNewsTap;
   final VoidCallback? onPharmacyTap;
+  final VoidCallback? onFullscreenVideoExit;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -48,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isElevated = false;
   FeedFilter _feedFilter = FeedFilter.latest;
+  late int _handledResetSerial;
 
   /// Giriş animasyonu yalnızca ilk bu kadar karta uygulanır (ilk ekran).
   static const int _staggerLimit = 6;
@@ -55,7 +67,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _handledResetSerial = widget.resetToTopSerial;
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.resetToTopSerial != _handledResetSerial) {
+      _handledResetSerial = widget.resetToTopSerial;
+      _resetToTopAndRefresh();
+    }
   }
 
   void _onScroll() {
@@ -65,6 +87,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _resetToTopAndRefresh() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+      }
+      if (_isElevated) setState(() => _isElevated = false);
+      final refresh = widget.onRefresh;
+      if (refresh != null) await refresh();
+    });
+  }
+
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
@@ -72,8 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _openDetail(int index) {
-    final feed = HomeMockData.feed;
+  void _openDetail(List<NewsArticle> feed, int index) {
+    if (index < 0 || index >= feed.length) return;
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
@@ -100,7 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final feed = HomeMockData.feed;
+    final feed = _sortedFeed(widget.feedItems);
+    final videoFeed = _dateSortedVideoFeed(widget.feedItems);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -119,10 +154,13 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: AppColors.surface,
               displacement: 32,
               onRefresh: () async {
-                await Future<void>.delayed(const Duration(milliseconds: 800));
+                await widget.onRefresh?.call();
               },
               child: CustomScrollView(
                 controller: _scrollController,
+                // Sıradaki kartları (video dâhil) görünmeden önce inşa edip
+                // hazırlar → video "şak diye" gelir, kaydırınca beklemez.
+                scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
@@ -164,9 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: AppColors.surface,
                                 ),
                                 child: FeaturedSlider(
-                                  items: widget.featuredItems.isNotEmpty
-                                      ? widget.featuredItems
-                                      : HomeMockData.featured,
+                                  items: widget.featuredItems,
                                 ),
                               )
                               .animate()
@@ -186,8 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SliverToBoxAdapter(
                     child: SectionHeader(
-                      title: 'Senin için',
-                      accent: 'akış',
+                      title: 'Senin İçin',
+                      accent: 'Seçtiklerimiz',
                       trailing: FeedFilterTabs(
                         filter: _feedFilter,
                         onChange: (f) => setState(() => _feedFilter = f),
@@ -199,7 +235,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) {
                       Widget card = NewsCard(
                         article: feed[index],
-                        onTap: () => _openDetail(index),
+                        onTap: () => _openDetail(feed, index),
+                        categoryTrail: _categoryTrail(feed[index].category),
+                        videoFeedArticles: videoFeed,
+                        shellSettings: widget.shellSettings,
+                        onFullscreenVideoExit: widget.onFullscreenVideoExit,
                       );
                       // Giriş animasyonu yalnızca ilk ekrandaki kartlara;
                       // sonrakiler (ve geri kaydırınca yeniden inşa edilenler)
@@ -239,5 +279,61 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  List<NewsArticle> _sortedFeed(List<NewsArticle> items) {
+    final feed = List<NewsArticle>.of(items);
+    if (_feedFilter == FeedFilter.popular) {
+      feed.sort((a, b) {
+        if (a.isPinned != b.isPinned) return b.isPinned ? 1 : -1;
+        final aScore = a.likes + a.comments;
+        final bScore = b.likes + b.comments;
+        return bScore.compareTo(aScore);
+      });
+    }
+    return feed;
+  }
+
+  List<NewsArticle> _dateSortedVideoFeed(List<NewsArticle> items) {
+    final videos = items
+        .where((item) => item.videoUrl.trim().isNotEmpty)
+        .toList(growable: false);
+    return List<NewsArticle>.of(videos)
+      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+  }
+
+  List<String> _categoryTrail(String category) {
+    final cleanCategory = category.trim();
+    if (cleanCategory.isEmpty) return const [];
+
+    AppShellNavigationItem? current;
+    for (final item in widget.navigationItems) {
+      if (item.label == cleanCategory || item.value == cleanCategory) {
+        current = item;
+        break;
+      }
+    }
+    if (current == null) return [cleanCategory];
+
+    final trail = <String>[current.label];
+    final visited = <String>{current.id};
+    var parentId = current.parentId;
+    while (parentId != null &&
+        parentId != 'root' &&
+        !visited.contains(parentId)) {
+      visited.add(parentId);
+      AppShellNavigationItem? parent;
+      for (final item in widget.navigationItems) {
+        if (item.id == parentId) {
+          parent = item;
+          break;
+        }
+      }
+      if (parent == null || parent.label.trim().isEmpty) break;
+      trail.insert(0, parent.label);
+      parentId = parent.parentId;
+    }
+
+    return trail;
   }
 }

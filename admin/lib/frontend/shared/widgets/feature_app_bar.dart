@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import 'back_circle_button.dart';
 
-/// Mini servis sayfaları (Hava Durumu, Nöbetçi Eczane, Ölüm İlanları) için ortak
-/// üst bar: ortada başlık, sağda uygulamanın tek tip [BackCircleButton]'ı.
-/// İsteğe bağlı [trailing] sağ üst aksiyon (örn. paylaş) için kullanılır.
+/// Mini servis / uygulama sayfaları (Etkinlikler, Duyurular, Nöbetçi Eczane,
+/// Namaz Vakitleri, Hava Durumu, Niğde'de Bugün, Ölüm İlanları, Döviz & Altın …)
+/// için ortak üst bar.
+///
+/// Kategori sayfasının üst barıyla birebir aynı dil: solda sade arama ikonu,
+/// ortada kırmızı dikey çubuk önünde başlık (aynı font/boyut/kalınlık), sağda
+/// uygulamanın tek tip daire geri butonu. Böylece tüm uygulamalar tutarlı görünür.
 class FeatureAppBar extends StatelessWidget {
-  const FeatureAppBar({super.key, required this.title, this.onBack, this.trailing});
+  const FeatureAppBar({
+    super.key,
+    required this.title,
+    this.onBack,
+    this.onSearch,
+  });
 
   final String title;
   final VoidCallback? onBack;
-  final Widget? trailing;
+  final VoidCallback? onSearch;
 
   static const double _height = 56;
 
@@ -28,28 +38,80 @@ class FeatureAppBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 56,
-            child: trailing == null
-                ? null
-                : Align(alignment: Alignment.centerLeft, child: trailing),
+          const SizedBox(width: 6),
+          _PlainIconButton(
+            icon: Symbols.search_rounded,
+            semantics: 'Ara',
+            onTap: onSearch ?? () {},
           ),
           Expanded(
-            child: Center(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.titleM.copyWith(
-                  color: AppColors.inkStrong,
-                  fontWeight: FontWeight.w800,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 3,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: AppColors.actionRed,
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.titleM.copyWith(
+                      color: AppColors.inkStrong,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          BackCircleButton(onTap: onBack ?? () => Navigator.of(context).maybePop()),
+          BackCircleButton(
+            onTap: onBack ?? () => Navigator.of(context).maybePop(),
+          ),
           const SizedBox(width: 10),
         ],
+      ),
+    );
+  }
+}
+
+class _PlainIconButton extends StatelessWidget {
+  const _PlainIconButton({
+    required this.icon,
+    required this.semantics,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String semantics;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semantics,
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, size: 23, color: AppColors.iconStrong),
+          ),
+        ),
       ),
     );
   }

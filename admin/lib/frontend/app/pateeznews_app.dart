@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 import '../../app/pateeznews_admin_app.dart';
 import '../../features/auth/data/admin_auth_models.dart';
 import '../../features/auth/data/admin_session_store.dart';
+import '../core/brand/default_brand_assets.dart';
+import '../core/mock/home_mock_data.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_typography.dart';
 import '../core/theme/frontend_font_settings.dart';
@@ -21,7 +23,6 @@ import '../features/prayer_times/data/prayer_times_repository.dart';
 import '../features/shell/data/app_shell_repository.dart';
 import '../features/shell/presentation/shell_screen.dart';
 import '../features/splash/presentation/splash_screen.dart';
-import '../core/mock/home_mock_data.dart';
 import '../features/weather/data/weather_repository.dart';
 
 class PateeznewsApp extends StatefulWidget {
@@ -70,6 +71,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   var _prayerTimesData = const PrayerTimesData.empty();
   var _announcementData = const AnnouncementData.empty();
   List<FeaturedNews> _featuredItems = const [];
+  List<NewsArticle> _homeFeedItems = const [];
   FrontendAuthState? _authState;
   var _authLoading = true;
   var _adminOpen = false;
@@ -107,7 +109,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
         _loadMarketsData(),
         _loadPrayerTimesData(),
         _loadAnnouncementData(),
-        _loadFeaturedData(),
+        _loadHomeData(),
         _restoreAuthState(),
       ]).timeout(_maxSplash);
     } catch (_) {
@@ -134,7 +136,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     final shellData = await widget.shellRepository.fetch('tr');
     if (!mounted) return;
     setState(() => _shellData = shellData);
-    await _precacheNetworkLogo();
+    await _precacheBrandLogos(shellData.siteSettings);
   }
 
   Future<void> _loadDutyPharmacyData() async {
@@ -173,25 +175,36 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     setState(() => _announcementData = data);
   }
 
-  Future<void> _loadFeaturedData() async {
-    final items = await widget.homeRepository.fetchFeatured();
+  Future<void> _loadHomeData() async {
+    final data = await widget.homeRepository.fetchHome();
     if (!mounted) return;
-    setState(() => _featuredItems = items);
+    setState(() {
+      _featuredItems = data.featured;
+      _homeFeedItems = data.feed;
+    });
   }
 
-  /// App bar'daki ağ logosunu ([HomeAppBar] içinde `Image.network`) splash
-  /// bitmeden bellek cache'ine alır; böylece asıl ekran açıldığında logo
-  /// anında görünür, sonradan inip "pat" diye belirmez.
-  Future<void> _precacheNetworkLogo() async {
+  /// App bar ve tam ekran video üst barında kullanılan marka logolarını splash
+  /// bitmeden cache'e alır. Ağ logosu gecikirse asset fallback zaten hazır olur.
+  Future<void> _precacheBrandLogos(AppShellSettings settings) async {
     if (!mounted) return;
-    final logoUrl = _shellData.siteSettings.displayLogoUrl;
-    if (logoUrl.isEmpty) return;
     try {
-      await precacheImage(
-        NetworkImage(logoUrl),
-        context,
-        onError: (_, _) {},
-      ).timeout(const Duration(milliseconds: 1500), onTimeout: () {});
+      final futures = <Future<void>>[
+        precacheImage(const AssetImage(DefaultBrandAssets.logo), context),
+        precacheImage(const AssetImage(DefaultBrandAssets.whiteLogo), context),
+        precacheImage(const AssetImage(DefaultBrandAssets.darkLogo), context),
+      ];
+      final seen = <String>{};
+      for (final url in [settings.displayLogoUrl, settings.darkLogoUrl]) {
+        final clean = url.trim();
+        if (clean.isEmpty || !seen.add(clean)) continue;
+        futures.add(
+          precacheImage(NetworkImage(clean), context, onError: (_, _) {}),
+        );
+      }
+      await Future.wait(
+        futures,
+      ).timeout(const Duration(milliseconds: 1500), onTimeout: () => const []);
     } catch (_) {
       // Logo önceden yüklenemese de açılış sürmeli.
     }
@@ -285,6 +298,8 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
                 prayerTimesData: _prayerTimesData,
                 announcementData: _announcementData,
                 featuredItems: _featuredItems,
+                homeFeedItems: _homeFeedItems,
+                onRefreshHome: _loadHomeData,
                 authState: _authState,
                 authLoading: _authLoading,
                 onSignIn: _signIn,

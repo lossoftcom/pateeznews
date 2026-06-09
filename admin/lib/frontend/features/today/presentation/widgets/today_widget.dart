@@ -58,17 +58,18 @@ class TodayWidget extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: 'Niğde\'de',
-                    style: AppTypography.titleL.copyWith(
+                    style: AppTypography.titleM.copyWith(
                       color: AppColors.inkStrong,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const TextSpan(text: ' '),
                   TextSpan(
                     text: 'Bugün',
-                    style: AppTypography.titleL.copyWith(
+                    style: AppTypography.titleM.copyWith(
                       color: AppColors.support,
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

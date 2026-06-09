@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -10,8 +11,8 @@ import 'featured_card.dart';
 /// PageView tabanlı featured haber kaydırıcısı.
 ///
 /// Yapı:
-///   1. AspectRatio 16/10 içinde full-bleed görsel PageView (kartlar arası
-///      boşluk yoktur).
+///   1. Genişliği tam dolduran ve yüksekliği görsel oranına göre belirlenen
+///      PageView (kartlar arası boşluk yoktur).
 ///   2. Görselin altına taşan `AppColors.surfaceTinted` zeminli içerik alanı:
 ///      kategori, başlık, alt spot, yayın zamanı.
 ///   3. İçerik alanının altında tam ortada, palet kırmızısı (actionRed) sayfa
@@ -26,11 +27,11 @@ class FeaturedSlider extends StatefulWidget {
 }
 
 class _FeaturedSliderState extends State<FeaturedSlider> {
-  static const double _imageAspectRatio = 16 / 10;
+  static const double _fallbackImageAspectRatio = 16 / 10;
   static const double _contentPanelMinHeight = 0;
   static const double _contentPanelOverlap = 94;
   static const double _imageBlendHeight = 210;
-  static const double _contentTopPadding = 76;
+  static const double _contentTopPadding = 64;
   static const double _contentBottomPadding = 8;
   static const double _indicatorTopGap = 12;
   static const double _indicatorHeight = 8;
@@ -39,16 +40,31 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
 
   late final PageController _controller;
   int _index = 0;
+  final Map<String, double> _resolvedImageAspectRatios = {};
+  final Map<String, ImageStream> _pendingImageStreams = {};
+  final Map<String, ImageStreamListener> _pendingImageListeners = {};
 
   @override
   void initState() {
     super.initState();
     _controller = PageController();
+    _resolveImageAspectRatios(widget.items);
+  }
+
+  @override
+  void didUpdateWidget(covariant FeaturedSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.items, widget.items)) {
+      _resolveImageAspectRatios(widget.items);
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    for (final entry in _pendingImageListeners.entries) {
+      _pendingImageStreams[entry.key]?.removeListener(entry.value);
+    }
     super.dispose();
   }
 
@@ -68,6 +84,60 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
     _goToSlide(velocity < 0 ? _index + 1 : _index - 1);
   }
 
+  void _resolveImageAspectRatios(List<FeaturedNews> items) {
+    for (final item in items) {
+      final ratio = item.imageAspectRatio;
+      if (ratio != null && ratio.isFinite && ratio > 0) {
+        _resolvedImageAspectRatios[item.imageUrl] = ratio;
+        continue;
+      }
+
+      final parsedRatio = _parseImageAspectRatioFromUrl(item.imageUrl);
+      if (parsedRatio != null) {
+        _resolvedImageAspectRatios[item.imageUrl] = parsedRatio;
+        continue;
+      }
+
+      _resolveImageAspectRatioFromProvider(item.imageUrl);
+    }
+  }
+
+  void _resolveImageAspectRatioFromProvider(String imageUrl) {
+    final cleanUrl = imageUrl.trim();
+    if (cleanUrl.isEmpty ||
+        _resolvedImageAspectRatios.containsKey(cleanUrl) ||
+        _pendingImageStreams.containsKey(cleanUrl)) {
+      return;
+    }
+
+    final stream = CachedNetworkImageProvider(
+      cleanUrl,
+    ).resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener((image, _) {
+      _removePendingImageListener(cleanUrl);
+      final width = image.image.width;
+      final height = image.image.height;
+      if (width <= 0 || height <= 0) return;
+      if (!mounted) return;
+      setState(() {
+        _resolvedImageAspectRatios[cleanUrl] = width / height;
+      });
+    }, onError: (_, _) => _removePendingImageListener(cleanUrl));
+
+    _pendingImageStreams[cleanUrl] = stream;
+    _pendingImageListeners[cleanUrl] = listener;
+    stream.addListener(listener);
+  }
+
+  void _removePendingImageListener(String imageUrl) {
+    final stream = _pendingImageStreams.remove(imageUrl);
+    final listener = _pendingImageListeners.remove(imageUrl);
+    if (stream != null && listener != null) {
+      stream.removeListener(listener);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = widget.items;
@@ -82,7 +152,11 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
             ? constraints.maxWidth
             : mediaWidth;
         final width = _resolveFiniteWidth(constrainedWidth, mediaWidth);
-        final imageHeight = width / _imageAspectRatio;
+        final imageAspectRatio =
+            _resolvedImageAspectRatios[active.imageUrl] ??
+            active.imageAspectRatio ??
+            _fallbackImageAspectRatio;
+        final imageHeight = width / imageAspectRatio;
         final contentWidth = _resolveFiniteWidth(
           width - (AppSpacing.pageHorizontal * 2),
           mediaWidth - (AppSpacing.pageHorizontal * 2),
@@ -168,7 +242,7 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
       maxLines: 2,
     );
     final timeHeight = _measureTextHeight(
-      RelativeTime.format(item.publishedAt),
+      _formatFeaturedPublishedAt(item.publishedAt),
       _featuredTimeStyle,
       contentWidth,
       textScaler: textScaler,
@@ -205,6 +279,18 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
         ? naturalHeight
         : _contentPanelMinHeight;
   }
+}
+
+double? _parseImageAspectRatioFromUrl(String url) {
+  final segments = Uri.tryParse(url)?.pathSegments;
+  if (segments == null || segments.length < 2) return null;
+
+  final height = int.tryParse(segments[segments.length - 1]);
+  final width = int.tryParse(segments[segments.length - 2]);
+  if (width == null || height == null || width <= 0 || height <= 0) {
+    return null;
+  }
+  return width / height;
 }
 
 class _FeaturedContentPanel extends StatelessWidget {
@@ -294,11 +380,22 @@ class _ActiveContent extends StatelessWidget {
               color: AppColors.inkSoft.withValues(alpha: 0.85),
             ),
             const SizedBox(width: 5),
-            Text(
-              RelativeTime.format(news.publishedAt),
-              style: _featuredTimeStyle,
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _formatFeaturedPublishedAt(news.publishedAt),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: _featuredTimeStyle,
+                  ),
+                ),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Flexible(
               child: Text(
                 _formatFeaturedCategory(news.category),
@@ -314,6 +411,42 @@ class _ActiveContent extends StatelessWidget {
     );
   }
 }
+
+String _formatFeaturedPublishedAt(DateTime value) {
+  final date = value.toUtc().add(const Duration(hours: 3));
+  final day = date.day;
+  final month = _turkishMonths[date.month - 1];
+  final year = date.year.toString().padLeft(4, '0');
+  final weekday = _turkishWeekdays[date.weekday - 1];
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '$day $month $year $weekday Saat: $hour:$minute';
+}
+
+const _turkishMonths = [
+  'Ocak',
+  'Şubat',
+  'Mart',
+  'Nisan',
+  'Mayıs',
+  'Haziran',
+  'Temmuz',
+  'Ağustos',
+  'Eylül',
+  'Ekim',
+  'Kasım',
+  'Aralık',
+];
+
+const _turkishWeekdays = [
+  'Pazartesi',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
+  'Cuma',
+  'Cumartesi',
+  'Pazar',
+];
 
 String _formatFeaturedCategory(String category) {
   final trimmed = category.trim();

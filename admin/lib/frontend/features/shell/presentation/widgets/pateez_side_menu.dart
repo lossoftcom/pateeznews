@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
+import '../../../../core/brand/default_brand_assets.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -275,8 +276,20 @@ class _SideMenuBrand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final logoUrl = settings.displayLogoUrl;
+    final fallbackLogo = Image.asset(
+      DefaultBrandAssets.logo,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      semanticLabel: settings.siteName.isEmpty
+          ? 'Pateeznews'
+          : settings.siteName,
+      errorBuilder: (_, _, _) => _SideMenuWordmark(siteName: settings.siteName),
+    );
     if (logoUrl.isEmpty) {
-      return _SideMenuWordmark(siteName: settings.siteName);
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: SizedBox(height: 32, child: fallbackLogo),
+      );
     }
 
     return Align(
@@ -291,7 +304,7 @@ class _SideMenuBrand extends StatelessWidget {
               ? 'Pateeznews'
               : settings.siteName,
           errorBuilder: (context, error, stackTrace) {
-            return _SideMenuWordmark(siteName: settings.siteName);
+            return fallbackLogo;
           },
         ),
       ),
