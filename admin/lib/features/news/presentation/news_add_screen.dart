@@ -9,6 +9,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../../settings/data/admin_content_settings_repository.dart';
 import '../data/admin_news_ai_repository.dart';
 import '../data/admin_news_source_reader.dart';
 import '../data/admin_news_repository.dart';
@@ -56,10 +57,36 @@ const _newsAddTabMuted = Color(0xFF5F6F78);
 const _newsAddUploadInk = Color(0xFF6D7B83);
 const _newsAddActionHeight = 42.0;
 const _newsAddCoverVisualHeight = 160.0;
-const _newsAddAutoSubCategoryAliases = <NewsAddFormatTab, List<String>>{
+const _newsAddFormatCategoryAliases = <NewsAddFormatTab, List<String>>{
   NewsAddFormatTab.quiz: ['test', 'testler', 'quiz', 'quizzes'],
   NewsAddFormatTab.poll: ['anket', 'anketler', 'poll', 'polls'],
   NewsAddFormatTab.video: ['video', 'videolar', 'videos'],
+  NewsAddFormatTab.contents: [
+    'icindekiler',
+    'içindekiler',
+    'liste',
+    'listeler',
+    'toc',
+    'contents',
+    'table of contents',
+  ],
+  NewsAddFormatTab.recipe: [
+    'tarif',
+    'tarifler',
+    'yemek tarifi',
+    'yemek tarifleri',
+    'recipe',
+    'recipes',
+  ],
+  NewsAddFormatTab.event: ['etkinlik', 'etkinlikler', 'event', 'events'],
+};
+const _newsAddFormatDefaultCategoryLabels = <NewsAddFormatTab, String>{
+  NewsAddFormatTab.quiz: 'Testler',
+  NewsAddFormatTab.poll: 'Anket',
+  NewsAddFormatTab.video: 'Video',
+  NewsAddFormatTab.contents: 'İçindekiler',
+  NewsAddFormatTab.recipe: 'Tarif',
+  NewsAddFormatTab.event: 'Etkinlik',
 };
 const _allowedAiSchemaTypes = {
   'NewsArticle',
@@ -163,6 +190,9 @@ class NewsAddScreen extends StatefulWidget {
     this.profile,
     this.postId,
     this.aiRepository,
+    this.contentSettingsRepository =
+        const SupabaseAdminContentSettingsRepository(),
+    this.initialPostFormatSettings,
     this.onBackToNews,
   });
 
@@ -170,6 +200,8 @@ class NewsAddScreen extends StatefulWidget {
   final AdminProfile? profile;
   final AdminNewsRepository repository;
   final AdminNewsAiRepository? aiRepository;
+  final AdminContentSettingsRepository contentSettingsRepository;
+  final ContentPostFormatSettingsData? initialPostFormatSettings;
   final String? postId;
   final VoidCallback? onBackToNews;
 
@@ -231,9 +263,11 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   var _loading = true;
   var _saving = false;
   var _hydrating = false;
+  var _formatSettingsLoading = false;
   String? _loadError;
   String? _editingPostId;
   String? _loadedPublisherId;
+  String? _formatSettingsLanguageCode;
   String _lastAutoSlug = '';
   String _lastAutoSeoTitle = '';
   String _lastAutoSeoDescription = '';
@@ -243,6 +277,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     categories: [],
     publishers: [],
   );
+  Set<NewsAddFormatTab> _enabledFormatTabs = {
+    for (final tab in NewsAddFormatTab.values) tab,
+  };
   late final AdminNewsAiRepository _aiRepository;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -263,6 +300,11 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         oldWidget.repository != widget.repository) {
       _editingPostId = widget.postId;
       unawaited(_loadEditor());
+    }
+    if (oldWidget.initialPostFormatSettings !=
+            widget.initialPostFormatSettings &&
+        _formatSettingsLanguageCode != null) {
+      _applyInitialFormatSettings(_formatSettingsLanguageCode!);
     }
   }
 
@@ -349,6 +391,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _loading = false;
       });
       _hydrating = false;
+      unawaited(_loadFormatSettings(_languageCode));
     } catch (error) {
       if (!mounted) return;
       _hydrating = false;
@@ -412,6 +455,101 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _replaceContentBlocks(_eventContentBlocks, const []);
   }
 
+  Future<void> _loadFormatSettings(String languageCode) async {
+    final normalizedLanguageCode = languageCode.trim().isEmpty
+        ? 'tr'
+        : languageCode.trim();
+    _formatSettingsLanguageCode = normalizedLanguageCode;
+    if (_applyInitialFormatSettings(normalizedLanguageCode)) return;
+    setState(() => _formatSettingsLoading = true);
+    try {
+      final settings = await widget.contentSettingsRepository
+          .fetchPostFormatSettings(normalizedLanguageCode);
+      final tabs = settings.enabledFormats
+          .map(_formatTabFromSettingsKey)
+          .whereType<NewsAddFormatTab>()
+          .toSet();
+      if (!mounted || _formatSettingsLanguageCode != normalizedLanguageCode) {
+        return;
+      }
+      setState(() {
+        _enabledFormatTabs = tabs.isEmpty
+            ? {for (final tab in NewsAddFormatTab.values) tab}
+            : tabs;
+        _formatSettingsLoading = false;
+        if (!_enabledFormatTabs.contains(_activeTab) &&
+            (_editingPostId == null || _editingPostId!.trim().isEmpty)) {
+          _applyFormatTab(_firstEnabledFormatTab);
+        }
+      });
+    } catch (_) {
+      if (!mounted || _formatSettingsLanguageCode != normalizedLanguageCode) {
+        return;
+      }
+      setState(() {
+        _enabledFormatTabs = {for (final tab in NewsAddFormatTab.values) tab};
+        _formatSettingsLoading = false;
+      });
+    }
+  }
+
+  bool _applyInitialFormatSettings(String languageCode) {
+    final settings = widget.initialPostFormatSettings;
+    final normalizedLanguageCode = languageCode.trim().isEmpty
+        ? 'tr'
+        : languageCode.trim();
+    if (settings == null || settings.languageCode != normalizedLanguageCode) {
+      return false;
+    }
+    _applyFormatSettings(settings);
+    return true;
+  }
+
+  void _applyFormatSettings(ContentPostFormatSettingsData settings) {
+    final tabs = settings.enabledFormats
+        .map(_formatTabFromSettingsKey)
+        .whereType<NewsAddFormatTab>()
+        .toSet();
+    if (!mounted) return;
+    setState(() {
+      _enabledFormatTabs = tabs.isEmpty
+          ? {for (final tab in NewsAddFormatTab.values) tab}
+          : tabs;
+      _formatSettingsLoading = false;
+      if (!_enabledFormatTabs.contains(_activeTab) &&
+          (_editingPostId == null || _editingPostId!.trim().isEmpty)) {
+        _applyFormatTab(_firstEnabledFormatTab);
+      }
+    });
+  }
+
+  NewsAddFormatTab get _firstEnabledFormatTab {
+    for (final tab in NewsAddFormatTab.values) {
+      if (_enabledFormatTabs.contains(tab)) return tab;
+    }
+    return NewsAddFormatTab.article;
+  }
+
+  List<NewsAddFormatTab> get _visibleFormatTabs {
+    return [
+      for (final tab in NewsAddFormatTab.values)
+        if (_enabledFormatTabs.contains(tab) || tab == _activeTab) tab,
+    ];
+  }
+
+  NewsAddFormatTab? _formatTabFromSettingsKey(String key) {
+    return switch (key) {
+      'article' => NewsAddFormatTab.article,
+      'quiz' => NewsAddFormatTab.quiz,
+      'poll' => NewsAddFormatTab.poll,
+      'video' => NewsAddFormatTab.video,
+      'contents' => NewsAddFormatTab.contents,
+      'recipe' => NewsAddFormatTab.recipe,
+      'event' => NewsAddFormatTab.event,
+      _ => null,
+    };
+  }
+
   void _applyBootstrapDefaults() {
     if (_bootstrap.languages.any((item) => item.code == _languageCode)) {
       return;
@@ -469,7 +607,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             .where((value) => value.isNotEmpty),
       );
     _hydrateFaq(post.faqData);
-    _applyCategorySelection(post.category);
+    final storedCategoryPath = _stringList(post.cardData['categoryPath']);
+    if (storedCategoryPath.isNotEmpty) {
+      _applyCategoryPathSelection(storedCategoryPath);
+    } else {
+      _applyCategorySelection(post.category);
+    }
     _hydrateItems(post.type, post.items);
     _lastAutoSlug = _slugify(_titleController.text);
     _lastAutoSeoTitle = _titleController.text.trim().length > 60
@@ -490,11 +633,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _thirdCategory = null;
       return;
     }
-    final byLabel = {
-      for (final item in _categoriesForLanguage(_languageCode))
-        item.label: item,
-    };
-    final selected = byLabel[label];
+    final selected = _categoryByLabel(label);
     if (selected == null || selected.parentId.isEmpty) {
       _mainCategory = label;
       _subCategory = null;
@@ -514,6 +653,18 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _subCategory = selected.label;
       _thirdCategory = null;
     }
+  }
+
+  void _applyCategoryPathSelection(List<String> path) {
+    _autoSubCategory = null;
+    final labels = path
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (labels.isEmpty) return;
+    _mainCategory = labels.first;
+    _subCategory = labels.length > 1 ? labels[1] : null;
+    _thirdCategory = labels.length > 2 ? labels[2] : null;
   }
 
   List<AdminNewsEditorCategory> _categoriesForLanguage(String languageCode) {
@@ -560,20 +711,182 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         .toList();
   }
 
-  AdminNewsEditorCategory? _defaultSubCategoryForTab(NewsAddFormatTab tab) {
-    final aliases = _newsAddAutoSubCategoryAliases[tab];
-    if (aliases == null) return null;
+  AdminNewsEditorCategory? _categoryByLabel(String? label) {
+    final normalized = _normalizeNewsAddCategoryLabel(label ?? '');
+    if (normalized.isEmpty) return null;
+    final matches = _categoriesForLanguage(_languageCode)
+        .where(
+          (item) => _normalizeNewsAddCategoryLabel(item.label) == normalized,
+        )
+        .toList(growable: false);
+    if (matches.isEmpty) return null;
+    final ranked = matches.toList()
+      ..sort((a, b) {
+        final depth = _categoryDepth(a).compareTo(_categoryDepth(b));
+        return depth == 0 ? a.orderIndex.compareTo(b.orderIndex) : depth;
+      });
+    return ranked.first;
+  }
+
+  int _categoryDepth(AdminNewsEditorCategory category) {
+    var depth = 0;
+    var parentId = category.parentId;
+    while (parentId.isNotEmpty) {
+      final parent = _categoryById(parentId);
+      if (parent == null) break;
+      depth++;
+      parentId = parent.parentId;
+    }
+    return depth;
+  }
+
+  bool _usesScopedCategorySelection(NewsAddFormatTab tab) {
+    return _newsAddFormatCategoryAliases.containsKey(tab);
+  }
+
+  bool _isDistrictCategory(AdminNewsEditorCategory category) {
+    return _normalizeNewsAddCategoryLabel(category.type) == 'district';
+  }
+
+  bool _matchesFormatCategory(
+    AdminNewsEditorCategory category,
+    NewsAddFormatTab tab,
+  ) {
+    final aliases = _newsAddFormatCategoryAliases[tab];
+    if (aliases == null) return false;
     final normalizedAliases = aliases
         .map(_normalizeNewsAddCategoryLabel)
         .toSet();
-    for (final category in _childrenOfCategory(_mainCategory)) {
-      if (normalizedAliases.contains(
-        _normalizeNewsAddCategoryLabel(category.label),
-      )) {
-        return category;
+    return [category.label, category.value, category.icon].any(
+      (value) =>
+          normalizedAliases.contains(_normalizeNewsAddCategoryLabel(value)),
+    );
+  }
+
+  AdminNewsEditorCategory? _preferredScopedMainCategory() {
+    final roots = _rootCategoriesForLanguage(_languageCode);
+    if (roots.isEmpty) return null;
+    for (final root in roots) {
+      final normalizedLabel = _normalizeNewsAddCategoryLabel(root.label);
+      final normalizedValue = _normalizeNewsAddCategoryLabel(root.value);
+      if (normalizedLabel == 'nigde' || normalizedValue == 'nigde') {
+        return root;
       }
     }
+    final current = _categoryByLabel(_mainCategory);
+    if (current != null && roots.any((root) => root.id == current.id)) {
+      return current;
+    }
+    return roots.first;
+  }
+
+  List<AdminNewsEditorCategory> _mainCategoriesForActiveTab() {
+    final roots = _rootCategoriesForLanguage(_languageCode);
+    if (!_usesScopedCategorySelection(_activeTab)) return roots;
+    final scopedRoot = _preferredScopedMainCategory();
+    return scopedRoot == null ? roots : [scopedRoot];
+  }
+
+  AdminNewsEditorCategory? _directFormatCategoryForTab(
+    NewsAddFormatTab tab, {
+    String? parentLabel,
+  }) {
+    for (final category in _childrenOfCategory(parentLabel ?? _mainCategory)) {
+      if (_matchesFormatCategory(category, tab)) return category;
+    }
     return null;
+  }
+
+  AdminNewsEditorCategory? _fallbackFormatCategoryForTab(
+    NewsAddFormatTab tab, {
+    String parentId = '',
+  }) {
+    final label = _newsAddFormatDefaultCategoryLabels[tab];
+    if (label == null || label.trim().isEmpty) return null;
+    return AdminNewsEditorCategory(
+      id: 'virtual-${tab.name}-${parentId.isEmpty ? 'root' : parentId}',
+      label: label,
+      parentId: parentId,
+      languageCode: _languageCode,
+      orderIndex: 10000 + tab.index,
+      type: 'category',
+      value: tab.name,
+    );
+  }
+
+  AdminNewsEditorCategory _virtualFormatCategoryForParent(
+    AdminNewsEditorCategory template,
+    AdminNewsEditorCategory parent,
+  ) {
+    return AdminNewsEditorCategory(
+      id: 'virtual-${parent.id}-${template.id}',
+      label: template.label,
+      parentId: parent.id,
+      languageCode: template.languageCode.isEmpty
+          ? _languageCode
+          : template.languageCode,
+      orderIndex: template.orderIndex,
+      type: template.type,
+      value: template.value,
+      icon: template.icon,
+    );
+  }
+
+  List<AdminNewsEditorCategory> _dedupeCategoriesByLabel(
+    Iterable<AdminNewsEditorCategory> categories,
+  ) {
+    final seen = <String>{};
+    final result = <AdminNewsEditorCategory>[];
+    for (final category in categories) {
+      final key = _normalizeNewsAddCategoryLabel(category.label);
+      if (key.isEmpty || !seen.add(key)) continue;
+      result.add(category);
+    }
+    return result;
+  }
+
+  List<AdminNewsEditorCategory> _subCategoriesForActiveTab() {
+    final children = _childrenOfCategory(_mainCategory);
+    if (!_usesScopedCategorySelection(_activeTab)) return children;
+    final directCategory =
+        _directFormatCategoryForTab(_activeTab) ??
+        _fallbackFormatCategoryForTab(
+          _activeTab,
+          parentId: _categoryByLabel(_mainCategory)?.id ?? '',
+        );
+    return _dedupeCategoriesByLabel([
+      ?directCategory,
+      ...children.where(_isDistrictCategory),
+    ]);
+  }
+
+  List<AdminNewsEditorCategory> _thirdCategoriesForActiveTab() {
+    if (!_usesScopedCategorySelection(_activeTab)) {
+      return _childrenOfCategory(_subCategory);
+    }
+    final selectedSubCategory = _categoryByLabel(_subCategory);
+    if (selectedSubCategory == null ||
+        !_isDistrictCategory(selectedSubCategory)) {
+      return const [];
+    }
+    final existing = _childrenOfCategory(_subCategory)
+        .where((category) => _matchesFormatCategory(category, _activeTab))
+        .toList(growable: false);
+    if (existing.isNotEmpty) return existing;
+    final rootTemplate =
+        _directFormatCategoryForTab(_activeTab) ??
+        _fallbackFormatCategoryForTab(_activeTab);
+    if (rootTemplate == null) return const [];
+    return [_virtualFormatCategoryForParent(rootTemplate, selectedSubCategory)];
+  }
+
+  AdminNewsEditorCategory? _defaultSubCategoryForTab(NewsAddFormatTab tab) {
+    if (!_usesScopedCategorySelection(tab)) return null;
+    return _directFormatCategoryForTab(tab) ??
+        _fallbackFormatCategoryForTab(
+          tab,
+          parentId: _categoryByLabel(_mainCategory)?.id ?? '',
+        );
   }
 
   bool _isCurrentTabDefaultSubCategory(String value) {
@@ -581,6 +894,45 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (autoSubCategory == null || autoSubCategory.isEmpty) return false;
     return _normalizeNewsAddCategoryLabel(value) ==
         _normalizeNewsAddCategoryLabel(autoSubCategory);
+  }
+
+  void _normalizeCategorySelectionForActiveTab() {
+    if (!_usesScopedCategorySelection(_activeTab)) return;
+    final allowedMainCategories = _mainCategoriesForActiveTab();
+    if (allowedMainCategories.isNotEmpty &&
+        !allowedMainCategories.any((item) => item.label == _mainCategory)) {
+      _mainCategory = allowedMainCategories.first.label;
+      _subCategory = null;
+      _thirdCategory = null;
+      _autoSubCategory = null;
+    }
+
+    final allowedSubCategories = _subCategoriesForActiveTab();
+    final currentSub = _subCategory?.trim() ?? '';
+    if (currentSub.isEmpty ||
+        !allowedSubCategories.any((item) => item.label == currentSub)) {
+      final defaultSubCategory = _defaultSubCategoryForTab(_activeTab);
+      _subCategory = defaultSubCategory?.label;
+      _thirdCategory = null;
+      _autoSubCategory = defaultSubCategory?.label;
+      return;
+    }
+
+    final selectedSubCategory = _categoryByLabel(currentSub);
+    if (selectedSubCategory != null &&
+        _matchesFormatCategory(selectedSubCategory, _activeTab)) {
+      _thirdCategory = null;
+      _autoSubCategory = selectedSubCategory.label;
+      return;
+    }
+
+    final allowedThirdCategories = _thirdCategoriesForActiveTab();
+    final currentThird = _thirdCategory?.trim() ?? '';
+    if (currentThird.isEmpty ||
+        !allowedThirdCategories.any((item) => item.label == currentThird)) {
+      _thirdCategory = null;
+    }
+    _autoSubCategory = null;
   }
 
   AdminNewsEditorCategory? _categoryById(String id) {
@@ -596,6 +948,14 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     final sub = _subCategory?.trim();
     if (sub != null && sub.isNotEmpty) return sub;
     return _mainCategory.trim();
+  }
+
+  List<String> get _selectedCategoryPath {
+    return [
+      _mainCategory.trim(),
+      if ((_subCategory ?? '').trim().isNotEmpty) _subCategory!.trim(),
+      if ((_thirdCategory ?? '').trim().isNotEmpty) _thirdCategory!.trim(),
+    ].where((value) => value.isNotEmpty).toList(growable: false);
   }
 
   void _replaceContentBlocks(List<Object> target, List<Object> next) {
@@ -846,6 +1206,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _replaceContentBlocks(_eventContentBlocks, blocks);
     }
     _enforceSingleHomepageSelection();
+    _normalizeCategorySelectionForActiveTab();
   }
 
   Iterable<Object> get _homepageSelectableBlocks sync* {
@@ -2403,6 +2764,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     } else {
       cardData['mansetImageUrl'] = mansetImageUrl;
     }
+    final categoryPath = _selectedCategoryPath;
+    if (categoryPath.isEmpty) {
+      cardData.remove('categoryPath');
+    } else {
+      cardData['categoryPath'] = categoryPath;
+    }
     Map<String, Object?>? featured = items
         .where((item) => item['showOnHomepage'] == true)
         .cast<Map<String, Object?>?>()
@@ -2900,6 +3267,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   }
 
   void _handleFormatTabChanged(NewsAddFormatTab tab) {
+    if (!_visibleFormatTabs.contains(tab)) return;
     unawaited(_confirmFormatTabChange(tab));
   }
 
@@ -2935,6 +3303,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             _normalizeNewsAddCategoryLabel(currentAutoSubCategory);
     _activeTab = tab;
     _schemaType = _defaultSchemaTypeForTab(tab);
+    if (_usesScopedCategorySelection(tab)) {
+      final scopedRoot = _preferredScopedMainCategory();
+      if (scopedRoot != null) _mainCategory = scopedRoot.label;
+    }
     final defaultSubCategory = _defaultSubCategoryForTab(tab);
     if (defaultSubCategory != null) {
       _subCategory = defaultSubCategory.label;
@@ -2947,6 +3319,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     } else {
       _autoSubCategory = null;
     }
+    _normalizeCategorySelectionForActiveTab();
   }
 
   void _handleTocStyleChanged(int level, String value) {
@@ -3989,6 +4362,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       children: [
         _ContentInfoCard(
           activeTab: _activeTab,
+          visibleTabs: _visibleFormatTabs,
+          formatTabsLoading: _formatSettingsLoading,
           onTabChanged: _handleFormatTabChanged,
           titleController: _titleController,
           summaryController: _summaryController,
@@ -5767,27 +6142,34 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           subCategory: _subCategory,
           thirdCategory: _thirdCategory,
           languages: _bootstrap.languages,
-          mainCategories: _rootCategoriesForLanguage(_languageCode),
-          subCategories: _childrenOfCategory(_mainCategory),
-          thirdCategories: _childrenOfCategory(_subCategory),
-          onLanguageChanged: (value) => setState(() {
-            _languageCode = value ?? 'tr';
-            final roots = _rootCategoriesForLanguage(_languageCode);
-            _mainCategory = roots.isEmpty ? '' : roots.first.label;
-            _subCategory = null;
-            _thirdCategory = null;
-            _autoSubCategory = null;
-          }),
+          mainCategories: _mainCategoriesForActiveTab(),
+          subCategories: _subCategoriesForActiveTab(),
+          thirdCategories: _thirdCategoriesForActiveTab(),
+          onLanguageChanged: (value) {
+            final nextLanguageCode = value ?? 'tr';
+            setState(() {
+              _languageCode = nextLanguageCode;
+              final roots = _rootCategoriesForLanguage(_languageCode);
+              _mainCategory = roots.isEmpty ? '' : roots.first.label;
+              _subCategory = null;
+              _thirdCategory = null;
+              _autoSubCategory = null;
+              _normalizeCategorySelectionForActiveTab();
+            });
+            unawaited(_loadFormatSettings(nextLanguageCode));
+          },
           onMainChanged: (value) => setState(() {
             _mainCategory = value ?? '';
             _subCategory = null;
             _thirdCategory = null;
             _autoSubCategory = null;
+            _normalizeCategorySelectionForActiveTab();
           }),
           onSubChanged: (value) => setState(() {
             _subCategory = value?.trim().isEmpty ?? true ? null : value;
             _thirdCategory = null;
             _autoSubCategory = null;
+            _normalizeCategorySelectionForActiveTab();
           }),
           onThirdChanged: (value) => setState(() {
             _thirdCategory = value?.trim().isEmpty ?? true ? null : value;
@@ -6372,9 +6754,16 @@ class _BackButton extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _FormatTabsStrip extends StatelessWidget {
-  const _FormatTabsStrip({required this.active, required this.onChanged});
+  const _FormatTabsStrip({
+    required this.active,
+    required this.visibleTabs,
+    required this.loading,
+    required this.onChanged,
+  });
 
   final NewsAddFormatTab active;
+  final List<NewsAddFormatTab> visibleTabs;
+  final bool loading;
   final ValueChanged<NewsAddFormatTab> onChanged;
 
   static const _tabs = <_TabInfo>[
@@ -6417,6 +6806,10 @@ class _FormatTabsStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tabs = [
+      for (final tab in visibleTabs)
+        if (_tabById[tab] != null) _tabById[tab]!,
+    ];
     return ClipRRect(
       borderRadius: const BorderRadius.only(
         topLeft: Radius.circular(AppRadius.value),
@@ -6428,24 +6821,37 @@ class _FormatTabsStrip extends StatelessWidget {
           border: Border(bottom: BorderSide(color: _newsAddStrongLine)),
         ),
         height: 102,
-        child: Row(
-          children: [
-            for (var i = 0; i < _tabs.length; i++) ...[
-              Expanded(
-                child: _FormatTabButton(
-                  info: _tabs[i],
-                  selected: _tabs[i].id == active,
-                  onTap: () => onChanged(_tabs[i].id),
+        child: loading && tabs.isEmpty
+            ? const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.actionRed,
+                  ),
                 ),
+              )
+            : Row(
+                children: [
+                  for (var i = 0; i < tabs.length; i++) ...[
+                    Expanded(
+                      child: _FormatTabButton(
+                        info: tabs[i],
+                        selected: tabs[i].id == active,
+                        onTap: () => onChanged(tabs[i].id),
+                      ),
+                    ),
+                    if (i != tabs.length - 1)
+                      Container(width: 1, color: _newsAddSoftLine),
+                  ],
+                ],
               ),
-              if (i != _tabs.length - 1)
-                Container(width: 1, color: _newsAddSoftLine),
-            ],
-          ],
-        ),
       ),
     );
   }
+
+  static final _tabById = {for (final tab in _tabs) tab.id: tab};
 }
 
 class _TabInfo {
@@ -7240,6 +7646,8 @@ class _MansetImageDialogFooter extends StatelessWidget {
 class _ContentInfoCard extends StatelessWidget {
   const _ContentInfoCard({
     required this.activeTab,
+    required this.visibleTabs,
+    required this.formatTabsLoading,
     required this.onTabChanged,
     required this.titleController,
     required this.summaryController,
@@ -7263,6 +7671,8 @@ class _ContentInfoCard extends StatelessWidget {
   });
 
   final NewsAddFormatTab activeTab;
+  final List<NewsAddFormatTab> visibleTabs;
+  final bool formatTabsLoading;
   final ValueChanged<NewsAddFormatTab> onTabChanged;
   final TextEditingController titleController;
   final TextEditingController summaryController;
@@ -7302,7 +7712,12 @@ class _ContentInfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _FormatTabsStrip(active: activeTab, onChanged: onTabChanged),
+          _FormatTabsStrip(
+            active: activeTab,
+            visibleTabs: visibleTabs,
+            loading: formatTabsLoading,
+            onChanged: onTabChanged,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
             child: Column(

@@ -572,6 +572,7 @@ export const dataService = {
             isPinned: post?.is_pinned ?? (cardData as any)?.isPinned ?? false,
             isManset: post?.show_in_manset ?? (cardData as any)?.isManset ?? false,
             publisherId: post?.publisher_id ?? (cardData as any)?.publisherId,
+            publisherHandle: post?.profiles?.username ?? (cardData as any)?.publisherHandle,
         };
 
         const items = Array.isArray(merged.items) ? merged.items : [];

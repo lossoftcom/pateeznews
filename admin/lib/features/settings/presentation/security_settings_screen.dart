@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -5,28 +7,46 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_security_settings_repository.dart';
 
 class SecuritySettingsScreen extends StatefulWidget {
-  const SecuritySettingsScreen({super.key});
+  const SecuritySettingsScreen({
+    super.key,
+    required this.session,
+    this.repository = const SupabaseAdminSecuritySettingsRepository(),
+  });
+
+  final AdminSession session;
+  final AdminSecuritySettingsRepository repository;
 
   @override
   State<SecuritySettingsScreen> createState() => _SecuritySettingsScreenState();
 }
 
 class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
-  final _maxLoginAttemptsController = TextEditingController(text: '5');
-  final _lockoutMinutesController = TextEditingController(text: '5');
-  final _minPasswordLengthController = TextEditingController(text: '4');
-  final _captchaSiteKeyController = TextEditingController(
-    text: '0x4AAAAAADX-exOt5-VKepP7',
-  );
-  final _captchaSecretKeyController = TextEditingController(text: '******');
+  final _maxLoginAttemptsController = TextEditingController();
+  final _lockoutMinutesController = TextEditingController();
+  final _minPasswordLengthController = TextEditingController();
+  final _captchaSiteKeyController = TextEditingController();
+  final _captchaSecretKeyController = TextEditingController();
 
   var _complexityRequired = false;
-  var _captchaEnabled = true;
+  var _captchaEnabled = false;
   var _postContentPolicy = _SecurityPolicyOptions.nofollow;
   var _interactionContentPolicy = _SecurityPolicyOptions.removeLinks;
   var _captchaProvider = _CaptchaProvider.cloudflare;
+  var _settings = AdminSecuritySettingsData.defaults('tr');
+  var _loadingSettings = true;
+  var _savingGeneral = false;
+  var _savingCaptcha = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSettings());
+  }
 
   @override
   void dispose() {
@@ -38,10 +58,150 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     super.dispose();
   }
 
+  Future<void> _loadSettings() async {
+    setState(() {
+      _loadingSettings = true;
+      _error = null;
+    });
+    try {
+      final settings = await widget.repository.fetchSettings('tr');
+      if (!mounted) return;
+      setState(() {
+        _settings = settings;
+        _applySettings(settings);
+        _loadingSettings = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _settings = AdminSecuritySettingsData.defaults('tr');
+        _applySettings(_settings);
+        _error = error.toString();
+        _loadingSettings = false;
+      });
+    }
+  }
+
+  void _applySettings(AdminSecuritySettingsData settings) {
+    _maxLoginAttemptsController.text = '${settings.maxLoginAttempts}';
+    _lockoutMinutesController.text = '${settings.lockoutMinutes}';
+    _minPasswordLengthController.text = '${settings.passwordMinLength}';
+    _complexityRequired = settings.passwordComplexityRequired;
+    _postContentPolicy = _postPolicyKey(settings.spamPostPolicy);
+    _interactionContentPolicy = _interactionPolicyKey(
+      settings.spamInteractionPolicy,
+    );
+    _captchaEnabled = settings.captchaEnabled;
+    _captchaProvider = _captchaProviderFromApi(settings.captchaProvider);
+    _captchaSiteKeyController.text = settings.captchaSiteKey;
+    _captchaSecretKeyController.text = settings.captchaSecretConfigured
+        ? AdminSecuritySettingsData.secretMask
+        : '';
+  }
+
   void _showSavedMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.t('securitySettings.saveSuccess'))),
     );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  int? _readInt(
+    TextEditingController controller, {
+    required int min,
+    required int max,
+  }) {
+    final value = int.tryParse(controller.text.trim());
+    if (value == null || value < min || value > max) return null;
+    return value;
+  }
+
+  Future<void> _saveGeneralSettings() async {
+    if (_savingGeneral || _loadingSettings) return;
+    final maxAttempts = _readInt(_maxLoginAttemptsController, min: 1, max: 20);
+    final lockoutMinutes = _readInt(
+      _lockoutMinutesController,
+      min: 1,
+      max: 1440,
+    );
+    final passwordMinLength = _readInt(
+      _minPasswordLengthController,
+      min: 4,
+      max: 128,
+    );
+    if (maxAttempts == null ||
+        lockoutMinutes == null ||
+        passwordMinLength == null) {
+      _showMessage('Güvenlik sayısal değerleri geçerli aralıkta olmalı.');
+      return;
+    }
+
+    setState(() => _savingGeneral = true);
+    try {
+      final saved = await widget.repository.saveSettings(
+        session: widget.session,
+        includeSecretKey: false,
+        settings: _settings.copyWith(
+          maxLoginAttempts: maxAttempts,
+          lockoutMinutes: lockoutMinutes,
+          passwordMinLength: passwordMinLength,
+          passwordComplexityRequired: _complexityRequired,
+          spamPostPolicy: _postPolicyApi(_postContentPolicy),
+          spamInteractionPolicy: _interactionPolicyApi(
+            _interactionContentPolicy,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _settings = saved;
+        _applySettings(saved);
+        _savingGeneral = false;
+      });
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _savingGeneral = false);
+      _showMessage('Güvenlik ayarları kaydedilemedi: $error');
+    }
+  }
+
+  Future<void> _saveCaptchaSettings() async {
+    if (_savingCaptcha || _loadingSettings) return;
+    final secretText = _captchaSecretKeyController.text.trim();
+    final includeSecretKey =
+        !(_settings.captchaSecretConfigured &&
+            secretText == AdminSecuritySettingsData.secretMask);
+
+    setState(() => _savingCaptcha = true);
+    try {
+      final saved = await widget.repository.saveSettings(
+        session: widget.session,
+        includeSecretKey: includeSecretKey,
+        settings: _settings.copyWith(
+          captchaEnabled: _captchaEnabled,
+          captchaProvider: _captchaProvider.toApiValue(),
+          captchaSiteKey: _captchaSiteKeyController.text.trim(),
+          captchaSecretKey: secretText,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _settings = saved;
+        _applySettings(saved);
+        _savingCaptcha = false;
+      });
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _savingCaptcha = false);
+      _showMessage('Captcha ayarları kaydedilemedi: $error');
+    }
   }
 
   @override
@@ -65,44 +225,51 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                 description: context.t('securitySettings.description'),
               ),
               const SizedBox(height: 22),
-              _SecurityContentGrid(
-                generalCard: _SecurityCard(
-                  title: context.t('securitySettings.general.title'),
-                  child: _GeneralSecurityPanel(
-                    maxLoginAttemptsController: _maxLoginAttemptsController,
-                    lockoutMinutesController: _lockoutMinutesController,
-                    minPasswordLengthController: _minPasswordLengthController,
-                    complexityRequired: _complexityRequired,
-                    postContentPolicy: _postContentPolicy,
-                    interactionContentPolicy: _interactionContentPolicy,
-                    onComplexityChanged: (value) =>
-                        setState(() => _complexityRequired = value),
-                    onPostPolicyChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _postContentPolicy = value);
-                    },
-                    onInteractionPolicyChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _interactionContentPolicy = value);
-                    },
-                    onSave: _showSavedMessage,
+              if (_loadingSettings)
+                const _SecurityLoadingPanel()
+              else if (_error != null)
+                _SecurityErrorPanel(message: _error!, onRetry: _loadSettings)
+              else
+                _SecurityContentGrid(
+                  generalCard: _SecurityCard(
+                    title: context.t('securitySettings.general.title'),
+                    child: _GeneralSecurityPanel(
+                      maxLoginAttemptsController: _maxLoginAttemptsController,
+                      lockoutMinutesController: _lockoutMinutesController,
+                      minPasswordLengthController: _minPasswordLengthController,
+                      complexityRequired: _complexityRequired,
+                      postContentPolicy: _postContentPolicy,
+                      interactionContentPolicy: _interactionContentPolicy,
+                      saving: _savingGeneral,
+                      onComplexityChanged: (value) =>
+                          setState(() => _complexityRequired = value),
+                      onPostPolicyChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _postContentPolicy = value);
+                      },
+                      onInteractionPolicyChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _interactionContentPolicy = value);
+                      },
+                      onSave: _saveGeneralSettings,
+                    ),
+                  ),
+                  captchaCard: _SecurityCard(
+                    title: context.t('securitySettings.captcha.title'),
+                    child: _CaptchaSettingsPanel(
+                      enabled: _captchaEnabled,
+                      provider: _captchaProvider,
+                      siteKeyController: _captchaSiteKeyController,
+                      secretKeyController: _captchaSecretKeyController,
+                      saving: _savingCaptcha,
+                      onEnabledChanged: (value) =>
+                          setState(() => _captchaEnabled = value),
+                      onProviderChanged: (provider) =>
+                          setState(() => _captchaProvider = provider),
+                      onSave: _saveCaptchaSettings,
+                    ),
                   ),
                 ),
-                captchaCard: _SecurityCard(
-                  title: context.t('securitySettings.captcha.title'),
-                  child: _CaptchaSettingsPanel(
-                    enabled: _captchaEnabled,
-                    provider: _captchaProvider,
-                    siteKeyController: _captchaSiteKeyController,
-                    secretKeyController: _captchaSecretKeyController,
-                    onEnabledChanged: (value) =>
-                        setState(() => _captchaEnabled = value),
-                    onProviderChanged: (provider) =>
-                        setState(() => _captchaProvider = provider),
-                    onSave: _showSavedMessage,
-                  ),
-                ),
-              ),
             ],
           ),
         );
@@ -140,6 +307,79 @@ class _SecurityHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SecurityLoadingPanel extends StatelessWidget {
+  const _SecurityLoadingPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 220,
+      child: Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.deepOcean,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SecurityErrorPanel extends StatelessWidget {
+  const _SecurityErrorPanel({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          TextButton(
+            onPressed: onRetry,
+            style:
+                TextButton.styleFrom(
+                  foregroundColor: AppColors.actionRed,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ).copyWith(
+                  mouseCursor: const WidgetStatePropertyAll(
+                    SystemMouseCursors.click,
+                  ),
+                ),
+            child: Text(context.t('Retry')),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -238,6 +478,7 @@ class _GeneralSecurityPanel extends StatelessWidget {
     required this.complexityRequired,
     required this.postContentPolicy,
     required this.interactionContentPolicy,
+    required this.saving,
     required this.onComplexityChanged,
     required this.onPostPolicyChanged,
     required this.onInteractionPolicyChanged,
@@ -250,6 +491,7 @@ class _GeneralSecurityPanel extends StatelessWidget {
   final bool complexityRequired;
   final String postContentPolicy;
   final String interactionContentPolicy;
+  final bool saving;
   final ValueChanged<bool> onComplexityChanged;
   final ValueChanged<String?> onPostPolicyChanged;
   final ValueChanged<String?> onInteractionPolicyChanged;
@@ -323,7 +565,7 @@ class _GeneralSecurityPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 28),
-        _SecuritySaveRow(onPressed: onSave),
+        _SecuritySaveRow(onPressed: onSave, saving: saving),
       ],
     );
   }
@@ -335,6 +577,7 @@ class _CaptchaSettingsPanel extends StatelessWidget {
     required this.provider,
     required this.siteKeyController,
     required this.secretKeyController,
+    required this.saving,
     required this.onEnabledChanged,
     required this.onProviderChanged,
     required this.onSave,
@@ -344,6 +587,7 @@ class _CaptchaSettingsPanel extends StatelessWidget {
   final _CaptchaProvider provider;
   final TextEditingController siteKeyController;
   final TextEditingController secretKeyController;
+  final bool saving;
   final ValueChanged<bool> onEnabledChanged;
   final ValueChanged<_CaptchaProvider> onProviderChanged;
   final VoidCallback onSave;
@@ -371,7 +615,7 @@ class _CaptchaSettingsPanel extends StatelessWidget {
           obscureText: true,
         ),
         const SizedBox(height: 20),
-        _SecuritySaveRow(onPressed: onSave),
+        _SecuritySaveRow(onPressed: onSave, saving: saving),
         const SizedBox(height: 22),
         const _CaptchaWarningBox(),
       ],
@@ -880,9 +1124,10 @@ class _SecurityCompactSwitch extends StatelessWidget {
 }
 
 class _SecuritySaveRow extends StatelessWidget {
-  const _SecuritySaveRow({required this.onPressed});
+  const _SecuritySaveRow({required this.onPressed, this.saving = false});
 
   final VoidCallback onPressed;
+  final bool saving;
 
   @override
   Widget build(BuildContext context) {
@@ -891,7 +1136,7 @@ class _SecuritySaveRow extends StatelessWidget {
       child: SizedBox(
         height: 38,
         child: TextButton(
-          onPressed: onPressed,
+          onPressed: saving ? null : onPressed,
           style:
               TextButton.styleFrom(
                 backgroundColor: AppColors.actionRed,
@@ -914,7 +1159,17 @@ class _SecuritySaveRow extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SymbolIcon(Symbols.check, color: Colors.white, size: 16),
+              if (saving)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              else
+                const SymbolIcon(Symbols.check, color: Colors.white, size: 16),
               const SizedBox(width: 8),
               Text(context.t('securitySettings.saveChanges')),
             ],
@@ -1026,4 +1281,49 @@ enum _CaptchaProvider {
   const _CaptchaProvider(this.labelKey);
 
   final String labelKey;
+
+  String toApiValue() {
+    return switch (this) {
+      _CaptchaProvider.cloudflare => 'cloudflare_turnstile',
+      _CaptchaProvider.recaptcha => 'google_recaptcha',
+    };
+  }
+}
+
+String _postPolicyKey(String value) {
+  return switch (value) {
+    'sanitize_html' => _SecurityPolicyOptions.sanitizeHtml,
+    'allow_trusted' => _SecurityPolicyOptions.allowTrusted,
+    _ => _SecurityPolicyOptions.nofollow,
+  };
+}
+
+String _postPolicyApi(String value) {
+  return switch (value) {
+    _SecurityPolicyOptions.sanitizeHtml => 'sanitize_html',
+    _SecurityPolicyOptions.allowTrusted => 'allow_trusted',
+    _ => 'nofollow',
+  };
+}
+
+String _interactionPolicyKey(String value) {
+  return switch (value) {
+    'nofollow' => _SecurityPolicyOptions.nofollow,
+    'sanitize_html' => _SecurityPolicyOptions.sanitizeHtml,
+    _ => _SecurityPolicyOptions.removeLinks,
+  };
+}
+
+String _interactionPolicyApi(String value) {
+  return switch (value) {
+    _SecurityPolicyOptions.nofollow => 'nofollow',
+    _SecurityPolicyOptions.sanitizeHtml => 'sanitize_html',
+    _ => 'remove_links',
+  };
+}
+
+_CaptchaProvider _captchaProviderFromApi(String value) {
+  return value == 'google_recaptcha'
+      ? _CaptchaProvider.recaptcha
+      : _CaptchaProvider.cloudflare;
 }

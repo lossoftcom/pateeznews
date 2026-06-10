@@ -63,6 +63,7 @@ class AdminNewsPost {
     required this.publisherName,
     required this.publisherUsername,
     required this.publisherEmail,
+    this.categoryPath = const [],
     this.parentCategory,
   });
 
@@ -83,6 +84,7 @@ class AdminNewsPost {
   final String publisherName;
   final String publisherUsername;
   final String publisherEmail;
+  final List<String> categoryPath;
   final String? parentCategory;
 
   bool get published => status == 'published';
@@ -164,6 +166,10 @@ class AdminNewsEditorCategory {
     required this.parentId,
     required this.languageCode,
     required this.orderIndex,
+    this.menuId = '',
+    this.type = '',
+    this.value = '',
+    this.icon = '',
   });
 
   final String id;
@@ -171,6 +177,10 @@ class AdminNewsEditorCategory {
   final String parentId;
   final String languageCode;
   final int orderIndex;
+  final String menuId;
+  final String type;
+  final String value;
+  final String icon;
 
   factory AdminNewsEditorCategory.fromJson(Map<dynamic, dynamic> json) {
     return AdminNewsEditorCategory(
@@ -179,6 +189,10 @@ class AdminNewsEditorCategory {
       parentId: json['parent_id']?.toString() ?? '',
       languageCode: json['language_code']?.toString() ?? '',
       orderIndex: _modelAsInt(json['order_index']),
+      menuId: json['menu_id']?.toString() ?? '',
+      type: json['type']?.toString() ?? '',
+      value: json['value']?.toString() ?? '',
+      icon: json['icon']?.toString() ?? '',
     );
   }
 }

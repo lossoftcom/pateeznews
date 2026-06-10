@@ -19,6 +19,7 @@ abstract class AdminNewsRepository {
     required String type,
     required String status,
     required String publisher,
+    required bool trash,
     required int page,
     required int pageSize,
     required String sortKey,
@@ -91,6 +92,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
     required String type,
     required String status,
     required String publisher,
+    required bool trash,
     required int page,
     required int pageSize,
     required String sortKey,
@@ -105,6 +107,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       'type': type,
       'status': status,
       'publisher': publisher,
+      'trash': trash,
       'page': safePage,
       'pageSize': pageSize,
       'sortKey': sortKey,
@@ -175,11 +178,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
 
   @override
   Future<void> deletePost(String postId) async {
-    final result = await _postJson('/api/admin/query', {
-      'table': 'posts',
-      'method': 'delete',
-      'filters': [_idFilter(postId)],
-    });
+    final result = await _postJson('/api/admin/news/delete', {'id': postId});
     _throwIfApiError(result, fallbackMessage: 'Haber silinemedi');
   }
 
@@ -187,13 +186,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
   Future<void> deletePosts(List<String> postIds) async {
     final ids = postIds.map(int.tryParse).whereType<int>().toList();
     if (ids.isEmpty) return;
-    final result = await _postJson('/api/admin/query', {
-      'table': 'posts',
-      'method': 'delete',
-      'filters': [
-        {'type': 'comparison', 'op': 'in', 'column': 'id', 'value': ids},
-      ],
-    });
+    final result = await _postJson('/api/admin/news/delete', {'ids': ids});
     _throwIfApiError(result, fallbackMessage: 'Seçili haberler silinemedi');
   }
 
@@ -209,9 +202,15 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
         ],
       }),
       _postJson('/api/admin/query', {
+        'table': 'navigation_menus',
+        'method': 'select',
+        'select': 'id,code',
+      }),
+      _postJson('/api/admin/query', {
         'table': 'navigation_items',
         'method': 'select',
-        'select': 'id,label,parent_id,language_code,order_index',
+        'select':
+            'id,menu_id,label,parent_id,language_code,order_index,type,value,icon',
         'orders': [
           {'column': 'order_index', 'ascending': true},
           {'column': 'label', 'ascending': true},
@@ -237,12 +236,28 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
     final languageRows = responses[0]['data'] is List
         ? (responses[0]['data'] as List).whereType<Map>().toList()
         : const <Map>[];
-    final categoryRows = responses[1]['data'] is List
+    final menuRows = responses[1]['data'] is List
         ? (responses[1]['data'] as List).whereType<Map>().toList()
         : const <Map>[];
-    final publisherRows = responses[2]['data'] is List
+    final rawCategoryRows = responses[2]['data'] is List
         ? (responses[2]['data'] as List).whereType<Map>().toList()
         : const <Map>[];
+    final publisherRows = responses[3]['data'] is List
+        ? (responses[3]['data'] as List).whereType<Map>().toList()
+        : const <Map>[];
+    final sidebarMenuIds = menuRows
+        .where((row) => row['code']?.toString() == 'sidebar_main')
+        .map((row) => row['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final categoryRows = sidebarMenuIds.isEmpty
+        ? rawCategoryRows
+        : rawCategoryRows
+              .where(
+                (row) =>
+                    sidebarMenuIds.contains(row['menu_id']?.toString() ?? ''),
+              )
+              .toList(growable: false);
 
     return AdminNewsEditorBootstrap(
       languages: [
@@ -382,6 +397,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       publisherName: _decodeText(profile['full_name']),
       publisherUsername: _decodeText(profile['username']),
       publisherEmail: _decodeText(profile['email']),
+      categoryPath: _stringList(json['category_path'] ?? json['categoryPath']),
       parentCategory: _decodeText(json['parent_category']),
     );
   }
@@ -556,6 +572,15 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  List<String> _stringList(Object? value) {
+    if (value is! List) return const [];
+    return [
+      for (final item in value)
+        if (item != null && item.toString().trim().isNotEmpty)
+          item.toString().trim(),
+    ];
   }
 
   void _throwIfApiError(

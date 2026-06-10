@@ -45,10 +45,14 @@ class NewsCard extends StatefulWidget {
     this.categoryTrail = const [],
     this.videoFeedArticles = const [],
     this.shellSettings = const AppShellSettings.empty(),
+    this.commentsEnabled = true,
+    this.commentApprovalEnabled = true,
+    this.emojiReactionsEnabled = true,
     this.authState,
     this.commentsRepository = const NewsCommentsRepository(),
     this.postActionRepository = const PostActionRepository(),
     this.onAuthRequired,
+    this.onAuthorTap,
     this.onFullscreenVideoExit,
   });
 
@@ -57,10 +61,14 @@ class NewsCard extends StatefulWidget {
   final List<String> categoryTrail;
   final List<NewsArticle> videoFeedArticles;
   final AppShellSettings shellSettings;
+  final bool commentsEnabled;
+  final bool commentApprovalEnabled;
+  final bool emojiReactionsEnabled;
   final FrontendAuthState? authState;
   final NewsCommentsRepository commentsRepository;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
 
   @override
@@ -75,6 +83,7 @@ class _NewsCardState extends State<NewsCard> {
   late int _dislikes = widget.article.dislikes;
   late int _shares = widget.article.shares;
   late int _saves = widget.article.saves;
+  late int _views = widget.article.views;
   late List<NewsComment> _comments = widget.article.previewComments;
   NewsComment? _replyTo;
   bool _commentBusy = false;
@@ -84,6 +93,7 @@ class _NewsCardState extends State<NewsCard> {
   bool _expandedCommentsFetched = false;
   String? _deletingCommentId;
   bool _postActionBusy = false;
+  bool _viewRecorded = false;
   double? _resolvedImageAspectRatio;
   ImageStream? _pendingImageStream;
   ImageStreamListener? _pendingImageListener;
@@ -104,11 +114,12 @@ class _NewsCardState extends State<NewsCard> {
       _resolveImageAspectRatio(widget.article);
     }
     if (oldWidget.article.id != widget.article.id) {
+      _viewRecorded = false;
       _syncPostActionStateFromArticle();
       _comments = widget.article.previewComments;
       _replyTo = null;
       _deletingCommentId = null;
-      _commentsVisible = true;
+      _commentsVisible = widget.commentsEnabled;
       _commentsExpanded = false;
       _commentsLoading = false;
       _expandedCommentsFetched = false;
@@ -120,11 +131,19 @@ class _NewsCardState extends State<NewsCard> {
     if (oldWidget.article.likes != widget.article.likes ||
         oldWidget.article.dislikes != widget.article.dislikes ||
         oldWidget.article.shares != widget.article.shares ||
+        oldWidget.article.views != widget.article.views ||
         oldWidget.article.saves != widget.article.saves ||
         oldWidget.article.userLiked != widget.article.userLiked ||
         oldWidget.article.userDisliked != widget.article.userDisliked ||
         oldWidget.article.userSaved != widget.article.userSaved) {
       _syncPostActionStateFromArticle();
+    }
+    if (oldWidget.commentsEnabled != widget.commentsEnabled &&
+        !widget.commentsEnabled) {
+      _commentsVisible = false;
+      _replyTo = null;
+      _commentsExpanded = false;
+      _commentsLoading = false;
     }
   }
 
@@ -139,17 +158,20 @@ class _NewsCardState extends State<NewsCard> {
     _dislikes = widget.article.dislikes;
     _shares = widget.article.shares;
     _saves = widget.article.saves;
+    _views = widget.article.views;
     _isLiked = widget.article.userLiked;
     _isDisliked = widget.article.userDisliked;
     _isSaved = widget.article.userSaved;
   }
 
   void _applyPostActionState(PostActionState state) {
+    if (!mounted) return;
     setState(() {
       _likes = state.likes;
       _dislikes = state.dislikes;
       _shares = state.shares;
       _saves = state.saves;
+      _views = state.views;
       _isLiked = state.liked;
       _isDisliked = state.disliked;
       _isSaved = state.saved;
@@ -317,6 +339,27 @@ class _NewsCardState extends State<NewsCard> {
     );
   }
 
+  Future<void> _recordRead(String source) async {
+    if (!_hasNumericPostId || _viewRecorded) return;
+    _viewRecorded = true;
+    try {
+      final token = _authToken;
+      final state = await widget.postActionRepository.recordView(
+        postId: widget.article.id,
+        token: token.isEmpty ? null : token,
+        source: source,
+      );
+      if (mounted) _applyPostActionState(state);
+    } catch (_) {
+      _viewRecorded = false;
+    }
+  }
+
+  void _handleCardTap() {
+    unawaited(_recordRead('open_detail'));
+    widget.onTap();
+  }
+
   _PostActionSnapshot _postActionSnapshot() => _PostActionSnapshot(
     likes: _likes,
     dislikes: _dislikes,
@@ -389,6 +432,7 @@ class _NewsCardState extends State<NewsCard> {
   }
 
   Future<bool> _submitComment(_InlineCommentDraft draft) async {
+    if (!widget.commentsEnabled) return false;
     if (!_hasNumericPostId) {
       _showCommentMessage(
         'Bu haber için yorum gönderilemiyor.',
@@ -419,7 +463,11 @@ class _NewsCardState extends State<NewsCard> {
         _replyTo = null;
         _expandedCommentsFetched = _commentsExpanded;
       });
-      _showCommentMessage('Yorum onaya gönderildi.');
+      _showCommentMessage(
+        widget.commentApprovalEnabled
+            ? 'Yorum onaya gönderildi.'
+            : 'Yorum yayınlandı.',
+      );
       return true;
     } on NewsCommentsException catch (error) {
       if (mounted) {
@@ -440,6 +488,7 @@ class _NewsCardState extends State<NewsCard> {
   }
 
   Future<void> _toggleCommentLike(NewsComment comment) async {
+    if (!widget.commentsEnabled) return;
     if (!_hasNumericPostId ||
         comment.id.isEmpty ||
         _commentBusy ||
@@ -508,6 +557,7 @@ class _NewsCardState extends State<NewsCard> {
   }
 
   Future<void> _deleteComment(NewsComment comment) async {
+    if (!widget.commentsEnabled) return;
     if (!_hasNumericPostId ||
         comment.id.isEmpty ||
         !comment.canDelete ||
@@ -552,6 +602,7 @@ class _NewsCardState extends State<NewsCard> {
   }
 
   Future<void> _ensureExpandedCommentsLoaded() async {
+    if (!widget.commentsEnabled) return;
     if (!_hasNumericPostId || _commentsLoading || _expandedCommentsFetched) {
       return;
     }
@@ -591,6 +642,7 @@ class _NewsCardState extends State<NewsCard> {
   }
 
   void _toggleCommentsFromActionBar() {
+    if (!widget.commentsEnabled) return;
     if (_commentBusy || _deletingCommentId != null) return;
     if (_commentsVisible) {
       setState(() {
@@ -607,6 +659,7 @@ class _NewsCardState extends State<NewsCard> {
   }
 
   void _toggleInlineCommentsExpanded() {
+    if (!widget.commentsEnabled) return;
     if (_commentBusy || _deletingCommentId != null || _commentsLoading) return;
     if (_commentsExpanded) {
       setState(() => _commentsExpanded = false);
@@ -674,7 +727,7 @@ class _NewsCardState extends State<NewsCard> {
     return Material(
       color: AppColors.surface,
       child: InkWell(
-        onTap: widget.onTap,
+        onTap: _handleCardTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -686,7 +739,10 @@ class _NewsCardState extends State<NewsCard> {
               shellSettings: widget.shellSettings,
               authState: widget.authState,
               postActionRepository: widget.postActionRepository,
+              onReadSignal: (source) => unawaited(_recordRead(source)),
+              onPostActionState: _applyPostActionState,
               onAuthRequired: widget.onAuthRequired,
+              onAuthorTap: widget.onAuthorTap,
               onFullscreenVideoExit: widget.onFullscreenVideoExit,
             ),
             // Sosyal medya kartlarında başlık _MediaStage içinde (embed üstünde)
@@ -696,7 +752,7 @@ class _NewsCardState extends State<NewsCard> {
               _Title(title: article.title),
               _Summary(summary: article.summary),
             ],
-            _ReadStats(article: article),
+            _ReadStats(article: article, views: _views),
             _ActionBar(
               article: article,
               isLiked: _isLiked,
@@ -710,26 +766,30 @@ class _NewsCardState extends State<NewsCard> {
               onDislike: _toggleDislike,
               onSave: _toggleSave,
               onShare: _shareArticle,
+              commentsEnabled: widget.commentsEnabled,
               commentsVisible: _commentsVisible,
               onCommentsToggle: _toggleCommentsFromActionBar,
             ),
-            _InlineCommentPreview(
-              comments: _comments,
-              totalCount: article.comments,
-              visible: _commentsVisible,
-              expanded: _commentsExpanded,
-              loadingMore: _commentsLoading,
-              authState: widget.authState,
-              replyTo: _replyTo,
-              submitting: _commentBusy,
-              deletingCommentId: _deletingCommentId,
-              onCancelReply: () => setState(() => _replyTo = null),
-              onReply: (comment) => setState(() => _replyTo = comment),
-              onLike: _toggleCommentLike,
-              onDelete: _deleteComment,
-              onToggleExpanded: _toggleInlineCommentsExpanded,
-              onSubmit: _submitComment,
-            ),
+            if (widget.commentsEnabled)
+              _InlineCommentPreview(
+                comments: _comments,
+                totalCount: article.comments,
+                visible: _commentsVisible,
+                expanded: _commentsExpanded,
+                loadingMore: _commentsLoading,
+                authState: widget.authState,
+                replyTo: _replyTo,
+                submitting: _commentBusy,
+                deletingCommentId: _deletingCommentId,
+                emojiReactionsEnabled: widget.emojiReactionsEnabled,
+                onCancelReply: () => setState(() => _replyTo = null),
+                onReply: (comment) => setState(() => _replyTo = comment),
+                onLike: _toggleCommentLike,
+                onDelete: _deleteComment,
+                onToggleExpanded: _toggleInlineCommentsExpanded,
+                onSubmit: _submitComment,
+                onAuthorTap: widget.onAuthorTap,
+              ),
           ],
         ),
       ),
@@ -762,10 +822,15 @@ class _PostActionSnapshot {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeaderOverlay extends StatelessWidget {
-  const _HeaderOverlay({required this.article, required this.categoryTrail});
+  const _HeaderOverlay({
+    required this.article,
+    required this.categoryTrail,
+    required this.onAuthorTap,
+  });
 
   final NewsArticle article;
   final List<String> categoryTrail;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -775,17 +840,25 @@ class _HeaderOverlay extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _Avatar(author: author),
+          _AuthorTapTarget(
+            author: author,
+            onAuthorTap: onAuthorTap,
+            child: _Avatar(author: author),
+          ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _NameLine(author: author),
-                const SizedBox(height: 3),
-                _Meta(article: article, categoryTrail: categoryTrail),
-              ],
+            child: _AuthorTapTarget(
+              author: author,
+              onAuthorTap: onAuthorTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _NameLine(author: author),
+                  const SizedBox(height: 3),
+                  _Meta(article: article, categoryTrail: categoryTrail),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 4),
@@ -805,10 +878,12 @@ class _SocialArticleHeader extends StatelessWidget {
   const _SocialArticleHeader({
     required this.article,
     required this.categoryTrail,
+    required this.onAuthorTap,
   });
 
   final NewsArticle article;
   final List<String> categoryTrail;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -828,17 +903,25 @@ class _SocialArticleHeader extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _Avatar(author: author),
+            _AuthorTapTarget(
+              author: author,
+              onAuthorTap: onAuthorTap,
+              child: _Avatar(author: author),
+            ),
             const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SocialNameLine(author: author),
-                  const SizedBox(height: 3),
-                  _SocialMeta(article: article, categoryTrail: categoryTrail),
-                ],
+              child: _AuthorTapTarget(
+                author: author,
+                onAuthorTap: onAuthorTap,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SocialNameLine(author: author),
+                    const SizedBox(height: 3),
+                    _SocialMeta(article: article, categoryTrail: categoryTrail),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 4),
@@ -851,6 +934,32 @@ class _SocialArticleHeader extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AuthorTapTarget extends StatelessWidget {
+  const _AuthorTapTarget({
+    required this.author,
+    required this.child,
+    required this.onAuthorTap,
+  });
+
+  final NewsAuthor author;
+  final Widget child;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final onTap = onAuthorTap;
+    if (onTap == null ||
+        (author.id.trim().isEmpty && (author.handle ?? '').trim().isEmpty)) {
+      return child;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onTap(author),
+      child: child,
     );
   }
 }
@@ -1316,9 +1425,10 @@ class _Summary extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ReadStats extends StatelessWidget {
-  const _ReadStats({required this.article});
+  const _ReadStats({required this.article, required this.views});
 
   final NewsArticle article;
+  final int views;
 
   @override
   Widget build(BuildContext context) {
@@ -1365,7 +1475,7 @@ class _ReadStats extends StatelessWidget {
                 color: AppColors.placeholderSoft,
               ),
               const SizedBox(width: 5),
-              Text('${CountFormat.compact(article.views)} görüntüleme'),
+              Text('${CountFormat.compact(views)} görüntüleme'),
             ],
           ),
         ),
@@ -1387,7 +1497,10 @@ class _MediaStage extends StatelessWidget {
     required this.shellSettings,
     required this.authState,
     required this.postActionRepository,
+    required this.onReadSignal,
+    required this.onPostActionState,
     required this.onAuthRequired,
+    required this.onAuthorTap,
     required this.onFullscreenVideoExit,
   });
 
@@ -1398,7 +1511,10 @@ class _MediaStage extends StatelessWidget {
   final AppShellSettings shellSettings;
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
+  final ValueChanged<String> onReadSignal;
+  final ValueChanged<PostActionState> onPostActionState;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
 
   static const double _fallbackAspectRatio = 3 / 2;
@@ -1411,7 +1527,11 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(article: article, categoryTrail: categoryTrail),
+          _SocialArticleHeader(
+            article: article,
+            categoryTrail: categoryTrail,
+            onAuthorTap: onAuthorTap,
+          ),
           _Title(title: article.title),
           _QuoteView(data: quote),
         ],
@@ -1423,7 +1543,11 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(article: article, categoryTrail: categoryTrail),
+          _SocialArticleHeader(
+            article: article,
+            categoryTrail: categoryTrail,
+            onAuthorTap: onAuthorTap,
+          ),
           _ReviewView(
             data: review,
             summary: article.summary,
@@ -1438,12 +1562,17 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(article: article, categoryTrail: categoryTrail),
+          _SocialArticleHeader(
+            article: article,
+            categoryTrail: categoryTrail,
+            onAuthorTap: onAuthorTap,
+          ),
           _PollView(
             data: poll,
             coverImage: article.imageUrl,
             headline: article.title,
             summary: article.summary,
+            onVoteRecorded: () => onReadSignal('poll_vote'),
           ),
         ],
       );
@@ -1454,12 +1583,17 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(article: article, categoryTrail: categoryTrail),
+          _SocialArticleHeader(
+            article: article,
+            categoryTrail: categoryTrail,
+            onAuthorTap: onAuthorTap,
+          ),
           _VsView(
             data: vs,
             coverImage: article.imageUrl,
             headline: article.title,
             summary: article.summary,
+            onVoteRecorded: () => onReadSignal('vs_vote'),
           ),
         ],
       );
@@ -1472,8 +1606,17 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(article: article, categoryTrail: categoryTrail),
-          ClipRRect(child: _FlipCardView(flip: flip)),
+          _SocialArticleHeader(
+            article: article,
+            categoryTrail: categoryTrail,
+            onAuthorTap: onAuthorTap,
+          ),
+          ClipRRect(
+            child: _FlipCardView(
+              flip: flip,
+              onFlipRecorded: () => onReadSignal('flip_card'),
+            ),
+          ),
         ],
       );
     }
@@ -1485,8 +1628,17 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(article: article, categoryTrail: categoryTrail),
-          ClipRRect(child: _BeforeAfterView(data: beforeAfter)),
+          _SocialArticleHeader(
+            article: article,
+            categoryTrail: categoryTrail,
+            onAuthorTap: onAuthorTap,
+          ),
+          ClipRRect(
+            child: _BeforeAfterView(
+              data: beforeAfter,
+              onInteractionRecorded: () => onReadSignal('before_after'),
+            ),
+          ),
         ],
       );
     }
@@ -1495,7 +1647,11 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(article: article, categoryTrail: categoryTrail),
+          _SocialArticleHeader(
+            article: article,
+            categoryTrail: categoryTrail,
+            onAuthorTap: onAuthorTap,
+          ),
           // Sosyal medya kartında haber başlığı header'ın altında, embed'in
           // üstünde görünür (normal kartlarda başlık medyanın altında kalır).
           _Title(title: article.title),
@@ -1512,13 +1668,16 @@ class _MediaStage extends StatelessWidget {
       return ClipRRect(
         key: const ValueKey<String>('news-card-cover-stage'),
         child: NewsVideoPlayer(
+          postId: article.id,
           url: primaryVideoUrl,
           poster: article.imageUrl,
           fullscreenLogoUrl: _fullscreenLogoUrl,
           fullscreenFeed: _videoFeedItems(),
           authState: authState,
           postActionRepository: postActionRepository,
+          onViewStateChanged: onPostActionState,
           onAuthRequired: onAuthRequired,
+          onAuthorTap: onAuthorTap,
           onFullscreenVideoExit: _handleFullscreenVideoExit,
           topOverlay: Stack(
             fit: StackFit.expand,
@@ -1536,6 +1695,7 @@ class _MediaStage extends StatelessWidget {
                 child: _HeaderOverlay(
                   article: article,
                   categoryTrail: categoryTrail,
+                  onAuthorTap: onAuthorTap,
                 ),
               ),
             ],
@@ -1562,6 +1722,7 @@ class _MediaStage extends StatelessWidget {
               child: _HeaderOverlay(
                 article: article,
                 categoryTrail: categoryTrail,
+                onAuthorTap: onAuthorTap,
               ),
             ),
           ],
@@ -1592,6 +1753,7 @@ class _MediaStage extends StatelessWidget {
               child: _HeaderOverlay(
                 article: article,
                 categoryTrail: categoryTrail,
+                onAuthorTap: onAuthorTap,
               ),
             ),
           ],
@@ -1604,22 +1766,26 @@ class _MediaStage extends StatelessWidget {
     final source = videoFeedArticles.isEmpty
         ? <NewsArticle>[article]
         : videoFeedArticles;
-    return [
-      for (final item in source)
-        for (final url in item.videoFeedUrls)
+    final items = <NewsVideoFeedItem>[];
+    for (final item in source) {
+      final urls = item.videoFeedUrls;
+      for (var index = 0; index < urls.length; index += 1) {
+        final url = urls[index];
+        final trail = item.id == article.id
+            ? categoryTrail
+            : _fallbackCategoryTrail(item);
+        items.add(
           NewsVideoFeedItem(
             postId: item.id,
             url: url,
-            poster: item.imageUrl,
+            poster: item.videoFeedPosterFor(url, index),
             slug: item.slug,
             publishedAt: item.publishedAt,
             title: item.title,
             author: item.author,
             region: item.region,
             category: item.category,
-            categoryTrail: item.id == article.id
-                ? categoryTrail
-                : _fallbackCategoryTrail(item),
+            categoryTrail: trail,
             likes: item.likes,
             dislikes: item.dislikes,
             comments: item.comments,
@@ -1644,15 +1810,17 @@ class _MediaStage extends StatelessWidget {
                   right: 0,
                   child: _HeaderOverlay(
                     article: item,
-                    categoryTrail: item.id == article.id
-                        ? categoryTrail
-                        : _fallbackCategoryTrail(item),
+                    categoryTrail: trail,
+                    onAuthorTap: onAuthorTap,
                   ),
                 ),
               ],
             ),
           ),
-    ];
+        );
+      }
+    }
+    return items;
   }
 
   void _handleFullscreenVideoExit(NewsVideoFeedItem _) {
@@ -2454,12 +2622,14 @@ class _PollView extends StatefulWidget {
     required this.coverImage,
     required this.headline,
     required this.summary,
+    required this.onVoteRecorded,
   });
 
   final NewsPollData data;
   final String coverImage;
   final String headline;
   final String summary;
+  final VoidCallback onVoteRecorded;
 
   @override
   State<_PollView> createState() => _PollViewState();
@@ -2471,6 +2641,7 @@ class _PollViewState extends State<_PollView> {
   void _vote(NewsPollOption option) {
     if (_selectedOptionId != null) return;
     setState(() => _selectedOptionId = option.id);
+    widget.onVoteRecorded();
   }
 
   @override
@@ -3352,12 +3523,14 @@ class _VsView extends StatefulWidget {
     required this.coverImage,
     required this.headline,
     required this.summary,
+    required this.onVoteRecorded,
   });
 
   final NewsVsData data;
   final String coverImage;
   final String headline;
   final String summary;
+  final VoidCallback onVoteRecorded;
 
   @override
   State<_VsView> createState() => _VsViewState();
@@ -3369,6 +3542,7 @@ class _VsViewState extends State<_VsView> {
   void _vote(NewsVsOption option) {
     if (_selectedOptionId != null) return;
     setState(() => _selectedOptionId = option.id);
+    widget.onVoteRecorded();
   }
 
   @override
@@ -4249,9 +4423,10 @@ const Duration _kFlipCoachPulseDuration = Duration(milliseconds: 2600);
 const Duration _kFlipCoachRepeatInterval = Duration(seconds: 13);
 
 class _FlipCardView extends StatefulWidget {
-  const _FlipCardView({required this.flip});
+  const _FlipCardView({required this.flip, required this.onFlipRecorded});
 
   final NewsFlipData flip;
+  final VoidCallback onFlipRecorded;
 
   @override
   State<_FlipCardView> createState() => _FlipCardViewState();
@@ -4303,6 +4478,7 @@ class _FlipCardViewState extends State<_FlipCardView>
 
   void _flip() {
     if (_controller.isAnimating) return;
+    final firstFlip = !_hasFlipped;
     if (_showingFront) {
       _controller.forward();
     } else {
@@ -4316,6 +4492,7 @@ class _FlipCardViewState extends State<_FlipCardView>
       _showingFront = !_showingFront;
       _showCoach = false;
     });
+    if (firstFlip) widget.onFlipRecorded();
   }
 
   @override
@@ -4776,9 +4953,13 @@ class _FlipCoachGlyphState extends State<_FlipCoachGlyph>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BeforeAfterView extends StatefulWidget {
-  const _BeforeAfterView({required this.data});
+  const _BeforeAfterView({
+    required this.data,
+    required this.onInteractionRecorded,
+  });
 
   final NewsBeforeAfterData data;
+  final VoidCallback onInteractionRecorded;
 
   @override
   State<_BeforeAfterView> createState() => _BeforeAfterViewState();
@@ -4868,12 +5049,14 @@ class _BeforeAfterViewState extends State<_BeforeAfterView>
 
   void _dragTo(double dx, double width) {
     if (width <= 0) return;
+    widget.onInteractionRecorded();
     _slide.stop();
     _slide.value = (dx / width).clamp(_minEdge, _maxEdge);
   }
 
   void _glideTo(double dx, double width) {
     if (width <= 0) return;
+    widget.onInteractionRecorded();
     _slide.animateTo(
       (dx / width).clamp(_minEdge, _maxEdge),
       duration: const Duration(milliseconds: 320),
@@ -5298,6 +5481,7 @@ class _ActionBar extends StatelessWidget {
     required this.onDislike,
     required this.onSave,
     required this.onShare,
+    required this.commentsEnabled,
     required this.commentsVisible,
     required this.onCommentsToggle,
   });
@@ -5314,6 +5498,7 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback onDislike;
   final VoidCallback onSave;
   final VoidCallback onShare;
+  final bool commentsEnabled;
   final bool commentsVisible;
   final VoidCallback onCommentsToggle;
 
@@ -5355,15 +5540,16 @@ class _ActionBar extends StatelessWidget {
                       onTap: onDislike,
                       iconSize: 23,
                     ),
-                    SocialAction(
-                      glyph: PateezSocialGlyph.conversation,
-                      isActive: commentsVisible,
-                      activeColor: AppColors.deepOcean,
-                      semanticLabel: 'Yorumlar',
-                      count: article.comments,
-                      onTap: onCommentsToggle,
-                      iconSize: 26,
-                    ),
+                    if (commentsEnabled)
+                      SocialAction(
+                        glyph: PateezSocialGlyph.conversation,
+                        isActive: commentsVisible,
+                        activeColor: AppColors.deepOcean,
+                        semanticLabel: 'Yorumlar',
+                        count: article.comments,
+                        onTap: onCommentsToggle,
+                        iconSize: 26,
+                      ),
                     SocialAction(
                       glyph: PateezSocialGlyph.forwardShare,
                       isActive: false,
@@ -5476,12 +5662,14 @@ class _InlineCommentPreview extends StatelessWidget {
     required this.replyTo,
     required this.submitting,
     required this.deletingCommentId,
+    required this.emojiReactionsEnabled,
     required this.onCancelReply,
     required this.onReply,
     required this.onLike,
     required this.onDelete,
     required this.onToggleExpanded,
     required this.onSubmit,
+    required this.onAuthorTap,
   });
 
   final List<NewsComment> comments;
@@ -5493,12 +5681,14 @@ class _InlineCommentPreview extends StatelessWidget {
   final NewsComment? replyTo;
   final bool submitting;
   final String? deletingCommentId;
+  final bool emojiReactionsEnabled;
   final VoidCallback onCancelReply;
   final ValueChanged<NewsComment> onReply;
   final ValueChanged<NewsComment> onLike;
   final ValueChanged<NewsComment> onDelete;
   final VoidCallback onToggleExpanded;
   final Future<bool> Function(_InlineCommentDraft draft) onSubmit;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -5540,12 +5730,14 @@ class _InlineCommentPreview extends StatelessWidget {
                           onReply: onReply,
                           onDelete: onDelete,
                           onToggleExpanded: onToggleExpanded,
+                          onAuthorTap: onAuthorTap,
                         ),
                       ),
                     _InlineCommentComposer(
                       authState: authState,
                       replyTo: replyTo,
                       submitting: submitting,
+                      emojiReactionsEnabled: emojiReactionsEnabled,
                       onCancelReply: onCancelReply,
                       onSubmit: onSubmit,
                     ),
@@ -5569,6 +5761,7 @@ class _InlineCommentList extends StatelessWidget {
     required this.onReply,
     required this.onDelete,
     required this.onToggleExpanded,
+    required this.onAuthorTap,
   });
 
   final List<NewsComment> comments;
@@ -5580,6 +5773,7 @@ class _InlineCommentList extends StatelessWidget {
   final ValueChanged<NewsComment> onReply;
   final ValueChanged<NewsComment> onDelete;
   final VoidCallback onToggleExpanded;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -5606,6 +5800,7 @@ class _InlineCommentList extends StatelessWidget {
           onLike: onLike,
           onReply: onReply,
           onDelete: onDelete,
+          onAuthorTap: onAuthorTap,
         ),
       );
     }
@@ -5707,6 +5902,7 @@ class _InlineCommentComposer extends StatefulWidget {
     required this.authState,
     required this.replyTo,
     required this.submitting,
+    required this.emojiReactionsEnabled,
     required this.onCancelReply,
     required this.onSubmit,
   });
@@ -5714,6 +5910,7 @@ class _InlineCommentComposer extends StatefulWidget {
   final FrontendAuthState? authState;
   final NewsComment? replyTo;
   final bool submitting;
+  final bool emojiReactionsEnabled;
   final VoidCallback onCancelReply;
   final Future<bool> Function(_InlineCommentDraft draft) onSubmit;
 
@@ -5750,6 +5947,10 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
   void didUpdateWidget(covariant _InlineCommentComposer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.authState != widget.authState) _syncCanSend();
+    if (oldWidget.emojiReactionsEnabled != widget.emojiReactionsEnabled &&
+        !widget.emojiReactionsEnabled) {
+      _emojiPanelOpen = false;
+    }
     if (oldWidget.replyTo?.id != widget.replyTo?.id && widget.replyTo != null) {
       _emojiPanelOpen = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -5832,6 +6033,7 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
   }
 
   void _toggleEmojiPanel() {
+    if (!widget.emojiReactionsEnabled) return;
     final nextOpen = !_emojiPanelOpen;
     setState(() => _emojiPanelOpen = nextOpen);
     if (nextOpen) {
@@ -5879,7 +6081,10 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
   @override
   Widget build(BuildContext context) {
     final active =
-        _focused || _canSend || widget.replyTo != null || _emojiPanelOpen;
+        _focused ||
+        _canSend ||
+        widget.replyTo != null ||
+        (widget.emojiReactionsEnabled && _emojiPanelOpen);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {},
@@ -5993,11 +6198,13 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _InlineEmojiToggleButton(
-                  active: _emojiPanelOpen,
-                  onTap: _toggleEmojiPanel,
-                ),
-                const SizedBox(width: 2),
+                if (widget.emojiReactionsEnabled) ...[
+                  _InlineEmojiToggleButton(
+                    active: _emojiPanelOpen,
+                    onTap: _toggleEmojiPanel,
+                  ),
+                  const SizedBox(width: 2),
+                ],
                 _InlineSendTextButton(
                   canSend: _canSend && !widget.submitting,
                   submitting: widget.submitting,
@@ -6009,7 +6216,7 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
               duration: const Duration(milliseconds: 180),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
-              child: _emojiPanelOpen
+              child: widget.emojiReactionsEnabled && _emojiPanelOpen
                   ? Padding(
                       key: const ValueKey<String>(
                         'news-card-inline-emoji-panel',
@@ -6529,6 +6736,7 @@ class _InlineCommentTile extends StatelessWidget {
     required this.onLike,
     required this.onReply,
     required this.onDelete,
+    required this.onAuthorTap,
   });
 
   final NewsComment comment;
@@ -6537,20 +6745,29 @@ class _InlineCommentTile extends StatelessWidget {
   final ValueChanged<NewsComment> onLike;
   final ValueChanged<NewsComment> onReply;
   final ValueChanged<NewsComment> onDelete;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _InlineCommentAvatar(author: comment.author, size: 29),
+        _AuthorTapTarget(
+          author: comment.author,
+          onAuthorTap: onAuthorTap,
+          child: _InlineCommentAvatar(author: comment.author, size: 29),
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _InlineCommentAuthorLine(author: comment.author),
+              _AuthorTapTarget(
+                author: comment.author,
+                onAuthorTap: onAuthorTap,
+                child: _InlineCommentAuthorLine(author: comment.author),
+              ),
               const SizedBox(height: 2),
               Text(
                 comment.body,
@@ -6578,6 +6795,7 @@ class _InlineCommentTile extends StatelessWidget {
                   onLike: onLike,
                   onReply: onReply,
                   onDelete: onDelete,
+                  onAuthorTap: onAuthorTap,
                 ),
               ],
             ],
@@ -6596,6 +6814,7 @@ class _InlineReplyTrail extends StatelessWidget {
     required this.onLike,
     required this.onReply,
     required this.onDelete,
+    required this.onAuthorTap,
   });
 
   final NewsComment reply;
@@ -6604,6 +6823,7 @@ class _InlineReplyTrail extends StatelessWidget {
   final ValueChanged<NewsComment> onLike;
   final ValueChanged<NewsComment> onReply;
   final ValueChanged<NewsComment> onDelete;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -6620,14 +6840,25 @@ class _InlineReplyTrail extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _InlineCommentAvatar(author: reply.author, size: 24),
+          _AuthorTapTarget(
+            author: reply.author,
+            onAuthorTap: onAuthorTap,
+            child: _InlineCommentAvatar(author: reply.author, size: 24),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _InlineCommentAuthorLine(author: reply.author, compact: true),
+                _AuthorTapTarget(
+                  author: reply.author,
+                  onAuthorTap: onAuthorTap,
+                  child: _InlineCommentAuthorLine(
+                    author: reply.author,
+                    compact: true,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   reply.body,
@@ -6656,6 +6887,7 @@ class _InlineReplyTrail extends StatelessWidget {
                     onLike: onLike,
                     onReply: onReply,
                     onDelete: onDelete,
+                    onAuthorTap: onAuthorTap,
                   ),
               ],
             ),

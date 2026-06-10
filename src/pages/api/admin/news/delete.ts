@@ -4,7 +4,7 @@ import { dbQuery } from '@/lib/server/supabaseDb';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    await requireAdminRequest(request, 'manage_content');
+    const adminContext = await requireAdminRequest(request, 'manage_content');
     const body = await request.json();
     const ids = (Array.isArray(body?.ids) ? body.ids : [body?.id])
       .map((value: unknown) => Number(value))
@@ -12,13 +12,21 @@ export const POST: APIRoute = async ({ request }) => {
     if (!ids.length) return adminJson({ data: null, error: { message: 'At least one post id is required' } }, 400);
 
     const result = await dbQuery(
-      `DELETE FROM public.posts
+      `UPDATE public.posts
+       SET
+         deleted_at = COALESCE(deleted_at, now()),
+         deleted_by = $2,
+         deleted_from_status = COALESCE(deleted_from_status, NULLIF(status, 'trash'), 'draft'),
+         status = 'trash',
+         is_pinned = false,
+         updated_at = now()
        WHERE id = ANY($1::bigint[])
+         AND deleted_at IS NULL
        RETURNING id`,
-      [ids]
+      [ids, adminContext.profile.id]
     );
 
-    return adminJson({ data: { deleted: result.rows.map((row) => row.id) }, error: null });
+    return adminJson({ data: { trashed: result.rows.map((row) => row.id) }, error: null });
   } catch (error) {
     return adminError(error);
   }

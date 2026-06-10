@@ -18,7 +18,9 @@ import '../../apps/data/app_item.dart';
 import '../../apps/presentation/app_feature_screen.dart';
 import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
+import '../../etkinlik/data/etkinlik_mock.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
+import '../../home/data/home_repository.dart';
 import '../../home/presentation/home_screen.dart';
 import '../../home/presentation/video_feed_screen.dart';
 import '../../home/presentation/widgets/news_video_player.dart';
@@ -32,6 +34,7 @@ import '../../pharmacy/presentation/pharmacy_screen.dart';
 import '../../prayer_times/data/prayer_times_repository.dart';
 import '../../prayer_times/presentation/prayer_times_screen.dart';
 import '../../profile/data/profile_content.dart';
+import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_screen.dart';
 import '../../weather/data/weather_repository.dart';
 import '../../weather/presentation/weather_screen.dart';
@@ -54,15 +57,20 @@ class ShellScreen extends StatefulWidget {
     this.weatherData = const WeatherData.empty(),
     this.marketsData = const MarketsData.empty(),
     this.prayerTimesData = const PrayerTimesData.empty(),
+    this.eventItems = const [],
     this.announcementData = const AnnouncementData.empty(),
+    this.contentSettings = const HomeContentSettings.defaults(),
     this.featuredItems = const [],
     this.homeFeedItems = const [],
     this.onRefreshHome,
     this.authState,
+    this.profileData,
+    this.profileRepository = const ProfileRepository(),
     this.authLoading = false,
     this.onSignIn,
     this.onSignOut,
     this.onOpenAdminPanel,
+    this.onProfileUpdated,
   });
 
   final Widget? accountPage;
@@ -72,15 +80,20 @@ class ShellScreen extends StatefulWidget {
   final WeatherData weatherData;
   final MarketsData marketsData;
   final PrayerTimesData prayerTimesData;
+  final List<EtkinlikEvent> eventItems;
   final AnnouncementData announcementData;
+  final HomeContentSettings contentSettings;
   final List<FeaturedNews> featuredItems;
   final List<NewsArticle> homeFeedItems;
   final Future<void> Function()? onRefreshHome;
   final FrontendAuthState? authState;
+  final ProfileData? profileData;
+  final ProfileRepository profileRepository;
   final bool authLoading;
   final FrontendSignInCallback? onSignIn;
   final Future<void> Function()? onSignOut;
   final Future<void> Function()? onOpenAdminPanel;
+  final ValueChanged<ProfileSaveResult>? onProfileUpdated;
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
@@ -163,6 +176,7 @@ class _ShellScreenState extends State<ShellScreen>
                     authLoading: widget.authLoading,
                     onSignIn: widget.onSignIn,
                     onSignOut: widget.onSignOut,
+                    shellSettings: widget.shellData.siteSettings,
                   ),
             ),
           ),
@@ -224,6 +238,7 @@ class _ShellScreenState extends State<ShellScreen>
           pageBuilder: (_, _, _) => NewsFullscreenVideoFeedPage(
             items: items,
             authState: widget.authState,
+            onAuthorTap: _openAuthorProfile,
             onAuthRequired: _openAccountForRequiredAuth,
           ),
           transitionsBuilder: (context, animation, secondary, child) {
@@ -252,30 +267,72 @@ class _ShellScreenState extends State<ShellScreen>
     });
   }
 
-  /// Hesap menüsündeki "Profilim" bu sayfayı açar. Kimlik alanları (ad,
-  /// kullanıcı adı, e‑posta, avatar, rol) oturum açan hesaptan beslenir;
-  /// istatistik/gönderi gibi alanlar şimdilik örnek veridir (backend bağlanınca
-  /// gerçeğiyle değişir). "Profili Düzenle" mevcut hesap ekranına götürür.
+  void _returnHomeFromProfile() {
+    if (!mounted) return;
+    _closeAccountMenu();
+    _closeAppsSheet();
+    setState(() => _index = 0);
+  }
+
+  /// Hesap menüsündeki "Profilim" bu sayfayı açar. Splash canlı profili
+  /// tamamlayamadıysa eksik detaylar route açılmadan önce çözülür.
   Future<void> _openProfile() async {
     _closeAccountMenu();
     final auth = widget.authState;
     final profile = auth?.profile;
+    if (auth == null) {
+      await _openAccount();
+      return;
+    }
     final role = (profile?.role ?? '').trim().toLowerCase();
     final verified =
         role == 'admin' || role == 'super_admin' || role == 'editor';
-    final data = ProfileData.demo(
-      name: profile?.fullName ?? auth?.displayName,
-      handle: profile?.handle,
-      email: profile?.email ?? auth?.session.user.email,
-      avatarUrl: profile?.avatarUrl,
-      roleLabel: _roleLabelFor(role),
-      isVerified: verified,
-    );
+    final fallbackData =
+        widget.profileData ??
+        ProfileData(
+          id: profile?.id ?? auth.session.user.id,
+          name: profile?.fullName?.trim().isNotEmpty == true
+              ? profile!.fullName!.trim()
+              : auth.displayName,
+          handle: profile?.handle ?? '',
+          roleLabel: _roleLabelFor(role),
+          expertise: _roleLabelFor(role),
+          aboutMe: '',
+          email: profile?.email ?? auth.session.user.email ?? '',
+          showEmail: true,
+          avatarUrl: profile?.avatarUrl ?? '',
+          avatarPath: '',
+          coverUrl: profile?.coverUrl ?? '',
+          coverPath: '',
+          joinedLabel: '',
+          joinedYear: '',
+          isVerified: verified,
+          isOnline: true,
+          isOwnProfile: true,
+          website: '',
+          address: '',
+          rssFeeds: true,
+          postsCount: 0,
+          followers: 0,
+          following: 0,
+          socialLinks: const [],
+          followerAvatars: const [],
+          followingAvatars: const [],
+          posts: const [],
+        );
+    final data = await _resolveOwnProfileData(auth, fallbackData);
+    if (!mounted) return;
     await Navigator.of(context).push<void>(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) => ProfileScreen(data: data),
+        pageBuilder: (_, _, _) => ProfileScreen(
+          data: data,
+          authToken: auth.session.accessToken,
+          repository: widget.profileRepository,
+          onProfileUpdated: widget.onProfileUpdated,
+          onReturnHome: _returnHomeFromProfile,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -292,6 +349,128 @@ class _ShellScreenState extends State<ShellScreen>
         },
       ),
     );
+  }
+
+  Future<void> _openAuthorProfile(NewsAuthor author) async {
+    final cleanId = author.id.trim();
+    final cleanHandle = (author.handle ?? '').trim().replaceFirst(
+      RegExp(r'^@+'),
+      '',
+    );
+    if (cleanId.isEmpty && cleanHandle.isEmpty) return;
+
+    final auth = widget.authState;
+    final authProfileId = auth?.profile?.id.trim() ?? auth?.session.user.id;
+    if (auth != null && cleanId.isNotEmpty && cleanId == authProfileId) {
+      await _openProfile();
+      return;
+    }
+
+    _closeAccountMenu();
+    _closeAppsSheet();
+    final fallbackData = ProfileData(
+      id: cleanId,
+      name: author.name.trim().isEmpty ? 'Pateeznews' : author.name.trim(),
+      handle: cleanHandle.isEmpty ? '' : '@$cleanHandle',
+      roleLabel: author.isOfficial ? 'Yayıncı' : 'Üye',
+      expertise: author.isOfficial ? 'Yayıncı' : 'Üye',
+      aboutMe: '',
+      email: '',
+      showEmail: false,
+      avatarUrl: author.avatarUrl,
+      avatarPath: '',
+      coverUrl: '',
+      coverPath: '',
+      joinedLabel: '',
+      joinedYear: '',
+      isVerified: author.isVerified || author.isOfficial,
+      isOnline: true,
+      isOwnProfile: false,
+      postsCount: 0,
+      followers: 0,
+      following: 0,
+      socialLinks: const [],
+      followerAvatars: const [],
+      followingAvatars: const [],
+      posts: const [],
+    );
+    final data = await _resolveTargetProfileData(
+      fallback: fallbackData,
+      token: auth?.session.accessToken ?? '',
+      userId: cleanId,
+      username: cleanHandle,
+    );
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
+        pageBuilder: (_, _, _) => ProfileScreen(
+          data: data,
+          authToken: auth?.session.accessToken ?? '',
+          targetUserId: cleanId,
+          targetUsername: cleanHandle,
+          repository: widget.profileRepository,
+          onAuthRequired: _openAccountForRequiredAuth,
+          onProfileUpdated: widget.onProfileUpdated,
+          onReturnHome: _returnHomeFromProfile,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<ProfileData> _resolveOwnProfileData(
+    FrontendAuthState auth,
+    ProfileData fallback,
+  ) async {
+    if (_profileDataLooksLive(fallback)) return fallback;
+    try {
+      final result = await widget.profileRepository.fetchSelf(
+        token: auth.session.accessToken,
+      );
+      widget.onProfileUpdated?.call(result);
+      return result.profile;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  Future<ProfileData> _resolveTargetProfileData({
+    required ProfileData fallback,
+    required String token,
+    required String userId,
+    required String username,
+  }) async {
+    try {
+      final result = await widget.profileRepository.fetchProfile(
+        token: token,
+        userId: userId,
+        username: username,
+      );
+      if (result.profile.isOwnProfile) widget.onProfileUpdated?.call(result);
+      return result.profile;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  bool _profileDataLooksLive(ProfileData data) {
+    return data.joinedLabel.trim().isNotEmpty ||
+        data.joinedYear.trim().isNotEmpty;
   }
 
   String _roleLabelFor(String role) {
@@ -375,6 +554,10 @@ class _ShellScreenState extends State<ShellScreen>
     _closeAccountMenu();
     final tabIndex = _appDestinationIndex(item);
     if (tabIndex != null) {
+      if (tabIndex == _videoNavIndex) {
+        unawaited(_openVideoFeedFromNav());
+        return;
+      }
       setState(() => _index = tabIndex);
       return;
     }
@@ -403,8 +586,18 @@ class _ShellScreenState extends State<ShellScreen>
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) =>
-            CategoryScreen(categoryName: item.label, categoryType: item.type),
+        pageBuilder: (_, _, _) => CategoryScreen(
+          categoryName: item.label,
+          categoryType: item.type,
+          categoryValue: item.value,
+          shellSettings: widget.shellData.siteSettings,
+          navigationItems: widget.shellData.navigationItems,
+          contentSettings: widget.contentSettings,
+          authState: widget.authState,
+          onAuthRequired: _openAccountForRequiredAuth,
+          onAuthorTap: _openAuthorProfile,
+          onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -458,7 +651,10 @@ class _ShellScreenState extends State<ShellScreen>
           'duyurular' => AnnouncementsScreen(
             initialData: widget.announcementData,
           ),
-          'etkinlik' => const EtkinlikScreen(),
+          'etkinlik' =>
+            widget.eventItems.isEmpty
+                ? const EtkinlikScreen()
+                : EtkinlikScreen(events: widget.eventItems),
           'hava-durumu' => WeatherScreen(initialData: widget.weatherData),
           'namaz-vakitleri' => PrayerTimesScreen(
             initialData: widget.prayerTimesData,
@@ -618,7 +814,11 @@ class _ShellScreenState extends State<ShellScreen>
             HomeScreen(
               shellSettings: widget.shellData.siteSettings,
               dutyPharmacyData: widget.dutyPharmacyData,
+              weatherData: widget.weatherData,
+              prayerTimesData: widget.prayerTimesData,
+              events: widget.eventItems,
               navigationItems: widget.shellData.navigationItems,
+              contentSettings: widget.contentSettings,
               featuredItems: widget.featuredItems,
               feedItems: widget.homeFeedItems,
               authState: widget.authState,
@@ -628,6 +828,7 @@ class _ShellScreenState extends State<ShellScreen>
               onSubmitNewsTap: _showSubmitNewsHint,
               onPharmacyTap: () => _openApp(AppItems.nobetciEczane),
               onAuthRequired: _openAccountForRequiredAuth,
+              onAuthorTap: _openAuthorProfile,
               onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
             ),
             _index == 1
@@ -635,10 +836,13 @@ class _ShellScreenState extends State<ShellScreen>
                     feedItems: widget.homeFeedItems,
                     shellSettings: widget.shellData.siteSettings,
                     navigationItems: widget.shellData.navigationItems,
+                    contentSettings: widget.contentSettings,
                     initialArticleId: _videoFeedArticleId,
                     revealSerial: _videoFeedRevealSerial,
                     authState: widget.authState,
+                    onRefresh: widget.onRefreshHome,
                     onAuthRequired: _openAccountForRequiredAuth,
+                    onAuthorTap: _openAuthorProfile,
                     onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
                   )
                 : const SizedBox.shrink(),

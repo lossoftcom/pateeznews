@@ -315,7 +315,7 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoUrl = settings.displayLogoUrl;
+    final logoUrl = settings.lightSurfaceLogoUrl;
     final fallbackLogo = Image.asset(
       DefaultBrandAssets.logo,
       fit: BoxFit.contain,
@@ -326,11 +326,12 @@ class _BrandMark extends StatelessWidget {
       errorBuilder: (_, _, _) => _Wordmark(siteName: settings.siteName),
     );
     if (logoUrl.isEmpty) {
-      return SizedBox(height: height, child: fallbackLogo);
+      return SizedBox(height: height, width: 132, child: fallbackLogo);
     }
 
     return SizedBox(
       height: height,
+      width: 132,
       child: Image.network(
         logoUrl,
         fit: BoxFit.contain,
@@ -338,6 +339,10 @@ class _BrandMark extends StatelessWidget {
         semanticLabel: settings.siteName.isEmpty
             ? 'Pateeznews'
             : settings.siteName,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded || frame != null) return child;
+          return fallbackLogo;
+        },
         errorBuilder: (context, error, stackTrace) {
           return fallbackLogo;
         },

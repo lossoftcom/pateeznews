@@ -41,6 +41,12 @@ class AppShellSettings {
     return '';
   }
 
+  String get lightSurfaceLogoUrl {
+    if (logoUrl.isNotEmpty) return logoUrl;
+    if (darkLogoUrl.isNotEmpty) return darkLogoUrl;
+    return '';
+  }
+
   bool get hasLogo => displayLogoUrl.isNotEmpty;
 }
 

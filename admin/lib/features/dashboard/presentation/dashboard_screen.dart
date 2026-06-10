@@ -30,6 +30,7 @@ import 'package:pateeznews_admin/features/pages/presentation/pages_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/ai_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/announcements_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/content_settings_screen.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_content_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/presentation/death_notice_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/font_settings_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/general_settings_screen.dart';
@@ -46,6 +47,7 @@ import 'package:pateeznews_admin/features/social/data/admin_social_repository.da
 import 'package:pateeznews_admin/features/social/presentation/social_accounts_screen.dart';
 import 'package:pateeznews_admin/features/social/presentation/social_publish_screen.dart';
 import 'package:pateeznews_admin/features/social/presentation/social_settings_screen.dart';
+import 'package:pateeznews_admin/shared/data/media_service.dart';
 import 'package:pateeznews_admin/features/subscribers/data/admin_subscribers_repository.dart';
 import 'package:pateeznews_admin/features/subscribers/presentation/subscribers_screen.dart';
 import 'package:pateeznews_admin/features/stories/data/admin_stories_repository.dart';
@@ -56,6 +58,7 @@ import 'package:pateeznews_admin/features/settings/data/admin_font_settings_repo
 import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_languages_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_module_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_security_settings_repository.dart';
 import 'package:pateeznews_admin/features/users/data/admin_roles_repository.dart';
 import 'package:pateeznews_admin/features/users/data/admin_users_repository.dart';
 import 'package:pateeznews_admin/features/users/presentation/roles_permissions_screen.dart';
@@ -85,8 +88,12 @@ class DashboardScreen extends StatefulWidget {
         const SupabaseAdminGeneralSettingsRepository(),
     this.fontSettingsRepository = const SupabaseAdminFontSettingsRepository(),
     this.aiSettingsRepository = const SupabaseAdminAiSettingsRepository(),
+    this.contentSettingsRepository =
+        const SupabaseAdminContentSettingsRepository(),
     this.moduleSettingsRepository =
         const SupabaseAdminModuleSettingsRepository(),
+    this.securitySettingsRepository =
+        const SupabaseAdminSecuritySettingsRepository(),
     this.accountSettingsRepository =
         const SupabaseAdminAccountSettingsRepository(),
     this.subscribersRepository = const SupabaseAdminSubscribersRepository(),
@@ -94,6 +101,7 @@ class DashboardScreen extends StatefulWidget {
     this.smsRepository = const SupabaseAdminSmsRepository(),
     this.whatsappRepository = const SupabaseAdminWhatsappRepository(),
     this.socialRepository = const SupabaseAdminSocialRepository(),
+    this.initialContentSettings,
     this.onOpenFrontend,
   });
 
@@ -111,13 +119,16 @@ class DashboardScreen extends StatefulWidget {
   final AdminGeneralSettingsRepository generalSettingsRepository;
   final AdminFontSettingsRepository fontSettingsRepository;
   final AdminAiSettingsRepository aiSettingsRepository;
+  final AdminContentSettingsRepository contentSettingsRepository;
   final AdminModuleSettingsRepository moduleSettingsRepository;
+  final AdminSecuritySettingsRepository securitySettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
   final AdminSubscribersRepository subscribersRepository;
   final AdminMailRepository mailRepository;
   final AdminSmsRepository smsRepository;
   final AdminWhatsappRepository whatsappRepository;
   final AdminSocialRepository socialRepository;
+  final ContentSettingsSnapshot? initialContentSettings;
   final VoidCallback? onOpenFrontend;
 
   @override
@@ -130,10 +141,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _permissionError;
   Set<String> _permissionKeys = const {};
   String? _editingNewsPostId;
+  ContentSettingsSnapshot? _contentSettingsSnapshot;
 
   @override
   void initState() {
     super.initState();
+    _contentSettingsSnapshot = widget.initialContentSettings;
+    final initialUpload = _contentSettingsSnapshot?.upload;
+    if (initialUpload != null) _cacheUploadSettings(initialUpload);
     _loadPermissions();
   }
 
@@ -143,6 +158,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_roleName != _roleNameFor(oldWidget.profile, oldWidget.session)) {
       _loadPermissions();
     }
+    if (oldWidget.initialContentSettings != widget.initialContentSettings &&
+        widget.initialContentSettings != null) {
+      _contentSettingsSnapshot = widget.initialContentSettings;
+      _cacheUploadSettings(widget.initialContentSettings!.upload);
+    }
+  }
+
+  ContentSettingsSnapshot _snapshotFor(String languageCode) {
+    final current = _contentSettingsSnapshot;
+    if (current != null && current.languageCode == languageCode) {
+      return current;
+    }
+    return ContentSettingsSnapshot.defaults(languageCode);
+  }
+
+  void _cacheUploadSettings(ContentUploadSettingsData settings) {
+    MediaService.cacheUploadSettings(
+      MediaUploadSettings(
+        imageFileFormat: settings.imageFileFormat,
+        allowedExtensions: settings.allowedExtensions,
+        maxImageSizeMb: settings.maxImageSizeMb,
+        maxVideoSizeMb: settings.maxVideoSizeMb,
+        maxAudioSizeMb: settings.maxAudioSizeMb,
+        maxFileSizeMb: settings.maxFileSizeMb,
+      ),
+      languageCode: settings.languageCode,
+    );
+  }
+
+  void _updateContentGeneralSettings(ContentGeneralSettingsData settings) {
+    final next = _snapshotFor(
+      settings.languageCode,
+    ).copyWith(general: settings);
+    setState(() => _contentSettingsSnapshot = next);
+  }
+
+  void _updateContentPostSettings(ContentPostSettingsData settings) {
+    final next = _snapshotFor(settings.languageCode).copyWith(posts: settings);
+    setState(() => _contentSettingsSnapshot = next);
+  }
+
+  void _updateContentPostFormatSettings(
+    ContentPostFormatSettingsData settings,
+  ) {
+    final next = _snapshotFor(
+      settings.languageCode,
+    ).copyWith(postFormats: settings);
+    setState(() => _contentSettingsSnapshot = next);
+  }
+
+  void _updateContentUploadSettings(ContentUploadSettingsData settings) {
+    _cacheUploadSettings(settings);
+    final next = _snapshotFor(settings.languageCode).copyWith(upload: settings);
+    setState(() => _contentSettingsSnapshot = next);
+  }
+
+  void _updateContentFeaturedSettings(ContentFeaturedSettingsData settings) {
+    final next = _snapshotFor(
+      settings.languageCode,
+    ).copyWith(featured: settings);
+    setState(() => _contentSettingsSnapshot = next);
+  }
+
+  void _updateContentTrashCleanupSettings(
+    ContentTrashCleanupSettingsData settings,
+  ) {
+    final next = _snapshotFor(
+      settings.languageCode,
+    ).copyWith(trashCleanup: settings);
+    setState(() => _contentSettingsSnapshot = next);
   }
 
   String get _roleName => _roleNameFor(widget.profile, widget.session);
@@ -962,6 +1047,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   session: widget.session,
                                   profile: widget.profile,
                                   repository: widget.newsRepository,
+                                  contentSettingsRepository:
+                                      widget.contentSettingsRepository,
+                                  initialPostFormatSettings:
+                                      _contentSettingsSnapshot?.postFormats,
                                   postId: _editingNewsPostId,
                                   onBackToNews: _openNews,
                                 ),
@@ -1133,9 +1222,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         widget.generalSettingsRepository,
                                   ),
                                 _DashboardPage.securitySettings =>
-                                  const SecuritySettingsScreen(),
+                                  SecuritySettingsScreen(
+                                    session: widget.session,
+                                    repository:
+                                        widget.securitySettingsRepository,
+                                  ),
                                 _DashboardPage.contentSettings =>
-                                  const ContentSettingsScreen(),
+                                  ContentSettingsScreen(
+                                    session: widget.session,
+                                    repository:
+                                        widget.contentSettingsRepository,
+                                    initialSettings: _contentSettingsSnapshot,
+                                    onGeneralSettingsChanged:
+                                        _updateContentGeneralSettings,
+                                    onPostSettingsChanged:
+                                        _updateContentPostSettings,
+                                    onPostFormatSettingsChanged:
+                                        _updateContentPostFormatSettings,
+                                    onUploadSettingsChanged:
+                                        _updateContentUploadSettings,
+                                    onFeaturedSettingsChanged:
+                                        _updateContentFeaturedSettings,
+                                    onTrashCleanupSettingsChanged:
+                                        _updateContentTrashCleanupSettings,
+                                  ),
                                 _DashboardPage.fontSettings =>
                                   FontSettingsScreen(
                                     session: widget.session,

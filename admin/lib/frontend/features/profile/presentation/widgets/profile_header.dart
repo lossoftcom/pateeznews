@@ -13,14 +13,22 @@ import '../../data/profile_content.dart';
 /// rozetiyle), ad, @kullanıcı + rol etiketi, çevrimiçi durumu ve aksiyon
 /// (kendi profilinde "Profili Düzenle", başkasında takip) butonu.
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key, required this.data, this.onEdit});
+  const ProfileHeader({
+    super.key,
+    required this.data,
+    this.onEdit,
+    this.onFollow,
+    this.followBusy = false,
+  });
 
   final ProfileData data;
   final VoidCallback? onEdit;
+  final VoidCallback? onFollow;
+  final bool followBusy;
 
   static const double _coverHeight = 176;
-  static const double _avatarSize = 92;
-  static const double _avatarHang = 30;
+  static const double _avatarSize = 136;
+  static const double _avatarOverlap = _avatarSize / 2;
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +42,12 @@ class ProfileHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Cover(url: data.coverUrl, height: _coverHeight),
-                const SizedBox(height: _avatarHang + 16),
+                const SizedBox(height: _avatarOverlap + 8),
               ],
             ),
             Positioned(
               left: AppSpacing.pageHorizontal,
-              top: _coverHeight - (_avatarSize - _avatarHang),
+              top: _coverHeight - _avatarOverlap,
               child: _Avatar(url: data.avatarUrl, verified: data.isVerified),
             ),
             Positioned(
@@ -47,14 +55,18 @@ class ProfileHeader extends StatelessWidget {
               top: _coverHeight + 10,
               child: data.isOwnProfile
                   ? _EditButton(onTap: onEdit ?? () {})
-                  : const FollowPill(),
+                  : FollowPill(
+                      following: data.isFollowing,
+                      loading: followBusy,
+                      onTap: onFollow,
+                    ),
             ),
           ],
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.pageHorizontal,
-            AppSpacing.xs,
+            0,
             AppSpacing.pageHorizontal,
             0,
           ),
@@ -65,14 +77,17 @@ class ProfileHeader extends StatelessWidget {
                 data.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.display.copyWith(fontSize: 26, height: 1.1),
+                style: AppTypography.display.copyWith(
+                  fontSize: 26,
+                  height: 1.1,
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              _IdentityRow(handle: data.handle, roleLabel: data.roleLabel),
-              if (data.isOnline) ...[
-                const SizedBox(height: AppSpacing.md),
-                const _OnlineChip(),
-              ],
+              _IdentityRow(
+                handle: data.handle,
+                roleLabel: data.roleLabel,
+                online: data.isOnline,
+              ),
             ],
           ),
         ),
@@ -147,7 +162,7 @@ class _Avatar extends StatelessWidget {
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(8),
+              shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
                   color: AppColors.deepOcean.withValues(alpha: 0.18),
@@ -156,8 +171,7 @@ class _Avatar extends StatelessWidget {
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+            child: ClipOval(
               child: ColoredBox(
                 color: AppColors.surfaceInk,
                 child: CachedImage(
@@ -170,7 +184,7 @@ class _Avatar extends StatelessWidget {
                     child: Icon(
                       Symbols.person_rounded,
                       color: AppColors.support,
-                      size: 36,
+                      size: 46,
                     ),
                   ),
                 ),
@@ -199,27 +213,43 @@ class _Avatar extends StatelessWidget {
 }
 
 class _IdentityRow extends StatelessWidget {
-  const _IdentityRow({required this.handle, required this.roleLabel});
+  const _IdentityRow({
+    required this.handle,
+    required this.roleLabel,
+    required this.online,
+  });
 
   final String handle;
   final String roleLabel;
+  final bool online;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.xs,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          handle,
-          style: AppTypography.bodySmall.copyWith(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w600,
-            fontSize: 13.5,
+        Expanded(
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              Text(
+                handle,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
+                ),
+              ),
+              _RolePill(label: roleLabel),
+            ],
           ),
         ),
-        _RolePill(label: roleLabel),
+        if (online) ...[
+          const SizedBox(width: AppSpacing.sm),
+          const _OnlineChip(),
+        ],
       ],
     );
   }
@@ -241,7 +271,11 @@ class _RolePill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Symbols.sparkling_fill, size: 12, color: AppColors.warmHorizon),
+          const Icon(
+            Symbols.sparkling_fill,
+            size: 12,
+            color: AppColors.warmHorizon,
+          ),
           const SizedBox(width: 5),
           Text(
             label,
@@ -276,7 +310,10 @@ class _OnlineChip extends StatelessWidget {
           Container(
             width: 7,
             height: 7,
-            decoration: const BoxDecoration(color: _green, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: _green,
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 6),
           Text(

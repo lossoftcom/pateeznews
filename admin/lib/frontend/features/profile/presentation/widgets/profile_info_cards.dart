@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -11,9 +13,10 @@ import '../../data/profile_content.dart';
 /// Takip Edilen önizlemesi. Hepsi beyaz kart, 4px keskin radius, projenin
 /// tipografi ve renk diliyle.
 class ProfileInfoSection extends StatelessWidget {
-  const ProfileInfoSection({super.key, required this.data});
+  const ProfileInfoSection({super.key, required this.data, this.onProfileTap});
 
   final ProfileData data;
+  final ValueChanged<ProfilePreview>? onProfileTap;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +34,9 @@ class ProfileInfoSection extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           _SocialCard(links: data.socialLinks),
           const SizedBox(height: AppSpacing.md),
-          _FollowsCard(data: data),
+          _ActivityCard(data: data),
+          const SizedBox(height: AppSpacing.md),
+          _FollowsCard(data: data, onProfileTap: onProfileTap),
         ],
       ),
     );
@@ -164,21 +169,39 @@ class _SocialButton extends StatelessWidget {
 
   final ProfileSocialLink link;
 
+  Future<void> _open() async {
+    final raw = link.url.trim();
+    if (raw.isEmpty) return;
+    final uri = Uri.tryParse(raw.startsWith('http') ? raw : 'https://$raw');
+    if (uri == null) return;
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } catch (_) {
+      // Link açılamazsa profil ekranı akışı bozulmamalı.
+    }
+  }
+
+  Color get _iconColor {
+    if (link.key == 'snapchat') return AppColors.inkStrong;
+    return Colors.white;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label: link.label,
       button: true,
       child: Material(
-        color: AppColors.surfaceInk,
+        color: link.color,
         borderRadius: BorderRadius.circular(4),
         child: InkWell(
-          onTap: () {},
+          onTap: _open,
           borderRadius: BorderRadius.circular(4),
           child: SizedBox(
             width: 44,
             height: 44,
-            child: Icon(link.icon, size: 19, color: AppColors.inkSoft),
+            child: Icon(link.icon, size: 20, color: _iconColor),
           ),
         ),
       ),
@@ -186,10 +209,89 @@ class _SocialButton extends StatelessWidget {
   }
 }
 
-class _FollowsCard extends StatelessWidget {
-  const _FollowsCard({required this.data});
+class _ActivityCard extends StatelessWidget {
+  const _ActivityCard({required this.data});
 
   final ProfileData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      title: 'Aktivite',
+      child: Row(
+        children: [
+          Expanded(
+            child: _ActivityMetric(
+              icon: Symbols.heart_3_line,
+              label: 'Beğendiği haberler',
+              value: data.likedPostsCount,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: _ActivityMetric(
+              icon: Symbols.chat_3_line,
+              label: 'Yaptığı yorumlar',
+              value: data.commentsCount,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityMetric extends StatelessWidget {
+  const _ActivityMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceInk,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.actionRed),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            CountFormat.compact(value),
+            style: AppTypography.titleM.copyWith(color: AppColors.inkStrong),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.meta.copyWith(
+              color: AppColors.support,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FollowsCard extends StatelessWidget {
+  const _FollowsCard({required this.data, required this.onProfileTap});
+
+  final ProfileData data;
+  final ValueChanged<ProfilePreview>? onProfileTap;
 
   @override
   Widget build(BuildContext context) {
@@ -207,6 +309,8 @@ class _FollowsCard extends StatelessWidget {
             label: 'Takipçiler',
             count: data.followers,
             avatars: data.followerAvatars,
+            profiles: data.followerProfiles,
+            onProfileTap: onProfileTap,
           ),
           const SizedBox(height: AppSpacing.lg),
           const Divider(height: 1, color: AppColors.softLine),
@@ -215,6 +319,8 @@ class _FollowsCard extends StatelessWidget {
             label: 'Takip Edilen',
             count: data.following,
             avatars: data.followingAvatars,
+            profiles: data.followingProfiles,
+            onProfileTap: onProfileTap,
           ),
         ],
       ),
@@ -227,11 +333,15 @@ class _FollowBlock extends StatelessWidget {
     required this.label,
     required this.count,
     required this.avatars,
+    required this.profiles,
+    required this.onProfileTap,
   });
 
   final String label;
   final int count;
   final List<String> avatars;
+  final List<ProfilePreview> profiles;
+  final ValueChanged<ProfilePreview>? onProfileTap;
 
   @override
   Widget build(BuildContext context) {
@@ -256,30 +366,55 @@ class _FollowBlock extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        _AvatarStack(avatars: avatars, total: count),
+        _AvatarStack(
+          avatars: avatars,
+          profiles: profiles,
+          total: count,
+          onProfileTap: onProfileTap,
+        ),
       ],
     );
   }
 }
 
 class _AvatarStack extends StatelessWidget {
-  const _AvatarStack({required this.avatars, required this.total});
+  const _AvatarStack({
+    required this.avatars,
+    required this.profiles,
+    required this.total,
+    required this.onProfileTap,
+  });
 
   final List<String> avatars;
+  final List<ProfilePreview> profiles;
   final int total;
+  final ValueChanged<ProfilePreview>? onProfileTap;
 
   static const double _size = 34;
   static const double _step = 24;
 
   @override
   Widget build(BuildContext context) {
-    if (avatars.isEmpty) {
+    final items = profiles.isNotEmpty
+        ? profiles
+        : [
+            for (var i = 0; i < avatars.length; i++)
+              ProfilePreview(
+                id: '',
+                name: '',
+                handle: '',
+                avatarUrl: avatars[i],
+                isVerified: false,
+                isOfficial: false,
+              ),
+          ];
+    if (items.isEmpty) {
       return Text(
         'Henüz kimse yok.',
         style: AppTypography.bodySmall.copyWith(color: AppColors.support),
       );
     }
-    final shown = avatars.take(5).toList(growable: false);
+    final shown = items.take(5).toList(growable: false);
     final extra = total - shown.length;
     final hasExtra = extra > 0;
     final cellCount = shown.length + (hasExtra ? 1 : 0);
@@ -291,7 +426,13 @@ class _AvatarStack extends StatelessWidget {
       child: Stack(
         children: [
           for (var i = 0; i < shown.length; i++)
-            Positioned(left: i * _step, child: _AvatarDot(url: shown[i])),
+            Positioned(
+              left: i * _step,
+              child: _AvatarDot(
+                profile: shown[i],
+                onTap: shown[i].id.trim().isEmpty ? null : onProfileTap,
+              ),
+            ),
           if (hasExtra)
             Positioned(
               left: shown.length * _step,
@@ -304,13 +445,14 @@ class _AvatarStack extends StatelessWidget {
 }
 
 class _AvatarDot extends StatelessWidget {
-  const _AvatarDot({required this.url});
+  const _AvatarDot({required this.profile, required this.onTap});
 
-  final String url;
+  final ProfilePreview profile;
+  final ValueChanged<ProfilePreview>? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final child = Container(
       width: _AvatarStack._size,
       height: _AvatarStack._size,
       decoration: const BoxDecoration(
@@ -322,11 +464,46 @@ class _AvatarDot extends StatelessWidget {
         child: ColoredBox(
           color: AppColors.surfaceInk,
           child: CachedImage(
-            url: url,
+            url: profile.avatarUrl,
             fit: BoxFit.cover,
             memCacheWidth: 96,
             placeholderColor: AppColors.surfaceInk,
-            errorWidget: const ColoredBox(color: AppColors.surfaceInk),
+            errorWidget: _AvatarFallback(profile: profile),
+          ),
+        ),
+      ),
+    );
+    final handler = onTap;
+    if (handler == null) return child;
+    return Semantics(
+      button: true,
+      label: profile.name,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => handler(profile),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback({required this.profile});
+
+  final ProfilePreview profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = profile.name.trim();
+    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    return ColoredBox(
+      color: AppColors.surfaceInk,
+      child: Center(
+        child: Text(
+          initial,
+          style: AppTypography.titleS.copyWith(
+            color: AppColors.deepOcean,
+            fontSize: 13,
           ),
         ),
       ),

@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../etkinlik/data/etkinlik_mock.dart';
 import '../../../pharmacy/data/pharmacy_repository.dart';
+import '../../../prayer_times/data/prayer_times_repository.dart';
+import '../../../weather/data/weather_repository.dart';
 import '../today_screen.dart';
 
 /// Ana sayfada "Senin için akış" ile aynı yalın bölüm başlığı ritminde duran
@@ -12,17 +15,27 @@ class TodayWidget extends StatelessWidget {
   const TodayWidget({
     super.key,
     this.dutyPharmacyData = const DutyPharmacyData.empty(),
+    this.weatherData = const WeatherData.empty(),
+    this.prayerTimesData = const PrayerTimesData.empty(),
+    this.events = const [],
   });
 
   final DutyPharmacyData dutyPharmacyData;
+  final WeatherData weatherData;
+  final PrayerTimesData prayerTimesData;
+  final List<EtkinlikEvent> events;
 
   void _open(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) =>
-            TodayScreen(dutyPharmacyData: dutyPharmacyData),
+        pageBuilder: (_, _, _) => TodayScreen(
+          dutyPharmacyData: dutyPharmacyData,
+          weatherData: weatherData,
+          prayerTimesData: prayerTimesData,
+          events: events,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,

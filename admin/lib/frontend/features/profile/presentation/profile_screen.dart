@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -7,8 +9,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/frontend_toast.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import '../data/profile_content.dart';
+import '../data/profile_repository.dart';
 import 'edit_profile_screen.dart';
 import 'widgets/profile_app_bar.dart';
 import 'widgets/profile_header.dart';
@@ -29,9 +33,26 @@ import 'widgets/profile_stats.dart';
 /// uygulamanın 4px keskin radius, action red vurgu ve PateezInter tipografisini
 /// korur.
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required this.data});
+  const ProfileScreen({
+    super.key,
+    required this.data,
+    this.authToken = '',
+    this.targetUserId = '',
+    this.targetUsername = '',
+    this.repository = const ProfileRepository(),
+    this.onAuthRequired,
+    this.onProfileUpdated,
+    this.onReturnHome,
+  });
 
   final ProfileData data;
+  final String authToken;
+  final String targetUserId;
+  final String targetUsername;
+  final ProfileRepository repository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<ProfileSaveResult>? onProfileUpdated;
+  final VoidCallback? onReturnHome;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -41,6 +62,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _scrollY = ValueNotifier<double>(0);
   final ValueNotifier<bool> _lightStatusIcons = ValueNotifier<bool>(true);
+  late ProfileData _data;
+  var _loadingLiveProfile = false;
+  var _followBusy = false;
+  var _returningHome = false;
 
   /// Kapak yüksekliğine yakın eşik: altında app bar saydam (kapak görünür) →
   /// açık status ikonları; üstünde beyaz bar → koyu status ikonları.
@@ -50,7 +75,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _data = widget.data;
     _scrollController.addListener(_onScroll);
+    _loadLiveProfile();
   }
 
   void _onScroll() {
@@ -97,12 +124,200 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _openEdit() {
-    Navigator.of(context).push(
+  Future<void> _loadLiveProfile() async {
+    final token = widget.authToken.trim();
+    final targetUserId = widget.targetUserId.trim().isNotEmpty
+        ? widget.targetUserId.trim()
+        : _data.isOwnProfile
+        ? ''
+        : _data.id.trim();
+    final targetUsername = widget.targetUsername.trim().isNotEmpty
+        ? widget.targetUsername.trim()
+        : _data.isOwnProfile
+        ? ''
+        : _data.handle.trim();
+    if ((token.isEmpty && targetUserId.isEmpty && targetUsername.isEmpty) ||
+        _loadingLiveProfile) {
+      return;
+    }
+    _loadingLiveProfile = true;
+    try {
+      final result = await widget.repository.fetchProfile(
+        token: token,
+        userId: targetUserId,
+        username: targetUsername,
+      );
+      if (!mounted) return;
+      setState(() => _data = result.profile);
+      if (result.profile.isOwnProfile) widget.onProfileUpdated?.call(result);
+    } catch (_) {
+      // Cached auth profile remains visible if the live profile request fails.
+    } finally {
+      _loadingLiveProfile = false;
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_followBusy || _data.id.trim().isEmpty || _data.isOwnProfile) return;
+    final token = widget.authToken.trim();
+    if (token.isEmpty) {
+      FrontendToast.show(
+        context,
+        message: 'Takip etmek için giriş yapın.',
+        tone: FrontendToastTone.info,
+      );
+      widget.onAuthRequired?.call();
+      return;
+    }
+
+    final previousFollowing = _data.isFollowing;
+    final previousFollowers = _data.followers;
+    setState(() {
+      _followBusy = true;
+      _data = _data.copyWith(
+        isFollowing: !previousFollowing,
+        followers: math.max(
+          0,
+          previousFollowers + (previousFollowing ? -1 : 1),
+        ),
+      );
+    });
+    try {
+      final following = await widget.repository.toggleFollow(
+        token: token,
+        profileId: _data.id,
+      );
+      if (!mounted) return;
+      final followerDelta = following == previousFollowing
+          ? 0
+          : following
+          ? 1
+          : -1;
+      setState(() {
+        _data = _data.copyWith(
+          isFollowing: following,
+          followers: math.max(0, previousFollowers + followerDelta),
+        );
+      });
+      FrontendToast.show(
+        context,
+        message: following ? 'Takip edildi.' : 'Takipten çıkıldı.',
+      );
+    } on ProfileException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _data = _data.copyWith(
+          isFollowing: previousFollowing,
+          followers: previousFollowers,
+        );
+      });
+      FrontendToast.show(
+        context,
+        message: error.message,
+        tone: FrontendToastTone.error,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _data = _data.copyWith(
+          isFollowing: previousFollowing,
+          followers: previousFollowers,
+        );
+      });
+      FrontendToast.show(
+        context,
+        message: 'Takip durumu güncellenemedi.',
+        tone: FrontendToastTone.error,
+      );
+    } finally {
+      if (mounted) setState(() => _followBusy = false);
+    }
+  }
+
+  Future<void> _openEdit() async {
+    final result = await Navigator.of(context).push<ProfileSaveResult>(
+      PageRouteBuilder<ProfileSaveResult>(
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
+        pageBuilder: (_, _, _) => EditProfileScreen(
+          data: _data,
+          authToken: widget.authToken,
+          repository: widget.repository,
+          onProfileUpdated: widget.onProfileUpdated,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _data = result.profile);
+    widget.onProfileUpdated?.call(result);
+  }
+
+  Future<void> _openPreviewProfile(ProfilePreview profile) async {
+    final id = profile.id.trim();
+    final handle = profile.handle.trim().replaceFirst(RegExp(r'^@+'), '');
+    if (id.isEmpty && handle.isEmpty) return;
+    if (id.isNotEmpty && id == _data.id.trim()) return;
+
+    final fallbackData = ProfileData(
+      id: id,
+      name: profile.name.trim().isEmpty ? 'Pateeznews' : profile.name.trim(),
+      handle: handle.isEmpty ? '' : '@$handle',
+      roleLabel: profile.isOfficial ? 'Yayıncı' : 'Üye',
+      expertise: profile.isOfficial ? 'Yayıncı' : 'Üye',
+      aboutMe: '',
+      email: '',
+      showEmail: false,
+      avatarUrl: profile.avatarUrl,
+      avatarPath: '',
+      coverUrl: '',
+      coverPath: '',
+      joinedLabel: '',
+      joinedYear: '',
+      isVerified: profile.isVerified,
+      isOnline: true,
+      isOwnProfile: false,
+      postsCount: 0,
+      followers: 0,
+      following: 0,
+      socialLinks: const [],
+      followerAvatars: const [],
+      followingAvatars: const [],
+      posts: const [],
+    );
+    final data = await _resolvePreviewProfileData(
+      fallback: fallbackData,
+      userId: id,
+      username: handle,
+    );
+    if (!mounted) return;
+    await Navigator.of(context).pushReplacement<void, void>(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) => EditProfileScreen(data: widget.data),
+        pageBuilder: (_, _, _) => ProfileScreen(
+          data: data,
+          authToken: widget.authToken,
+          targetUserId: id,
+          targetUsername: handle,
+          repository: widget.repository,
+          onAuthRequired: widget.onAuthRequired,
+          onProfileUpdated: widget.onProfileUpdated,
+          onReturnHome: widget.onReturnHome,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -121,22 +336,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<ProfileData> _resolvePreviewProfileData({
+    required ProfileData fallback,
+    required String userId,
+    required String username,
+  }) async {
+    try {
+      final result = await widget.repository.fetchProfile(
+        token: widget.authToken,
+        userId: userId,
+        username: username,
+      );
+      if (result.profile.isOwnProfile) widget.onProfileUpdated?.call(result);
+      return result.profile;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  void _returnHome() {
+    if (_returningHome) return;
+    widget.onReturnHome?.call();
+    setState(() => _returningHome = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _lightStatusIcons,
-      child: _buildScaffold(context),
-      builder: (context, light, child) {
-        return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: light ? AppTheme.darkOverlay : AppTheme.lightOverlay,
-          child: child!,
-        );
+    return PopScope(
+      canPop: _returningHome,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _returnHome();
       },
+      child: ValueListenableBuilder<bool>(
+        valueListenable: _lightStatusIcons,
+        child: _buildScaffold(context),
+        builder: (context, light, child) {
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: light ? AppTheme.darkOverlay : AppTheme.lightOverlay,
+            child: child!,
+          );
+        },
+      ),
     );
   }
 
   Widget _buildScaffold(BuildContext context) {
-    final data = widget.data;
+    final data = _data;
     final posts = data.posts;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
@@ -151,12 +401,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             slivers: [
               SliverToBoxAdapter(
-                child: ProfileHeader(data: data, onEdit: _openEdit),
+                child: ProfileHeader(
+                  data: data,
+                  onEdit: _openEdit,
+                  onFollow: _toggleFollow,
+                  followBusy: _followBusy,
+                ),
               ),
               SliverToBoxAdapter(
                 child: ProfileStats(data: data)
                     .animate()
-                    .fadeIn(delay: 60.ms, duration: 320.ms, curve: Curves.easeOutCubic)
+                    .fadeIn(
+                      delay: 60.ms,
+                      duration: 320.ms,
+                      curve: Curves.easeOutCubic,
+                    )
                     .slideY(
                       begin: 0.06,
                       end: 0,
@@ -166,16 +425,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
               ),
               SliverToBoxAdapter(
-                child: ProfileInfoSection(data: data)
-                    .animate()
-                    .fadeIn(delay: 120.ms, duration: 340.ms, curve: Curves.easeOutCubic)
-                    .slideY(
-                      begin: 0.05,
-                      end: 0,
-                      delay: 120.ms,
-                      duration: 340.ms,
-                      curve: Curves.easeOutCubic,
-                    ),
+                child:
+                    ProfileInfoSection(
+                          data: data,
+                          onProfileTap: _openPreviewProfile,
+                        )
+                        .animate()
+                        .fadeIn(
+                          delay: 120.ms,
+                          duration: 340.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .slideY(
+                          begin: 0.05,
+                          end: 0,
+                          delay: 120.ms,
+                          duration: 340.ms,
+                          curve: Curves.easeOutCubic,
+                        ),
               ),
               SliverToBoxAdapter(child: _PostsHeader(count: data.postsCount)),
               SliverList.builder(
@@ -226,7 +493,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               builder: (context, offset, _) => ProfileAppBar(
                 title: data.name,
                 scrollOffset: offset,
-                onBack: () => Navigator.of(context).maybePop(),
+                onBack: _returnHome,
               ),
             ),
           ),

@@ -8,6 +8,7 @@ import 'package:pateeznews_admin/frontend/core/mock/home_mock_data.dart';
 import 'package:pateeznews_admin/frontend/core/theme/app_typography.dart';
 import 'package:pateeznews_admin/frontend/features/account/data/frontend_auth_repository.dart';
 import 'package:pateeznews_admin/frontend/features/home/data/news_comments_repository.dart';
+import 'package:pateeznews_admin/frontend/features/home/data/post_action_repository.dart';
 import 'package:pateeznews_admin/frontend/features/home/presentation/widgets/news_card.dart';
 import 'package:pateeznews_admin/frontend/shared/widgets/social_action.dart';
 import 'package:pateeznews_admin/frontend/shared/widgets/frontend_toast.dart';
@@ -140,6 +141,55 @@ void main() {
     expect(metaRect.top, greaterThanOrEqualTo(coverRect.top));
     expect(metaRect.bottom, lessThan(coverRect.bottom));
     expect(titleRect.top, greaterThan(coverRect.bottom));
+  });
+
+  testWidgets('news card records read and updates live view count on tap', (
+    tester,
+  ) async {
+    final repository = _ReadTrackingPostActionRepository();
+    var opened = false;
+    final article = NewsArticle(
+      id: '123',
+      author: const NewsAuthor(name: 'Pateez Ekonomi', avatarUrl: ''),
+      region: '',
+      category: 'Ekonomi',
+      title: 'Canlı okuma sayısı',
+      summary: 'Okuma sayısı canlı güncellenir.',
+      imageUrl: 'https://example.invalid/read.jpg',
+      publishedAt: DateTime.utc(2026, 6, 10, 10),
+      readMinutes: 2,
+      likes: 1,
+      dislikes: 0,
+      comments: 0,
+      shares: 0,
+      views: 12,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: NewsCard(
+              article: article,
+              postActionRepository: repository,
+              onTap: () => opened = true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('12 görüntüleme'), findsOneWidget);
+
+    await tester.tap(find.byType(NewsCard));
+    await tester.pump();
+
+    expect(opened, isTrue);
+    expect(repository.calls, 1);
+    expect(repository.lastPostId, '123');
+    expect(repository.lastSource, 'open_detail');
+    expect(find.text('13 görüntüleme'), findsOneWidget);
   });
 
   testWidgets('guest comment identity is remembered and email is validated', (
@@ -1229,10 +1279,38 @@ FrontendAuthState _signedInState() {
       username: 'nasip',
       fullName: 'Nasip Gün',
       avatarUrl: '',
+      coverUrl: '',
       role: 'user',
       email: 'nasip@example.com',
     ),
   );
+}
+
+class _ReadTrackingPostActionRepository extends PostActionRepository {
+  int calls = 0;
+  String? lastPostId;
+  String? lastSource;
+
+  @override
+  Future<PostActionState> recordView({
+    required String postId,
+    String? token,
+    String source = 'read',
+  }) async {
+    calls += 1;
+    lastPostId = postId;
+    lastSource = source;
+    return const PostActionState(
+      likes: 1,
+      dislikes: 0,
+      shares: 0,
+      views: 13,
+      saves: 0,
+      liked: false,
+      disliked: false,
+      saved: false,
+    );
+  }
 }
 
 class _PendingNewsCommentsRepository extends NewsCommentsRepository {

@@ -1756,6 +1756,7 @@ class _AnnouncementNewsPickerDialogState
         type: 'Tümü',
         status: 'published',
         publisher: 'Tümü',
+        trash: false,
         page: 1,
         pageSize: 24,
         sortKey: 'date',

@@ -14,6 +14,9 @@ const TYPES = new Set(['image', 'video', 'audio', 'file', 'logo', 'profile', 'fo
 const IMAGE_TYPES = new Set(['image', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
 const THUMB_EXTENSIONS = ['.webp', '.jpg', '.jpeg', '.png'];
+const IMAGE_VARIANT_WIDTHS = [180, 260, 800, 900, 1200, 1440, 1600];
+const IMAGE_VARIANT_QUALITY = 86;
+const VARIANT_ROOT = path.resolve(ROOT, '.variants');
 
 function json(res, status, body) {
   res.writeHead(status, {
@@ -78,6 +81,26 @@ function localPublicPath(type, id) {
   return `/local-upload/${type}/${normalizePath(id).replace(new RegExp(`^${type}/`), '')}`;
 }
 
+function imageVariantIds(type, id) {
+  const relativeId = normalizePath(id).replace(new RegExp(`^${type}/`), '');
+  if (!relativeId) return [];
+  const objectPath = `${type}/${relativeId}`;
+  const parsed = path.posix.parse(objectPath);
+  const basePath = `${parsed.dir ? `${parsed.dir}/` : ''}${parsed.name}`;
+  return IMAGE_VARIANT_WIDTHS.map((width) => ({
+    width,
+    id: `w${width}-q${IMAGE_VARIANT_QUALITY}/${basePath}.webp`,
+  }));
+}
+
+function resolveVariantPath(variantId) {
+  const cleanId = normalizePath(variantId);
+  if (!cleanId) return null;
+  const absolutePath = path.resolve(VARIANT_ROOT, cleanId);
+  if (!inside(VARIANT_ROOT, absolutePath)) return null;
+  return absolutePath;
+}
+
 function contentTypeForFilename(filename, fallback = 'application/octet-stream') {
   const ext = filename.toLowerCase().split('.').pop() || '';
   return {
@@ -97,11 +120,30 @@ function contentTypeForFilename(filename, fallback = 'application/octet-stream')
   }[ext] || fallback;
 }
 
-async function optimizeImage(input) {
+function normalizeImageOutputFormat(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'jpg' || normalized === 'jpeg') return 'jpeg';
+  if (normalized === 'png') return 'png';
+  return 'webp';
+}
+
+function extensionForImageOutputFormat(format) {
+  return format === 'jpeg' ? 'jpg' : format;
+}
+
+function contentTypeForImageOutputFormat(format) {
+  return format === 'jpeg'
+    ? 'image/jpeg'
+    : format === 'png'
+      ? 'image/png'
+      : 'image/webp';
+}
+
+async function optimizeImage(input, outputFormat = 'webp') {
   const image = sharp(input, { animated: true });
   const metadata = await image.metadata();
   const preset = metadata.hasAlpha ? 'picture' : 'photo';
-  return sharp(input, { animated: Boolean(metadata.pages && metadata.pages > 1) })
+  const pipeline = sharp(input, { animated: Boolean(metadata.pages && metadata.pages > 1) })
     .rotate()
     .resize({
       width: 7680,
@@ -109,7 +151,25 @@ async function optimizeImage(input) {
       fit: 'inside',
       withoutEnlargement: true,
       kernel: 'lanczos3',
-    })
+    });
+  if (outputFormat === 'jpeg') {
+    return pipeline
+      .flatten({ background: '#ffffff' })
+      .jpeg({
+        quality: 92,
+        mozjpeg: true,
+      })
+      .toBuffer();
+  }
+  if (outputFormat === 'png') {
+    return pipeline
+      .png({
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+      })
+      .toBuffer();
+  }
+  return pipeline
     .webp({
       quality: 92,
       alphaQuality: 95,
@@ -119,6 +179,45 @@ async function optimizeImage(input) {
       preset,
     })
     .toBuffer();
+}
+
+async function writeImageVariants(type, id, buffer) {
+  if (!IMAGE_TYPES.has(type)) return;
+  await Promise.all(imageVariantIds(type, id).map(async ({ width, id: variantId }) => {
+    const outputPath = resolveVariantPath(variantId);
+    if (!outputPath) return;
+    try {
+      await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
+      await sharp(buffer, { animated: false, failOn: 'none' })
+        .rotate()
+        .resize({
+          width,
+          fit: 'inside',
+          withoutEnlargement: true,
+          kernel: 'lanczos3',
+        })
+        .webp({
+          quality: IMAGE_VARIANT_QUALITY,
+          alphaQuality: 95,
+          effort: 4,
+          smartSubsample: true,
+        })
+        .toFile(outputPath);
+    } catch (error) {
+      console.warn(`Image variant skipped (${width}px):`, error?.message || error);
+    }
+  }));
+}
+
+async function deleteImageVariants(type, id) {
+  if (!IMAGE_TYPES.has(type)) return;
+  await Promise.all(imageVariantIds(type, id).map(async ({ id: variantId }) => {
+    const outputPath = resolveVariantPath(variantId);
+    if (!outputPath) return;
+    await fs.promises.unlink(outputPath).catch((error) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
+  }));
 }
 
 function shouldOptimize(type, filename, contentType) {
@@ -230,9 +329,10 @@ async function upload(req, res) {
   let contentType = file.headers?.['content-type'] || contentTypeForFilename(finalFilename);
   if (shouldOptimize(type, finalFilename, contentType)) {
     try {
-      buffer = await optimizeImage(buffer);
-      finalFilename = `${path.posix.parse(finalFilename).name}.webp`;
-      contentType = 'image/webp';
+      const outputFormat = normalizeImageOutputFormat(field(fields, 'imageOutputFormat'));
+      buffer = await optimizeImage(buffer, outputFormat);
+      finalFilename = `${path.posix.parse(finalFilename).name}.${extensionForImageOutputFormat(outputFormat)}`;
+      contentType = contentTypeForImageOutputFormat(outputFormat);
     } catch (error) {
       console.warn('Image optimization skipped:', error?.message || error);
     }
@@ -243,6 +343,7 @@ async function upload(req, res) {
   if (!resolved) return json(res, 400, { error: 'Invalid local path' });
   await fs.promises.mkdir(path.dirname(resolved.absolutePath), { recursive: true });
   await fs.promises.writeFile(resolved.absolutePath, buffer);
+  await writeImageVariants(type, relativeId, buffer);
 
   if (replaceId && replaceId !== relativeId) {
     for (const id of [replaceId, ...(type === 'video' ? videoThumbIds(replaceId) : [])]) {
@@ -251,6 +352,7 @@ async function upload(req, res) {
       await fs.promises.unlink(old.absolutePath).catch((error) => {
         if (error?.code !== 'ENOENT') throw error;
       });
+      await deleteImageVariants(type, id);
     }
   }
 
@@ -293,6 +395,7 @@ async function remove(req, res) {
       await fs.promises.unlink(resolved.absolutePath).then(() => removed.push(id)).catch((error) => {
         if (error?.code !== 'ENOENT') throw error;
       });
+      await deleteImageVariants(itemType, id);
     }
     if (removed.length) deleted.push({ type: itemType, ids: removed });
   }

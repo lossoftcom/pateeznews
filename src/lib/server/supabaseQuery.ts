@@ -62,7 +62,11 @@ const JSON_COLUMNS: Record<string, Set<string>> = {
   pages: new Set(['content_delta']),
   profiles: new Set(['social_links']),
   site_fonts: new Set(['font_files']),
-  site_settings: new Set(['site_font_sizes']),
+  site_settings: new Set([
+    'site_font_sizes',
+    'content_enabled_post_formats',
+    'content_upload_allowed_extensions',
+  ]),
   stories: new Set(['story_data']),
 };
 

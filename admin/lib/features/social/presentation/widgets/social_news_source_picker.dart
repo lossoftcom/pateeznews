@@ -66,6 +66,7 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
         type: 'Tümü',
         status: 'published',
         publisher: 'Tümü',
+        trash: false,
         page: 1,
         pageSize: 50,
         sortKey: 'date',

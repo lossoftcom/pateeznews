@@ -185,20 +185,30 @@ class Symbols {
   static const bookmark_3_line = IconData(0xeae3, fontFamily: _fontFamily);
   static const chat_3_fill = IconData(0xeb50, fontFamily: _fontFamily);
   static const chat_3_line = IconData(0xeb51, fontFamily: _fontFamily);
+  static const discord_fill = IconData(0xec37, fontFamily: _fontFamily);
   static const facebook_fill = IconData(0xecbc, fontFamily: _fontFamily);
   static const google_fill = IconData(0xedd4, fontFamily: _fontFamily);
   static const heart_3_fill = IconData(0xee0a, fontFamily: _fontFamily);
   static const heart_3_line = IconData(0xee0b, fontFamily: _fontFamily);
   static const instagram_fill = IconData(0xee65, fontFamily: _fontFamily);
+  static const linkedin_fill = IconData(0xeeb5, fontFamily: _fontFamily);
+  static const pinterest_fill = IconData(0xefff, fontFamily: _fontFamily);
+  static const reddit_fill = IconData(0xf061, fontFamily: _fontFamily);
   static const share_2_fill = IconData(0xf41a, fontFamily: _fontFamily);
   static const share_2_line = IconData(0xf41b, fontFamily: _fontFamily);
+  static const snapchat_fill = IconData(0xf15b, fontFamily: _fontFamily);
   static const sparkling_fill = IconData(0xf36c, fontFamily: _fontFamily);
+  static const telegram_fill = IconData(0xf1ef, fontFamily: _fontFamily);
   static const thumb_down_fill = IconData(0xf204, fontFamily: _fontFamily);
   static const thumb_down_line = IconData(0xf205, fontFamily: _fontFamily);
   static const thumb_up_fill = IconData(0xf206, fontFamily: _fontFamily);
   static const thumb_up_line = thumb_up_outlined;
+  static const tiktok_fill = IconData(0xf372, fontFamily: _fontFamily);
+  static const twitch_fill = IconData(0xf238, fontFamily: _fontFamily);
   static const twitter_x_fill = IconData(0xf3e5, fontFamily: _fontFamily);
   static const whatsapp_fill = IconData(0xf2bb, fontFamily: _fontFamily);
+  static const youtube_fill = IconData(0xf2d4, fontFamily: _fontFamily);
+  static const bluesky_fill = IconData(0xf498, fontFamily: _fontFamily);
 
   // Hava durumu / nöbetçi eczane / ölüm ilanları sayfaları için ek glifler.
   // Kod noktaları admin/assets/fonts/remixicon/RemixIcon.ttf cmap'inden

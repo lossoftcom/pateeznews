@@ -31,6 +31,7 @@ class NewsTableCard extends StatelessWidget {
     required this.publisherFilter,
     required this.selectedPostIds,
     required this.sortState,
+    required this.trashMode,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onLanguageChanged,
@@ -48,6 +49,7 @@ class NewsTableCard extends StatelessWidget {
     required this.onTogglePinned,
     required this.onDeletePost,
     required this.onDeleteSelected,
+    required this.onToggleTrashMode,
   });
 
   final List<AdminNewsPost> posts;
@@ -64,6 +66,7 @@ class NewsTableCard extends StatelessWidget {
   final String publisherFilter;
   final Set<String> selectedPostIds;
   final TableSortState sortState;
+  final bool trashMode;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onLanguageChanged;
@@ -81,6 +84,7 @@ class NewsTableCard extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
   final VoidCallback onDeleteSelected;
+  final VoidCallback onToggleTrashMode;
 
   static const double toolbarHeight = 38;
 
@@ -105,6 +109,7 @@ class NewsTableCard extends StatelessWidget {
             statusFilter: statusFilter,
             publisherFilter: publisherFilter,
             selectedPostIds: selectedPostIds,
+            trashMode: trashMode,
             onPageSizeChanged: onPageSizeChanged,
             onSearchChanged: onSearchChanged,
             onLanguageChanged: onLanguageChanged,
@@ -120,6 +125,7 @@ class NewsTableCard extends StatelessWidget {
             onTogglePinned: onTogglePinned,
             onDeletePost: onDeletePost,
             onDeleteSelected: onDeleteSelected,
+            onToggleTrashMode: onToggleTrashMode,
           );
         }
 
@@ -144,10 +150,12 @@ class NewsTableCard extends StatelessWidget {
               pageSize: pageSize,
               searchQuery: searchQuery,
               selectedCount: selectedPostIds.length,
+              trashMode: trashMode,
               onPageSizeChanged: onPageSizeChanged,
               onSearchChanged: onSearchChanged,
               onAddPost: onAddPost,
               onDeleteSelected: onDeleteSelected,
+              onToggleTrashMode: onToggleTrashMode,
             ),
             const SizedBox(height: 18),
             Expanded(
@@ -156,6 +164,7 @@ class NewsTableCard extends StatelessWidget {
                 loading: loading,
                 selectedPostIds: selectedPostIds,
                 sortState: sortState,
+                trashMode: trashMode,
                 onTogglePost: onTogglePost,
                 onToggleAllPosts: onToggleAllPosts,
                 onSort: onSort,
@@ -385,19 +394,23 @@ class _NewsToolbar extends StatelessWidget {
     required this.pageSize,
     required this.searchQuery,
     required this.selectedCount,
+    required this.trashMode,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onAddPost,
     required this.onDeleteSelected,
+    required this.onToggleTrashMode,
   });
 
   final int pageSize;
   final String searchQuery;
   final int selectedCount;
+  final bool trashMode;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onAddPost;
   final VoidCallback onDeleteSelected;
+  final VoidCallback onToggleTrashMode;
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +432,11 @@ class _NewsToolbar extends StatelessWidget {
           ),
         );
         final addButton = _AddPostButton(onPressed: onAddPost);
-        final deleteButton = selectedCount == 0
+        final trashButton = _TrashToggleButton(
+          active: trashMode,
+          onPressed: onToggleTrashMode,
+        );
+        final deleteButton = selectedCount == 0 || trashMode
             ? null
             : _BulkDeleteButton(
                 selectedCount: selectedCount,
@@ -438,7 +455,11 @@ class _NewsToolbar extends StatelessWidget {
               const SizedBox(height: 14),
               search,
               const SizedBox(height: 10),
-              Align(alignment: Alignment.centerLeft, child: addButton),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [trashButton, addButton],
+              ),
             ],
           );
         }
@@ -453,10 +474,69 @@ class _NewsToolbar extends StatelessWidget {
             const Spacer(),
             search,
             const SizedBox(width: 14),
+            trashButton,
+            const SizedBox(width: 10),
             addButton,
           ],
         );
       },
+    );
+  }
+}
+
+class _TrashToggleButton extends StatelessWidget {
+  const _TrashToggleButton({required this.active, required this.onPressed});
+
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: NewsTableCard.toolbarHeight,
+      child: Tooltip(
+        message: context.t(active ? 'news.activePosts' : 'news.trash'),
+        child: TextButton(
+          onPressed: onPressed,
+          style:
+              TextButton.styleFrom(
+                backgroundColor: active ? AppColors.deepOcean : Colors.white,
+                foregroundColor: active ? Colors.white : AppColors.deepOcean,
+                side: BorderSide(
+                  color: active
+                      ? AppColors.deepOcean
+                      : AppColors.line.withValues(alpha: 0.82),
+                ),
+                minimumSize: const Size(0, NewsTableCard.toolbarHeight),
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ).copyWith(
+                mouseCursor: const WidgetStatePropertyAll(
+                  SystemMouseCursors.click,
+                ),
+              ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SymbolIcon(
+                active ? Symbols.newspaper : Symbols.delete,
+                color: active ? Colors.white : AppColors.deepOcean,
+                size: 17,
+              ),
+              const SizedBox(width: 7),
+              Text(context.t(active ? 'news.activePosts' : 'news.trash')),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -700,6 +780,7 @@ class _NewsDataTable extends StatelessWidget {
     required this.loading,
     required this.selectedPostIds,
     required this.sortState,
+    required this.trashMode,
     required this.onTogglePost,
     required this.onToggleAllPosts,
     required this.onSort,
@@ -713,6 +794,7 @@ class _NewsDataTable extends StatelessWidget {
   final bool loading;
   final Set<String> selectedPostIds;
   final TableSortState sortState;
+  final bool trashMode;
   final ValueChanged<String> onTogglePost;
   final VoidCallback onToggleAllPosts;
   final ValueChanged<String> onSort;
@@ -796,6 +878,7 @@ class _NewsDataTable extends StatelessWidget {
                                     postWidth: postWidth,
                                     selected: selectedPostIds.contains(post.id),
                                     onToggle: () => onTogglePost(post.id),
+                                    trashMode: trashMode,
                                     onEditPost: onEditPost,
                                     onToggleStatus: onToggleStatus,
                                     onTogglePinned: onTogglePinned,
@@ -1003,6 +1086,7 @@ class _NewsRow extends StatelessWidget {
     required this.postWidth,
     required this.selected,
     required this.onToggle,
+    required this.trashMode,
     required this.onEditPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
@@ -1013,6 +1097,7 @@ class _NewsRow extends StatelessWidget {
   final double postWidth;
   final bool selected;
   final VoidCallback onToggle;
+  final bool trashMode;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
@@ -1085,13 +1170,19 @@ class _NewsRow extends StatelessWidget {
             width: _NewsDataTable._menuWidth,
             child: Align(
               alignment: Alignment.center,
-              child: _NewsRowMenu(
-                post: post,
-                onEditPost: onEditPost,
-                onToggleStatus: onToggleStatus,
-                onTogglePinned: onTogglePinned,
-                onDeletePost: onDeletePost,
-              ),
+              child: trashMode
+                  ? const SymbolIcon(
+                      Symbols.delete,
+                      color: AppColors.iconMuted,
+                      size: 18,
+                    )
+                  : _NewsRowMenu(
+                      post: post,
+                      onEditPost: onEditPost,
+                      onToggleStatus: onToggleStatus,
+                      onTogglePinned: onTogglePinned,
+                      onDeletePost: onDeletePost,
+                    ),
             ),
           ),
         ],
@@ -1343,54 +1434,84 @@ class _CategoryCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final parent = post.parentCategory?.trim();
-    final child = Text(
-      post.displayCategory,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: AppColors.deepOcean,
-        fontWeight: FontWeight.w600,
-        fontSize: 11.5,
-      ),
-    );
+    final path = post.categoryPath.isNotEmpty
+        ? post.categoryPath
+        : [
+            if (parent != null && parent.isNotEmpty) parent,
+            post.displayCategory,
+          ];
+    final normalizedPath = path
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (parent != null && parent.isNotEmpty) ...[
-          Text(
-            parent,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.deepOcean,
-              fontWeight: FontWeight.w600,
-              fontSize: 10.5,
+        for (var index = 0; index < normalizedPath.length; index++) ...[
+          if (index > 0) const SizedBox(height: 3),
+          if (index == 0)
+            Text(
+              normalizedPath[index],
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w600,
+                fontSize: normalizedPath.length > 1 ? 10.5 : 11.5,
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '\u21B3',
+                  style: TextStyle(
+                    color: AppColors.support,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    normalizedPath[index],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 3),
+        ],
+        if (normalizedPath.isEmpty)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '\u21B3',
-                style: TextStyle(
-                  color: AppColors.support,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                  height: 1,
+              Flexible(
+                child: Text(
+                  post.displayCategory,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11.5,
+                  ),
                 ),
               ),
-              const SizedBox(width: 4),
-              Flexible(child: child),
             ],
           ),
-        ] else ...[
-          child,
-        ],
       ],
     );
   }
@@ -2076,6 +2197,7 @@ class _NewsMobileView extends StatelessWidget {
     required this.statusFilter,
     required this.publisherFilter,
     required this.selectedPostIds,
+    required this.trashMode,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onLanguageChanged,
@@ -2091,6 +2213,7 @@ class _NewsMobileView extends StatelessWidget {
     required this.onTogglePinned,
     required this.onDeletePost,
     required this.onDeleteSelected,
+    required this.onToggleTrashMode,
   });
 
   final List<AdminNewsPost> posts;
@@ -2106,6 +2229,7 @@ class _NewsMobileView extends StatelessWidget {
   final String statusFilter;
   final String publisherFilter;
   final Set<String> selectedPostIds;
+  final bool trashMode;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onLanguageChanged;
@@ -2121,6 +2245,7 @@ class _NewsMobileView extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
   final VoidCallback onDeleteSelected;
+  final VoidCallback onToggleTrashMode;
 
   int get _activeFilterCount {
     var count = 0;
@@ -2259,7 +2384,7 @@ class _NewsMobileView extends StatelessWidget {
       'common.recordRange',
       values: {'from': from, 'to': to, 'total': totalCount},
     );
-    final hasSelection = selectedPostIds.isNotEmpty;
+    final hasSelection = selectedPostIds.isNotEmpty && !trashMode;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2287,27 +2412,49 @@ class _NewsMobileView extends StatelessWidget {
                 },
                 onDelete: onDeleteSelected,
               )
-            : Row(
-                children: [
-                  Expanded(
-                    child: AdminMobileFiltersButton(
-                      label: context.t('Filtreler'),
-                      count: _activeFilterCount,
-                      active: _activeFilterCount > 0,
-                      fullWidth: true,
-                      onPressed: () => _openFilters(context),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: AdminMobilePrimaryButton(
-                      icon: Symbols.add,
-                      label: context.t('Add Post'),
-                      fullWidth: true,
-                      onPressed: onAddPost,
-                    ),
-                  ),
-                ],
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 520;
+                  final buttonWidth = compact
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - 20) / 3;
+                  return Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      SizedBox(
+                        width: buttonWidth,
+                        child: AdminMobileFiltersButton(
+                          label: context.t('Filtreler'),
+                          count: _activeFilterCount,
+                          active: _activeFilterCount > 0,
+                          fullWidth: true,
+                          onPressed: () => _openFilters(context),
+                        ),
+                      ),
+                      SizedBox(
+                        width: buttonWidth,
+                        child: AdminMobilePrimaryButton(
+                          icon: trashMode ? Symbols.newspaper : Symbols.delete,
+                          label: context.t(
+                            trashMode ? 'news.activePosts' : 'news.trash',
+                          ),
+                          fullWidth: true,
+                          onPressed: onToggleTrashMode,
+                        ),
+                      ),
+                      SizedBox(
+                        width: buttonWidth,
+                        child: AdminMobilePrimaryButton(
+                          icon: Symbols.add,
+                          label: context.t('Add Post'),
+                          fullWidth: true,
+                          onPressed: onAddPost,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
         const SizedBox(height: 14),
         Expanded(
@@ -2321,6 +2468,7 @@ class _NewsMobileView extends StatelessWidget {
                 post: post,
                 selected: selectedPostIds.contains(post.id),
                 onToggle: () => onTogglePost(post.id),
+                trashMode: trashMode,
                 onEditPost: onEditPost,
                 onToggleStatus: onToggleStatus,
                 onTogglePinned: onTogglePinned,
@@ -2347,6 +2495,7 @@ class _NewsMobileCard extends StatelessWidget {
     required this.post,
     required this.selected,
     required this.onToggle,
+    required this.trashMode,
     required this.onEditPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
@@ -2356,6 +2505,7 @@ class _NewsMobileCard extends StatelessWidget {
   final AdminNewsPost post;
   final bool selected;
   final VoidCallback onToggle;
+  final bool trashMode;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
@@ -2440,36 +2590,48 @@ class _NewsMobileCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              AdminMobileMenuButton(
-                tooltip: context.t('Post actions'),
-                actions: [
-                  AdminMobileMenuAction(
-                    icon: Symbols.edit_square,
-                    label: context.t('Edit'),
-                    onTap: () => onEditPost(post),
+              if (trashMode)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: SymbolIcon(
+                    Symbols.delete,
+                    color: AppColors.iconMuted,
+                    size: 18,
                   ),
-                  AdminMobileMenuAction(
-                    icon: post.published
-                        ? Symbols.visibility_off
-                        : Symbols.check,
-                    label: context.t(post.published ? 'Unpublish' : 'Publish'),
-                    onTap: () => onToggleStatus(post),
-                  ),
-                  AdminMobileMenuAction(
-                    icon: post.isPinned
-                        ? Symbols.visibility_off
-                        : Symbols.verified,
-                    label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
-                    onTap: () => onTogglePinned(post),
-                  ),
-                  AdminMobileMenuAction(
-                    icon: Symbols.delete,
-                    label: context.t('Delete'),
-                    danger: true,
-                    onTap: () => onDeletePost(post),
-                  ),
-                ],
-              ),
+                )
+              else
+                AdminMobileMenuButton(
+                  tooltip: context.t('Post actions'),
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: context.t('Edit'),
+                      onTap: () => onEditPost(post),
+                    ),
+                    AdminMobileMenuAction(
+                      icon: post.published
+                          ? Symbols.visibility_off
+                          : Symbols.check,
+                      label: context.t(
+                        post.published ? 'Unpublish' : 'Publish',
+                      ),
+                      onTap: () => onToggleStatus(post),
+                    ),
+                    AdminMobileMenuAction(
+                      icon: post.isPinned
+                          ? Symbols.visibility_off
+                          : Symbols.verified,
+                      label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
+                      onTap: () => onTogglePinned(post),
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('Delete'),
+                      danger: true,
+                      onTap: () => onDeletePost(post),
+                    ),
+                  ],
+                ),
             ],
           ),
           const SizedBox(height: 12),

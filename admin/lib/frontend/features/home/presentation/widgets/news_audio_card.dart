@@ -59,16 +59,20 @@ class _NewsAudioCardState extends State<NewsAudioCard>
     _videoId = _youtubeIdFrom(widget.url);
     _isYoutube = _videoId != null && _videoId!.isNotEmpty;
     if (_isYoutube) {
-      _setupYoutube();
-      if (kDebugMode) unawaited(_prepareYoutubeView());
+      if (kDebugMode) {
+        unawaited(_prepareAndSetupYoutube());
+      } else {
+        _setupYoutube();
+      }
     } else {
       _setupFile();
     }
   }
 
-  Future<void> _prepareYoutubeView() async {
+  Future<void> _prepareAndSetupYoutube() async {
     await prepareDebugDarwinPlatformViewsForHotRestart();
     if (!mounted) return;
+    _setupYoutube();
     setState(() => _youtubeViewReady = true);
   }
 
@@ -143,10 +147,12 @@ class _NewsAudioCardState extends State<NewsAudioCard>
 
   void _togglePlay() {
     if (_isYoutube) {
+      final controller = _yt;
+      if (controller == null) return;
       if (_isPlaying) {
-        _yt!.pauseVideo();
+        controller.pauseVideo();
       } else {
-        _yt!.playVideo();
+        controller.playVideo();
       }
     } else {
       final controller = _file;
@@ -162,7 +168,9 @@ class _NewsAudioCardState extends State<NewsAudioCard>
   void _seek(double fraction) {
     final target = _duration * fraction.clamp(0.0, 1.0);
     if (_isYoutube) {
-      _yt!.seekTo(
+      final controller = _yt;
+      if (controller == null) return;
+      controller.seekTo(
         seconds: target.inMilliseconds / 1000.0,
         allowSeekAhead: true,
       );
@@ -186,10 +194,12 @@ class _NewsAudioCardState extends State<NewsAudioCard>
   void _toggleMute() {
     final muted = !_muted;
     if (_isYoutube) {
+      final controller = _yt;
+      if (controller == null) return;
       if (muted) {
-        _yt!.mute();
+        controller.mute();
       } else {
-        _yt!.unMute();
+        controller.unMute();
       }
       setState(() => _muted = muted);
     } else {
@@ -201,7 +211,7 @@ class _NewsAudioCardState extends State<NewsAudioCard>
     // Karttan tamamen çıkınca sesi durdur (arka planda çalmaya devam etmesin).
     if (info.visibleFraction <= 0 && _isPlaying) {
       if (_isYoutube) {
-        _yt!.pauseVideo();
+        _yt?.pauseVideo();
       } else {
         _file?.pause();
       }

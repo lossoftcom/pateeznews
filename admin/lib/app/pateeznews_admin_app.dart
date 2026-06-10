@@ -14,10 +14,12 @@ import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
 import '../features/pages/data/admin_pages_repository.dart';
 import '../features/settings/data/admin_ai_settings_repository.dart';
+import '../features/settings/data/admin_content_settings_repository.dart';
 import '../features/settings/data/admin_font_settings_repository.dart';
 import '../features/settings/data/admin_general_settings_repository.dart';
 import '../features/settings/data/admin_languages_repository.dart';
 import '../features/settings/data/admin_module_settings_repository.dart';
+import '../features/settings/data/admin_security_settings_repository.dart';
 import '../features/sms/data/admin_sms_repository.dart';
 import '../features/social/data/admin_social_repository.dart';
 import '../features/subscribers/data/admin_subscribers_repository.dart';
@@ -41,7 +43,9 @@ class PateeznewsAdminApp extends StatefulWidget {
     this.generalSettingsRepository,
     this.fontSettingsRepository,
     this.aiSettingsRepository,
+    this.contentSettingsRepository,
     this.moduleSettingsRepository,
+    this.securitySettingsRepository,
     this.accountSettingsRepository,
     this.subscribersRepository,
     this.smsRepository,
@@ -62,7 +66,9 @@ class PateeznewsAdminApp extends StatefulWidget {
   final AdminGeneralSettingsRepository? generalSettingsRepository;
   final AdminFontSettingsRepository? fontSettingsRepository;
   final AdminAiSettingsRepository? aiSettingsRepository;
+  final AdminContentSettingsRepository? contentSettingsRepository;
   final AdminModuleSettingsRepository? moduleSettingsRepository;
+  final AdminSecuritySettingsRepository? securitySettingsRepository;
   final AdminAccountSettingsRepository? accountSettingsRepository;
   final AdminSubscribersRepository? subscribersRepository;
   final AdminSmsRepository? smsRepository;
@@ -109,6 +115,7 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
             ],
             theme: AppTheme.light(),
             home: AdminGate(
+              languageCode: _languageController.code,
               authRepository:
                   widget.authRepository ?? const SupabaseAuthClient(),
               newsRepository:
@@ -141,9 +148,15 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
               aiSettingsRepository:
                   widget.aiSettingsRepository ??
                   const SupabaseAdminAiSettingsRepository(),
+              contentSettingsRepository:
+                  widget.contentSettingsRepository ??
+                  const SupabaseAdminContentSettingsRepository(),
               moduleSettingsRepository:
                   widget.moduleSettingsRepository ??
                   const SupabaseAdminModuleSettingsRepository(),
+              securitySettingsRepository:
+                  widget.securitySettingsRepository ??
+                  const SupabaseAdminSecuritySettingsRepository(),
               accountSettingsRepository:
                   widget.accountSettingsRepository ??
                   const SupabaseAdminAccountSettingsRepository(),

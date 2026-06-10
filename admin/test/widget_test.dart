@@ -28,11 +28,13 @@ import 'package:pateeznews_admin/features/stories/presentation/stories_models.da
 import 'package:pateeznews_admin/features/auth/data/supabase_auth_client.dart';
 import 'package:pateeznews_admin/features/auth/data/remembered_login_store.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_content_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_font_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_general_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_language_models.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_languages_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_module_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_security_settings_repository.dart';
 import 'package:pateeznews_admin/features/social/data/admin_social_repository.dart';
 import 'package:pateeznews_admin/features/social/presentation/social_platform_data.dart';
 import 'package:pateeznews_admin/features/social/presentation/social_settings_models.dart';
@@ -1074,10 +1076,73 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
         ),
         AdminNewsEditorCategory(
           id: 'cat-2',
-          label: 'Anketler',
+          label: 'Anket',
           parentId: 'cat-1',
           languageCode: 'tr',
           orderIndex: 2,
+          type: 'category',
+          icon: 'poll',
+        ),
+        AdminNewsEditorCategory(
+          id: 'cat-3',
+          label: 'Testler',
+          parentId: 'cat-1',
+          languageCode: 'tr',
+          orderIndex: 3,
+          type: 'category',
+          icon: 'quiz',
+        ),
+        AdminNewsEditorCategory(
+          id: 'cat-4',
+          label: 'Siyaset',
+          parentId: 'cat-1',
+          languageCode: 'tr',
+          orderIndex: 4,
+          type: 'category',
+          icon: 'account_balance',
+        ),
+        AdminNewsEditorCategory(
+          id: 'cat-5',
+          label: 'Yaşam',
+          parentId: 'cat-1',
+          languageCode: 'tr',
+          orderIndex: 5,
+          type: 'category',
+          icon: 'spa',
+        ),
+        AdminNewsEditorCategory(
+          id: 'cat-6',
+          label: 'Altunhisar',
+          parentId: 'cat-1',
+          languageCode: 'tr',
+          orderIndex: 6,
+          type: 'district',
+        ),
+        AdminNewsEditorCategory(
+          id: 'cat-7',
+          label: 'Bor',
+          parentId: 'cat-1',
+          languageCode: 'tr',
+          orderIndex: 7,
+          type: 'district',
+        ),
+        AdminNewsEditorCategory(
+          id: 'cat-8',
+          label: 'Video',
+          parentId: 'cat-1',
+          languageCode: 'tr',
+          orderIndex: 8,
+          type: 'category',
+          icon: 'video_library',
+        ),
+        AdminNewsEditorCategory(
+          id: 'cat-9',
+          label: 'Anket',
+          parentId: 'cat-6',
+          languageCode: 'tr',
+          orderIndex: 1,
+          type: 'category',
+          icon: 'poll',
         ),
       ],
       publishers: [
@@ -1154,6 +1219,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
     required String type,
     required String status,
     required String publisher,
+    required bool trash,
     required int page,
     required int pageSize,
     required String sortKey,
@@ -2193,6 +2259,157 @@ class _FakeAdminFontSettingsRepository implements AdminFontSettingsRepository {
   }
 }
 
+class _FakeAdminContentSettingsRepository
+    implements AdminContentSettingsRepository {
+  _FakeAdminContentSettingsRepository();
+
+  final _settingsByLanguage = <String, ContentGeneralSettingsData>{
+    'tr': ContentGeneralSettingsData.defaults('tr'),
+  };
+  final _postSettingsByLanguage = <String, ContentPostSettingsData>{
+    'tr': ContentPostSettingsData.defaults('tr'),
+  };
+  final _formatSettingsByLanguage = <String, ContentPostFormatSettingsData>{
+    'tr': ContentPostFormatSettingsData.defaults('tr'),
+  };
+  final _uploadSettingsByLanguage = <String, ContentUploadSettingsData>{
+    'tr': ContentUploadSettingsData.defaults('tr'),
+  };
+  final _featuredSettingsByLanguage = <String, ContentFeaturedSettingsData>{
+    'tr': ContentFeaturedSettingsData.defaults('tr'),
+  };
+  final _trashCleanupSettingsByLanguage =
+      <String, ContentTrashCleanupSettingsData>{
+        'tr': ContentTrashCleanupSettingsData.defaults('tr'),
+      };
+
+  ContentGeneralSettingsData? savedSettings;
+  ContentPostSettingsData? savedPostSettings;
+  ContentPostFormatSettingsData? savedFormatSettings;
+  ContentUploadSettingsData? savedUploadSettings;
+  ContentFeaturedSettingsData? savedFeaturedSettings;
+  ContentTrashCleanupSettingsData? savedTrashCleanupSettings;
+
+  @override
+  Future<ContentSettingsSnapshot> fetchAllSettings(String languageCode) async {
+    return ContentSettingsSnapshot(
+      languageCode: languageCode,
+      general: await fetchGeneralSettings(languageCode),
+      posts: await fetchPostSettings(languageCode),
+      postFormats: await fetchPostFormatSettings(languageCode),
+      upload: await fetchUploadSettings(languageCode),
+      featured: await fetchFeaturedSettings(languageCode),
+      trashCleanup: await fetchTrashCleanupSettings(languageCode),
+    );
+  }
+
+  @override
+  Future<ContentGeneralSettingsData> fetchGeneralSettings(
+    String languageCode,
+  ) async {
+    return _settingsByLanguage[languageCode] ??
+        ContentGeneralSettingsData.defaults(languageCode);
+  }
+
+  @override
+  Future<ContentGeneralSettingsData> saveGeneralSettings({
+    required AdminSession session,
+    required ContentGeneralSettingsData settings,
+  }) async {
+    savedSettings = settings;
+    _settingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<ContentPostSettingsData> fetchPostSettings(String languageCode) async {
+    return _postSettingsByLanguage[languageCode] ??
+        ContentPostSettingsData.defaults(languageCode);
+  }
+
+  @override
+  Future<ContentPostSettingsData> savePostSettings({
+    required AdminSession session,
+    required ContentPostSettingsData settings,
+  }) async {
+    savedPostSettings = settings;
+    _postSettingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<ContentPostFormatSettingsData> fetchPostFormatSettings(
+    String languageCode,
+  ) async {
+    return _formatSettingsByLanguage[languageCode] ??
+        ContentPostFormatSettingsData.defaults(languageCode);
+  }
+
+  @override
+  Future<ContentPostFormatSettingsData> savePostFormatSettings({
+    required AdminSession session,
+    required ContentPostFormatSettingsData settings,
+  }) async {
+    savedFormatSettings = settings;
+    _formatSettingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<ContentUploadSettingsData> fetchUploadSettings(
+    String languageCode,
+  ) async {
+    return _uploadSettingsByLanguage[languageCode] ??
+        ContentUploadSettingsData.defaults(languageCode);
+  }
+
+  @override
+  Future<ContentUploadSettingsData> saveUploadSettings({
+    required AdminSession session,
+    required ContentUploadSettingsData settings,
+  }) async {
+    savedUploadSettings = settings;
+    _uploadSettingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<ContentFeaturedSettingsData> fetchFeaturedSettings(
+    String languageCode,
+  ) async {
+    return _featuredSettingsByLanguage[languageCode] ??
+        ContentFeaturedSettingsData.defaults(languageCode);
+  }
+
+  @override
+  Future<ContentFeaturedSettingsData> saveFeaturedSettings({
+    required AdminSession session,
+    required ContentFeaturedSettingsData settings,
+  }) async {
+    savedFeaturedSettings = settings;
+    _featuredSettingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<ContentTrashCleanupSettingsData> fetchTrashCleanupSettings(
+    String languageCode,
+  ) async {
+    return _trashCleanupSettingsByLanguage[languageCode] ??
+        ContentTrashCleanupSettingsData.defaults(languageCode);
+  }
+
+  @override
+  Future<ContentTrashCleanupSettingsData> saveTrashCleanupSettings({
+    required AdminSession session,
+    required ContentTrashCleanupSettingsData settings,
+  }) async {
+    savedTrashCleanupSettings = settings;
+    _trashCleanupSettingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+}
+
 class _FakeAdminAiSettingsRepository implements AdminAiSettingsRepository {
   _FakeAdminAiSettingsRepository();
 
@@ -2284,6 +2501,33 @@ class _FakeAdminAiSettingsRepository implements AdminAiSettingsRepository {
   Future<List<String>> fetchGeminiModels(String apiKey) async {
     testedApiKey = apiKey;
     return const ['gemini-2.5-flash', 'gemini-3-pro-preview'];
+  }
+}
+
+class _FakeAdminSecuritySettingsRepository
+    implements AdminSecuritySettingsRepository {
+  var settings = AdminSecuritySettingsData.defaults('tr');
+  AdminSecuritySettingsData? savedSettings;
+  bool? includeSecretKey;
+
+  @override
+  Future<AdminSecuritySettingsData> fetchSettings(String languageCode) async {
+    return settings.copyWith(languageCode: languageCode);
+  }
+
+  @override
+  Future<AdminSecuritySettingsData> saveSettings({
+    required AdminSession session,
+    required AdminSecuritySettingsData settings,
+    required bool includeSecretKey,
+  }) async {
+    this.includeSecretKey = includeSecretKey;
+    savedSettings = settings;
+    this.settings = settings.copyWith(
+      captchaSecretConfigured:
+          includeSecretKey && settings.captchaSecretKey.trim().isNotEmpty,
+    );
+    return this.settings;
   }
 }
 
@@ -2911,7 +3155,9 @@ Future<void> _pumpAdminApp(
   AdminGeneralSettingsRepository? generalSettingsRepository,
   AdminFontSettingsRepository? fontSettingsRepository,
   AdminAiSettingsRepository? aiSettingsRepository,
+  AdminContentSettingsRepository? contentSettingsRepository,
   AdminModuleSettingsRepository? moduleSettingsRepository,
+  AdminSecuritySettingsRepository? securitySettingsRepository,
   AdminAccountSettingsRepository? accountSettingsRepository,
   AdminSubscribersRepository? subscribersRepository,
   AdminSocialRepository? socialRepository,
@@ -2935,8 +3181,12 @@ Future<void> _pumpAdminApp(
           fontSettingsRepository ?? _FakeAdminFontSettingsRepository(),
       aiSettingsRepository:
           aiSettingsRepository ?? _FakeAdminAiSettingsRepository(),
+      contentSettingsRepository:
+          contentSettingsRepository ?? _FakeAdminContentSettingsRepository(),
       moduleSettingsRepository:
           moduleSettingsRepository ?? _FakeAdminModuleSettingsRepository(),
+      securitySettingsRepository:
+          securitySettingsRepository ?? _FakeAdminSecuritySettingsRepository(),
       accountSettingsRepository:
           accountSettingsRepository ?? _FakeAdminAccountSettingsRepository(),
       subscribersRepository:
@@ -3867,6 +4117,82 @@ void main() {
     await expectTabSchema('Etkinlik', 'Etkinlik (Event)');
   });
 
+  testWidgets('Haber ekle kategorileri aktif sekmeye göre filtrelenir', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Haber'), findsOneWidget);
+
+    Finder dropdownWithValue(String value) {
+      return find.byWidgetPredicate(
+        (widget) => widget is DropdownButton<String> && widget.value == value,
+      );
+    }
+
+    final articleSubDropdown = find.ancestor(
+      of: find.text('Alt Kategori Seçin').first,
+      matching: find.byType(DropdownButton<String>),
+    );
+    await tester.tap(articleSubDropdown);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Siyaset'), findsOneWidget);
+    expect(find.text('Yaşam'), findsOneWidget);
+    expect(find.text('Testler'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Anket').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Niğde > Anket'), findsOneWidget);
+
+    await tester.tap(dropdownWithValue('Anket').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Siyaset'), findsNothing);
+    expect(find.text('Yaşam'), findsNothing);
+    expect(find.text('Testler'), findsNothing);
+    expect(find.text('Altunhisar'), findsOneWidget);
+    expect(find.text('Bor'), findsOneWidget);
+
+    await tester.tap(find.text('Bor').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Niğde > Bor'), findsOneWidget);
+
+    final thirdDropdown = find.ancestor(
+      of: find.text('Alt Kategori Seçin').first,
+      matching: find.byType(DropdownButton<String>),
+    );
+    await tester.tap(thirdDropdown);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Siyaset'), findsNothing);
+    expect(find.text('Yaşam'), findsNothing);
+    expect(find.text('Testler'), findsNothing);
+    expect(find.text('Anket'), findsWidgets);
+
+    await tester.tap(find.text('Anket').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Niğde > Bor > Anket'), findsOneWidget);
+  });
+
   testWidgets('Hikayeler menüsü yorumların üzerinde hikaye yönetimini açar', (
     tester,
   ) async {
@@ -4718,9 +5044,10 @@ void main() {
     );
     expect(find.widgetWithText(TextButton, 'Dosya Yükleme'), findsOneWidget);
     expect(find.text('Manşet bölümünü göster'), findsOneWidget);
+    expect(find.text('Ana sayfada son gönderileri göster'), findsNothing);
     expect(find.text('Öne Çıkan İçerik Ayarları'), findsOneWidget);
     expect(find.text('Manşet'), findsOneWidget);
-    expect(find.text('Otomatik gönderi silme'), findsOneWidget);
+    expect(find.text('Otomatik çöp kutusu temizleme'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, 'Gönderiler'));
     await tester.pumpAndSettle();

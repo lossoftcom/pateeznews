@@ -1,6 +1,10 @@
 import type { APIRoute } from "astro";
 import { getSessionFromRequest, json, withTransaction } from "@/lib/server/appDb";
 import { dbQuery } from "@/lib/server/supabaseDb";
+import {
+  sanitizePublicInteractionText,
+  type SecuritySpamInteractionPolicy,
+} from "@/lib/server/securitySettings";
 
 export const prerender = false;
 
@@ -13,6 +17,7 @@ type PublicComment = {
   userLiked: boolean;
   canDelete: boolean;
   author: {
+    id: string;
     name: string;
     avatarUrl: string;
     handle: string;
@@ -20,6 +25,12 @@ type PublicComment = {
     isOfficial: boolean;
   };
   replies: PublicComment[];
+};
+
+type CommentSettings = {
+  commentSystem: boolean;
+  commentApprovalSystem: boolean;
+  spamInteractionPolicy: SecuritySpamInteractionPolicy;
 };
 
 const numericId = (value: unknown) => {
@@ -66,6 +77,51 @@ const isOfficialRole = (role: unknown) => {
   return value === "admin" || value === "super_admin" || value === "editor";
 };
 
+async function loadCommentSettings(postId: number): Promise<CommentSettings> {
+  const defaults: CommentSettings = {
+    commentSystem: true,
+    commentApprovalSystem: true,
+    spamInteractionPolicy: "remove_links",
+  };
+  try {
+    const postResult = await dbQuery(
+      `SELECT language_code
+       FROM public.posts
+       WHERE id = $1
+       LIMIT 1`,
+      [postId],
+    );
+    const languageCode = String(postResult.rows[0]?.language_code || "tr").trim() || "tr";
+    const fetchSettings = async (code: string) => {
+      const result = await dbQuery(
+        `SELECT content_comment_system_enabled,
+                content_comment_approval_enabled,
+                security_spam_interaction_policy
+         FROM public.site_settings
+         WHERE language_code = $1
+         LIMIT 1`,
+        [code],
+      );
+      return result.rows[0] || null;
+    };
+    const row =
+      (await fetchSettings(languageCode)) ||
+      (languageCode === "tr" ? null : await fetchSettings("tr"));
+    if (!row) return defaults;
+    return {
+      commentSystem: row.content_comment_system_enabled !== false,
+      commentApprovalSystem: row.content_comment_approval_enabled !== false,
+      spamInteractionPolicy:
+        row.security_spam_interaction_policy === "nofollow" ||
+        row.security_spam_interaction_policy === "sanitize_html"
+          ? row.security_spam_interaction_policy
+          : "remove_links",
+    };
+  } catch {
+    return defaults;
+  }
+}
+
 const mapComment = (row: any, origin: string, userId: string | null): PublicComment => ({
   id: String(row.id || ""),
   parentId: String(row.parent_id || ""),
@@ -75,6 +131,7 @@ const mapComment = (row: any, origin: string, userId: string | null): PublicComm
   userLiked: row.user_liked === true,
   canDelete: Boolean(userId && String(row.user_id || "") === userId),
   author: {
+    id: String(row.user_id || ""),
     name: authorName(row),
     avatarUrl: resolveImageUrl(String(row.user_avatar || ""), origin),
     handle: authorHandle(row),
@@ -215,8 +272,12 @@ export const POST: APIRoute = async ({ request }) => {
     const session = await getSessionFromRequest(request, body);
     const userId = session?.user?.id || null;
     const limit = Number(body.limit || 2);
+    const commentSettings = await loadCommentSettings(postId);
 
     if (action === "list") {
+      if (!commentSettings.commentSystem) {
+        return json({ ok: true, comments: [] });
+      }
       return json({
         ok: true,
         comments: await readComments(postId, userId, limit, origin),
@@ -224,7 +285,14 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === "submit") {
-      const content = cleanText(body.content, 2000);
+      if (!commentSettings.commentSystem) {
+        return json({ error: { message: "Yorum sistemi kapalı" } }, 403);
+      }
+      const content = sanitizePublicInteractionText(
+        body.content,
+        commentSettings.spamInteractionPolicy,
+        2000,
+      );
       if (!content) return json({ error: { message: "Yorum boş olamaz" } }, 400);
 
       const guestName = userId ? "" : cleanText(body.guestName, 80);
@@ -235,12 +303,15 @@ export const POST: APIRoute = async ({ request }) => {
 
       const parentId = numericId(body.parentId);
       await assertParentBelongsToPost(parentId, postId);
+      const status = commentSettings.commentApprovalSystem
+        ? "pending"
+        : "approved";
 
       await withTransaction(async (client) => {
         await client.query(
           `INSERT INTO public.comments
              (post_id, user_id, guest_name, guest_email, parent_id, content, status)
-           VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             postId,
             userId,
@@ -248,13 +319,14 @@ export const POST: APIRoute = async ({ request }) => {
             userId ? null : guestEmail,
             parentId,
             content,
+            status,
           ],
         );
       });
 
       return json({
         ok: true,
-        status: "pending",
+        status,
         comments: await readComments(postId, userId, limit, origin),
       });
     }

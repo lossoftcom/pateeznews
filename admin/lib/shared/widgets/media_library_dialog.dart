@@ -18,6 +18,19 @@ const _mlSurface = Color(0xFFFAFBFC);
 const _mlSelected = Color(0xFF10B981);
 const _mlSelectedDeep = Color(0xFF047857);
 
+String _fileExtension(String value) {
+  final clean = value.split('?').first.split('#').first.toLowerCase();
+  final dotIndex = clean.lastIndexOf('.');
+  if (dotIndex < 0 || dotIndex == clean.length - 1) return '';
+  return clean.substring(dotIndex + 1);
+}
+
+String _formatMegabytes(int bytes) {
+  final mb = bytes / (1024 * 1024);
+  if (mb == mb.roundToDouble()) return mb.toInt().toString();
+  return mb.toStringAsFixed(1);
+}
+
 Future<String?> showMediaLibraryDialog(
   BuildContext context, {
   String type = 'image',
@@ -110,11 +123,28 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   double? _uploadProgress;
   Duration? _uploadRemaining;
   var _busyFileId = '';
+  var _uploadSettings = MediaUploadSettings.defaults();
+  String? _uploadSettingsLanguageCode;
 
   @override
   void initState() {
     super.initState();
     _loadFiles();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final languageCode = AdminLocalizationScope.maybeOf(context)?.code ?? 'tr';
+    if (_uploadSettingsLanguageCode == languageCode) return;
+    _uploadSettingsLanguageCode = languageCode;
+    final cached = MediaService.cachedUploadSettings(
+      languageCode: languageCode,
+    );
+    if (cached != null) {
+      _uploadSettings = cached;
+    }
+    unawaited(_loadUploadSettings(languageCode));
   }
 
   @override
@@ -150,6 +180,16 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
     }
   }
 
+  Future<void> _loadUploadSettings(String languageCode) async {
+    try {
+      final settings = await widget.mediaService.fetchUploadSettings(
+        languageCode: languageCode,
+      );
+      if (!mounted || _uploadSettingsLanguageCode != languageCode) return;
+      setState(() => _uploadSettings = settings);
+    } catch (_) {}
+  }
+
   List<MediaItem> get _filteredFiles {
     final q = _searchTerm.value.trim().toLowerCase();
     if (q.isEmpty) return _files;
@@ -158,7 +198,9 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
 
   Future<void> _pickAndUpload() async {
     if (_uploading) return;
-    final extensions = _extensionsFor(widget.type);
+    final extensions = _uploadSettings.extensionsFor(widget.type);
+    final typeNotAllowedMessage = context.t('media.uploadTypeNotAllowed');
+    final tooLargeMessageTemplate = context.t('media.uploadTooLarge');
     final file = extensions.isEmpty
         ? await openFile()
         : await openFile(
@@ -167,6 +209,26 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
             ],
           );
     if (file == null) return;
+
+    final fileExtension = _fileExtension(file.name);
+    if (fileExtension.isEmpty || !extensions.contains(fileExtension)) {
+      if (!mounted) return;
+      _showUploadMessage(typeNotAllowedMessage);
+      return;
+    }
+
+    final maxBytes = _uploadSettings.maxBytesFor(widget.type);
+    final fileLength = await file.length();
+    if (fileLength > maxBytes) {
+      if (!mounted) return;
+      _showUploadMessage(
+        tooLargeMessageTemplate.replaceAll(
+          '{size}',
+          _formatMegabytes(maxBytes),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _uploading = true;
@@ -209,6 +271,12 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
         _uploadRemaining = null;
       });
     }
+  }
+
+  void _showUploadMessage(String message) {
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _deleteFile(MediaItem file) async {
@@ -486,6 +554,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
                   children: [
                     _UploadSidebar(
                       type: widget.type,
+                      settings: _uploadSettings,
                       uploading: _uploading,
                       uploadProgress: _uploadProgress,
                       processing: _uploadProcessing,
@@ -538,26 +607,6 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
       ),
     );
   }
-
-  static List<String> _extensionsFor(String type) => switch (type) {
-    'video' => ['mp4', 'm4v', 'webm', 'mov', 'avi', 'mkv', '3gp', '3g2'],
-    'audio' => ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus'],
-    'file' => const <String>[],
-    _ => [
-      'jpg',
-      'jpeg',
-      'webp',
-      'png',
-      'gif',
-      'avif',
-      'bmp',
-      'tif',
-      'tiff',
-      'heic',
-      'heif',
-      'svg',
-    ],
-  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -701,6 +750,7 @@ class _SearchField extends StatelessWidget {
 class _UploadSidebar extends StatelessWidget {
   const _UploadSidebar({
     required this.type,
+    required this.settings,
     required this.uploading,
     required this.uploadProgress,
     required this.processing,
@@ -709,18 +759,18 @@ class _UploadSidebar extends StatelessWidget {
   });
 
   final String type;
+  final MediaUploadSettings settings;
   final bool uploading;
   final double? uploadProgress;
   final bool processing;
   final Duration? remaining;
   final VoidCallback onPickFile;
 
-  List<String> _extensions(BuildContext context) => switch (type) {
-    'video' => ['MP4', 'M4V', 'WEBM', 'MOV', 'AVI', 'MKV', '3GP'],
-    'audio' => ['MP3', 'WAV', 'OGG', 'M4A', 'AAC', 'FLAC', 'OPUS'],
-    'file' => [context.t('media.allFiles')],
-    _ => ['JPG', 'JPEG', 'WEBP', 'PNG', 'GIF', 'AVIF', 'HEIC', 'SVG'],
-  };
+  List<String> _extensions(BuildContext context) {
+    final extensions = settings.extensionsFor(type);
+    if (extensions.isEmpty) return [context.t('media.allFiles')];
+    return extensions.map((extension) => extension.toUpperCase()).toList();
+  }
 
   @override
   Widget build(BuildContext context) {

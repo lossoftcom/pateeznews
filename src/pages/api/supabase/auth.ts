@@ -5,6 +5,12 @@ import {
   updateUser,
 } from '@/lib/server/supabaseAuth';
 import { adminSecurityHeaders } from '@/lib/server/securityHeaders';
+import {
+  clearLoginFailures,
+  getLoginAttemptLock,
+  getSecuritySettings,
+  recordLoginFailure,
+} from '@/lib/server/securitySettings';
 
 function json(data: any, status = 200) {
   const isProduction = import.meta.env.PROD || process.env.NODE_ENV === 'production';
@@ -35,8 +41,35 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (body.action === 'signInWithPassword') {
-      const result = await signInWithPassword(body.email, body.password);
-      return json(result, result.error ? 401 : 200);
+      const email = String(body.email || '').trim().toLowerCase();
+      const attemptIdentifier =
+        email ||
+        request.headers.get('cf-connecting-ip') ||
+        request.headers.get('x-real-ip') ||
+        'unknown';
+      const settings = await getSecuritySettings('tr');
+      const lock = await getLoginAttemptLock('admin', attemptIdentifier);
+      if (lock.locked) {
+        return json(
+          { data: { user: null, session: null }, error: { message: 'Giriş geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.' } },
+          429
+        );
+      }
+
+      const result = await signInWithPassword(email, body.password);
+      if (result.error) {
+        const failure = await recordLoginFailure('admin', attemptIdentifier, settings);
+        if (failure.locked) {
+          return json(
+            { data: { user: null, session: null }, error: { message: 'Giriş geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.' } },
+            429
+          );
+        }
+        return json(result, failure.locked ? 429 : 401);
+      }
+
+      await clearLoginFailures('admin', attemptIdentifier);
+      return json(result);
     }
 
     if (body.action === 'signUp') {

@@ -14,7 +14,9 @@ export const GET: APIRoute = async ({ request }) => {
          COUNT(*)::bigint AS total,
          COUNT(*) FILTER (WHERE status = 'published')::bigint AS published,
          COALESCE(SUM(COALESCE(views_count, 0)), 0)::bigint AS views
-       FROM public.posts`
+       FROM public.posts
+       WHERE deleted_at IS NULL
+         AND COALESCE(status, '') <> 'trash'`
     );
     const row = result.rows[0] || { total: 0, published: 0, views: 0 };
     return adminJson({

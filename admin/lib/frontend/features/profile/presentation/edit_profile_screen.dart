@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -9,7 +10,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/back_circle_button.dart';
 import '../../../shared/widgets/cached_image.dart';
+import '../../../shared/widgets/frontend_toast.dart';
 import '../data/profile_content.dart';
+import '../data/profile_repository.dart';
 
 /// Profili Düzenle ekranı.
 ///
@@ -22,9 +25,18 @@ import '../data/profile_content.dart';
 /// eksiksizdir; gerçek kalıcılık için backend `update-profile` app uç noktası
 /// gerekir (şifre için `update-password` uç noktası mevcuttur).
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key, required this.data});
+  const EditProfileScreen({
+    super.key,
+    required this.data,
+    this.authToken = '',
+    this.repository = const ProfileRepository(),
+    this.onProfileUpdated,
+  });
 
   final ProfileData data;
+  final String authToken;
+  final ProfileRepository repository;
+  final ValueChanged<ProfileSaveResult>? onProfileUpdated;
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -42,7 +54,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _x;
   late final TextEditingController _facebook;
   late final TextEditingController _youtube;
+  late final TextEditingController _whatsapp;
   late final TextEditingController _linkedin;
+  late final TextEditingController _tiktok;
+  late final TextEditingController _pinterest;
+  late final TextEditingController _snapchat;
+  late final TextEditingController _telegram;
+  late final TextEditingController _discord;
+  late final TextEditingController _reddit;
+  late final TextEditingController _bluesky;
+  late final TextEditingController _twitch;
   final _currentPassword = TextEditingController();
   final _newPassword = TextEditingController();
   final _newPasswordAgain = TextEditingController();
@@ -50,8 +71,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late bool _showEmail;
   bool _rssFeeds = false;
   bool _saving = false;
+  bool _passwordSaving = false;
+  String? _photoBusyKind;
   String? _passwordMessage;
   bool _passwordOk = false;
+  late String _avatarUrl;
+  late String _coverUrl;
+  late String _avatarPath;
+  late String _coverPath;
 
   @override
   void initState() {
@@ -64,19 +91,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _email = TextEditingController(text: data.email);
     _expertise = TextEditingController(text: data.roleLabel);
     _about = TextEditingController(text: data.hasAbout ? data.aboutMe : '');
-    _website = TextEditingController(text: _linkFor(data, 'Web sitesi'));
-    _address = TextEditingController();
-    _instagram = TextEditingController(text: _linkFor(data, 'Instagram'));
-    _x = TextEditingController(text: _linkFor(data, 'X'));
-    _facebook = TextEditingController(text: _linkFor(data, 'Facebook'));
-    _youtube = TextEditingController();
-    _linkedin = TextEditingController();
+    _website = TextEditingController(text: data.website);
+    _address = TextEditingController(text: data.address);
+    _x = TextEditingController(text: _linkFor(data, 'x'));
+    _instagram = TextEditingController(text: _linkFor(data, 'instagram'));
+    _facebook = TextEditingController(text: _linkFor(data, 'facebook'));
+    _youtube = TextEditingController(text: _linkFor(data, 'youtube'));
+    _whatsapp = TextEditingController(text: _linkFor(data, 'whatsapp'));
+    _linkedin = TextEditingController(text: _linkFor(data, 'linkedin'));
+    _tiktok = TextEditingController(text: _linkFor(data, 'tiktok'));
+    _pinterest = TextEditingController(text: _linkFor(data, 'pinterest'));
+    _snapchat = TextEditingController(text: _linkFor(data, 'snapchat'));
+    _telegram = TextEditingController(text: _linkFor(data, 'telegram'));
+    _discord = TextEditingController(text: _linkFor(data, 'discord'));
+    _reddit = TextEditingController(text: _linkFor(data, 'reddit'));
+    _bluesky = TextEditingController(text: _linkFor(data, 'bluesky'));
+    _twitch = TextEditingController(text: _linkFor(data, 'twitch'));
     _showEmail = data.showEmail;
+    _rssFeeds = data.rssFeeds;
+    _avatarUrl = data.avatarUrl;
+    _coverUrl = data.coverUrl;
+    _avatarPath = data.avatarPath;
+    _coverPath = data.coverPath;
   }
 
-  static String _linkFor(ProfileData data, String label) {
+  static String _linkFor(ProfileData data, String key) {
     for (final link in data.socialLinks) {
-      if (link.label == label) return link.url;
+      if (link.key == key) return link.url;
     }
     return '';
   }
@@ -95,7 +136,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _x,
       _facebook,
       _youtube,
+      _whatsapp,
       _linkedin,
+      _tiktok,
+      _pinterest,
+      _snapchat,
+      _telegram,
+      _discord,
+      _reddit,
+      _bluesky,
+      _twitch,
       _currentPassword,
       _newPassword,
       _newPasswordAgain,
@@ -105,41 +155,82 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  void _toast(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            message,
-            style: AppTypography.bodySmall.copyWith(color: Colors.white),
-          ),
-          backgroundColor: AppColors.deepOcean,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-        ),
-      );
+  void _toast(
+    String message, {
+    FrontendToastTone tone = FrontendToastTone.info,
+  }) {
+    FrontendToast.show(context, message: message, tone: tone);
   }
 
   Future<void> _save() async {
     if (_saving) return;
     FocusScope.of(context).unfocus();
     if (_username.text.trim().isEmpty || _email.text.trim().isEmpty) {
-      _toast('Kullanıcı adı ve e‑posta zorunlu.');
+      _toast(
+        'Kullanıcı adı ve e‑posta zorunlu.',
+        tone: FrontendToastTone.error,
+      );
+      return;
+    }
+    final token = widget.authToken.trim();
+    if (token.isEmpty) {
+      _toast(
+        'Profilini güncellemek için giriş yapmalısın.',
+        tone: FrontendToastTone.error,
+      );
       return;
     }
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    setState(() => _saving = false);
-    _toast('Profil bilgilerin güncellendi.');
+    try {
+      final result = await widget.repository.updateProfile(
+        token: token,
+        input: ProfileUpdateInput(
+          fullName: _fullName.text,
+          username: _username.text,
+          email: _email.text,
+          expertise: _expertise.text,
+          aboutMe: _about.text,
+          website: _website.text,
+          address: _address.text,
+          instagram: _instagram.text,
+          x: _x.text,
+          facebook: _facebook.text,
+          youtube: _youtube.text,
+          whatsapp: _whatsapp.text,
+          linkedin: _linkedin.text,
+          tiktok: _tiktok.text,
+          pinterest: _pinterest.text,
+          snapchat: _snapchat.text,
+          telegram: _telegram.text,
+          discord: _discord.text,
+          reddit: _reddit.text,
+          bluesky: _bluesky.text,
+          twitch: _twitch.text,
+          showEmail: _showEmail,
+          rssFeeds: _rssFeeds,
+          avatarPath: _avatarPath,
+          coverPath: _coverPath,
+        ),
+      );
+      if (!mounted) return;
+      widget.onProfileUpdated?.call(result);
+      _toast('Profil kaydedildi.', tone: FrontendToastTone.success);
+      Navigator.of(context).pop(result);
+    } on ProfileException catch (error) {
+      if (!mounted) return;
+      _toast(error.message, tone: FrontendToastTone.error);
+    } catch (_) {
+      if (!mounted) return;
+      _toast('Profil güncellenemedi.', tone: FrontendToastTone.error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
-  void _updatePassword() {
+  Future<void> _updatePassword() async {
+    if (_passwordSaving) return;
     FocusScope.of(context).unfocus();
+    final token = widget.authToken.trim();
     final current = _currentPassword.text;
     final next = _newPassword.text;
     final confirm = _newPasswordAgain.text;
@@ -164,13 +255,111 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
       return;
     }
-    _currentPassword.clear();
-    _newPassword.clear();
-    _newPasswordAgain.clear();
-    setState(() {
-      _passwordOk = true;
-      _passwordMessage = 'Şifren güncellendi.';
-    });
+    if (token.isEmpty) {
+      setState(() {
+        _passwordOk = false;
+        _passwordMessage = 'Şifre güncellemek için giriş yapmalısın.';
+      });
+      return;
+    }
+    setState(() => _passwordSaving = true);
+    try {
+      await widget.repository.updatePassword(
+        token: token,
+        currentPassword: current,
+        newPassword: next,
+      );
+      _currentPassword.clear();
+      _newPassword.clear();
+      _newPasswordAgain.clear();
+      if (!mounted) return;
+      setState(() {
+        _passwordOk = true;
+        _passwordMessage = 'Şifren güncellendi.';
+      });
+    } on ProfileException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _passwordOk = false;
+        _passwordMessage = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _passwordOk = false;
+        _passwordMessage = 'Şifre güncellenemedi.';
+      });
+    } finally {
+      if (mounted) setState(() => _passwordSaving = false);
+    }
+  }
+
+  Future<void> _pickProfileImage(String kind) async {
+    if (_photoBusyKind != null) return;
+    final token = widget.authToken.trim();
+    if (token.isEmpty) {
+      _toast(
+        'Fotoğraf yüklemek için giriş yapmalısın.',
+        tone: FrontendToastTone.error,
+      );
+      return;
+    }
+    XFile? file;
+    try {
+      file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: kind == 'cover' ? 2400 : 1400,
+        maxHeight: kind == 'cover' ? 1600 : 1400,
+        imageQuality: 92,
+        requestFullMetadata: false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _toast('Galeri açılamadı.', tone: FrontendToastTone.error);
+      return;
+    }
+    if (file == null) return;
+    final length = await file.length();
+    if (length > 5 * 1024 * 1024) {
+      _toast(
+        'Profil görseli en fazla 5 MB olabilir.',
+        tone: FrontendToastTone.error,
+      );
+      return;
+    }
+    setState(() => _photoBusyKind = kind);
+    try {
+      final result = await widget.repository.uploadProfileImage(
+        token: token,
+        kind: kind,
+        fileName: file.name,
+        bytes: await file.readAsBytes(),
+      );
+      if (!mounted) return;
+      setState(() {
+        if (kind == 'cover') {
+          _coverUrl = result.displayUrl;
+          _coverPath = result.publicSrc;
+        } else {
+          _avatarUrl = result.displayUrl;
+          _avatarPath = result.publicSrc;
+        }
+      });
+      _toast(
+        kind == 'cover'
+            ? 'Kapak görseli yüklendi.'
+            : 'Profil fotoğrafı yüklendi.',
+        tone: FrontendToastTone.success,
+      );
+    } on ProfileException catch (error) {
+      if (!mounted) return;
+      _toast(error.message, tone: FrontendToastTone.error);
+    } catch (_) {
+      if (!mounted) return;
+      _toast('Görsel yüklenemedi.', tone: FrontendToastTone.error);
+    } finally {
+      if (mounted) setState(() => _photoBusyKind = null);
+    }
   }
 
   Future<void> _confirmDelete() async {
@@ -212,7 +401,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.data;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -235,10 +423,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 children: [
                   _PhotosSection(
-                    avatarUrl: data.avatarUrl,
-                    coverUrl: data.coverUrl,
-                    onPickAvatar: () => _toast('Profil fotoğrafı seçimi yakında.'),
-                    onPickCover: () => _toast('Kapak görseli seçimi yakında.'),
+                    avatarUrl: _avatarUrl,
+                    coverUrl: _coverUrl,
+                    avatarUploading: _photoBusyKind == 'avatar',
+                    coverUploading: _photoBusyKind == 'cover',
+                    onPickAvatar: () => _pickProfileImage('avatar'),
+                    onPickCover: () => _pickProfileImage('cover'),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   _Section(
@@ -285,13 +475,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         maxLines: 4,
                       ),
                       _Field(
-                        label: 'Web Sitesi',
-                        hint: 'https://site.com',
-                        icon: Symbols.public_rounded,
-                        controller: _website,
-                        keyboardType: TextInputType.url,
-                      ),
-                      _Field(
                         label: 'Adres',
                         hint: 'Şehir / ilçe',
                         icon: Symbols.location_on_rounded,
@@ -305,38 +488,122 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     title: 'Sosyal Bağlantılar',
                     children: [
                       _Field(
-                        label: 'Instagram',
-                        hint: 'instagram.com/...',
-                        icon: Symbols.instagram_fill,
-                        controller: _instagram,
-                        keyboardType: TextInputType.url,
-                      ),
-                      _Field(
                         label: 'X (Twitter)',
-                        hint: 'x.com/...',
+                        hint: 'https://x.com/...',
                         icon: Symbols.twitter_x_fill,
+                        iconColor: const Color(0xFF000000),
                         controller: _x,
                         keyboardType: TextInputType.url,
                       ),
                       _Field(
+                        label: 'Instagram',
+                        hint: 'https://www.instagram.com/...',
+                        icon: Symbols.instagram_fill,
+                        iconColor: const Color(0xFFE4405F),
+                        controller: _instagram,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
                         label: 'Facebook',
-                        hint: 'facebook.com/...',
+                        hint: 'https://www.facebook.com/...',
                         icon: Symbols.facebook_fill,
+                        iconColor: const Color(0xFF1877F2),
                         controller: _facebook,
                         keyboardType: TextInputType.url,
                       ),
                       _Field(
                         label: 'YouTube',
-                        hint: 'youtube.com/@...',
-                        icon: Symbols.play_circle_rounded,
+                        hint: 'https://www.youtube.com/...',
+                        icon: Symbols.youtube_fill,
+                        iconColor: const Color(0xFFFF0000),
                         controller: _youtube,
                         keyboardType: TextInputType.url,
                       ),
                       _Field(
+                        label: 'WhatsApp',
+                        hint: 'https://wa.me/...',
+                        icon: Symbols.whatsapp_fill,
+                        iconColor: const Color(0xFF25D366),
+                        controller: _whatsapp,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
                         label: 'LinkedIn',
-                        hint: 'linkedin.com/in/...',
-                        icon: Symbols.group,
+                        hint: 'https://www.linkedin.com/in/...',
+                        icon: Symbols.linkedin_fill,
+                        iconColor: const Color(0xFF0A66C2),
                         controller: _linkedin,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'TikTok',
+                        hint: 'https://www.tiktok.com/@...',
+                        icon: Symbols.tiktok_fill,
+                        iconColor: const Color(0xFF000000),
+                        controller: _tiktok,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Pinterest',
+                        hint: 'https://www.pinterest.com/...',
+                        icon: Symbols.pinterest_fill,
+                        iconColor: const Color(0xFFE60023),
+                        controller: _pinterest,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Snapchat',
+                        hint: 'https://www.snapchat.com/add/...',
+                        icon: Symbols.snapchat_fill,
+                        iconColor: const Color(0xFFFFC400),
+                        controller: _snapchat,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Telegram',
+                        hint: 'https://t.me/...',
+                        icon: Symbols.telegram_fill,
+                        iconColor: const Color(0xFF26A5E4),
+                        controller: _telegram,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Discord',
+                        hint: 'https://discord.com/...',
+                        icon: Symbols.discord_fill,
+                        iconColor: const Color(0xFF5865F2),
+                        controller: _discord,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Reddit',
+                        hint: 'https://www.reddit.com/user/...',
+                        icon: Symbols.reddit_fill,
+                        iconColor: const Color(0xFFFF4500),
+                        controller: _reddit,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Bluesky',
+                        hint: 'https://bsky.app/profile/...',
+                        icon: Symbols.bluesky_fill,
+                        iconColor: const Color(0xFF1185FE),
+                        controller: _bluesky,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Twitch',
+                        hint: 'https://www.twitch.tv/...',
+                        icon: Symbols.twitch_fill,
+                        iconColor: const Color(0xFF9146FF),
+                        controller: _twitch,
+                        keyboardType: TextInputType.url,
+                      ),
+                      _Field(
+                        label: 'Personal Website URL',
+                        hint: 'https://...',
+                        icon: Symbols.public_rounded,
+                        controller: _website,
                         keyboardType: TextInputType.url,
                         isLast: true,
                       ),
@@ -401,7 +668,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ],
                       const SizedBox(height: AppSpacing.md),
                       _SecondaryButton(
-                        label: 'Şifreyi Güncelle',
+                        label: _passwordSaving
+                            ? 'Güncelleniyor'
+                            : 'Şifreyi Güncelle',
                         icon: Symbols.lock_outline_rounded,
                         onTap: _updatePassword,
                       ),
@@ -540,6 +809,7 @@ class _Field extends StatelessWidget {
     required this.hint,
     required this.icon,
     required this.controller,
+    this.iconColor,
     this.keyboardType = TextInputType.text,
     this.textCapitalization = TextCapitalization.none,
     this.maxLines = 1,
@@ -552,6 +822,7 @@ class _Field extends StatelessWidget {
   final String hint;
   final IconData icon;
   final TextEditingController controller;
+  final Color? iconColor;
   final TextInputType keyboardType;
   final TextCapitalization textCapitalization;
   final int maxLines;
@@ -579,7 +850,7 @@ class _Field extends StatelessWidget {
           hintText: hint,
           prefixIcon: maxLines > 1
               ? null
-              : Icon(icon, color: AppColors.iconMuted, size: 18),
+              : Icon(icon, color: iconColor ?? AppColors.iconMuted, size: 18),
           suffixIcon: suffix,
           filled: true,
           fillColor: AppColors.surface,
@@ -597,7 +868,10 @@ class _Field extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.value),
-            borderSide: const BorderSide(color: AppColors.deepOcean, width: 1.2),
+            borderSide: const BorderSide(
+              color: AppColors.deepOcean,
+              width: 1.2,
+            ),
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.value),
@@ -701,12 +975,16 @@ class _PhotosSection extends StatelessWidget {
   const _PhotosSection({
     required this.avatarUrl,
     required this.coverUrl,
+    required this.avatarUploading,
+    required this.coverUploading,
     required this.onPickAvatar,
     required this.onPickCover,
   });
 
   final String avatarUrl;
   final String coverUrl;
+  final bool avatarUploading;
+  final bool coverUploading;
   final VoidCallback onPickAvatar;
   final VoidCallback onPickCover;
 
@@ -734,7 +1012,11 @@ class _PhotosSection extends StatelessWidget {
               Positioned(
                 right: 8,
                 bottom: 8,
-                child: _CameraButton(label: 'Kapak', onTap: onPickCover),
+                child: _CameraButton(
+                  label: coverUploading ? 'Yükleniyor' : 'Kapak',
+                  loading: coverUploading,
+                  onTap: onPickCover,
+                ),
               ),
             ],
           ),
@@ -753,12 +1035,11 @@ class _PhotosSection extends StatelessWidget {
                     height: 64,
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(6),
+                      shape: BoxShape.circle,
                       border: Border.all(color: AppColors.line),
                     ),
                     padding: const EdgeInsets.all(2),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                    child: ClipOval(
                       child: ColoredBox(
                         color: AppColors.surfaceInk,
                         child: CachedImage(
@@ -794,12 +1075,18 @@ class _PhotosSection extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     'JPG veya PNG · en fazla 5 MB',
-                    style: AppTypography.meta.copyWith(color: AppColors.support),
+                    style: AppTypography.meta.copyWith(
+                      color: AppColors.support,
+                    ),
                   ),
                 ],
               ),
             ),
-            _CameraButton(label: 'Değiştir', onTap: onPickAvatar),
+            _CameraButton(
+              label: avatarUploading ? 'Yükleniyor' : 'Değiştir',
+              loading: avatarUploading,
+              onTap: onPickAvatar,
+            ),
           ],
         ),
       ],
@@ -808,10 +1095,15 @@ class _PhotosSection extends StatelessWidget {
 }
 
 class _CameraButton extends StatelessWidget {
-  const _CameraButton({required this.label, required this.onTap});
+  const _CameraButton({
+    required this.label,
+    required this.onTap,
+    this.loading = false,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -819,14 +1111,27 @@ class _CameraButton extends StatelessWidget {
       color: AppColors.deepOcean,
       borderRadius: BorderRadius.circular(AppRadius.value),
       child: InkWell(
-        onTap: onTap,
+        onTap: loading ? null : onTap,
         borderRadius: BorderRadius.circular(AppRadius.value),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Symbols.photo_camera, size: 14, color: Colors.white),
+              loading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(
+                      Symbols.photo_camera,
+                      size: 14,
+                      color: Colors.white,
+                    ),
               const SizedBox(width: 5),
               Text(
                 label,

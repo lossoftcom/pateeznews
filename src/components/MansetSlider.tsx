@@ -115,6 +115,26 @@ const mapNewsToSlide = (news: NewsItem): MansetSlide | null => {
     };
 };
 
+const withLocalImageVariant = (image: string, width: number) => {
+    if (!image) return image;
+    try {
+        const isBrowser = typeof window !== 'undefined';
+        const isRelative = image.startsWith('/');
+        if (!isBrowser && !isRelative) return image;
+        const base = isBrowser ? window.location.origin : 'https://pateez.local';
+        const url = new URL(image, base);
+        if (isBrowser && url.origin !== window.location.origin) return image;
+        if (!url.pathname.startsWith('/api/storage/file/') && !url.pathname.startsWith('/local-upload/')) {
+            return image;
+        }
+        url.searchParams.set('w', String(width));
+        url.searchParams.set('q', '86');
+        return isRelative ? `${url.pathname}${url.search}${url.hash}` : url.toString();
+    } catch {
+        return image;
+    }
+};
+
 const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], onNewsSelect }) => {
     const slides = useMemo(() => newsSlides.map(mapNewsToSlide).filter(Boolean) as MansetSlide[], [newsSlides]);
     const [activeIndex, setActiveIndex] = useState(0);
@@ -171,8 +191,11 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                             }`}
                         >
                             <img
-                                src={slide.image}
+                                src={withLocalImageVariant(slide.image, index === 0 ? 1600 : 1200)}
                                 alt={slide.alt}
+                                loading={index === 0 ? 'eager' : 'lazy'}
+                                decoding="async"
+                                fetchPriority={index === 0 ? 'high' : 'low'}
                                 className="w-full h-full object-cover transform transition-transform duration-[15000ms] ease-out scale-105 group-hover:scale-110"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />

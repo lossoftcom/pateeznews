@@ -43,7 +43,7 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.viewPaddingOf(context).top;
-    final topItems = widget.shellData.topNavigationItems;
+    final topItems = _topMenuItems(widget.shellData);
     final sidebarItems = widget.shellData.sidebarNavigationItems;
 
     return SizedBox(
@@ -114,6 +114,28 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
     );
   }
 
+  List<AppShellNavigationItem> _topMenuItems(AppShellData shellData) {
+    final topItems = shellData.topNavigationItems;
+    final promotedCategories = shellData.sidebarNavigationItems
+        .where(
+          (item) =>
+              item.parentId != null &&
+              _isCategoryNavigationType(item.type) &&
+              !_isHomeNavigationItem(item),
+        )
+        .toList(growable: false);
+    if (promotedCategories.isEmpty) return topItems;
+
+    final seen = <String>{};
+    final result = <AppShellNavigationItem>[];
+    for (final item in [...topItems, ...promotedCategories]) {
+      final key = _navigationDedupKey(item);
+      if (!seen.add(key)) continue;
+      result.add(item);
+    }
+    return result;
+  }
+
   List<Widget> _sidebarRows(List<AppShellNavigationItem> items) {
     final roots = items
         .where((item) => item.parentId == null || item.parentId == 'root')
@@ -174,19 +196,11 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
 
   List<Widget> _groupedChildRows(List<AppShellNavigationItem> children) {
     final districts = children.where((item) => item.type == 'district');
-    final categories = children.where(
-      (item) =>
-          item.type == 'category' ||
-          item.type == 'dropdown' ||
-          item.type == 'link',
-    );
     final trends = children.where((item) => item.type == 'trends');
     final other = children.where(
       (item) =>
           item.type != 'district' &&
-          item.type != 'category' &&
-          item.type != 'dropdown' &&
-          item.type != 'link' &&
+          !_isCategoryNavigationType(item.type) &&
           item.type != 'trends',
     );
 
@@ -194,11 +208,6 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
       if (districts.isNotEmpty) ...[
         const _GroupHeader('İlçeler'),
         ..._childRows(districts),
-      ],
-      if (categories.isNotEmpty) ...[
-        const SizedBox(height: 6),
-        const _GroupHeader('Kategoriler'),
-        ..._childRows(categories),
       ],
       if (trends.isNotEmpty) ...[
         const SizedBox(height: 6),
@@ -210,6 +219,28 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
         ..._childRows(other),
       ],
     ];
+  }
+
+  bool _isCategoryNavigationType(String type) {
+    final normalized = type.trim().toLowerCase();
+    return normalized == 'category' ||
+        normalized == 'dropdown' ||
+        normalized == 'link';
+  }
+
+  bool _isHomeNavigationItem(AppShellNavigationItem item) {
+    final key = '${item.label} ${item.value}'.trim().toLowerCase();
+    return item.value == '/' ||
+        key.contains('ana sayfa') ||
+        key.contains('anasayfa') ||
+        key.contains('home');
+  }
+
+  String _navigationDedupKey(AppShellNavigationItem item) {
+    final value = item.value.trim().toLowerCase();
+    final label = item.label.trim().toLowerCase();
+    final key = value.isNotEmpty ? value : label;
+    return '${item.type.trim().toLowerCase()}:$key';
   }
 
   List<Widget> _childRows(Iterable<AppShellNavigationItem> items) {
@@ -275,7 +306,7 @@ class _SideMenuBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoUrl = settings.displayLogoUrl;
+    final logoUrl = settings.lightSurfaceLogoUrl;
     final fallbackLogo = Image.asset(
       DefaultBrandAssets.logo,
       fit: BoxFit.contain,

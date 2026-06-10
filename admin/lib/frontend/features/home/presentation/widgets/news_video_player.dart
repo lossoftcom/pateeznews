@@ -40,6 +40,7 @@ import '../../data/post_action_repository.dart';
 class NewsVideoPlayer extends StatelessWidget {
   const NewsVideoPlayer({
     super.key,
+    this.postId = '',
     required this.url,
     this.poster = '',
     this.topOverlay,
@@ -51,10 +52,13 @@ class NewsVideoPlayer extends StatelessWidget {
     this.authState,
     this.postActionRepository = const PostActionRepository(),
     this.onAuthRequired,
+    this.onAuthorTap,
     this.onFullscreenVideoExit,
     this.onAspectRatioResolved,
+    this.onViewStateChanged,
   });
 
+  final String postId;
   final String url;
   final String poster;
   final Widget? topOverlay;
@@ -66,12 +70,15 @@ class NewsVideoPlayer extends StatelessWidget {
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final ValueChanged<NewsVideoFeedItem>? onFullscreenVideoExit;
   final ValueChanged<double>? onAspectRatioResolved;
+  final ValueChanged<PostActionState>? onViewStateChanged;
 
   @override
   Widget build(BuildContext context) {
     final feed = _fullscreenItemsFor(
+      postId: postId,
       url: url,
       poster: poster,
       topOverlay: topOverlay,
@@ -92,11 +99,14 @@ class NewsVideoPlayer extends StatelessWidget {
         visibilityScope: visibilityScope,
         autoPlayWhenReady: autoPlayWhenReady,
         showFullscreenButton: showFullscreenButton,
+        postId: postId,
         authState: authState,
         postActionRepository: postActionRepository,
         onAuthRequired: onAuthRequired,
+        onAuthorTap: onAuthorTap,
         onFullscreenVideoExit: onFullscreenVideoExit,
         onAspectRatioResolved: onAspectRatioResolved,
+        onViewStateChanged: onViewStateChanged,
       );
     }
     return _FileVideoView(
@@ -109,11 +119,14 @@ class NewsVideoPlayer extends StatelessWidget {
       visibilityScope: visibilityScope,
       autoPlayWhenReady: autoPlayWhenReady,
       showFullscreenButton: showFullscreenButton,
+      postId: postId,
       authState: authState,
       postActionRepository: postActionRepository,
       onAuthRequired: onAuthRequired,
+      onAuthorTap: onAuthorTap,
       onFullscreenVideoExit: onFullscreenVideoExit,
       onAspectRatioResolved: onAspectRatioResolved,
+      onViewStateChanged: onViewStateChanged,
     );
   }
 }
@@ -175,6 +188,7 @@ class NewsFullscreenVideoFeedPage extends StatefulWidget {
     this.authState,
     this.postActionRepository = const PostActionRepository(),
     this.onAuthRequired,
+    this.onAuthorTap,
   });
 
   final List<NewsVideoFeedItem> items;
@@ -182,6 +196,7 @@ class NewsFullscreenVideoFeedPage extends StatefulWidget {
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   State<NewsFullscreenVideoFeedPage> createState() =>
@@ -229,6 +244,7 @@ class _NewsFullscreenVideoFeedPageState
       authState: widget.authState,
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
     );
   }
 }
@@ -358,7 +374,15 @@ Duration _clampSeekPosition(Duration position, Duration duration) {
   return position;
 }
 
+int _videoViewThresholdSeconds(Duration? duration) {
+  final seconds = duration?.inSeconds ?? 0;
+  if (seconds <= 0) return 30;
+  final halfDuration = (seconds / 2).ceil();
+  return math.max(2, math.min(30, halfDuration));
+}
+
 List<NewsVideoFeedItem> _fullscreenItemsFor({
+  required String postId,
   required String url,
   required String poster,
   required Widget? topOverlay,
@@ -376,6 +400,7 @@ List<NewsVideoFeedItem> _fullscreenItemsFor({
     byUrl.putIfAbsent(
       currentUrl,
       () => NewsVideoFeedItem(
+        postId: postId,
         url: currentUrl,
         poster: poster,
         publishedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
@@ -449,11 +474,14 @@ class _FileVideoView extends StatefulWidget {
     required this.visibilityScope,
     required this.autoPlayWhenReady,
     required this.showFullscreenButton,
+    required this.postId,
     required this.authState,
     required this.postActionRepository,
     required this.onAuthRequired,
+    required this.onAuthorTap,
     required this.onFullscreenVideoExit,
     required this.onAspectRatioResolved,
+    required this.onViewStateChanged,
   });
 
   final String url;
@@ -464,11 +492,14 @@ class _FileVideoView extends StatefulWidget {
   final String visibilityScope;
   final bool autoPlayWhenReady;
   final bool showFullscreenButton;
+  final String postId;
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final ValueChanged<NewsVideoFeedItem>? onFullscreenVideoExit;
   final ValueChanged<double>? onAspectRatioResolved;
+  final ValueChanged<PostActionState>? onViewStateChanged;
 
   @override
   State<_FileVideoView> createState() => _FileVideoViewState();
@@ -483,6 +514,9 @@ class _FileVideoViewState extends State<_FileVideoView> {
   OverlayEntry? _fullscreenOverlay;
   int _surfaceMoveSerial = 0;
   double _playbackSpeed = 1.0;
+  Timer? _viewTimer;
+  int _watchedSeconds = 0;
+  bool _videoViewRecorded = false;
 
   bool get _shouldAutoPlay => widget.autoPlayWhenReady || _autoPlayableVisible;
 
@@ -491,7 +525,42 @@ class _FileVideoViewState extends State<_FileVideoView> {
     super.initState();
     _tuneVisibility();
     _autoPlayableVisible = widget.autoPlayWhenReady;
+    _viewTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _tickVideoView(),
+    );
     _setup();
+  }
+
+  void _tickVideoView() {
+    if (_videoViewRecorded || int.tryParse(widget.postId) == null) return;
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    final value = controller.value;
+    if (!value.isPlaying || value.isBuffering) return;
+    _watchedSeconds++;
+    final threshold = _videoViewThresholdSeconds(value.duration);
+    if (_watchedSeconds < threshold) return;
+    _videoViewRecorded = true;
+    unawaited(_recordVideoView(value.duration, threshold));
+  }
+
+  Future<void> _recordVideoView(Duration duration, int threshold) async {
+    try {
+      final token = widget.authState?.session.accessToken.trim() ?? '';
+      final state = await widget.postActionRepository.recordVideoView(
+        postId: widget.postId,
+        videoUrl: widget.url,
+        token: token.isEmpty ? null : token,
+        source: 'video',
+        watchedSeconds: _watchedSeconds,
+        durationSeconds: duration > Duration.zero ? duration.inSeconds : null,
+        thresholdSeconds: threshold,
+      );
+      if (mounted) widget.onViewStateChanged?.call(state);
+    } catch (_) {
+      _videoViewRecorded = false;
+    }
   }
 
   Future<void> _setup() async {
@@ -743,6 +812,7 @@ class _FileVideoViewState extends State<_FileVideoView> {
       authState: widget.authState,
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
       child: ColoredBox(
         color: Colors.black,
         child: Stack(
@@ -828,6 +898,7 @@ class _FileVideoViewState extends State<_FileVideoView> {
       authState: widget.authState,
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
     );
   }
 
@@ -835,6 +906,7 @@ class _FileVideoViewState extends State<_FileVideoView> {
   void dispose() {
     _fullscreenOverlay?.remove();
     _fullscreenOverlay = null;
+    _viewTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
@@ -937,11 +1009,14 @@ class _YoutubeVideoView extends StatefulWidget {
     required this.visibilityScope,
     required this.autoPlayWhenReady,
     required this.showFullscreenButton,
+    required this.postId,
     required this.authState,
     required this.postActionRepository,
     required this.onAuthRequired,
+    required this.onAuthorTap,
     required this.onFullscreenVideoExit,
     required this.onAspectRatioResolved,
+    required this.onViewStateChanged,
   });
 
   final String videoId;
@@ -954,18 +1029,21 @@ class _YoutubeVideoView extends StatefulWidget {
   final String visibilityScope;
   final bool autoPlayWhenReady;
   final bool showFullscreenButton;
+  final String postId;
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final ValueChanged<NewsVideoFeedItem>? onFullscreenVideoExit;
   final ValueChanged<double>? onAspectRatioResolved;
+  final ValueChanged<PostActionState>? onViewStateChanged;
 
   @override
   State<_YoutubeVideoView> createState() => _YoutubeVideoViewState();
 }
 
 class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
-  late final YoutubePlayerController _controller;
+  YoutubePlayerController? _controller;
   StreamSubscription<YoutubeVideoState>? _stateSub;
   StreamSubscription<YoutubePlayerValue>? _valueSub;
 
@@ -983,6 +1061,9 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
   int _playSerial = 0;
   int _surfaceMoveSerial = 0;
   double _playbackSpeed = 1.0;
+  Timer? _viewTimer;
+  int _watchedSeconds = 0;
+  bool _videoViewRecorded = false;
 
   bool get _shouldAutoPlay => widget.autoPlayWhenReady || _autoPlayableVisible;
 
@@ -993,15 +1074,43 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     _autoPlayableVisible = widget.autoPlayWhenReady;
     _youtubeMuted = _initialYoutubeMuted();
     _ui = ValueNotifier<_VideoUi>(_VideoUi(muted: _youtubeMuted));
-    _controller = YoutubePlayerController(
+    if (kDebugMode) {
+      unawaited(_prepareControllerAndSetup());
+    } else {
+      _createController();
+      unawaited(_setup());
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onAspectRatioResolved?.call(widget.isShorts ? 9 / 16 : 16 / 9);
+    });
+  }
+
+  Future<void> _prepareControllerAndSetup() async {
+    await prepareDebugDarwinPlatformViewsForHotRestart();
+    await _nextFrame();
+    await _nextFrame();
+    if (!mounted) return;
+    _createController();
+    setState(() => _webViewReady = true);
+    unawaited(_setup());
+  }
+
+  void _createController() {
+    final controller = YoutubePlayerController(
       key: widget.videoId,
       params: _youtubeParams(),
     );
-    _stateSub = _controller.videoStateStream.listen((state) {
+    _controller = controller;
+    _viewTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _tickVideoView(),
+    );
+    _stateSub = controller.videoStateStream.listen((state) {
       if (!mounted) return;
       _ui.value = _ui.value.copyWith(position: state.position);
     });
-    _valueSub = _controller.stream.listen((value) {
+    _valueSub = controller.stream.listen((value) {
       if (!mounted) return;
       final duration = value.metaData.duration;
       final hasFrame =
@@ -1021,26 +1130,41 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
         duration: duration > Duration.zero ? duration : null,
       );
     });
-    if (kDebugMode) unawaited(_prepareWebViewSurface());
-    unawaited(_setup());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.onAspectRatioResolved?.call(widget.isShorts ? 9 / 16 : 16 / 9);
-    });
-  }
-
-  Future<void> _prepareWebViewSurface() async {
-    await prepareDebugDarwinPlatformViewsForHotRestart();
-    await _nextFrame();
-    await _nextFrame();
-    if (!mounted) return;
-    setState(() => _webViewReady = true);
   }
 
   Future<void> _nextFrame() {
     final completer = Completer<void>();
     WidgetsBinding.instance.addPostFrameCallback((_) => completer.complete());
     return completer.future;
+  }
+
+  void _tickVideoView() {
+    if (_videoViewRecorded || int.tryParse(widget.postId) == null) return;
+    final ui = _ui.value;
+    if (!ui.isPlaying || ui.isBuffering) return;
+    _watchedSeconds++;
+    final threshold = _videoViewThresholdSeconds(ui.duration);
+    if (_watchedSeconds < threshold) return;
+    _videoViewRecorded = true;
+    unawaited(_recordVideoView(ui.duration, threshold));
+  }
+
+  Future<void> _recordVideoView(Duration duration, int threshold) async {
+    try {
+      final token = widget.authState?.session.accessToken.trim() ?? '';
+      final state = await widget.postActionRepository.recordVideoView(
+        postId: widget.postId,
+        videoUrl: widget.url,
+        token: token.isEmpty ? null : token,
+        source: widget.isShorts ? 'video_shorts' : 'video',
+        watchedSeconds: _watchedSeconds,
+        durationSeconds: duration > Duration.zero ? duration.inSeconds : null,
+        thresholdSeconds: threshold,
+      );
+      if (mounted) widget.onViewStateChanged?.call(state);
+    } catch (_) {
+      _videoViewRecorded = false;
+    }
   }
 
   YoutubePlayerParams _youtubeParams() {
@@ -1059,12 +1183,14 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
   bool _initialYoutubeMuted() => _lastVideoMuted;
 
   Future<void> _setup() async {
+    final controller = _controller;
+    if (controller == null) return;
     try {
-      await _controller.initWithParams(params: _youtubeParams());
+      await controller.initWithParams(params: _youtubeParams());
       if (!mounted) return;
       if (!widget.isShorts && !widget.autoPlayWhenReady) {
         await _guardYoutubeCommand(
-          () => _controller.cueVideoById(videoId: widget.videoId),
+          () => controller.cueVideoById(videoId: widget.videoId),
         );
       }
       if (!mounted) return;
@@ -1093,8 +1219,9 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
       unawaited(_startPlayback());
     } else {
       _playSerial++;
-      if (_playerReady) {
-        unawaited(_guardYoutubeCommand(_controller.pauseVideo));
+      final controller = _controller;
+      if (_playerReady && controller != null) {
+        unawaited(_guardYoutubeCommand(controller.pauseVideo));
       }
     }
   }
@@ -1103,7 +1230,8 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     Duration? startAt,
     bool allowSurfaceMove = false,
   }) async {
-    if (!_playerReady || !mounted) return;
+    final controller = _controller;
+    if (!_playerReady || controller == null || !mounted) return;
     await _guardYoutubeCommand(() async {
       final serial = ++_playSerial;
       _applyMutePreference();
@@ -1114,28 +1242,28 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
           !_userPaused;
       final startSeconds = _youtubeSeconds(startAt);
       if (!_hasLoadedVideo) {
-        await _controller.loadVideoById(
+        await controller.loadVideoById(
           videoId: widget.videoId,
           startSeconds: startSeconds,
         );
         _hasLoadedVideo = true;
         await _applyPlaybackSpeed();
         if (canContinue()) {
-          await _controller.playVideo();
+          await controller.playVideo();
         }
       } else {
         if (startSeconds != null) {
-          await _controller.seekTo(seconds: startSeconds, allowSeekAhead: true);
+          await controller.seekTo(seconds: startSeconds, allowSeekAhead: true);
           if (!canContinue()) {
-            await _controller.pauseVideo();
+            await controller.pauseVideo();
             return;
           }
         }
         await _applyPlaybackSpeed();
-        await _controller.playVideo();
+        await controller.playVideo();
       }
       if (!canContinue()) {
-        await _controller.pauseVideo();
+        await controller.pauseVideo();
         return;
       }
       _applyMutePreference();
@@ -1143,9 +1271,10 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
   }
 
   Future<void> _applyPlaybackSpeed() async {
-    if (!_playerReady || !mounted) return;
+    final controller = _controller;
+    if (!_playerReady || controller == null || !mounted) return;
     await _guardYoutubeCommand(
-      () => _controller.setPlaybackRate(_playbackSpeed),
+      () => controller.setPlaybackRate(_playbackSpeed),
     );
   }
 
@@ -1163,10 +1292,11 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     if (_ui.value.muted != _youtubeMuted) {
       _ui.value = _ui.value.copyWith(muted: _youtubeMuted);
     }
-    if (!_playerReady || !mounted) return;
+    final controller = _controller;
+    if (!_playerReady || controller == null || !mounted) return;
     unawaited(
       _guardYoutubeCommand(
-        () => _youtubeMuted ? _controller.mute() : _controller.unMute(),
+        () => _youtubeMuted ? controller.mute() : controller.unMute(),
       ),
     );
   }
@@ -1175,8 +1305,9 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     if (_ui.value.isPlaying) {
       _userPaused = true;
       _playSerial++;
-      if (_playerReady) {
-        unawaited(_guardYoutubeCommand(_controller.pauseVideo));
+      final controller = _controller;
+      if (_playerReady && controller != null) {
+        unawaited(_guardYoutubeCommand(controller.pauseVideo));
       }
     } else {
       _userPaused = false;
@@ -1278,7 +1409,13 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     _PlaybackSnapshot snapshot,
     int serial,
   ) async {
-    if (!_playerReady || !mounted || serial != _surfaceMoveSerial) return;
+    final controller = _controller;
+    if (!_playerReady ||
+        controller == null ||
+        !mounted ||
+        serial != _surfaceMoveSerial) {
+      return;
+    }
 
     if (snapshot.shouldPlay) {
       _userPaused = false;
@@ -1290,11 +1427,11 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     final seconds = _youtubeSeconds(snapshot.position);
     if (_hasLoadedVideo && seconds != null) {
       await _guardYoutubeCommand(
-        () => _controller.seekTo(seconds: seconds, allowSeekAhead: true),
+        () => controller.seekTo(seconds: seconds, allowSeekAhead: true),
       );
       if (!mounted || serial != _surfaceMoveSerial) return;
     }
-    await _guardYoutubeCommand(_controller.pauseVideo);
+    await _guardYoutubeCommand(controller.pauseVideo);
   }
 
   double? _youtubeSeconds(Duration? position) {
@@ -1320,8 +1457,9 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
       return;
     }
     _playSerial++;
-    if (_playerReady) {
-      unawaited(_guardYoutubeCommand(_controller.pauseVideo));
+    final controller = _controller;
+    if (_playerReady && controller != null) {
+      unawaited(_guardYoutubeCommand(controller.pauseVideo));
     }
   }
 
@@ -1339,14 +1477,15 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
       authState: widget.authState,
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
       child: ClipRect(
         child: ColoredBox(
           color: Colors.black,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (_webViewReady)
-                WebViewWidget(controller: _controller.webViewController),
+              if (_webViewReady && _controller != null)
+                WebViewWidget(controller: _controller!.webViewController),
               ValueListenableBuilder<_VideoUi>(
                 valueListenable: _ui,
                 builder: (context, ui, _) {
@@ -1412,10 +1551,13 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
       authState: widget.authState,
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
     );
   }
 
   void _seek(double fraction) {
+    final controller = _controller;
+    if (controller == null) return;
     final target = _clampSeekPosition(
       Duration(
         milliseconds: (_ui.value.duration.inMilliseconds * fraction).round(),
@@ -1426,14 +1568,15 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     if (seconds != null) {
       unawaited(
         _guardYoutubeCommand(
-          () => _controller.seekTo(seconds: seconds, allowSeekAhead: true),
+          () => controller.seekTo(seconds: seconds, allowSeekAhead: true),
         ),
       );
     }
   }
 
   void _seekRelative(Duration offset) {
-    if (!_playerReady) return;
+    final controller = _controller;
+    if (!_playerReady || controller == null) return;
     final ui = _ui.value;
     final target = _clampSeekPosition(ui.position + offset, ui.duration);
     final seconds = _youtubeSeekSeconds(target);
@@ -1448,7 +1591,7 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     }
     unawaited(
       _guardYoutubeCommand(
-        () => _controller.seekTo(seconds: seconds, allowSeekAhead: true),
+        () => controller.seekTo(seconds: seconds, allowSeekAhead: true),
       ),
     );
   }
@@ -1460,17 +1603,20 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
     _webViewReady = false;
     _fullscreenOverlay?.remove();
     _fullscreenOverlay = null;
+    _viewTimer?.cancel();
     _stateSub?.cancel();
     _valueSub?.cancel();
     _ui.dispose();
-    _controller.close();
+    _controller?.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final ratio = widget.isShorts ? 9 / 16 : 16 / 9;
-    final attachInlineWebView = !_fullscreenActive && _webViewReady;
+    final controller = _controller;
+    final attachInlineWebView =
+        !_fullscreenActive && _webViewReady && controller != null;
     return VisibilityDetector(
       key: _videoVisibilityKey(
         source: 'yt',
@@ -1489,7 +1635,7 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
                 if (_fullscreenActive)
                   _PosterOrPlaceholder(poster: widget.poster),
                 if (attachInlineWebView)
-                  WebViewWidget(controller: _controller.webViewController),
+                  WebViewWidget(controller: controller.webViewController),
                 if (!_fullscreenActive)
                   ValueListenableBuilder<_VideoUi>(
                     valueListenable: _ui,
@@ -1579,6 +1725,7 @@ class _FullscreenVideoPager extends StatefulWidget {
     required this.authState,
     required this.postActionRepository,
     required this.onAuthRequired,
+    required this.onAuthorTap,
   });
 
   final List<NewsVideoFeedItem> items;
@@ -1590,6 +1737,7 @@ class _FullscreenVideoPager extends StatefulWidget {
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   State<_FullscreenVideoPager> createState() => _FullscreenVideoPagerState();
@@ -1695,6 +1843,7 @@ class _FullscreenVideoPagerState extends State<_FullscreenVideoPager> {
                     authState: widget.authState,
                     postActionRepository: widget.postActionRepository,
                     onAuthRequired: widget.onAuthRequired,
+                    onAuthorTap: widget.onAuthorTap,
                   );
                 },
               ),
@@ -1729,6 +1878,7 @@ class _FullscreenFeedVideoPage extends StatefulWidget {
     required this.authState,
     required this.postActionRepository,
     required this.onAuthRequired,
+    required this.onAuthorTap,
   });
 
   final NewsVideoFeedItem item;
@@ -1737,6 +1887,7 @@ class _FullscreenFeedVideoPage extends StatefulWidget {
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   State<_FullscreenFeedVideoPage> createState() =>
@@ -1767,8 +1918,10 @@ class _FullscreenFeedVideoPageState extends State<_FullscreenFeedVideoPage> {
       authState: widget.authState,
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
       child: widget.active
           ? NewsVideoPlayer(
+              postId: widget.item.postId,
               url: widget.item.url,
               poster: widget.item.poster,
               fullscreenLogoUrl: widget.item.fullscreenLogoUrl,
@@ -1778,6 +1931,7 @@ class _FullscreenFeedVideoPageState extends State<_FullscreenFeedVideoPage> {
               authState: widget.authState,
               postActionRepository: widget.postActionRepository,
               onAuthRequired: widget.onAuthRequired,
+              onAuthorTap: widget.onAuthorTap,
               onAspectRatioResolved: _handleAspectRatioResolved,
             )
           : _FullscreenFeedPoster(item: widget.item, aspectRatio: ratio),
@@ -1950,6 +2104,7 @@ class _FullscreenScaffold extends StatelessWidget {
     required this.authState,
     required this.postActionRepository,
     required this.onAuthRequired,
+    required this.onAuthorTap,
     this.showTopBar = true,
   });
 
@@ -1960,6 +2115,7 @@ class _FullscreenScaffold extends StatelessWidget {
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final bool showTopBar;
 
   @override
@@ -1990,6 +2146,7 @@ class _FullscreenScaffold extends StatelessWidget {
                     authState: authState,
                     postActionRepository: postActionRepository,
                     onAuthRequired: onAuthRequired,
+                    onAuthorTap: onAuthorTap,
                   ),
                 ),
             ],
@@ -2043,31 +2200,37 @@ class _FullscreenBrandMark extends StatelessWidget {
   const _FullscreenBrandMark({required this.logoUrl});
 
   final String logoUrl;
+  static const double _height = 34;
+  static const double _width = 132;
 
   @override
   Widget build(BuildContext context) {
     final cleanUrl = logoUrl.trim();
     final fallback = Image.asset(
       DefaultBrandAssets.logo,
-      height: 34,
       fit: BoxFit.contain,
       color: Colors.white,
       colorBlendMode: BlendMode.srcIn,
       filterQuality: FilterQuality.high,
       errorBuilder: (_, _, _) => const SizedBox.shrink(),
     );
-    if (cleanUrl.isEmpty) return fallback;
-    return Image.network(
-      cleanUrl,
-      height: 34,
-      fit: BoxFit.contain,
-      color: Colors.white,
-      colorBlendMode: BlendMode.srcIn,
-      filterQuality: FilterQuality.high,
-      gaplessPlayback: true,
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : fallback,
-      errorBuilder: (_, _, _) => fallback,
+    if (cleanUrl.isEmpty) {
+      return SizedBox(width: _width, height: _height, child: fallback);
+    }
+    return SizedBox(
+      width: _width,
+      height: _height,
+      child: Image.network(
+        cleanUrl,
+        fit: BoxFit.contain,
+        color: Colors.white,
+        colorBlendMode: BlendMode.srcIn,
+        filterQuality: FilterQuality.high,
+        gaplessPlayback: true,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : fallback,
+        errorBuilder: (_, _, _) => fallback,
+      ),
     );
   }
 }
@@ -2116,12 +2279,14 @@ class _FullscreenArticleInfo extends StatelessWidget {
     required this.authState,
     required this.postActionRepository,
     required this.onAuthRequired,
+    required this.onAuthorTap,
   });
 
   final NewsVideoFeedItem item;
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2134,7 +2299,8 @@ class _FullscreenArticleInfo extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (item.author != null) _FullscreenAuthorLine(item: item),
+            if (item.author != null)
+              _FullscreenAuthorLine(item: item, onAuthorTap: onAuthorTap),
             if (title.isNotEmpty) ...[
               if (item.author != null) const SizedBox(height: 8),
               Text(
@@ -2164,9 +2330,10 @@ class _FullscreenArticleInfo extends StatelessWidget {
 }
 
 class _FullscreenAuthorLine extends StatelessWidget {
-  const _FullscreenAuthorLine({required this.item});
+  const _FullscreenAuthorLine({required this.item, required this.onAuthorTap});
 
   final NewsVideoFeedItem item;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2176,66 +2343,100 @@ class _FullscreenAuthorLine extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _FullscreenAvatar(author: author),
+        _FullscreenAuthorTapTarget(
+          author: author,
+          onAuthorTap: onAuthorTap,
+          child: _FullscreenAvatar(author: author),
+        ),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      author.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.meta.copyWith(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        height: 1.1,
+          child: _FullscreenAuthorTapTarget(
+            author: author,
+            onAuthorTap: onAuthorTap,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        author.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.meta.copyWith(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                        ),
                       ),
                     ),
-                  ),
-                  if (author.isVerified || author.isOfficial) ...[
-                    const SizedBox(width: 5),
-                    VerifiedBadge(official: author.isOfficial, size: 14),
-                  ],
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      _authorHandle(author),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.meta.copyWith(
-                        color: Colors.white.withValues(alpha: 0.66),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        height: 1.1,
+                    if (author.isVerified || author.isOfficial) ...[
+                      const SizedBox(width: 5),
+                      VerifiedBadge(official: author.isOfficial, size: 14),
+                    ],
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        _authorHandle(author),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.meta.copyWith(
+                          color: Colors.white.withValues(alpha: 0.66),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          height: 1.1,
+                        ),
                       ),
+                    ),
+                  ],
+                ),
+                if (meta.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.meta.copyWith(
+                      color: Colors.white.withValues(alpha: 0.62),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.12,
                     ),
                   ),
                 ],
-              ),
-              if (meta.isNotEmpty) ...[
-                const SizedBox(height: 3),
-                Text(
-                  meta,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.meta.copyWith(
-                    color: Colors.white.withValues(alpha: 0.62),
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    height: 1.12,
-                  ),
-                ),
               ],
-            ],
+            ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FullscreenAuthorTapTarget extends StatelessWidget {
+  const _FullscreenAuthorTapTarget({
+    required this.author,
+    required this.onAuthorTap,
+    required this.child,
+  });
+
+  final NewsAuthor author;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final onTap = onAuthorTap;
+    if (onTap == null ||
+        (author.id.trim().isEmpty && (author.handle ?? '').trim().isEmpty)) {
+      return child;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onTap(author),
+      child: child,
     );
   }
 }
@@ -2562,7 +2763,7 @@ class _FullscreenPostActionSnapshot {
   final bool saved;
 }
 
-class _FullscreenActionPill extends StatelessWidget {
+class _FullscreenActionPill extends StatefulWidget {
   const _FullscreenActionPill({
     required this.icon,
     required this.count,
@@ -2586,24 +2787,38 @@ class _FullscreenActionPill extends StatelessWidget {
   final void Function(BuildContext context)? onTap;
 
   @override
+  State<_FullscreenActionPill> createState() => _FullscreenActionPillState();
+}
+
+class _FullscreenActionPillState extends State<_FullscreenActionPill> {
+  var _pulseSerial = 0;
+
+  void _handleTap(BuildContext context) {
+    setState(() => _pulseSerial++);
+    widget.onTap?.call(context);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final label = CountFormat.compact(count);
-    final showLabel = showZero || count > 0;
-    final iconColor = active
-        ? activeColor
+    final label = CountFormat.compact(widget.count);
+    final showLabel = widget.showZero || widget.count > 0;
+    final iconColor = widget.active
+        ? widget.activeColor
         : Colors.white.withValues(alpha: 0.88);
-    final resolvedIcon = active ? activeIcon ?? icon : icon;
-    final resolvedBadgeCount = badgeCount ?? 0;
+    final resolvedIcon = widget.active
+        ? widget.activeIcon ?? widget.icon
+        : widget.icon;
+    final resolvedBadgeCount = widget.badgeCount ?? 0;
     return Semantics(
-      label: semantics,
+      label: widget.semantics,
       button: true,
-      selected: active,
+      selected: widget.active,
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(4),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => onTap?.call(context),
+          onTap: () => _handleTap(context),
           child: SizedBox(
             height: 32,
             child: Row(
@@ -2615,8 +2830,13 @@ class _FullscreenActionPill extends StatelessWidget {
                     right: showLabel ? 0 : 7,
                   ),
                   child: TweenAnimationBuilder<double>(
-                    key: ValueKey<String>('$semantics-$active-$count'),
-                    tween: Tween<double>(begin: 0.82, end: 1),
+                    key: ValueKey<String>(
+                      '${widget.semantics}-${widget.active}-${widget.count}-$_pulseSerial',
+                    ),
+                    tween: Tween<double>(
+                      begin: _pulseSerial == 0 ? 1 : 0.82,
+                      end: 1,
+                    ),
                     duration: const Duration(milliseconds: 280),
                     curve: Curves.easeOutBack,
                     builder: (context, scale, child) {
@@ -2632,7 +2852,7 @@ class _FullscreenActionPill extends StatelessWidget {
                             top: -8,
                             child: _FullscreenActionBadge(
                               count: resolvedBadgeCount,
-                              color: activeColor,
+                              color: widget.activeColor,
                             ),
                           ),
                       ],

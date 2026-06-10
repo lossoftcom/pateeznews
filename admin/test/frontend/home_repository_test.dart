@@ -12,8 +12,8 @@ void main() {
       httpClient: MockClient((request) async {
         expect(request.url.path, '/api/app/home');
         expect(request.url.queryParameters['lang'], 'tr');
-        expect(request.url.queryParameters['limit'], '10');
-        expect(request.url.queryParameters['feedLimit'], '30');
+        expect(request.url.queryParameters.containsKey('limit'), isFalse);
+        expect(request.url.queryParameters.containsKey('feedLimit'), isFalse);
 
         final payload = {
           'featured': [
@@ -56,7 +56,11 @@ void main() {
               'videoUrl': 'http://localhost:4321/local-upload/video-a.mp4',
               'videoUrls': [
                 'http://localhost:4321/local-upload/video-a.mp4',
-                'https://youtube.com/shorts/test-short',
+                'https://youtube.com/shorts/shortID1234',
+              ],
+              'videoThumbUrls': [
+                '',
+                'https://example.invalid/short-thumb.webp',
               ],
               'socialEmbed': 'https://www.instagram.com/p/test-code/',
               'socialSourceUrl': 'https://www.instagram.com/p/test-code/',
@@ -159,6 +163,17 @@ void main() {
               ],
             },
           ],
+          'settings': {
+            'showFeaturedSection': true,
+            'commentSystem': false,
+            'commentApprovalSystem': true,
+            'emojiReactions': false,
+            'homePageSize': 24,
+            'featuredContentSource': 'manual',
+            'featuredSortingLogic': 'slider_order',
+            'featuredDurationDays': 10,
+            'featuredLimit': 15,
+          },
         };
 
         return http.Response(
@@ -174,6 +189,15 @@ void main() {
     expect(data.featured, hasLength(1));
     expect(data.featured.single.id, 'manset-1');
     expect(data.featured.single.imageAspectRatio, 2);
+    expect(data.settings.showFeaturedSection, isTrue);
+    expect(data.settings.commentSystem, isFalse);
+    expect(data.settings.commentApprovalSystem, isTrue);
+    expect(data.settings.emojiReactions, isFalse);
+    expect(data.settings.homePageSize, 24);
+    expect(data.settings.featuredContentSource, 'manual');
+    expect(data.settings.featuredSortingLogic, 'slider_order');
+    expect(data.settings.featuredDurationDays, 10);
+    expect(data.settings.featuredLimit, 15);
     expect(data.feed, hasLength(1));
     expect(data.feed.single.id, 'news-1');
     expect(data.feed.single.title, 'Canlı haber başlığı');
@@ -192,8 +216,26 @@ void main() {
     );
     expect(data.feed.single.videoFeedUrls, [
       'http://localhost:4321/local-upload/video-a.mp4',
-      'https://youtube.com/shorts/test-short',
+      'https://youtube.com/shorts/shortID1234',
     ]);
+    expect(data.feed.single.videoThumbUrls, [
+      '',
+      'https://example.invalid/short-thumb.webp',
+    ]);
+    expect(
+      data.feed.single.videoFeedPosterFor(
+        data.feed.single.videoFeedUrls.first,
+        0,
+      ),
+      isEmpty,
+    );
+    expect(
+      data.feed.single.videoFeedPosterFor(
+        data.feed.single.videoFeedUrls.last,
+        1,
+      ),
+      'https://example.invalid/short-thumb.webp',
+    );
     expect(
       data.feed.single.socialEmbed,
       'https://www.instagram.com/p/test-code/',

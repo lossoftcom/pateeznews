@@ -8,6 +8,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
+import '../data/home_repository.dart';
 import '../data/post_action_repository.dart';
 import 'widgets/news_card.dart';
 import 'widgets/news_video_player.dart';
@@ -22,22 +23,28 @@ class VideoFeedScreen extends StatefulWidget {
     required this.feedItems,
     this.shellSettings = const AppShellSettings.empty(),
     this.navigationItems = const [],
+    this.contentSettings = const HomeContentSettings.defaults(),
     this.initialArticleId = '',
     this.revealSerial = 0,
     this.authState,
     this.postActionRepository = const PostActionRepository(),
+    this.onRefresh,
     this.onAuthRequired,
+    this.onAuthorTap,
     this.onFullscreenVideoExit,
   });
 
   final List<NewsArticle> feedItems;
   final AppShellSettings shellSettings;
   final List<AppShellNavigationItem> navigationItems;
+  final HomeContentSettings contentSettings;
   final String initialArticleId;
   final int revealSerial;
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
+  final Future<void> Function()? onRefresh;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
 
   @override
@@ -60,50 +67,71 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
     final videos = dateSortedVideoArticles(widget.feedItems);
     _retainVisibleKeys(videos);
     _scheduleInitialReveal(videos);
+    final feed = CustomScrollView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+      controller: _scrollController,
+      slivers: [
+        if (videos.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: _EmptyVideoFeed(),
+          )
+        else ...[
+          const SliverToBoxAdapter(child: _VideoFeedHeader()),
+          SliverList.builder(
+            itemCount: videos.length,
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index < videos.length - 1
+                      ? AppSpacing.xxl
+                      : AppSpacing.xl,
+                ),
+                child: KeyedSubtree(
+                  key: _keyFor(videos[index]),
+                  child: NewsCard(
+                    article: videos[index],
+                    onTap: () => _openDetail(context, videos, index),
+                    categoryTrail: videoCategoryTrail(
+                      videos[index],
+                      widget.navigationItems,
+                    ),
+                    videoFeedArticles: videos,
+                    shellSettings: widget.shellSettings,
+                    commentsEnabled: widget.contentSettings.commentSystem,
+                    commentApprovalEnabled:
+                        widget.contentSettings.commentApprovalSystem,
+                    emojiReactionsEnabled:
+                        widget.contentSettings.emojiReactions,
+                    authState: widget.authState,
+                    postActionRepository: widget.postActionRepository,
+                    onAuthRequired: widget.onAuthRequired,
+                    onAuthorTap: widget.onAuthorTap,
+                    onFullscreenVideoExit: widget.onFullscreenVideoExit,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ],
+    );
+    final onRefresh = widget.onRefresh;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
         bottom: false,
-        child: videos.isEmpty
-            ? const _EmptyVideoFeed()
-            : CustomScrollView(
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                controller: _scrollController,
-                slivers: [
-                  const SliverToBoxAdapter(child: _VideoFeedHeader()),
-                  SliverList.builder(
-                    itemCount: videos.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          bottom: index < videos.length - 1
-                              ? AppSpacing.xxl
-                              : AppSpacing.xl,
-                        ),
-                        child: KeyedSubtree(
-                          key: _keyFor(videos[index]),
-                          child: NewsCard(
-                            article: videos[index],
-                            onTap: () => _openDetail(context, videos, index),
-                            categoryTrail: videoCategoryTrail(
-                              videos[index],
-                              widget.navigationItems,
-                            ),
-                            videoFeedArticles: videos,
-                            shellSettings: widget.shellSettings,
-                            authState: widget.authState,
-                            postActionRepository: widget.postActionRepository,
-                            onAuthRequired: widget.onAuthRequired,
-                            onFullscreenVideoExit: widget.onFullscreenVideoExit,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+        child: onRefresh == null
+            ? feed
+            : RefreshIndicator(
+                color: AppColors.actionRed,
+                backgroundColor: AppColors.surface,
+                displacement: 32,
+                onRefresh: onRefresh,
+                child: feed,
               ),
       ),
     );
@@ -206,13 +234,16 @@ List<NewsVideoFeedItem> videoFeedItemsFromArticles({
   required List<AppShellNavigationItem> navigationItems,
 }) {
   final logoUrl = _fullscreenLogoUrl(shellSettings);
-  return [
-    for (final item in articles)
-      for (final url in item.videoFeedUrls)
+  final items = <NewsVideoFeedItem>[];
+  for (final item in articles) {
+    final urls = item.videoFeedUrls;
+    for (var index = 0; index < urls.length; index += 1) {
+      final url = urls[index];
+      items.add(
         NewsVideoFeedItem(
           postId: item.id,
           url: url,
-          poster: item.imageUrl,
+          poster: item.videoFeedPosterFor(url, index),
           slug: item.slug,
           publishedAt: item.publishedAt,
           title: item.title,
@@ -230,7 +261,10 @@ List<NewsVideoFeedItem> videoFeedItemsFromArticles({
           userSaved: item.userSaved,
           fullscreenLogoUrl: logoUrl,
         ),
-  ];
+      );
+    }
+  }
+  return items;
 }
 
 List<String> videoCategoryTrail(

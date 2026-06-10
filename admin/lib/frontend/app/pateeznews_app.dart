@@ -15,11 +15,15 @@ import '../core/theme/app_typography.dart';
 import '../core/theme/frontend_font_settings.dart';
 import '../features/account/data/frontend_auth_repository.dart';
 import '../features/announcements/data/announcements_repository.dart';
+import '../features/etkinlik/data/etkinlik_mock.dart';
+import '../features/etkinlik/data/etkinlik_repository.dart';
 import '../features/home/data/home_repository.dart';
 import '../features/markets/data/markets_repository.dart';
 import '../features/obituaries/data/death_notice_repository.dart';
 import '../features/pharmacy/data/pharmacy_repository.dart';
 import '../features/prayer_times/data/prayer_times_repository.dart';
+import '../features/profile/data/profile_content.dart';
+import '../features/profile/data/profile_repository.dart';
 import '../features/shell/data/app_shell_repository.dart';
 import '../features/shell/presentation/shell_screen.dart';
 import '../features/splash/presentation/splash_screen.dart';
@@ -36,9 +40,11 @@ class PateeznewsApp extends StatefulWidget {
     this.weatherRepository = const WeatherRepository(),
     this.marketsRepository = const MarketsRepository(),
     this.prayerTimesRepository = const PrayerTimesRepository(),
+    this.etkinlikRepository = const EtkinlikRepository(),
     this.announcementsRepository = const AnnouncementsRepository(),
     this.homeRepository = const HomeRepository(),
     this.authRepository = const FrontendAuthRepository(),
+    this.profileRepository = const ProfileRepository(),
     this.adminSessionStore = const AdminSessionStore(),
     this.adminApp,
   });
@@ -51,9 +57,11 @@ class PateeznewsApp extends StatefulWidget {
   final WeatherRepository weatherRepository;
   final MarketsRepository marketsRepository;
   final PrayerTimesRepository prayerTimesRepository;
+  final EtkinlikRepository etkinlikRepository;
   final AnnouncementsRepository announcementsRepository;
   final HomeRepository homeRepository;
   final FrontendAuthRepository authRepository;
+  final ProfileRepository profileRepository;
   final AdminSessionStore adminSessionStore;
   final Widget? adminApp;
 
@@ -69,10 +77,13 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   var _weatherData = const WeatherData.empty();
   var _marketsData = const MarketsData.empty();
   var _prayerTimesData = const PrayerTimesData.empty();
+  List<EtkinlikEvent> _eventItems = const [];
   var _announcementData = const AnnouncementData.empty();
+  var _contentSettings = const HomeContentSettings.defaults();
   List<FeaturedNews> _featuredItems = const [];
   List<NewsArticle> _homeFeedItems = const [];
   FrontendAuthState? _authState;
+  ProfileData? _profileData;
   var _authLoading = true;
   var _adminOpen = false;
   var _ready = false;
@@ -92,23 +103,15 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     unawaited(_bootstrap());
   }
 
-  /// Açılış akışı: font ayarları, kabuk verisi (logo/menü) ve oturum durumu
-  /// paralel yüklenir; bu sırada [SplashScreen] görünür. Mini uygulama verileri
-  /// de aynı açılış paketinde alınır. Hepsi hazır olunca — ya da ağ yavaşsa
-  /// [_maxSplash] dolunca — asıl ekrana geçilir. Böylece [ShellScreen] ilk
-  /// çiziminde tema, font, logo ve eczane verisi zaten kesinleşmiş olur.
+  /// Açılış akışı yalnızca ilk ekran için kritik verileri bekler. Yan widget
+  /// verileri shell açıldıktan sonra yüklenir; bu, manşet/home görselleriyle
+  /// aynı anda yarışan gereksiz istekleri azaltır.
   Future<void> _bootstrap() async {
     final started = DateTime.now();
     try {
       await Future.wait([
         _loadFontSettings(),
         _loadShellData(),
-        _loadDutyPharmacyData(),
-        _loadDeathNoticeData(),
-        _loadWeatherData(),
-        _loadMarketsData(),
-        _loadPrayerTimesData(),
-        _loadAnnouncementData(),
         _loadHomeData(),
         _restoreAuthState(),
       ]).timeout(_maxSplash);
@@ -124,6 +127,23 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
 
     if (!mounted) return;
     setState(() => _ready = true);
+    unawaited(_loadSecondaryStartupData());
+  }
+
+  Future<void> _loadSecondaryStartupData() async {
+    try {
+      await Future.wait([
+        _loadDutyPharmacyData(),
+        _loadDeathNoticeData(),
+        _loadWeatherData(),
+        _loadMarketsData(),
+        _loadPrayerTimesData(),
+        _loadEventData(),
+        _loadAnnouncementData(),
+      ]);
+    } catch (_) {
+      // Yan widget verileri boş fallback ile çalışmaya devam eder.
+    }
   }
 
   Future<void> _loadFontSettings() async {
@@ -169,6 +189,12 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     setState(() => _prayerTimesData = data);
   }
 
+  Future<void> _loadEventData() async {
+    final data = await widget.etkinlikRepository.fetch();
+    if (!mounted) return;
+    setState(() => _eventItems = data);
+  }
+
   Future<void> _loadAnnouncementData() async {
     final data = await widget.announcementsRepository.fetch();
     if (!mounted) return;
@@ -181,9 +207,11 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
       token: token.isEmpty ? null : token,
     );
     if (!mounted) return;
+    unawaited(_precacheHomeImages(data));
     setState(() {
       _featuredItems = data.featured;
       _homeFeedItems = data.feed;
+      _contentSettings = data.settings;
     });
   }
 
@@ -198,7 +226,11 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
         precacheImage(const AssetImage(DefaultBrandAssets.darkLogo), context),
       ];
       final seen = <String>{};
-      for (final url in [settings.displayLogoUrl, settings.darkLogoUrl]) {
+      for (final url in [
+        settings.lightSurfaceLogoUrl,
+        settings.displayLogoUrl,
+        settings.darkLogoUrl,
+      ]) {
         final clean = url.trim();
         if (clean.isEmpty || !seen.add(clean)) continue;
         futures.add(
@@ -213,6 +245,30 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     }
   }
 
+  Future<void> _precacheHomeImages(HomeData data) async {
+    if (!mounted) return;
+    final urls = <String>{};
+    for (final item in data.featured.take(2)) {
+      final imageUrl = item.imageUrl.trim();
+      if (imageUrl.isNotEmpty) urls.add(imageUrl);
+    }
+    for (final item in data.feed.take(4)) {
+      final imageUrl = item.imageUrl.trim();
+      if (imageUrl.isNotEmpty) urls.add(imageUrl);
+      final avatarUrl = item.author.avatarUrl.trim();
+      if (avatarUrl.isNotEmpty) urls.add(avatarUrl);
+    }
+    if (urls.isEmpty) return;
+    try {
+      await Future.wait([
+        for (final url in urls)
+          precacheImage(NetworkImage(url), context, onError: (_, _) {}),
+      ]).timeout(const Duration(milliseconds: 1400), onTimeout: () => const []);
+    } catch (_) {
+      // Home görselleri önceden yüklenemese de normal lazy yükleme çalışır.
+    }
+  }
+
   Future<void> _restoreAuthState() async {
     try {
       final authState = await widget.authRepository.restoreSession();
@@ -221,7 +277,27 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
         _authState = authState;
         _authLoading = false;
       });
-      if (authState != null) unawaited(_loadHomeData());
+      if (authState != null) {
+        try {
+          final profile = await widget.profileRepository.fetchSelf(
+            token: authState.session.accessToken,
+          );
+          if (!mounted) return;
+          await widget.authRepository.store.saveProfileCache(
+            profile.authProfile,
+          );
+          setState(() {
+            _profileData = profile.profile;
+            _authState = FrontendAuthState(
+              session: authState.session,
+              profile: profile.authProfile,
+            );
+          });
+        } catch (_) {
+          // Cached auth profile remains enough to open the app if profile refresh fails.
+        }
+        unawaited(_loadHomeData());
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -241,17 +317,56 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     );
     if (mounted) {
       setState(() => _authState = authState);
+      unawaited(_refreshProfileData(authState));
       unawaited(_loadHomeData());
     }
     return authState;
+  }
+
+  Future<void> _refreshProfileData(FrontendAuthState authState) async {
+    try {
+      final profile = await widget.profileRepository.fetchSelf(
+        token: authState.session.accessToken,
+      );
+      if (!mounted ||
+          _authState?.session.accessToken != authState.session.accessToken) {
+        return;
+      }
+      await widget.authRepository.store.saveProfileCache(profile.authProfile);
+      if (!mounted) return;
+      setState(() {
+        _profileData = profile.profile;
+        _authState = FrontendAuthState(
+          session: authState.session,
+          profile: profile.authProfile,
+        );
+      });
+    } catch (_) {
+      // Giriş akışı profil detayları alınamasa da devam eder.
+    }
   }
 
   Future<void> _signOut() async {
     await widget.authRepository.signOut();
     await widget.adminSessionStore.clearAuth();
     if (!mounted) return;
-    setState(() => _authState = null);
+    setState(() {
+      _authState = null;
+      _profileData = null;
+    });
     unawaited(_loadHomeData());
+  }
+
+  Future<void> _handleProfileUpdated(ProfileSaveResult result) async {
+    await widget.authRepository.store.saveProfileCache(result.authProfile);
+    if (!mounted || _authState == null) return;
+    setState(() {
+      _authState = FrontendAuthState(
+        session: _authState!.session,
+        profile: result.authProfile,
+      );
+      _profileData = result.profile;
+    });
   }
 
   Future<void> _openAdminPanel() async {
@@ -302,17 +417,26 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
                 weatherData: _weatherData,
                 marketsData: _marketsData,
                 prayerTimesData: _prayerTimesData,
+                eventItems: _eventItems,
                 announcementData: _announcementData,
+                contentSettings: _contentSettings,
                 featuredItems: _featuredItems,
                 homeFeedItems: _homeFeedItems,
                 onRefreshHome: _loadHomeData,
                 authState: _authState,
+                profileData: _profileData,
+                profileRepository: widget.profileRepository,
                 authLoading: _authLoading,
                 onSignIn: _signIn,
                 onSignOut: _signOut,
                 onOpenAdminPanel: _openAdminPanel,
+                onProfileUpdated: _handleProfileUpdated,
               )
-            : const SplashScreen(key: ValueKey('splash')),
+            : SplashScreen(
+                key: const ValueKey('splash'),
+                logoUrl: _shellData.siteSettings.lightSurfaceLogoUrl,
+                siteName: _shellData.siteSettings.siteName,
+              ),
       ),
     );
   }

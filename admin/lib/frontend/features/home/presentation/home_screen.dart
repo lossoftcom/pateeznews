@@ -6,10 +6,15 @@ import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../account/data/frontend_auth_repository.dart';
+import '../../etkinlik/data/etkinlik_mock.dart';
+import '../data/feed_ranking.dart';
+import '../data/home_repository.dart';
 import '../../pharmacy/data/pharmacy_repository.dart';
+import '../../prayer_times/data/prayer_times_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import '../../today/presentation/widgets/today_widget.dart';
+import '../../weather/data/weather_repository.dart';
 import 'widgets/featured_slider.dart';
 import 'widgets/feed_filter_tabs.dart';
 import 'widgets/home_app_bar.dart';
@@ -29,7 +34,11 @@ class HomeScreen extends StatefulWidget {
     super.key,
     this.shellSettings = const AppShellSettings.empty(),
     this.dutyPharmacyData = const DutyPharmacyData.empty(),
+    this.weatherData = const WeatherData.empty(),
+    this.prayerTimesData = const PrayerTimesData.empty(),
+    this.events = const [],
     this.navigationItems = const [],
+    this.contentSettings = const HomeContentSettings.defaults(),
     this.featuredItems = const [],
     this.feedItems = const [],
     this.authState,
@@ -39,12 +48,17 @@ class HomeScreen extends StatefulWidget {
     this.onSubmitNewsTap,
     this.onPharmacyTap,
     this.onAuthRequired,
+    this.onAuthorTap,
     this.onFullscreenVideoExit,
   });
 
   final AppShellSettings shellSettings;
   final DutyPharmacyData dutyPharmacyData;
+  final WeatherData weatherData;
+  final PrayerTimesData prayerTimesData;
+  final List<EtkinlikEvent> events;
   final List<AppShellNavigationItem> navigationItems;
+  final HomeContentSettings contentSettings;
   final List<FeaturedNews> featuredItems;
   final List<NewsArticle> feedItems;
   final FrontendAuthState? authState;
@@ -54,6 +68,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onSubmitNewsTap;
   final VoidCallback? onPharmacyTap;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
 
   @override
@@ -183,7 +198,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SliverToBoxAdapter(
                     child:
-                        TodayWidget(dutyPharmacyData: widget.dutyPharmacyData)
+                        TodayWidget(
+                              dutyPharmacyData: widget.dutyPharmacyData,
+                              weatherData: widget.weatherData,
+                              prayerTimesData: widget.prayerTimesData,
+                              events: widget.events,
+                            )
                             .animate()
                             .fadeIn(
                               delay: 60.ms,
@@ -198,33 +218,34 @@ class _HomeScreenState extends State<HomeScreen> {
                               curve: Curves.easeOutCubic,
                             ),
                   ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child:
-                          DecoratedBox(
-                                decoration: const BoxDecoration(
-                                  color: AppColors.surface,
+                  if (widget.featuredItems.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.sm),
+                        child:
+                            DecoratedBox(
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.surface,
+                                  ),
+                                  child: FeaturedSlider(
+                                    items: widget.featuredItems,
+                                  ),
+                                )
+                                .animate()
+                                .fadeIn(
+                                  delay: 120.ms,
+                                  duration: 360.ms,
+                                  curve: Curves.easeOutCubic,
+                                )
+                                .slideY(
+                                  begin: 0.05,
+                                  end: 0,
+                                  delay: 120.ms,
+                                  duration: 360.ms,
+                                  curve: Curves.easeOutCubic,
                                 ),
-                                child: FeaturedSlider(
-                                  items: widget.featuredItems,
-                                ),
-                              )
-                              .animate()
-                              .fadeIn(
-                                delay: 120.ms,
-                                duration: 360.ms,
-                                curve: Curves.easeOutCubic,
-                              )
-                              .slideY(
-                                begin: 0.05,
-                                end: 0,
-                                delay: 120.ms,
-                                duration: 360.ms,
-                                curve: Curves.easeOutCubic,
-                              ),
+                      ),
                     ),
-                  ),
                   SliverToBoxAdapter(
                     child: SectionHeader(
                       title: 'Senin İçin',
@@ -244,8 +265,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         categoryTrail: _categoryTrail(feed[index].category),
                         videoFeedArticles: videoFeed,
                         shellSettings: widget.shellSettings,
+                        commentsEnabled: widget.contentSettings.commentSystem,
+                        commentApprovalEnabled:
+                            widget.contentSettings.commentApprovalSystem,
+                        emojiReactionsEnabled:
+                            widget.contentSettings.emojiReactions,
                         authState: widget.authState,
                         onAuthRequired: widget.onAuthRequired,
+                        onAuthorTap: widget.onAuthorTap,
                         onFullscreenVideoExit: widget.onFullscreenVideoExit,
                       );
                       // Giriş animasyonu yalnızca ilk ekrandaki kartlara;
@@ -290,14 +317,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<NewsArticle> _sortedFeed(List<NewsArticle> items) {
     final feed = List<NewsArticle>.of(items);
-    if (_feedFilter == FeedFilter.popular) {
-      feed.sort((a, b) {
-        if (a.isPinned != b.isPinned) return b.isPinned ? 1 : -1;
-        final aScore = a.likes + a.comments;
-        final bScore = b.likes + b.comments;
-        return bScore.compareTo(aScore);
-      });
-    }
+    feed.sort(
+      _feedFilter == FeedFilter.popular
+          ? compareNewsByPopularity
+          : compareNewsByLatest,
+    );
     return feed;
   }
 

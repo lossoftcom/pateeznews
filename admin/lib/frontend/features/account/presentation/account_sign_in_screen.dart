@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
+import '../../../core/brand/default_brand_assets.dart';
 import '../data/frontend_auth_repository.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/back_circle_button.dart';
+import '../../shell/data/app_shell_repository.dart';
 
 enum _AccountMode { signIn, signUp }
 
@@ -24,6 +26,7 @@ class AccountSignInScreen extends StatefulWidget {
     this.authLoading = false,
     this.onSignIn,
     this.onSignOut,
+    this.shellSettings = const AppShellSettings.empty(),
   });
 
   final VoidCallback? onBack;
@@ -31,6 +34,7 @@ class AccountSignInScreen extends StatefulWidget {
   final bool authLoading;
   final FrontendSignInCallback? onSignIn;
   final Future<void> Function()? onSignOut;
+  final AppShellSettings shellSettings;
 
   @override
   State<AccountSignInScreen> createState() => _AccountSignInScreenState();
@@ -47,7 +51,10 @@ class _AccountSignInScreenState extends State<AccountSignInScreen> {
       color: AppColors.surface,
       child: Column(
         children: [
-          _AccountAppBar(onBack: widget.onBack),
+          _AccountAppBar(
+            onBack: widget.onBack,
+            shellSettings: widget.shellSettings,
+          ),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -108,9 +115,10 @@ class _AccountSignInScreenState extends State<AccountSignInScreen> {
 /// üst güvenli alanı kendi içinde yöneten sabit yükseklik. Ortada marka
 /// wordmark'ı yer alır; böylece sekmeler arası kimlik bütünlüğü korunur.
 class _AccountAppBar extends StatelessWidget {
-  const _AccountAppBar({this.onBack});
+  const _AccountAppBar({this.onBack, required this.shellSettings});
 
   final VoidCallback? onBack;
+  final AppShellSettings shellSettings;
 
   static const double _height = 56;
 
@@ -132,7 +140,9 @@ class _AccountAppBar extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: 56),
-          const Expanded(child: Center(child: _AccountWordmark())),
+          Expanded(
+            child: Center(child: _AccountBrandMark(settings: shellSettings)),
+          ),
           SizedBox(
             width: 56,
             child: Align(
@@ -151,11 +161,72 @@ class _AccountAppBar extends StatelessWidget {
   }
 }
 
-class _AccountWordmark extends StatelessWidget {
-  const _AccountWordmark();
+class _AccountBrandMark extends StatelessWidget {
+  const _AccountBrandMark({required this.settings});
+
+  final AppShellSettings settings;
+  static const double _height = 34;
+  static const double _width = 132;
 
   @override
   Widget build(BuildContext context) {
+    final logoUrl = settings.lightSurfaceLogoUrl;
+    final fallbackLogo = Image.asset(
+      DefaultBrandAssets.logo,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      semanticLabel: settings.siteName.isEmpty
+          ? 'Pateeznews'
+          : settings.siteName,
+      errorBuilder: (_, _, _) => _AccountWordmark(siteName: settings.siteName),
+    );
+    if (logoUrl.isEmpty) {
+      return SizedBox(width: _width, height: _height, child: fallbackLogo);
+    }
+    return SizedBox(
+      width: _width,
+      height: _height,
+      child: Image.network(
+        logoUrl,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        semanticLabel: settings.siteName.isEmpty
+            ? 'Pateeznews'
+            : settings.siteName,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded || frame != null) return child;
+          return fallbackLogo;
+        },
+        errorBuilder: (_, _, _) => fallbackLogo,
+      ),
+    );
+  }
+}
+
+class _AccountWordmark extends StatelessWidget {
+  const _AccountWordmark({required this.siteName});
+
+  final String siteName;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = siteName.toLowerCase().replaceAll(' ', '');
+    if (normalized.isNotEmpty && !normalized.contains('pateez')) {
+      return Text(
+        siteName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontFamily: 'PateezInter',
+          color: AppColors.inkStrong,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+          height: 1,
+        ),
+      );
+    }
+
     return const Text.rich(
       TextSpan(
         children: [

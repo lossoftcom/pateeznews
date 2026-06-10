@@ -12,9 +12,11 @@ export const GET: APIRoute = async ({ request }) => {
       publishers: any[];
     }>(
       `WITH used_categories AS (
-         SELECT DISTINCT btrim(category) AS label
-         FROM public.posts
+       SELECT DISTINCT btrim(category) AS label
+       FROM public.posts
          WHERE btrim(coalesce(category, '')) <> ''
+           AND deleted_at IS NULL
+           AND COALESCE(status, '') <> 'trash'
        ),
        category_rows AS (
          SELECT DISTINCT n.label, parent.label AS parent_label
@@ -24,15 +26,19 @@ export const GET: APIRoute = async ({ request }) => {
          WHERE btrim(coalesce(n.label, '')) <> ''
        ),
        type_rows AS (
-         SELECT DISTINCT btrim(type) AS label
-         FROM public.posts
+       SELECT DISTINCT btrim(type) AS label
+       FROM public.posts
          WHERE btrim(coalesce(type, '')) <> ''
+           AND deleted_at IS NULL
+           AND COALESCE(status, '') <> 'trash'
        ),
        publisher_rows AS (
          SELECT DISTINCT p.id, p.full_name
-         FROM public.profiles p
-         JOIN public.posts post ON post.publisher_id = p.id
+       FROM public.profiles p
+       JOIN public.posts post ON post.publisher_id = p.id
          WHERE btrim(coalesce(p.full_name, '')) <> ''
+           AND post.deleted_at IS NULL
+           AND COALESCE(post.status, '') <> 'trash'
        )
        SELECT
          COALESCE((

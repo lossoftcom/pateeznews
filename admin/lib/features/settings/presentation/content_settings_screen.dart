@@ -1,13 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../features/auth/data/admin_auth_models.dart';
+import '../../../features/settings/data/admin_content_settings_repository.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 
 class ContentSettingsScreen extends StatefulWidget {
-  const ContentSettingsScreen({super.key});
+  const ContentSettingsScreen({
+    super.key,
+    required this.session,
+    this.repository = const SupabaseAdminContentSettingsRepository(),
+    this.initialSettings,
+    this.onGeneralSettingsChanged,
+    this.onPostSettingsChanged,
+    this.onPostFormatSettingsChanged,
+    this.onUploadSettingsChanged,
+    this.onFeaturedSettingsChanged,
+    this.onTrashCleanupSettingsChanged,
+  });
+
+  final AdminSession session;
+  final AdminContentSettingsRepository repository;
+  final ContentSettingsSnapshot? initialSettings;
+  final ValueChanged<ContentGeneralSettingsData>? onGeneralSettingsChanged;
+  final ValueChanged<ContentPostSettingsData>? onPostSettingsChanged;
+  final ValueChanged<ContentPostFormatSettingsData>?
+  onPostFormatSettingsChanged;
+  final ValueChanged<ContentUploadSettingsData>? onUploadSettingsChanged;
+  final ValueChanged<ContentFeaturedSettingsData>? onFeaturedSettingsChanged;
+  final ValueChanged<ContentTrashCleanupSettingsData>?
+  onTrashCleanupSettingsChanged;
 
   @override
   State<ContentSettingsScreen> createState() => _ContentSettingsScreenState();
@@ -21,6 +48,9 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   final _maxVideoSizeController = TextEditingController(text: '50');
   final _maxAudioSizeController = TextEditingController(text: '20');
   final _maxFileSizeController = TextEditingController(text: '50');
+  final _allowedExtensionsController = TextEditingController(
+    text: contentUploadDefaultExtensions.join(', '),
+  );
   final _featuredDurationController = TextEditingController(text: '10');
   final _featuredLimitController = TextEditingController(text: '15');
   final _autoDeleteDaysController = TextEditingController(text: '30');
@@ -30,7 +60,19 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   var _commentSystem = true;
   var _commentApprovalSystem = true;
   var _emojiReactions = true;
-  var _showLatestPosts = true;
+  var _generalLoading = true;
+  var _generalSaving = false;
+  var _postSettingsLoading = true;
+  var _postSettingsSaving = false;
+  var _postFormatsLoading = true;
+  var _postFormatsSaving = false;
+  var _fileUploadLoading = true;
+  var _fileUploadSaving = false;
+  var _featuredLoading = true;
+  var _featuredSaving = false;
+  var _trashCleanupLoading = true;
+  var _trashCleanupSaving = false;
+  String? _loadedLanguageCode;
   var _bulkPostUpload = true;
   var _deleteImagesAlongPost = false;
   var _audioDownloadButton = true;
@@ -51,6 +93,40 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   };
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final languageCode = _normalizeLanguageCode(
+      AdminLocalizationScope.maybeOf(context)?.code ?? 'tr',
+    );
+    if (_loadedLanguageCode == languageCode) return;
+    _loadedLanguageCode = languageCode;
+    final initialSettings = widget.initialSettings;
+    if (initialSettings != null &&
+        initialSettings.languageCode == languageCode) {
+      _applySnapshot(initialSettings);
+      return;
+    }
+    unawaited(_loadGeneralSettings(languageCode));
+    unawaited(_loadPostSettings(languageCode));
+    unawaited(_loadPostFormatSettings(languageCode));
+    unawaited(_loadUploadSettings(languageCode));
+    unawaited(_loadFeaturedSettings(languageCode));
+    unawaited(_loadTrashCleanupSettings(languageCode));
+  }
+
+  @override
+  void didUpdateWidget(covariant ContentSettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final initialSettings = widget.initialSettings;
+    if (oldWidget.initialSettings == initialSettings ||
+        initialSettings == null ||
+        initialSettings.languageCode != _loadedLanguageCode) {
+      return;
+    }
+    _applySnapshot(initialSettings);
+  }
+
+  @override
   void dispose() {
     _paginationController.dispose();
     _popularLimitController.dispose();
@@ -59,6 +135,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     _maxVideoSizeController.dispose();
     _maxAudioSizeController.dispose();
     _maxFileSizeController.dispose();
+    _allowedExtensionsController.dispose();
     _featuredDurationController.dispose();
     _featuredLimitController.dispose();
     _autoDeleteDaysController.dispose();
@@ -69,6 +146,436 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.t('contentSettings.saveSuccess'))),
     );
+  }
+
+  void _showErrorMessage(Object error) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(error.toString())));
+  }
+
+  void _applySnapshot(ContentSettingsSnapshot settings) {
+    _applyGeneralSettings(settings.general);
+    _applyPostSettings(settings.posts);
+    _applyPostFormatSettings(settings.postFormats);
+    _applyUploadSettings(settings.upload);
+    _applyFeaturedSettings(settings.featured);
+    _applyTrashCleanupSettings(settings.trashCleanup);
+    _generalLoading = false;
+    _postSettingsLoading = false;
+    _postFormatsLoading = false;
+    _fileUploadLoading = false;
+    _featuredLoading = false;
+    _trashCleanupLoading = false;
+  }
+
+  void _applyGeneralSettings(ContentGeneralSettingsData settings) {
+    _showFeaturedSection = settings.showFeaturedSection;
+    _commentSystem = settings.commentSystem;
+    _commentApprovalSystem = settings.commentApprovalSystem;
+    _emojiReactions = settings.emojiReactions;
+    _paginationController.text = settings.homePageSize.toString();
+  }
+
+  void _applyPostSettings(ContentPostSettingsData settings) {
+    _postUrlStructure = _postUrlStructureOption(settings.postUrlStructure);
+    _bulkPostUpload = settings.bulkPostUpload;
+    _deleteImagesAlongPost = settings.deleteMediaWithPost;
+    _audioDownloadButton = settings.audioDownloadButton;
+    _showPostAuthor = settings.showPostAuthor;
+    _showPostDate = settings.showPostDate;
+    _showPostViewCount = settings.showPostViewCount;
+    _requireNewPostApproval = settings.requireNewPostApproval;
+    _requireEditedPostApproval = settings.requireEditedPostApproval;
+    _redirectRssPosts = settings.redirectRssPosts;
+    _popularLimitController.text = settings.popularPostLimit.toString();
+    _relatedLimitController.text = settings.relatedPostLimit.toString();
+  }
+
+  void _applyPostFormatSettings(ContentPostFormatSettingsData settings) {
+    _postFormats = {
+      for (final key in _ContentSettingOptions.postFormatKeys)
+        key: settings.enabledFormats.contains(key),
+    };
+  }
+
+  void _applyUploadSettings(ContentUploadSettingsData settings) {
+    _imageFileFormat = settings.imageFileFormat;
+    _allowedExtensionsController.text = _formatExtensionsInput(
+      settings.allowedExtensions,
+    );
+    _maxImageSizeController.text = settings.maxImageSizeMb.toString();
+    _maxVideoSizeController.text = settings.maxVideoSizeMb.toString();
+    _maxAudioSizeController.text = settings.maxAudioSizeMb.toString();
+    _maxFileSizeController.text = settings.maxFileSizeMb.toString();
+  }
+
+  void _applyFeaturedSettings(ContentFeaturedSettingsData settings) {
+    _featuredContentSource = _featuredSourceOption(settings.contentSource);
+    _featuredSortingLogic = _featuredSortingOption(settings.sortingLogic);
+    _featuredDurationController.text = settings.displayDurationDays.toString();
+    _featuredLimitController.text = settings.displayLimit.toString();
+  }
+
+  void _applyTrashCleanupSettings(ContentTrashCleanupSettingsData settings) {
+    _autoPostDeletion = settings.enabled;
+    _autoDeleteDaysController.text = settings.days.toString();
+    _autoDeletePosts = _trashScopeOption(settings.scope);
+  }
+
+  Future<void> _loadGeneralSettings(String languageCode) async {
+    setState(() => _generalLoading = true);
+    try {
+      final settings = await widget.repository.fetchGeneralSettings(
+        languageCode,
+      );
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() {
+        _applyGeneralSettings(settings);
+        _generalLoading = false;
+      });
+      widget.onGeneralSettingsChanged?.call(settings);
+    } catch (error) {
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() => _generalLoading = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _saveGeneralSettings() async {
+    if (_generalSaving) return;
+    final languageCode =
+        _loadedLanguageCode ??
+        AdminLocalizationScope.maybeOf(context)?.code ??
+        'tr';
+    final pageSize = _normalizePageSize(_paginationController.text);
+    setState(() {
+      _generalSaving = true;
+      _paginationController.text = pageSize.toString();
+    });
+    try {
+      final saved = await widget.repository.saveGeneralSettings(
+        session: widget.session,
+        settings: ContentGeneralSettingsData(
+          languageCode: languageCode,
+          showFeaturedSection: _showFeaturedSection,
+          commentSystem: _commentSystem,
+          commentApprovalSystem: _commentApprovalSystem,
+          emojiReactions: _emojiReactions,
+          homePageSize: pageSize,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyGeneralSettings(saved);
+        _generalSaving = false;
+      });
+      widget.onGeneralSettingsChanged?.call(saved);
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _generalSaving = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _loadPostSettings(String languageCode) async {
+    setState(() => _postSettingsLoading = true);
+    try {
+      final settings = await widget.repository.fetchPostSettings(languageCode);
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() {
+        _applyPostSettings(settings);
+        _postSettingsLoading = false;
+      });
+      widget.onPostSettingsChanged?.call(settings);
+    } catch (error) {
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() => _postSettingsLoading = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _savePostSettings() async {
+    if (_postSettingsSaving) return;
+    final languageCode =
+        _loadedLanguageCode ??
+        AdminLocalizationScope.maybeOf(context)?.code ??
+        'tr';
+    final popularLimit = _normalizeContentLimit(
+      _popularLimitController.text,
+      fallback: 5,
+    );
+    final relatedLimit = _normalizeContentLimit(
+      _relatedLimitController.text,
+      fallback: 6,
+    );
+    setState(() {
+      _postSettingsSaving = true;
+      _popularLimitController.text = popularLimit.toString();
+      _relatedLimitController.text = relatedLimit.toString();
+    });
+    try {
+      final saved = await widget.repository.savePostSettings(
+        session: widget.session,
+        settings: ContentPostSettingsData(
+          languageCode: languageCode,
+          postUrlStructure: _postUrlStructureValue(_postUrlStructure),
+          bulkPostUpload: _bulkPostUpload,
+          deleteMediaWithPost: _deleteImagesAlongPost,
+          audioDownloadButton: _audioDownloadButton,
+          showPostAuthor: _showPostAuthor,
+          showPostDate: _showPostDate,
+          showPostViewCount: _showPostViewCount,
+          requireNewPostApproval: _requireNewPostApproval,
+          requireEditedPostApproval: _requireEditedPostApproval,
+          redirectRssPosts: _redirectRssPosts,
+          popularPostLimit: popularLimit,
+          relatedPostLimit: relatedLimit,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyPostSettings(saved);
+        _postSettingsSaving = false;
+      });
+      widget.onPostSettingsChanged?.call(saved);
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _postSettingsSaving = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _loadPostFormatSettings(String languageCode) async {
+    setState(() => _postFormatsLoading = true);
+    try {
+      final settings = await widget.repository.fetchPostFormatSettings(
+        languageCode,
+      );
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() {
+        _applyPostFormatSettings(settings);
+        _postFormatsLoading = false;
+      });
+      widget.onPostFormatSettingsChanged?.call(settings);
+    } catch (error) {
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() => _postFormatsLoading = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _savePostFormatSettings() async {
+    if (_postFormatsSaving) return;
+    final languageCode =
+        _loadedLanguageCode ??
+        AdminLocalizationScope.maybeOf(context)?.code ??
+        'tr';
+    final enabledFormats = _postFormats.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toSet();
+    setState(() => _postFormatsSaving = true);
+    try {
+      final saved = await widget.repository.savePostFormatSettings(
+        session: widget.session,
+        settings: ContentPostFormatSettingsData(
+          languageCode: languageCode,
+          enabledFormats: enabledFormats,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyPostFormatSettings(saved);
+        _postFormatsSaving = false;
+      });
+      widget.onPostFormatSettingsChanged?.call(saved);
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _postFormatsSaving = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _loadUploadSettings(String languageCode) async {
+    setState(() => _fileUploadLoading = true);
+    try {
+      final settings = await widget.repository.fetchUploadSettings(
+        languageCode,
+      );
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() {
+        _applyUploadSettings(settings);
+        _fileUploadLoading = false;
+      });
+      widget.onUploadSettingsChanged?.call(settings);
+    } catch (error) {
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() => _fileUploadLoading = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _saveUploadSettings() async {
+    if (_fileUploadSaving) return;
+    final languageCode =
+        _loadedLanguageCode ??
+        AdminLocalizationScope.maybeOf(context)?.code ??
+        'tr';
+    final extensions = _parseExtensionsInput(_allowedExtensionsController.text);
+    final maxImage = _normalizeMegabyteLimit(_maxImageSizeController.text, 20);
+    final maxVideo = _normalizeMegabyteLimit(_maxVideoSizeController.text, 50);
+    final maxAudio = _normalizeMegabyteLimit(_maxAudioSizeController.text, 20);
+    final maxFile = _normalizeMegabyteLimit(_maxFileSizeController.text, 50);
+    setState(() {
+      _fileUploadSaving = true;
+      _allowedExtensionsController.text = _formatExtensionsInput(extensions);
+      _maxImageSizeController.text = maxImage.toString();
+      _maxVideoSizeController.text = maxVideo.toString();
+      _maxAudioSizeController.text = maxAudio.toString();
+      _maxFileSizeController.text = maxFile.toString();
+    });
+    try {
+      final saved = await widget.repository.saveUploadSettings(
+        session: widget.session,
+        settings: ContentUploadSettingsData(
+          languageCode: languageCode,
+          imageFileFormat: _imageFileFormat,
+          allowedExtensions: extensions,
+          maxImageSizeMb: maxImage,
+          maxVideoSizeMb: maxVideo,
+          maxAudioSizeMb: maxAudio,
+          maxFileSizeMb: maxFile,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyUploadSettings(saved);
+        _fileUploadSaving = false;
+      });
+      widget.onUploadSettingsChanged?.call(saved);
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _fileUploadSaving = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _loadFeaturedSettings(String languageCode) async {
+    setState(() => _featuredLoading = true);
+    try {
+      final settings = await widget.repository.fetchFeaturedSettings(
+        languageCode,
+      );
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() {
+        _applyFeaturedSettings(settings);
+        _featuredLoading = false;
+      });
+      widget.onFeaturedSettingsChanged?.call(settings);
+    } catch (error) {
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() => _featuredLoading = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _saveFeaturedSettings() async {
+    if (_featuredSaving) return;
+    final languageCode =
+        _loadedLanguageCode ??
+        AdminLocalizationScope.maybeOf(context)?.code ??
+        'tr';
+    final durationDays = _normalizeFeaturedDurationDays(
+      _featuredDurationController.text,
+    );
+    final displayLimit = _normalizeFeaturedLimit(_featuredLimitController.text);
+    setState(() {
+      _featuredSaving = true;
+      _featuredDurationController.text = durationDays.toString();
+      _featuredLimitController.text = displayLimit.toString();
+    });
+    try {
+      final saved = await widget.repository.saveFeaturedSettings(
+        session: widget.session,
+        settings: ContentFeaturedSettingsData(
+          languageCode: languageCode,
+          contentSource: _featuredSourceValue(_featuredContentSource),
+          sortingLogic: _featuredSortingValue(_featuredSortingLogic),
+          displayDurationDays: durationDays,
+          displayLimit: displayLimit,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyFeaturedSettings(saved);
+        _featuredSaving = false;
+      });
+      widget.onFeaturedSettingsChanged?.call(saved);
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _featuredSaving = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _loadTrashCleanupSettings(String languageCode) async {
+    setState(() => _trashCleanupLoading = true);
+    try {
+      final settings = await widget.repository.fetchTrashCleanupSettings(
+        languageCode,
+      );
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() {
+        _applyTrashCleanupSettings(settings);
+        _trashCleanupLoading = false;
+      });
+      widget.onTrashCleanupSettingsChanged?.call(settings);
+    } catch (error) {
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() => _trashCleanupLoading = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _saveTrashCleanupSettings() async {
+    if (_trashCleanupSaving) return;
+    final languageCode =
+        _loadedLanguageCode ??
+        AdminLocalizationScope.maybeOf(context)?.code ??
+        'tr';
+    final days = _normalizeTrashDays(_autoDeleteDaysController.text);
+    setState(() {
+      _trashCleanupSaving = true;
+      _autoDeleteDaysController.text = days.toString();
+    });
+    try {
+      final saved = await widget.repository.saveTrashCleanupSettings(
+        session: widget.session,
+        settings: ContentTrashCleanupSettingsData(
+          languageCode: languageCode,
+          enabled: _autoPostDeletion,
+          days: days,
+          scope: _trashScopeValue(_autoDeletePosts),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyTrashCleanupSettings(saved);
+        _trashCleanupSaving = false;
+      });
+      widget.onTrashCleanupSettingsChanged?.call(saved);
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _trashCleanupSaving = false);
+      _showErrorMessage(error);
+    }
   }
 
   @override
@@ -102,7 +609,8 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                           commentSystem: _commentSystem,
                           commentApprovalSystem: _commentApprovalSystem,
                           emojiReactions: _emojiReactions,
-                          showLatestPosts: _showLatestPosts,
+                          loading: _generalLoading,
+                          saving: _generalSaving,
                           paginationController: _paginationController,
                           onShowFeaturedSectionChanged: (value) =>
                               setState(() => _showFeaturedSection = value),
@@ -112,9 +620,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                               setState(() => _commentApprovalSystem = value),
                           onEmojiReactionsChanged: (value) =>
                               setState(() => _emojiReactions = value),
-                          onShowLatestPostsChanged: (value) =>
-                              setState(() => _showLatestPosts = value),
-                          onSave: _showSavedMessage,
+                          onSave: _saveGeneralSettings,
                         ),
                         _ContentSettingsTab.posts => _PostsTab(
                           postUrlStructure: _postUrlStructure,
@@ -127,6 +633,8 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                           requireNewPostApproval: _requireNewPostApproval,
                           requireEditedPostApproval: _requireEditedPostApproval,
                           redirectRssPosts: _redirectRssPosts,
+                          loading: _postSettingsLoading,
+                          saving: _postSettingsSaving,
                           popularLimitController: _popularLimitController,
                           relatedLimitController: _relatedLimitController,
                           onPostUrlStructureChanged: (value) {
@@ -153,17 +661,23 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                               ),
                           onRedirectRssPostsChanged: (value) =>
                               setState(() => _redirectRssPosts = value),
-                          onSave: _showSavedMessage,
+                          onSave: _savePostSettings,
                         ),
                         _ContentSettingsTab.postFormats => _PostFormatsTab(
                           values: _postFormats,
+                          loading: _postFormatsLoading,
+                          saving: _postFormatsSaving,
                           onChanged: (key, value) => setState(
                             () => _postFormats = {..._postFormats, key: value},
                           ),
-                          onSave: _showSavedMessage,
+                          onSave: _savePostFormatSettings,
                         ),
                         _ContentSettingsTab.fileUpload => _FileUploadTab(
                           imageFileFormat: _imageFileFormat,
+                          loading: _fileUploadLoading,
+                          saving: _fileUploadSaving,
+                          allowedExtensionsController:
+                              _allowedExtensionsController,
                           maxImageSizeController: _maxImageSizeController,
                           maxVideoSizeController: _maxVideoSizeController,
                           maxAudioSizeController: _maxAudioSizeController,
@@ -172,7 +686,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                             if (value == null) return;
                             setState(() => _imageFileFormat = value);
                           },
-                          onSave: _showSavedMessage,
+                          onSave: _saveUploadSettings,
                         ),
                       },
                     ),
@@ -180,6 +694,8 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                     _FeaturedContentCard(
                       contentSource: _featuredContentSource,
                       sortingLogic: _featuredSortingLogic,
+                      loading: _featuredLoading,
+                      saving: _featuredSaving,
                       durationController: _featuredDurationController,
                       limitController: _featuredLimitController,
                       onContentSourceChanged: (value) {
@@ -190,12 +706,14 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                         if (value == null) return;
                         setState(() => _featuredSortingLogic = value);
                       },
-                      onSave: _showSavedMessage,
+                      onSave: _saveFeaturedSettings,
                     ),
                   ],
                 ),
                 right: _AutoPostDeletionCard(
                   enabled: _autoPostDeletion,
+                  loading: _trashCleanupLoading,
+                  saving: _trashCleanupSaving,
                   daysController: _autoDeleteDaysController,
                   postsValue: _autoDeletePosts,
                   onEnabledChanged: (value) =>
@@ -204,7 +722,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                     if (value == null) return;
                     setState(() => _autoDeletePosts = value);
                   },
-                  onSave: _showSavedMessage,
+                  onSave: _saveTrashCleanupSettings,
                 ),
               ),
             ],
@@ -213,6 +731,108 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
       },
     );
   }
+}
+
+int _normalizePageSize(String value) {
+  final parsed = int.tryParse(value.trim());
+  return (parsed ?? 16).clamp(1, 50).toInt();
+}
+
+int _normalizeMegabyteLimit(String value, int fallback) {
+  final parsed = int.tryParse(value.trim());
+  return (parsed ?? fallback).clamp(1, 1024).toInt();
+}
+
+int _normalizeFeaturedDurationDays(String value) {
+  final parsed = int.tryParse(value.trim());
+  return (parsed ?? 10).clamp(1, 365).toInt();
+}
+
+int _normalizeFeaturedLimit(String value) {
+  final parsed = int.tryParse(value.trim());
+  return (parsed ?? 15).clamp(1, 50).toInt();
+}
+
+int _normalizeContentLimit(String value, {required int fallback}) {
+  final parsed = int.tryParse(value.trim());
+  return (parsed ?? fallback).clamp(1, 50).toInt();
+}
+
+int _normalizeTrashDays(String value) {
+  final parsed = int.tryParse(value.trim());
+  return (parsed ?? 30).clamp(1, 365).toInt();
+}
+
+String _postUrlStructureValue(String option) {
+  return option == _ContentSettingOptions.idUrls ? 'id' : 'slug';
+}
+
+String _postUrlStructureOption(String value) {
+  return value == 'id'
+      ? _ContentSettingOptions.idUrls
+      : _ContentSettingOptions.slugUrls;
+}
+
+String _featuredSourceValue(String option) {
+  return option == _ContentSettingOptions.latestPosts ? 'latest' : 'manual';
+}
+
+String _featuredSourceOption(String value) {
+  return value == 'latest'
+      ? _ContentSettingOptions.latestPosts
+      : _ContentSettingOptions.manualSelection;
+}
+
+String _featuredSortingValue(String option) {
+  return option == _ContentSettingOptions.publishDate
+      ? 'publish_date'
+      : 'slider_order';
+}
+
+String _featuredSortingOption(String value) {
+  return value == 'publish_date'
+      ? _ContentSettingOptions.publishDate
+      : _ContentSettingOptions.sliderOrder;
+}
+
+String _trashScopeValue(String option) {
+  return option == _ContentSettingOptions.deleteDraftPosts ? 'draft' : 'all';
+}
+
+String _trashScopeOption(String value) {
+  return value == 'draft'
+      ? _ContentSettingOptions.deleteDraftPosts
+      : _ContentSettingOptions.deleteAllPosts;
+}
+
+String _normalizeLanguageCode(String value) {
+  final code = value.trim().toLowerCase().replaceAll('_', '-');
+  return code.isEmpty ? 'tr' : code;
+}
+
+Set<String> _parseExtensionsInput(String value) {
+  final parsed = value
+      .split(RegExp(r'[\s,;]+'))
+      .map(
+        (item) => item.trim().toLowerCase().replaceFirst(RegExp(r'^\.+'), ''),
+      )
+      .where((item) => item.isNotEmpty)
+      .toSet();
+  return parsed.isEmpty ? {...contentUploadDefaultExtensions} : parsed;
+}
+
+String _formatExtensionsInput(Set<String> values) {
+  final sorted =
+      values
+          .map(
+            (item) =>
+                item.trim().toLowerCase().replaceFirst(RegExp(r'^\.+'), ''),
+          )
+          .where((item) => item.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+  return sorted.join(', ');
 }
 
 class _ContentHeader extends StatelessWidget {
@@ -424,13 +1044,13 @@ class _GeneralTab extends StatelessWidget {
     required this.commentSystem,
     required this.commentApprovalSystem,
     required this.emojiReactions,
-    required this.showLatestPosts,
+    required this.loading,
+    required this.saving,
     required this.paginationController,
     required this.onShowFeaturedSectionChanged,
     required this.onCommentSystemChanged,
     required this.onCommentApprovalSystemChanged,
     required this.onEmojiReactionsChanged,
-    required this.onShowLatestPostsChanged,
     required this.onSave,
   });
 
@@ -438,17 +1058,21 @@ class _GeneralTab extends StatelessWidget {
   final bool commentSystem;
   final bool commentApprovalSystem;
   final bool emojiReactions;
-  final bool showLatestPosts;
+  final bool loading;
+  final bool saving;
   final TextEditingController paginationController;
   final ValueChanged<bool> onShowFeaturedSectionChanged;
   final ValueChanged<bool> onCommentSystemChanged;
   final ValueChanged<bool> onCommentApprovalSystemChanged;
   final ValueChanged<bool> onEmojiReactionsChanged;
-  final ValueChanged<bool> onShowLatestPostsChanged;
-  final VoidCallback onSave;
+  final Future<void> Function() onSave;
 
   @override
   Widget build(BuildContext context) {
+    if (loading) {
+      return const _SettingsLoadingPanel(height: 248);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -476,20 +1100,37 @@ class _GeneralTab extends StatelessWidget {
           valueLabel: 'contentSettings.value.enabled',
           onChanged: onEmojiReactionsChanged,
         ),
-        _SwitchLine(
-          label: 'contentSettings.general.showLatestPosts',
-          value: showLatestPosts,
-          valueLabel: 'contentSettings.value.yes',
-          onChanged: onShowLatestPostsChanged,
-        ),
         _InputLine(
           label: 'contentSettings.general.pagination',
           controller: paginationController,
           keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 8),
-        _SaveRow(onPressed: onSave),
+        _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
       ],
+    );
+  }
+}
+
+class _SettingsLoadingPanel extends StatelessWidget {
+  const _SettingsLoadingPanel({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.actionRed,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -506,6 +1147,8 @@ class _PostsTab extends StatelessWidget {
     required this.requireNewPostApproval,
     required this.requireEditedPostApproval,
     required this.redirectRssPosts,
+    required this.loading,
+    required this.saving,
     required this.popularLimitController,
     required this.relatedLimitController,
     required this.onPostUrlStructureChanged,
@@ -531,6 +1174,8 @@ class _PostsTab extends StatelessWidget {
   final bool requireNewPostApproval;
   final bool requireEditedPostApproval;
   final bool redirectRssPosts;
+  final bool loading;
+  final bool saving;
   final TextEditingController popularLimitController;
   final TextEditingController relatedLimitController;
   final ValueChanged<String?> onPostUrlStructureChanged;
@@ -543,10 +1188,12 @@ class _PostsTab extends StatelessWidget {
   final ValueChanged<bool> onRequireNewPostApprovalChanged;
   final ValueChanged<bool> onRequireEditedPostApprovalChanged;
   final ValueChanged<bool> onRedirectRssPostsChanged;
-  final VoidCallback onSave;
+  final Future<void> Function() onSave;
 
   @override
   Widget build(BuildContext context) {
+    if (loading) return const _SettingsLoadingPanel(height: 420);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -555,61 +1202,61 @@ class _PostsTab extends StatelessWidget {
           helper: 'contentSettings.posts.urlStructureHelp',
           value: postUrlStructure,
           options: _ContentSettingOptions.postUrlOptions,
-          onChanged: onPostUrlStructureChanged,
+          onChanged: saving ? (_) {} : onPostUrlStructureChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.bulkUpload',
           value: bulkPostUpload,
           valueLabel: 'contentSettings.value.enabled',
-          onChanged: onBulkPostUploadChanged,
+          onChanged: saving ? (_) {} : onBulkPostUploadChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.deleteImages',
           value: deleteImagesAlongPost,
           valueLabel: 'contentSettings.value.enabled',
-          onChanged: onDeleteImagesAlongPostChanged,
+          onChanged: saving ? (_) {} : onDeleteImagesAlongPostChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.audioDownload',
           value: audioDownloadButton,
           valueLabel: 'contentSettings.value.enabled',
-          onChanged: onAudioDownloadButtonChanged,
+          onChanged: saving ? (_) {} : onAudioDownloadButtonChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.showAuthor',
           value: showPostAuthor,
           valueLabel: 'contentSettings.value.yes',
-          onChanged: onShowPostAuthorChanged,
+          onChanged: saving ? (_) {} : onShowPostAuthorChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.showDate',
           value: showPostDate,
           valueLabel: 'contentSettings.value.yes',
-          onChanged: onShowPostDateChanged,
+          onChanged: saving ? (_) {} : onShowPostDateChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.showViewCount',
           value: showPostViewCount,
           valueLabel: 'contentSettings.value.yes',
-          onChanged: onShowPostViewCountChanged,
+          onChanged: saving ? (_) {} : onShowPostViewCountChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.newApproval',
           value: requireNewPostApproval,
           valueLabel: 'contentSettings.value.yes',
-          onChanged: onRequireNewPostApprovalChanged,
+          onChanged: saving ? (_) {} : onRequireNewPostApprovalChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.editedApproval',
           value: requireEditedPostApproval,
           valueLabel: 'contentSettings.value.yes',
-          onChanged: onRequireEditedPostApprovalChanged,
+          onChanged: saving ? (_) {} : onRequireEditedPostApprovalChanged,
         ),
         _SwitchLine(
           label: 'contentSettings.posts.redirectRss',
           value: redirectRssPosts,
           valueLabel: 'contentSettings.value.yes',
-          onChanged: onRedirectRssPostsChanged,
+          onChanged: saving ? (_) {} : onRedirectRssPostsChanged,
         ),
         _InputLine(
           label: 'contentSettings.posts.popularLimit',
@@ -622,7 +1269,7 @@ class _PostsTab extends StatelessWidget {
           keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 8),
-        _SaveRow(onPressed: onSave),
+        _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
       ],
     );
   }
@@ -631,28 +1278,34 @@ class _PostsTab extends StatelessWidget {
 class _PostFormatsTab extends StatelessWidget {
   const _PostFormatsTab({
     required this.values,
+    required this.loading,
+    required this.saving,
     required this.onChanged,
     required this.onSave,
   });
 
   final Map<String, bool> values;
+  final bool loading;
+  final bool saving;
   final void Function(String key, bool value) onChanged;
-  final VoidCallback onSave;
+  final Future<void> Function() onSave;
 
   @override
   Widget build(BuildContext context) {
+    if (loading) return const _SettingsLoadingPanel(height: 270);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final key in _ContentSettingOptions.postFormatKeys)
           _SwitchLine(
-            label: key,
+            label: _ContentSettingOptions.postFormatLabels[key] ?? key,
             value: values[key] ?? false,
             valueLabel: 'contentSettings.value.enabled',
-            onChanged: (value) => onChanged(key, value),
+            onChanged: saving ? (_) {} : (value) => onChanged(key, value),
           ),
         const SizedBox(height: 8),
-        _SaveRow(onPressed: onSave),
+        _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
       ],
     );
   }
@@ -661,6 +1314,9 @@ class _PostFormatsTab extends StatelessWidget {
 class _FileUploadTab extends StatelessWidget {
   const _FileUploadTab({
     required this.imageFileFormat,
+    required this.loading,
+    required this.saving,
+    required this.allowedExtensionsController,
     required this.maxImageSizeController,
     required this.maxVideoSizeController,
     required this.maxAudioSizeController,
@@ -670,15 +1326,20 @@ class _FileUploadTab extends StatelessWidget {
   });
 
   final String imageFileFormat;
+  final bool loading;
+  final bool saving;
+  final TextEditingController allowedExtensionsController;
   final TextEditingController maxImageSizeController;
   final TextEditingController maxVideoSizeController;
   final TextEditingController maxAudioSizeController;
   final TextEditingController maxFileSizeController;
   final ValueChanged<String?> onImageFileFormatChanged;
-  final VoidCallback onSave;
+  final Future<void> Function() onSave;
 
   @override
   Widget build(BuildContext context) {
+    if (loading) return const _SettingsLoadingPanel(height: 300);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -690,10 +1351,10 @@ class _FileUploadTab extends StatelessWidget {
           isRequired: true,
           translateOptions: false,
         ),
-        const _TagsLine(
+        _ExtensionsInputLine(
           label: 'contentSettings.file.allowedExtensions',
           helper: 'contentSettings.file.allowedExtensionsHelp',
-          tags: ['jpg', 'png', 'pdf', 'ppt', 'doc'],
+          controller: allowedExtensionsController,
         ),
         _UnitInputLine(
           label: 'contentSettings.file.maxImageSize',
@@ -712,7 +1373,7 @@ class _FileUploadTab extends StatelessWidget {
           controller: maxFileSizeController,
         ),
         const SizedBox(height: 8),
-        _SaveRow(onPressed: onSave),
+        _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
       ],
     );
   }
@@ -722,6 +1383,8 @@ class _FeaturedContentCard extends StatelessWidget {
   const _FeaturedContentCard({
     required this.contentSource,
     required this.sortingLogic,
+    required this.loading,
+    required this.saving,
     required this.durationController,
     required this.limitController,
     required this.onContentSourceChanged,
@@ -731,61 +1394,65 @@ class _FeaturedContentCard extends StatelessWidget {
 
   final String contentSource;
   final String sortingLogic;
+  final bool loading;
+  final bool saving;
   final TextEditingController durationController;
   final TextEditingController limitController;
   final ValueChanged<String?> onContentSourceChanged;
   final ValueChanged<String?> onSortingLogicChanged;
-  final VoidCallback onSave;
+  final Future<void> Function() onSave;
 
   @override
   Widget build(BuildContext context) {
     return _ContentCard(
       title: 'contentSettings.featured.title',
       minHeight: 318,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _ContentTabButton(
-              label: 'contentSettings.featured.mainSlider',
-              selected: true,
-              onTap: () {},
+      child: loading
+          ? const _SettingsLoadingPanel(height: 220)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ContentTabButton(
+                    label: 'contentSettings.featured.mainSlider',
+                    selected: true,
+                    onTap: () {},
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _FullSelectField(
+                  label: 'contentSettings.featured.contentSource',
+                  value: contentSource,
+                  options: _ContentSettingOptions.contentSourceOptions,
+                  onChanged: onContentSourceChanged,
+                ),
+                const SizedBox(height: 18),
+                _FullSelectField(
+                  label: 'contentSettings.featured.sortingLogic',
+                  value: sortingLogic,
+                  options: _ContentSettingOptions.sortingOptions,
+                  onChanged: onSortingLogicChanged,
+                ),
+                const SizedBox(height: 18),
+                _TwoFieldRow(
+                  children: [
+                    _FullTextField(
+                      label: 'contentSettings.featured.displayDuration',
+                      controller: durationController,
+                      keyboardType: TextInputType.number,
+                    ),
+                    _FullTextField(
+                      label: 'contentSettings.featured.displayLimit',
+                      controller: limitController,
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
+              ],
             ),
-          ),
-          const SizedBox(height: 20),
-          _FullSelectField(
-            label: 'contentSettings.featured.contentSource',
-            value: contentSource,
-            options: _ContentSettingOptions.contentSourceOptions,
-            onChanged: onContentSourceChanged,
-          ),
-          const SizedBox(height: 18),
-          _FullSelectField(
-            label: 'contentSettings.featured.sortingLogic',
-            value: sortingLogic,
-            options: _ContentSettingOptions.sortingOptions,
-            onChanged: onSortingLogicChanged,
-          ),
-          const SizedBox(height: 18),
-          _TwoFieldRow(
-            children: [
-              _FullTextField(
-                label: 'contentSettings.featured.displayDuration',
-                controller: durationController,
-                keyboardType: TextInputType.number,
-              ),
-              _FullTextField(
-                label: 'contentSettings.featured.displayLimit',
-                controller: limitController,
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _SaveRow(onPressed: onSave),
-        ],
-      ),
     );
   }
 }
@@ -793,6 +1460,8 @@ class _FeaturedContentCard extends StatelessWidget {
 class _AutoPostDeletionCard extends StatelessWidget {
   const _AutoPostDeletionCard({
     required this.enabled,
+    required this.loading,
+    required this.saving,
     required this.daysController,
     required this.postsValue,
     required this.onEnabledChanged,
@@ -801,46 +1470,50 @@ class _AutoPostDeletionCard extends StatelessWidget {
   });
 
   final bool enabled;
+  final bool loading;
+  final bool saving;
   final TextEditingController daysController;
   final String postsValue;
   final ValueChanged<bool> onEnabledChanged;
   final ValueChanged<String?> onPostsChanged;
-  final VoidCallback onSave;
+  final Future<void> Function() onSave;
 
   @override
   Widget build(BuildContext context) {
     return _ContentCard(
       title: 'contentSettings.autoDelete.title',
       minHeight: 318,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _InlineSwitchControl(
-            label: 'contentSettings.autoDelete.status',
-            value: enabled,
-            valueLabel: 'contentSettings.value.enable',
-            onChanged: onEnabledChanged,
-          ),
-          const SizedBox(height: 18),
-          _FullTextField(
-            label: 'contentSettings.autoDelete.days',
-            helper: 'contentSettings.autoDelete.daysHelp',
-            controller: daysController,
-            keyboardType: TextInputType.number,
-            isRequired: true,
-          ),
-          const SizedBox(height: 18),
-          _FullSelectField(
-            label: 'contentSettings.autoDelete.posts',
-            value: postsValue,
-            options: _ContentSettingOptions.autoDeletePostOptions,
-            onChanged: onPostsChanged,
-            isRequired: true,
-          ),
-          const SizedBox(height: 20),
-          _SaveRow(onPressed: onSave),
-        ],
-      ),
+      child: loading
+          ? const _SettingsLoadingPanel(height: 220)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _InlineSwitchControl(
+                  label: 'contentSettings.autoDelete.status',
+                  value: enabled,
+                  valueLabel: 'contentSettings.value.enable',
+                  onChanged: saving ? (_) {} : onEnabledChanged,
+                ),
+                const SizedBox(height: 18),
+                _FullTextField(
+                  label: 'contentSettings.autoDelete.days',
+                  helper: 'contentSettings.autoDelete.daysHelp',
+                  controller: daysController,
+                  keyboardType: TextInputType.number,
+                  isRequired: true,
+                ),
+                const SizedBox(height: 18),
+                _FullSelectField(
+                  label: 'contentSettings.autoDelete.posts',
+                  value: postsValue,
+                  options: _ContentSettingOptions.autoDeletePostOptions,
+                  onChanged: saving ? (_) {} : onPostsChanged,
+                  isRequired: true,
+                ),
+                const SizedBox(height: 20),
+                _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
+              ],
+            ),
     );
   }
 }
@@ -945,11 +1618,15 @@ class _SelectLine extends StatelessWidget {
   }
 }
 
-class _TagsLine extends StatelessWidget {
-  const _TagsLine({required this.label, required this.tags, this.helper});
+class _ExtensionsInputLine extends StatelessWidget {
+  const _ExtensionsInputLine({
+    required this.label,
+    required this.controller,
+    this.helper,
+  });
 
   final String label;
-  final List<String> tags;
+  final TextEditingController controller;
   final String? helper;
 
   @override
@@ -958,7 +1635,21 @@ class _TagsLine extends StatelessWidget {
       label: label,
       helper: helper,
       isRequired: true,
-      control: _TagsField(tags: tags),
+      control: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ContentTextField(controller: controller),
+          const SizedBox(height: 8),
+          AnimatedBuilder(
+            animation: controller,
+            builder: (context, _) {
+              return _TagsField(
+                tags: _parseExtensionsInput(controller.text).toList()..sort(),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1473,7 +2164,7 @@ class _TwoFieldRow extends StatelessWidget {
 class _SaveRow extends StatelessWidget {
   const _SaveRow({required this.onPressed});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -1565,17 +2256,14 @@ class _ContentSettingOptions {
   static const sortingOptions = [sliderOrder, publishDate];
   static const autoDeletePostOptions = [deleteAllPosts, deleteDraftPosts];
   static const imageFormats = ['WEBP', 'JPEG', 'PNG'];
-  static const postFormatKeys = [
-    'contentSettings.format.article',
-    'contentSettings.format.gallery',
-    'contentSettings.format.sortedList',
-    'contentSettings.format.tableOfContents',
-    'contentSettings.format.video',
-    'contentSettings.format.audio',
-    'contentSettings.format.triviaQuiz',
-    'contentSettings.format.personalityQuiz',
-    'contentSettings.format.poll',
-    'contentSettings.format.recipe',
-    'contentSettings.format.event',
-  ];
+  static const postFormatKeys = contentPostFormatKeys;
+  static const postFormatLabels = {
+    'article': 'newsAdd.tab.article',
+    'quiz': 'newsAdd.tab.quiz',
+    'poll': 'newsAdd.tab.poll',
+    'video': 'newsAdd.tab.video',
+    'contents': 'newsAdd.tab.contents',
+    'recipe': 'newsAdd.tab.recipe',
+    'event': 'newsAdd.tab.event',
+  };
 }

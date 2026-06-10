@@ -10,6 +10,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/cached_image.dart';
 import '../../../shared/widgets/feature_app_bar.dart';
 import '../data/etkinlik_mock.dart';
+import '../data/etkinlik_repository.dart';
 
 /// Etkinlik sayfası accent rengi (uygulama ikonuyla aynı mor).
 const Color _violet = Color(0xFF6C5CE7);
@@ -20,11 +21,16 @@ const Color _freeGreen = Color(0xFF1FA971);
 /// aynı tasarım dilinde (hero kart → renkli filtre çipleri → yatay gün şeridi →
 /// sol renk şeritli kartlar). Az okuyan kullanıcı için her etkinlik; büyük tarih
 /// kutusu, kategori ikonu/rengi ve sade "BUGÜN / YARIN / N GÜN SONRA" rozetiyle
-/// bakar bakmaz anlaşılır. Veriler şimdilik örnek (mock); backend sonra bağlanır.
+/// bakar bakmaz anlaşılır.
 class EtkinlikScreen extends StatefulWidget {
-  const EtkinlikScreen({super.key, this.events});
+  const EtkinlikScreen({
+    super.key,
+    this.events,
+    this.repository = const EtkinlikRepository(),
+  });
 
   final List<EtkinlikEvent>? events;
+  final EtkinlikRepository repository;
 
   @override
   State<EtkinlikScreen> createState() => _EtkinlikScreenState();
@@ -33,11 +39,46 @@ class EtkinlikScreen extends StatefulWidget {
 class _EtkinlikScreenState extends State<EtkinlikScreen> {
   EtkinlikCategory? _category; // null = Tümü
   DateTime? _selectedDay; // null = tüm günler
+  List<EtkinlikEvent> _events = const [];
+  var _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.events == null) {
+      _loadEvents();
+    } else {
+      _events = widget.events!;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant EtkinlikScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.events != oldWidget.events && widget.events != null) {
+      _events = widget.events!;
+      return;
+    }
+    if (widget.repository != oldWidget.repository && widget.events == null) {
+      _loadEvents();
+    }
+  }
+
+  Future<void> _loadEvents() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    final events = await widget.repository.fetch();
+    if (!mounted) return;
+    setState(() {
+      _events = events;
+      _loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final source = widget.events ?? EtkinlikMock.all;
+    final source = widget.events ?? _events;
 
     final upcoming =
         source
@@ -53,7 +94,9 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
 
     final byCategory = _category == null
         ? upcoming
-        : upcoming.where((e) => e.category == _category).toList(growable: false);
+        : upcoming
+              .where((e) => e.category == _category)
+              .toList(growable: false);
 
     final visible = _selectedDay == null
         ? byCategory
@@ -85,12 +128,12 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
                   AppSpacing.xxxl + bottomInset,
                 ),
                 children: [
-                  if (upcoming.isEmpty)
+                  if (_loading && upcoming.isEmpty)
+                    const _LoadingState()
+                  else if (upcoming.isEmpty)
                     const _EmptyState(
-                      title: 'Yaklaşan etkinlik yok',
-                      message:
-                          'Şu anda planlanmış bir etkinlik bulunmuyor. '
-                          'Yeni etkinlikler eklendiğinde burada görünecek.',
+                      title: 'Etkinlik',
+                      message: 'Veri yüklenemedi',
                     )
                   else ...[
                     _HeroBanner(total: upcoming.length)
@@ -134,7 +177,8 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
                       selected: _selectedDay,
                       onSelect: (date) => setState(
                         () => _selectedDay =
-                            (_selectedDay != null && _sameDay(_selectedDay!, date))
+                            (_selectedDay != null &&
+                                _sameDay(_selectedDay!, date))
                             ? null
                             : date,
                       ),
@@ -178,6 +222,20 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 280,
+      child: Center(
+        child: CircularProgressIndicator(color: AppColors.actionRed),
       ),
     );
   }
@@ -1069,11 +1127,7 @@ class _DateStrip extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(
-              Symbols.calendar_event_line,
-              size: 15,
-              color: _violet,
-            ),
+            const Icon(Symbols.calendar_event_line, size: 15, color: _violet),
             const SizedBox(width: 7),
             Text(
               'Gün Seç',
@@ -1298,7 +1352,11 @@ class _EventCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(5),
         border: Border.all(color: AppColors.line),
         boxShadow: const [
-          BoxShadow(color: AppColors.shadow, blurRadius: 14, offset: Offset(0, 7)),
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 14,
+            offset: Offset(0, 7),
+          ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
@@ -1636,7 +1694,11 @@ class _EmptyState extends StatelessWidget {
         borderRadius: BorderRadius.circular(5),
         border: Border.all(color: AppColors.line),
         boxShadow: const [
-          BoxShadow(color: AppColors.shadow, blurRadius: 14, offset: Offset(0, 7)),
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 14,
+            offset: Offset(0, 7),
+          ),
         ],
       ),
       child: Column(

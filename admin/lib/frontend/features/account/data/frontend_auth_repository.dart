@@ -82,6 +82,7 @@ class FrontendProfile {
     required this.username,
     required this.fullName,
     required this.avatarUrl,
+    required this.coverUrl,
     required this.role,
     required this.email,
   });
@@ -90,6 +91,7 @@ class FrontendProfile {
   final String? username;
   final String? fullName;
   final String? avatarUrl;
+  final String? coverUrl;
   final String? role;
   final String? email;
 
@@ -134,8 +136,29 @@ class FrontendProfile {
       username: json['username']?.toString(),
       fullName: json['full_name']?.toString(),
       avatarUrl: resolveAvatarUrl(json['avatar_url']?.toString() ?? ''),
+      coverUrl: resolveAvatarUrl(json['cover_url']?.toString() ?? ''),
       role: json['role']?.toString(),
       email: json['email']?.toString(),
+    );
+  }
+
+  FrontendProfile copyWith({
+    String? id,
+    String? username,
+    String? fullName,
+    String? avatarUrl,
+    String? coverUrl,
+    String? role,
+    String? email,
+  }) {
+    return FrontendProfile(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      fullName: fullName ?? this.fullName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      coverUrl: coverUrl ?? this.coverUrl,
+      role: role ?? this.role,
+      email: email ?? this.email,
     );
   }
 
@@ -145,6 +168,7 @@ class FrontendProfile {
       'username': username,
       'full_name': fullName,
       'avatar_url': avatarUrl,
+      'cover_url': coverUrl,
       'role': role,
       'email': email,
     };
@@ -278,7 +302,8 @@ class FrontendAuthRepository {
       });
       final freshSession = _sessionFromResult(result);
       final freshProfile = _profileFromResult(result);
-      final session = (freshSession != null && freshSession.accessToken.isNotEmpty)
+      final session =
+          (freshSession != null && freshSession.accessToken.isNotEmpty)
           ? freshSession
           : cachedSession;
       final profile = freshProfile ?? cachedProfile;

@@ -50,6 +50,10 @@ class CategoryMasthead extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
           _StatsRow(articleCount: articleCount, totalReads: totalReads),
+          if (content.isTrend) ...[
+            const SizedBox(height: AppSpacing.md),
+            _TrendMetaBar(metricLabel: content.trendMetricLabel),
+          ],
         ],
       ),
     );
@@ -185,6 +189,82 @@ class _Dot extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.support,
         shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+class _TrendMetaBar extends StatelessWidget {
+  const _TrendMetaBar({required this.metricLabel});
+
+  final String metricLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoft,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Symbols.trending_up_rounded,
+            size: 17,
+            color: AppColors.actionRed,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Canlı sıralama',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.meta.copyWith(
+                color: AppColors.inkStrong,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          _TrendChip(label: 'Son 7 gün'),
+          const SizedBox(width: 6),
+          _TrendChip(label: metricLabel),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendChip extends StatelessWidget {
+  const _TrendChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.meta.copyWith(
+            color: AppColors.inkSoft,
+            fontSize: 10.8,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

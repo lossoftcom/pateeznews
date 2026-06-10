@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -5,6 +7,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../../core/platform/debug_platform_view_hot_restart.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
@@ -1254,13 +1257,19 @@ class _AnnouncementBrowserScreen extends StatefulWidget {
 
 class _AnnouncementBrowserScreenState
     extends State<_AnnouncementBrowserScreen> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   var _progress = 0;
 
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    unawaited(_configureController());
+  }
+
+  Future<void> _configureController() async {
+    await prepareDebugDarwinPlatformViewsForHotRestart();
+    if (!mounted) return;
+    final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -1270,6 +1279,7 @@ class _AnnouncementBrowserScreenState
         ),
       )
       ..loadRequest(widget.uri);
+    if (mounted) setState(() => _controller = controller);
   }
 
   @override
@@ -1332,7 +1342,15 @@ class _AnnouncementBrowserScreenState
                 color: AppColors.actionRed,
                 backgroundColor: AppColors.surfaceInk,
               ),
-            Expanded(child: WebViewWidget(controller: _controller)),
+            Expanded(
+              child: _controller == null
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.actionRed,
+                      ),
+                    )
+                  : WebViewWidget(controller: _controller!),
+            ),
           ],
         ),
       ),

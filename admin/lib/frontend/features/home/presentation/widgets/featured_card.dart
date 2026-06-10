@@ -39,6 +39,7 @@ class _Cover extends StatelessWidget {
     return CachedImage(
       url: imageUrl,
       fit: BoxFit.contain,
+      memCacheWidth: _cacheWidthFor(context),
       errorWidget: Container(
         color: AppColors.surfaceInk,
         alignment: Alignment.center,
@@ -49,5 +50,13 @@ class _Cover extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  int _cacheWidthFor(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final target = (width * dpr).round();
+    if (target <= 0) return 720;
+    return target > 1800 ? 1800 : target;
   }
 }

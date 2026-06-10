@@ -12,7 +12,11 @@ import '../../../../shared/widgets/cached_image.dart';
 /// kartından farklı, bir kullanıcının üretimini liste hâlinde göstermeye uygun
 /// sade biçim. 4px keskin radius ve projenin renk/tipografi dili korunur.
 class ProfilePostCard extends StatelessWidget {
-  const ProfilePostCard({super.key, required this.article, required this.onTap});
+  const ProfilePostCard({
+    super.key,
+    required this.article,
+    required this.onTap,
+  });
 
   final NewsArticle article;
   final VoidCallback onTap;
@@ -31,9 +35,10 @@ class ProfilePostCard extends StatelessWidget {
             border: Border.all(color: AppColors.line),
           ),
           padding: const EdgeInsets.all(AppSpacing.sm + 2),
-          child: IntrinsicHeight(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 112),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _Thumb(imageUrl: article.imageUrl, category: article.category),
                 const SizedBox(width: AppSpacing.md),
@@ -43,8 +48,6 @@ class ProfilePostCard extends StatelessWidget {
                     children: [
                       Text(
                         article.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                         style: AppTypography.titleS.copyWith(
                           color: AppColors.inkStrong,
                           fontWeight: FontWeight.w800,
@@ -52,8 +55,9 @@ class ProfilePostCard extends StatelessWidget {
                           height: 1.2,
                         ),
                       ),
-                      const Spacer(),
-                      const SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: 8),
+                      _DateLine(publishedAt: article.publishedAt),
+                      const SizedBox(height: 6),
                       _MetaRow(article: article),
                     ],
                   ),
@@ -76,7 +80,8 @@ class _Thumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 104,
+      width: 112,
+      height: 112,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4),
         child: Stack(
@@ -86,8 +91,8 @@ class _Thumb extends StatelessWidget {
               color: AppColors.surfaceInk,
               child: CachedImage(
                 url: imageUrl,
-                fit: BoxFit.cover,
-                memCacheWidth: 320,
+                fit: BoxFit.contain,
+                memCacheWidth: 336,
                 placeholderColor: AppColors.surfaceInk,
                 errorWidget: const ColoredBox(
                   color: AppColors.surfaceInk,
@@ -104,7 +109,11 @@ class _Thumb extends StatelessWidget {
                 left: 5,
                 bottom: 5,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  constraints: const BoxConstraints(maxWidth: 92),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.actionRed,
                     borderRadius: BorderRadius.circular(3),
@@ -143,14 +152,6 @@ class _MetaRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Flexible(
-            child: Text(
-              RelativeTime.format(article.publishedAt),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 10),
           _Stat(icon: Symbols.visibility_outlined, value: article.views),
           const SizedBox(width: 10),
           _Stat(icon: Symbols.chat_3_line, value: article.comments),
@@ -158,6 +159,49 @@ class _MetaRow extends StatelessWidget {
           _Stat(icon: Symbols.heart_3_line, value: article.likes),
         ],
       ),
+    );
+  }
+}
+
+class _DateLine extends StatelessWidget {
+  const _DateLine({required this.publishedAt});
+
+  final DateTime publishedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = _formatCardDate(publishedAt);
+    final time = _formatCardClock(publishedAt);
+    final style = AppTypography.meta.copyWith(
+      color: AppColors.inkSoft,
+      fontSize: 10.8,
+      fontWeight: FontWeight.w600,
+      height: 1.1,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: FittedBox(
+            alignment: Alignment.centerLeft,
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(date, maxLines: 1, style: style),
+                const SizedBox(width: 7),
+                const Icon(
+                  Symbols.time_fill,
+                  size: 12,
+                  color: AppColors.placeholderSoft,
+                ),
+                const SizedBox(width: 3),
+                Text(time, maxLines: 1, style: style),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -179,4 +223,45 @@ class _Stat extends StatelessWidget {
       ],
     );
   }
+}
+
+const _turkishMonths = <String>[
+  'Ocak',
+  'Şubat',
+  'Mart',
+  'Nisan',
+  'Mayıs',
+  'Haziran',
+  'Temmuz',
+  'Ağustos',
+  'Eylül',
+  'Ekim',
+  'Kasım',
+  'Aralık',
+];
+
+const _turkishWeekdays = <String>[
+  'Pazartesi',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
+  'Cuma',
+  'Cumartesi',
+  'Pazar',
+];
+
+String _formatCardDate(DateTime value) {
+  final date = value.toUtc().add(const Duration(hours: 3));
+  final day = date.day;
+  final month = _turkishMonths[date.month - 1];
+  final year = date.year.toString().padLeft(4, '0');
+  final weekday = _turkishWeekdays[date.weekday - 1];
+  return '$day $month $year $weekday';
+}
+
+String _formatCardClock(DateTime value) {
+  final date = value.toUtc().add(const Duration(hours: 3));
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }

@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../../../core/platform/debug_platform_view_hot_restart.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -84,6 +85,8 @@ class _SocialEmbedStageState extends State<SocialEmbedStage>
   Future<void> _configureAndLoad() async {
     if (!_inlineAvailable) return;
     try {
+      await prepareDebugDarwinPlatformViewsForHotRestart();
+      if (!mounted || !_inlineAvailable) return;
       final controller = WebViewController();
       await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
       await controller.addJavaScriptChannel(

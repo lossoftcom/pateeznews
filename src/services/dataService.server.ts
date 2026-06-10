@@ -326,11 +326,14 @@ const getLiveCategoryNewsPage = async (
     lang: string,
     category: string | string[],
     limit = 12,
-    offset = 0
+    offset = 0,
+    options: { includeTypeAliases?: boolean } = {}
 ): Promise<CategoryNewsPage> => {
     const terms = getCategoryTerms(category);
-    const typeAliases = getCategoryTypeAliases(terms);
-    const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 24);
+    const typeAliases = options.includeTypeAliases === false
+        ? []
+        : getCategoryTypeAliases(terms);
+    const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 50);
     const safeOffset = Math.max(Number(offset) || 0, 0);
 
     if (terms.length === 0) {
@@ -599,17 +602,24 @@ export const dataService = {
         return getLiveNewsBySlug(slugOrId);
     },
 
-    async getCategoryNewsPage(lang: string, category: string | string[], limit = 12, offset = 0): Promise<CategoryNewsPage> {
+    async getCategoryNewsPage(
+        lang: string,
+        category: string | string[],
+        limit = 12,
+        offset = 0,
+        options: { includeTypeAliases?: boolean } = {}
+    ): Promise<CategoryNewsPage> {
         const languageCode = normalizeLanguageCode(lang);
         const categoryKey = Array.isArray(category)
             ? category.map((item) => String(item || '').trim()).join('|')
             : String(category || '').trim();
-        const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 24);
+        const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 50);
         const safeOffset = Math.max(Number(offset) || 0, 0);
+        const aliasMode = options.includeTypeAliases === false ? 'strict' : 'aliases';
         return withServerCache(
-            `category_page_${languageCode}_${slugify(categoryKey)}_${safeLimit}_${safeOffset}`,
+            `category_page_${aliasMode}_${languageCode}_${slugify(categoryKey)}_${safeLimit}_${safeOffset}`,
             SERVER_CACHE_TTL.NEWS,
-            () => getLiveCategoryNewsPage(languageCode, category, safeLimit, safeOffset)
+            () => getLiveCategoryNewsPage(languageCode, category, safeLimit, safeOffset, options)
         );
     },
 

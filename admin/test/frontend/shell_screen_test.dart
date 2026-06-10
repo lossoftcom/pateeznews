@@ -7,6 +7,7 @@ import 'package:pateeznews_admin/frontend/features/home/presentation/video_feed_
 import 'package:pateeznews_admin/frontend/features/home/presentation/widgets/news_video_player.dart';
 import 'package:pateeznews_admin/frontend/features/shell/data/app_shell_repository.dart';
 import 'package:pateeznews_admin/frontend/features/shell/presentation/shell_screen.dart';
+import 'package:pateeznews_admin/frontend/features/shell/presentation/widgets/pateez_side_menu.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -234,9 +235,15 @@ void main() {
       videoUrl: 'https://example.invalid/primary.mp4',
       videoUrls: const [
         'https://example.invalid/primary.mp4',
-        'https://www.youtube.com/watch?v=test-id',
-        'https://youtube.com/shorts/test-short',
+        'https://www.youtube.com/watch?v=abcDEF12345',
+        'https://youtube.com/shorts/shortID1234',
         'http://127.0.0.1:4321/api/storage/file/video/test.mov',
+      ],
+      videoThumbUrls: const [
+        'https://example.invalid/primary-poster.webp',
+        '',
+        '',
+        'http://127.0.0.1:4321/local-upload/video/test_thumb.webp',
       ],
     );
 
@@ -248,10 +255,22 @@ void main() {
 
     expect(items.map((item) => item.url), [
       'https://example.invalid/primary.mp4',
-      'https://www.youtube.com/watch?v=test-id',
-      'https://youtube.com/shorts/test-short',
+      'https://www.youtube.com/watch?v=abcDEF12345',
+      'https://youtube.com/shorts/shortID1234',
       'http://127.0.0.1:4321/api/storage/file/video/test.mov',
     ]);
+    expect(items.map((item) => item.poster), [
+      'https://example.invalid/primary-poster.webp',
+      'https://img.youtube.com/vi/abcDEF12345/hqdefault.jpg',
+      'https://img.youtube.com/vi/shortID1234/hqdefault.jpg',
+      'http://127.0.0.1:4321/local-upload/video/test_thumb.webp',
+    ]);
+    expect(
+      items.any(
+        (item) => item.poster == 'https://example.invalid/multi-video.jpg',
+      ),
+      isFalse,
+    );
   });
 
   testWidgets('hesap girisi basarili olunca route kapanir ve avatar gorunur', (
@@ -305,7 +324,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
 
     await tester.tap(find.byIcon(Symbols.menu_rounded));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 360));
 
     expect(find.text('Navbar'), findsNothing);
     expect(find.text('Etkinlik'), findsOneWidget);
@@ -314,16 +333,65 @@ void main() {
     expect(find.text('Bor'), findsOneWidget);
     expect(find.text('Kısa yollar'), findsNothing);
     expect(find.text('İlçeler'), findsOneWidget);
-    expect(find.text('Kategoriler'), findsOneWidget);
+    expect(find.text('Kategoriler'), findsNothing);
     expect(find.text('Trendler'), findsOneWidget);
     expect(find.text('Anketler'), findsOneWidget);
     expect(find.text('Haftanın Trendleri'), findsOneWidget);
 
+    final promotedCategoryTop = tester.getTopLeft(find.text('Anketler')).dy;
+    final rootTop = tester.getTopLeft(find.text('Niğde')).dy;
     final borTop = tester.getTopLeft(find.text('Bor')).dy;
-    final categoryTop = tester.getTopLeft(find.text('Anketler')).dy;
     final trendTop = tester.getTopLeft(find.text('Haftanın Trendleri')).dy;
-    expect(borTop, lessThan(categoryTop));
-    expect(categoryTop, lessThan(trendTop));
+    expect(promotedCategoryTop, lessThan(rootTop));
+    expect(rootTop, lessThan(borTop));
+    expect(borTop, lessThan(trendTop));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('yan menudeki video kategorisi tam ekran video akisini acar', (
+    tester,
+  ) async {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShellScreen(
+          shellData: _shellData(),
+          homeFeedItems: [
+            _videoArticle(
+              id: 'side-video',
+              title: 'Yan menü videosu',
+              publishedAt: DateTime.utc(2026, 6, 10, 9),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+
+    await tester.tap(find.byIcon(Symbols.menu_rounded));
+    await tester.pump(const Duration(milliseconds: 360));
+
+    final sideMenuVideo = find.descendant(
+      of: find.byType(PateezSideMenu),
+      matching: find.text('Video'),
+    );
+    expect(sideMenuVideo, findsWidgets);
+
+    await tester.tap(sideMenuVideo.last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(find.bySemanticsLabel('Tam ekrandan çık'), findsOneWidget);
+    expect(find.text('Yan menü videosu'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Tam ekrandan çık'));
+    VisibilityDetectorController.instance.notifyNow();
+    await tester.pump(const Duration(milliseconds: 70));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 70));
   });
 }
 
@@ -344,6 +412,7 @@ FrontendAuthState _authState({String role = 'member'}) {
       username: 'nasip',
       fullName: 'Nasip Gündoğdu',
       avatarUrl: '',
+      coverUrl: '',
       role: role,
       email: 'nasip@example.com',
     ),
@@ -356,6 +425,7 @@ NewsArticle _videoArticle({
   required DateTime publishedAt,
   String? videoUrl,
   List<String> videoUrls = const [],
+  List<String> videoThumbUrls = const [],
 }) {
   return NewsArticle(
     id: id,
@@ -373,6 +443,7 @@ NewsArticle _videoArticle({
     shares: 3,
     videoUrl: videoUrl ?? 'https://example.invalid/$id.mp4',
     videoUrls: videoUrls,
+    videoThumbUrls: videoThumbUrls,
   );
 }
 
@@ -448,6 +519,19 @@ AppShellData _shellData() {
         value: 'anketler',
         icon: 'poll',
         orderIndex: 2,
+        isActive: true,
+        languageCode: 'tr',
+      ),
+      AppShellNavigationItem(
+        id: 'side-video',
+        menuId: 'side',
+        menuCode: 'sidebar_main',
+        parentId: 'side-root',
+        label: 'Video',
+        type: 'category',
+        value: 'video',
+        icon: 'video',
+        orderIndex: 3,
         isActive: true,
         languageCode: 'tr',
       ),

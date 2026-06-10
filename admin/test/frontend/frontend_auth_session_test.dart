@@ -19,6 +19,7 @@ void main() {
     username: 'nasip',
     fullName: 'Nasip',
     avatarUrl: '',
+    coverUrl: '',
     role: 'member',
     email: 'a@b.com',
   );

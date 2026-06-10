@@ -5,12 +5,87 @@ import {
   json,
   withTransaction,
 } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/supabaseDb';
+import { dbQuery, type DatabaseClient } from '@/lib/server/supabaseDb';
 
 const numericPostId = (value: unknown) => {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 };
+
+const positiveInt = (value: unknown) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.round(number) : null;
+};
+
+const cleanSource = (value: unknown, fallback: string) => {
+  const source = String(value || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_:-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+  return source || fallback;
+};
+
+const cleanVideoUrl = (value: unknown) => String(value || '').trim().slice(0, 2048);
+
+async function sha256Hex(value: string) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(hash))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function fallbackViewerSeed(request: Request) {
+  const forwardedFor =
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-real-ip') ||
+    request.headers.get('x-forwarded-for') ||
+    '';
+  const userAgent = request.headers.get('user-agent') || '';
+  return `fallback:${forwardedFor.split(',')[0].trim()}:${userAgent}`;
+}
+
+async function viewerKeyFromRequest(request: Request, body: Record<string, any>, userId?: string | null) {
+  if (userId) return `user:${(await sha256Hex(userId)).slice(0, 64)}`;
+  const viewerId = String(body.viewerId || body.clientViewerId || '').trim();
+  const seed = viewerId.length >= 8 ? `anon:${viewerId}` : fallbackViewerSeed(request);
+  return `anon:${(await sha256Hex(seed)).slice(0, 64)}`;
+}
+
+async function recordReadEvent(
+  client: DatabaseClient,
+  {
+    postId,
+    userId,
+    viewerKey,
+    source,
+  }: {
+    postId: number;
+    userId: string | null;
+    viewerKey: string;
+    source: string;
+  }
+) {
+  const result = await client.query<{ counted: boolean }>(
+    `WITH inserted AS (
+       INSERT INTO public.post_read_events (post_id, user_id, viewer_key, source)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (post_id, viewer_key, counted_on) DO NOTHING
+       RETURNING id
+     ),
+     updated AS (
+       UPDATE public.posts
+       SET views_count = COALESCE(views_count, 0) + 1
+       WHERE id = $1
+         AND EXISTS (SELECT 1 FROM inserted)
+       RETURNING views_count
+     )
+     SELECT EXISTS (SELECT 1 FROM inserted) AS counted`,
+    [postId, userId, viewerKey, source]
+  );
+  return Boolean(result.rows[0]?.counted);
+}
 
 async function readState(postId: number, userId?: string | null, publisherId?: string | null) {
   const [postRes, savesRes, reactionRes] = await Promise.all([
@@ -86,6 +161,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (action === 'toggle_follow') {
       if (!userId) return json({ error: { message: 'Auth required' } }, 401);
       if (!publisherId) return json({ error: { message: 'Publisher missing' } }, 400);
+      if (publisherId === userId) return json({ error: { message: 'Kendi profilinizi takip edemezsiniz' } }, 400);
 
       const result = await withTransaction(async (client) => {
         const existing = await client.query(
@@ -113,8 +189,61 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'view') {
-      await dbQuery('UPDATE public.posts SET views_count = COALESCE(views_count, 0) + 1 WHERE id = $1', [postId]);
-      return json({ ok: true, ...(await readState(postId, userId, publisherId)) });
+      const viewerKey = await viewerKeyFromRequest(request, body, userId);
+      const source = cleanSource(body.source, 'read');
+      const counted = await withTransaction((client) =>
+        recordReadEvent(client, { postId, userId, viewerKey, source })
+      );
+      return json({ ok: true, counted, ...(await readState(postId, userId, publisherId)) });
+    }
+
+    if (action === 'video_view') {
+      const viewerKey = await viewerKeyFromRequest(request, body, userId);
+      const source = cleanSource(body.source, 'video');
+      const videoUrl = cleanVideoUrl(body.videoUrl);
+      const videoKey = await sha256Hex(videoUrl || `post:${postId}`);
+      const watchedSeconds = positiveInt(body.watchedSeconds) ?? 0;
+      const durationSeconds = positiveInt(body.durationSeconds);
+      const thresholdSeconds = positiveInt(body.thresholdSeconds);
+      const counted = await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO public.post_video_views (
+             post_id,
+             user_id,
+             viewer_key,
+             video_key,
+             video_url,
+             source,
+             watched_seconds,
+             duration_seconds,
+             threshold_seconds,
+             counted
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+           ON CONFLICT (post_id, viewer_key, video_key, counted_on)
+           DO UPDATE SET
+             user_id = COALESCE(EXCLUDED.user_id, public.post_video_views.user_id),
+             source = EXCLUDED.source,
+             watched_seconds = GREATEST(public.post_video_views.watched_seconds, EXCLUDED.watched_seconds),
+             duration_seconds = COALESCE(EXCLUDED.duration_seconds, public.post_video_views.duration_seconds),
+             threshold_seconds = COALESCE(EXCLUDED.threshold_seconds, public.post_video_views.threshold_seconds),
+             counted = public.post_video_views.counted OR EXCLUDED.counted,
+             updated_at = now()`,
+          [
+            postId,
+            userId,
+            viewerKey,
+            videoKey,
+            videoUrl,
+            source,
+            watchedSeconds,
+            durationSeconds,
+            thresholdSeconds,
+          ]
+        );
+        return recordReadEvent(client, { postId, userId, viewerKey, source });
+      });
+      return json({ ok: true, counted, ...(await readState(postId, userId, publisherId)) });
     }
 
     if (action === 'share') {

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { purgeExpiredTrashPosts } from '@/lib/server/postTrash';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 const ALL = 'Tümü';
@@ -37,12 +38,23 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     await requireAdminRequest(request, 'posts_access');
     const body = await request.json().catch(() => ({}));
+    const trashMode = body.trash === true;
+    const cleanupLanguage = String(body.language || '').trim();
+    await purgeExpiredTrashPosts(cleanupLanguage && cleanupLanguage !== ALL ? cleanupLanguage : 'tr').catch((error) => {
+      console.warn('Expired trash cleanup skipped:', error);
+    });
+
     const values: unknown[] = [];
     const where: string[] = [];
     const push = (value: unknown) => {
       values.push(value);
       return `$${values.length}`;
     };
+    where.push(
+      trashMode
+        ? 'p.deleted_at IS NOT NULL'
+        : `(p.deleted_at IS NULL AND COALESCE(p.status, '') <> 'trash')`
+    );
 
     const search = escapeSearchTerm(body.search);
     if (search) {
@@ -104,17 +116,37 @@ export const POST: APIRoute = async ({ request }) => {
            'username', publisher.username,
            'email', publisher.email
          ) AS profiles,
-         parent.label AS parent_category
+         parent.label AS parent_category,
+         CASE
+           WHEN jsonb_typeof(p.card_data -> 'categoryPath') = 'array'
+             AND jsonb_array_length(p.card_data -> 'categoryPath') > 0
+           THEN p.card_data -> 'categoryPath'
+           ELSE to_jsonb(
+             array_remove(
+               ARRAY[grandparent.label, parent.label, category_item.label],
+               NULL
+             )
+           )
+         END AS category_path
        FROM public.posts p
        LEFT JOIN public.profiles publisher ON publisher.id = p.publisher_id
        LEFT JOIN LATERAL (
-         SELECT item.parent_id
+         SELECT item.parent_id, item.label
          FROM public.navigation_items item
+         LEFT JOIN public.navigation_menus menu ON menu.id = item.menu_id
+         LEFT JOIN public.navigation_items item_parent ON item_parent.id = item.parent_id
          WHERE item.label = p.category
-         ORDER BY (item.language_code = p.language_code) DESC NULLS LAST, item.id
+         ORDER BY
+           CASE WHEN menu.code = 'sidebar_main' THEN 0 ELSE 1 END,
+           CASE WHEN item.parent_id IS NOT NULL THEN 0 ELSE 1 END,
+           CASE WHEN item_parent.type = 'district' THEN 1 ELSE 0 END,
+           (item.language_code = p.language_code) DESC NULLS LAST,
+           item.order_index,
+           item.id
          LIMIT 1
        ) category_item ON true
        LEFT JOIN public.navigation_items parent ON parent.id = category_item.parent_id
+       LEFT JOIN public.navigation_items grandparent ON grandparent.id = parent.parent_id
        ${whereSql}
        ORDER BY p.is_pinned DESC, ${sortColumn} ${sortDirection} NULLS LAST, p.id DESC
        LIMIT ${limitSql}

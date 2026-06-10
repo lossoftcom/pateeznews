@@ -2,6 +2,12 @@ import type { APIRoute } from 'astro';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { getSessionFromRequest, json } from '@/lib/server/appDb';
 import { signInWithPassword } from '@/lib/server/supabaseAuth';
+import {
+  clearLoginFailures,
+  getLoginAttemptLock,
+  getSecuritySettings,
+  recordLoginFailure,
+} from '@/lib/server/securitySettings';
 
 function cleanText(value: unknown) {
   return String(value || '').trim();
@@ -42,11 +48,12 @@ async function profileForUser(userId: string) {
     username: string | null;
     full_name: string | null;
     avatar_url: string | null;
+    cover_url: string | null;
     role: string | null;
     email: string | null;
     status: string | null;
   }>(
-    `SELECT id, username, full_name, avatar_url, role, email, status
+    `SELECT id, username, full_name, avatar_url, cover_url, role, email, status
      FROM public.profiles
      WHERE id = $1::uuid
      LIMIT 1`,
@@ -77,11 +84,29 @@ export const POST: APIRoute = async ({ request }) => {
         );
       }
 
+      const settings = await getSecuritySettings('tr');
+      const attemptIdentifier = email || identifier;
+      const lock = await getLoginAttemptLock('app', attemptIdentifier);
+      if (lock.locked) {
+        return json(
+          { data: { user: null, session: null, profile: null }, error: { message: 'Giriş geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.' } },
+          429
+        );
+      }
+
       const result = await signInWithPassword(email, password);
       if (result.error || !result.data.session?.user?.id) {
+        const failure = await recordLoginFailure('app', attemptIdentifier, settings);
+        if (failure.locked) {
+          return json(
+            { data: { user: null, session: null, profile: null }, error: { message: 'Giriş geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.' } },
+            429
+          );
+        }
         return json({ ...result, data: { ...result.data, profile: null } }, 401);
       }
 
+      await clearLoginFailures('app', attemptIdentifier);
       const profile = await profileForUser(result.data.session.user.id);
       if (String(profile?.status || '').toLowerCase() === 'blocked') {
         return json(

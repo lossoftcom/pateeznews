@@ -7,13 +7,76 @@ import '../../../core/mock/home_mock_data.dart';
 import '../../../core/network/local_api_base_url.dart';
 
 @immutable
+class HomeContentSettings {
+  const HomeContentSettings({
+    this.showFeaturedSection = true,
+    this.commentSystem = true,
+    this.commentApprovalSystem = true,
+    this.emojiReactions = true,
+    this.homePageSize = 16,
+    this.featuredContentSource = 'manual',
+    this.featuredSortingLogic = 'slider_order',
+    this.featuredDurationDays = 10,
+    this.featuredLimit = 15,
+  });
+
+  const HomeContentSettings.defaults() : this();
+
+  final bool showFeaturedSection;
+  final bool commentSystem;
+  final bool commentApprovalSystem;
+  final bool emojiReactions;
+  final int homePageSize;
+  final String featuredContentSource;
+  final String featuredSortingLogic;
+  final int featuredDurationDays;
+  final int featuredLimit;
+
+  factory HomeContentSettings.fromJson(Object? value) {
+    if (value is! Map) return const HomeContentSettings.defaults();
+    return HomeContentSettings(
+      showFeaturedSection: _boolSetting(value['showFeaturedSection']),
+      commentSystem: _boolSetting(value['commentSystem']),
+      commentApprovalSystem: _boolSetting(value['commentApprovalSystem']),
+      emojiReactions: _boolSetting(value['emojiReactions']),
+      homePageSize: _pageSize(value['homePageSize']),
+      featuredContentSource: _str(
+        value['featuredContentSource'],
+        fallback: 'manual',
+      ),
+      featuredSortingLogic: _str(
+        value['featuredSortingLogic'],
+        fallback: 'slider_order',
+      ),
+      featuredDurationDays: _boundedInt(
+        value['featuredDurationDays'],
+        fallback: 10,
+        min: 1,
+        max: 365,
+      ),
+      featuredLimit: _boundedInt(
+        value['featuredLimit'],
+        fallback: 15,
+        min: 1,
+        max: 50,
+      ),
+    );
+  }
+}
+
+@immutable
 class HomeData {
-  const HomeData({this.featured = const [], this.feed = const []});
+  const HomeData({
+    this.featured = const [],
+    this.feed = const [],
+    this.settings = const HomeContentSettings.defaults(),
+  });
 
   const HomeData.empty() : this();
 
   final List<FeaturedNews> featured;
   final List<NewsArticle> feed;
+  final HomeContentSettings settings;
 }
 
 class HomeRepository {
@@ -26,9 +89,7 @@ class HomeRepository {
   final String? apiBaseUrl;
 
   Future<HomeData> fetchHome({String lang = 'tr', String? token}) async {
-    final uri = _uri('/api/app/home').replace(
-      queryParameters: {'lang': lang, 'limit': '10', 'feedLimit': '30'},
-    );
+    final uri = _uri('/api/app/home').replace(queryParameters: {'lang': lang});
     final client = httpClient ?? http.Client();
     final authToken = token?.trim() ?? '';
     try {
@@ -57,6 +118,10 @@ class HomeRepository {
     return data.featured;
   }
 
+  static NewsArticle mapArticle(Map<dynamic, dynamic> json) {
+    return _mapArticle(json);
+  }
+
   Uri _uri(String path) =>
       frontendApiUri(path, configuredBaseUrl: apiBaseUrl ?? _apiBaseUrl);
 
@@ -80,8 +145,10 @@ class HomeRepository {
     return NewsArticle(
       id: _str(json['id']),
       author: NewsAuthor(
+        id: _str(json['publisherId']),
         name: source,
         avatarUrl: _str(json['sourceAvatar']),
+        handle: _nullableStr(json['publisherHandle']),
         isVerified: _bool(json['isVerified']),
         isOfficial: _bool(json['isOfficial']),
       ),
@@ -108,6 +175,7 @@ class HomeRepository {
       sliderImages: _strList(json['sliderImages']),
       videoUrl: videoUrl,
       videoUrls: _strList(json['videoUrls']),
+      videoThumbUrls: _strListPreservePositions(json['videoThumbUrls']),
       audioUrl: _str(json['audioUrl']),
       socialEmbed: _str(json['socialEmbed']),
       socialSourceUrl: _str(json['socialSourceUrl']),
@@ -129,6 +197,7 @@ HomeData _parseHomeData(String body) {
   return HomeData(
     featured: _mapItems(decoded['featured'], HomeRepository._mapFeatured),
     feed: _mapItems(decoded['feed'], HomeRepository._mapArticle),
+    settings: HomeContentSettings.fromJson(decoded['settings']),
   );
 }
 
@@ -328,6 +397,7 @@ NewsComment _parseComment(Map<dynamic, dynamic> json) {
     id: _str(json['id']),
     parentId: _str(json['parentId']),
     author: NewsAuthor(
+      id: _str(author['id']),
       name: _str(author['name'], fallback: 'Misafir'),
       avatarUrl: _str(author['avatarUrl']),
       handle: _nullableStr(author['handle']),
@@ -384,6 +454,25 @@ int _nonNegativeInt(Object? value) {
   return parsed < 0 ? 0 : parsed;
 }
 
+int _pageSize(Object? value) {
+  final parsed = value is num
+      ? value.toInt()
+      : int.tryParse(value?.toString() ?? '') ?? 16;
+  return parsed.clamp(1, 50).toInt();
+}
+
+int _boundedInt(
+  Object? value, {
+  required int fallback,
+  required int min,
+  required int max,
+}) {
+  final parsed = value is num
+      ? value.toInt()
+      : int.tryParse(value?.toString() ?? '') ?? fallback;
+  return parsed.clamp(min, max).toInt();
+}
+
 int _score(Object? value) {
   final parsed = _nonNegativeInt(value);
   return parsed > 100 ? 100 : parsed;
@@ -395,6 +484,16 @@ bool _bool(Object? value) {
   return normalized == 'true' || normalized == '1';
 }
 
+bool _boolSetting(Object? value) {
+  if (value == null) return true;
+  if (value is bool) return value;
+  final normalized = value.toString().trim().toLowerCase();
+  if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+    return false;
+  }
+  return true;
+}
+
 List<String> _strList(Object? value) {
   if (value is! List) return const [];
   return [
@@ -402,6 +501,11 @@ List<String> _strList(Object? value) {
       if (item != null && item.toString().trim().isNotEmpty)
         item.toString().trim(),
   ];
+}
+
+List<String> _strListPreservePositions(Object? value) {
+  if (value is! List) return const [];
+  return [for (final item in value) item?.toString().trim() ?? ''];
 }
 
 List<String> _plainTextList(Object? value) {

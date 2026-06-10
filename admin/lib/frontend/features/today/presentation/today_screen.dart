@@ -12,9 +12,9 @@ import '../../etkinlik/data/etkinlik_mock.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
 import '../../pharmacy/data/pharmacy_repository.dart';
 import '../../pharmacy/presentation/pharmacy_screen.dart';
-import '../../weather/data/weather_mock.dart';
+import '../../prayer_times/data/prayer_times_repository.dart';
+import '../../weather/data/weather_repository.dart';
 import '../../weather/presentation/weather_screen.dart';
-import '../data/today_mock.dart';
 
 const Color _eczaneRed = Color(0xFFE30613);
 const Color _violet = Color(0xFF6C5CE7);
@@ -46,9 +46,15 @@ class TodayScreen extends StatelessWidget {
   const TodayScreen({
     super.key,
     this.dutyPharmacyData = const DutyPharmacyData.empty(),
+    this.weatherData = const WeatherData.empty(),
+    this.prayerTimesData = const PrayerTimesData.empty(),
+    this.events = const [],
   });
 
   final DutyPharmacyData dutyPharmacyData;
+  final WeatherData weatherData;
+  final PrayerTimesData prayerTimesData;
+  final List<EtkinlikEvent> events;
 
   void _push(BuildContext context, Widget page) {
     Navigator.of(context).push(
@@ -78,8 +84,11 @@ class TodayScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final pharmacy = dutyPharmacyData.primaryPharmacy;
-    final event = EtkinlikMock.all.first;
+    final event = _firstUpcomingEvent(events);
     final hasPharmacy = pharmacy != null;
+    final hasWeather = weatherData.hasWeather;
+    final weatherToday = weatherData.today;
+    final weatherCurrent = weatherData.current;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: AppTheme.lightOverlay,
@@ -108,14 +117,29 @@ class TodayScreen extends StatelessWidget {
                   _Stagger(
                     index: 0,
                     child: _InfoCard(
-                      accent: WeatherMock.currentKind.tint,
-                      icon: WeatherMock.currentKind.icon,
+                      accent: hasWeather
+                          ? weatherTint(
+                              weatherCurrent.weatherCode,
+                              weatherCurrent.isDay,
+                            )
+                          : AppColors.deepOcean,
+                      icon: hasWeather
+                          ? weatherIcon(
+                              weatherCurrent.weatherCode,
+                              weatherCurrent.isDay,
+                            )
+                          : Symbols.sun_cloudy_fill,
                       eyebrow: 'HAVA DURUMU',
-                      title:
-                          '${WeatherMock.currentTemp}° · ${WeatherMock.condition}',
-                      subtitle:
-                          'En yüksek ${WeatherMock.hi}° · En düşük ${WeatherMock.lo}°',
-                      onTap: () => _push(context, const WeatherScreen()),
+                      title: hasWeather
+                          ? '${weatherCurrent.temperature}° · ${weatherData.conditionLabel}'
+                          : 'Hava durumu',
+                      subtitle: hasWeather
+                          ? 'En yüksek ${weatherToday?.max ?? weatherData.weekMax}° · En düşük ${weatherToday?.min ?? weatherData.weekMin}°'
+                          : 'Canlı hava bilgisini gör',
+                      onTap: () => _push(
+                        context,
+                        WeatherScreen(initialData: weatherData),
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -138,14 +162,30 @@ class TodayScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  _Stagger(index: 2, child: const _PrayerCard()),
+                  _Stagger(index: 2, child: _PrayerCard(data: prayerTimesData)),
                   const SizedBox(height: AppSpacing.md),
                   _Stagger(
                     index: 3,
-                    child: _EventCard(
-                      event: event,
-                      onTap: () => _push(context, const EtkinlikScreen()),
-                    ),
+                    child: event == null
+                        ? _InfoCard(
+                            accent: _violet,
+                            icon: Symbols.calendar_event_line,
+                            eyebrow: 'ETKİNLİKLER',
+                            title: 'Yaklaşan etkinlik yok',
+                            subtitle:
+                                'Yeni etkinlikler eklendiğinde burada görünür',
+                            onTap: () => _push(
+                              context,
+                              events.isEmpty
+                                  ? const EtkinlikScreen()
+                                  : EtkinlikScreen(events: events),
+                            ),
+                          )
+                        : _EventCard(
+                            event: event,
+                            onTap: () =>
+                                _push(context, EtkinlikScreen(events: events)),
+                          ),
                   ),
                 ],
               ),
@@ -188,6 +228,7 @@ class _Stagger extends StatelessWidget {
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -212,7 +253,7 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '${TodayMock.weekday}, ${TodayMock.dateLabel}',
+          '${_weekdayLabel(now)}, ${_dateLabel(now)}',
           style: _plain(
             size: 23,
             color: AppColors.inkStrong,
@@ -222,7 +263,7 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(height: 5),
         Text(
-          TodayMock.greeting,
+          _greeting(now),
           style: AppTypography.body.copyWith(
             color: AppColors.inkSoft,
             fontSize: 14.5,
@@ -298,11 +339,7 @@ class _EventCard extends StatelessWidget {
               children: [
                 Text(
                   event.day,
-                  style: _plain(
-                    size: 18,
-                    color: _violet,
-                    height: 1,
-                  ),
+                  style: _plain(size: 18, color: _violet, height: 1),
                 ),
                 Text(
                   event.month,
@@ -337,11 +374,15 @@ class _EventCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PrayerCard extends StatelessWidget {
-  const _PrayerCard();
+  const _PrayerCard({required this.data});
+
+  final PrayerTimesData data;
 
   @override
   Widget build(BuildContext context) {
-    final next = TodayMock.nextPrayer;
+    final prayers = data.today?.times ?? const <PrayerTime>[];
+    final nextIndex = _nextPrayerIndex(prayers);
+    final next = nextIndex == null ? null : prayers[nextIndex];
     return _CardShell(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,33 +398,43 @@ class _PrayerCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.deepOcean.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Text(
-                  'Sıradaki: ${next.name} ${next.time}',
-                  style: _plain(
-                    size: 11.5,
-                    color: AppColors.deepOcean,
-                    weight: FontWeight.w700,
+              if (next != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepOcean.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    'Sıradaki: ${next.name} ${next.time}',
+                    style: _plain(
+                      size: 11.5,
+                      color: AppColors.deepOcean,
+                      weight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              for (var i = 0; i < TodayMock.prayerTimes.length; i++)
-                _PrayerCell(
-                  prayer: TodayMock.prayerTimes[i],
-                  isNext: i == TodayMock.nextPrayerIndex,
-                ),
-            ],
-          ),
+          if (prayers.isEmpty)
+            Text(
+              'Canlı namaz vakitleri yüklenemedi',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else
+            Row(
+              children: [
+                for (var i = 0; i < prayers.length; i++)
+                  _PrayerCell(prayer: prayers[i], isNext: i == nextIndex),
+              ],
+            ),
         ],
       ),
     );
@@ -550,11 +601,7 @@ class _Texts extends StatelessWidget {
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: _plain(
-            size: 16,
-            color: AppColors.inkStrong,
-            height: 1.15,
-          ),
+          style: _plain(size: 16, color: AppColors.inkStrong, height: 1.15),
         ),
         const SizedBox(height: 2),
         Text(
@@ -566,6 +613,76 @@ class _Texts extends StatelessWidget {
       ],
     );
   }
+}
+
+const _monthsTr = <String>[
+  'Ocak',
+  'Şubat',
+  'Mart',
+  'Nisan',
+  'Mayıs',
+  'Haziran',
+  'Temmuz',
+  'Ağustos',
+  'Eylül',
+  'Ekim',
+  'Kasım',
+  'Aralık',
+];
+
+const _weekdaysTr = <String>[
+  'Pazartesi',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
+  'Cuma',
+  'Cumartesi',
+  'Pazar',
+];
+
+String _dateLabel(DateTime date) =>
+    '${date.day} ${_monthsTr[date.month - 1]} ${date.year}';
+
+String _weekdayLabel(DateTime date) => _weekdaysTr[date.weekday - 1];
+
+String _greeting(DateTime date) {
+  final hour = date.hour;
+  if (hour < 12) return 'Günaydın, şehirde bugün öne çıkanlar burada.';
+  if (hour < 18) return 'İyi günler, şehirde bugün öne çıkanlar burada.';
+  return 'İyi akşamlar, şehirde bugün öne çıkanlar burada.';
+}
+
+int? _nextPrayerIndex(List<PrayerTime> prayers) {
+  if (prayers.isEmpty) return null;
+  final now = DateTime.now();
+  for (var i = 0; i < prayers.length; i++) {
+    final prayer = prayers[i];
+    final time = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      prayer.hour,
+      prayer.minute,
+    );
+    if (time.isAfter(now)) return i;
+  }
+  return 0;
+}
+
+EtkinlikEvent? _firstUpcomingEvent(List<EtkinlikEvent> events) {
+  if (events.isEmpty) return null;
+  final today = DateTime.now();
+  final base = DateTime(today.year, today.month, today.day);
+  final upcoming = [
+    for (final event in events)
+      if (!DateTime(
+        event.date.year,
+        event.date.month,
+        event.date.day,
+      ).isBefore(base))
+        event,
+  ]..sort((a, b) => a.date.compareTo(b.date));
+  return upcoming.isEmpty ? null : upcoming.first;
 }
 
 /// Türkçe-duyarlı "Sadece Baş Harf" biçimi. Veri BÜYÜK HARF gelse de

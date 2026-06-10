@@ -13,13 +13,21 @@ import {
     recordLocalMediaFile,
 } from '@/lib/server/storageSettings';
 import { uploadLocalStorageFile } from '@/lib/server/localStorageProxy';
+import {
+    allowedExtensionsForRuleType,
+    loadContentUploadSettings,
+    maxUploadBytesForRuleType,
+    normalizeUploadExtension,
+    uploadExtensionFromFilename,
+    uploadRuleTypeForStorageType,
+    type ContentUploadSettings,
+} from '@/lib/server/contentUploadSettings';
 
 const OPTIMIZED_IMAGE_STORAGE_TYPES = new Set<StorageType>(['image', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
-const REMOTE_IMAGE_MAX_BYTES = 35 * 1024 * 1024;
 const REMOTE_IMAGE_FETCH_TIMEOUT_MS = 20000;
 
-type UploadInput = Pick<File, 'name' | 'type' | 'arrayBuffer'>;
+type UploadInput = Pick<File, 'name' | 'type' | 'size' | 'arrayBuffer'>;
 
 const extensionForContentType = (contentType: string) => {
     const normalized = contentType.toLowerCase().split(';')[0].trim();
@@ -49,7 +57,10 @@ const isRemoteImageResponse = (url: URL, contentType: string) => {
     return IMAGE_EXTENSIONS.has(path.posix.extname(url.pathname).toLowerCase());
 };
 
-async function remoteImageUploadInput(remoteUrl: string): Promise<UploadInput> {
+async function remoteImageUploadInput(
+    remoteUrl: string,
+    uploadSettings: ContentUploadSettings,
+): Promise<UploadInput> {
     let parsed: URL;
     try {
         parsed = new URL(remoteUrl.trim());
@@ -86,21 +97,63 @@ async function remoteImageUploadInput(remoteUrl: string): Promise<UploadInput> {
     }
 
     const contentLength = Number(response.headers.get('content-length') || 0);
-    if (contentLength > REMOTE_IMAGE_MAX_BYTES) {
+    if (contentLength > uploadSettings.maxImageBytes) {
         throw new Error('Remote image is too large');
     }
 
     const arrayBuffer = await response.arrayBuffer();
     if (!arrayBuffer.byteLength) throw new Error('Remote image is empty');
-    if (arrayBuffer.byteLength > REMOTE_IMAGE_MAX_BYTES) {
+    if (arrayBuffer.byteLength > uploadSettings.maxImageBytes) {
         throw new Error('Remote image is too large');
     }
+    const name = remoteImageFilename(parsed, contentType);
+    validateUploadInput({
+        name,
+        size: arrayBuffer.byteLength,
+        storageType: 'image',
+        settings: uploadSettings,
+    });
 
     return {
-        name: remoteImageFilename(parsed, contentType),
+        name,
         type: contentType.split(';')[0].trim() || contentTypeForFilename(parsed.pathname),
+        size: arrayBuffer.byteLength,
         arrayBuffer: async () => arrayBuffer,
     };
+}
+
+function validateUploadInput({
+    name,
+    size,
+    storageType,
+    settings,
+}: {
+    name: string;
+    size: number;
+    storageType: StorageType;
+    settings: ContentUploadSettings;
+}) {
+    const ruleType = uploadRuleTypeForStorageType(storageType);
+    if (ruleType === 'font') return;
+
+    const extension = normalizeUploadExtension(uploadExtensionFromFilename(name));
+    if (!extension) {
+        throw Object.assign(new Error('File extension is required'), { status: 400 });
+    }
+
+    const typeExtensions = allowedExtensionsForRuleType(ruleType);
+    if (!typeExtensions.has(extension)) {
+        throw Object.assign(new Error('File extension does not match upload type'), { status: 400 });
+    }
+
+    if (!settings.allowedExtensions.has(extension)) {
+        throw Object.assign(new Error('File extension is not allowed'), { status: 400 });
+    }
+
+    const maxBytes = maxUploadBytesForRuleType(settings, ruleType);
+    if (size > maxBytes) {
+        throw Object.assign(new Error('File is too large'), { status: 413 });
+    }
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -110,6 +163,9 @@ export const POST: APIRoute = async ({ request }) => {
         const formData = await request.formData();
         const type = getStorageType(formData.get('type'));
         await requireStorageAdminRequest(request, type);
+        const uploadSettings = await loadContentUploadSettings(
+            (formData.get('languageCode') as string | null) || 'tr',
+        );
         const fileField = formData.get('file');
         const remoteUrl = (formData.get('remoteUrl') as string | null)?.trim() || '';
         let file: UploadInput | null = fileField instanceof File ? fileField : null;
@@ -117,11 +173,17 @@ export const POST: APIRoute = async ({ request }) => {
             if (!OPTIMIZED_IMAGE_STORAGE_TYPES.has(type)) {
                 return new Response('Remote upload is only available for images', { status: 400 });
             }
-            file = await remoteImageUploadInput(remoteUrl);
+            file = await remoteImageUploadInput(remoteUrl, uploadSettings);
         }
         if (!file) {
             return new Response('No file uploaded', { status: 400 });
         }
+        validateUploadInput({
+            name: file.name,
+            size: file.size,
+            storageType: type,
+            settings: uploadSettings,
+        });
 
         const storageSettings = await getStorageSettings();
         const uploadId = (formData.get('uploadId') as string | null)?.trim() || null;
@@ -139,6 +201,9 @@ export const POST: APIRoute = async ({ request }) => {
                 const value = formData.get(key);
                 if (typeof value === 'string' && value.trim()) uploadFormData.set(key, value);
             }
+        }
+        if (OPTIMIZED_IMAGE_STORAGE_TYPES.has(type)) {
+            uploadFormData.set('imageOutputFormat', uploadSettings.imageOutputFormat);
         }
 
         const result = await uploadLocalStorageFile(uploadFormData);

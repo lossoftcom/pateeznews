@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/local_api_base_url.dart';
 
@@ -55,6 +57,8 @@ class PostActionRepository {
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _timeout = Duration(seconds: 8);
+  static const _viewerIdKey = 'pateeznews_mobile_viewer_id';
+  static final math.Random _viewerIdRandom = math.Random.secure();
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -102,6 +106,45 @@ class PostActionRepository {
       postId: postId,
       token: token,
       extraBody: {'platform': platform},
+    );
+  }
+
+  Future<PostActionState> recordView({
+    required String postId,
+    String? token,
+    String source = 'read',
+  }) async {
+    return _sendStateAction(
+      action: 'view',
+      postId: postId,
+      token: token,
+      extraBody: {'source': source, 'viewerId': await _viewerId()},
+    );
+  }
+
+  Future<PostActionState> recordVideoView({
+    required String postId,
+    required String videoUrl,
+    String? token,
+    String source = 'video',
+    int watchedSeconds = 0,
+    int? durationSeconds,
+    int? thresholdSeconds,
+  }) async {
+    return _sendStateAction(
+      action: 'video_view',
+      postId: postId,
+      token: token,
+      extraBody: {
+        'source': source,
+        'viewerId': await _viewerId(),
+        'videoUrl': videoUrl,
+        'watchedSeconds': watchedSeconds < 0 ? 0 : watchedSeconds,
+        if (durationSeconds != null)
+          'durationSeconds': durationSeconds < 0 ? 0 : durationSeconds,
+        if (thresholdSeconds != null)
+          'thresholdSeconds': thresholdSeconds < 0 ? 0 : thresholdSeconds,
+      },
     );
   }
 
@@ -157,6 +200,20 @@ class PostActionRepository {
 
   Uri _uri(String path) =>
       frontendApiUri(path, configuredBaseUrl: apiBaseUrl ?? _apiBaseUrl);
+
+  Future<String> _viewerId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString(_viewerIdKey)?.trim();
+    if (existing != null && existing.length >= 8) return existing;
+    final random = List<String>.generate(
+      16,
+      (_) => _viewerIdRandom.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      growable: false,
+    ).join();
+    final generated = 'mobile-${DateTime.now().microsecondsSinceEpoch}-$random';
+    await prefs.setString(_viewerIdKey, generated);
+    return generated;
+  }
 }
 
 void _throwIfApiError(

@@ -35,6 +35,37 @@ const ALLOWED_COLUMNS = new Set([
   'site_title_font',
   'site_content_font',
   'site_font_sizes',
+  'content_show_featured_section',
+  'content_comment_system_enabled',
+  'content_comment_approval_enabled',
+  'content_emoji_reactions_enabled',
+  'content_home_page_size',
+  'content_featured_source',
+  'content_featured_sorting',
+  'content_featured_duration_days',
+  'content_featured_limit',
+  'content_enabled_post_formats',
+  'content_upload_image_format',
+  'content_upload_allowed_extensions',
+  'content_upload_max_image_mb',
+  'content_upload_max_video_mb',
+  'content_upload_max_audio_mb',
+  'content_upload_max_file_mb',
+  'content_post_url_structure',
+  'content_bulk_post_upload_enabled',
+  'content_delete_media_with_post_enabled',
+  'content_audio_download_enabled',
+  'content_show_post_author',
+  'content_show_post_date',
+  'content_show_post_view_count',
+  'content_require_new_post_approval',
+  'content_require_edited_post_approval',
+  'content_redirect_rss_posts',
+  'content_popular_post_limit',
+  'content_related_post_limit',
+  'content_trash_auto_delete_enabled',
+  'content_trash_auto_delete_days',
+  'content_trash_auto_delete_scope',
   'google_ai_api_key',
   'google_ai_model',
   'google_ai_active',
@@ -68,6 +99,12 @@ const ALLOWED_COLUMNS = new Set([
   'daily_ayah_quran_api_token',
 ]);
 
+const JSON_COLUMNS = new Set([
+  'site_font_sizes',
+  'content_enabled_post_formats',
+  'content_upload_allowed_extensions',
+]);
+
 function quoteIdent(identifier: string) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) throw new Error(`Unsafe settings column: ${identifier}`);
   return `"${identifier}"`;
@@ -88,7 +125,12 @@ export const POST: APIRoute = async ({ request }) => {
       .map(([key], index) => `${quoteIdent(key)} = $${index + 2}`)
       .concat('updated_at = now()')
       .join(', ');
-    const params = [languageCode, ...entries.map(([, value]) => value)];
+    const params = [
+      languageCode,
+      ...entries.map(([key, value]) =>
+        JSON_COLUMNS.has(key) ? JSON.stringify(value) : value
+      ),
+    ];
 
     const result = await dbQuery(
       `INSERT INTO public.site_settings (${columns.map(quoteIdent).join(', ')})

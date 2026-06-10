@@ -1,21 +1,74 @@
 import type { APIRoute } from "astro";
 import { getSessionFromRequest, json } from "@/lib/server/appDb";
+import { exactLocalStaticPath } from "@/lib/server/localUploadStorage";
 import { dbQuery } from "@/lib/server/supabaseDb";
 import { dataService } from "@/services/dataService.server";
 import type { NewsItem, OptimizedImage } from "@/types";
 
 export const prerender = false;
 
-const resolveImageUrl = (url: string, base: string): string => {
+type ImageVariantOptions = {
+  width?: number;
+  quality?: number;
+};
+
+const LOCAL_IMAGE_PATH_PREFIXES = ["/api/storage/file/", "/local-upload/"];
+const VIDEO_THUMB_EXTENSIONS = [".webp", ".jpg", ".jpeg", ".png"];
+const VIDEO_THUMB_FIELDS = [
+  "thumbnailUrl",
+  "thumbUrl",
+  "posterUrl",
+  "videoThumbUrl",
+  "mediaThumbUrl",
+  "thumbnail",
+  "thumb",
+  "poster",
+];
+
+const withLocalImageVariant = (
+  resolvedUrl: string,
+  base: string,
+  options: ImageVariantOptions = {},
+): string => {
+  const width = Math.round(Number(options.width || 0));
+  if (!resolvedUrl || width <= 0) return resolvedUrl;
+
+  try {
+    const baseUrl = new URL(base);
+    const parsed = new URL(resolvedUrl, baseUrl);
+    if (parsed.origin !== baseUrl.origin) return resolvedUrl;
+    if (
+      !LOCAL_IMAGE_PATH_PREFIXES.some((prefix) =>
+        parsed.pathname.startsWith(prefix),
+      )
+    ) {
+      return resolvedUrl;
+    }
+    parsed.searchParams.set("w", String(Math.min(Math.max(width, 64), 3840)));
+    const quality = Math.round(Number(options.quality || 0));
+    if (quality > 0) {
+      parsed.searchParams.set("q", String(Math.min(Math.max(quality, 40), 95)));
+    }
+    return parsed.toString();
+  } catch {
+    return resolvedUrl;
+  }
+};
+
+const resolveImageUrl = (
+  url: string,
+  base: string,
+  options: ImageVariantOptions = {},
+): string => {
   if (!url) return "";
+  let resolved = url;
   try {
     const parsed = new URL(url);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") return url;
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return url;
   } catch {
-    // relative path
+    if (url.startsWith("/")) resolved = `${base}${url}`;
   }
-  if (url.startsWith("/")) return `${base}${url}`;
-  return url;
+  return withLocalImageVariant(resolved, base, options);
 };
 
 const numberParam = (
@@ -63,26 +116,145 @@ const firstMediaUrl = (item: NewsItem): string => {
   );
 };
 
-const blockMediaUrls = (
-  blocks: any[],
-  type: string,
+type VideoMediaItem = {
+  url: string;
+  thumbUrl: string;
+};
+
+const youtubeThumbUrl = (url: string): string => {
+  const id = youtubeIdFrom(url);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
+};
+
+const youtubeIdFrom = (url: string): string => {
+  const raw = String(url || "").trim();
+  if (/^[_\-a-zA-Z0-9]{11}$/.test(raw)) return raw;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    try {
+      parsed = new URL(`https://${raw}`);
+    } catch {
+      return "";
+    }
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (
+    !host.includes("youtube.com") &&
+    !host.includes("youtu.be") &&
+    !host.includes("youtube-nocookie.com")
+  ) {
+    return "";
+  }
+  if (host.includes("youtu.be")) {
+    return cleanYoutubeId(parsed.pathname.split("/").filter(Boolean)[0]);
+  }
+  const fromQuery = cleanYoutubeId(parsed.searchParams.get("v") || "");
+  if (fromQuery) return fromQuery;
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index].toLowerCase();
+    if (segment === "shorts" || segment === "embed" || segment === "live") {
+      return cleanYoutubeId(segments[index + 1]);
+    }
+  }
+  return "";
+};
+
+const cleanYoutubeId = (value: string): string => {
+  const match = String(value || "").match(/[_\-a-zA-Z0-9]{11}/);
+  return match?.[0] || "";
+};
+
+const localVideoThumbUrl = (videoUrl: string, origin: string): string => {
+  let parsed: URL;
+  let originUrl: URL;
+  try {
+    originUrl = new URL(origin);
+    parsed = new URL(videoUrl, originUrl);
+  } catch {
+    return "";
+  }
+  if (parsed.origin !== originUrl.origin) return "";
+  const objectPath = localVideoObjectPath(parsed.pathname);
+  if (!objectPath) return "";
+  const slash = objectPath.lastIndexOf("/");
+  const dir = slash >= 0 ? objectPath.slice(0, slash + 1) : "";
+  const file = slash >= 0 ? objectPath.slice(slash + 1) : objectPath;
+  const dot = file.lastIndexOf(".");
+  const stem = dot >= 0 ? file.slice(0, dot) : file;
+  for (const extension of VIDEO_THUMB_EXTENSIONS) {
+    const staticPath = exactLocalStaticPath(`${dir}${stem}_thumb${extension}`);
+    if (staticPath) {
+      return resolveImageUrl(staticPath, origin, { width: 1200, quality: 86 });
+    }
+  }
+  return "";
+};
+
+const localVideoObjectPath = (pathname: string): string => {
+  const decoded = safeDecodePath(pathname);
+  if (decoded.startsWith("/api/storage/file/video/")) {
+    return `video/${decoded.slice("/api/storage/file/video/".length)}`;
+  }
+  if (decoded.startsWith("/local-upload/video/")) {
+    return `video/${decoded.slice("/local-upload/video/".length)}`;
+  }
+  return "";
+};
+
+const safeDecodePath = (pathname: string): string => {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
+  }
+};
+
+const explicitVideoThumbUrl = (entry: any, origin: string): string => {
+  for (const field of VIDEO_THUMB_FIELDS) {
+    const value = String(entry?.[field] || "").trim();
+    if (value) {
+      return resolveImageUrl(value, origin, { width: 1200, quality: 86 });
+    }
+  }
+  return "";
+};
+
+const videoMediaItem = (
+  entry: any,
   origin: string,
-): string[] => {
-  const targetType = type.trim().toLowerCase();
-  return blocks
+  options: ImageVariantOptions = {},
+): VideoMediaItem | null => {
+  const mediaUrl = String(entry?.mediaUrl || "").trim();
+  if (!mediaUrl) return null;
+  const url = resolveImageUrl(mediaUrl, origin, options);
+  if (!url) return null;
+  return {
+    url,
+    thumbUrl:
+      explicitVideoThumbUrl(entry, origin) ||
+      youtubeThumbUrl(url) ||
+      localVideoThumbUrl(url, origin),
+  };
+};
+
+const blockVideoMediaItems = (
+  blocks: any[],
+  origin: string,
+): VideoMediaItem[] =>
+  blocks
     .filter((entry: any) => {
       if (!entry) return false;
-      if (
+      return (
         String(entry.type || "")
           .trim()
-          .toLowerCase() !== targetType
-      )
-        return false;
-      return typeof entry.mediaUrl === "string" && entry.mediaUrl.trim();
+          .toLowerCase() === "video"
+      );
     })
-    .map((entry: any) => resolveImageUrl(entry.mediaUrl.trim(), origin))
-    .filter((url: string) => Boolean(url));
-};
+    .map((entry: any) => videoMediaItem(entry, origin))
+    .filter((entry): entry is VideoMediaItem => Boolean(entry));
 
 const toIsoDate = (value: string | undefined): string => {
   const date = value ? new Date(value) : null;
@@ -110,6 +282,7 @@ type CommentPreview = {
   userLiked: boolean;
   canDelete: boolean;
   author: {
+    id: string;
     name: string;
     avatarUrl: string;
     handle: string;
@@ -125,12 +298,21 @@ type ViewerPostState = {
   userSaved: boolean;
 };
 
+type ContentHomeSettings = {
+  showFeaturedSection: boolean;
+  commentSystem: boolean;
+  commentApprovalSystem: boolean;
+  emojiReactions: boolean;
+  homePageSize: number;
+  featuredSource: "manual" | "latest";
+  featuredSorting: "slider_order" | "publish_date";
+  featuredDurationDays: number;
+  featuredLimit: number;
+};
+
 const authorName = (row: any): string =>
   String(
-    row.user_full_name ||
-      row.user_name ||
-      row.guest_name ||
-      "Misafir",
+    row.user_full_name || row.user_name || row.guest_name || "Misafir",
   ).trim();
 
 const authorHandle = (row: any): string => {
@@ -139,8 +321,101 @@ const authorHandle = (row: any): string => {
 };
 
 const isOfficialRole = (role: unknown) => {
-  const value = String(role || "").trim().toLowerCase();
+  const value = String(role || "")
+    .trim()
+    .toLowerCase();
   return value === "admin" || value === "super_admin" || value === "editor";
+};
+
+const defaultContentHomeSettings: ContentHomeSettings = {
+  showFeaturedSection: true,
+  commentSystem: true,
+  commentApprovalSystem: true,
+  emojiReactions: true,
+  homePageSize: 16,
+  featuredSource: "manual",
+  featuredSorting: "slider_order",
+  featuredDurationDays: 10,
+  featuredLimit: 15,
+};
+
+const featuredSource = (value: unknown): "manual" | "latest" => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "latest" ? "latest" : "manual";
+};
+
+const featuredSorting = (value: unknown): "slider_order" | "publish_date" => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "publish_date" ? "publish_date" : "slider_order";
+};
+
+const loadContentHomeSettings = async (
+  lang: string,
+): Promise<ContentHomeSettings> => {
+  const languageCode = String(lang || "tr").trim() || "tr";
+  const fetchSettings = async (code: string) => {
+    const result = await dbQuery(
+      `SELECT content_show_featured_section,
+              content_comment_system_enabled,
+              content_comment_approval_enabled,
+              content_emoji_reactions_enabled,
+              content_home_page_size,
+              content_featured_source,
+              content_featured_sorting,
+              content_featured_duration_days,
+              content_featured_limit
+       FROM public.site_settings
+       WHERE language_code = $1
+       LIMIT 1`,
+      [code],
+    );
+    return result.rows[0] || null;
+  };
+
+  try {
+    const row =
+      (await fetchSettings(languageCode)) ||
+      (languageCode === "tr" ? null : await fetchSettings("tr"));
+    if (!row) return defaultContentHomeSettings;
+    return {
+      showFeaturedSection: row.content_show_featured_section !== false,
+      commentSystem: row.content_comment_system_enabled !== false,
+      commentApprovalSystem: row.content_comment_approval_enabled !== false,
+      emojiReactions: row.content_emoji_reactions_enabled !== false,
+      homePageSize: numberParam(
+        row.content_home_page_size == null
+          ? null
+          : String(row.content_home_page_size),
+        defaultContentHomeSettings.homePageSize,
+        1,
+        50,
+      ),
+      featuredSource: featuredSource(row.content_featured_source),
+      featuredSorting: featuredSorting(row.content_featured_sorting),
+      featuredDurationDays: numberParam(
+        row.content_featured_duration_days == null
+          ? null
+          : String(row.content_featured_duration_days),
+        defaultContentHomeSettings.featuredDurationDays,
+        1,
+        365,
+      ),
+      featuredLimit: numberParam(
+        row.content_featured_limit == null
+          ? null
+          : String(row.content_featured_limit),
+        defaultContentHomeSettings.featuredLimit,
+        1,
+        50,
+      ),
+    };
+  } catch {
+    return defaultContentHomeSettings;
+  }
 };
 
 const mapCommentPreview = (
@@ -156,8 +431,12 @@ const mapCommentPreview = (
   userLiked: row.user_liked === true,
   canDelete: Boolean(userId && String(row.user_id || "") === userId),
   author: {
+    id: String(row.user_id || ""),
     name: authorName(row),
-    avatarUrl: resolveImageUrl(String(row.user_avatar || ""), origin),
+    avatarUrl: resolveImageUrl(String(row.user_avatar || ""), origin, {
+      width: 180,
+      quality: 86,
+    }),
     handle: authorHandle(row),
     isVerified: Boolean(row.user_id),
     isOfficial: isOfficialRole(row.user_role),
@@ -400,7 +679,10 @@ const normalizeReviewData = (value: unknown, origin: string) => {
   if (!value || typeof value !== "object") return undefined;
   const raw = value as any;
   const productName = stripHtml(String(raw.productName || ""));
-  const productImage = resolveImageUrl(String(raw.productImage || ""), origin);
+  const productImage = resolveImageUrl(String(raw.productImage || ""), origin, {
+    width: 900,
+    quality: 86,
+  });
   const pros = textList(raw.pros);
   const cons = textList(raw.cons);
   const breakdown = Array.isArray(raw.breakdown)
@@ -436,14 +718,21 @@ const normalizeReviewData = (value: unknown, origin: string) => {
 const normalizePollData = (
   item: NewsItem,
   origin: string,
-): {
-  title: string;
-  description: string;
-  options: Array<{ id: string; text: string; votes: number; imageUrl: string }>;
-  isImagePoll: boolean;
-  columns: 1 | 2 | 3;
-  totalVotes: number;
-} | undefined => {
+):
+  | {
+      title: string;
+      description: string;
+      options: Array<{
+        id: string;
+        text: string;
+        votes: number;
+        imageUrl: string;
+      }>;
+      isImagePoll: boolean;
+      columns: 1 | 2 | 3;
+      totalVotes: number;
+    }
+  | undefined => {
   const raw = item as any;
   const itemType = String(item.type || "")
     .trim()
@@ -458,6 +747,7 @@ const normalizePollData = (
           const imageUrl = resolveImageUrl(
             String(option?.imageUrl || option?.image || "").trim(),
             origin,
+            { width: 800, quality: 86 },
           );
           return {
             id: String(option?.id || `poll-option-${index + 1}`),
@@ -478,11 +768,7 @@ const normalizePollData = (
   );
   const rawTotalVotes = Number(raw.totalVotes || 0);
   const isImagePoll = raw.isImagePoll === true;
-  const columns = isImagePoll
-    ? Number(raw.pollColumns) === 3
-      ? 3
-      : 2
-    : 1;
+  const columns = isImagePoll ? (Number(raw.pollColumns) === 3 ? 3 : 2) : 1;
 
   return {
     title,
@@ -497,12 +783,19 @@ const normalizePollData = (
 const normalizeVsData = (
   item: NewsItem,
   origin: string,
-): {
-  title: string;
-  description: string;
-  options: Array<{ id: string; text: string; votes: number; imageUrl: string }>;
-  totalVotes: number;
-} | undefined => {
+):
+  | {
+      title: string;
+      description: string;
+      options: Array<{
+        id: string;
+        text: string;
+        votes: number;
+        imageUrl: string;
+      }>;
+      totalVotes: number;
+    }
+  | undefined => {
   const raw = item as any;
   const itemType = String(item.type || "")
     .trim()
@@ -518,6 +811,7 @@ const normalizeVsData = (
           const imageUrl = resolveImageUrl(
             String(option?.imageUrl || option?.image || "").trim(),
             origin,
+            { width: 900, quality: 86 },
           );
           return {
             id: String(option?.id || `vs-option-${index + 1}`),
@@ -564,7 +858,9 @@ const normalizeQuoteData = (
   return {
     text,
     author: stripHtml(
-      String(raw.title || raw.quoteAuthor || raw.paragraphData?.quoteAuthor || ""),
+      String(
+        raw.title || raw.quoteAuthor || raw.paragraphData?.quoteAuthor || "",
+      ),
     ),
     sourceUrl: String(raw.source || raw.sourceUrl || "").trim(),
   };
@@ -612,6 +908,7 @@ const mapFeaturedItem = (item: NewsItem, origin: string) => {
           "",
       ),
       origin,
+      { width: 1440, quality: 86 },
     ),
     publishedAt: toIsoDate(item.timestamp),
     source: String(item.source || "Pateeznews"),
@@ -631,6 +928,7 @@ const mapFeedItem = (
     sourceAvatar?: string;
     isPinned?: boolean;
     publisherId?: string;
+    publisherHandle?: string;
     isOfficial?: boolean;
     isVerified?: boolean;
     region?: string;
@@ -647,7 +945,7 @@ const mapFeedItem = (
   const homepageType = String(homepageBlock?.type || "")
     .trim()
     .toLowerCase();
-  const itemVideoUrls = blockMediaUrls(blocks, "video", origin);
+  const itemVideoItems = blockVideoMediaItems(blocks, origin);
   const itemType = String(item.type || "")
     .trim()
     .toLowerCase();
@@ -657,7 +955,12 @@ const mapFeedItem = (
     homepageType === "slider" &&
     Array.isArray(homepageBlock.mediaUrls)
       ? homepageBlock.mediaUrls
-          .map((u: any) => resolveImageUrl(String(u || "").trim(), origin))
+          .map((u: any) =>
+            resolveImageUrl(String(u || "").trim(), origin, {
+              width: 1200,
+              quality: 86,
+            }),
+          )
           .filter((u: string) => Boolean(u))
       : [];
 
@@ -666,20 +969,27 @@ const mapFeedItem = (
     homepageType === "image" &&
     typeof homepageBlock.mediaUrl === "string" &&
     homepageBlock.mediaUrl.trim()
-      ? resolveImageUrl(homepageBlock.mediaUrl.trim(), origin)
+      ? resolveImageUrl(homepageBlock.mediaUrl.trim(), origin, {
+          width: 1200,
+          quality: 86,
+        })
       : "";
 
-  const homepageVideoUrl =
-    homepageBlock &&
-    homepageType === "video" &&
-    typeof homepageBlock.mediaUrl === "string" &&
-    homepageBlock.mediaUrl.trim()
-      ? resolveImageUrl(homepageBlock.mediaUrl.trim(), origin)
-      : "";
-  const videoUrls =
-    homepageVideoUrl && !itemVideoUrls.includes(homepageVideoUrl)
-      ? [homepageVideoUrl, ...itemVideoUrls]
-      : itemVideoUrls;
+  const homepageVideoItem =
+    homepageBlock && homepageType === "video"
+      ? videoMediaItem(homepageBlock, origin, {
+          width: 1200,
+          quality: 86,
+        })
+      : null;
+  const videoItems =
+    homepageVideoItem &&
+    !itemVideoItems.some((entry) => entry.url === homepageVideoItem.url)
+      ? [homepageVideoItem, ...itemVideoItems]
+      : itemVideoItems;
+  const videoUrls = videoItems.map((entry) => entry.url);
+  const videoThumbUrls = videoItems.map((entry) => entry.thumbUrl);
+  const homepageVideoUrl = homepageVideoItem?.url || "";
   const videoUrl = homepageVideoUrl || videoUrls[0] || "";
 
   const audioUrl =
@@ -728,7 +1038,9 @@ const mapFeedItem = (
         : undefined;
 
   const usingHomepageMedia =
-    Boolean(homepageImage) || sliderImages.length > 0 || Boolean(homepageVsImage);
+    Boolean(homepageImage) ||
+    sliderImages.length > 0 ||
+    Boolean(homepageVsImage);
   const fallbackImage = socialEmbed
     ? String(optimizedImage?.src || item.coverThumbnail || item.thumbnail || "")
     : firstMediaUrl(item);
@@ -737,7 +1049,7 @@ const mapFeedItem = (
     sliderImages[0] ||
     homepageVsImage ||
     reviewData?.productImage ||
-    resolveImageUrl(fallbackImage, origin);
+    resolveImageUrl(fallbackImage, origin, { width: 1200, quality: 86 });
 
   return {
     id: String(item.id || ""),
@@ -748,6 +1060,7 @@ const mapFeedItem = (
     sliderImages,
     videoUrl,
     videoUrls,
+    videoThumbUrls,
     audioUrl,
     socialEmbed,
     socialSourceUrl,
@@ -755,15 +1068,31 @@ const mapFeedItem = (
     flipData: item.flipData
       ? {
           ...item.flipData,
-          frontImage: resolveImageUrl(item.flipData.frontImage, origin),
-          backImage: resolveImageUrl(item.flipData.backImage, origin),
+          frontImage: resolveImageUrl(item.flipData.frontImage, origin, {
+            width: 1200,
+            quality: 86,
+          }),
+          backImage: resolveImageUrl(item.flipData.backImage, origin, {
+            width: 1200,
+            quality: 86,
+          }),
         }
       : undefined,
     beforeAfterData: item.beforeAfterData
       ? {
           ...item.beforeAfterData,
-          beforeImage: resolveImageUrl(item.beforeAfterData.beforeImage, origin),
-          afterImage: resolveImageUrl(item.beforeAfterData.afterImage, origin),
+          beforeImage: resolveImageUrl(
+            item.beforeAfterData.beforeImage,
+            origin,
+            {
+              width: 1200,
+              quality: 86,
+            },
+          ),
+          afterImage: resolveImageUrl(item.beforeAfterData.afterImage, origin, {
+            width: 1200,
+            quality: 86,
+          }),
         }
       : undefined,
     reviewData,
@@ -772,7 +1101,10 @@ const mapFeedItem = (
     quoteData,
     publishedAt: toIsoDate(item.timestamp),
     source: String(item.source || item.author || "Pateeznews"),
-    sourceAvatar: resolveImageUrl(String(raw.sourceAvatar || ""), origin),
+    sourceAvatar: resolveImageUrl(String(raw.sourceAvatar || ""), origin, {
+      width: 180,
+      quality: 86,
+    }),
     slug: String(item.slug || ""),
     region: String(raw.region || ""),
     likes: Number(item.likes || 0),
@@ -786,6 +1118,7 @@ const mapFeedItem = (
     userSaved: viewerState?.userSaved === true,
     readMinutes: calculateReadingMinutes(item),
     publisherId: String(raw.publisherId || ""),
+    publisherHandle: String(raw.publisherHandle || ""),
     isPinned: raw.isPinned === true,
     isManset: item.isManset === true,
     isOfficial: raw.isOfficial === true,
@@ -801,19 +1134,50 @@ const mapFeedItem = (
 export const GET: APIRoute = async ({ url, request }) => {
   try {
     const lang = String(url.searchParams.get("lang") || "tr").trim() || "tr";
-    const limit = numberParam(url.searchParams.get("limit"), 10, 1, 20);
-    const feedLimit = numberParam(url.searchParams.get("feedLimit"), 30, 1, 50);
+    const settings = await loadContentHomeSettings(lang);
+    const limit = numberParam(
+      url.searchParams.get("limit"),
+      settings.featuredLimit,
+      1,
+      50,
+    );
+    const feedLimit = numberParam(
+      url.searchParams.get("feedLimit"),
+      settings.homePageSize,
+      1,
+      50,
+    );
 
     const origin = new URL(request.url).origin;
     const session = await getSessionFromRequest(request);
     const userId = session?.user?.id || null;
-    const items = await dataService.getNewsItems(lang, "home", 50);
+    const items = await dataService.getNewsItems(
+      lang,
+      "home",
+      Math.max(50, feedLimit + limit + 20),
+    );
 
-    const mansetItems = items
-      .filter((item: NewsItem) => item.isManset === true)
-      .sort((a: NewsItem, b: NewsItem) => getNewsTime(b) - getNewsTime(a));
+    const featuredCutoff =
+      Date.now() - settings.featuredDurationDays * 24 * 60 * 60 * 1000;
+    const mansetItems = settings.showFeaturedSection
+      ? items
+          .filter((item: NewsItem) =>
+            settings.featuredSource === "latest"
+              ? true
+              : item.isManset === true,
+          )
+          .filter((item: NewsItem) => {
+            const time = getNewsTime(item);
+            return time === 0 || time >= featuredCutoff;
+          })
+      : [];
+    if (settings.featuredSorting === "publish_date") {
+      mansetItems.sort(
+        (a: NewsItem, b: NewsItem) => getNewsTime(b) - getNewsTime(a),
+      );
+    }
     const hiddenMansetIds = new Set(
-      mansetItems.slice(0, 20).map((item: NewsItem) => String(item.id)),
+      mansetItems.slice(0, limit).map((item: NewsItem) => String(item.id)),
     );
 
     const featured = mansetItems
@@ -825,12 +1189,15 @@ export const GET: APIRoute = async ({ url, request }) => {
     const feedPostIds = feedItems
       .map((item: NewsItem) => Number(item.id))
       .filter((id: number) => Number.isInteger(id) && id > 0);
-    const [commentPreviewByPost, approvedCommentCountsByPost, viewerStateByPost] =
-      await Promise.all([
-        loadPreviewComments(feedPostIds, origin, userId),
-        loadApprovedCommentCounts(feedPostIds),
-        loadViewerPostStates(feedPostIds, userId),
-      ]);
+    const [
+      commentPreviewByPost,
+      approvedCommentCountsByPost,
+      viewerStateByPost,
+    ] = await Promise.all([
+      loadPreviewComments(feedPostIds, origin, userId),
+      loadApprovedCommentCounts(feedPostIds),
+      loadViewerPostStates(feedPostIds, userId),
+    ]);
     const feed = feedItems.map((item: NewsItem) =>
       mapFeedItem(
         item,
@@ -841,7 +1208,21 @@ export const GET: APIRoute = async ({ url, request }) => {
       ),
     );
 
-    return json({ featured, feed });
+    return json({
+      featured,
+      feed,
+      settings: {
+        showFeaturedSection: settings.showFeaturedSection,
+        commentSystem: settings.commentSystem,
+        commentApprovalSystem: settings.commentApprovalSystem,
+        emojiReactions: settings.emojiReactions,
+        homePageSize: settings.homePageSize,
+        featuredContentSource: settings.featuredSource,
+        featuredSortingLogic: settings.featuredSorting,
+        featuredDurationDays: settings.featuredDurationDays,
+        featuredLimit: settings.featuredLimit,
+      },
+    });
   } catch (error: any) {
     return json(
       { error: { message: error?.message || "Home fetch failed" } },

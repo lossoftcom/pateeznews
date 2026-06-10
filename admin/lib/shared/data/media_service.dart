@@ -54,15 +54,114 @@ class MediaTransferProgress {
   final Duration? remaining;
 }
 
+class MediaUploadSettings {
+  const MediaUploadSettings({
+    required this.imageFileFormat,
+    required this.allowedExtensions,
+    required this.maxImageSizeMb,
+    required this.maxVideoSizeMb,
+    required this.maxAudioSizeMb,
+    required this.maxFileSizeMb,
+  });
+
+  factory MediaUploadSettings.defaults() {
+    return const MediaUploadSettings(
+      imageFileFormat: 'WEBP',
+      allowedExtensions: {..._defaultAllowedUploadExtensions},
+      maxImageSizeMb: 20,
+      maxVideoSizeMb: 50,
+      maxAudioSizeMb: 20,
+      maxFileSizeMb: 50,
+    );
+  }
+
+  factory MediaUploadSettings.fromJson(Map<String, Object?> json) {
+    final fallback = MediaUploadSettings.defaults();
+    return MediaUploadSettings(
+      imageFileFormat: _imageFileFormat(
+        json['content_upload_image_format'],
+        fallback: fallback.imageFileFormat,
+      ),
+      allowedExtensions: _extensionSet(
+        json['content_upload_allowed_extensions'],
+        fallback: fallback.allowedExtensions,
+      ),
+      maxImageSizeMb: _megabyteLimit(
+        json['content_upload_max_image_mb'],
+        fallback: fallback.maxImageSizeMb,
+      ),
+      maxVideoSizeMb: _megabyteLimit(
+        json['content_upload_max_video_mb'],
+        fallback: fallback.maxVideoSizeMb,
+      ),
+      maxAudioSizeMb: _megabyteLimit(
+        json['content_upload_max_audio_mb'],
+        fallback: fallback.maxAudioSizeMb,
+      ),
+      maxFileSizeMb: _megabyteLimit(
+        json['content_upload_max_file_mb'],
+        fallback: fallback.maxFileSizeMb,
+      ),
+    );
+  }
+
+  final String imageFileFormat;
+  final Set<String> allowedExtensions;
+  final int maxImageSizeMb;
+  final int maxVideoSizeMb;
+  final int maxAudioSizeMb;
+  final int maxFileSizeMb;
+
+  List<String> extensionsFor(String type) {
+    final known = switch (type) {
+      'video' => _videoUploadExtensions,
+      'audio' => _audioUploadExtensions,
+      'file' => _fileUploadExtensions,
+      _ => _imageUploadExtensions,
+    };
+    final filtered =
+        known
+            .where((extension) => allowedExtensions.contains(extension))
+            .toList()
+          ..sort();
+    if (filtered.isNotEmpty) return filtered;
+    return known.toList()..sort();
+  }
+
+  int maxBytesFor(String type) {
+    final mb = switch (type) {
+      'video' => maxVideoSizeMb,
+      'audio' => maxAudioSizeMb,
+      'file' => maxFileSizeMb,
+      _ => maxImageSizeMb,
+    };
+    return mb * 1024 * 1024;
+  }
+}
+
 class MediaService {
   MediaService({this.httpClient, this.apiBaseUrl});
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _timeout = Duration(seconds: 15);
   static const _uploadTimeout = Duration(seconds: 120);
+  static final _uploadSettingsCache = <String, MediaUploadSettings>{};
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
+
+  static MediaUploadSettings? cachedUploadSettings({
+    String languageCode = 'tr',
+  }) {
+    return _uploadSettingsCache[_normalizeLanguageCode(languageCode)];
+  }
+
+  static void cacheUploadSettings(
+    MediaUploadSettings settings, {
+    String languageCode = 'tr',
+  }) {
+    _uploadSettingsCache[_normalizeLanguageCode(languageCode)] = settings;
+  }
 
   Future<List<MediaItem>> listFiles({String type = 'image'}) async {
     final uri = _resolve(
@@ -78,6 +177,54 @@ class MediaService {
         .whereType<Map<String, dynamic>>()
         .map((json) => MediaItem.fromJson(json, type))
         .toList();
+  }
+
+  Future<MediaUploadSettings> fetchUploadSettings({
+    String languageCode = 'tr',
+  }) async {
+    final normalizedLanguageCode = _normalizeLanguageCode(languageCode);
+    final response = await _request(
+      'POST',
+      _resolve('/api/admin/query'),
+      headers: await adminJsonHeaders(),
+      body: jsonEncode({
+        'table': 'site_settings',
+        'method': 'select',
+        'select':
+            'language_code,content_upload_image_format,'
+            'content_upload_allowed_extensions,content_upload_max_image_mb,'
+            'content_upload_max_video_mb,content_upload_max_audio_mb,'
+            'content_upload_max_file_mb',
+        'filters': [
+          {
+            'type': 'comparison',
+            'op': 'eq',
+            'column': 'language_code',
+            'value': normalizedLanguageCode,
+          },
+        ],
+        'single': 'maybeSingle',
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return cachedUploadSettings(languageCode: normalizedLanguageCode) ??
+          MediaUploadSettings.defaults();
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      return cachedUploadSettings(languageCode: normalizedLanguageCode) ??
+          MediaUploadSettings.defaults();
+    }
+    final data = decoded['data'];
+    if (data is! Map) {
+      return cachedUploadSettings(languageCode: normalizedLanguageCode) ??
+          MediaUploadSettings.defaults();
+    }
+    final settings = MediaUploadSettings.fromJson(
+      data.map((key, value) => MapEntry(key.toString(), value)),
+    );
+    cacheUploadSettings(settings, languageCode: normalizedLanguageCode);
+    return settings;
   }
 
   Future<MediaItem?> uploadFile({
@@ -526,3 +673,139 @@ const _knownImageExtensions = {
   'heif',
   'svg',
 };
+
+const _imageUploadExtensions = {
+  'jpg',
+  'jpeg',
+  'webp',
+  'png',
+  'gif',
+  'avif',
+  'bmp',
+  'tif',
+  'tiff',
+  'heic',
+  'heif',
+  'svg',
+};
+
+const _videoUploadExtensions = {
+  'mp4',
+  'm4v',
+  'webm',
+  'mov',
+  'avi',
+  'mkv',
+  '3gp',
+  '3g2',
+};
+
+const _audioUploadExtensions = {
+  'mp3',
+  'wav',
+  'ogg',
+  'oga',
+  'm4a',
+  'aac',
+  'flac',
+  'opus',
+};
+
+const _fileUploadExtensions = {
+  'pdf',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
+  'txt',
+  'csv',
+  'zip',
+  'rar',
+};
+
+const _defaultAllowedUploadExtensions = {
+  'jpg',
+  'jpeg',
+  'webp',
+  'png',
+  'gif',
+  'avif',
+  'heic',
+  'svg',
+  'mp4',
+  'm4v',
+  'webm',
+  'mov',
+  'avi',
+  'mkv',
+  '3gp',
+  'mp3',
+  'wav',
+  'ogg',
+  'm4a',
+  'aac',
+  'flac',
+  'opus',
+  'pdf',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
+  'txt',
+  'csv',
+  'zip',
+  'rar',
+};
+
+String _imageFileFormat(Object? value, {required String fallback}) {
+  final normalized = value?.toString().trim().toUpperCase();
+  if (normalized == 'JPG') return 'JPEG';
+  if (normalized == 'WEBP' || normalized == 'JPEG' || normalized == 'PNG') {
+    return normalized!;
+  }
+  return fallback;
+}
+
+Set<String> _extensionSet(Object? value, {required Set<String> fallback}) {
+  if (value is Iterable) {
+    final parsed = value
+        .map((item) => _cleanUploadExtension(item.toString()))
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    return parsed.isEmpty ? {...fallback} : parsed;
+  }
+  if (value is String) {
+    try {
+      final decoded = jsonDecode(value);
+      return _extensionSet(decoded, fallback: fallback);
+    } catch (_) {
+      final parsed = value
+          .split(RegExp(r'[\s,;]+'))
+          .map(_cleanUploadExtension)
+          .where((item) => item.isNotEmpty)
+          .toSet();
+      return parsed.isEmpty ? {...fallback} : parsed;
+    }
+  }
+  return {...fallback};
+}
+
+String _cleanUploadExtension(String value) {
+  return value.trim().toLowerCase().replaceFirst(RegExp(r'^\.+'), '');
+}
+
+int _megabyteLimit(Object? value, {required int fallback}) {
+  if (value is num) return value.round().clamp(1, 1024).toInt();
+  return (int.tryParse(value?.toString() ?? '') ?? fallback)
+      .clamp(1, 1024)
+      .toInt();
+}
+
+String _normalizeLanguageCode(String value) {
+  final code = value.trim().toLowerCase().replaceAll('_', '-');
+  return code.isEmpty ? 'tr' : code;
+}

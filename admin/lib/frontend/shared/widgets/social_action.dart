@@ -110,7 +110,10 @@ class _SocialActionState extends State<SocialAction> {
                     key: ValueKey<String>(
                       '${resolvedGlyph.name}-${widget.isActive}-$_pulseSerial',
                     ),
-                    tween: Tween<double>(begin: 0.78, end: 1),
+                    tween: Tween<double>(
+                      begin: _pulseSerial == 0 ? 1 : 0.78,
+                      end: 1,
+                    ),
                     duration: const Duration(milliseconds: 280),
                     curve: Curves.easeOutBack,
                     builder: (context, scale, child) {

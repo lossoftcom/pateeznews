@@ -55,6 +55,7 @@ class FeaturedNews {
 @immutable
 class NewsAuthor {
   const NewsAuthor({
+    this.id = '',
     required this.name,
     required this.avatarUrl,
     this.handle,
@@ -62,6 +63,7 @@ class NewsAuthor {
     this.isOfficial = false,
   });
 
+  final String id;
   final String name;
   final String avatarUrl;
   final String? handle;
@@ -146,6 +148,7 @@ class NewsArticle {
     this.sliderImages = const [],
     this.videoUrl = '',
     this.videoUrls = const [],
+    this.videoThumbUrls = const [],
     this.audioUrl = '',
     this.socialEmbed = '',
     this.socialSourceUrl = '',
@@ -193,6 +196,10 @@ class NewsArticle {
   /// Haberdeki tüm video blokları. Tam ekran video akışı bu listeyi kullanır.
   final List<String> videoUrls;
 
+  /// [videoUrls] ile aynı sıradaki video-özel poster görselleri.
+  /// Haber kapak görseli değildir; tam ekran video akışı bunu kullanır.
+  final List<String> videoThumbUrls;
+
   String get primaryVideoUrl {
     final primary = videoUrl.trim();
     if (primary.isNotEmpty) return primary;
@@ -216,6 +223,14 @@ class NewsArticle {
       urls.insert(0, primary);
     }
     return urls;
+  }
+
+  String videoFeedPosterFor(String url, int index) {
+    if (index >= 0 && index < videoThumbUrls.length) {
+      final poster = videoThumbUrls[index].trim();
+      if (poster.isNotEmpty) return poster;
+    }
+    return _youtubeThumbnailFor(url);
   }
 
   /// Ana sayfada "ses" bloğu seçiliyse çalınacak ses (yerel/uzak dosya veya
@@ -255,6 +270,47 @@ class NewsArticle {
   /// Haber kartında gösterilecek gerçek yorum önizlemesi.
   /// Boşsa yalnızca yorum yazma composer'ı gösterilir.
   final List<NewsComment> previewComments;
+}
+
+String _youtubeThumbnailFor(String url) {
+  final id = _youtubeIdFrom(url);
+  return id == null ? '' : 'https://img.youtube.com/vi/$id/hqdefault.jpg';
+}
+
+String? _youtubeIdFrom(String url) {
+  final raw = url.trim();
+  if (RegExp(r'^[_\-a-zA-Z0-9]{11}$').hasMatch(raw)) return raw;
+
+  var uri = Uri.tryParse(raw);
+  if (uri != null && !uri.hasScheme && raw.contains('youtube')) {
+    uri = Uri.tryParse('https://$raw');
+  }
+  final host = uri?.host.toLowerCase() ?? '';
+  if (!host.contains('youtube.com') &&
+      !host.contains('youtu.be') &&
+      !host.contains('youtube-nocookie.com')) {
+    return null;
+  }
+
+  if (host.contains('youtu.be')) {
+    return _cleanYoutubeId(uri?.pathSegments.firstOrNull);
+  }
+  final fromQuery = _cleanYoutubeId(uri?.queryParameters['v']);
+  if (fromQuery != null) return fromQuery;
+  final segments = uri?.pathSegments ?? const <String>[];
+  for (var index = 0; index < segments.length - 1; index += 1) {
+    final segment = segments[index].toLowerCase();
+    if (segment == 'shorts' || segment == 'embed' || segment == 'live') {
+      return _cleanYoutubeId(segments[index + 1]);
+    }
+  }
+  return null;
+}
+
+String? _cleanYoutubeId(String? value) {
+  final raw = value?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  return RegExp(r'[_\-a-zA-Z0-9]{11}').firstMatch(raw)?.group(0);
 }
 
 /// Flip (çevrilebilir) kart verisi: ön ve arka yüz için görsel, başlık ve

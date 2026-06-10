@@ -139,6 +139,7 @@ NewsComment _parseComment(Map<String, Object?> json) {
     id: _str(json['id']),
     parentId: _str(json['parentId']),
     author: NewsAuthor(
+      id: _str(authorJson['id']),
       name: _str(authorJson['name'], fallback: 'Misafir'),
       avatarUrl: _str(authorJson['avatarUrl']),
       handle: _nullableStr(authorJson['handle']),

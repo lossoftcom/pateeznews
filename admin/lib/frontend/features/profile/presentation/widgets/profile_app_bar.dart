@@ -1,29 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:pateeznews_admin/shared/icons/symbols.dart';
-
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/back_circle_button.dart';
 
 /// Profil sayfasının kapağın üzerinde yüzen, kaydırmaya duyarlı üst barı.
 ///
-/// En üstte (kapak görünürken) zemin saydamdır; solda paylaş, sağda — uygulamanın
-/// ortak [BackCircleButton]'ı ile aynı — daire geri butonu durur. Kapak yukarı
-/// kayınca zemin beyaza döner, alt çizgi belirir ve ortada kırmızı dikey çubuk
-/// önünde kullanıcı adı yumuşakça görünür.
+/// En üstte (kapak görünürken) zemin saydamdır; sağda uygulamanın ortak
+/// [BackCircleButton]'ı durur. Kapak yukarı kayınca zemin beyaza döner, alt
+/// çizgi belirir ve ortada kırmızı dikey çubuk önünde kullanıcı adı yumuşakça
+/// görünür.
 class ProfileAppBar extends StatelessWidget {
   const ProfileAppBar({
     super.key,
     required this.title,
     required this.scrollOffset,
     required this.onBack,
-    this.onShare,
   });
 
   final String title;
   final double scrollOffset;
   final VoidCallback onBack;
-  final VoidCallback? onShare;
 
   static const double _height = 56;
   static const double _titleStart = 120;
@@ -55,60 +51,18 @@ class ProfileAppBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(width: 10),
-          _CircleActionButton(
-            icon: Symbols.ios_share_rounded,
-            semantics: 'Profili paylaş',
-            onTap: onShare ?? () {},
-          ),
+          const SizedBox(width: 50),
           Expanded(
             child: IgnorePointer(
-              child: Opacity(opacity: t, child: _CollapsedTitle(title: title)),
+              child: Opacity(
+                opacity: t,
+                child: _CollapsedTitle(title: title),
+              ),
             ),
           ),
           BackCircleButton(onTap: onBack),
           const SizedBox(width: 10),
         ],
-      ),
-    );
-  }
-}
-
-/// Paylaş gibi yardımcı aksiyonlar için, [BackCircleButton] ile aynı görünümde
-/// daire buton.
-class _CircleActionButton extends StatelessWidget {
-  const _CircleActionButton({
-    required this.icon,
-    required this.semantics,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String semantics;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: semantics,
-      button: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceSoft,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.line, width: 1),
-            ),
-            child: Icon(icon, size: 20, color: AppColors.iconStrong),
-          ),
-        ),
       ),
     );
   }

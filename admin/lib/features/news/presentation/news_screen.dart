@@ -55,6 +55,7 @@ class _NewsScreenState extends State<NewsScreen> {
   var _statusFilter = _all;
   var _publisherFilter = _all;
   var _sortState = const TableSortState(key: 'date', ascending: false);
+  var _trashMode = false;
 
   @override
   void initState() {
@@ -137,6 +138,7 @@ class _NewsScreenState extends State<NewsScreen> {
       type: _typeFilter,
       status: _statusFilter,
       publisher: _publisherFilter,
+      trash: _trashMode,
       page: _page,
       pageSize: _pageSize,
       sortKey: _sortState.key,
@@ -145,6 +147,7 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   void _togglePost(String postId) {
+    if (_trashMode) return;
     setState(() {
       if (_selectedPostIds.contains(postId)) {
         _selectedPostIds.remove(postId);
@@ -217,6 +220,16 @@ class _NewsScreenState extends State<NewsScreen> {
     unawaited(_loadPosts());
   }
 
+  void _toggleTrashMode() {
+    setState(() {
+      _trashMode = !_trashMode;
+      _page = 1;
+      _statusFilter = _all;
+      _selectedPostIds.clear();
+    });
+    unawaited(_loadPosts());
+  }
+
   void _changeSort(String sortKey) {
     setState(() {
       _sortState = _sortState.toggled(sortKey);
@@ -242,7 +255,7 @@ class _NewsScreenState extends State<NewsScreen> {
         'news.deleteMessage',
         values: {'title': post.displayTitle},
       ),
-      confirmLabel: context.t('Delete'),
+      confirmLabel: context.t('news.moveToTrash'),
       danger: true,
     );
     if (!confirmed) return;
@@ -259,7 +272,7 @@ class _NewsScreenState extends State<NewsScreen> {
         'news.deleteSelectedMessage',
         values: {'count': ids.length},
       ),
-      confirmLabel: context.t('Delete'),
+      confirmLabel: context.t('news.moveToTrash'),
       danger: true,
     );
     if (!confirmed) return;
@@ -338,6 +351,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 publisherFilter: _publisherFilter,
                 selectedPostIds: _selectedPostIds,
                 sortState: _sortState,
+                trashMode: _trashMode,
                 onPageSizeChanged: _changePageSize,
                 onSearchChanged: _changeSearch,
                 onLanguageChanged: (value) => _changeFilter(language: value),
@@ -355,6 +369,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 onTogglePinned: (post) => unawaited(_togglePinned(post)),
                 onDeletePost: (post) => unawaited(_deletePost(post)),
                 onDeleteSelected: () => unawaited(_deleteSelected()),
+                onToggleTrashMode: _toggleTrashMode,
               ),
             ),
           ],

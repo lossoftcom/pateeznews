@@ -9,6 +9,11 @@ import {
   signInWithPassword,
   updateUser,
 } from '@/lib/server/supabaseAuth';
+import {
+  getSecuritySettings,
+  validatePasswordWithSecuritySettings,
+  type SecuritySettings,
+} from '@/lib/server/securitySettings';
 
 async function emailForUser(userId: string) {
   const result = await dbQuery<{ email: string | null }>(
@@ -49,7 +54,11 @@ function cleanEmail(value: unknown) {
   return cleanText(value).toLowerCase();
 }
 
-function userPayload(body: any, passwordRequired: boolean) {
+function userPayload(
+  body: any,
+  passwordRequired: boolean,
+  securitySettings: Pick<SecuritySettings, 'passwordMinLength' | 'passwordComplexityRequired'>,
+) {
   const email = cleanEmail(body.email);
   const password = String(body.password || '');
   const fullName = cleanText(body.fullName);
@@ -64,11 +73,13 @@ function userPayload(body: any, passwordRequired: boolean) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { error: 'Geçerli bir e-posta girin' };
   }
-  if (passwordRequired && password.length < 6) {
-    return { error: 'Şifre en az 6 karakter olmalı' };
+  if (passwordRequired) {
+    const passwordError = validatePasswordWithSecuritySettings(password, securitySettings);
+    if (passwordError) return { error: passwordError };
   }
-  if (!passwordRequired && password && password.length < 6) {
-    return { error: 'Şifre en az 6 karakter olmalı' };
+  if (!passwordRequired && password) {
+    const passwordError = validatePasswordWithSecuritySettings(password, securitySettings);
+    if (passwordError) return { error: passwordError };
   }
 
   return { email, password, fullName, username, role, status, rewardEnabled };
@@ -94,7 +105,7 @@ async function ensureUniqueUserFields(client: any, input: { userId?: string; ema
 
 async function profileForClient(client: any, userId: string) {
   const result = await client.query(
-    `SELECT id, username, full_name, avatar_url, role, status, reward_system, email, created_at
+    `SELECT id, username, full_name, avatar_url, cover_url, role, status, reward_system, email, created_at
      FROM public.profiles
      WHERE id = $1::uuid
      LIMIT 1`,
@@ -233,11 +244,13 @@ export const POST: APIRoute = async ({ request }) => {
     await ensureAppSchema();
 
     const userId = session.user.id;
+    const securitySettings = await getSecuritySettings('tr');
 
     if (action === 'update-password') {
       const currentPassword = String(body.currentPassword || '');
       const newPassword = String(body.newPassword || '');
-      if (newPassword.length < 6) return json({ error: { message: 'Password is too short' } }, 400);
+      const passwordError = validatePasswordWithSecuritySettings(newPassword, securitySettings);
+      if (passwordError) return json({ error: { message: passwordError } }, 400);
       if (!(await verifyPassword(userId, currentPassword, session.user.email))) {
         return json({ error: { message: 'Current password is invalid' } }, 400);
       }
@@ -262,14 +275,15 @@ export const POST: APIRoute = async ({ request }) => {
       if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
       const targetUserId = String(body.userId || '');
       const newPassword = String(body.newPassword || '');
-      if (!targetUserId || newPassword.length < 6) return json({ error: { message: 'Invalid user or password' } }, 400);
+      const passwordError = validatePasswordWithSecuritySettings(newPassword, securitySettings);
+      if (!targetUserId || passwordError) return json({ error: { message: passwordError || 'Invalid user or password' } }, 400);
       await adminUpdateAuthUser(targetUserId, { password: newPassword });
       return json({ ok: true });
     }
 
     if (action === 'admin-create-user') {
       if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
-      const payload = userPayload(body, true);
+      const payload = userPayload(body, true, securitySettings);
       if ('error' in payload) return json({ error: { message: payload.error } }, 400);
 
       let createdAuthUserId: string | null = null;
@@ -324,7 +338,7 @@ export const POST: APIRoute = async ({ request }) => {
       if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
       const targetUserId = String(body.userId || '');
       if (!targetUserId) return json({ error: { message: 'User missing' } }, 400);
-      const payload = userPayload(body, false);
+      const payload = userPayload(body, false, securitySettings);
       if ('error' in payload) return json({ error: { message: payload.error } }, 400);
 
       const profile = await withTransaction(async (client) => {
