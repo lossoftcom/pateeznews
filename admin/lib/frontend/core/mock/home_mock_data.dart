@@ -72,18 +72,50 @@ class NewsAuthor {
 @immutable
 class NewsComment {
   const NewsComment({
+    this.id = '',
+    this.parentId = '',
     required this.author,
     required this.body,
     required this.publishedAt,
     this.likes = 0,
+    this.userLiked = false,
+    this.canDelete = false,
     this.replies = const [],
   });
 
+  final String id;
+  final String parentId;
   final NewsAuthor author;
   final String body;
   final DateTime publishedAt;
   final int likes;
+  final bool userLiked;
+  final bool canDelete;
   final List<NewsComment> replies;
+
+  NewsComment copyWith({
+    String? id,
+    String? parentId,
+    NewsAuthor? author,
+    String? body,
+    DateTime? publishedAt,
+    int? likes,
+    bool? userLiked,
+    bool? canDelete,
+    List<NewsComment>? replies,
+  }) {
+    return NewsComment(
+      id: id ?? this.id,
+      parentId: parentId ?? this.parentId,
+      author: author ?? this.author,
+      body: body ?? this.body,
+      publishedAt: publishedAt ?? this.publishedAt,
+      likes: likes ?? this.likes,
+      userLiked: userLiked ?? this.userLiked,
+      canDelete: canDelete ?? this.canDelete,
+      replies: replies ?? this.replies,
+    );
+  }
 }
 
 @immutable
@@ -104,13 +136,27 @@ class NewsArticle {
     required this.shares,
     this.views = 0,
     this.saves = 0,
+    this.userLiked = false,
+    this.userDisliked = false,
+    this.userSaved = false,
     this.slug = '',
     this.imageAspectRatio,
     this.isManset = false,
     this.isPinned = false,
     this.sliderImages = const [],
     this.videoUrl = '',
+    this.videoUrls = const [],
     this.audioUrl = '',
+    this.socialEmbed = '',
+    this.socialSourceUrl = '',
+    this.socialPlatform = '',
+    this.flipData,
+    this.beforeAfterData,
+    this.reviewData,
+    this.pollData,
+    this.vsData,
+    this.quoteData,
+    this.previewComments = const [],
   });
 
   final String id;
@@ -128,6 +174,9 @@ class NewsArticle {
   final int shares;
   final int views;
   final int saves;
+  final bool userLiked;
+  final bool userDisliked;
+  final bool userSaved;
   final String slug;
   final double? imageAspectRatio;
   final bool isManset;
@@ -137,13 +186,252 @@ class NewsArticle {
   /// Boşsa tek görsel / kapak gösterilir.
   final List<String> sliderImages;
 
-  /// Ana sayfada "video" bloğu seçiliyse oynatılacak video (yerel/uzak/YouTube/
-  /// Shorts). Boşsa slider / görsel / kapak gösterilir.
+  /// Kartta oynatılacak ana video (yerel/uzak/YouTube/Shorts). Boşsa ilk
+  /// videoUrls elemanı kullanılır; ikisi de boşsa slider / görsel / kapak gösterilir.
   final String videoUrl;
+
+  /// Haberdeki tüm video blokları. Tam ekran video akışı bu listeyi kullanır.
+  final List<String> videoUrls;
+
+  String get primaryVideoUrl {
+    final primary = videoUrl.trim();
+    if (primary.isNotEmpty) return primary;
+    for (final url in videoUrls) {
+      final clean = url.trim();
+      if (clean.isNotEmpty) return clean;
+    }
+    return '';
+  }
+
+  List<String> get videoFeedUrls {
+    final urls = <String>[];
+    for (final url in videoUrls) {
+      final clean = url.trim();
+      if (clean.isNotEmpty) urls.add(clean);
+    }
+    final primary = videoUrl.trim();
+    if (urls.isEmpty && primary.isNotEmpty) {
+      urls.add(primary);
+    } else if (primary.isNotEmpty && !urls.contains(primary)) {
+      urls.insert(0, primary);
+    }
+    return urls;
+  }
 
   /// Ana sayfada "ses" bloğu seçiliyse çalınacak ses (yerel/uzak dosya veya
   /// YouTube Music). Boşsa video / slider / görsel / kapak gösterilir.
   final String audioUrl;
+
+  /// Ana sayfada "sosyal medya" bloğu seçiliyse gösterilecek URL veya embed
+  /// HTML'i. Boşsa mevcut medya sıralaması değişmeden çalışır.
+  final String socialEmbed;
+  final String socialSourceUrl;
+  final String socialPlatform;
+
+  /// Ana sayfada "flip kart" bloğu seçiliyse gösterilecek ön/arka yüz verisi.
+  /// Boşsa mevcut medya sıralaması (video/slider/görsel) değişmeden çalışır.
+  final NewsFlipData? flipData;
+
+  /// Ana sayfada "önce & sonra" bloğu seçiliyse gösterilecek karşılaştırma
+  /// verisi. Boşsa mevcut medya sıralaması değişmeden çalışır.
+  final NewsBeforeAfterData? beforeAfterData;
+
+  /// Ana sayfada "inceleme" bloğu seçiliyse gösterilecek puanlama verisi.
+  /// Boşsa mevcut medya sıralaması değişmeden çalışır.
+  final NewsReviewData? reviewData;
+
+  /// Ana sayfada "anket" bloğu seçiliyse gösterilecek soru, cevap ve oy
+  /// verisi. Boşsa mevcut medya sıralaması değişmeden çalışır.
+  final NewsPollData? pollData;
+
+  /// Ana sayfada "VS / Düello" bloğu seçiliyse gösterilecek karşılaştırma
+  /// verisi. Boşsa mevcut medya sıralaması değişmeden çalışır.
+  final NewsVsData? vsData;
+
+  /// Ana sayfada "alıntı" bloğu seçiliyse gösterilecek metin ve sahip bilgisi.
+  /// Boşsa mevcut medya sıralaması değişmeden çalışır.
+  final NewsQuoteData? quoteData;
+
+  /// Haber kartında gösterilecek gerçek yorum önizlemesi.
+  /// Boşsa yalnızca yorum yazma composer'ı gösterilir.
+  final List<NewsComment> previewComments;
+}
+
+/// Flip (çevrilebilir) kart verisi: ön ve arka yüz için görsel, başlık ve
+/// (opsiyonel) açıklama. Karta dokununca ön/arka yüz arası 3B döner.
+class NewsFlipData {
+  const NewsFlipData({
+    required this.frontImage,
+    required this.frontTitle,
+    required this.backImage,
+    required this.backTitle,
+    this.frontDescription = '',
+    this.backDescription = '',
+    this.frontLink = '',
+    this.backLink = '',
+  });
+
+  final String frontImage;
+  final String frontTitle;
+  final String backImage;
+  final String backTitle;
+  final String frontDescription;
+  final String backDescription;
+  final String frontLink;
+  final String backLink;
+
+  bool get isValid =>
+      frontImage.trim().isNotEmpty && backImage.trim().isNotEmpty;
+}
+
+/// Önce & Sonra verisi: iki görsel tek karede, parmakla sürüklenen dikey
+/// sürgüyle karşılaştırılır. Etiketler opsiyoneldir.
+class NewsBeforeAfterData {
+  const NewsBeforeAfterData({
+    required this.beforeImage,
+    required this.afterImage,
+    this.beforeLabel = '',
+    this.afterLabel = '',
+  });
+
+  final String beforeImage;
+  final String afterImage;
+  final String beforeLabel;
+  final String afterLabel;
+
+  bool get isValid =>
+      beforeImage.trim().isNotEmpty && afterImage.trim().isNotEmpty;
+}
+
+/// İnceleme verisi: ürün/konu görseli, genel skor, artılar-eksiler, detay
+/// puanları ve kısa karar metni.
+class NewsReviewData {
+  const NewsReviewData({
+    required this.productName,
+    required this.productImage,
+    required this.score,
+    this.pros = const [],
+    this.cons = const [],
+    this.breakdown = const [],
+    this.verdict = '',
+  });
+
+  final String productName;
+  final String productImage;
+  final int score;
+  final List<String> pros;
+  final List<String> cons;
+  final List<NewsReviewCriterion> breakdown;
+  final String verdict;
+
+  bool get isValid =>
+      productName.trim().isNotEmpty ||
+      productImage.trim().isNotEmpty ||
+      pros.isNotEmpty ||
+      cons.isNotEmpty ||
+      breakdown.isNotEmpty ||
+      verdict.trim().isNotEmpty;
+}
+
+class NewsReviewCriterion {
+  const NewsReviewCriterion({required this.label, required this.score});
+
+  final String label;
+  final int score;
+}
+
+class NewsPollData {
+  const NewsPollData({
+    required this.title,
+    required this.options,
+    this.description = '',
+    this.isImagePoll = false,
+    this.columns = 1,
+    this.totalVotes = 0,
+  });
+
+  final String title;
+  final String description;
+  final List<NewsPollOption> options;
+  final bool isImagePoll;
+  final int columns;
+  final int totalVotes;
+
+  int get resolvedTotalVotes {
+    final optionTotal = options.fold<int>(0, (total, option) {
+      final votes = option.votes;
+      return total + (votes < 0 ? 0 : votes);
+    });
+    return totalVotes > optionTotal ? totalVotes : optionTotal;
+  }
+
+  bool get isValid => title.trim().isNotEmpty && options.length >= 2;
+}
+
+class NewsPollOption {
+  const NewsPollOption({
+    required this.id,
+    required this.text,
+    this.imageUrl = '',
+    this.votes = 0,
+  });
+
+  final String id;
+  final String text;
+  final String imageUrl;
+  final int votes;
+}
+
+class NewsVsData {
+  const NewsVsData({
+    required this.title,
+    required this.options,
+    this.description = '',
+    this.totalVotes = 0,
+  });
+
+  final String title;
+  final String description;
+  final List<NewsVsOption> options;
+  final int totalVotes;
+
+  int get resolvedTotalVotes {
+    final optionTotal = options.fold<int>(0, (total, option) {
+      final votes = option.votes;
+      return total + (votes < 0 ? 0 : votes);
+    });
+    return totalVotes > optionTotal ? totalVotes : optionTotal;
+  }
+
+  bool get isValid => title.trim().isNotEmpty && options.length >= 2;
+}
+
+class NewsVsOption {
+  const NewsVsOption({
+    required this.id,
+    required this.text,
+    this.imageUrl = '',
+    this.votes = 0,
+  });
+
+  final String id;
+  final String text;
+  final String imageUrl;
+  final int votes;
+}
+
+class NewsQuoteData {
+  const NewsQuoteData({
+    required this.text,
+    this.author = '',
+    this.sourceUrl = '',
+  });
+
+  final String text;
+  final String author;
+  final String sourceUrl;
+
+  bool get isValid => text.trim().isNotEmpty;
 }
 
 class _Authors {

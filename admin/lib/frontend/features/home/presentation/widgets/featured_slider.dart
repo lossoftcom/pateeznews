@@ -6,6 +6,7 @@ import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/adaptive_headline.dart';
 import 'featured_card.dart';
 
 /// PageView tabanlı featured haber kaydırıcısı.
@@ -362,7 +363,11 @@ class _ActiveContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(news.title, style: _featuredTitleStyle),
+        AdaptiveHeadline(
+          text: news.title,
+          minScale: 0.88,
+          style: _featuredTitleStyle,
+        ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           news.summary,

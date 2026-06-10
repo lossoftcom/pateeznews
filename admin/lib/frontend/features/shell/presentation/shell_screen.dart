@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -94,8 +95,8 @@ class _ShellScreenState extends State<ShellScreen>
   var _accountMenuOpen = false;
   var _appsSheetOpen = false;
   var _menuDarkModeSelected = false;
-  var _videoFeedArticleId = '';
-  var _videoFeedRevealSerial = 0;
+  final _videoFeedArticleId = '';
+  final _videoFeedRevealSerial = 0;
   var _homeResetSerial = 0;
 
   late final AnimationController _appsController = AnimationController(
@@ -189,6 +190,10 @@ class _ShellScreenState extends State<ShellScreen>
     }
   }
 
+  void _openAccountForRequiredAuth() {
+    unawaited(_openAccount());
+  }
+
   Future<void> _openVideoFeedFromNav() async {
     _closeAccountMenu();
     _closeAppsSheet();
@@ -216,7 +221,11 @@ class _ShellScreenState extends State<ShellScreen>
         PageRouteBuilder<int>(
           transitionDuration: const Duration(milliseconds: 180),
           reverseTransitionDuration: const Duration(milliseconds: 120),
-          pageBuilder: (_, _, _) => NewsFullscreenVideoFeedPage(items: items),
+          pageBuilder: (_, _, _) => NewsFullscreenVideoFeedPage(
+            items: items,
+            authState: widget.authState,
+            onAuthRequired: _openAccountForRequiredAuth,
+          ),
           transitionsBuilder: (context, animation, secondary, child) {
             final curved = CurvedAnimation(
               parent: animation,
@@ -612,11 +621,13 @@ class _ShellScreenState extends State<ShellScreen>
               navigationItems: widget.shellData.navigationItems,
               featuredItems: widget.featuredItems,
               feedItems: widget.homeFeedItems,
+              authState: widget.authState,
               onRefresh: widget.onRefreshHome,
               resetToTopSerial: _homeResetSerial,
               onMenuTap: _openMenu,
               onSubmitNewsTap: _showSubmitNewsHint,
               onPharmacyTap: () => _openApp(AppItems.nobetciEczane),
+              onAuthRequired: _openAccountForRequiredAuth,
               onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
             ),
             _index == 1
@@ -626,6 +637,8 @@ class _ShellScreenState extends State<ShellScreen>
                     navigationItems: widget.shellData.navigationItems,
                     initialArticleId: _videoFeedArticleId,
                     revealSerial: _videoFeedRevealSerial,
+                    authState: widget.authState,
+                    onAuthRequired: _openAccountForRequiredAuth,
                     onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
                   )
                 : const SizedBox.shrink(),

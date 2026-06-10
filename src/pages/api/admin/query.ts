@@ -312,6 +312,16 @@ export const POST: APIRoute = async ({ request }) => {
       invalidateServerDataCache((key) => key.startsWith('news_') || key.startsWith('post_') || key.startsWith('category_page_'));
     }
 
+    if (
+      body?.kind !== 'rpc' &&
+      !result.error &&
+      body?.table === 'comments' &&
+      ['insert', 'update', 'upsert', 'delete'].includes(String(body?.method))
+    ) {
+      invalidateDataCache((key) => key.startsWith('news_'));
+      invalidateServerDataCache((key) => key.startsWith('news_') || key.startsWith('post_') || key.startsWith('category_page_'));
+    }
+
     return adminJson(result, result.error ? 400 : 200);
   } catch (error) {
     return adminError(error);

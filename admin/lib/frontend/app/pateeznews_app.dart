@@ -176,7 +176,10 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   }
 
   Future<void> _loadHomeData() async {
-    final data = await widget.homeRepository.fetchHome();
+    final token = _authState?.session.accessToken.trim() ?? '';
+    final data = await widget.homeRepository.fetchHome(
+      token: token.isEmpty ? null : token,
+    );
     if (!mounted) return;
     setState(() {
       _featuredItems = data.featured;
@@ -218,6 +221,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
         _authState = authState;
         _authLoading = false;
       });
+      if (authState != null) unawaited(_loadHomeData());
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -237,6 +241,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     );
     if (mounted) {
       setState(() => _authState = authState);
+      unawaited(_loadHomeData());
     }
     return authState;
   }
@@ -246,6 +251,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     await widget.adminSessionStore.clearAuth();
     if (!mounted) return;
     setState(() => _authState = null);
+    unawaited(_loadHomeData());
   }
 
   Future<void> _openAdminPanel() async {

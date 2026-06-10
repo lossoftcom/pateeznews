@@ -267,6 +267,30 @@ body.public-route {
 }
 
 @font-face {
+    font-family: 'Fredoka';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('/fonts/site/fredoka/Fredoka.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'NunitoSans';
+    font-style: normal;
+    font-weight: 200 1000;
+    font-display: swap;
+    src: url('/fonts/site/nunito_sans/NunitoSans.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Baloo2';
+    font-style: normal;
+    font-weight: 400 800;
+    font-display: swap;
+    src: url('/fonts/site/baloo_2/Baloo2.ttf') format('truetype');
+}
+
+@font-face {
     font-family: 'SourceSans3';
     font-style: normal;
     font-weight: 200 900;

@@ -19,10 +19,10 @@ void main() {
     expect(frontendLocalApiBaseUrl().toString(), 'http://10.0.2.2:4321');
   });
 
-  test('iOS ve desktop local dev icin localhost kullanir', () {
+  test('iOS ve desktop local dev icin explicit IPv4 kullanir', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
 
-    expect(frontendLocalApiBaseUrl().toString(), 'http://localhost:4321');
+    expect(frontendLocalApiBaseUrl().toString(), 'http://127.0.0.1:4321');
   });
 
   test(

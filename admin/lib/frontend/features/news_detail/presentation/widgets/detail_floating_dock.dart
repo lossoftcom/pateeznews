@@ -687,6 +687,8 @@ IconData _pateezIconFor(PateezSocialGlyph glyph, {required bool filled}) {
       return filled ? Symbols.chat_3_fill : Symbols.chat_3_line;
     case PateezSocialGlyph.orbitShare:
       return filled ? Symbols.share_2_fill : Symbols.share_2_line;
+    case PateezSocialGlyph.forwardShare:
+      return Symbols.share_forward_line;
     case PateezSocialGlyph.ribbon:
       return filled ? Symbols.bookmark_fill : Symbols.bookmark_line;
     case PateezSocialGlyph.heart:

@@ -29,8 +29,10 @@ class Symbols {
   static const check = IconData(0xeb7b, fontFamily: _fontFamily);
   static const close = IconData(0xeb99, fontFamily: _fontFamily);
   static const code = IconData(0xeba9, fontFamily: _fontFamily);
+  static const cursor_hand = IconData(0xf645, fontFamily: _fontFamily);
   static const delete = IconData(0xec2a, fontFamily: _fontFamily);
   static const download = IconData(0xec5a, fontFamily: _fontFamily);
+  static const emotion_happy_line = IconData(0xec8d, fontFamily: _fontFamily);
   static const draft = IconData(
     0xec5c,
     fontFamily: _fontFamily,

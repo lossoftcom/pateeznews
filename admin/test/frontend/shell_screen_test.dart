@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pateeznews_admin/frontend/core/mock/home_mock_data.dart';
 import 'package:pateeznews_admin/frontend/core/theme/app_typography.dart';
 import 'package:pateeznews_admin/frontend/features/account/data/frontend_auth_repository.dart';
+import 'package:pateeznews_admin/frontend/features/home/presentation/video_feed_screen.dart';
+import 'package:pateeznews_admin/frontend/features/home/presentation/widgets/news_video_player.dart';
 import 'package:pateeznews_admin/frontend/features/shell/data/app_shell_repository.dart';
 import 'package:pateeznews_admin/frontend/features/shell/presentation/shell_screen.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
@@ -192,17 +194,64 @@ void main() {
     await tester.pump(const Duration(milliseconds: 220));
 
     expect(find.bySemanticsLabel('Tam ekrandan çık'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_left_line), findsOneWidget);
     expect(find.text('En yeni video'), findsOneWidget);
     expect(find.text('Anasayfa'), findsNothing);
+    final player = tester.widget<NewsVideoPlayer>(find.byType(NewsVideoPlayer));
+    expect(player.autoPlayWhenReady, isTrue);
+    expect(player.showFullscreenButton, isFalse);
+    final detectorKeys = tester
+        .widgetList<VisibilityDetector>(find.byType(VisibilityDetector))
+        .map((detector) => detector.key)
+        .toList(growable: false);
+    expect(detectorKeys.toSet(), hasLength(detectorKeys.length));
+    expect(
+      detectorKeys.whereType<ValueKey<String>>().any(
+        (key) => key.value.contains('fullscreen-feed'),
+      ),
+      isTrue,
+    );
 
     await tester.tap(find.bySemanticsLabel('Tam ekrandan çık'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 160));
 
     expect(find.text('Anasayfa'), findsOneWidget);
-    expect(find.text('Senin İçin'), findsOneWidget);
-    expect(find.text('En yeni'), findsNothing);
+    expect(find.bySemanticsLabel('Tam ekrandan çık'), findsNothing);
+    expect(find.text('En yeni'), findsOneWidget);
     expect(refreshCount, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    VisibilityDetectorController.instance.notifyNow();
+    await tester.pump(const Duration(milliseconds: 60));
+  });
+
+  test('video feed haber icindeki tum video urllerini item yapar', () {
+    final article = _videoArticle(
+      id: 'multi-video',
+      title: 'Coklu video',
+      publishedAt: DateTime.utc(2026, 6, 8, 9),
+      videoUrl: 'https://example.invalid/primary.mp4',
+      videoUrls: const [
+        'https://example.invalid/primary.mp4',
+        'https://www.youtube.com/watch?v=test-id',
+        'https://youtube.com/shorts/test-short',
+        'http://127.0.0.1:4321/api/storage/file/video/test.mov',
+      ],
+    );
+
+    final items = videoFeedItemsFromArticles(
+      articles: [article],
+      shellSettings: const AppShellSettings.empty(),
+      navigationItems: const [],
+    );
+
+    expect(items.map((item) => item.url), [
+      'https://example.invalid/primary.mp4',
+      'https://www.youtube.com/watch?v=test-id',
+      'https://youtube.com/shorts/test-short',
+      'http://127.0.0.1:4321/api/storage/file/video/test.mov',
+    ]);
   });
 
   testWidgets('hesap girisi basarili olunca route kapanir ve avatar gorunur', (
@@ -305,6 +354,8 @@ NewsArticle _videoArticle({
   required String id,
   required String title,
   required DateTime publishedAt,
+  String? videoUrl,
+  List<String> videoUrls = const [],
 }) {
   return NewsArticle(
     id: id,
@@ -320,7 +371,8 @@ NewsArticle _videoArticle({
     dislikes: 1,
     comments: 2,
     shares: 3,
-    videoUrl: 'https://example.invalid/$id.mp4',
+    videoUrl: videoUrl ?? 'https://example.invalid/$id.mp4',
+    videoUrls: videoUrls,
   );
 }
 

@@ -6,7 +6,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
+import '../../account/data/frontend_auth_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
+import '../data/post_action_repository.dart';
 import 'widgets/news_card.dart';
 import 'widgets/news_video_player.dart';
 
@@ -22,6 +24,9 @@ class VideoFeedScreen extends StatefulWidget {
     this.navigationItems = const [],
     this.initialArticleId = '',
     this.revealSerial = 0,
+    this.authState,
+    this.postActionRepository = const PostActionRepository(),
+    this.onAuthRequired,
     this.onFullscreenVideoExit,
   });
 
@@ -30,6 +35,9 @@ class VideoFeedScreen extends StatefulWidget {
   final List<AppShellNavigationItem> navigationItems;
   final String initialArticleId;
   final int revealSerial;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
   final VoidCallback? onFullscreenVideoExit;
 
   @override
@@ -86,6 +94,9 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
                             ),
                             videoFeedArticles: videos,
                             shellSettings: widget.shellSettings,
+                            authState: widget.authState,
+                            postActionRepository: widget.postActionRepository,
+                            onAuthRequired: widget.onAuthRequired,
                             onFullscreenVideoExit: widget.onFullscreenVideoExit,
                           ),
                         ),
@@ -183,7 +194,7 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
 
 List<NewsArticle> dateSortedVideoArticles(List<NewsArticle> items) {
   final videos = items
-      .where((item) => item.videoUrl.trim().isNotEmpty)
+      .where((item) => item.videoFeedUrls.isNotEmpty)
       .toList(growable: false);
   return List<NewsArticle>.of(videos)
     ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
@@ -195,11 +206,12 @@ List<NewsVideoFeedItem> videoFeedItemsFromArticles({
   required List<AppShellNavigationItem> navigationItems,
 }) {
   final logoUrl = _fullscreenLogoUrl(shellSettings);
-  return articles
-      .where((item) => item.videoUrl.trim().isNotEmpty)
-      .map(
-        (item) => NewsVideoFeedItem(
-          url: item.videoUrl,
+  return [
+    for (final item in articles)
+      for (final url in item.videoFeedUrls)
+        NewsVideoFeedItem(
+          postId: item.id,
+          url: url,
           poster: item.imageUrl,
           slug: item.slug,
           publishedAt: item.publishedAt,
@@ -213,10 +225,12 @@ List<NewsVideoFeedItem> videoFeedItemsFromArticles({
           comments: item.comments,
           shares: item.shares,
           saves: item.saves,
+          userLiked: item.userLiked,
+          userDisliked: item.userDisliked,
+          userSaved: item.userSaved,
           fullscreenLogoUrl: logoUrl,
         ),
-      )
-      .toList(growable: false);
+  ];
 }
 
 List<String> videoCategoryTrail(
@@ -264,7 +278,7 @@ String _fullscreenLogoUrl(AppShellSettings settings) {
 String videoArticleKey(NewsArticle article) {
   final id = article.id.trim();
   if (id.isNotEmpty) return id;
-  return article.videoUrl.trim();
+  return article.primaryVideoUrl;
 }
 
 class _VideoFeedHeader extends StatelessWidget {

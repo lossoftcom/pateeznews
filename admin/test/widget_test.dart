@@ -4767,8 +4767,11 @@ void main() {
     expect(find.text('Font Boyutu'), findsOneWidget);
     expect(find.text('Font Kaynağı'), findsOneWidget);
     expect(find.text('İşlem'), findsOneWidget);
+    expect(find.text('Nunito Sans'), findsOneWidget);
+    expect(find.text('Baloo 2 ExtraBold'), findsOneWidget);
+    expect(find.text('Fredoka'), findsOneWidget);
     expect(find.text('Work Sans'), findsOneWidget);
-    expect(find.text('1 - 22 / 22 kayıt gösteriliyor'), findsOneWidget);
+    expect(find.text('1 - 25 / 25 kayıt gösteriliyor'), findsOneWidget);
     expect(find.text('Font Ekle'), findsOneWidget);
 
     await tester.tap(find.text('...').first);

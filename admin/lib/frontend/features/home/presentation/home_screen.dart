@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../account/data/frontend_auth_repository.dart';
 import '../../pharmacy/data/pharmacy_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
@@ -31,11 +32,13 @@ class HomeScreen extends StatefulWidget {
     this.navigationItems = const [],
     this.featuredItems = const [],
     this.feedItems = const [],
+    this.authState,
     this.onRefresh,
     this.resetToTopSerial = 0,
     this.onMenuTap,
     this.onSubmitNewsTap,
     this.onPharmacyTap,
+    this.onAuthRequired,
     this.onFullscreenVideoExit,
   });
 
@@ -44,11 +47,13 @@ class HomeScreen extends StatefulWidget {
   final List<AppShellNavigationItem> navigationItems;
   final List<FeaturedNews> featuredItems;
   final List<NewsArticle> feedItems;
+  final FrontendAuthState? authState;
   final Future<void> Function()? onRefresh;
   final int resetToTopSerial;
   final VoidCallback? onMenuTap;
   final VoidCallback? onSubmitNewsTap;
   final VoidCallback? onPharmacyTap;
+  final VoidCallback? onAuthRequired;
   final VoidCallback? onFullscreenVideoExit;
 
   @override
@@ -239,6 +244,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         categoryTrail: _categoryTrail(feed[index].category),
                         videoFeedArticles: videoFeed,
                         shellSettings: widget.shellSettings,
+                        authState: widget.authState,
+                        onAuthRequired: widget.onAuthRequired,
                         onFullscreenVideoExit: widget.onFullscreenVideoExit,
                       );
                       // Giriş animasyonu yalnızca ilk ekrandaki kartlara;
@@ -296,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<NewsArticle> _dateSortedVideoFeed(List<NewsArticle> items) {
     final videos = items
-        .where((item) => item.videoUrl.trim().isNotEmpty)
+        .where((item) => item.videoFeedUrls.isNotEmpty)
         .toList(growable: false);
     return List<NewsArticle>.of(videos)
       ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));

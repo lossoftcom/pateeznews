@@ -52,6 +52,7 @@ dependencies:
   supabase_flutter: ^2.12.4
   flutter_secure_storage: ^10.3.1
   share_plus: ^13.1.0
+  emoji_picker_flutter: ^4.4.0
 
 dev_dependencies:
   flutter_test:
@@ -142,6 +143,15 @@ flutter:
           weight: 600
         - asset: assets/fonts/site/poppins/Poppins-Bold.ttf
           weight: 700
+    - family: Fredoka
+      fonts:
+        - asset: assets/fonts/site/fredoka/Fredoka.ttf
+    - family: NunitoSans
+      fonts:
+        - asset: assets/fonts/site/nunito_sans/NunitoSans.ttf
+    - family: Baloo2
+      fonts:
+        - asset: assets/fonts/site/baloo_2/Baloo2.ttf
     - family: Roboto
       fonts:
         - asset: assets/fonts/site/roboto/Roboto.ttf

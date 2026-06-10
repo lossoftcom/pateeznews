@@ -591,13 +591,18 @@ export const dataService = {
 
             merged.type = homepageType;
 
-            if (homepageType === NewsType.POLL) {
+            if (homepageType === NewsType.POLL || homepageType === NewsType.VS) {
                 (merged as any).blockTitle = typeof homepageItem?.title === 'string' ? homepageItem.title : '';
                 (merged as any).blockDescription = homepageDescription || '';
                 if (Array.isArray((homepageItem as any)?.options)) merged.options = (homepageItem as any).options;
-                if (typeof (homepageItem as any)?.isImagePoll === 'boolean') merged.isImagePoll = (homepageItem as any).isImagePoll;
-                if ((homepageItem as any)?.pollColumns === 2 || (homepageItem as any)?.pollColumns === 3) merged.pollColumns = (homepageItem as any).pollColumns;
                 if (typeof (homepageItem as any)?.totalVotes === 'number') merged.totalVotes = (homepageItem as any).totalVotes;
+                if (homepageType === NewsType.POLL) {
+                    if (typeof (homepageItem as any)?.isImagePoll === 'boolean') merged.isImagePoll = (homepageItem as any).isImagePoll;
+                    if ((homepageItem as any)?.pollColumns === 2 || (homepageItem as any)?.pollColumns === 3) merged.pollColumns = (homepageItem as any).pollColumns;
+                }
+                if (homepageType === NewsType.VS && homepageMediaUrl) {
+                    merged.thumbnail = homepageMediaUrl;
+                }
             } else if (homepageDescription.trim()) {
                 merged.summary = homepageDescription;
             }

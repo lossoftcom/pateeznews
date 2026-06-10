@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pateeznews_admin/frontend/core/mock/home_mock_data.dart';
 import 'package:pateeznews_admin/frontend/features/home/presentation/widgets/featured_slider.dart';
+import 'package:pateeznews_admin/frontend/shared/widgets/adaptive_headline.dart';
 
 void main() {
   testWidgets('featured slider image uses full width with natural height', (
@@ -42,6 +43,7 @@ void main() {
       ),
     );
     expect(featuredImage.fit, BoxFit.contain);
+    expect(find.byType(AdaptiveHeadline), findsOneWidget);
     expect(find.text('7 Haziran 2026 Pazar Saat: 13:45'), findsOneWidget);
   });
 }

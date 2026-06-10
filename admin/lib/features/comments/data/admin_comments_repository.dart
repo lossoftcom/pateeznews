@@ -48,6 +48,7 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
   static const _requestTimeout = Duration(seconds: 8);
   static const _all = 'Tümü';
   static const _reported = 'Reported';
+  static const _guestFilterPrefix = 'guest:';
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -88,7 +89,7 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       _postJson('/api/admin/query', {
         'table': 'admin_comment_details',
         'method': 'select',
-        'select': 'user_id,user_name,guest_name',
+        'select': 'user_id,user_name,guest_name,guest_email',
         'orders': [
           {'column': 'user_name', 'ascending': true},
         ],
@@ -106,12 +107,7 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
         labelKeys: const ['post_title'],
         fallback: 'Unnamed Post',
       ),
-      users: _uniqueFilterItems(
-        responses[1]['data'],
-        idKey: 'user_id',
-        labelKeys: const ['user_name', 'guest_name'],
-        fallback: 'Anonymous User',
-      ),
+      users: _uniqueCommentUserFilterItems(responses[1]['data']),
     );
   }
 
@@ -160,11 +156,14 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       });
     }
     if (userId != _all) {
+      final guestEmail = userId.startsWith(_guestFilterPrefix)
+          ? userId.substring(_guestFilterPrefix.length)
+          : '';
       filters.add({
         'type': 'comparison',
         'op': 'eq',
-        'column': 'user_id',
-        'value': userId,
+        'column': guestEmail.isNotEmpty ? 'guest_email' : 'user_id',
+        'value': guestEmail.isNotEmpty ? guestEmail : userId,
       });
     }
 
@@ -368,6 +367,43 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       for (final entry in byId.entries)
         AdminCommentFilterItem(id: entry.key, label: entry.value),
     ];
+  }
+
+  List<AdminCommentFilterItem> _uniqueCommentUserFilterItems(Object? data) {
+    if (data is! List) return const [];
+    final byId = <String, String>{};
+    for (final row in data.whereType<Map>()) {
+      final item = _asStringKeyMap(row);
+      final userId = item['user_id']?.toString().trim() ?? '';
+      if (userId.isNotEmpty) {
+        final label = _firstNonEmpty(item, const ['user_name', 'guest_name']);
+        byId[userId] = label.isEmpty ? 'Anonymous User' : label;
+        continue;
+      }
+
+      final guestEmail = item['guest_email']?.toString().trim() ?? '';
+      if (guestEmail.isEmpty) continue;
+      final label = _firstNonEmpty(item, const [
+        'guest_name',
+        'user_name',
+        'guest_email',
+      ]);
+      byId['$_guestFilterPrefix$guestEmail'] = label.isEmpty
+          ? 'Misafir'
+          : label;
+    }
+    return [
+      for (final entry in byId.entries)
+        AdminCommentFilterItem(id: entry.key, label: entry.value),
+    ];
+  }
+
+  String _firstNonEmpty(Map<String, Object?> item, List<String> keys) {
+    for (final key in keys) {
+      final value = item[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty) return value;
+    }
+    return '';
   }
 
   AdminComment _commentFromJson(Map<dynamic, dynamic> json, int rowNumber) {
