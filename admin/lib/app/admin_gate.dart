@@ -20,6 +20,7 @@ import '../features/settings/data/admin_font_settings_repository.dart';
 import '../features/settings/data/admin_general_settings_repository.dart';
 import '../features/settings/data/admin_module_settings_repository.dart';
 import '../features/settings/data/admin_security_settings_repository.dart';
+import '../features/settings/data/admin_storage_settings_repository.dart';
 import '../features/sms/data/admin_sms_repository.dart';
 import '../features/social/data/admin_social_repository.dart';
 import '../features/stories/data/admin_stories_repository.dart';
@@ -50,6 +51,7 @@ class AdminGate extends StatefulWidget {
     required this.contentSettingsRepository,
     required this.moduleSettingsRepository,
     required this.securitySettingsRepository,
+    required this.storageSettingsRepository,
     required this.accountSettingsRepository,
     required this.subscribersRepository,
     required this.smsRepository,
@@ -73,6 +75,7 @@ class AdminGate extends StatefulWidget {
   final AdminContentSettingsRepository contentSettingsRepository;
   final AdminModuleSettingsRepository moduleSettingsRepository;
   final AdminSecuritySettingsRepository securitySettingsRepository;
+  final AdminStorageSettingsRepository storageSettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
   final AdminSubscribersRepository subscribersRepository;
   final AdminSmsRepository smsRepository;
@@ -318,6 +321,7 @@ class _AdminGateState extends State<AdminGate> {
                 ContentSettingsSnapshot.defaults(widget.languageCode),
             moduleSettingsRepository: widget.moduleSettingsRepository,
             securitySettingsRepository: widget.securitySettingsRepository,
+            storageSettingsRepository: widget.storageSettingsRepository,
             accountSettingsRepository: widget.accountSettingsRepository,
             subscribersRepository: widget.subscribersRepository,
             smsRepository: widget.smsRepository,

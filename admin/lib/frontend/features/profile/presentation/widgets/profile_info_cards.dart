@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/services/frontend_link_launcher.dart';
 import '../../../../shared/widgets/cached_image.dart';
 import '../../data/profile_content.dart';
 
@@ -172,11 +172,8 @@ class _SocialButton extends StatelessWidget {
   Future<void> _open() async {
     final raw = link.url.trim();
     if (raw.isEmpty) return;
-    final uri = Uri.tryParse(raw.startsWith('http') ? raw : 'https://$raw');
-    if (uri == null) return;
     try {
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened) await launchUrl(uri, mode: LaunchMode.platformDefault);
+      await openFrontendLink(raw, preferNativeApp: true);
     } catch (_) {
       // Link açılamazsa profil ekranı akışı bozulmamalı.
     }

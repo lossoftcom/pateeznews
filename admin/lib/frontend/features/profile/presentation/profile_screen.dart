@@ -104,8 +104,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) =>
-            NewsDetailScreen(articles: posts, initialIndex: index),
+        pageBuilder: (_, _, _) => NewsDetailScreen(
+          articles: posts,
+          initialIndex: index,
+          onAuthRequired: widget.onAuthRequired,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,

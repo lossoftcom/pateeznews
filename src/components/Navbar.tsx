@@ -31,6 +31,7 @@ const DESKTOP_NAV_ITEM_CLASS = 'relative h-full flex items-center gap-2.5 px-1 t
 const MOBILE_NAV_ITEM_CLASS = 'w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[13px] font-black tracking-widest text-gray-500 hover:bg-palette-beige/10 hover:text-palette-red';
 const DESKTOP_NAV_ICON_SIZE = '20px';
 const MOBILE_NAV_ICON_SIZE = '19px';
+const SHOW_MOBILE_TOP_NAVIGATION = false;
 
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
@@ -492,17 +493,19 @@ const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            <button
-              onClick={() => setIsMobileMenuOpen((value) => !value)}
-              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-beige/10 text-gray-900 ml-1"
-            >
-              <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>{isMobileMenuOpen ? 'close' : 'menu'}</span>
-            </button>
+            {SHOW_MOBILE_TOP_NAVIGATION && (
+              <button
+                onClick={() => setIsMobileMenuOpen((value) => !value)}
+                className="lg:hidden w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-beige/10 text-gray-900 ml-1"
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>{isMobileMenuOpen ? 'close' : 'menu'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div >
 
-      {isMobileMenuOpen && (
+      {SHOW_MOBILE_TOP_NAVIGATION && isMobileMenuOpen && (
         <div className="lg:hidden absolute top-[72px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl z-[252] animate-in slide-in-from-top-2">
           <div className="max-w-[1280px] mx-auto px-4 py-3">
             <div className="grid gap-1">

@@ -4,7 +4,15 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../core/theme/app_colors.dart';
 
 /// Hava durumu tipi — ikon ve vurgu tonunu da taşır.
-enum WeatherKind { clearDay, clearNight, partlyDay, partlyNight, cloudy, rain, drizzle }
+enum WeatherKind {
+  clearDay,
+  clearNight,
+  partlyDay,
+  partlyNight,
+  cloudy,
+  rain,
+  drizzle,
+}
 
 extension WeatherKindX on WeatherKind {
   IconData get icon => switch (this) {

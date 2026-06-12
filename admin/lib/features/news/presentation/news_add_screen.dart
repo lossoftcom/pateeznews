@@ -925,6 +925,14 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _autoSubCategory = selectedSubCategory.label;
       return;
     }
+    final defaultSubCategory = _defaultSubCategoryForTab(_activeTab);
+    if (defaultSubCategory != null &&
+        _normalizeNewsAddCategoryLabel(defaultSubCategory.label) ==
+            _normalizeNewsAddCategoryLabel(currentSub)) {
+      _thirdCategory = null;
+      _autoSubCategory = defaultSubCategory.label;
+      return;
+    }
 
     final allowedThirdCategories = _thirdCategoriesForActiveTab();
     final currentThird = _thirdCategory?.trim() ?? '';
@@ -2063,9 +2071,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     })) {
       return true;
     }
-    return _hasMeaningfulEditorValue(
-      _serializeVideoBlock(_recipeVideoBlock, 2),
-    );
+    return _hasVideoBlockInputData(_recipeVideoBlock);
   }
 
   bool get _hasEventInputData {
@@ -2127,6 +2133,14 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   bool _hasStringInput(String? value) {
     return value?.trim().isNotEmpty ?? false;
+  }
+
+  bool _hasVideoBlockInputData(ArticleVideoBlockEntry block) {
+    return _hasTextInput(block.titleController) ||
+        _hasTextInput(block.sourceController) ||
+        _hasRichTextInput(block.descriptionController) ||
+        _hasStringInput(block.mediaUrl) ||
+        block.showOnHomepage;
   }
 
   Map<String, Object?> _buildPostValues(String status) {

@@ -27,10 +27,12 @@ class EtkinlikScreen extends StatefulWidget {
     super.key,
     this.events,
     this.repository = const EtkinlikRepository(),
+    this.onSearch,
   });
 
   final List<EtkinlikEvent>? events;
   final EtkinlikRepository repository;
+  final VoidCallback? onSearch;
 
   @override
   State<EtkinlikScreen> createState() => _EtkinlikScreenState();
@@ -115,7 +117,7 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Etkinlikler'),
+            FeatureAppBar(title: 'Etkinlikler', onSearch: widget.onSearch),
             Expanded(
               child: ListView(
                 physics: const BouncingScrollPhysics(

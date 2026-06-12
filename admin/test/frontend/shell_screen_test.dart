@@ -27,8 +27,20 @@ void main() {
 
     expect(find.text('Arama'), findsOneWidget);
 
+    await tester.tap(find.text('Arama'));
+    await tester.pump();
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('Nöbetçi Eczane'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_left_line), findsOneWidget);
+
+    await tester.tap(find.byIcon(Symbols.arrow_left_line));
+    await tester.pump();
+
+    expect(find.byType(TextField), findsNothing);
+
     await tester.tap(find.text('Hesap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(find.text('Admin giris yuzeyi'), findsOneWidget);
     expect(find.text('Anasayfa'), findsNothing);
@@ -44,7 +56,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
 
     await tester.tap(find.text('Hesap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(find.text('Hesabına giriş yap'), findsOneWidget);
     expect(find.text('Google ile giriş'), findsOneWidget);
@@ -57,17 +69,17 @@ void main() {
     expect(find.byIcon(Symbols.arrow_left_line), findsOneWidget);
 
     await tester.tap(find.byIcon(Symbols.arrow_left_line));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(find.text('Anasayfa'), findsOneWidget);
 
     await tester.tap(find.text('Hesap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     await tester.ensureVisible(find.text('Üye ol'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
     await tester.tap(find.text('Üye ol'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(find.text('Hesabını oluştur'), findsOneWidget);
     expect(find.text('Google ile kayıt ol'), findsOneWidget);
@@ -96,7 +108,7 @@ void main() {
     expect(find.text('NG'), findsOneWidget);
 
     await tester.tap(find.text('Hesap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(find.text('Admin panel'), findsOneWidget);
     expect(find.text('Profilim'), findsOneWidget);
@@ -124,10 +136,10 @@ void main() {
     expect(find.text('Çıkış yap'), findsNothing);
 
     await tester.tap(find.text('Hesap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     await tester.tap(find.text('Çıkış yap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(signedOut, isTrue);
   });
@@ -148,7 +160,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
 
     await tester.tap(find.text('Hesap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     await tester.tap(find.text('Admin panel'));
     await tester.pump();
@@ -300,14 +312,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
 
     await tester.tap(find.text('Hesap'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Kullanıcı adı veya e-posta'),
       '@nasip',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Şifre'), '123456');
     await tester.tap(find.text('Giriş yap').last);
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(capturedIdentifier, '@nasip');
     expect(capturedPassword, '123456');
@@ -315,9 +327,7 @@ void main() {
     expect(find.text('NG'), findsOneWidget);
   });
 
-  testWidgets('yan menu canlı navbar ve sol menu verisini gosterir', (
-    tester,
-  ) async {
+  testWidgets('yan menu sol menu kokunu en ustte gosterir', (tester) async {
     await tester.pumpWidget(
       MaterialApp(home: ShellScreen(shellData: _shellData())),
     );
@@ -326,25 +336,228 @@ void main() {
     await tester.tap(find.byIcon(Symbols.menu_rounded));
     await tester.pump(const Duration(milliseconds: 360));
 
-    expect(find.text('Navbar'), findsNothing);
-    expect(find.text('Etkinlik'), findsOneWidget);
-    expect(find.text('Sol menü'), findsNothing);
-    expect(find.text('Niğde'), findsOneWidget);
-    expect(find.text('Bor'), findsOneWidget);
-    expect(find.text('Kısa yollar'), findsNothing);
-    expect(find.text('İlçeler'), findsOneWidget);
-    expect(find.text('Kategoriler'), findsNothing);
-    expect(find.text('Trendler'), findsOneWidget);
-    expect(find.text('Anketler'), findsOneWidget);
-    expect(find.text('Haftanın Trendleri'), findsOneWidget);
+    final sideMenu = find.byType(PateezSideMenu);
+    final root = find.descendant(of: sideMenu, matching: find.text('Niğde'));
+    final district = find.descendant(of: sideMenu, matching: find.text('Bor'));
+    final category = find.descendant(
+      of: sideMenu,
+      matching: find.text('Anketler'),
+    );
+    final topMenuItem = find.descendant(
+      of: sideMenu,
+      matching: find.text('Etkinlik'),
+    );
+    final trend = find.descendant(
+      of: sideMenu,
+      matching: find.text('Haftanın Trendleri'),
+    );
+    final secondRoot = find.descendant(
+      of: sideMenu,
+      matching: find.text('Nevşehir'),
+    );
+    final toggleIcon = find.descendant(
+      of: sideMenu,
+      matching: find.byIcon(Symbols.keyboard_arrow_down_rounded),
+    );
 
-    final promotedCategoryTop = tester.getTopLeft(find.text('Anketler')).dy;
-    final rootTop = tester.getTopLeft(find.text('Niğde')).dy;
-    final borTop = tester.getTopLeft(find.text('Bor')).dy;
-    final trendTop = tester.getTopLeft(find.text('Haftanın Trendleri')).dy;
-    expect(promotedCategoryTop, lessThan(rootTop));
-    expect(rootTop, lessThan(borTop));
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Ana Sayfa')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Etkinlik')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Navbar')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Sol menü')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Kısa yollar')),
+      findsNothing,
+    );
+    expect(root, findsOneWidget);
+    expect(secondRoot, findsNothing);
+    expect(topMenuItem, findsNothing);
+    expect(district, findsOneWidget);
+    expect(category, findsOneWidget);
+    expect(trend, findsOneWidget);
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('İlçeler')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Kategoriler')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Trendler')),
+      findsOneWidget,
+    );
+
+    await tester.tap(toggleIcon);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(secondRoot, findsNothing);
+    expect(topMenuItem, findsNothing);
+    expect(district, findsNothing);
+    expect(category, findsNothing);
+    expect(trend, findsNothing);
+
+    await tester.tap(toggleIcon);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(topMenuItem, findsNothing);
+    expect(district, findsOneWidget);
+    expect(category, findsOneWidget);
+    expect(trend, findsOneWidget);
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('İlçeler')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Kategoriler')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Trendler')),
+      findsOneWidget,
+    );
+
+    final rootTop = tester.getTopLeft(root).dy;
+    final borTop = tester.getTopLeft(district).dy;
+    final categoryTop = tester.getTopLeft(category).dy;
+    final trendTop = tester.getTopLeft(trend).dy;
+    expect(rootTop, lessThan(categoryTop));
+    expect(categoryTop, lessThan(borTop));
     expect(borTop, lessThan(trendTop));
+
+    await tester.tap(root);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(root, findsOneWidget);
+    expect(secondRoot, findsOneWidget);
+    expect(topMenuItem, findsNothing);
+    expect(district, findsNothing);
+    expect(category, findsNothing);
+    expect(trend, findsNothing);
+
+    await tester.tap(root);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(secondRoot, findsNothing);
+    expect(topMenuItem, findsNothing);
+    expect(district, findsOneWidget);
+    expect(category, findsOneWidget);
+    expect(trend, findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('yan menu kok basligini admin verisinden okur', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShellScreen(shellData: _shellData(rootLabel: 'Nevşehir')),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+
+    await tester.tap(find.byIcon(Symbols.menu_rounded));
+    await tester.pump(const Duration(milliseconds: 360));
+
+    final sideMenu = find.byType(PateezSideMenu);
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Nevşehir')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sideMenu, matching: find.text('Niğde')),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('yan menu hakkimizda linki kurumsal sayfalari acar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShellScreen(
+          shellData: _shellData(
+            pages: const [
+              AppShellPage(
+                id: 'page-about',
+                title: 'Hakkımızda',
+                slug: 'hakkimizda',
+                categoryId: 'side-root',
+                category: 'Niğde',
+                pageType: 'custom',
+                menuOrder: 1,
+                contentPlain:
+                    'Pattez.com Niğde haberlerini anlaşılır şekilde sunar.',
+                metaDescription:
+                    'Pattez.com Niğde merkezli haber platformudur.',
+                canonicalUrl: 'https://www.pateez.com/kurumsal/hakkimizda',
+              ),
+              AppShellPage(
+                id: 'page-press',
+                title: 'Basın Odası',
+                slug: 'basin-odasi',
+                categoryId: 'side-root',
+                category: 'Niğde',
+                pageType: 'custom',
+                menuOrder: 2,
+                contentPlain:
+                    'Basın kiti ve duyurular bu sayfadan takip edilir.',
+                metaDescription:
+                    'Basın talepleri için bizimle iletişime geçin.',
+                canonicalUrl: 'https://www.pateez.com/kurumsal/basin-odasi',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+
+    await tester.tap(find.byIcon(Symbols.menu_rounded));
+    await tester.pump(const Duration(milliseconds: 360));
+
+    final sideMenu = find.byType(PateezSideMenu);
+    final aboutLink = find.descendant(
+      of: sideMenu,
+      matching: find.text('Hakkımızda'),
+    );
+    expect(aboutLink, findsOneWidget);
+
+    await tester.tap(aboutLink);
+    await _pumpShellTransition(tester);
+
+    expect(find.text('Basın Odası'), findsOneWidget);
+    expect(
+      find.text('Pattez.com Niğde merkezli haber platformudur.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Basın Odası'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(
+      find.text('Basın kiti ve duyurular bu sayfadan takip edilir.'),
+      findsOneWidget,
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -374,8 +587,9 @@ void main() {
     await tester.tap(find.byIcon(Symbols.menu_rounded));
     await tester.pump(const Duration(milliseconds: 360));
 
+    final sideMenu = find.byType(PateezSideMenu);
     final sideMenuVideo = find.descendant(
-      of: find.byType(PateezSideMenu),
+      of: sideMenu,
       matching: find.text('Video'),
     );
     expect(sideMenuVideo, findsWidgets);
@@ -393,6 +607,12 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 70));
   });
+}
+
+Future<void> _pumpShellTransition(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 720));
+  await tester.pump();
 }
 
 FrontendAuthState _authState({String role = 'member'}) {
@@ -447,10 +667,13 @@ NewsArticle _videoArticle({
   );
 }
 
-AppShellData _shellData() {
-  return const AppShellData(
+AppShellData _shellData({
+  String rootLabel = 'Niğde',
+  List<AppShellPage> pages = const [],
+}) {
+  return AppShellData(
     languageCode: 'tr',
-    siteSettings: AppShellSettings(
+    siteSettings: const AppShellSettings(
       siteName: 'Pateez.com',
       logoUrl: '',
       darkLogoUrl: '',
@@ -488,7 +711,7 @@ AppShellData _shellData() {
         menuId: 'side',
         menuCode: 'sidebar_main',
         parentId: null,
-        label: 'Niğde',
+        label: rootLabel,
         type: 'dropdown',
         value: '',
         icon: 'location_on',
@@ -548,6 +771,20 @@ AppShellData _shellData() {
         isActive: true,
         languageCode: 'tr',
       ),
+      AppShellNavigationItem(
+        id: 'side-nevsehir',
+        menuId: 'side',
+        menuCode: 'sidebar_main',
+        parentId: null,
+        label: 'Nevşehir',
+        type: 'dropdown',
+        value: '',
+        icon: '',
+        orderIndex: 4,
+        isActive: true,
+        languageCode: 'tr',
+      ),
     ],
+    pages: pages,
   );
 }

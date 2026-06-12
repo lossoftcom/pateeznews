@@ -105,8 +105,8 @@ class SocialCaptionEditor extends StatelessWidget {
                         overLimit
                             ? AppColors.actionRed
                             : ratio > 0.8
-                                ? AppColors.warmHorizon
-                                : AppColors.deepOcean,
+                            ? AppColors.warmHorizon
+                            : AppColors.deepOcean,
                       ),
                     ),
                     Text(
@@ -217,8 +217,7 @@ class SocialCaptionEditor extends StatelessWidget {
     if (sel.isValid && sel.start != sel.end) {
       final selected = text.substring(sel.start, sel.end);
       final replacement = '$wrapper$selected$wrapper';
-      controller.text =
-          text.replaceRange(sel.start, sel.end, replacement);
+      controller.text = text.replaceRange(sel.start, sel.end, replacement);
       onChanged(controller.text);
     }
   }

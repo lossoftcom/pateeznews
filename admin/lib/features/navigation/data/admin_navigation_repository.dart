@@ -188,9 +188,9 @@ class SupabaseAdminNavigationRepository implements AdminNavigationRepository {
       {
         'menu_id': menu.id,
         'parent_id': nigde.id,
-        'label': 'Yemek Tarifi',
+        'label': 'Tarif',
         'type': 'category',
-        'value': 'yemek-tarifi',
+        'value': 'tarif',
         'icon': 'restaurant',
         'order_index': 8,
       },
@@ -215,7 +215,7 @@ class SupabaseAdminNavigationRepository implements AdminNavigationRepository {
       {
         'menu_id': menu.id,
         'parent_id': nigde.id,
-        'label': 'Liste',
+        'label': 'İçindekiler',
         'type': 'category',
         'value': 'icindekiler',
         'icon': 'format_list_numbered',
@@ -308,6 +308,22 @@ class SupabaseAdminNavigationRepository implements AdminNavigationRepository {
         'value': 'etkinlik',
         'icon': 'calendar_month',
         'order_index': 4,
+      },
+      {
+        'menu_id': menu.id,
+        'label': 'Tarif',
+        'type': 'category',
+        'value': 'tarif',
+        'icon': 'restaurant',
+        'order_index': 5,
+      },
+      {
+        'menu_id': menu.id,
+        'label': 'İçindekiler',
+        'type': 'category',
+        'value': 'icindekiler',
+        'icon': 'format_list_numbered',
+        'order_index': 6,
       },
     ]);
     return menu;

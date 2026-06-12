@@ -47,6 +47,7 @@ class HomeScreen extends StatefulWidget {
     this.onMenuTap,
     this.onSubmitNewsTap,
     this.onPharmacyTap,
+    this.onSearch,
     this.onAuthRequired,
     this.onAuthorTap,
     this.onFullscreenVideoExit,
@@ -67,6 +68,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onMenuTap;
   final VoidCallback? onSubmitNewsTap;
   final VoidCallback? onPharmacyTap;
+  final VoidCallback? onSearch;
   final VoidCallback? onAuthRequired;
   final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
@@ -132,8 +134,18 @@ class _HomeScreenState extends State<HomeScreen> {
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) =>
-            NewsDetailScreen(articles: feed, initialIndex: index),
+        pageBuilder: (_, _, _) => NewsDetailScreen(
+          articles: feed,
+          initialIndex: index,
+          shellSettings: widget.shellSettings,
+          navigationItems: widget.navigationItems,
+          contentSettings: widget.contentSettings,
+          videoFeedArticles: _dateSortedVideoFeed(widget.feedItems),
+          authState: widget.authState,
+          onAuthRequired: widget.onAuthRequired,
+          onAuthorTap: widget.onAuthorTap,
+          onFullscreenVideoExit: widget.onFullscreenVideoExit,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -150,6 +162,18 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  void _openFeatured(FeaturedNews item) {
+    final article = item.article;
+    if (article != null) {
+      _openDetail(<NewsArticle>[article], 0);
+      return;
+    }
+
+    final feed = _sortedFeed(widget.feedItems);
+    final index = feed.indexWhere((entry) => entry.id == item.id);
+    if (index >= 0) _openDetail(feed, index);
   }
 
   @override
@@ -203,6 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               weatherData: widget.weatherData,
                               prayerTimesData: widget.prayerTimesData,
                               events: widget.events,
+                              onSearch: widget.onSearch,
                             )
                             .animate()
                             .fadeIn(
@@ -229,6 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   child: FeaturedSlider(
                                     items: widget.featuredItems,
+                                    onOpen: _openFeatured,
                                   ),
                                 )
                                 .animate()

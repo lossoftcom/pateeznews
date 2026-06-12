@@ -1,48 +1,64 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/services/article_share_service.dart';
+import '../../../shared/services/frontend_link_launcher.dart';
 import '../../../shared/widgets/cached_image.dart';
 import '../../../shared/widgets/social_action.dart';
-import '../data/news_detail_mock.dart';
+import '../../account/data/frontend_auth_repository.dart';
+import '../../home/data/home_repository.dart';
+import '../../home/data/post_action_repository.dart';
+import '../../home/presentation/widgets/news_card.dart';
+import '../../home/presentation/widgets/social_embed_stage.dart';
+import '../../shell/data/app_shell_repository.dart';
 import 'widgets/detail_app_bar.dart';
-import 'widgets/detail_body.dart';
-import 'widgets/detail_comments.dart';
 import 'widgets/detail_floating_dock.dart';
 import 'widgets/detail_lede.dart';
 import 'widgets/detail_reactions.dart';
-import 'widgets/detail_share_bar.dart';
 
 /// Pateeznews haber detay sayfası.
 ///
-/// Yapı:
-///   - Üstte parallax hero görsel + sticky transparan app bar.
-///   - Beyaz yüzeyde editorial başlık, spot, gövde ve pull-quote.
-///   - Tepki şeridi, paylaşım barı ve yorum bölümü.
-///   - Yorumlardan sonra aynı stilde tam haber bloğu devam eder; sticky app bar
-///     ve okuma çizgisi aktif haber bölümüne göre güncellenir.
-///
-/// Tasarım, ana sayfanın 4px keskin radius dilini, action red vurgularını
-/// ve PateezInter tipografisini korur.
+/// Kapak, başlık/spot ve editorial detail iskeleti korunur. Haber içindeki
+/// bloklar ise `detailItems` sırasıyla, ana sayfada kullanılan NewsCard medya
+/// renderer'ı üzerinden gösterilir.
 class NewsDetailScreen extends StatefulWidget {
   const NewsDetailScreen({
     super.key,
     required this.articles,
     required this.initialIndex,
+    this.shellSettings = const AppShellSettings.empty(),
+    this.navigationItems = const [],
+    this.contentSettings = const HomeContentSettings.defaults(),
+    this.videoFeedArticles = const [],
+    this.authState,
+    this.postActionRepository = const PostActionRepository(),
+    this.onAuthRequired,
+    this.onAuthorTap,
+    this.onFullscreenVideoExit,
   });
 
-  /// Detay ekranı, ana sayfa akışını taşır; "sonraki haber" deneyimi bu
-  /// listede sırayla ilerler.
   final List<NewsArticle> articles;
-
-  /// Hangi haberden başlanacak.
   final int initialIndex;
+  final AppShellSettings shellSettings;
+  final List<AppShellNavigationItem> navigationItems;
+  final HomeContentSettings contentSettings;
+  final List<NewsArticle> videoFeedArticles;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onFullscreenVideoExit;
 
   @override
   State<NewsDetailScreen> createState() => _NewsDetailScreenState();
@@ -53,13 +69,11 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   late List<NewsArticle> _articleSequence;
   late List<GlobalKey> _articleKeys;
 
-  // Scroll'a bağlı UI durumu artık setState ile değil; bu notifier'larla
-  // yönetiliyor. Böylece kaydırma sırasında haber listesi yeniden çizilmez —
-  // yalnızca dinleyen küçük parçalar (app bar başlığı, okuma çizgisi, status
-  // bar overlay) güncellenir.
   final ValueNotifier<int> _activeArticleIndex = ValueNotifier<int>(0);
   final ValueNotifier<double> _readingProgress = ValueNotifier<double>(0);
   final ValueNotifier<bool> _usesLightOverlay = ValueNotifier<bool>(false);
+  final Map<String, _DetailActionState> _detailActionStates = {};
+  bool _detailActionBusy = false;
   double _scrollOffset = 0;
 
   @override
@@ -95,6 +109,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       _articleSequence = const [];
       _articleKeys = const [];
       _activeArticleIndex.value = 0;
+      _detailActionStates.clear();
       return;
     }
 
@@ -113,15 +128,25 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     _readingProgress.value = 0;
     _usesLightOverlay.value = false;
     _scrollOffset = 0;
+    _syncDetailActionStates();
   }
 
-  void _onScroll() {
-    _syncReadingState();
+  void _syncDetailActionStates() {
+    final previous = Map<String, _DetailActionState>.of(_detailActionStates);
+    _detailActionStates
+      ..clear()
+      ..addEntries(
+        _articleSequence.map(
+          (article) => MapEntry(
+            article.id,
+            previous[article.id] ?? _DetailActionState.fromArticle(article),
+          ),
+        ),
+      );
   }
 
-  /// İlk yerleşimden sonra (ve haber sırası değişince) tek seferlik senkron —
-  /// kullanıcı hiç kaydırmadan da app bar başlığı ve okuma durumu doğru
-  /// başlasın diye.
+  void _onScroll() => _syncReadingState();
+
   void _scheduleInitialSync() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -129,11 +154,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     });
   }
 
-  /// Aktif haberi, okuma ilerlemesini ve status bar overlay'ini hesaplar.
-  ///
-  /// Ölçüm yalnızca o an **ekranda inşa edilmiş** (lazy) bölümler üzerinden,
-  /// canlı scroll konumundan yapılır; tüm feed'i baştan ölçmez. Böylece maliyet
-  /// feed büyüse de görünen birkaç bölümle sınırlı kalır.
   void _syncReadingState() {
     if (!mounted || !_scrollController.hasClients) return;
 
@@ -141,9 +161,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     _scrollOffset = scrollOffset;
     _usesLightOverlay.value = scrollOffset > 120;
 
-    // App bar'ın hemen altındaki "okuma çizgisi" (ekran koordinatı).
     final anchor = MediaQuery.viewPaddingOf(context).top + 54;
-
     int? activeIndex;
     var progress = 0.0;
     int? firstBuiltIndex;
@@ -151,7 +169,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
 
     for (var i = 0; i < _articleKeys.length; i++) {
       final sectionContext = _articleKeys[i].currentContext;
-      if (sectionContext == null) continue; // lazy: henüz inşa edilmedi
+      if (sectionContext == null) continue;
       final box = sectionContext.findRenderObject() as RenderBox?;
       if (box == null || !box.attached || !box.hasSize) continue;
 
@@ -160,26 +178,21 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       if (height <= 0) continue;
       final bottom = top + height;
 
-      if (firstBuiltIndex == null) {
-        firstBuiltIndex = i;
-        firstBuiltBelowAnchor = top > anchor;
-      }
+      firstBuiltIndex ??= i;
+      if (firstBuiltIndex == i) firstBuiltBelowAnchor = top > anchor;
 
       if (top <= anchor && bottom > anchor) {
-        // Anchor bu bölümün içinde → aktif bölüm + okuma ilerlemesi.
         activeIndex = i;
         final readable = (height - anchor).clamp(1.0, double.infinity);
         progress = (-top / readable).clamp(0.0, 1.0);
         break;
       } else if (bottom <= anchor) {
-        // Bölüm tamamen anchor'ın üstünde kaldı → okunmuş say.
         activeIndex = i;
         progress = 1.0;
       }
     }
 
     if (activeIndex == null) {
-      // Anchor ilk bölümün de üstünde (sayfanın en tepesi / overscroll).
       activeIndex = firstBuiltIndex ?? 0;
       if (firstBuiltBelowAnchor) progress = 0.0;
     }
@@ -188,18 +201,16 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     _readingProgress.value = progress;
   }
 
-  /// Sağ üst floating dock'un belirme/ kaybolma ilerlemesi (0-1).
-  /// App bar saydam → opak geçişiyle senkron çalışır.
-  double _dockProgressFor(double scrollOffset) {
-    const start = 90.0;
-    const end = 230.0;
-    return ((scrollOffset - start) / (end - start)).clamp(0.0, 1.0);
-  }
-
   double get _currentScrollOffset {
     return _scrollController.hasClients
         ? _scrollController.offset
         : _scrollOffset;
+  }
+
+  double _dockProgressFor(double scrollOffset) {
+    const start = 90.0;
+    const end = 230.0;
+    return ((scrollOffset - start) / (end - start)).clamp(0.0, 1.0);
   }
 
   void _showMessage(String text) {
@@ -219,15 +230,141 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       );
   }
 
+  _DetailActionState _actionStateFor(NewsArticle article) {
+    return _detailActionStates[article.id] ??
+        _DetailActionState.fromArticle(article);
+  }
+
+  String get _authToken => widget.authState?.session.accessToken.trim() ?? '';
+
+  bool _hasNumericPostId(NewsArticle article) =>
+      int.tryParse(article.id) != null;
+
+  bool _requireSignedIn(String message) {
+    if (_authToken.isNotEmpty) return true;
+    _showMessage(message);
+    widget.onAuthRequired?.call();
+    return false;
+  }
+
+  Future<void> _toggleDetailLike(NewsArticle article) {
+    return _runDetailStateAction(
+      article: article,
+      signInMessage: 'Beğenmek için kayıt olmanız gerekiyor.',
+      optimistic: (state) => state.toggleLike(),
+      request: (token) => widget.postActionRepository.toggleLike(
+        postId: article.id,
+        token: token,
+      ),
+      fallbackMessage: 'Beğeni güncellenemedi.',
+    );
+  }
+
+  Future<void> _toggleDetailDislike(NewsArticle article) {
+    return _runDetailStateAction(
+      article: article,
+      signInMessage: 'Beğenmemek için kayıt olmanız gerekiyor.',
+      optimistic: (state) => state.toggleDislike(),
+      request: (token) => widget.postActionRepository.toggleDislike(
+        postId: article.id,
+        token: token,
+      ),
+      fallbackMessage: 'Beğenmeme güncellenemedi.',
+    );
+  }
+
+  Future<void> _toggleDetailSave(NewsArticle article) {
+    return _runDetailStateAction(
+      article: article,
+      signInMessage: 'Kaydetmek için kayıt olmanız gerekiyor.',
+      optimistic: (state) => state.toggleSave(),
+      request: (token) => widget.postActionRepository.toggleSave(
+        postId: article.id,
+        token: token,
+      ),
+      fallbackMessage: 'Kaydetme güncellenemedi.',
+    );
+  }
+
+  Future<void> _runDetailStateAction({
+    required NewsArticle article,
+    required String signInMessage,
+    required _DetailActionState Function(_DetailActionState state) optimistic,
+    required Future<PostActionState> Function(String token) request,
+    required String fallbackMessage,
+  }) async {
+    if (!_hasNumericPostId(article) || _detailActionBusy) return;
+    if (!_requireSignedIn(signInMessage)) return;
+
+    final previous = _actionStateFor(article);
+    setState(() {
+      _detailActionBusy = true;
+      _detailActionStates[article.id] = optimistic(previous);
+    });
+
+    try {
+      final state = await request(_authToken);
+      if (!mounted) return;
+      setState(() {
+        _detailActionStates[article.id] =
+            _DetailActionState.fromPostActionState(state);
+      });
+    } on PostActionException catch (error) {
+      if (!mounted) return;
+      setState(() => _detailActionStates[article.id] = previous);
+      _showMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _detailActionStates[article.id] = previous);
+      _showMessage(fallbackMessage);
+    } finally {
+      if (mounted) setState(() => _detailActionBusy = false);
+    }
+  }
+
+  Future<void> _shareDetailArticle(
+    NewsArticle article, {
+    ArticleShareTarget target = ArticleShareTarget.system,
+  }) async {
+    if (frontendShareUrlForArticle(article).isEmpty) return;
+
+    final opened = await shareArticle(
+      context,
+      article: article,
+      target: target,
+    );
+    if (!mounted) return;
+    if (!opened) {
+      _showMessage('Paylaşım açılamadı.');
+      return;
+    }
+
+    try {
+      if (_hasNumericPostId(article)) {
+        final token = _authToken;
+        final state = await widget.postActionRepository.share(
+          postId: article.id,
+          token: token.isEmpty ? null : token,
+          platform: target.apiPlatform,
+        );
+        if (mounted) {
+          setState(() {
+            _detailActionStates[article.id] =
+                _DetailActionState.fromPostActionState(state);
+          });
+        }
+      }
+    } catch (_) {
+      // Paylaşım hedefi açıldı; sayaç güncellenemezse mevcut değer korunur.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_articleSequence.isEmpty) {
       return const Scaffold(backgroundColor: AppColors.canvas);
     }
 
-    // NOT: Bu build yalnızca haber sırası değişince çalışır, kaydırma sırasında
-    // değil. Scroll'a bağlı parçalar aşağıda kendi notifier'larını dinler; bu
-    // yüzden kaydırırken haber listesi (_DetailContent) asla yeniden çizilmez.
     return ValueListenableBuilder<bool>(
       valueListenable: _usesLightOverlay,
       builder: (context, light, child) => AnnotatedRegion<SystemUiOverlayStyle>(
@@ -245,17 +382,22 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
               scrollController: _scrollController,
               articles: _articleSequence,
               articleKeys: _articleKeys,
+              shellSettings: widget.shellSettings,
+              navigationItems: widget.navigationItems,
+              contentSettings: widget.contentSettings,
+              videoFeedArticles: widget.videoFeedArticles,
+              authState: widget.authState,
+              postActionRepository: widget.postActionRepository,
+              onAuthRequired: widget.onAuthRequired,
+              onAuthorTap: widget.onAuthorTap,
+              onFullscreenVideoExit: widget.onFullscreenVideoExit,
               onLike: () => _showMessage('Beğenildi.'),
               onComment: () =>
                   _showMessage('Yorumlar bölümüne yönlendiriliyor.'),
-              onShare: () => _showMessage('Paylaşım menüsü açıldı.'),
+              onShare: (article) => unawaited(_shareDetailArticle(article)),
               onSave: () => _showMessage('Haber kaydedildi.'),
               onFollow: () => _showMessage('Yazar takip ediliyor.'),
-              onAllComments: () =>
-                  _showMessage('Tüm yorumlar yakında açılacak.'),
             ),
-            // Üstte daima görünen, scrolla göre saydam → opak app bar.
-            // Başlık aktif habere göre güncellenir.
             Positioned(
               top: 0,
               left: 0,
@@ -274,8 +416,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                 },
               ),
             ),
-            // Sağ üstte, scroll edilince beliren paylaşım & aksiyon dock'u.
-            // Opaklık scroll'a, sayılar aktif habere bağlı.
             Positioned(
               top: MediaQuery.viewPaddingOf(context).top + 64,
               right: 12,
@@ -285,21 +425,42 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                   valueListenable: _activeArticleIndex,
                   builder: (context, index, _) {
                     final article = _articleSequence[index];
+                    final state = _actionStateFor(article);
                     return DetailFloatingDock(
-                      onInstagram: () =>
-                          _showMessage('Instagram\'da paylaşılıyor.'),
-                      onFacebook: () =>
-                          _showMessage('Facebook\'ta paylaşılıyor.'),
-                      onX: () => _showMessage('X\'te paylaşılıyor.'),
-                      onWhatsApp: () =>
-                          _showMessage('WhatsApp\'ta paylaşılıyor.'),
-                      onLike: () => _showMessage('Beğenildi.'),
-                      onDislike: () => _showMessage('Beğenilmedi.'),
-                      onSave: () => _showMessage('Haber kaydedildi.'),
-                      shareCount: article.shares,
-                      likeCount: article.likes,
-                      dislikeCount: article.dislikes,
-                      saveCount: (article.shares * 0.4).round() + 12,
+                      onInstagram: () => unawaited(
+                        _shareDetailArticle(
+                          article,
+                          target: ArticleShareTarget.instagram,
+                        ),
+                      ),
+                      onFacebook: () => unawaited(
+                        _shareDetailArticle(
+                          article,
+                          target: ArticleShareTarget.facebook,
+                        ),
+                      ),
+                      onX: () => unawaited(
+                        _shareDetailArticle(
+                          article,
+                          target: ArticleShareTarget.x,
+                        ),
+                      ),
+                      onWhatsApp: () => unawaited(
+                        _shareDetailArticle(
+                          article,
+                          target: ArticleShareTarget.whatsapp,
+                        ),
+                      ),
+                      onLike: () => unawaited(_toggleDetailLike(article)),
+                      onDislike: () => unawaited(_toggleDetailDislike(article)),
+                      onSave: () => unawaited(_toggleDetailSave(article)),
+                      shareCount: state.shares,
+                      likeCount: state.likes,
+                      dislikeCount: state.dislikes,
+                      saveCount: state.saves,
+                      isLiked: state.liked,
+                      isDisliked: state.disliked,
+                      isSaved: state.saved,
                     );
                   },
                 ),
@@ -318,7 +479,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                 },
               ),
             ),
-            // Sol alttaki okuma ilerleme şeridi.
             Positioned(
               left: 0,
               right: 0,
@@ -345,40 +505,151 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   }
 }
 
-/// Detay sayfasının sonsuz akışını destekleyen iç içerik blokları.
+class _DetailActionState {
+  const _DetailActionState({
+    required this.likes,
+    required this.dislikes,
+    required this.shares,
+    required this.saves,
+    required this.liked,
+    required this.disliked,
+    required this.saved,
+  });
+
+  factory _DetailActionState.fromArticle(NewsArticle article) {
+    return _DetailActionState(
+      likes: article.likes,
+      dislikes: article.dislikes,
+      shares: article.shares,
+      saves: article.saves,
+      liked: article.userLiked,
+      disliked: article.userDisliked,
+      saved: article.userSaved,
+    );
+  }
+
+  factory _DetailActionState.fromPostActionState(PostActionState state) {
+    return _DetailActionState(
+      likes: state.likes,
+      dislikes: state.dislikes,
+      shares: state.shares,
+      saves: state.saves,
+      liked: state.liked,
+      disliked: state.disliked,
+      saved: state.saved,
+    );
+  }
+
+  final int likes;
+  final int dislikes;
+  final int shares;
+  final int saves;
+  final bool liked;
+  final bool disliked;
+  final bool saved;
+
+  _DetailActionState toggleLike() {
+    if (liked) {
+      return copyWith(liked: false, likes: math.max(0, likes - 1));
+    }
+    return copyWith(
+      liked: true,
+      disliked: false,
+      likes: likes + 1,
+      dislikes: disliked ? math.max(0, dislikes - 1) : dislikes,
+    );
+  }
+
+  _DetailActionState toggleDislike() {
+    if (disliked) {
+      return copyWith(disliked: false, dislikes: math.max(0, dislikes - 1));
+    }
+    return copyWith(
+      liked: false,
+      disliked: true,
+      likes: liked ? math.max(0, likes - 1) : likes,
+      dislikes: dislikes + 1,
+    );
+  }
+
+  _DetailActionState toggleSave() {
+    return copyWith(
+      saved: !saved,
+      saves: math.max(0, saves + (saved ? -1 : 1)),
+    );
+  }
+
+  _DetailActionState copyWith({
+    int? likes,
+    int? dislikes,
+    int? shares,
+    int? saves,
+    bool? liked,
+    bool? disliked,
+    bool? saved,
+  }) {
+    return _DetailActionState(
+      likes: likes ?? this.likes,
+      dislikes: dislikes ?? this.dislikes,
+      shares: shares ?? this.shares,
+      saves: saves ?? this.saves,
+      liked: liked ?? this.liked,
+      disliked: disliked ?? this.disliked,
+      saved: saved ?? this.saved,
+    );
+  }
+}
+
 class _DetailContent extends StatelessWidget {
   const _DetailContent({
     super.key,
     required this.scrollController,
     required this.articles,
     required this.articleKeys,
+    required this.shellSettings,
+    required this.navigationItems,
+    required this.contentSettings,
+    required this.videoFeedArticles,
+    required this.authState,
+    required this.postActionRepository,
+    required this.onAuthRequired,
+    required this.onAuthorTap,
+    required this.onFullscreenVideoExit,
     required this.onLike,
     required this.onComment,
     required this.onShare,
     required this.onSave,
     required this.onFollow,
-    required this.onAllComments,
   });
 
   final ScrollController scrollController;
   final List<NewsArticle> articles;
   final List<GlobalKey> articleKeys;
+  final AppShellSettings shellSettings;
+  final List<AppShellNavigationItem> navigationItems;
+  final HomeContentSettings contentSettings;
+  final List<NewsArticle> videoFeedArticles;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onFullscreenVideoExit;
   final VoidCallback onLike;
   final VoidCallback onComment;
-  final VoidCallback onShare;
+  final ValueChanged<NewsArticle> onShare;
   final VoidCallback onSave;
   final VoidCallback onFollow;
-  final VoidCallback onAllComments;
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final resolvedVideoFeed = videoFeedArticles.isEmpty
+        ? _dateSortedVideoFeed(articles)
+        : videoFeedArticles;
+
     return CustomScrollView(
       controller: scrollController,
       physics: const BouncingScrollPhysics(),
-      // Tembel akış: yalnızca ekrandaki + cacheExtent kadar haber inşa edilir;
-      // uzaktaki haberler otomatik dispose olur. (Eskiden for + SliverToBoxAdapter
-      // ile haberlerin tamamı ilk karede kurulurdu.)
       slivers: [
         SliverList.builder(
           itemCount: articles.length + 1,
@@ -390,13 +661,21 @@ class _DetailContent extends StatelessWidget {
               sectionKey: articleKeys[i],
               article: articles[i],
               isFirst: i == 0,
-              scrollController: scrollController,
+              isLast: i == articles.length - 1,
+              videoFeedArticles: resolvedVideoFeed,
+              shellSettings: shellSettings,
+              navigationItems: navigationItems,
+              contentSettings: contentSettings,
+              authState: authState,
+              postActionRepository: postActionRepository,
+              onAuthRequired: onAuthRequired,
+              onAuthorTap: onAuthorTap,
+              onFullscreenVideoExit: onFullscreenVideoExit,
               onLike: onLike,
               onComment: onComment,
               onShare: onShare,
               onSave: onSave,
               onFollow: onFollow,
-              onAllComments: onAllComments,
             );
           },
         ),
@@ -410,45 +689,60 @@ class _DetailArticleSection extends StatelessWidget {
     required this.sectionKey,
     required this.article,
     required this.isFirst,
-    required this.scrollController,
+    required this.isLast,
+    required this.videoFeedArticles,
+    required this.shellSettings,
+    required this.navigationItems,
+    required this.contentSettings,
+    required this.authState,
+    required this.postActionRepository,
+    required this.onAuthRequired,
+    required this.onAuthorTap,
+    required this.onFullscreenVideoExit,
     required this.onLike,
     required this.onComment,
     required this.onShare,
     required this.onSave,
     required this.onFollow,
-    required this.onAllComments,
   });
 
   final GlobalKey sectionKey;
   final NewsArticle article;
   final bool isFirst;
-  final ScrollController scrollController;
+  final bool isLast;
+  final List<NewsArticle> videoFeedArticles;
+  final AppShellSettings shellSettings;
+  final List<AppShellNavigationItem> navigationItems;
+  final HomeContentSettings contentSettings;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onFullscreenVideoExit;
   final VoidCallback onLike;
   final VoidCallback onComment;
-  final VoidCallback onShare;
+  final ValueChanged<NewsArticle> onShare;
   final VoidCallback onSave;
   final VoidCallback onFollow;
-  final VoidCallback onAllComments;
 
   @override
   Widget build(BuildContext context) {
-    final body = NewsDetailMock.bodyFor(article);
-    final reactions = NewsDetailMock.reactionsFor(article);
-    final comments = NewsDetailMock.commentsFor(article);
-
     return Column(
       key: sectionKey,
       children: [
         _DetailHero(
           article: article,
           isFirst: isFirst,
-          scrollController: scrollController,
           onLike: onLike,
           onComment: onComment,
           onSave: onSave,
-          onShare: onShare,
+          onShare: () => onShare(article),
         ),
-        DetailLede(article: article, onFollow: onFollow)
+        DetailLede(
+              article: article,
+              onFollow: onFollow,
+              categoryTrail: _categoryTrail(article.category, navigationItems),
+            )
             .animate()
             .fadeIn(delay: 80.ms, duration: 340.ms, curve: Curves.easeOutCubic)
             .slideY(
@@ -458,7 +752,17 @@ class _DetailArticleSection extends StatelessWidget {
               duration: 340.ms,
               curve: Curves.easeOutCubic,
             ),
-        DetailBody(body: body)
+        _DetailItemsSection(
+              article: article,
+              categoryTrail: _categoryTrail(article.category, navigationItems),
+              videoFeedArticles: videoFeedArticles,
+              shellSettings: shellSettings,
+              authState: authState,
+              postActionRepository: postActionRepository,
+              onAuthRequired: onAuthRequired,
+              onAuthorTap: onAuthorTap,
+              onFullscreenVideoExit: onFullscreenVideoExit,
+            )
             .animate()
             .fadeIn(delay: 140.ms, duration: 360.ms, curve: Curves.easeOutCubic)
             .slideY(
@@ -468,23 +772,45 @@ class _DetailArticleSection extends StatelessWidget {
               duration: 360.ms,
               curve: Curves.easeOutCubic,
             ),
-        DetailReactionsStrip(stats: reactions),
-        DetailShareBar(onShare: onShare),
-        DetailCommentsSection(
-          thread: comments,
-          currentUser: HomeMockData.currentUser,
-          onSeeAll: onAllComments,
+        _DetailFaqSection(items: article.faqData),
+        _DetailTagsSection(tags: article.tags),
+        if (contentSettings.emojiReactions)
+          DetailReactionsStrip(
+            postId: article.id,
+            authState: authState,
+            postActionRepository: postActionRepository,
+          ),
+        NewsCard(
+          article: article,
+          onTap: () {},
+          categoryTrail: _categoryTrail(article.category, navigationItems),
+          videoFeedArticles: videoFeedArticles,
+          shellSettings: shellSettings,
+          commentsEnabled: contentSettings.commentSystem,
+          commentApprovalEnabled: contentSettings.commentApprovalSystem,
+          emojiReactionsEnabled: contentSettings.emojiReactions,
+          showMediaStage: false,
+          showTitleSummary: false,
+          showReadStats: false,
+          showActions: false,
+          relaxedInlineComments: true,
+          showInlineCommentGuidance: true,
+          authState: authState,
+          postActionRepository: postActionRepository,
+          onAuthRequired: onAuthRequired,
+          onAuthorTap: onAuthorTap,
+          onFullscreenVideoExit: onFullscreenVideoExit,
         ),
+        if (!isLast) const _RelatedSectionDivider(),
       ],
     );
   }
 }
 
-class _DetailHero extends StatelessWidget {
+class _DetailHero extends StatefulWidget {
   const _DetailHero({
     required this.article,
     required this.isFirst,
-    required this.scrollController,
     required this.onLike,
     required this.onComment,
     required this.onSave,
@@ -493,76 +819,127 @@ class _DetailHero extends StatelessWidget {
 
   final NewsArticle article;
   final bool isFirst;
-  final ScrollController scrollController;
   final VoidCallback onLike;
   final VoidCallback onComment;
   final VoidCallback onSave;
   final VoidCallback onShare;
 
-  static const double _aspectRatio = 4 / 5;
+  @override
+  State<_DetailHero> createState() => _DetailHeroState();
+}
+
+class _DetailHeroState extends State<_DetailHero> {
+  double? _resolvedImageAspectRatio;
+  ImageStream? _pendingImageStream;
+  ImageStreamListener? _pendingImageListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveImageAspectRatio();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DetailHero oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.article.imageUrl != widget.article.imageUrl ||
+        oldWidget.article.imageAspectRatio != widget.article.imageAspectRatio) {
+      _removeImageListener();
+      _resolvedImageAspectRatio = null;
+      _resolveImageAspectRatio();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeImageListener();
+    super.dispose();
+  }
+
+  void _resolveImageAspectRatio() {
+    final knownRatio = _positiveImageAspectRatio(
+      widget.article.imageAspectRatio,
+    );
+    if (knownRatio != null) {
+      _resolvedImageAspectRatio = knownRatio;
+    }
+
+    final parsedRatio = _parseImageAspectRatioFromUrl(widget.article.imageUrl);
+    if (parsedRatio != null) {
+      _resolvedImageAspectRatio = parsedRatio;
+    }
+
+    final imageUrl = widget.article.imageUrl.trim();
+    if (imageUrl.isEmpty) return;
+
+    final stream = CachedNetworkImageProvider(
+      imageUrl,
+    ).resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener((image, _) {
+      _removeImageListener();
+      final width = image.image.width;
+      final height = image.image.height;
+      if (!mounted || width <= 0 || height <= 0) return;
+      final ratio = width / height;
+      final current = _resolvedImageAspectRatio;
+      if (current != null && (current - ratio).abs() < 0.001) return;
+      setState(() => _resolvedImageAspectRatio = ratio);
+    }, onError: (_, _) => _removeImageListener());
+    _pendingImageStream = stream;
+    _pendingImageListener = listener;
+    stream.addListener(listener);
+  }
+
+  void _removeImageListener() {
+    final stream = _pendingImageStream;
+    final listener = _pendingImageListener;
+    if (stream != null && listener != null) {
+      stream.removeListener(listener);
+    }
+    _pendingImageStream = null;
+    _pendingImageListener = null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final height = width / _aspectRatio;
+    final ratio =
+        _resolvedImageAspectRatio ??
+        _positiveImageAspectRatio(widget.article.imageAspectRatio) ??
+        16 / 9;
+    final height = width / ratio;
+    final topPadding = widget.isFirst
+        ? MediaQuery.viewPaddingOf(context).top
+        : 0.0;
 
-    return AnimatedBuilder(
-      animation: scrollController,
-      builder: (context, child) {
-        final scrollOffset = scrollController.hasClients
-            ? scrollController.offset
-            : 0.0;
-        // Parallax'i bölümün canlı ekran konumundan hesapla — lazy listede
-        // sabit "sectionStart" yok. Yalnızca görünen hero'lar için çalışır,
-        // maliyeti ihmal edilebilir (bir RenderBox konum okuması).
-        final box = context.findRenderObject() as RenderBox?;
-        final heroTop = (box != null && box.attached && box.hasSize)
-            ? box.localToGlobal(Offset.zero).dy
-            : 0.0;
-        final localScroll = -heroTop;
-        final offset = localScroll.clamp(0.0, height);
-        final overscroll = isFirst ? scrollOffset.clamp(-height, 0.0) : 0.0;
-        final parallax = offset * 0.35;
-        final pullScale = (1 + overscroll / height * -0.18).clamp(1.0, 1.18);
-        final parallaxCoverScale = 1 + parallax / height;
-        final scale = pullScale > parallaxCoverScale
-            ? pullScale
-            : parallaxCoverScale;
-        return RepaintBoundary(
-          child: SizedBox(
-            height: height,
-            width: width,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Transform.translate(
-                  offset: Offset(0, -parallax),
-                  child: Transform.scale(
-                    scale: scale,
-                    alignment: Alignment.topCenter,
-                    child: child,
-                  ),
+    return ColoredBox(
+      color: AppColors.surfaceInk,
+      child: Padding(
+        padding: EdgeInsets.only(top: topPadding),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _HeroImage(url: widget.article.imageUrl),
+              Positioned(
+                left: AppSpacing.pageHorizontal,
+                right: AppSpacing.pageHorizontal,
+                bottom: AppSpacing.sm,
+                child: _HeroOverlay(
+                  article: widget.article,
+                  onLike: widget.onLike,
+                  onComment: widget.onComment,
+                  onSave: widget.onSave,
+                  onShare: widget.onShare,
                 ),
-                const _HeroTopScrim(),
-                const _HeroBottomScrim(),
-                Positioned(
-                  left: AppSpacing.pageHorizontal,
-                  right: AppSpacing.pageHorizontal,
-                  bottom: AppSpacing.xxl,
-                  child: _HeroOverlay(
-                    article: article,
-                    onLike: onLike,
-                    onComment: onComment,
-                    onSave: onSave,
-                    onShare: onShare,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
-      child: _HeroImage(url: article.imageUrl),
+        ),
+      ),
     );
   }
 }
@@ -578,8 +955,9 @@ class _HeroImage extends StatelessWidget {
     final cacheWidth = (MediaQuery.sizeOf(context).width * dpr).round();
     return CachedImage(
       url: url,
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
       memCacheWidth: cacheWidth,
+      placeholderColor: AppColors.surfaceInk,
       errorWidget: Container(
         color: AppColors.surfaceInk,
         alignment: Alignment.center,
@@ -587,47 +965,6 @@ class _HeroImage extends StatelessWidget {
           Symbols.image_outlined,
           color: AppColors.support,
           size: 36,
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroTopScrim extends StatelessWidget {
-  const _HeroTopScrim();
-
-  @override
-  Widget build(BuildContext context) {
-    return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xA8000000), Color(0x44000000), Color(0x00000000)],
-          stops: [0, 0.32, 0.6],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroBottomScrim extends StatelessWidget {
-  const _HeroBottomScrim();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0x00000000),
-            Colors.black.withValues(alpha: 0.10),
-            Colors.black.withValues(alpha: 0.38),
-            Colors.black.withValues(alpha: 0.66),
-          ],
-          stops: const [0, 0.62, 0.86, 1],
         ),
       ),
     );
@@ -654,9 +991,9 @@ class _HeroOverlay extends StatefulWidget {
 }
 
 class _HeroOverlayState extends State<_HeroOverlay> {
-  bool _liked = false;
-  bool _disliked = false;
-  bool _saved = false;
+  late bool _liked = widget.article.userLiked;
+  late bool _disliked = widget.article.userDisliked;
+  late bool _saved = widget.article.userSaved;
 
   void _toggleLike() {
     setState(() {
@@ -689,71 +1026,107 @@ class _HeroOverlayState extends State<_HeroOverlay> {
   @override
   Widget build(BuildContext context) {
     final article = widget.article;
-    final likes = article.likes + (_liked ? 1 : 0);
-    final dislikes = article.dislikes + (_disliked ? 1 : 0);
+    final likes =
+        article.likes +
+        (_liked && !article.userLiked ? 1 : 0) -
+        (!_liked && article.userLiked ? 1 : 0);
+    final dislikes =
+        article.dislikes +
+        (_disliked && !article.userDisliked ? 1 : 0) -
+        (!_disliked && article.userDisliked ? 1 : 0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Sosyal aksiyonlar + sağda beğen/beğenme/kaydet
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SocialAction(
-              glyph: PateezSocialGlyph.sparkUp,
-              isActive: _liked,
-              activeColor: AppColors.deepOcean,
-              inactiveColor: Colors.white,
-              semanticLabel: 'Beğen',
-              iconSize: 23,
-              count: likes,
-              onTap: _toggleLike,
-            ),
-            SocialAction(
-              glyph: PateezSocialGlyph.sparkDown,
-              isActive: _disliked,
-              activeColor: AppColors.actionRed,
-              inactiveColor: Colors.white,
-              semanticLabel: 'Beğenme',
-              iconSize: 23,
-              count: dislikes,
-              onTap: _toggleDislike,
-            ),
-            SocialAction(
-              glyph: PateezSocialGlyph.conversation,
-              isActive: false,
-              activeColor: AppColors.deepOcean,
-              inactiveColor: Colors.white,
-              semanticLabel: 'Yorumlar',
-              iconSize: 26,
-              count: article.comments,
-              onTap: widget.onComment,
-            ),
-            SocialAction(
-              glyph: PateezSocialGlyph.orbitShare,
-              isActive: false,
-              activeColor: AppColors.warmHorizon,
-              inactiveColor: Colors.white,
-              semanticLabel: 'Paylaş',
-              iconSize: 26,
-              count: article.shares,
-              onTap: widget.onShare,
-            ),
-            const Spacer(),
-            SocialAction(
-              glyph: PateezSocialGlyph.ribbon,
-              isActive: _saved,
-              activeColor: AppColors.warmHorizon,
-              inactiveColor: Colors.white,
-              semanticLabel: 'Kaydet',
-              iconSize: 28,
-              onTap: _toggleSave,
-            ),
-          ],
+        _HeroActionGlow(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SocialAction(
+                glyph: PateezSocialGlyph.sparkUp,
+                isActive: _liked,
+                activeColor: AppColors.deepOcean,
+                inactiveColor: Colors.white,
+                semanticLabel: 'Beğen',
+                iconSize: 21,
+                count: likes,
+                countFontSize: 11,
+                onTap: _toggleLike,
+              ),
+              SocialAction(
+                glyph: PateezSocialGlyph.sparkDown,
+                isActive: _disliked,
+                activeColor: AppColors.actionRed,
+                inactiveColor: Colors.white,
+                semanticLabel: 'Beğenme',
+                iconSize: 21,
+                count: dislikes,
+                countFontSize: 11,
+                onTap: _toggleDislike,
+              ),
+              SocialAction(
+                glyph: PateezSocialGlyph.conversation,
+                isActive: false,
+                activeColor: AppColors.deepOcean,
+                inactiveColor: Colors.white,
+                semanticLabel: 'Yorumlar',
+                iconSize: 24,
+                count: article.comments,
+                countFontSize: 11,
+                onTap: widget.onComment,
+              ),
+              SocialAction(
+                glyph: PateezSocialGlyph.forwardShare,
+                isActive: false,
+                activeColor: AppColors.warmHorizon,
+                inactiveColor: Colors.white,
+                semanticLabel: 'Paylaş',
+                iconSize: 24,
+                count: article.shares,
+                countFontSize: 11,
+                onTap: widget.onShare,
+              ),
+              const Spacer(),
+              SocialAction(
+                glyph: PateezSocialGlyph.ribbon,
+                isActive: _saved,
+                activeColor: AppColors.warmHorizon,
+                inactiveColor: Colors.white,
+                semanticLabel: 'Kaydet',
+                iconSize: 26,
+                onTap: _toggleSave,
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         _HeroPublishedAt(date: article.publishedAt),
       ],
+    );
+  }
+}
+
+class _HeroActionGlow extends StatelessWidget {
+  const _HeroActionGlow({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: const RadialGradient(
+          center: Alignment.center,
+          radius: 1.18,
+          colors: [Color(0x4A000000), Color(0x24000000), Color(0x00000000)],
+          stops: [0.0, 0.58, 1.0],
+        ),
+        boxShadow: const [
+          BoxShadow(color: Color(0x30000000), blurRadius: 24, spreadRadius: 3),
+        ],
+      ),
+      child: child,
     );
   }
 }
@@ -822,7 +1195,591 @@ class _HeroPublishedAt extends StatelessWidget {
   }
 }
 
-/// Sayfanın en üstünde, aktif haberin okuma ilerlemesini gösteren ince bar.
+class _RelatedSectionDivider extends StatelessWidget {
+  const _RelatedSectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.canvas,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.pageHorizontal,
+          AppSpacing.lg,
+          AppSpacing.pageHorizontal,
+          AppSpacing.md,
+        ),
+        child: Row(
+          children: [
+            Expanded(child: Container(height: 1, color: AppColors.line)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'İLGİNİZİ ÇEKEBİLİR',
+                style: AppTypography.meta.copyWith(
+                  color: AppColors.placeholderSoft,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            Expanded(child: Container(height: 1, color: AppColors.line)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailItemsSection extends StatelessWidget {
+  const _DetailItemsSection({
+    required this.article,
+    required this.categoryTrail,
+    required this.videoFeedArticles,
+    required this.shellSettings,
+    required this.authState,
+    required this.postActionRepository,
+    required this.onAuthRequired,
+    required this.onAuthorTap,
+    required this.onFullscreenVideoExit,
+  });
+
+  final NewsArticle article;
+  final List<String> categoryTrail;
+  final List<NewsArticle> videoFeedArticles;
+  final AppShellSettings shellSettings;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onFullscreenVideoExit;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = article.detailItems;
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (items.isEmpty)
+            _DetailTextInset(child: _TextDetailBlock(text: article.summary))
+          else
+            for (var i = 0; i < items.length; i++) ...[
+              _DetailItemBlock(
+                article: article,
+                item: items[i],
+                categoryTrail: categoryTrail,
+                videoFeedArticles: videoFeedArticles,
+                shellSettings: shellSettings,
+                authState: authState,
+                postActionRepository: postActionRepository,
+                onAuthRequired: onAuthRequired,
+                onAuthorTap: onAuthorTap,
+                onFullscreenVideoExit: onFullscreenVideoExit,
+              ),
+              if (i != items.length - 1) const SizedBox(height: AppSpacing.xxl),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailFaqSection extends StatelessWidget {
+  const _DetailFaqSection({required this.items});
+
+  final List<NewsFaqItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageHorizontal,
+        AppSpacing.sm,
+        AppSpacing.pageHorizontal,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _DetailFaqHeader(),
+          const SizedBox(height: 8),
+          for (var i = 0; i < items.length; i++) ...[
+            _DetailFaqItem(item: items[i]),
+            if (i != items.length - 1) const SizedBox(height: 5),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailFaqHeader extends StatelessWidget {
+  const _DetailFaqHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'FAQ',
+      style: AppTypography.meta.copyWith(
+        color: AppColors.placeholder,
+        fontSize: 10.5,
+        fontWeight: FontWeight.w800,
+        height: 1,
+        letterSpacing: 0.6,
+      ),
+    );
+  }
+}
+
+class _DetailFaqItem extends StatefulWidget {
+  const _DetailFaqItem({required this.item});
+
+  final NewsFaqItem item;
+
+  @override
+  State<_DetailFaqItem> createState() => _DetailFaqItemState();
+}
+
+class _DetailFaqItemState extends State<_DetailFaqItem> {
+  bool _expanded = false;
+
+  void _toggle() => setState(() => _expanded = !_expanded);
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      expanded: _expanded,
+      label: widget.item.question,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _toggle,
+          borderRadius: BorderRadius.circular(7),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+            decoration: BoxDecoration(
+              color: _expanded
+                  ? AppColors.surfaceSoft.withValues(alpha: 0.86)
+                  : AppColors.surfaceSoft.withValues(alpha: 0.58),
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(
+                color: _expanded ? AppColors.line : AppColors.softLine,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      alignment: Alignment.center,
+                      margin: const EdgeInsets.only(top: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.actionRed.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '?',
+                        style: AppTypography.meta.copyWith(
+                          color: AppColors.actionRed.withValues(alpha: 0.58),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.item.question,
+                        maxLines: _expanded ? 2 : 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.titleM.copyWith(
+                          color: AppColors.inkStrong.withValues(alpha: 0.84),
+                          fontSize: 12.2,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      child: const Icon(
+                        Symbols.keyboard_arrow_down_rounded,
+                        size: 16,
+                        color: AppColors.placeholder,
+                      ),
+                    ),
+                  ],
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: _expanded
+                      ? Padding(
+                          padding: const EdgeInsets.only(
+                            left: 24,
+                            top: 6,
+                            right: 16,
+                          ),
+                          child: Text(
+                            widget.item.answer,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.inkSoft.withValues(alpha: 0.78),
+                              fontSize: 11.4,
+                              fontWeight: FontWeight.w400,
+                              height: 1.35,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        )
+                      : const SizedBox(width: double.infinity),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailTagsSection extends StatelessWidget {
+  const _DetailTagsSection({required this.tags});
+
+  final List<String> tags;
+
+  @override
+  Widget build(BuildContext context) {
+    if (tags.isEmpty) return const SizedBox.shrink();
+    final visibleTags = tags.take(8).toList(growable: false);
+    final hiddenCount = tags.length - visibleTags.length;
+    return Container(
+      width: double.infinity,
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageHorizontal,
+        0,
+        AppSpacing.pageHorizontal,
+        AppSpacing.md,
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 5,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            'Etiketler:',
+            style: AppTypography.meta.copyWith(
+              color: AppColors.inkSoft,
+              fontSize: 11.6,
+              fontWeight: FontWeight.w700,
+              height: 1.15,
+              letterSpacing: 0,
+            ),
+          ),
+          for (final tag in visibleTags) _DetailTagLabel(tag: tag),
+          if (hiddenCount > 0)
+            Text(
+              '+$hiddenCount',
+              style: AppTypography.meta.copyWith(
+                color: AppColors.placeholder,
+                fontSize: 10.8,
+                fontWeight: FontWeight.w700,
+                height: 1.15,
+                letterSpacing: 0,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailTagLabel extends StatelessWidget {
+  const _DetailTagLabel({required this.tag});
+
+  final String tag;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '#$tag',
+      style: AppTypography.meta.copyWith(
+        color: AppColors.inkStrong.withValues(alpha: 0.88),
+        fontSize: 11.4,
+        fontWeight: FontWeight.w700,
+        height: 1.15,
+        letterSpacing: 0,
+        decoration: TextDecoration.underline,
+        decorationColor: AppColors.warmHorizon.withValues(alpha: 0.38),
+        decorationThickness: 1.1,
+      ),
+    );
+  }
+}
+
+class _DetailItemBlock extends StatelessWidget {
+  const _DetailItemBlock({
+    required this.article,
+    required this.item,
+    required this.categoryTrail,
+    required this.videoFeedArticles,
+    required this.shellSettings,
+    required this.authState,
+    required this.postActionRepository,
+    required this.onAuthRequired,
+    required this.onAuthorTap,
+    required this.onFullscreenVideoExit,
+  });
+
+  final NewsArticle article;
+  final NewsDetailItem item;
+  final List<String> categoryTrail;
+  final List<NewsArticle> videoFeedArticles;
+  final AppShellSettings shellSettings;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onFullscreenVideoExit;
+
+  @override
+  Widget build(BuildContext context) {
+    final rendersEmbedDirectly = _rendersDetailEmbedDirectly(item);
+    final mediaArticle = rendersEmbedDirectly
+        ? null
+        : _mediaArticleForItem(article, item);
+    final hasMedia = mediaArticle != null || rendersEmbedDirectly;
+    final showTitle = _showExternalItemTitle(item);
+    final descriptionBeforeMedia = _descriptionRenderedBeforeMedia(item);
+    final hasExtraInfo = _hasItemExtraInfo(item);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!hasMedia && item.title.isNotEmpty)
+          _DetailTextInset(child: _ItemTitle(text: item.title)),
+        if (!hasMedia && item.description.isNotEmpty) ...[
+          if (item.title.isNotEmpty) const SizedBox(height: AppSpacing.sm),
+          _DetailTextInset(child: _TextDetailBlock(text: item.description)),
+        ],
+        if (hasMedia) ...[
+          if (showTitle) _DetailTextInset(child: _ItemTitle(text: item.title)),
+          if (item.description.isNotEmpty && descriptionBeforeMedia) ...[
+            const SizedBox(height: AppSpacing.xs),
+            _DetailTextInset(child: _ItemDescription(text: item.description)),
+          ],
+          if (showTitle ||
+              (item.description.isNotEmpty && descriptionBeforeMedia))
+            const SizedBox(height: AppSpacing.md),
+          if (rendersEmbedDirectly)
+            _DetailTextInset(child: _DetailEmbedStage(item: item))
+          else
+            _mediaCard(mediaArticle!),
+          if (item.description.isNotEmpty &&
+              !descriptionBeforeMedia &&
+              !_descriptionRenderedInsideMedia(item)) ...[
+            const SizedBox(height: AppSpacing.md),
+            _DetailTextInset(child: _ItemDescription(text: item.description)),
+          ],
+        ],
+        if (hasExtraInfo) ...[
+          const SizedBox(height: AppSpacing.xs),
+          _DetailTextInset(child: _ItemExtraInfo(item: item)),
+        ],
+      ],
+    );
+  }
+
+  Widget _mediaCard(NewsArticle mediaArticle) {
+    return NewsCard(
+      article: mediaArticle,
+      onTap: () {},
+      categoryTrail: categoryTrail,
+      videoFeedArticles: videoFeedArticles,
+      shellSettings: shellSettings,
+      commentsEnabled: false,
+      showTitleSummary: false,
+      showReadStats: false,
+      showActions: false,
+      showComments: false,
+      showMediaHeader: false,
+      showStructuredMediaText: false,
+      resolveActualImageAspectRatio: true,
+      authState: authState,
+      postActionRepository: postActionRepository,
+      onAuthRequired: onAuthRequired,
+      onAuthorTap: onAuthorTap,
+      onFullscreenVideoExit: onFullscreenVideoExit,
+    );
+  }
+}
+
+class _DetailEmbedStage extends StatelessWidget {
+  const _DetailEmbedStage({required this.item});
+
+  final NewsDetailItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return SocialEmbedStage(
+      embed: item.mediaUrl,
+      sourceUrl: item.moreInfoUrl,
+      platform: item.type == 'iframe' ? 'iframe' : '',
+    );
+  }
+}
+
+class _DetailTextInset extends StatelessWidget {
+  const _DetailTextInset({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.pageHorizontal,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _TextDetailBlock extends StatelessWidget {
+  const _TextDetailBlock({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.trim().isEmpty) return const SizedBox.shrink();
+    return Text(
+      text,
+      style: AppTypography.mobileDetailBody.copyWith(
+        color: AppColors.ink,
+        height: 1.62,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _ItemTitle extends StatelessWidget {
+  const _ItemTitle({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: AppTypography.titleL.copyWith(
+        color: AppColors.inkStrong,
+        fontSize: 20.5,
+        fontWeight: FontWeight.w800,
+        height: 1.2,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _ItemDescription extends StatelessWidget {
+  const _ItemDescription({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: AppTypography.body.copyWith(
+        color: AppColors.inkSoft,
+        height: 1.5,
+        fontSize: 14,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _ItemExtraInfo extends StatelessWidget {
+  const _ItemExtraInfo({required this.item});
+
+  final NewsDetailItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final altText = item.altText.trim();
+    final source = item.source.trim();
+    final moreInfoUrl = item.moreInfoUrl.trim();
+    final sourceUri = _sourceUri(moreInfoUrl.isNotEmpty ? moreInfoUrl : source);
+    final sourceText = _sourceText(source: source, moreInfoUrl: moreInfoUrl);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (altText.isNotEmpty) _ItemInfoLine(text: altText),
+        if (altText.isNotEmpty && sourceText.isNotEmpty)
+          const SizedBox(height: AppSpacing.xxs),
+        if (sourceText.isNotEmpty)
+          _ItemInfoLine(text: sourceText, uri: sourceUri),
+      ],
+    );
+  }
+}
+
+class _ItemInfoLine extends StatelessWidget {
+  const _ItemInfoLine({required this.text, this.uri});
+
+  final String text;
+  final Uri? uri;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTypography.meta.copyWith(
+      color: AppColors.support.withValues(alpha: 0.72),
+      fontSize: 10.5,
+      fontStyle: FontStyle.italic,
+      height: 1.28,
+      letterSpacing: 0,
+      decoration: uri == null ? null : TextDecoration.underline,
+      decorationColor: AppColors.support.withValues(alpha: 0.42),
+      decorationThickness: 1,
+    );
+    final line = Text(text, style: style);
+    final targetUri = uri;
+    if (targetUri == null) return line;
+    return Semantics(
+      link: true,
+      child: InkWell(
+        onTap: () => unawaited(openFrontendUri(targetUri)),
+        borderRadius: BorderRadius.circular(4),
+        child: line,
+      ),
+    );
+  }
+}
+
 class _ReadingProgressBar extends StatelessWidget {
   const _ReadingProgressBar({required this.progress, required this.isVisible});
 
@@ -863,4 +1820,197 @@ class _ReadingProgressBar extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _showExternalItemTitle(NewsDetailItem item) {
+  final type = item.type;
+  return item.title.isNotEmpty &&
+      type != 'quote' &&
+      type != 'paragraph' &&
+      type != 'review';
+}
+
+bool _descriptionRenderedInsideMedia(NewsDetailItem item) {
+  final type = item.type;
+  return type == 'review' || type == 'quote';
+}
+
+bool _descriptionRenderedBeforeMedia(NewsDetailItem item) {
+  return !_descriptionRenderedInsideMedia(item);
+}
+
+bool _rendersDetailEmbedDirectly(NewsDetailItem item) {
+  final type = item.type;
+  return (type == 'social' || type == 'iframe' || type == 'embed') &&
+      item.mediaUrl.trim().isNotEmpty;
+}
+
+bool _hasItemExtraInfo(NewsDetailItem item) {
+  return item.altText.trim().isNotEmpty ||
+      item.source.trim().isNotEmpty ||
+      item.moreInfoUrl.trim().isNotEmpty;
+}
+
+String _sourceText({required String source, required String moreInfoUrl}) {
+  final cleanSource = source.trim();
+  final cleanUrl = moreInfoUrl.trim();
+  if (cleanSource.isNotEmpty && cleanUrl.isNotEmpty) {
+    return '$cleanSource · Daha fazla bilgi';
+  }
+  if (cleanSource.isNotEmpty) return cleanSource;
+  return cleanUrl;
+}
+
+Uri? _sourceUri(String value) {
+  final raw = value.trim();
+  if (raw.isEmpty || raw.contains(RegExp(r'\s'))) return null;
+  final uri = Uri.tryParse(raw);
+  if (uri != null && _isHttpUri(uri)) return uri;
+  if (raw.startsWith('www.') ||
+      RegExp(r'^[a-z0-9-]+(\.[a-z0-9-]+)+').hasMatch(raw)) {
+    final withScheme = Uri.tryParse('https://$raw');
+    if (withScheme != null && _isHttpUri(withScheme)) return withScheme;
+  }
+  return null;
+}
+
+bool _isHttpUri(Uri uri) {
+  final scheme = uri.scheme.toLowerCase();
+  return scheme == 'http' || scheme == 'https';
+}
+
+double? _positiveImageAspectRatio(double? value) {
+  if (value == null || !value.isFinite || value <= 0) return null;
+  return value;
+}
+
+double? _parseImageAspectRatioFromUrl(String url) {
+  final segments = Uri.tryParse(url)?.pathSegments;
+  if (segments != null && segments.length >= 2) {
+    final h = int.tryParse(segments[segments.length - 1]);
+    final w = int.tryParse(segments[segments.length - 2]);
+    if (w != null && h != null && w > 0 && h > 0) return w / h;
+  }
+  return null;
+}
+
+NewsArticle? _mediaArticleForItem(NewsArticle base, NewsDetailItem item) {
+  final type = item.type;
+  final hasImage = type == 'image' && item.mediaUrl.isNotEmpty;
+  final hasSlider = type == 'slider' && item.mediaUrls.isNotEmpty;
+  final hasVideo = type == 'video' && item.mediaUrl.isNotEmpty;
+  final hasAudio = type == 'audio' && item.mediaUrl.isNotEmpty;
+  final hasEmbed =
+      (type == 'social' || type == 'iframe' || type == 'embed') &&
+      item.mediaUrl.isNotEmpty;
+  final hasStructured =
+      item.flipData != null ||
+      item.beforeAfterData != null ||
+      item.reviewData != null ||
+      item.pollData != null ||
+      item.vsData != null ||
+      item.quoteData != null;
+
+  if (!hasImage &&
+      !hasSlider &&
+      !hasVideo &&
+      !hasAudio &&
+      !hasEmbed &&
+      !hasStructured) {
+    return null;
+  }
+
+  final imageUrl = hasImage
+      ? item.mediaUrl
+      : hasSlider
+      ? item.mediaUrls.first
+      : base.imageUrl;
+  final resolveItemImageRatio = hasImage || hasSlider;
+  final hideMediaHeadline = type == 'poll' || type == 'vs';
+  return NewsArticle(
+    id: '${base.id}-${item.id}',
+    author: base.author,
+    region: base.region,
+    category: base.category,
+    title: hideMediaHeadline
+        ? ''
+        : (item.title.isNotEmpty ? item.title : base.title),
+    summary: hideMediaHeadline ? '' : item.description,
+    imageUrl: imageUrl,
+    publishedAt: base.publishedAt,
+    readMinutes: base.readMinutes,
+    likes: base.likes,
+    dislikes: base.dislikes,
+    comments: base.comments,
+    shares: base.shares,
+    views: base.views,
+    saves: base.saves,
+    userLiked: base.userLiked,
+    userDisliked: base.userDisliked,
+    userSaved: base.userSaved,
+    slug: base.slug,
+    imageAspectRatio: resolveItemImageRatio ? null : base.imageAspectRatio,
+    sliderImages: hasSlider ? item.mediaUrls : const [],
+    videoUrl: hasVideo ? item.mediaUrl : '',
+    videoUrls: hasVideo ? <String>[item.mediaUrl] : const [],
+    videoThumbUrls: hasVideo && item.videoThumbUrl.isNotEmpty
+        ? <String>[item.videoThumbUrl]
+        : const [],
+    audioUrl: hasAudio ? item.mediaUrl : '',
+    socialEmbed: hasEmbed ? item.mediaUrl : '',
+    socialSourceUrl: hasEmbed ? item.mediaUrl : '',
+    socialPlatform: '',
+    flipData: item.flipData,
+    beforeAfterData: item.beforeAfterData,
+    reviewData: item.reviewData,
+    pollData: item.pollData,
+    vsData: item.vsData,
+    quoteData: item.quoteData,
+  );
+}
+
+List<String> _categoryTrail(
+  String category,
+  List<AppShellNavigationItem> navigationItems,
+) {
+  final cleanCategory = category.trim();
+  if (cleanCategory.isEmpty) return const [];
+
+  AppShellNavigationItem? current;
+  for (final item in navigationItems) {
+    if (item.label == cleanCategory || item.value == cleanCategory) {
+      current = item;
+      break;
+    }
+  }
+  if (current == null) return [cleanCategory];
+
+  final trail = <String>[current.label];
+  final visited = <String>{current.id};
+  var parentId = current.parentId;
+  while (parentId != null &&
+      parentId != 'root' &&
+      !visited.contains(parentId)) {
+    visited.add(parentId);
+    AppShellNavigationItem? parent;
+    for (final item in navigationItems) {
+      if (item.id == parentId) {
+        parent = item;
+        break;
+      }
+    }
+    if (parent == null || parent.label.trim().isEmpty) break;
+    trail.insert(0, parent.label);
+    parentId = parent.parentId;
+  }
+
+  return trail;
+}
+
+List<NewsArticle> _dateSortedVideoFeed(List<NewsArticle> items) {
+  final videos = items
+      .where((item) => item.videoFeedUrls.isNotEmpty)
+      .toList(growable: false);
+  return List<NewsArticle>.of(videos)
+    ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
 }

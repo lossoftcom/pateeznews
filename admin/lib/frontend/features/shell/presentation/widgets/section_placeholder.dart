@@ -42,11 +42,7 @@ class SectionPlaceholder extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           Text(title, style: AppTypography.titleL),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: AppTypography.body,
-          ),
+          Text(message, textAlign: TextAlign.center, style: AppTypography.body),
         ],
       ),
     );

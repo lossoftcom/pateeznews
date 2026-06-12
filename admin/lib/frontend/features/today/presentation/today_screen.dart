@@ -49,12 +49,14 @@ class TodayScreen extends StatelessWidget {
     this.weatherData = const WeatherData.empty(),
     this.prayerTimesData = const PrayerTimesData.empty(),
     this.events = const [],
+    this.onSearch,
   });
 
   final DutyPharmacyData dutyPharmacyData;
   final WeatherData weatherData;
   final PrayerTimesData prayerTimesData;
   final List<EtkinlikEvent> events;
+  final VoidCallback? onSearch;
 
   void _push(BuildContext context, Widget page) {
     Navigator.of(context).push(
@@ -96,7 +98,7 @@ class TodayScreen extends StatelessWidget {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Niğde\'de Bugün'),
+            FeatureAppBar(title: 'Niğde\'de Bugün', onSearch: onSearch),
             Expanded(
               child: ListView(
                 physics: const BouncingScrollPhysics(

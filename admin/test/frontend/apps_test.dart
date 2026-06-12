@@ -73,19 +73,22 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(const MaterialApp(home: ShellScreen()));
+    await tester.pumpWidget(const MaterialApp(home: _TestShellScreen()));
     await tester.pump(const Duration(milliseconds: 1));
 
     expect(find.text('Nöbetçi Eczane'), findsNothing);
 
     await tester.tap(find.text('Uygulamalar'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
     expect(find.text('Etkinlik'), findsWidgets);
     expect(find.text('Duyurular'), findsOneWidget);
     expect(find.text('Ölüm İlanları'), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
   testWidgets('Uygulamalar sheet aşağı sürüklenince kapanır', (tester) async {
@@ -93,18 +96,36 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(const MaterialApp(home: ShellScreen()));
+    await tester.pumpWidget(const MaterialApp(home: _TestShellScreen()));
     await tester.pump(const Duration(milliseconds: 1));
 
     await tester.tap(find.text('Uygulamalar'));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
     expect(find.text('Nöbetçi Eczane'), findsOneWidget);
 
     // Sheet'i parmakla aşağı çek → kapanmalı.
     await tester.drag(find.text('Nöbetçi Eczane'), const Offset(0, 420));
-    await tester.pumpAndSettle();
+    await _pumpShellTransition(tester);
 
     expect(find.text('Nöbetçi Eczane'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _pumpShellTransition(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 720));
+  await tester.pump();
+}
+
+class _TestShellScreen extends StatelessWidget {
+  const _TestShellScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: const ShellScreen(),
+    );
+  }
 }

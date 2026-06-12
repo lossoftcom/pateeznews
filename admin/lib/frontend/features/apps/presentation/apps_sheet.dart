@@ -19,6 +19,8 @@ class AppsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disableAnimations =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -86,26 +88,40 @@ class AppsSheet extends StatelessWidget {
               childAspectRatio: 0.78,
               children: [
                 for (var i = 0; i < items.length; i++)
-                  _AppTile(item: items[i], onTap: () => onSelect(items[i]))
-                      .animate()
-                      .fadeIn(
-                        delay: (50 * i).ms,
-                        duration: 280.ms,
-                        curve: Curves.easeOutCubic,
-                      )
-                      .slideY(
-                        begin: 0.16,
-                        end: 0,
-                        delay: (50 * i).ms,
-                        duration: 280.ms,
-                        curve: Curves.easeOutCubic,
-                      ),
+                  _animatedTile(
+                    item: items[i],
+                    index: i,
+                    disableAnimations: disableAnimations,
+                  ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _animatedTile({
+    required AppItem item,
+    required int index,
+    required bool disableAnimations,
+  }) {
+    final tile = _AppTile(item: item, onTap: () => onSelect(item));
+    if (disableAnimations) return tile;
+    return tile
+        .animate()
+        .fadeIn(
+          delay: (50 * index).ms,
+          duration: 280.ms,
+          curve: Curves.easeOutCubic,
+        )
+        .slideY(
+          begin: 0.16,
+          end: 0,
+          delay: (50 * index).ms,
+          duration: 280.ms,
+          curve: Curves.easeOutCubic,
+        );
   }
 }
 

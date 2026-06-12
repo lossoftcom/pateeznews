@@ -73,6 +73,83 @@ void main() {
     expect(requestBody?['thresholdSeconds'], 30);
     expect(state.views, 146);
   });
+
+  test('fetchState sends stable viewer id for guest reactions', () async {
+    SharedPreferences.setMockInitialValues({
+      'pateeznews_mobile_viewer_id': 'viewer-reaction-1234',
+    });
+    Map<String, Object?>? requestBody;
+
+    final repository = PostActionRepository(
+      apiBaseUrl: 'http://localhost:4321',
+      httpClient: MockClient((request) async {
+        requestBody = _decodeBody(request);
+        return http.Response(
+          jsonEncode({
+            ..._statePayload(146),
+            'reactions': {'love': 4},
+            'userState': {
+              'liked': false,
+              'disliked': false,
+              'saved': false,
+              'reactions': ['love'],
+            },
+          }),
+          200,
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final state = await repository.fetchState(postId: '42');
+
+    expect(requestBody?['action'], 'state');
+    expect(requestBody?['postId'], '42');
+    expect(requestBody?['viewerId'], 'viewer-reaction-1234');
+    expect(state.reactions, {'love': 4});
+    expect(state.userReactions, ['love']);
+  });
+
+  test('toggleReaction works without auth token and sends viewer id', () async {
+    SharedPreferences.setMockInitialValues({
+      'pateeznews_mobile_viewer_id': 'viewer-reaction-5678',
+    });
+    Map<String, Object?>? requestBody;
+
+    final repository = PostActionRepository(
+      apiBaseUrl: 'http://localhost:4321',
+      httpClient: MockClient((request) async {
+        requestBody = _decodeBody(request);
+        return http.Response(
+          jsonEncode({
+            ..._statePayload(146),
+            'reactions': {'love': 5},
+            'userState': {
+              'liked': false,
+              'disliked': false,
+              'saved': false,
+              'reactions': ['love'],
+            },
+          }),
+          200,
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final state = await repository.toggleReaction(
+      postId: '42',
+      reaction: 'love',
+    );
+
+    expect(requestBody?['action'], 'toggle_reaction');
+    expect(requestBody?['postId'], '42');
+    expect(requestBody?['reaction'], 'love');
+    expect(requestBody?['viewerId'], 'viewer-reaction-5678');
+    expect(requestBody?.containsKey('token'), isFalse);
+    expect(state.reactions, {'love': 5});
+    expect(state.userReactions, ['love']);
+  });
 }
 
 Map<String, Object?> _decodeBody(http.Request request) {

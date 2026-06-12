@@ -754,6 +754,189 @@ const normalizeQuoteData = (
   };
 };
 
+const normalizeKeywords = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : String(value || "").split(",");
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+  for (const item of values) {
+    const keyword = stripHtml(String(item || ""))
+      .replace(/^#+/, "")
+      .trim();
+    if (!keyword) continue;
+    const key = keyword.toLocaleLowerCase("tr");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    keywords.push(keyword);
+    if (keywords.length >= 14) break;
+  }
+  return keywords;
+};
+
+const normalizeFaqData = (
+  value: unknown,
+): Array<{ q: string; a: string }> => {
+  if (!Array.isArray(value)) return [];
+  const faq: Array<{ q: string; a: string }> = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const q = stripHtml(String(raw.q || raw.question || raw.name || ""));
+    const a = stripHtml(String(raw.a || raw.answer || raw.text || ""));
+    if (!q || !a) continue;
+    faq.push({ q, a });
+    if (faq.length >= 8) break;
+  }
+  return faq;
+};
+
+const normalizeDetailItems = (blocks: any[], origin: string) => {
+  return blocks
+    .map((block: any, index: number) => {
+      if (!block || typeof block !== "object") return null;
+      const rawType = String(block.type || "").trim().toLowerCase();
+      if (!rawType) return null;
+      if (rawType === "faq") return null;
+      const type =
+        rawType === "before_after" || rawType === "before-after"
+          ? "beforeafter"
+          : rawType === "flip"
+            ? "flipcard"
+            : rawType;
+      const videoItem = type === "video" ? videoMediaItem(block, origin) : null;
+      const mediaUrl =
+        type === "video"
+          ? videoItem?.url || ""
+          : type === "image" || type === "audio"
+            ? resolveAppImageUrl(String(block.mediaUrl || "").trim(), origin, {
+                width: 1200,
+                quality: 86,
+              })
+            : type === "social" || type === "iframe" || type === "embed"
+              ? String(block.mediaUrl || "").trim()
+              : "";
+      const mediaUrls =
+        type === "slider" && Array.isArray(block.mediaUrls)
+          ? block.mediaUrls
+              .map((url: any) =>
+                resolveAppImageUrl(String(url || "").trim(), origin, {
+                  width: 1200,
+                  quality: 86,
+                }),
+              )
+              .filter((url: string) => Boolean(url))
+          : [];
+      const pollData =
+        type === "poll"
+          ? normalizePollData(
+              {
+                ...block,
+                type: "poll",
+                title: block.title || block.blockTitle,
+                summary: block.description || block.blockDescription,
+              } as NewsItem,
+              origin,
+            )
+          : undefined;
+      const vsData =
+        type === "vs"
+          ? normalizeVsData(
+              {
+                ...block,
+                type: "vs",
+                title: block.title || block.blockTitle,
+                summary: block.description || block.blockDescription,
+              } as NewsItem,
+              origin,
+            )
+          : undefined;
+      const reviewData =
+        type === "review"
+          ? normalizeReviewData(block.reviewData || block, origin)
+          : undefined;
+      const quoteData =
+        type === "quote" || type === "paragraph"
+          ? normalizeQuoteData(block)
+          : undefined;
+      const beforeAfterData =
+        type === "beforeafter" && block.beforeAfterData
+          ? {
+              ...block.beforeAfterData,
+              beforeImage: resolveAppImageUrl(
+                block.beforeAfterData.beforeImage,
+                origin,
+                { width: 1200, quality: 86 },
+              ),
+              afterImage: resolveAppImageUrl(
+                block.beforeAfterData.afterImage,
+                origin,
+                { width: 1200, quality: 86 },
+              ),
+            }
+          : undefined;
+      const flipData =
+        type === "flipcard" && block.flipData
+          ? {
+              ...block.flipData,
+              frontImage: resolveAppImageUrl(
+                block.flipData.frontImage,
+                origin,
+                { width: 1200, quality: 86 },
+              ),
+              backImage: resolveAppImageUrl(block.flipData.backImage, origin, {
+                width: 1200,
+                quality: 86,
+              }),
+            }
+          : undefined;
+
+      const title = stripHtml(String(block.title || block.blockTitle || ""));
+      const description = stripHtml(
+        String(block.description || block.blockDescription || block.body || ""),
+      );
+      const source = stripHtml(
+        String(block.source || block.sourceName || block.credit || ""),
+      );
+      const moreInfoUrl = String(
+        block.moreInfoUrl || block.sourceUrl || block.link || "",
+      ).trim();
+
+      const item = {
+        id: String(block.id || `detail-item-${index + 1}`),
+        type,
+        title,
+        description,
+        source,
+        moreInfoUrl,
+        mediaUrl,
+        mediaUrls,
+        altText: stripHtml(String(block.altText || "")),
+        videoThumbUrl: videoItem?.thumbUrl || "",
+        flipData,
+        beforeAfterData,
+        reviewData,
+        pollData,
+        vsData,
+        quoteData,
+      };
+
+      const hasContent =
+        title ||
+        description ||
+        source ||
+        moreInfoUrl ||
+        mediaUrl ||
+        mediaUrls.length > 0 ||
+        flipData ||
+        beforeAfterData ||
+        reviewData ||
+        pollData ||
+        vsData ||
+        quoteData;
+      return hasContent ? item : null;
+    })
+    .filter(Boolean);
+};
+
 const calculateReadingMinutes = (item: NewsItem): number => {
   const raw = item as NewsItem & {
     content?: string;
@@ -960,6 +1143,9 @@ const mapFeedItem = (
     pollData,
     vsData,
     quoteData,
+    detailItems: normalizeDetailItems(blocks, origin),
+    tags: normalizeKeywords(item.keywords),
+    faqData: normalizeFaqData(item.faqData),
     publishedAt: toIsoDate(item.timestamp),
     source: String(item.source || item.author || "Pateeznews"),
     sourceAvatar: resolveAppImageUrl(String(raw.sourceAvatar || ""), origin, {

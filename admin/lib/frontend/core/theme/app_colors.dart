@@ -27,7 +27,9 @@ class AppColors {
   static const shadow = Color(0x14101828);
 
   // -- Metin
-  static const ink = Color(0xFF1B2A37); // ana metin, deep ocean'ın okunaklı varyantı
+  static const ink = Color(
+    0xFF1B2A37,
+  ); // ana metin, deep ocean'ın okunaklı varyantı
   static const inkStrong = Color(0xFF0F1B26); // featured başlıklar
   static const inkSoft = Color(0xFF536270); // ikinci metin
   static const support = Color(0xFF8A949B); // meta, zaman

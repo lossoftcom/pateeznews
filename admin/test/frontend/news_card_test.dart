@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pateeznews_admin/frontend/core/mock/home_mock_data.dart';
 import 'package:pateeznews_admin/frontend/core/theme/app_typography.dart';
@@ -295,6 +296,47 @@ void main() {
       find.descendant(of: commentField, matching: find.byType(EditableText)),
     );
     expect(editable.controller.text, '😀');
+  });
+
+  testWidgets('comment composer enforces live api character limit', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: NewsCard(
+              article: _guestCommentArticle('123'),
+              authState: _signedInState(),
+              onTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final commentField = find.byType(TextField);
+    expect(commentField, findsOneWidget);
+
+    final textField = tester.widget<TextField>(commentField);
+    expect(textField.maxLength, 2000);
+    expect(textField.maxLengthEnforcement, MaxLengthEnforcement.enforced);
+
+    await tester.enterText(commentField, 'a' * 2005);
+    await tester.pump();
+
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: commentField, matching: find.byType(EditableText)),
+    );
+    expect(editable.controller.text.length, 2000);
+    expect(find.text('2000/2000'), findsOneWidget);
   });
 
   testWidgets('comment composer shows loading state and success toast', (

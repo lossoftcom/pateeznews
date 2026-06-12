@@ -32,6 +32,9 @@ class DetailFloatingDock extends StatefulWidget {
     this.likeCount = 0,
     this.dislikeCount = 0,
     this.saveCount = 0,
+    this.isLiked = false,
+    this.isDisliked = false,
+    this.isSaved = false,
   });
 
   final VoidCallback onInstagram;
@@ -45,6 +48,9 @@ class DetailFloatingDock extends StatefulWidget {
   final int likeCount;
   final int dislikeCount;
   final int saveCount;
+  final bool isLiked;
+  final bool isDisliked;
+  final bool isSaved;
 
   @override
   State<DetailFloatingDock> createState() => _DetailFloatingDockState();
@@ -116,6 +122,9 @@ class _DetailFloatingDockState extends State<DetailFloatingDock> {
               likeCount: widget.likeCount,
               dislikeCount: widget.dislikeCount,
               saveCount: widget.saveCount,
+              isLiked: widget.isLiked,
+              isDisliked: widget.isDisliked,
+              isSaved: widget.isSaved,
               onInstagram: widget.onInstagram,
               onFacebook: widget.onFacebook,
               onX: widget.onX,
@@ -141,6 +150,9 @@ class _OpenDockContent extends StatelessWidget {
     required this.likeCount,
     required this.dislikeCount,
     required this.saveCount,
+    required this.isLiked,
+    required this.isDisliked,
+    required this.isSaved,
     required this.onInstagram,
     required this.onFacebook,
     required this.onX,
@@ -155,6 +167,9 @@ class _OpenDockContent extends StatelessWidget {
   final int likeCount;
   final int dislikeCount;
   final int saveCount;
+  final bool isLiked;
+  final bool isDisliked;
+  final bool isSaved;
   final VoidCallback onInstagram;
   final VoidCallback onFacebook;
   final VoidCallback onX;
@@ -184,6 +199,7 @@ class _OpenDockContent extends StatelessWidget {
           accent: AppColors.deepOcean,
           semantics: 'Beğen',
           baseCount: likeCount,
+          isActive: isLiked,
           onTap: onLike,
         ),
         const SizedBox(height: 6),
@@ -192,6 +208,7 @@ class _OpenDockContent extends StatelessWidget {
           accent: AppColors.actionRed,
           semantics: 'Beğenme',
           baseCount: dislikeCount,
+          isActive: isDisliked,
           onTap: onDislike,
         ),
         const SizedBox(height: 6),
@@ -200,6 +217,7 @@ class _OpenDockContent extends StatelessWidget {
           accent: AppColors.warmHorizon,
           semantics: 'Kaydet',
           baseCount: saveCount,
+          isActive: isSaved,
           onTap: onSave,
         ),
         const SizedBox(height: 10),
@@ -410,15 +428,35 @@ class _ShareCountHeader extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          CountFormat.compact(count),
-          style: const TextStyle(
-            fontFamily: 'PateezInter',
-            fontSize: 17,
-            fontWeight: FontWeight.w900,
-            color: AppColors.inkStrong,
-            height: 1,
-            letterSpacing: -0.4,
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.softLine, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              CountFormat.compact(count),
+              style: const TextStyle(
+                fontFamily: 'PateezInter',
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: AppColors.inkStrong,
+                height: 1,
+                letterSpacing: 0,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 3),
@@ -452,6 +490,7 @@ class _BrandDot extends StatefulWidget {
 
 class _BrandDotState extends State<_BrandDot> {
   bool _pressed = false;
+  int _pulseSerial = 0;
 
   static const double _size = 32;
 
@@ -470,42 +509,66 @@ class _BrandDotState extends State<_BrandDot> {
         onTapCancel: _handleTapCancel,
         onTap: () {
           HapticFeedback.selectionClick();
+          setState(() => _pulseSerial++);
           widget.onTap();
         },
         child: AnimatedScale(
           scale: _pressed ? 0.92 : 1.0,
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOutCubic,
-          child: Container(
-            width: _size,
-            height: _size,
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0x1C52A9FF),
-                  blurRadius: 22,
-                  offset: Offset(-2, 5),
-                  spreadRadius: -3,
-                ),
-                BoxShadow(
-                  color: Color(0x14000000),
-                  blurRadius: 14,
-                  offset: Offset(0, 4),
-                ),
-                BoxShadow(
-                  color: Color(0x0A000000),
-                  blurRadius: 3,
-                  offset: Offset(0, 1),
+          child: SizedBox(
+            width: _size + 14,
+            height: _size + 8,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                TweenAnimationBuilder<double>(
+                  key: ValueKey<String>(
+                    '${widget.brand.name}-share-$_pulseSerial',
+                  ),
+                  tween: Tween<double>(
+                    begin: _pulseSerial == 0 ? 1 : 0.78,
+                    end: 1,
+                  ),
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutBack,
+                  builder: (context, scale, child) =>
+                      Transform.scale(scale: scale, child: child),
+                  child: Container(
+                    width: _size,
+                    height: _size,
+                    decoration: const BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x1C52A9FF),
+                          blurRadius: 22,
+                          offset: Offset(-2, 5),
+                          spreadRadius: -3,
+                        ),
+                        BoxShadow(
+                          color: Color(0x14000000),
+                          blurRadius: 14,
+                          offset: Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: Color(0x0A000000),
+                          blurRadius: 3,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      _iconFor(widget.brand),
+                      color: _colorFor(widget.brand),
+                      size: _size * 0.58,
+                    ),
+                  ),
                 ),
               ],
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              _iconFor(widget.brand),
-              color: _colorFor(widget.brand),
-              size: _size * 0.58,
             ),
           ),
         ),
@@ -559,6 +622,7 @@ class _PateezDot extends StatefulWidget {
     required this.accent,
     required this.semantics,
     required this.baseCount,
+    required this.isActive,
     required this.onTap,
   });
 
@@ -566,6 +630,7 @@ class _PateezDot extends StatefulWidget {
   final Color accent;
   final String semantics;
   final int baseCount;
+  final bool isActive;
   final VoidCallback onTap;
 
   @override
@@ -573,22 +638,20 @@ class _PateezDot extends StatefulWidget {
 }
 
 class _PateezDotState extends State<_PateezDot> {
-  bool _active = false;
   bool _pressed = false;
 
   static const double _size = 32;
 
   void _handleTap() {
     HapticFeedback.selectionClick();
-    setState(() => _active = !_active);
-    if (_active) widget.onTap();
+    widget.onTap();
   }
 
   @override
   Widget build(BuildContext context) {
     final accent = widget.accent;
-    final isActive = _active;
-    final count = widget.baseCount + (isActive ? 1 : 0);
+    final isActive = widget.isActive;
+    final count = widget.baseCount;
 
     return Semantics(
       label: widget.semantics,

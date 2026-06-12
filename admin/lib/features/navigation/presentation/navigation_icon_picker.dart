@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/icons/navigation_icon_resolver.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 
@@ -14,12 +15,14 @@ const navigationIconOptions = [
   'sports_esports',
   'sports_soccer',
   'favorite',
+  'share',
   'microscope',
   'public',
   'smartphone',
   'location_on',
   'flag',
   'list',
+  'format_list_numbered',
   'check_circle',
   'grid_view',
   'bolt',
@@ -65,6 +68,7 @@ const navigationIconOptions = [
   'wine_bar',
   'ghost',
   'featured_seasonal',
+  'spa',
   'forest',
   'terrain',
   'waves',
@@ -72,6 +76,7 @@ const navigationIconOptions = [
   'domain',
   'business_center',
   'payments',
+  'account_balance',
   'account_balance_wallet',
   'person',
   'group',
@@ -81,8 +86,10 @@ const navigationIconOptions = [
   'mail',
   'call',
   'chat',
+  'forum',
   'calendar_month',
   'schedule',
+  'auto_stories',
   'menu_book',
   'library_books',
   'school',
@@ -421,22 +428,5 @@ class _IconOptionButton extends StatelessWidget {
 }
 
 IconData _iconForName(String name) {
-  return switch (name) {
-    'home' => Symbols.home,
-    'newspaper' => Symbols.newspaper,
-    'notifications' => Symbols.notifications,
-    'person' => Symbols.person,
-    'group' => Symbols.group,
-    'lock' => Symbols.lock,
-    'visibility' => Symbols.visibility,
-    'search' => Symbols.search,
-    'schedule' => Symbols.schedule,
-    'language' || 'public' => Symbols.language,
-    'code' => Symbols.code,
-    'download' => Symbols.download,
-    'upload' => Symbols.upload,
-    'list' => Symbols.format_list_numbered,
-    'menu' => Symbols.menu,
-    _ => Symbols.short_text,
-  };
+  return resolveNavigationIcon(name);
 }

@@ -18,12 +18,14 @@ class TodayWidget extends StatelessWidget {
     this.weatherData = const WeatherData.empty(),
     this.prayerTimesData = const PrayerTimesData.empty(),
     this.events = const [],
+    this.onSearch,
   });
 
   final DutyPharmacyData dutyPharmacyData;
   final WeatherData weatherData;
   final PrayerTimesData prayerTimesData;
   final List<EtkinlikEvent> events;
+  final VoidCallback? onSearch;
 
   void _open(BuildContext context) {
     Navigator.of(context).push(
@@ -35,6 +37,7 @@ class TodayWidget extends StatelessWidget {
           weatherData: weatherData,
           prayerTimesData: prayerTimesData,
           events: events,
+          onSearch: onSearch,
         ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(

@@ -18,6 +18,7 @@ import '../../apps/data/app_item.dart';
 import '../../apps/presentation/app_feature_screen.dart';
 import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
+import '../../corporate/presentation/corporate_pages_screen.dart';
 import '../../etkinlik/data/etkinlik_mock.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
 import '../../home/data/home_repository.dart';
@@ -36,6 +37,7 @@ import '../../prayer_times/presentation/prayer_times_screen.dart';
 import '../../profile/data/profile_content.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_screen.dart';
+import '../../search/presentation/search_screen.dart';
 import '../../weather/data/weather_repository.dart';
 import '../../weather/presentation/weather_screen.dart';
 import '../data/app_shell_repository.dart';
@@ -274,6 +276,14 @@ class _ShellScreenState extends State<ShellScreen>
     setState(() => _index = 0);
   }
 
+  void _returnHomeFromSearch() {
+    if (!mounted) return;
+    _closeMenu();
+    _closeAccountMenu();
+    _closeAppsSheet();
+    setState(() => _index = 0);
+  }
+
   /// Hesap menüsündeki "Profilim" bu sayfayı açar. Splash canlı profili
   /// tamamlayamadıysa eksik detaylar route açılmadan önce çözülür.
   Future<void> _openProfile() async {
@@ -498,10 +508,12 @@ class _ShellScreenState extends State<ShellScreen>
     _closeMenu();
     _closeAccountMenu();
     _closeAppsSheet();
+    _showMessage('WhatsApp haber gönderme hattı hazırlanıyor.');
+  }
+
+  void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('WhatsApp haber gönderme hattı hazırlanıyor.'),
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.deepOcean),
     );
   }
 
@@ -597,6 +609,86 @@ class _ShellScreenState extends State<ShellScreen>
           onAuthRequired: _openAccountForRequiredAuth,
           onAuthorTap: _openAuthorProfile,
           onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+          onSearch: _openSearchRoute,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openCorporatePages(AppShellNavigationItem? root) {
+    _closeMenu();
+    _closeAccountMenu();
+    _closeAppsSheet();
+    final pages = root == null
+        ? widget.shellData.pages
+        : widget.shellData.pagesForRoot(root.id);
+    if (pages.isEmpty) {
+      _showMessage('Sayfa bulunamadı.');
+      return;
+    }
+    Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 340),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        pageBuilder: (_, _, _) => CorporatePagesScreen(
+          pages: pages,
+          rootLabel: root?.label ?? '',
+          onSearch: _openSearchRoute,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openSearchRoute() async {
+    _closeMenu();
+    _closeAccountMenu();
+    _closeAppsSheet();
+    await Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        pageBuilder: (routeContext, _, _) => SearchScreen(
+          showBackButton: true,
+          onBack: () {
+            Navigator.of(routeContext).popUntil((route) => route.isFirst);
+            _returnHomeFromSearch();
+          },
+          shellSettings: widget.shellData.siteSettings,
+          navigationItems: widget.shellData.navigationItems,
+          contentSettings: widget.contentSettings,
+          homeFeedItems: widget.homeFeedItems,
+          authState: widget.authState,
+          onAuthRequired: _openAccountForRequiredAuth,
+          onAuthorTap: _openAuthorProfile,
+          onOpenApp: _openApp,
         ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
@@ -647,24 +739,37 @@ class _ShellScreenState extends State<ShellScreen>
         pageBuilder: (_, _, _) => switch (item.id) {
           'nobetci-eczane' => PharmacyScreen(
             initialData: widget.dutyPharmacyData,
+            onSearch: _openSearchRoute,
           ),
           'duyurular' => AnnouncementsScreen(
             initialData: widget.announcementData,
+            onSearch: _openSearchRoute,
           ),
           'etkinlik' =>
             widget.eventItems.isEmpty
-                ? const EtkinlikScreen()
-                : EtkinlikScreen(events: widget.eventItems),
-          'hava-durumu' => WeatherScreen(initialData: widget.weatherData),
+                ? EtkinlikScreen(onSearch: _openSearchRoute)
+                : EtkinlikScreen(
+                    events: widget.eventItems,
+                    onSearch: _openSearchRoute,
+                  ),
+          'hava-durumu' => WeatherScreen(
+            initialData: widget.weatherData,
+            onSearch: _openSearchRoute,
+          ),
           'namaz-vakitleri' => PrayerTimesScreen(
             initialData: widget.prayerTimesData,
+            onSearch: _openSearchRoute,
           ),
-          'doviz-altin' => MarketsScreen(initialData: widget.marketsData),
+          'doviz-altin' => MarketsScreen(
+            initialData: widget.marketsData,
+            onSearch: _openSearchRoute,
+          ),
           'olum-ilanlari' => ObituariesScreen(
             initialData: widget.deathNoticeData,
             authState: widget.authState,
+            onSearch: _openSearchRoute,
           ),
-          _ => AppFeatureScreen(item: item),
+          _ => AppFeatureScreen(item: item, onSearch: _openSearchRoute),
         },
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
@@ -736,6 +841,7 @@ class _ShellScreenState extends State<ShellScreen>
                 onClose: _closeMenu,
                 onSelected: _selectFromMenu,
                 onNavigationItemSelected: _selectNavigationItem,
+                onPagesSelected: _openCorporatePages,
                 onModeChanged: _setMenuMode,
               ),
             ),
@@ -804,95 +910,272 @@ class _ShellScreenState extends State<ShellScreen>
   }
 
   Widget _buildScaffold() {
-    return Scaffold(
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: IndexedStack(
-          index: _index,
-          children: [
-            HomeScreen(
-              shellSettings: widget.shellData.siteSettings,
-              dutyPharmacyData: widget.dutyPharmacyData,
-              weatherData: widget.weatherData,
-              prayerTimesData: widget.prayerTimesData,
-              events: widget.eventItems,
-              navigationItems: widget.shellData.navigationItems,
-              contentSettings: widget.contentSettings,
-              featuredItems: widget.featuredItems,
-              feedItems: widget.homeFeedItems,
-              authState: widget.authState,
-              onRefresh: widget.onRefreshHome,
-              resetToTopSerial: _homeResetSerial,
-              onMenuTap: _openMenu,
-              onSubmitNewsTap: _showSubmitNewsHint,
-              onPharmacyTap: () => _openApp(AppItems.nobetciEczane),
-              onAuthRequired: _openAccountForRequiredAuth,
-              onAuthorTap: _openAuthorProfile,
-              onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Scaffold(
+          body: SafeArea(
+            top: false,
+            bottom: false,
+            child: IndexedStack(
+              index: _index,
+              children: [
+                HomeScreen(
+                  shellSettings: widget.shellData.siteSettings,
+                  dutyPharmacyData: widget.dutyPharmacyData,
+                  weatherData: widget.weatherData,
+                  prayerTimesData: widget.prayerTimesData,
+                  events: widget.eventItems,
+                  navigationItems: widget.shellData.navigationItems,
+                  contentSettings: widget.contentSettings,
+                  featuredItems: widget.featuredItems,
+                  feedItems: widget.homeFeedItems,
+                  authState: widget.authState,
+                  onRefresh: widget.onRefreshHome,
+                  resetToTopSerial: _homeResetSerial,
+                  onMenuTap: _openMenu,
+                  onSubmitNewsTap: _showSubmitNewsHint,
+                  onPharmacyTap: () => _openApp(AppItems.nobetciEczane),
+                  onSearch: _openSearchRoute,
+                  onAuthRequired: _openAccountForRequiredAuth,
+                  onAuthorTap: _openAuthorProfile,
+                  onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+                ),
+                _index == 1
+                    ? VideoFeedScreen(
+                        feedItems: widget.homeFeedItems,
+                        shellSettings: widget.shellData.siteSettings,
+                        navigationItems: widget.shellData.navigationItems,
+                        contentSettings: widget.contentSettings,
+                        initialArticleId: _videoFeedArticleId,
+                        revealSerial: _videoFeedRevealSerial,
+                        authState: widget.authState,
+                        onRefresh: widget.onRefreshHome,
+                        onAuthRequired: _openAccountForRequiredAuth,
+                        onAuthorTap: _openAuthorProfile,
+                        onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+                      )
+                    : const SizedBox.shrink(),
+                const SectionPlaceholder(
+                  icon: Symbols.grid_view_rounded,
+                  title: 'Pateez uygulamaları',
+                  message:
+                      'Anketler, testler ve mini araçlar bu bölümde tek '
+                      'çatı altında toplanacak.',
+                ),
+                SearchScreen(
+                  showBackButton: true,
+                  autoFocus: _index == 3,
+                  onBack: _returnHomeFromSearch,
+                  shellSettings: widget.shellData.siteSettings,
+                  navigationItems: widget.shellData.navigationItems,
+                  contentSettings: widget.contentSettings,
+                  homeFeedItems: widget.homeFeedItems,
+                  authState: widget.authState,
+                  onAuthRequired: _openAccountForRequiredAuth,
+                  onAuthorTap: _openAuthorProfile,
+                  onOpenApp: _openApp,
+                ),
+              ],
             ),
-            _index == 1
-                ? VideoFeedScreen(
-                    feedItems: widget.homeFeedItems,
-                    shellSettings: widget.shellData.siteSettings,
-                    navigationItems: widget.shellData.navigationItems,
-                    contentSettings: widget.contentSettings,
-                    initialArticleId: _videoFeedArticleId,
-                    revealSerial: _videoFeedRevealSerial,
-                    authState: widget.authState,
-                    onRefresh: widget.onRefreshHome,
-                    onAuthRequired: _openAccountForRequiredAuth,
-                    onAuthorTap: _openAuthorProfile,
-                    onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
-                  )
-                : const SizedBox.shrink(),
-            const SectionPlaceholder(
-              icon: Symbols.grid_view_rounded,
-              title: 'Pateez uygulamaları',
-              message:
-                  'Anketler, testler ve mini araçlar bu bölümde tek '
-                  'çatı altında toplanacak.',
-            ),
-            const SectionPlaceholder(
-              icon: Symbols.search_ai_line,
-              title: 'Arama',
-              message:
-                  'Haberleri, videoları ve uygulamaları hızlıca bulman '
-                  'için modern arama deneyimi burada hazırlanacak.',
-            ),
-          ],
+          ),
+          bottomNavigationBar: PateezBottomNav(
+            items: _items,
+            activeIndex: _accountMenuOpen
+                ? _accountNavIndex
+                : _appsSheetOpen
+                ? _appsNavIndex
+                : _index,
+            authState: widget.authState,
+            authLoading: widget.authLoading,
+            onSelected: (i) {
+              if (i == _accountNavIndex) {
+                if (widget.authState != null) {
+                  _toggleAccountMenu();
+                } else {
+                  _openAccount();
+                }
+                return;
+              }
+              if (i == _appsNavIndex) {
+                _toggleAppsSheet();
+                return;
+              }
+              if (i == _videoNavIndex) {
+                _openVideoFeedFromNav();
+                return;
+              }
+              _closeAccountMenu();
+              _closeAppsSheet();
+              setState(() => _index = i);
+            },
+          ),
         ),
-      ),
-      bottomNavigationBar: PateezBottomNav(
-        items: _items,
-        activeIndex: _accountMenuOpen
-            ? _accountNavIndex
-            : _appsSheetOpen
-            ? _appsNavIndex
-            : _index,
-        authState: widget.authState,
-        authLoading: widget.authLoading,
-        onSelected: (i) {
-          if (i == _accountNavIndex) {
-            if (widget.authState != null) {
-              _toggleAccountMenu();
-            } else {
-              _openAccount();
-            }
-            return;
-          }
-          if (i == _appsNavIndex) {
-            _toggleAppsSheet();
-            return;
-          }
-          if (i == _videoNavIndex) {
-            _openVideoFeedFromNav();
-            return;
-          }
-          _closeAccountMenu();
-          _closeAppsSheet();
-          setState(() => _index = i);
-        },
+        if (_index == 0 && !_menuOpen && !_appsSheetOpen && !_accountMenuOpen)
+          Positioned(
+            right: 2,
+            bottom: bottomInset + AppSpacing.bottomNavHeight - 8,
+            child: _FloatingSubmitNewsButton(onTap: _showSubmitNewsHint),
+          ),
+      ],
+    );
+  }
+}
+
+class _FloatingSubmitNewsButton extends StatefulWidget {
+  const _FloatingSubmitNewsButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_FloatingSubmitNewsButton> createState() =>
+      _FloatingSubmitNewsButtonState();
+}
+
+class _FloatingSubmitNewsButtonState extends State<_FloatingSubmitNewsButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  )..repeat();
+
+  late final Animation<double> _heartbeat = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 1,
+        end: 1.035,
+      ).chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 9,
+    ),
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 1.035,
+        end: 0.99,
+      ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+      weight: 8,
+    ),
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 0.99,
+        end: 1.018,
+      ).chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 7,
+    ),
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 1.018,
+        end: 1,
+      ).chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 8,
+    ),
+    TweenSequenceItem(tween: ConstantTween<double>(1), weight: 68),
+  ]).animate(_controller);
+
+  static const _whatsappGreen = Color(0xFF25D366);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'WhatsApp ile haber gönder',
+      button: true,
+      child: AnimatedBuilder(
+        animation: _heartbeat,
+        builder: (context, child) =>
+            Transform.scale(scale: _heartbeat.value, child: child),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: SizedBox(
+            width: 70,
+            height: 58,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF32E176),
+                        _whatsappGreen,
+                        Color(0xFF119C4A),
+                      ],
+                      stops: [0, 0.58, 1],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _whatsappGreen.withValues(alpha: 0.24),
+                        blurRadius: 14,
+                        offset: const Offset(0, 7),
+                      ),
+                    ],
+                  ),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: const Icon(
+                      Symbols.whatsapp_fill,
+                      color: Colors.white,
+                      size: 19,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.86),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.deepOcean.withValues(alpha: 0.07),
+                        blurRadius: 7,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    child: Text(
+                      'Haber gönder',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.eyebrow.copyWith(
+                        color: AppColors.deepOcean,
+                        fontSize: 8.2,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                        letterSpacing: 0,
+                        decoration: TextDecoration.none,
+                        decorationColor: Colors.transparent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

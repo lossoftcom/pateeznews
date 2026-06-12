@@ -29,6 +29,10 @@ const cleanSource = (value: unknown, fallback: string) => {
 
 const cleanVideoUrl = (value: unknown) => String(value || '').trim().slice(0, 2048);
 
+const MAX_REACTIONS_PER_POST = 3;
+const REACTION_LIMIT_MESSAGE = `En fazla ${MAX_REACTIONS_PER_POST} emoji tepkisi seçebilirsiniz.`;
+const ALLOWED_REACTIONS = new Set(['love', 'great', 'bravo', 'laugh', 'sad', 'angry', 'dislike']);
+
 async function sha256Hex(value: string) {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(hash))
@@ -87,7 +91,12 @@ async function recordReadEvent(
   return Boolean(result.rows[0]?.counted);
 }
 
-async function readState(postId: number, userId?: string | null, publisherId?: string | null) {
+async function readState(
+  postId: number,
+  userId?: string | null,
+  publisherId?: string | null,
+  viewerKey?: string | null
+) {
   const [postRes, savesRes, reactionRes] = await Promise.all([
     dbQuery(
       `SELECT likes_count, dislikes_count, shares_count, views_count, saves_count
@@ -130,6 +139,15 @@ async function readState(postId: number, userId?: string | null, publisherId?: s
       disliked: !!dislikeRes.rows[0],
       saved: !!saveRes.rows[0],
       following: !!followRes.rows[0],
+      reactions: userReactionRes.rows.map((row: { reaction: string }) => row.reaction),
+    };
+  } else if (viewerKey) {
+    const userReactionRes = await dbQuery<{ reaction: string }>(
+      'SELECT reaction FROM public.post_reactions WHERE post_id = $1 AND viewer_key = $2',
+      [postId, viewerKey]
+    );
+    userState = {
+      ...userState,
       reactions: userReactionRes.rows.map((row: { reaction: string }) => row.reaction),
     };
   }
@@ -185,7 +203,8 @@ export const POST: APIRoute = async ({ request }) => {
     if (!postId) return json({ error: { message: 'Post missing' } }, 400);
 
     if (action === 'state') {
-      return json({ ok: true, ...(await readState(postId, userId, publisherId)) });
+      const viewerKey = await viewerKeyFromRequest(request, body, userId);
+      return json({ ok: true, ...(await readState(postId, userId, publisherId, userId ? null : viewerKey)) });
     }
 
     if (action === 'view') {
@@ -258,6 +277,68 @@ export const POST: APIRoute = async ({ request }) => {
       return json({ ok: true, ...(await readState(postId, userId, publisherId)) });
     }
 
+    if (action === 'toggle_reaction') {
+      const reaction = String(body.reaction || '').trim().slice(0, 40);
+      if (!reaction) return json({ error: { message: 'Reaction missing' } }, 400);
+      if (!ALLOWED_REACTIONS.has(reaction)) {
+        return json({ error: { message: 'Geçersiz emoji tepkisi' } }, 400);
+      }
+
+      const viewerKey = await viewerKeyFromRequest(request, body, userId);
+      const identityColumn = userId ? 'user_id' : 'viewer_key';
+      const identityValue = userId || viewerKey;
+
+      let limitReached = false;
+      await withTransaction(async (client) => {
+        const existing = await client.query(
+          `SELECT id FROM public.post_reactions
+           WHERE post_id = $1 AND ${identityColumn} = $2 AND reaction = $3
+           LIMIT 1`,
+          [postId, identityValue, reaction]
+        );
+        if (existing.rows[0]) {
+          await client.query(
+            `DELETE FROM public.post_reactions
+             WHERE post_id = $1 AND ${identityColumn} = $2 AND reaction = $3`,
+            [postId, identityValue, reaction]
+          );
+          return;
+        }
+
+        const count = await client.query<{ count: string }>(
+          `SELECT COUNT(*)::bigint AS count
+           FROM public.post_reactions
+           WHERE post_id = $1 AND ${identityColumn} = $2`,
+          [postId, identityValue]
+        );
+        if (Number(count.rows[0]?.count || 0) >= MAX_REACTIONS_PER_POST) {
+          limitReached = true;
+          return;
+        }
+
+        try {
+          await client.query(
+            `INSERT INTO public.post_reactions (post_id, user_id, viewer_key, reaction)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT DO NOTHING`,
+            [postId, userId, userId ? null : viewerKey, reaction]
+          );
+        } catch (error: any) {
+          if (String(error?.message || '').includes('POST_REACTIONS_LIMIT_REACHED')) {
+            limitReached = true;
+            return;
+          }
+          throw error;
+        }
+      });
+
+      if (limitReached) {
+        return json({ error: { message: REACTION_LIMIT_MESSAGE } }, 400);
+      }
+
+      return json({ ok: true, ...(await readState(postId, userId, publisherId, userId ? null : viewerKey)) });
+    }
+
     if (!userId) return json({ error: { message: 'Auth required' } }, 401);
 
     if (action === 'toggle_like' || action === 'toggle_dislike') {
@@ -309,38 +390,6 @@ export const POST: APIRoute = async ({ request }) => {
         await client.query(
           'UPDATE public.posts SET saves_count = (SELECT COUNT(*)::int FROM public.post_saves WHERE post_id = $1) WHERE id = $1',
           [postId]
-        );
-      });
-
-      return json({ ok: true, ...(await readState(postId, userId, publisherId)) });
-    }
-
-    if (action === 'toggle_reaction') {
-      const reaction = String(body.reaction || '').trim().slice(0, 40);
-      if (!reaction) return json({ error: { message: 'Reaction missing' } }, 400);
-
-      await withTransaction(async (client) => {
-        const existing = await client.query(
-          'SELECT id FROM public.post_reactions WHERE post_id = $1 AND user_id = $2 AND reaction = $3 LIMIT 1',
-          [postId, userId, reaction]
-        );
-        if (existing.rows[0]) {
-          await client.query(
-            'DELETE FROM public.post_reactions WHERE post_id = $1 AND user_id = $2 AND reaction = $3',
-            [postId, userId, reaction]
-          );
-          return;
-        }
-
-        const count = await client.query<{ count: string }>(
-          'SELECT COUNT(*)::bigint AS count FROM public.post_reactions WHERE post_id = $1 AND user_id = $2',
-          [postId, userId]
-        );
-        if (Number(count.rows[0]?.count || 0) >= 3) throw new Error('Maximum reactions reached');
-
-        await client.query(
-          'INSERT INTO public.post_reactions (post_id, user_id, reaction) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-          [postId, userId, reaction]
         );
       });
 

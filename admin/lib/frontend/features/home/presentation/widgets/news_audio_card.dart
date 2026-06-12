@@ -21,10 +21,16 @@ import '../../../../shared/widgets/cached_image.dart';
 /// KIRMIZI dolan seek çubuğu, ±15 sn atlama, ses açma/kapama. Yüksekliği ölçülü,
 /// tam ekranda mobil-uyumlu görünür.
 class NewsAudioCard extends StatefulWidget {
-  const NewsAudioCard({super.key, required this.url, required this.coverUrl});
+  const NewsAudioCard({
+    super.key,
+    required this.url,
+    required this.coverUrl,
+    this.compactTop = false,
+  });
 
   final String url;
   final String coverUrl;
+  final bool compactTop;
 
   @override
   State<NewsAudioCard> createState() => _NewsAudioCardState();
@@ -258,6 +264,7 @@ class _NewsAudioCardState extends State<NewsAudioCard>
             ),
           _AudioPanel(
             coverUrl: widget.coverUrl,
+            compactTop: widget.compactTop,
             isPlaying: _isPlaying,
             isMuted: _muted,
             fraction: fraction,
@@ -296,6 +303,7 @@ const Color _audioBottom = Color(0xFF1B2A37);
 class _AudioPanel extends StatelessWidget {
   const _AudioPanel({
     required this.coverUrl,
+    required this.compactTop,
     required this.isPlaying,
     required this.isMuted,
     required this.fraction,
@@ -309,6 +317,7 @@ class _AudioPanel extends StatelessWidget {
   });
 
   final String coverUrl;
+  final bool compactTop;
   final bool isPlaying;
   final bool isMuted;
   final double fraction;
@@ -322,6 +331,8 @@ class _AudioPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = compactTop ? 24.0 : 60.0;
+    final badgeGap = compactTop ? 12.0 : 14.0;
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -331,12 +342,12 @@ class _AudioPanel extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 60, 18, 18),
+        padding: EdgeInsets.fromLTRB(18, topPadding, 18, 18),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _Badge(),
-            const SizedBox(height: 14),
+            SizedBox(height: badgeGap),
             _CoverVinyl(coverUrl: coverUrl, isPlaying: isPlaying, vinyl: vinyl),
             const SizedBox(height: 18),
             Row(

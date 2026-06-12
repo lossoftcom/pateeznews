@@ -109,58 +109,57 @@ class CommentsTableCard extends StatelessWidget {
           );
         }
         return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _CommentsFilters(
-          filterOptions: filterOptions,
-          statusFilter: statusFilter,
-          postFilter: postFilter,
-          userFilter: userFilter,
-          onStatusChanged: onStatusChanged,
-          onPostChanged: onPostChanged,
-          onUserChanged: onUserChanged,
-        ),
-        const SizedBox(height: 28),
-        _CommentsToolbar(
-          pageSize: pageSize,
-          searchQuery: searchQuery,
-          selectedCount: selectedCommentIds.length,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onDeleteSelected: onDeleteSelected,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: _CommentsDataTable(
-            comments: comments,
-            loading: loading,
-            selectedCommentIds: selectedCommentIds,
-            sortState: sortState,
-            onToggleComment: onToggleComment,
-            onToggleAllComments: onToggleAllComments,
-            onSort: onSort,
-            onApproveComment: onApproveComment,
-            onRejectComment: onRejectComment,
-            onTogglePinned: onTogglePinned,
-            onReplyComment: onReplyComment,
-            onDeleteComment: onDeleteComment,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _CommentsFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          loading: loading,
-          onPageChanged: onPageChanged,
-        ),
-      ],
-    );
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CommentsFilters(
+              filterOptions: filterOptions,
+              statusFilter: statusFilter,
+              postFilter: postFilter,
+              userFilter: userFilter,
+              onStatusChanged: onStatusChanged,
+              onPostChanged: onPostChanged,
+              onUserChanged: onUserChanged,
+            ),
+            const SizedBox(height: 28),
+            _CommentsToolbar(
+              pageSize: pageSize,
+              searchQuery: searchQuery,
+              selectedCount: selectedCommentIds.length,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onDeleteSelected: onDeleteSelected,
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: _CommentsDataTable(
+                comments: comments,
+                loading: loading,
+                selectedCommentIds: selectedCommentIds,
+                sortState: sortState,
+                onToggleComment: onToggleComment,
+                onToggleAllComments: onToggleAllComments,
+                onSort: onSort,
+                onApproveComment: onApproveComment,
+                onRejectComment: onRejectComment,
+                onTogglePinned: onTogglePinned,
+                onReplyComment: onReplyComment,
+                onDeleteComment: onDeleteComment,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _CommentsFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              loading: loading,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
       },
     );
   }
 }
-
 
 class _CommentsMobileView extends StatelessWidget {
   const _CommentsMobileView({
@@ -425,7 +424,10 @@ class _CommentsMobileCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+              AdminMobileCheckbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+              ),
               const SizedBox(width: 12),
               AdminMobileAvatar(
                 label: context.t(comment.displayUser),

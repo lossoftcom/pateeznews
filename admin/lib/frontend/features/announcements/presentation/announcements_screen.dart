@@ -36,11 +36,13 @@ class AnnouncementsScreen extends StatefulWidget {
     this.items,
     this.initialData,
     this.repository = const AnnouncementsRepository(),
+    this.onSearch,
   });
 
   final List<AnnouncementItem>? items;
   final AnnouncementData? initialData;
   final AnnouncementsRepository repository;
+  final VoidCallback? onSearch;
 
   @override
   State<AnnouncementsScreen> createState() => _AnnouncementsScreenState();
@@ -95,7 +97,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Duyurular'),
+            FeatureAppBar(title: 'Duyurular', onSearch: widget.onSearch),
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.actionRed,

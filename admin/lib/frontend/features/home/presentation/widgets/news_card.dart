@@ -5,6 +5,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,9 +30,13 @@ import 'social_embed_stage.dart';
 
 const int _inlineCollapsedRootCommentLimit = 2;
 const int _inlineMaxRootCommentLimit = 20;
+const int _inlineCommentMaxLength = 2000;
+const int _inlineCommentCounterRevealLength = 1600;
+const int _inlineCommentCounterWarningLength = 1900;
 const String _kFrontendApiBaseUrl = String.fromEnvironment(
   'PATEEZNEWS_API_BASE_URL',
 );
+const String _kPublicFrontendHost = 'www.pateez.com';
 
 /// Pateeznews sosyal post kartı.
 ///
@@ -48,6 +53,16 @@ class NewsCard extends StatefulWidget {
     this.commentsEnabled = true,
     this.commentApprovalEnabled = true,
     this.emojiReactionsEnabled = true,
+    this.showMediaStage = true,
+    this.showTitleSummary = true,
+    this.showReadStats = true,
+    this.showActions = true,
+    this.showComments = true,
+    this.showMediaHeader = true,
+    this.showStructuredMediaText = true,
+    this.relaxedInlineComments = false,
+    this.showInlineCommentGuidance = false,
+    this.resolveActualImageAspectRatio = false,
     this.authState,
     this.commentsRepository = const NewsCommentsRepository(),
     this.postActionRepository = const PostActionRepository(),
@@ -64,6 +79,16 @@ class NewsCard extends StatefulWidget {
   final bool commentsEnabled;
   final bool commentApprovalEnabled;
   final bool emojiReactionsEnabled;
+  final bool showMediaStage;
+  final bool showTitleSummary;
+  final bool showReadStats;
+  final bool showActions;
+  final bool showComments;
+  final bool showMediaHeader;
+  final bool showStructuredMediaText;
+  final bool relaxedInlineComments;
+  final bool showInlineCommentGuidance;
+  final bool resolveActualImageAspectRatio;
   final FrontendAuthState? authState;
   final NewsCommentsRepository commentsRepository;
   final PostActionRepository postActionRepository;
@@ -108,7 +133,9 @@ class _NewsCardState extends State<NewsCard> {
   void didUpdateWidget(covariant NewsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.article.imageUrl != widget.article.imageUrl ||
-        oldWidget.article.imageAspectRatio != widget.article.imageAspectRatio) {
+        oldWidget.article.imageAspectRatio != widget.article.imageAspectRatio ||
+        oldWidget.resolveActualImageAspectRatio !=
+            widget.resolveActualImageAspectRatio) {
       _removeImageListener();
       _resolvedImageAspectRatio = null;
       _resolveImageAspectRatio(widget.article);
@@ -296,23 +323,53 @@ class _NewsCardState extends State<NewsCard> {
     }
   }
 
-  Future<void> _shareArticle() async {
-    final shareUrl = _shareUrlForArticle(widget.article);
-    if (shareUrl.isEmpty) return;
-    final previousShares = _shares;
-    setState(() => _shares++);
+  Future<void> _copyArticleLink(NewsArticle article) async {
+    final shareUrl = _shareUrlForArticle(article);
+    if (shareUrl.isEmpty) {
+      _showCommentMessage(
+        'Bağlantı hazırlanamadı.',
+        tone: FrontendToastTone.error,
+      );
+      return;
+    }
     try {
-      if (_hasNumericPostId) {
-        final token = _authToken;
-        final state = await widget.postActionRepository.share(
-          postId: widget.article.id,
-          token: token.isEmpty ? null : token,
-          platform: 'mobile_share',
-        );
-        if (mounted) _applyPostActionState(state);
-      }
+      await Clipboard.setData(ClipboardData(text: shareUrl));
     } catch (_) {
-      if (mounted) setState(() => _shares = previousShares);
+      if (!mounted) return;
+      _showCommentMessage(
+        'Bağlantı kopyalanamadı.',
+        tone: FrontendToastTone.error,
+      );
+      return;
+    }
+    if (!mounted) return;
+    _showCommentMessage(
+      'Bağlantı kopyalandı.',
+      tone: FrontendToastTone.success,
+    );
+  }
+
+  Future<void> _shareArticle([NewsArticle? targetArticle]) async {
+    final article = targetArticle ?? widget.article;
+    final shareUrl = _shareUrlForArticle(article);
+    if (shareUrl.isEmpty) return;
+    final shouldTrackCardShare = article.id == widget.article.id;
+    final previousShares = _shares;
+    if (shouldTrackCardShare) {
+      setState(() => _shares++);
+      try {
+        if (_hasNumericPostId) {
+          final token = _authToken;
+          final state = await widget.postActionRepository.share(
+            postId: widget.article.id,
+            token: token.isEmpty ? null : token,
+            platform: 'mobile_share',
+          );
+          if (mounted) _applyPostActionState(state);
+        }
+      } catch (_) {
+        if (mounted) setState(() => _shares = previousShares);
+      }
     }
 
     if (!mounted) return;
@@ -320,8 +377,8 @@ class _NewsCardState extends State<NewsCard> {
     final origin = box == null
         ? null
         : box.localToGlobal(Offset.zero) & box.size;
-    final title = widget.article.title.trim();
-    final category = widget.article.category.trim();
+    final title = article.title.trim();
+    final category = article.category.trim();
     final text = [
       if (title.isNotEmpty) title,
       if (category.isNotEmpty) category,
@@ -337,6 +394,26 @@ class _NewsCardState extends State<NewsCard> {
         ),
       ),
     );
+  }
+
+  Future<void> _openReportSheet(NewsArticle article) async {
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.36),
+      builder: (context) => _ArticleReportSheet(article: article),
+    );
+    if (!mounted || submitted != true) return;
+    _showCommentMessage(
+      'Şikayet bildirimi alındı.',
+      tone: FrontendToastTone.success,
+    );
+  }
+
+  void _reportArticle(NewsArticle article) {
+    unawaited(_openReportSheet(article));
   }
 
   Future<void> _recordRead(String source) async {
@@ -670,16 +747,17 @@ class _NewsCardState extends State<NewsCard> {
   }
 
   void _resolveImageAspectRatio(NewsArticle article) {
+    final resolveActual = widget.resolveActualImageAspectRatio;
     final knownRatio = article.imageAspectRatio;
     if (knownRatio != null && knownRatio.isFinite && knownRatio > 0) {
       _resolvedImageAspectRatio = knownRatio;
-      return;
+      if (!resolveActual) return;
     }
 
     final parsedRatio = _parseImageAspectRatioFromUrl(article.imageUrl);
     if (parsedRatio != null) {
       _resolvedImageAspectRatio = parsedRatio;
-      return;
+      if (!resolveActual) return;
     }
 
     final imageUrl = article.imageUrl.trim();
@@ -694,7 +772,10 @@ class _NewsCardState extends State<NewsCard> {
       final width = image.image.width;
       final height = image.image.height;
       if (!mounted || width <= 0 || height <= 0) return;
-      setState(() => _resolvedImageAspectRatio = width / height);
+      final ratio = width / height;
+      final current = _resolvedImageAspectRatio;
+      if (current != null && (current - ratio).abs() < 0.001) return;
+      setState(() => _resolvedImageAspectRatio = ratio);
     }, onError: (_, _) => _removeImageListener());
     _pendingImageStream = stream;
     _pendingImageListener = listener;
@@ -731,46 +812,54 @@ class _NewsCardState extends State<NewsCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _MediaStage(
-              article: article,
-              aspectRatio: _resolvedImageAspectRatio,
-              categoryTrail: widget.categoryTrail,
-              videoFeedArticles: widget.videoFeedArticles,
-              shellSettings: widget.shellSettings,
-              authState: widget.authState,
-              postActionRepository: widget.postActionRepository,
-              onReadSignal: (source) => unawaited(_recordRead(source)),
-              onPostActionState: _applyPostActionState,
-              onAuthRequired: widget.onAuthRequired,
-              onAuthorTap: widget.onAuthorTap,
-              onFullscreenVideoExit: widget.onFullscreenVideoExit,
-            ),
+            if (widget.showMediaStage)
+              _MediaStage(
+                article: article,
+                aspectRatio: _resolvedImageAspectRatio,
+                categoryTrail: widget.categoryTrail,
+                videoFeedArticles: widget.videoFeedArticles,
+                shellSettings: widget.shellSettings,
+                showHeader: widget.showMediaHeader,
+                showStructuredMediaText: widget.showStructuredMediaText,
+                authState: widget.authState,
+                postActionRepository: widget.postActionRepository,
+                onReadSignal: (source) => unawaited(_recordRead(source)),
+                onPostActionState: _applyPostActionState,
+                onAuthRequired: widget.onAuthRequired,
+                onAuthorTap: widget.onAuthorTap,
+                onCopyLink: (article) => unawaited(_copyArticleLink(article)),
+                onShare: (article) => unawaited(_shareArticle(article)),
+                onReport: _reportArticle,
+                onFullscreenVideoExit: widget.onFullscreenVideoExit,
+              ),
             // Sosyal medya kartlarında başlık _MediaStage içinde (embed üstünde)
             // gösterilir; özet ise gönderi embed'i metni zaten içerdiğinden
             // gösterilmez. İkisini de yalnızca normal kartlarda veririz.
-            if (!hasInlineBody) ...[
+            if (widget.showTitleSummary && !hasInlineBody) ...[
               _Title(title: article.title),
               _Summary(summary: article.summary),
             ],
-            _ReadStats(article: article, views: _views),
-            _ActionBar(
-              article: article,
-              isLiked: _isLiked,
-              isDisliked: _isDisliked,
-              isSaved: _isSaved,
-              likes: _likes,
-              dislikes: _dislikes,
-              shares: _shares,
-              saves: _saves,
-              onLike: _toggleLike,
-              onDislike: _toggleDislike,
-              onSave: _toggleSave,
-              onShare: _shareArticle,
-              commentsEnabled: widget.commentsEnabled,
-              commentsVisible: _commentsVisible,
-              onCommentsToggle: _toggleCommentsFromActionBar,
-            ),
-            if (widget.commentsEnabled)
+            if (widget.showReadStats)
+              _ReadStats(article: article, views: _views),
+            if (widget.showActions)
+              _ActionBar(
+                article: article,
+                isLiked: _isLiked,
+                isDisliked: _isDisliked,
+                isSaved: _isSaved,
+                likes: _likes,
+                dislikes: _dislikes,
+                shares: _shares,
+                saves: _saves,
+                onLike: _toggleLike,
+                onDislike: _toggleDislike,
+                onSave: _toggleSave,
+                onShare: () => unawaited(_shareArticle()),
+                commentsEnabled: widget.commentsEnabled,
+                commentsVisible: _commentsVisible,
+                onCommentsToggle: _toggleCommentsFromActionBar,
+              ),
+            if (widget.commentsEnabled && widget.showComments)
               _InlineCommentPreview(
                 comments: _comments,
                 totalCount: article.comments,
@@ -782,6 +871,8 @@ class _NewsCardState extends State<NewsCard> {
                 submitting: _commentBusy,
                 deletingCommentId: _deletingCommentId,
                 emojiReactionsEnabled: widget.emojiReactionsEnabled,
+                relaxedLayout: widget.relaxedInlineComments,
+                showGuidance: widget.showInlineCommentGuidance,
                 onCancelReply: () => setState(() => _replyTo = null),
                 onReply: (comment) => setState(() => _replyTo = comment),
                 onLike: _toggleCommentLike,
@@ -821,16 +912,24 @@ class _PostActionSnapshot {
 // HEADER
 // ─────────────────────────────────────────────────────────────────────────────
 
+enum _HeaderMenuAction { copyLink, share, report }
+
 class _HeaderOverlay extends StatelessWidget {
   const _HeaderOverlay({
     required this.article,
     required this.categoryTrail,
     required this.onAuthorTap,
+    required this.onCopyLink,
+    required this.onShare,
+    required this.onReport,
   });
 
   final NewsArticle article;
   final List<String> categoryTrail;
   final ValueChanged<NewsAuthor>? onAuthorTap;
+  final ValueChanged<NewsArticle> onCopyLink;
+  final ValueChanged<NewsArticle> onShare;
+  final ValueChanged<NewsArticle> onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -862,11 +961,11 @@ class _HeaderOverlay extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          _IconBtn(
-            icon: Symbols.more_horiz_rounded,
-            onTap: () {},
-            semantics: 'Diğer seçenekler',
+          _HeaderMoreMenu(
             color: Colors.white,
+            onCopyLink: () => onCopyLink(article),
+            onShare: () => onShare(article),
+            onReport: () => onReport(article),
           ),
         ],
       ),
@@ -879,11 +978,17 @@ class _SocialArticleHeader extends StatelessWidget {
     required this.article,
     required this.categoryTrail,
     required this.onAuthorTap,
+    required this.onCopyLink,
+    required this.onShare,
+    required this.onReport,
   });
 
   final NewsArticle article;
   final List<String> categoryTrail;
   final ValueChanged<NewsAuthor>? onAuthorTap;
+  final ValueChanged<NewsArticle> onCopyLink;
+  final ValueChanged<NewsArticle> onShare;
+  final ValueChanged<NewsArticle> onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -925,11 +1030,11 @@ class _SocialArticleHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            _IconBtn(
-              icon: Symbols.more_horiz_rounded,
-              onTap: () {},
-              semantics: 'Diğer seçenekler',
+            _HeaderMoreMenu(
               color: AppColors.iconMuted,
+              onCopyLink: () => onCopyLink(article),
+              onShare: () => onShare(article),
+              onReport: () => onReport(article),
             ),
           ],
         ),
@@ -1308,38 +1413,741 @@ class _Meta extends StatelessWidget {
   }
 }
 
-class _IconBtn extends StatelessWidget {
-  const _IconBtn({
-    required this.icon,
-    required this.onTap,
-    required this.semantics,
+class _HeaderMoreMenu extends StatelessWidget {
+  const _HeaderMoreMenu({
     this.color = AppColors.iconMuted,
+    required this.onCopyLink,
+    required this.onShare,
+    required this.onReport,
+  });
+
+  final Color color;
+  final VoidCallback onCopyLink;
+  final VoidCallback onShare;
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_HeaderMenuAction>(
+      tooltip: 'Diğer seçenekler',
+      padding: EdgeInsets.zero,
+      offset: const Offset(-8, 34),
+      elevation: 8,
+      color: AppColors.surface,
+      shadowColor: AppColors.shadow,
+      constraints: const BoxConstraints(minWidth: 168, maxWidth: 196),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.line),
+      ),
+      onSelected: (action) {
+        switch (action) {
+          case _HeaderMenuAction.copyLink:
+            onCopyLink();
+            break;
+          case _HeaderMenuAction.share:
+            onShare();
+            break;
+          case _HeaderMenuAction.report:
+            onReport();
+            break;
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem<_HeaderMenuAction>(
+          value: _HeaderMenuAction.copyLink,
+          height: 36,
+          padding: EdgeInsets.zero,
+          child: _HeaderMenuRow(
+            icon: Symbols.open_in_new,
+            label: 'Bağlantıyı kopyala',
+          ),
+        ),
+        PopupMenuItem<_HeaderMenuAction>(
+          value: _HeaderMenuAction.share,
+          height: 36,
+          padding: EdgeInsets.zero,
+          child: _HeaderMenuRow(
+            icon: Symbols.share_forward_line,
+            label: 'Paylaş',
+          ),
+        ),
+        PopupMenuItem<_HeaderMenuAction>(
+          value: _HeaderMenuAction.report,
+          height: 36,
+          padding: EdgeInsets.zero,
+          child: _HeaderMenuRow(
+            icon: Symbols.flag_outlined,
+            label: 'Şikayet et',
+            danger: true,
+          ),
+        ),
+      ],
+      child: Semantics(
+        label: 'Diğer seçenekler',
+        button: true,
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: Center(
+            child: Icon(
+              Symbols.more_horiz_rounded,
+              size: 22,
+              color: color,
+              shadows: _mediaTextShadows,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderMenuRow extends StatelessWidget {
+  const _HeaderMenuRow({
+    required this.icon,
+    required this.label,
+    this.danger = false,
   });
 
   final IconData icon;
+  final String label;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger
+        ? AppColors.actionRed.withValues(alpha: 0.84)
+        : AppColors.inkSoft;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 9),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.meta.copyWith(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArticleReportReason {
+  const _ArticleReportReason({
+    required this.label,
+    required this.description,
+    required this.icon,
+  });
+
+  final String label;
+  final String description;
+  final IconData icon;
+}
+
+const _articleReportReasons = [
+  _ArticleReportReason(
+    label: 'Yanıltıcı veya hatalı bilgi',
+    description: 'Başlık, görsel ya da içerikte doğruluk sorunu var.',
+    icon: Symbols.warning,
+  ),
+  _ArticleReportReason(
+    label: 'Hakaret veya hedef gösterme',
+    description: 'Kişileri ya da grupları inciten bir ifade içeriyor.',
+    icon: Symbols.person_outline_rounded,
+  ),
+  _ArticleReportReason(
+    label: 'Kişisel hak / telif ihlali',
+    description: 'İzinsiz kullanım, özel bilgi ya da hak ihlali şüphesi var.',
+    icon: Symbols.lock,
+  ),
+  _ArticleReportReason(
+    label: 'Spam veya reklam',
+    description: 'Haberle ilgisiz, yanıltıcı ya da tanıtım amaçlı görünüyor.',
+    icon: Symbols.flag_outlined,
+  ),
+  _ArticleReportReason(
+    label: 'Diğer',
+    description: 'Farklı bir durumu editöre kısa notla iletmek istiyorum.',
+    icon: Symbols.more_horiz_rounded,
+  ),
+];
+
+class _ArticleReportSheet extends StatefulWidget {
+  const _ArticleReportSheet({required this.article});
+
+  final NewsArticle article;
+
+  @override
+  State<_ArticleReportSheet> createState() => _ArticleReportSheetState();
+}
+
+class _ArticleReportSheetState extends State<_ArticleReportSheet> {
+  final _detailsController = TextEditingController();
+  int? _selectedReasonIndex;
+
+  bool get _canSubmit => _selectedReasonIndex != null;
+
+  @override
+  void dispose() {
+    _detailsController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_canSubmit) return;
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final bottomInset = media.viewInsets.bottom;
+    final maxHeight = media.size.height * 0.9;
+    final sheetWidth = math.min(media.size.width, 520.0);
+    final title = widget.article.title.trim();
+    final source = widget.article.author.name.trim();
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: sheetWidth,
+            maxWidth: sheetWidth,
+            maxHeight: maxHeight,
+          ),
+          child: Material(
+            color: AppColors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            clipBehavior: Clip.antiAlias,
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 38,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.line,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppColors.actionRed.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.actionRed.withValues(
+                                alpha: 0.12,
+                              ),
+                            ),
+                          ),
+                          child: Icon(
+                            Symbols.flag_outlined,
+                            size: 19,
+                            color: AppColors.actionRed.withValues(alpha: 0.86),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'İçeriği şikayet et',
+                                style: AppTypography.titleM.copyWith(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.14,
+                                  color: AppColors.inkStrong,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Bildirimin, haberin bağlamıyla birlikte editör incelemesine alınır.',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.support,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  height: 1.34,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _ReportSheetCloseButton(
+                          onTap: () => Navigator.of(context).pop(false),
+                        ),
+                      ],
+                    ),
+                    if (title.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _ReportArticlePreview(title: title, source: source),
+                    ],
+                    const SizedBox(height: 16),
+                    Text(
+                      'Neden bildiriyorsun?',
+                      style: AppTypography.eyebrow.copyWith(
+                        color: AppColors.ink,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    for (
+                      var index = 0;
+                      index < _articleReportReasons.length;
+                      index += 1
+                    ) ...[
+                      _ArticleReportReasonTile(
+                        reason: _articleReportReasons[index],
+                        selected: _selectedReasonIndex == index,
+                        onTap: () =>
+                            setState(() => _selectedReasonIndex = index),
+                      ),
+                      if (index != _articleReportReasons.length - 1)
+                        const SizedBox(height: 7),
+                    ],
+                    const SizedBox(height: 14),
+                    Text(
+                      'Kısa açıklama',
+                      style: AppTypography.eyebrow.copyWith(
+                        color: AppColors.ink,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _ReportDetailsField(controller: _detailsController),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Symbols.info_outline_rounded,
+                          size: 15,
+                          color: AppColors.placeholder,
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            'Açıklama opsiyoneldir; net bir not incelemeyi hızlandırır.',
+                            style: AppTypography.meta.copyWith(
+                              color: AppColors.placeholder,
+                              fontSize: 10.8,
+                              fontWeight: FontWeight.w500,
+                              height: 1.28,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ReportSheetSecondaryButton(
+                            label: 'Vazgeç',
+                            onTap: () => Navigator.of(context).pop(false),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _ReportSheetSubmitButton(
+                            enabled: _canSubmit,
+                            onTap: _submit,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportSheetCloseButton extends StatelessWidget {
+  const _ReportSheetCloseButton({required this.onTap});
+
   final VoidCallback onTap;
-  final String semantics;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: semantics,
+      label: 'Kapat',
       button: true,
       child: Material(
-        color: Colors.transparent,
+        color: AppColors.surfaceSoft,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
-          child: Container(
+          borderRadius: BorderRadius.circular(12),
+          child: const SizedBox(
             width: 34,
             height: 34,
-            alignment: Alignment.center,
             child: Icon(
-              icon,
-              size: 22,
-              color: color,
-              shadows: _mediaTextShadows,
+              Symbols.close_rounded,
+              size: 17,
+              color: AppColors.iconMuted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportArticlePreview extends StatelessWidget {
+  const _ReportArticlePreview({required this.title, required this.source});
+
+  final String title;
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoft.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Row(
+          children: [
+            const Icon(Symbols.article, size: 17, color: AppColors.iconMuted),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (source.isNotEmpty) ...[
+                    Text(
+                      source,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.meta.copyWith(
+                        color: AppColors.support,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                  ],
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.ink,
+                      fontSize: 12.2,
+                      fontWeight: FontWeight.w700,
+                      height: 1.22,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArticleReportReasonTile extends StatelessWidget {
+  const _ArticleReportReasonTile({
+    required this.reason,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _ArticleReportReason reason;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = selected ? AppColors.deepOcean : AppColors.iconMuted;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.deepOcean.withValues(alpha: 0.055)
+                : AppColors.surfaceSoft.withValues(alpha: 0.52),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? AppColors.deepOcean.withValues(alpha: 0.22)
+                  : AppColors.softLine,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.deepOcean.withValues(alpha: 0.09)
+                      : AppColors.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected
+                        ? AppColors.deepOcean.withValues(alpha: 0.13)
+                        : AppColors.softLine,
+                  ),
+                ),
+                child: Icon(reason.icon, size: 15.5, color: accent),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reason.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.ink,
+                        fontSize: 12.4,
+                        fontWeight: FontWeight.w800,
+                        height: 1.12,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      reason.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.meta.copyWith(
+                        color: AppColors.support,
+                        fontSize: 10.7,
+                        fontWeight: FontWeight.w500,
+                        height: 1.22,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: selected ? AppColors.deepOcean : Colors.transparent,
+                  border: Border.all(
+                    color: selected ? AppColors.deepOcean : AppColors.line,
+                    width: selected ? 1.5 : 1.2,
+                  ),
+                ),
+                child: selected
+                    ? const Icon(
+                        Symbols.check_rounded,
+                        size: 12,
+                        color: Colors.white,
+                      )
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportDetailsField extends StatelessWidget {
+  const _ReportDetailsField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoft.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: TextField(
+        controller: controller,
+        cursorColor: AppColors.deepOcean,
+        cursorWidth: 1.3,
+        minLines: 3,
+        maxLines: 5,
+        maxLength: 360,
+        maxLengthEnforcement: MaxLengthEnforcement.enforced,
+        textInputAction: TextInputAction.newline,
+        style: AppTypography.bodySmall.copyWith(
+          color: AppColors.ink,
+          fontSize: 12.6,
+          fontWeight: FontWeight.w500,
+          height: 1.34,
+          letterSpacing: 0,
+        ),
+        buildCounter:
+            (context, {required currentLength, required isFocused, maxLength}) {
+              if (!isFocused && currentLength == 0) return null;
+              return Padding(
+                padding: const EdgeInsets.only(top: 3, right: 2),
+                child: Text(
+                  '$currentLength/${maxLength ?? 360}',
+                  style: AppTypography.meta.copyWith(
+                    color: currentLength > 320
+                        ? AppColors.actionRed.withValues(alpha: 0.84)
+                        : AppColors.placeholder,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                    letterSpacing: 0,
+                  ),
+                ),
+              );
+            },
+        decoration: InputDecoration(
+          hintText: 'Kısa bir not ekleyin',
+          hintStyle: AppTypography.bodySmall.copyWith(
+            color: AppColors.placeholder,
+            fontSize: 12.6,
+            fontWeight: FontWeight.w500,
+            height: 1.34,
+            letterSpacing: 0,
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.fromLTRB(12, 11, 12, 9),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportSheetSecondaryButton extends StatelessWidget {
+  const _ReportSheetSecondaryButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceSoft,
+      borderRadius: BorderRadius.circular(13),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: AppColors.softLine),
+          ),
+          child: Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.inkSoft,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportSheetSubmitButton extends StatelessWidget {
+  const _ReportSheetSubmitButton({required this.enabled, required this.onTap});
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 140),
+      opacity: enabled ? 1 : 0.48,
+      child: Material(
+        color: enabled ? AppColors.actionRed : AppColors.placeholderSoft,
+        borderRadius: BorderRadius.circular(13),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(13),
+          child: SizedBox(
+            height: 44,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Symbols.send_rounded, size: 16, color: Colors.white),
+                const SizedBox(width: 7),
+                Text(
+                  'Gönder',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1495,12 +2303,17 @@ class _MediaStage extends StatelessWidget {
     required this.categoryTrail,
     required this.videoFeedArticles,
     required this.shellSettings,
+    required this.showHeader,
+    required this.showStructuredMediaText,
     required this.authState,
     required this.postActionRepository,
     required this.onReadSignal,
     required this.onPostActionState,
     required this.onAuthRequired,
     required this.onAuthorTap,
+    required this.onCopyLink,
+    required this.onShare,
+    required this.onReport,
     required this.onFullscreenVideoExit,
   });
 
@@ -1509,12 +2322,17 @@ class _MediaStage extends StatelessWidget {
   final List<String> categoryTrail;
   final List<NewsArticle> videoFeedArticles;
   final AppShellSettings shellSettings;
+  final bool showHeader;
+  final bool showStructuredMediaText;
   final FrontendAuthState? authState;
   final PostActionRepository postActionRepository;
   final ValueChanged<String> onReadSignal;
   final ValueChanged<PostActionState> onPostActionState;
   final VoidCallback? onAuthRequired;
   final ValueChanged<NewsAuthor>? onAuthorTap;
+  final ValueChanged<NewsArticle> onCopyLink;
+  final ValueChanged<NewsArticle> onShare;
+  final ValueChanged<NewsArticle> onReport;
   final VoidCallback? onFullscreenVideoExit;
 
   static const double _fallbackAspectRatio = 3 / 2;
@@ -1527,11 +2345,15 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(
-            article: article,
-            categoryTrail: categoryTrail,
-            onAuthorTap: onAuthorTap,
-          ),
+          if (showHeader)
+            _SocialArticleHeader(
+              article: article,
+              categoryTrail: categoryTrail,
+              onAuthorTap: onAuthorTap,
+              onCopyLink: onCopyLink,
+              onShare: onShare,
+              onReport: onReport,
+            ),
           _Title(title: article.title),
           _QuoteView(data: quote),
         ],
@@ -1543,11 +2365,15 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(
-            article: article,
-            categoryTrail: categoryTrail,
-            onAuthorTap: onAuthorTap,
-          ),
+          if (showHeader)
+            _SocialArticleHeader(
+              article: article,
+              categoryTrail: categoryTrail,
+              onAuthorTap: onAuthorTap,
+              onCopyLink: onCopyLink,
+              onShare: onShare,
+              onReport: onReport,
+            ),
           _ReviewView(
             data: review,
             summary: article.summary,
@@ -1562,16 +2388,21 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(
-            article: article,
-            categoryTrail: categoryTrail,
-            onAuthorTap: onAuthorTap,
-          ),
+          if (showHeader)
+            _SocialArticleHeader(
+              article: article,
+              categoryTrail: categoryTrail,
+              onAuthorTap: onAuthorTap,
+              onCopyLink: onCopyLink,
+              onShare: onShare,
+              onReport: onReport,
+            ),
           _PollView(
             data: poll,
             coverImage: article.imageUrl,
             headline: article.title,
             summary: article.summary,
+            showQuestionText: showStructuredMediaText,
             onVoteRecorded: () => onReadSignal('poll_vote'),
           ),
         ],
@@ -1583,16 +2414,21 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(
-            article: article,
-            categoryTrail: categoryTrail,
-            onAuthorTap: onAuthorTap,
-          ),
+          if (showHeader)
+            _SocialArticleHeader(
+              article: article,
+              categoryTrail: categoryTrail,
+              onAuthorTap: onAuthorTap,
+              onCopyLink: onCopyLink,
+              onShare: onShare,
+              onReport: onReport,
+            ),
           _VsView(
             data: vs,
             coverImage: article.imageUrl,
             headline: article.title,
             summary: article.summary,
+            showQuestionText: showStructuredMediaText,
             onVoteRecorded: () => onReadSignal('vs_vote'),
           ),
         ],
@@ -1606,11 +2442,15 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(
-            article: article,
-            categoryTrail: categoryTrail,
-            onAuthorTap: onAuthorTap,
-          ),
+          if (showHeader)
+            _SocialArticleHeader(
+              article: article,
+              categoryTrail: categoryTrail,
+              onAuthorTap: onAuthorTap,
+              onCopyLink: onCopyLink,
+              onShare: onShare,
+              onReport: onReport,
+            ),
           ClipRRect(
             child: _FlipCardView(
               flip: flip,
@@ -1628,11 +2468,15 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(
-            article: article,
-            categoryTrail: categoryTrail,
-            onAuthorTap: onAuthorTap,
-          ),
+          if (showHeader)
+            _SocialArticleHeader(
+              article: article,
+              categoryTrail: categoryTrail,
+              onAuthorTap: onAuthorTap,
+              onCopyLink: onCopyLink,
+              onShare: onShare,
+              onReport: onReport,
+            ),
           ClipRRect(
             child: _BeforeAfterView(
               data: beforeAfter,
@@ -1647,11 +2491,15 @@ class _MediaStage extends StatelessWidget {
         key: const ValueKey<String>('news-card-cover-stage'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SocialArticleHeader(
-            article: article,
-            categoryTrail: categoryTrail,
-            onAuthorTap: onAuthorTap,
-          ),
+          if (showHeader)
+            _SocialArticleHeader(
+              article: article,
+              categoryTrail: categoryTrail,
+              onAuthorTap: onAuthorTap,
+              onCopyLink: onCopyLink,
+              onShare: onShare,
+              onReport: onReport,
+            ),
           // Sosyal medya kartında haber başlığı header'ın altında, embed'in
           // üstünde görünür (normal kartlarda başlık medyanın altında kalır).
           _Title(title: article.title),
@@ -1679,9 +2527,46 @@ class _MediaStage extends StatelessWidget {
           onAuthRequired: onAuthRequired,
           onAuthorTap: onAuthorTap,
           onFullscreenVideoExit: _handleFullscreenVideoExit,
-          topOverlay: Stack(
-            fit: StackFit.expand,
-            children: [
+          topOverlay: showHeader
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: IgnorePointer(child: _HeaderScrim()),
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _HeaderOverlay(
+                        article: article,
+                        categoryTrail: categoryTrail,
+                        onAuthorTap: onAuthorTap,
+                        onCopyLink: onCopyLink,
+                        onShare: onShare,
+                        onReport: onReport,
+                      ),
+                    ),
+                  ],
+                )
+              : null,
+        ),
+      );
+    }
+    if (article.audioUrl.trim().isNotEmpty) {
+      return ClipRRect(
+        key: const ValueKey<String>('news-card-cover-stage'),
+        child: Stack(
+          children: [
+            NewsAudioCard(
+              url: article.audioUrl,
+              coverUrl: article.imageUrl,
+              compactTop: !showHeader,
+            ),
+            if (showHeader) ...[
               const Positioned(
                 top: 0,
                 left: 0,
@@ -1696,35 +2581,12 @@ class _MediaStage extends StatelessWidget {
                   article: article,
                   categoryTrail: categoryTrail,
                   onAuthorTap: onAuthorTap,
+                  onCopyLink: onCopyLink,
+                  onShare: onShare,
+                  onReport: onReport,
                 ),
               ),
             ],
-          ),
-        ),
-      );
-    }
-    if (article.audioUrl.trim().isNotEmpty) {
-      return ClipRRect(
-        key: const ValueKey<String>('news-card-cover-stage'),
-        child: Stack(
-          children: [
-            NewsAudioCard(url: article.audioUrl, coverUrl: article.imageUrl),
-            const Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(child: _HeaderScrim()),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _HeaderOverlay(
-                article: article,
-                categoryTrail: categoryTrail,
-                onAuthorTap: onAuthorTap,
-              ),
-            ),
           ],
         ),
       );
@@ -1740,22 +2602,27 @@ class _MediaStage extends StatelessWidget {
               _MediaSlider(images: article.sliderImages)
             else
               _CoverImage(imageUrl: article.imageUrl),
-            const Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(child: _HeaderScrim()),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _HeaderOverlay(
-                article: article,
-                categoryTrail: categoryTrail,
-                onAuthorTap: onAuthorTap,
+            if (showHeader) ...[
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(child: _HeaderScrim()),
               ),
-            ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: _HeaderOverlay(
+                  article: article,
+                  categoryTrail: categoryTrail,
+                  onAuthorTap: onAuthorTap,
+                  onCopyLink: onCopyLink,
+                  onShare: onShare,
+                  onReport: onReport,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1812,6 +2679,9 @@ class _MediaStage extends StatelessWidget {
                     article: item,
                     categoryTrail: trail,
                     onAuthorTap: onAuthorTap,
+                    onCopyLink: onCopyLink,
+                    onShare: onShare,
+                    onReport: onReport,
                   ),
                 ),
               ],
@@ -2622,6 +3492,7 @@ class _PollView extends StatefulWidget {
     required this.coverImage,
     required this.headline,
     required this.summary,
+    required this.showQuestionText,
     required this.onVoteRecorded,
   });
 
@@ -2629,6 +3500,7 @@ class _PollView extends StatefulWidget {
   final String coverImage;
   final String headline;
   final String summary;
+  final bool showQuestionText;
   final VoidCallback onVoteRecorded;
 
   @override
@@ -2703,25 +3575,27 @@ class _PollViewState extends State<_PollView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AdaptiveHeadline(
-                  text: data.title,
-                  minScale: 0.88,
-                  style: AppTypography.mobileNewsCardTitle.copyWith(
-                    fontSize: 24,
-                    height: 1.08,
-                    letterSpacing: 0,
-                  ),
-                ),
-                if (description.isNotEmpty) ...[
-                  const SizedBox(height: 9),
-                  Text(
-                    description,
-                    style: AppTypography.mobileNewsCardSummary.copyWith(
-                      fontSize: 13.5,
-                      height: 1.48,
-                      color: AppColors.inkSoft.withValues(alpha: 0.78),
+                if (widget.showQuestionText) ...[
+                  AdaptiveHeadline(
+                    text: data.title,
+                    minScale: 0.88,
+                    style: AppTypography.mobileNewsCardTitle.copyWith(
+                      fontSize: 24,
+                      height: 1.08,
+                      letterSpacing: 0,
                     ),
                   ),
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 9),
+                    Text(
+                      description,
+                      style: AppTypography.mobileNewsCardSummary.copyWith(
+                        fontSize: 13.5,
+                        height: 1.48,
+                        color: AppColors.inkSoft.withValues(alpha: 0.78),
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 6),
                 if (data.isImagePoll)
@@ -3523,6 +4397,7 @@ class _VsView extends StatefulWidget {
     required this.coverImage,
     required this.headline,
     required this.summary,
+    required this.showQuestionText,
     required this.onVoteRecorded,
   });
 
@@ -3530,6 +4405,7 @@ class _VsView extends StatefulWidget {
   final String coverImage;
   final String headline;
   final String summary;
+  final bool showQuestionText;
   final VoidCallback onVoteRecorded;
 
   @override
@@ -3604,25 +4480,27 @@ class _VsViewState extends State<_VsView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AdaptiveHeadline(
-                  text: data.title,
-                  minScale: 0.88,
-                  style: AppTypography.mobileNewsCardTitle.copyWith(
-                    fontSize: 24,
-                    height: 1.08,
-                    letterSpacing: 0,
-                  ),
-                ),
-                if (description.isNotEmpty) ...[
-                  const SizedBox(height: 9),
-                  Text(
-                    description,
-                    style: AppTypography.mobileNewsCardSummary.copyWith(
-                      fontSize: 13.5,
-                      height: 1.48,
-                      color: AppColors.inkSoft.withValues(alpha: 0.78),
+                if (widget.showQuestionText) ...[
+                  AdaptiveHeadline(
+                    text: data.title,
+                    minScale: 0.88,
+                    style: AppTypography.mobileNewsCardTitle.copyWith(
+                      fontSize: 24,
+                      height: 1.08,
+                      letterSpacing: 0,
                     ),
                   ),
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 9),
+                    Text(
+                      description,
+                      style: AppTypography.mobileNewsCardSummary.copyWith(
+                        fontSize: 13.5,
+                        height: 1.48,
+                        color: AppColors.inkSoft.withValues(alpha: 0.78),
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 10),
                 _VsArena(
@@ -5367,6 +6245,17 @@ class _MediaSliderState extends State<_MediaSlider> {
   final PageController _controller = PageController();
   int _index = 0;
 
+  void _goToSlide(int delta) {
+    final images = widget.images;
+    if (images.length < 2) return;
+    final target = (_index + delta + images.length) % images.length;
+    _controller.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -5403,6 +6292,32 @@ class _MediaSliderState extends State<_MediaSlider> {
         ),
         if (images.length > 1)
           Positioned(
+            left: 10,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: _SliderArrowButton(
+                icon: Symbols.arrow_left_line,
+                label: 'Önceki görsel',
+                onTap: () => _goToSlide(-1),
+              ),
+            ),
+          ),
+        if (images.length > 1)
+          Positioned(
+            right: 10,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: _SliderArrowButton(
+                icon: Symbols.arrow_forward,
+                label: 'Sonraki görsel',
+                onTap: () => _goToSlide(1),
+              ),
+            ),
+          ),
+        if (images.length > 1)
+          Positioned(
             left: 0,
             right: 0,
             bottom: 10,
@@ -5413,6 +6328,61 @@ class _MediaSliderState extends State<_MediaSlider> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _SliderArrowButton extends StatelessWidget {
+  const _SliderArrowButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: ClipOval(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.inkStrong.withValues(alpha: 0.32),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.24),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.16),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, size: 17, color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -5663,6 +6633,8 @@ class _InlineCommentPreview extends StatelessWidget {
     required this.submitting,
     required this.deletingCommentId,
     required this.emojiReactionsEnabled,
+    required this.relaxedLayout,
+    required this.showGuidance,
     required this.onCancelReply,
     required this.onReply,
     required this.onLike,
@@ -5682,6 +6654,8 @@ class _InlineCommentPreview extends StatelessWidget {
   final bool submitting;
   final String? deletingCommentId;
   final bool emojiReactionsEnabled;
+  final bool relaxedLayout;
+  final bool showGuidance;
   final VoidCallback onCancelReply;
   final ValueChanged<NewsComment> onReply;
   final ValueChanged<NewsComment> onLike;
@@ -5738,6 +6712,8 @@ class _InlineCommentPreview extends StatelessWidget {
                       replyTo: replyTo,
                       submitting: submitting,
                       emojiReactionsEnabled: emojiReactionsEnabled,
+                      relaxedLayout: relaxedLayout,
+                      showGuidance: showGuidance,
                       onCancelReply: onCancelReply,
                       onSubmit: onSubmit,
                     ),
@@ -5903,6 +6879,8 @@ class _InlineCommentComposer extends StatefulWidget {
     required this.replyTo,
     required this.submitting,
     required this.emojiReactionsEnabled,
+    required this.relaxedLayout,
+    required this.showGuidance,
     required this.onCancelReply,
     required this.onSubmit,
   });
@@ -5911,6 +6889,8 @@ class _InlineCommentComposer extends StatefulWidget {
   final NewsComment? replyTo;
   final bool submitting;
   final bool emojiReactionsEnabled;
+  final bool relaxedLayout;
+  final bool showGuidance;
   final VoidCallback onCancelReply;
   final Future<bool> Function(_InlineCommentDraft draft) onSubmit;
 
@@ -5965,7 +6945,10 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
   }
 
   bool _draftReady() {
-    if (_controller.text.trim().isEmpty) return false;
+    final content = _controller.text.trim();
+    if (content.isEmpty || content.length > _inlineCommentMaxLength) {
+      return false;
+    }
     if (_signedIn) return true;
     return _guestNameController.text.trim().length >= 2 &&
         _isEmailReady(_guestEmailController.text);
@@ -6078,8 +7061,55 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
     FocusScope.of(context).unfocus();
   }
 
+  Widget? _buildCommentCounter(
+    BuildContext context, {
+    required int currentLength,
+    required bool isFocused,
+    required int? maxLength,
+  }) {
+    if (!isFocused && currentLength < _inlineCommentCounterRevealLength) {
+      return null;
+    }
+    final nearLimit = currentLength >= _inlineCommentCounterWarningLength;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          style: AppTypography.meta.copyWith(
+            color: nearLimit ? AppColors.actionRed : AppColors.placeholder,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w700,
+            height: 1,
+            letterSpacing: 0,
+          ),
+          child: Text('$currentLength/${maxLength ?? _inlineCommentMaxLength}'),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final relaxedLayout = widget.relaxedLayout;
+    final composerPadding = relaxedLayout
+        ? const EdgeInsets.fromLTRB(
+            AppSpacing.pageHorizontal,
+            AppSpacing.md,
+            AppSpacing.pageHorizontal,
+            AppSpacing.lg,
+          )
+        : const EdgeInsets.fromLTRB(
+            AppSpacing.pageHorizontal - 2,
+            9,
+            AppSpacing.pageHorizontal - 2,
+            9,
+          );
+    final fieldGap = relaxedLayout ? 8.0 : 7.0;
+    final guestToInputGap = relaxedLayout ? 10.0 : 7.0;
+    final inputGap = relaxedLayout ? 9.0 : 8.0;
     final active =
         _focused ||
         _canSend ||
@@ -6100,12 +7130,7 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
             ),
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.pageHorizontal - 2,
-          9,
-          AppSpacing.pageHorizontal - 2,
-          9,
-        ),
+        padding: composerPadding,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -6126,17 +7151,19 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
                       hintText: 'Ad soyad',
                       icon: Symbols.person_outline_rounded,
                       textInputAction: TextInputAction.next,
+                      relaxed: relaxedLayout,
                     ),
                     _InlineGuestEmailField(
                       controller: _guestEmailController,
                       showError: _showEmailError,
+                      relaxed: relaxedLayout,
                     ),
                   ];
                   if (compact) {
                     return Column(
                       children: [
                         fields[0],
-                        const SizedBox(height: 7),
+                        SizedBox(height: relaxedLayout ? 10 : 7),
                         fields[1],
                       ],
                     );
@@ -6144,14 +7171,14 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: fields[0]),
-                      const SizedBox(width: 8),
-                      Expanded(child: fields[1]),
+                      Expanded(flex: 9, child: fields[0]),
+                      SizedBox(width: fieldGap),
+                      Expanded(flex: 10, child: fields[1]),
                     ],
                   );
                 },
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: guestToInputGap),
             ],
             Row(
               children: [
@@ -6159,45 +7186,67 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
                   authState: widget.authState,
                   active: active,
                 ),
-                const SizedBox(width: 9),
+                SizedBox(width: inputGap),
                 Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focus,
-                    cursorColor: AppColors.deepOcean,
-                    cursorWidth: 1.3,
-                    maxLines: 3,
-                    minLines: 1,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.ink,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      height: 1.32,
-                      letterSpacing: 0,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    constraints: BoxConstraints(
+                      minHeight: relaxedLayout ? 42 : 36,
                     ),
-                    decoration: InputDecoration(
-                      hintText: widget.replyTo == null
-                          ? 'Yorumunuzu ekleyin'
-                          : 'Yanıtınızı yazın',
-                      hintStyle: AppTypography.bodySmall.copyWith(
-                        color: AppColors.placeholderSoft,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? AppColors.surfaceSoft
+                          : AppColors.surfaceSoft.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: _focused ? AppColors.line : AppColors.softLine,
+                      ),
+                    ),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: relaxedLayout ? 12 : 10,
+                      vertical: relaxedLayout ? 5 : 4,
+                    ),
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focus,
+                      cursorColor: AppColors.deepOcean,
+                      cursorWidth: 1.3,
+                      maxLines: 3,
+                      minLines: 1,
+                      maxLength: _inlineCommentMaxLength,
+                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                      buildCounter: _buildCommentCounter,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _send(),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.ink,
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         height: 1.32,
                         letterSpacing: 0,
                       ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                      filled: false,
+                      decoration: InputDecoration(
+                        hintText: widget.replyTo == null
+                            ? 'Yorumunuzu ekleyin'
+                            : 'Yanıtınızı yazın',
+                        hintStyle: AppTypography.bodySmall.copyWith(
+                          color: AppColors.placeholderSoft,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          height: 1.32,
+                          letterSpacing: 0,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        filled: false,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: relaxedLayout ? 10 : 8),
                 if (widget.emojiReactionsEnabled) ...[
                   _InlineEmojiToggleButton(
                     active: _emojiPanelOpen,
@@ -6221,11 +7270,24 @@ class _InlineCommentComposerState extends State<_InlineCommentComposer> {
                       key: const ValueKey<String>(
                         'news-card-inline-emoji-panel',
                       ),
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: EdgeInsets.only(top: relaxedLayout ? 10 : 8),
                       child: _InlineEmojiPicker(controller: _controller),
                     )
                   : const SizedBox.shrink(),
             ),
+            if (widget.showGuidance) ...[
+              SizedBox(height: relaxedLayout ? 9 : 7),
+              Text(
+                'Pateez.com\'da paylaştığın yorumlar haber tartışmasına katkı sağlar. Farklı görüşlere saygılı kal; hakaret, hedef gösterme ve ayrımcı ifadeler kullanma.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.placeholder.withValues(alpha: 0.82),
+                  fontSize: relaxedLayout ? 10.8 : 10.4,
+                  fontWeight: FontWeight.w400,
+                  height: 1.32,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -6329,6 +7391,7 @@ class _InlineGuestField extends StatelessWidget {
     required this.icon,
     this.keyboardType,
     this.textInputAction,
+    this.relaxed = false,
   });
 
   final TextEditingController controller;
@@ -6336,11 +7399,15 @@ class _InlineGuestField extends StatelessWidget {
   final IconData icon;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final bool relaxed;
 
   @override
   Widget build(BuildContext context) {
+    final fieldHeight = relaxed ? 35.0 : 31.0;
+    final minIconSize = relaxed ? 35.0 : 31.0;
+    final fontSize = relaxed ? 11.4 : 11.0;
     return SizedBox(
-      height: 34,
+      height: fieldHeight,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
@@ -6349,28 +7416,31 @@ class _InlineGuestField extends StatelessWidget {
         cursorWidth: 1.2,
         style: AppTypography.bodySmall.copyWith(
           color: AppColors.inkSoft,
-          fontSize: 12.2,
+          fontSize: fontSize,
           fontWeight: FontWeight.w500,
-          height: 1,
+          height: relaxed ? 1.1 : 1,
           letterSpacing: 0,
         ),
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: AppTypography.bodySmall.copyWith(
             color: AppColors.placeholderSoft,
-            fontSize: 12.2,
+            fontSize: fontSize,
             fontWeight: FontWeight.w500,
-            height: 1,
+            height: relaxed ? 1.1 : 1,
             letterSpacing: 0,
           ),
-          prefixIcon: Icon(icon, size: 15, color: AppColors.placeholderSoft),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 32,
-            minHeight: 34,
+          prefixIcon: Icon(icon, size: 13.5, color: AppColors.placeholderSoft),
+          prefixIconConstraints: BoxConstraints(
+            minWidth: 28,
+            minHeight: minIconSize,
           ),
           filled: true,
           fillColor: AppColors.surfaceSoft,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: relaxed ? 8 : 0,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(7),
             borderSide: const BorderSide(color: AppColors.softLine),
@@ -6393,10 +7463,12 @@ class _InlineGuestEmailField extends StatelessWidget {
   const _InlineGuestEmailField({
     required this.controller,
     required this.showError,
+    required this.relaxed,
   });
 
   final TextEditingController controller;
   final bool showError;
+  final bool relaxed;
 
   @override
   Widget build(BuildContext context) {
@@ -6410,6 +7482,7 @@ class _InlineGuestEmailField extends StatelessWidget {
           icon: Symbols.alternate_email_rounded,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
+          relaxed: relaxed,
         ),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 140),
@@ -7179,15 +8252,19 @@ double? _parseImageAspectRatioFromUrl(String url) {
 
 String _shareUrlForArticle(NewsArticle article) {
   final slug = article.slug.trim();
-  if (slug.isNotEmpty) {
-    return frontendApiUri(
-      '/haber/${Uri.encodeComponent(slug)}',
-      configuredBaseUrl: _kFrontendApiBaseUrl,
-    ).toString();
-  }
+  final pathSegment = slug.isNotEmpty ? slug : article.id.trim();
+  if (pathSegment.isNotEmpty) return _publicArticleUrl(pathSegment);
   final videoUrl = article.primaryVideoUrl.trim();
   if (videoUrl.isNotEmpty) return _absoluteFrontendUrl(videoUrl);
   return _absoluteFrontendUrl(article.imageUrl);
+}
+
+String _publicArticleUrl(String pathSegment) {
+  return Uri(
+    scheme: 'https',
+    host: _kPublicFrontendHost,
+    pathSegments: ['haber', pathSegment],
+  ).toString();
 }
 
 String _absoluteFrontendUrl(String value) {

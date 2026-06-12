@@ -35,6 +35,7 @@ class FeaturedNews {
     required this.source,
     this.slug = '',
     this.imageAspectRatio,
+    this.article,
     this.isBreaking = false,
     this.isLive = false,
   });
@@ -48,6 +49,7 @@ class FeaturedNews {
   final String source;
   final String slug;
   final double? imageAspectRatio;
+  final NewsArticle? article;
   final bool isBreaking;
   final bool isLive;
 }
@@ -159,6 +161,9 @@ class NewsArticle {
     this.pollData,
     this.vsData,
     this.quoteData,
+    this.detailItems = const [],
+    this.tags = const [],
+    this.faqData = const [],
     this.previewComments = const [],
   });
 
@@ -267,9 +272,67 @@ class NewsArticle {
   /// Boşsa mevcut medya sıralaması değişmeden çalışır.
   final NewsQuoteData? quoteData;
 
+  /// Detail sayfasında haber içindeki blokların gerçek sırası.
+  /// Ana sayfa kartı bundan bağımsız çalışır; boşsa detail özet/gövde fallback'i
+  /// kullanılır.
+  final List<NewsDetailItem> detailItems;
+
+  /// Admin SEO alanındaki odak anahtar kelimelerden gelen görünür etiketler.
+  final List<String> tags;
+
+  /// Haberin admin FAQ alanından gelen soru-cevapları.
+  final List<NewsFaqItem> faqData;
+
   /// Haber kartında gösterilecek gerçek yorum önizlemesi.
   /// Boşsa yalnızca yorum yazma composer'ı gösterilir.
   final List<NewsComment> previewComments;
+}
+
+@immutable
+class NewsFaqItem {
+  const NewsFaqItem({required this.question, required this.answer});
+
+  final String question;
+  final String answer;
+}
+
+@immutable
+class NewsDetailItem {
+  const NewsDetailItem({
+    required this.id,
+    required this.type,
+    this.title = '',
+    this.description = '',
+    this.source = '',
+    this.moreInfoUrl = '',
+    this.mediaUrl = '',
+    this.mediaUrls = const [],
+    this.altText = '',
+    this.videoThumbUrl = '',
+    this.flipData,
+    this.beforeAfterData,
+    this.reviewData,
+    this.pollData,
+    this.vsData,
+    this.quoteData,
+  });
+
+  final String id;
+  final String type;
+  final String title;
+  final String description;
+  final String source;
+  final String moreInfoUrl;
+  final String mediaUrl;
+  final List<String> mediaUrls;
+  final String altText;
+  final String videoThumbUrl;
+  final NewsFlipData? flipData;
+  final NewsBeforeAfterData? beforeAfterData;
+  final NewsReviewData? reviewData;
+  final NewsPollData? pollData;
+  final NewsVsData? vsData;
+  final NewsQuoteData? quoteData;
 }
 
 String _youtubeThumbnailFor(String url) {

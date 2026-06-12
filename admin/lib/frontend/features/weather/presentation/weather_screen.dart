@@ -24,10 +24,12 @@ class WeatherScreen extends StatefulWidget {
     super.key,
     this.initialData = const WeatherData.empty(),
     this.repository = const WeatherRepository(),
+    this.onSearch,
   });
 
   final WeatherData initialData;
   final WeatherRepository repository;
+  final VoidCallback? onSearch;
 
   @override
   State<WeatherScreen> createState() => _WeatherScreenState();
@@ -70,7 +72,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Hava Durumu'),
+            FeatureAppBar(title: 'Hava Durumu', onSearch: widget.onSearch),
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.actionRed,

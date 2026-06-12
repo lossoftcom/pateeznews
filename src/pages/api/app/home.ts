@@ -866,6 +866,188 @@ const normalizeQuoteData = (
   };
 };
 
+const normalizeKeywords = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : String(value || "").split(",");
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+  for (const item of values) {
+    const keyword = stripHtml(String(item || ""))
+      .replace(/^#+/, "")
+      .trim();
+    if (!keyword) continue;
+    const key = keyword.toLocaleLowerCase("tr");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    keywords.push(keyword);
+    if (keywords.length >= 14) break;
+  }
+  return keywords;
+};
+
+const normalizeFaqData = (
+  value: unknown,
+): Array<{ q: string; a: string }> => {
+  if (!Array.isArray(value)) return [];
+  const faq: Array<{ q: string; a: string }> = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const q = stripHtml(String(raw.q || raw.question || raw.name || ""));
+    const a = stripHtml(String(raw.a || raw.answer || raw.text || ""));
+    if (!q || !a) continue;
+    faq.push({ q, a });
+    if (faq.length >= 8) break;
+  }
+  return faq;
+};
+
+const normalizeDetailItems = (blocks: any[], origin: string) => {
+  return blocks
+    .map((block: any, index: number) => {
+      if (!block || typeof block !== "object") return null;
+      const rawType = String(block.type || "").trim().toLowerCase();
+      if (!rawType) return null;
+      if (rawType === "faq") return null;
+      const type =
+        rawType === "before_after" || rawType === "before-after"
+          ? "beforeafter"
+          : rawType === "flip"
+            ? "flipcard"
+            : rawType;
+      const videoItem = type === "video" ? videoMediaItem(block, origin) : null;
+      const mediaUrl =
+        type === "video"
+          ? videoItem?.url || ""
+          : type === "image" || type === "audio"
+            ? resolveImageUrl(String(block.mediaUrl || "").trim(), origin, {
+                width: 1200,
+                quality: 86,
+              })
+            : type === "social" || type === "iframe" || type === "embed"
+              ? String(block.mediaUrl || "").trim()
+              : "";
+      const mediaUrls =
+        type === "slider" && Array.isArray(block.mediaUrls)
+          ? block.mediaUrls
+              .map((url: any) =>
+                resolveImageUrl(String(url || "").trim(), origin, {
+                  width: 1200,
+                  quality: 86,
+                }),
+              )
+              .filter((url: string) => Boolean(url))
+          : [];
+      const pollData =
+        type === "poll"
+          ? normalizePollData(
+              {
+                ...block,
+                type: "poll",
+                title: block.title || block.blockTitle,
+                summary: block.description || block.blockDescription,
+              } as NewsItem,
+              origin,
+            )
+          : undefined;
+      const vsData =
+        type === "vs"
+          ? normalizeVsData(
+              {
+                ...block,
+                type: "vs",
+                title: block.title || block.blockTitle,
+                summary: block.description || block.blockDescription,
+              } as NewsItem,
+              origin,
+            )
+          : undefined;
+      const reviewData =
+        type === "review"
+          ? normalizeReviewData(block.reviewData || block, origin)
+          : undefined;
+      const quoteData =
+        type === "quote" || type === "paragraph"
+          ? normalizeQuoteData(block)
+          : undefined;
+      const beforeAfterData =
+        type === "beforeafter" && block.beforeAfterData
+          ? {
+              ...block.beforeAfterData,
+              beforeImage: resolveImageUrl(
+                block.beforeAfterData.beforeImage,
+                origin,
+                { width: 1200, quality: 86 },
+              ),
+              afterImage: resolveImageUrl(
+                block.beforeAfterData.afterImage,
+                origin,
+                { width: 1200, quality: 86 },
+              ),
+            }
+          : undefined;
+      const flipData =
+        type === "flipcard" && block.flipData
+          ? {
+              ...block.flipData,
+              frontImage: resolveImageUrl(block.flipData.frontImage, origin, {
+                width: 1200,
+                quality: 86,
+              }),
+              backImage: resolveImageUrl(block.flipData.backImage, origin, {
+                width: 1200,
+                quality: 86,
+              }),
+            }
+          : undefined;
+
+      const title = stripHtml(String(block.title || block.blockTitle || ""));
+      const description = stripHtml(
+        String(block.description || block.blockDescription || block.body || ""),
+      );
+      const source = stripHtml(
+        String(block.source || block.sourceName || block.credit || ""),
+      );
+      const moreInfoUrl = String(
+        block.moreInfoUrl || block.sourceUrl || block.link || "",
+      ).trim();
+
+      const item = {
+        id: String(block.id || `detail-item-${index + 1}`),
+        type,
+        title,
+        description,
+        source,
+        moreInfoUrl,
+        mediaUrl,
+        mediaUrls,
+        altText: stripHtml(String(block.altText || "")),
+        videoThumbUrl: videoItem?.thumbUrl || "",
+        flipData,
+        beforeAfterData,
+        reviewData,
+        pollData,
+        vsData,
+        quoteData,
+      };
+
+      const hasContent =
+        title ||
+        description ||
+        source ||
+        moreInfoUrl ||
+        mediaUrl ||
+        mediaUrls.length > 0 ||
+        flipData ||
+        beforeAfterData ||
+        reviewData ||
+        pollData ||
+        vsData ||
+        quoteData;
+      return hasContent ? item : null;
+    })
+    .filter(Boolean);
+};
+
 const calculateReadingMinutes = (item: NewsItem): number => {
   const raw = item as NewsItem & {
     content?: string;
@@ -891,7 +1073,13 @@ const calculateReadingMinutes = (item: NewsItem): number => {
   return Math.max(1, Math.ceil(words / 200));
 };
 
-const mapFeaturedItem = (item: NewsItem, origin: string) => {
+const mapFeaturedItem = (
+  item: NewsItem,
+  origin: string,
+  previewComments: CommentPreview[] = [],
+  approvedCommentCount?: number,
+  viewerState?: ViewerPostState,
+) => {
   const optimizedImage =
     item.optimizedCoverThumbnail || item.optimizedThumbnail;
   return {
@@ -914,6 +1102,13 @@ const mapFeaturedItem = (item: NewsItem, origin: string) => {
     source: String(item.source || "Pateeznews"),
     slug: String(item.slug || ""),
     imageAspectRatio: imageAspectRatio(optimizedImage),
+    article: mapFeedItem(
+      item,
+      origin,
+      previewComments,
+      approvedCommentCount,
+      viewerState,
+    ),
   };
 };
 
@@ -1099,6 +1294,9 @@ const mapFeedItem = (
     pollData,
     vsData,
     quoteData,
+    detailItems: normalizeDetailItems(blocks, origin),
+    tags: normalizeKeywords(item.keywords),
+    faqData: normalizeFaqData(item.faqData),
     publishedAt: toIsoDate(item.timestamp),
     source: String(item.source || item.author || "Pateeznews"),
     sourceAvatar: resolveImageUrl(String(raw.sourceAvatar || ""), origin, {
@@ -1176,28 +1374,36 @@ export const GET: APIRoute = async ({ url, request }) => {
         (a: NewsItem, b: NewsItem) => getNewsTime(b) - getNewsTime(a),
       );
     }
+    const featuredItems = mansetItems.slice(0, limit);
     const hiddenMansetIds = new Set(
-      mansetItems.slice(0, limit).map((item: NewsItem) => String(item.id)),
+      featuredItems.map((item: NewsItem) => String(item.id)),
     );
 
-    const featured = mansetItems
-      .slice(0, limit)
-      .map((item: NewsItem) => mapFeaturedItem(item, origin));
     const feedItems = items
       .filter((item: NewsItem) => !hiddenMansetIds.has(String(item.id)))
       .slice(0, feedLimit);
-    const feedPostIds = feedItems
+    const allPostIds = [...featuredItems, ...feedItems]
       .map((item: NewsItem) => Number(item.id))
       .filter((id: number) => Number.isInteger(id) && id > 0);
+    const postIds = Array.from(new Set(allPostIds));
     const [
       commentPreviewByPost,
       approvedCommentCountsByPost,
       viewerStateByPost,
     ] = await Promise.all([
-      loadPreviewComments(feedPostIds, origin, userId),
-      loadApprovedCommentCounts(feedPostIds),
-      loadViewerPostStates(feedPostIds, userId),
+      loadPreviewComments(postIds, origin, userId),
+      loadApprovedCommentCounts(postIds),
+      loadViewerPostStates(postIds, userId),
     ]);
+    const featured = featuredItems.map((item: NewsItem) =>
+      mapFeaturedItem(
+        item,
+        origin,
+        commentPreviewByPost.get(String(item.id || "")) || [],
+        approvedCommentCountsByPost.get(String(item.id || "")) ?? 0,
+        viewerStateByPost.get(String(item.id || "")),
+      ),
+    );
     const feed = feedItems.map((item: NewsItem) =>
       mapFeedItem(
         item,

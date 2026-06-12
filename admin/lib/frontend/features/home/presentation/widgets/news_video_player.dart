@@ -3283,6 +3283,9 @@ class _VideoControlsState extends State<_VideoControls> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final videoWidth = constraints.maxWidth;
+        final topActionButtonTop =
+            (widget.fullscreen || widget.topOverlay == null) ? 8.0 : 50.0;
+        final fullscreenButtonTop = topActionButtonTop + 40.0;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -3356,7 +3359,7 @@ class _VideoControlsState extends State<_VideoControls> {
             // 3) Ses aç/kapa. Üstte overlay olmayan (tam ekran / feed) videolarda
             // sağ üst köşeye yaslanır; ana kartta üst etiketle çakışmasın diye iner.
             Positioned(
-              top: (widget.fullscreen || widget.topOverlay == null) ? 8 : 50,
+              top: topActionButtonTop,
               right: 8,
               child: _RoundGlassButton(
                 size: 32,
@@ -3374,7 +3377,7 @@ class _VideoControlsState extends State<_VideoControls> {
             // 4) Büyüt/kapat: ses butonunun altında aynı cam ritminde.
             if (widget.showFullscreenButton)
               Positioned(
-                top: 88,
+                top: fullscreenButtonTop,
                 right: 8,
                 child: _RoundGlassButton(
                   size: 32,

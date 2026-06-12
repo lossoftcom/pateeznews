@@ -897,7 +897,6 @@ Color _roleColor(String value) {
   return AppColors.deepOcean;
 }
 
-
 class _RolesMobileList extends StatelessWidget {
   const _RolesMobileList({
     required this.roles,
@@ -986,7 +985,10 @@ class _RolesMobileCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!locked) ...[
-                AdminMobileCheckbox(value: selected, onChanged: (_) => onToggle()),
+                AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
                 const SizedBox(width: 12),
               ],
               Container(
@@ -1089,9 +1091,7 @@ class _RolesMobileCard extends StatelessWidget {
             children: [
               AdminMobileStatusPill(
                 label: locked ? 'Sistem Kilitli' : 'Aktif',
-                color: locked
-                    ? AppColors.inkSoft
-                    : const Color(0xFF198754),
+                color: locked ? AppColors.inkSoft : const Color(0xFF198754),
               ),
               const Spacer(),
               if (role.slug.trim().isNotEmpty)

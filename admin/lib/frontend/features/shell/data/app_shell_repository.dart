@@ -96,17 +96,65 @@ class AppShellNavigationItem {
   String get navigationValue => value.isNotEmpty ? value : label;
 }
 
+class AppShellPage {
+  const AppShellPage({
+    required this.id,
+    required this.title,
+    required this.slug,
+    required this.categoryId,
+    required this.category,
+    required this.pageType,
+    required this.menuOrder,
+    required this.contentPlain,
+    required this.metaDescription,
+    required this.canonicalUrl,
+  });
+
+  factory AppShellPage.fromJson(Map<dynamic, dynamic> json) {
+    return AppShellPage(
+      id: _string(json['id']),
+      title: _string(json['title']),
+      slug: _string(json['slug']),
+      categoryId: _string(json['categoryId']),
+      category: _string(json['category']),
+      pageType: _string(json['pageType']),
+      menuOrder: int.tryParse(json['menuOrder']?.toString() ?? '') ?? 0,
+      contentPlain: _string(json['contentPlain']),
+      metaDescription: _string(json['metaDescription']),
+      canonicalUrl: _string(json['canonicalUrl']),
+    );
+  }
+
+  final String id;
+  final String title;
+  final String slug;
+  final String categoryId;
+  final String category;
+  final String pageType;
+  final int menuOrder;
+  final String contentPlain;
+  final String metaDescription;
+  final String canonicalUrl;
+
+  bool belongsToRoot(String rootId) {
+    final cleanRootId = rootId.trim();
+    return cleanRootId.isNotEmpty && categoryId == cleanRootId;
+  }
+}
+
 class AppShellData {
   const AppShellData({
     required this.languageCode,
     required this.siteSettings,
     required this.navigationItems,
+    this.pages = const [],
   });
 
   const AppShellData.empty()
     : languageCode = 'tr',
       siteSettings = const AppShellSettings.empty(),
-      navigationItems = const [];
+      navigationItems = const [],
+      pages = const [];
 
   factory AppShellData.fromJson(
     Map<dynamic, dynamic> json,
@@ -129,6 +177,22 @@ class AppShellData {
     });
 
     final settings = json['siteSettings'];
+    final rawPages = json['pages'];
+    final pages = rawPages is List
+        ? rawPages
+              .whereType<Map>()
+              .map(AppShellPage.fromJson)
+              .where(
+                (page) => page.title.isNotEmpty && page.contentPlain.isNotEmpty,
+              )
+              .toList()
+        : <AppShellPage>[];
+    pages.sort((a, b) {
+      final order = a.menuOrder.compareTo(b.menuOrder);
+      if (order != 0) return order;
+      return a.title.compareTo(b.title);
+    });
+
     return AppShellData(
       languageCode: _string(json['languageCode']).isEmpty
           ? 'tr'
@@ -137,12 +201,14 @@ class AppShellData {
           ? AppShellSettings.fromJson(settings, resolveUrl)
           : const AppShellSettings.empty(),
       navigationItems: items,
+      pages: pages,
     );
   }
 
   final String languageCode;
   final AppShellSettings siteSettings;
   final List<AppShellNavigationItem> navigationItems;
+  final List<AppShellPage> pages;
 
   List<AppShellNavigationItem> get topNavigationItems => navigationItems
       .where((item) => item.menuCode == 'top_navbar')
@@ -151,6 +217,13 @@ class AppShellData {
   List<AppShellNavigationItem> get sidebarNavigationItems => navigationItems
       .where((item) => item.menuCode == 'sidebar_main')
       .toList(growable: false);
+
+  List<AppShellPage> pagesForRoot(String rootId) {
+    final rootPages = pages
+        .where((page) => page.belongsToRoot(rootId))
+        .toList(growable: false);
+    return rootPages.isEmpty ? pages : rootPages;
+  }
 }
 
 class AppShellRepository {

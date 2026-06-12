@@ -1155,12 +1155,21 @@ class _PagesTable extends StatelessWidget {
   final ValueChanged<AdminPage> onDelete;
 
   static const double _minWidth = 980;
+  static const double _horizontalPadding = 32;
+  static const double _tableBorderWidth = 2;
   static const double _titleWidth = 300;
   static const double _categoryWidth = 140;
   static const double _typeWidth = 120;
   static const double _statusWidth = 112;
   static const double _createdWidth = 160;
   static const double _actionsWidth = 76;
+  static const double _minContentWidth =
+      _titleWidth +
+      _categoryWidth +
+      _typeWidth +
+      _statusWidth +
+      _createdWidth +
+      _actionsWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -1169,6 +1178,7 @@ class _PagesTable extends StatelessWidget {
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
+        final widths = _PagesTableWidths.forWidth(tableWidth);
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(
@@ -1185,6 +1195,7 @@ class _PagesTable extends StatelessWidget {
               child: Column(
                 children: [
                   _TableHeader(
+                    widths: widths,
                     sortKey: sortKey,
                     sortAscending: sortAscending,
                     onSort: onSort,
@@ -1217,6 +1228,7 @@ class _PagesTable extends StatelessWidget {
                                 for (final page in pages)
                                   _PageRow(
                                     page: page,
+                                    widths: widths,
                                     onEdit: onEdit,
                                     onToggleStatus: onToggleStatus,
                                     onDelete: onDelete,
@@ -1235,13 +1247,50 @@ class _PagesTable extends StatelessWidget {
   }
 }
 
+class _PagesTableWidths {
+  const _PagesTableWidths({
+    required this.title,
+    required this.category,
+    required this.type,
+    required this.status,
+    required this.created,
+    required this.actions,
+  });
+
+  final double title;
+  final double category;
+  final double type;
+  final double status;
+  final double created;
+  final double actions;
+
+  static _PagesTableWidths forWidth(double tableWidth) {
+    final contentWidth =
+        (tableWidth -
+                _PagesTable._horizontalPadding -
+                _PagesTable._tableBorderWidth)
+            .clamp(_PagesTable._minContentWidth, double.infinity);
+    final scale = contentWidth / _PagesTable._minContentWidth;
+    return _PagesTableWidths(
+      title: _PagesTable._titleWidth * scale,
+      category: _PagesTable._categoryWidth * scale,
+      type: _PagesTable._typeWidth * scale,
+      status: _PagesTable._statusWidth * scale,
+      created: _PagesTable._createdWidth * scale,
+      actions: _PagesTable._actionsWidth * scale,
+    );
+  }
+}
+
 class _TableHeader extends StatelessWidget {
   const _TableHeader({
+    required this.widths,
     required this.sortKey,
     required this.sortAscending,
     required this.onSort,
   });
 
+  final _PagesTableWidths widths;
   final String sortKey;
   final bool sortAscending;
   final ValueChanged<String> onSort;
@@ -1261,7 +1310,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.title',
             'title',
-            _PagesTable._titleWidth,
+            widths.title,
             sortKey,
             sortAscending,
             onSort,
@@ -1269,7 +1318,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.category',
             'category',
-            _PagesTable._categoryWidth,
+            widths.category,
             sortKey,
             sortAscending,
             onSort,
@@ -1277,7 +1326,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.type',
             'type',
-            _PagesTable._typeWidth,
+            widths.type,
             sortKey,
             sortAscending,
             onSort,
@@ -1285,7 +1334,7 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.status',
             'status',
-            _PagesTable._statusWidth,
+            widths.status,
             sortKey,
             sortAscending,
             onSort,
@@ -1293,13 +1342,13 @@ class _TableHeader extends StatelessWidget {
           _HeaderCell(
             'pages.column.createdAt',
             'createdAt',
-            _PagesTable._createdWidth,
+            widths.created,
             sortKey,
             sortAscending,
             onSort,
           ),
           SizedBox(
-            width: _PagesTable._actionsWidth,
+            width: widths.actions,
             child: Text(
               context.t('pages.column.actions'),
               textAlign: TextAlign.center,
@@ -1377,12 +1426,14 @@ class _HeaderCell extends StatelessWidget {
 class _PageRow extends StatelessWidget {
   const _PageRow({
     required this.page,
+    required this.widths,
     required this.onEdit,
     required this.onToggleStatus,
     required this.onDelete,
   });
 
   final AdminPage page;
+  final _PagesTableWidths widths;
   final ValueChanged<AdminPage> onEdit;
   final ValueChanged<AdminPage> onToggleStatus;
   final ValueChanged<AdminPage> onDelete;
@@ -1401,66 +1452,34 @@ class _PageRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _PagesTable._titleWidth,
+            width: widths.title,
             child: _PageTitleCell(page: page),
           ),
           SizedBox(
-            width: _PagesTable._categoryWidth,
+            width: widths.category,
             child: _PageCategoryCell(page: page),
           ),
           SizedBox(
-            width: _PagesTable._typeWidth,
+            width: widths.type,
             child: _TypeBadge(type: page.displayType),
           ),
           SizedBox(
-            width: _PagesTable._statusWidth,
+            width: widths.status,
             child: _StatusBadge(active: page.active),
           ),
           SizedBox(
-            width: _PagesTable._createdWidth,
+            width: widths.created,
             child: _DateCell(value: page.createdAt),
           ),
           SizedBox(
-            width: _PagesTable._actionsWidth,
+            width: widths.actions,
             child: Center(
-              child: PopupMenuButton<String>(
+              child: _PagesRowMenu(
                 tooltip: context.t('pages.actions.tooltip'),
-                onSelected: (value) {
-                  if (value == 'edit') onEdit(page);
-                  if (value == 'status') onToggleStatus(page);
-                  if (value == 'delete') onDelete(page);
-                },
-                itemBuilder: (context) => [
-                  _menuItem(
-                    context,
-                    'edit',
-                    Symbols.edit_square,
-                    'common.edit',
-                  ),
-                  _menuItem(
-                    context,
-                    'status',
-                    page.active ? Symbols.visibility_off : Symbols.check,
-                    page.active
-                        ? 'pages.actions.deactivate'
-                        : 'pages.actions.activate',
-                  ),
-                  _menuItem(
-                    context,
-                    'delete',
-                    Symbols.delete,
-                    'common.delete',
-                    danger: true,
-                  ),
-                ],
-                child: Text(
-                  '...',
-                  style: TextStyle(
-                    color: AppColors.support.withValues(alpha: 0.92),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                active: page.active,
+                onEdit: () => onEdit(page),
+                onToggleStatus: () => onToggleStatus(page),
+                onDelete: () => onDelete(page),
               ),
             ),
           ),
@@ -1468,26 +1487,221 @@ class _PageRow extends StatelessWidget {
       ),
     );
   }
+}
 
-  PopupMenuItem<String> _menuItem(
-    BuildContext context,
-    String value,
-    IconData icon,
-    String label, {
-    bool danger = false,
-  }) {
-    final color = danger ? AppColors.actionRed : AppColors.deepOcean;
-    return PopupMenuItem(
-      value: value,
-      child: Row(
-        children: [
-          SymbolIcon(icon, size: 17, color: color),
-          const SizedBox(width: 10),
-          Text(
-            context.t(label),
-            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+class _PagesRowMenu extends StatefulWidget {
+  const _PagesRowMenu({
+    required this.tooltip,
+    required this.active,
+    required this.onEdit,
+    required this.onToggleStatus,
+    required this.onDelete,
+  });
+
+  final String tooltip;
+  final bool active;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleStatus;
+  final VoidCallback onDelete;
+
+  @override
+  State<_PagesRowMenu> createState() => _PagesRowMenuState();
+}
+
+class _PagesRowMenuState extends State<_PagesRowMenu> {
+  final _layerLink = LayerLink();
+  OverlayEntry? _menuEntry;
+
+  @override
+  void dispose() {
+    _closeMenu();
+    super.dispose();
+  }
+
+  void _openMenu() {
+    if (_menuEntry != null) return;
+
+    _menuEntry = OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _closeMenu,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomRight,
+              followerAnchor: Alignment.topRight,
+              offset: const Offset(0, 8),
+              child: _PagesMenuCard(
+                active: widget.active,
+                onEdit: () => _runAndClose(widget.onEdit),
+                onToggleStatus: () => _runAndClose(widget.onToggleStatus),
+                onDelete: () => _runAndClose(widget.onDelete),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_menuEntry!);
+  }
+
+  void _runAndClose(VoidCallback action) {
+    _closeMenu();
+    action();
+  }
+
+  void _closeMenu() {
+    _menuEntry?.remove();
+    _menuEntry = null;
+  }
+
+  void _toggleMenu() {
+    if (_menuEntry == null) {
+      _openMenu();
+    } else {
+      _closeMenu();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: Tooltip(
+        message: widget.tooltip,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleMenu,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Text(
+                '...',
+                style: TextStyle(
+                  color: AppColors.support.withValues(alpha: 0.92),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PagesMenuCard extends StatelessWidget {
+  const _PagesMenuCard({
+    required this.active,
+    required this.onEdit,
+    required this.onToggleStatus,
+    required this.onDelete,
+  });
+
+  final bool active;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleStatus;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 230,
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: AppColors.line),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deepOcean.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _PagesMenuItem(
+              icon: Symbols.edit_square,
+              label: context.t('common.edit'),
+              onTap: onEdit,
+            ),
+            _PagesMenuItem(
+              icon: active ? Symbols.visibility_off : Symbols.check,
+              label: context.t(
+                active ? 'pages.actions.deactivate' : 'pages.actions.activate',
+              ),
+              onTap: onToggleStatus,
+            ),
+            _PagesMenuItem(
+              icon: Symbols.delete,
+              label: context.t('common.delete'),
+              onTap: onDelete,
+              danger: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PagesMenuItem extends StatelessWidget {
+  const _PagesMenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? AppColors.actionRed : AppColors.deepOcean;
+
+    return InkWell(
+      mouseCursor: SystemMouseCursors.click,
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Row(
+          children: [
+            SymbolIcon(icon, size: 20, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1541,10 +1755,15 @@ class _PageCategoryCell extends StatelessWidget {
     final parent = page.parentCategory?.trim();
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (parent != null && parent.isNotEmpty) ...[
-          Text(parent, style: _smallStrong, overflow: TextOverflow.ellipsis),
+          Text(
+            parent,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _smallStrong,
+          ),
           const SizedBox(height: 3),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -1564,7 +1783,12 @@ class _PageCategoryCell extends StatelessWidget {
             ],
           ),
         ] else
-          Text(page.displayCategory, style: _smallStrong),
+          Text(
+            page.displayCategory,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _smallStrong,
+          ),
       ],
     );
   }

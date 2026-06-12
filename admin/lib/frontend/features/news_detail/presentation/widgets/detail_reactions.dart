@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,9 @@ import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/frontend_toast.dart';
+import '../../../account/data/frontend_auth_repository.dart';
+import '../../../home/data/post_action_repository.dart';
 import '../../data/news_detail_mock.dart';
 
 /// Habere emoji ile tepki şeridi.
@@ -26,31 +30,46 @@ import '../../data/news_detail_mock.dart';
 ///     yerleşimi bozmadan tepki yoğunluğunu gösterir.
 ///   - Yeniden dokun: seçim temizlenir.
 class DetailReactionsStrip extends StatefulWidget {
-  const DetailReactionsStrip({super.key, required this.stats});
+  const DetailReactionsStrip({
+    super.key,
+    this.stats = const NewsReactionStats(counts: {}),
+    this.postId = '',
+    this.authState,
+    this.postActionRepository = const PostActionRepository(),
+  });
 
   final NewsReactionStats stats;
+  final String postId;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
 
   @override
   State<DetailReactionsStrip> createState() => _DetailReactionsStripState();
 }
 
 class _DetailReactionsStripState extends State<DetailReactionsStrip> {
-  NewsReaction? _selected;
+  static const int _maxSelectedReactions = 3;
+
+  final Set<NewsReaction> _selected = <NewsReaction>{};
   late Map<NewsReaction, int> _counts;
+  NewsReaction? _busyReaction;
   bool _didPrecacheAssets = false;
 
   @override
   void initState() {
     super.initState();
     _counts = Map.of(widget.stats.counts);
+    _fetchLiveState();
   }
 
   @override
   void didUpdateWidget(covariant DetailReactionsStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.stats != widget.stats) {
+    if (oldWidget.stats != widget.stats || oldWidget.postId != widget.postId) {
       _counts = Map.of(widget.stats.counts);
-      _selected = null;
+      _selected.clear();
+      _busyReaction = null;
+      _fetchLiveState();
     }
   }
 
@@ -64,29 +83,118 @@ class _DetailReactionsStripState extends State<DetailReactionsStrip> {
     }
   }
 
-  void _tap(NewsReaction r) {
+  String get _authToken => widget.authState?.session.accessToken.trim() ?? '';
+
+  bool get _hasNumericPostId => int.tryParse(widget.postId) != null;
+
+  Future<void> _fetchLiveState() async {
+    if (!_hasNumericPostId) return;
+    try {
+      final token = _authToken;
+      final state = await widget.postActionRepository.fetchState(
+        postId: widget.postId,
+        token: token.isEmpty ? null : token,
+      );
+      if (!mounted) return;
+      setState(() => _applyState(state));
+    } catch (_) {
+      // Detail kartı yine okunabilir kalmalı; canlı tepki state'i geçici
+      // alınamazsa mevcut başlangıç sayıları bozulmaz.
+    }
+  }
+
+  void _applyState(PostActionState state) {
+    _counts = _countsFromReactionMap(state.reactions);
+    _selected
+      ..clear()
+      ..addAll(_selectedFromIds(state.userReactions));
+  }
+
+  Future<void> _tap(NewsReaction r) async {
+    if (!_hasNumericPostId || _busyReaction != null) return;
+    final token = _authToken;
+    if (!_selected.contains(r) && _selected.length >= _maxSelectedReactions) {
+      _showMessage(
+        'En fazla $_maxSelectedReactions emoji tepkisi seçebilirsiniz.',
+        tone: FrontendToastTone.info,
+      );
+      return;
+    }
+
     HapticFeedback.selectionClick();
+    final previousCounts = Map<NewsReaction, int>.of(_counts);
+    final previousSelected = Set<NewsReaction>.of(_selected);
     setState(() {
-      if (_selected == r) {
+      _busyReaction = r;
+      if (_selected.contains(r)) {
         _counts[r] = (_counts[r] ?? 1) - 1;
-        _selected = null;
+        _selected.remove(r);
       } else {
-        if (_selected != null) {
-          _counts[_selected!] = (_counts[_selected!] ?? 1) - 1;
-        }
         _counts[r] = (_counts[r] ?? 0) + 1;
-        _selected = r;
+        _selected.add(r);
       }
     });
+
+    try {
+      final state = await widget.postActionRepository.toggleReaction(
+        postId: widget.postId,
+        token: token.isEmpty ? null : token,
+        reaction: _reactionId(r),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyState(state);
+        _busyReaction = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _counts = previousCounts;
+        _selected
+          ..clear()
+          ..addAll(previousSelected);
+        _busyReaction = null;
+      });
+      _showMessage(
+        error is PostActionException
+            ? error.message
+            : 'Emoji tepkisi güncellenemedi.',
+        tone: FrontendToastTone.error,
+      );
+    }
   }
+
+  Map<NewsReaction, int> _countsFromReactionMap(Map<String, int> reactions) {
+    return {
+      for (final reaction in NewsReaction.values)
+        reaction: reactions[_reactionId(reaction)] ?? 0,
+    };
+  }
+
+  Iterable<NewsReaction> _selectedFromIds(List<String> ids) {
+    final idSet = ids
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    return NewsReaction.values.where(
+      (reaction) => idSet.contains(_reactionId(reaction)),
+    );
+  }
+
+  void _showMessage(
+    String message, {
+    FrontendToastTone tone = FrontendToastTone.success,
+  }) => FrontendToast.show(context, message: message, tone: tone);
 
   @override
   Widget build(BuildContext context) {
     final total = _counts.values.fold<int>(0, (a, b) => a + b);
     final maxCount = _counts.values.fold<int>(0, math.max);
     return Container(
-      margin: const EdgeInsets.only(top: AppSpacing.sm),
-      color: AppColors.surface,
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.softLine)),
+      ),
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.pageHorizontal,
         AppSpacing.xl,
@@ -101,7 +209,7 @@ class _DetailReactionsStripState extends State<DetailReactionsStrip> {
           LayoutBuilder(
             builder: (context, c) {
               const items = NewsReaction.values;
-              const spacing = 6.0;
+              const spacing = 4.0;
               final cellWidth =
                   (c.maxWidth - spacing * (items.length - 1)) / items.length;
               return Row(
@@ -114,8 +222,8 @@ class _DetailReactionsStripState extends State<DetailReactionsStrip> {
                         reaction: items[i],
                         count: _counts[items[i]] ?? 0,
                         maxCount: maxCount,
-                        isActive: _selected == items[i],
-                        onTap: () => _tap(items[i]),
+                        isActive: _selected.contains(items[i]),
+                        onTap: () => unawaited(_tap(items[i])),
                       ),
                     ),
                   ],
@@ -129,20 +237,37 @@ class _DetailReactionsStripState extends State<DetailReactionsStrip> {
   }
 }
 
+String _reactionId(NewsReaction reaction) {
+  switch (reaction) {
+    case NewsReaction.like:
+      return 'love';
+    case NewsReaction.illuminating:
+      return 'great';
+    case NewsReaction.thoughtful:
+      return 'bravo';
+    case NewsReaction.surprised:
+      return 'laugh';
+    case NewsReaction.saddened:
+      return 'sad';
+    case NewsReaction.angering:
+      return 'angry';
+  }
+}
+
 Color _reactionAccent(NewsReaction reaction) {
   switch (reaction) {
     case NewsReaction.like:
-      return AppColors.actionRed;
+      return const Color(0xFFE35D73);
     case NewsReaction.illuminating:
-      return AppColors.warmHorizon;
+      return const Color(0xFFD98A34);
     case NewsReaction.thoughtful:
-      return AppColors.deepOcean;
+      return const Color(0xFF66789A);
     case NewsReaction.surprised:
-      return const Color(0xFFE89B3D);
+      return const Color(0xFF36AFA2);
     case NewsReaction.saddened:
-      return AppColors.supportCool;
+      return const Color(0xFF5B8FC8);
     case NewsReaction.angering:
-      return const Color(0xFFC0392B);
+      return const Color(0xFFD7634C);
   }
 }
 
@@ -161,16 +286,16 @@ class _Header extends StatelessWidget {
           height: 26,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.warmHorizon.withValues(alpha: 0.14),
+            color: AppColors.deepOcean.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
-              color: AppColors.warmHorizon.withValues(alpha: 0.32),
+              color: AppColors.deepOcean.withValues(alpha: 0.18),
               width: 1,
             ),
           ),
           child: const Icon(
-            Symbols.sparkling_fill,
-            color: AppColors.warmHorizon,
+            Symbols.questionnaire_line,
+            color: AppColors.deepOcean,
             size: 15,
           ),
         ),
@@ -181,11 +306,11 @@ class _Header extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'EMOJİYLE TEPKİ VER',
+                'Emojiyle Tepki Ver',
                 style: AppTypography.eyebrow.copyWith(
                   color: AppColors.inkStrong,
                   fontSize: 11.5,
-                  letterSpacing: 1.3,
+                  letterSpacing: 0.2,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -382,16 +507,24 @@ class _ReactionCellState extends State<_ReactionCell>
               ),
             ),
             const SizedBox(height: 3),
-            Text(
-              widget.reaction.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: AppTypography.meta.copyWith(
-                color: isActive ? accent : AppColors.support,
-                fontSize: 9.5,
-                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                letterSpacing: 0.4,
+            SizedBox(
+              width: double.infinity,
+              height: 13,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  widget.reaction.label,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.meta.copyWith(
+                    color: isActive ? accent : AppColors.support,
+                    fontSize: 9.2,
+                    fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                    letterSpacing: 0,
+                    height: 1,
+                  ),
+                ),
               ),
             ),
           ],
@@ -417,7 +550,7 @@ class _Disk extends StatelessWidget {
   final double ripple;
 
   static const double _diskSize = 48;
-  static const double _assetSize = 40;
+  static const double _assetSize = 42;
 
   @override
   Widget build(BuildContext context) {
@@ -453,10 +586,10 @@ class _Disk extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: accent.withValues(alpha: (1 - ripple) * 0.55),
+                    color: accent.withValues(alpha: (1 - ripple) * 0.42),
                     width: 1.5,
                   ),
-                  color: accent.withValues(alpha: (1 - ripple) * 0.10),
+                  color: accent.withValues(alpha: (1 - ripple) * 0.07),
                 ),
               ),
             ),
@@ -473,33 +606,29 @@ class _Disk extends StatelessWidget {
                 radius: 1.1,
                 colors: isActive
                     ? [
-                        Color.lerp(accent, Colors.white, 0.18)!,
-                        accent,
-                        Color.lerp(accent, Colors.black, 0.18)!,
+                        Color.lerp(accent, Colors.white, 0.28)!,
+                        Color.lerp(accent, Colors.white, 0.08)!,
+                        Color.lerp(accent, Colors.black, 0.12)!,
                       ]
                     : [
-                        Colors.white,
-                        accent.withValues(alpha: 0.22),
-                        Color.lerp(
-                          AppColors.deepOcean,
-                          accent,
-                          0.36,
-                        )!.withValues(alpha: 0.14),
+                        Color.lerp(accent, Colors.white, 0.90)!,
+                        Color.lerp(accent, Colors.white, 0.76)!,
+                        Color.lerp(AppColors.surface, accent, 0.24)!,
                       ],
                 stops: const [0, 0.55, 1],
               ),
               border: Border.all(
                 color: isActive
                     ? Colors.transparent
-                    : accent.withValues(alpha: 0.26),
+                    : accent.withValues(alpha: 0.20),
                 width: 1,
               ),
               boxShadow: [
                 if (isActive)
                   BoxShadow(
-                    color: accent.withValues(alpha: 0.42),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+                    color: accent.withValues(alpha: 0.34),
+                    blurRadius: 14,
+                    offset: const Offset(0, 7),
                   )
                 else
                   BoxShadow(
@@ -507,8 +636,8 @@ class _Disk extends StatelessWidget {
                       AppColors.deepOcean,
                       accent,
                       0.3,
-                    )!.withValues(alpha: 0.10),
-                    blurRadius: 10,
+                    )!.withValues(alpha: 0.08),
+                    blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
               ],
@@ -519,7 +648,7 @@ class _Disk extends StatelessWidget {
               width: _assetSize,
               height: _assetSize,
               fit: BoxFit.contain,
-              filterQuality: FilterQuality.medium,
+              filterQuality: FilterQuality.high,
               gaplessPlayback: true,
               excludeFromSemantics: true,
             ),

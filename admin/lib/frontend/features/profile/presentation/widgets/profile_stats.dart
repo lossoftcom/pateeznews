@@ -34,7 +34,10 @@ class ProfileStats extends StatelessWidget {
         children: [
           _StatCell(value: '${data.postsCount}', label: 'HABER'),
           const _Divider(),
-          _StatCell(value: CountFormat.compact(data.followers), label: 'TAKİPÇİ'),
+          _StatCell(
+            value: CountFormat.compact(data.followers),
+            label: 'TAKİPÇİ',
+          ),
           const _Divider(),
           _StatCell(value: CountFormat.compact(data.following), label: 'TAKİP'),
           const _Divider(),

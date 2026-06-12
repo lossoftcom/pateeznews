@@ -59,6 +59,7 @@ import 'package:pateeznews_admin/features/settings/data/admin_general_settings_r
 import 'package:pateeznews_admin/features/settings/data/admin_languages_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_module_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_security_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_storage_settings_repository.dart';
 import 'package:pateeznews_admin/features/users/data/admin_roles_repository.dart';
 import 'package:pateeznews_admin/features/users/data/admin_users_repository.dart';
 import 'package:pateeznews_admin/features/users/presentation/roles_permissions_screen.dart';
@@ -94,6 +95,8 @@ class DashboardScreen extends StatefulWidget {
         const SupabaseAdminModuleSettingsRepository(),
     this.securitySettingsRepository =
         const SupabaseAdminSecuritySettingsRepository(),
+    this.storageSettingsRepository =
+        const SupabaseAdminStorageSettingsRepository(),
     this.accountSettingsRepository =
         const SupabaseAdminAccountSettingsRepository(),
     this.subscribersRepository = const SupabaseAdminSubscribersRepository(),
@@ -122,6 +125,7 @@ class DashboardScreen extends StatefulWidget {
   final AdminContentSettingsRepository contentSettingsRepository;
   final AdminModuleSettingsRepository moduleSettingsRepository;
   final AdminSecuritySettingsRepository securitySettingsRepository;
+  final AdminStorageSettingsRepository storageSettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
   final AdminSubscribersRepository subscribersRepository;
   final AdminMailRepository mailRepository;
@@ -1179,7 +1183,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     repository: widget.rolesRepository,
                                   ),
                                 _DashboardPage.storageSettings =>
-                                  const StorageSettingsScreen(),
+                                  StorageSettingsScreen(
+                                    repository:
+                                        widget.storageSettingsRepository,
+                                  ),
                                 _DashboardPage.googleNews =>
                                   const GoogleNewsSettingsScreen(),
                                 _DashboardPage.aiSettings => AiSettingsScreen(

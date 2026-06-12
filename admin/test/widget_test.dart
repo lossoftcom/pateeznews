@@ -35,6 +35,7 @@ import 'package:pateeznews_admin/features/settings/data/admin_language_models.da
 import 'package:pateeznews_admin/features/settings/data/admin_languages_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_module_settings_repository.dart';
 import 'package:pateeznews_admin/features/settings/data/admin_security_settings_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_storage_settings_repository.dart';
 import 'package:pateeznews_admin/features/social/data/admin_social_repository.dart';
 import 'package:pateeznews_admin/features/social/presentation/social_platform_data.dart';
 import 'package:pateeznews_admin/features/social/presentation/social_settings_models.dart';
@@ -2531,6 +2532,24 @@ class _FakeAdminSecuritySettingsRepository
   }
 }
 
+class _FakeAdminStorageSettingsRepository
+    implements AdminStorageSettingsRepository {
+  var settings = AdminStorageSettingsData.empty();
+
+  @override
+  Future<AdminStorageSettingsData> fetchSettings() async {
+    return settings;
+  }
+
+  @override
+  Future<AdminStorageSettingsData> saveSettings(
+    AdminStorageSettingsData settings,
+  ) async {
+    this.settings = settings;
+    return settings;
+  }
+}
+
 class _FakeAdminModuleSettingsRepository
     implements AdminModuleSettingsRepository {
   WeatherSettingsData weatherSettings = const WeatherSettingsData(
@@ -3158,6 +3177,7 @@ Future<void> _pumpAdminApp(
   AdminContentSettingsRepository? contentSettingsRepository,
   AdminModuleSettingsRepository? moduleSettingsRepository,
   AdminSecuritySettingsRepository? securitySettingsRepository,
+  AdminStorageSettingsRepository? storageSettingsRepository,
   AdminAccountSettingsRepository? accountSettingsRepository,
   AdminSubscribersRepository? subscribersRepository,
   AdminSocialRepository? socialRepository,
@@ -3187,6 +3207,8 @@ Future<void> _pumpAdminApp(
           moduleSettingsRepository ?? _FakeAdminModuleSettingsRepository(),
       securitySettingsRepository:
           securitySettingsRepository ?? _FakeAdminSecuritySettingsRepository(),
+      storageSettingsRepository:
+          storageSettingsRepository ?? _FakeAdminStorageSettingsRepository(),
       accountSettingsRepository:
           accountSettingsRepository ?? _FakeAdminAccountSettingsRepository(),
       subscribersRepository:
@@ -3260,8 +3282,8 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'http://localhost:4321/api/supabase/auth',
-        'http://localhost:4321/api/admin/query',
+        'http://127.0.0.1:4321/api/supabase/auth',
+        'http://127.0.0.1:4321/api/admin/query',
       ]),
     );
   });
@@ -4067,11 +4089,20 @@ void main() {
     Future<void> expectCleanTabSwitch(String tabLabel) async {
       await tester.tap(find.text(tabLabel).first);
       await tester.pumpAndSettle();
-      expect(find.text('Format değiştirilsin mi?'), findsNothing);
+      expect(
+        find.text('Format değiştirilsin mi?'),
+        findsNothing,
+        reason: '$tabLabel sekmesine geçerken onay açılmamalı',
+      );
 
       await tester.tap(find.text('Makale').first);
       await tester.pumpAndSettle();
-      expect(find.text('Format değiştirilsin mi?'), findsNothing);
+      expect(
+        find.text('Format değiştirilsin mi?'),
+        findsNothing,
+        reason:
+            '$tabLabel sekmesinden Makale sekmesine dönerken onay açılmamalı',
+      );
     }
 
     await expectCleanTabSwitch('Anket');
@@ -4105,8 +4136,16 @@ void main() {
     Future<void> expectTabSchema(String tabLabel, String schemaLabel) async {
       await tester.tap(find.text(tabLabel).first);
       await tester.pumpAndSettle();
-      expect(find.text(schemaLabel), findsOneWidget);
-      expect(find.text('Format değiştirilsin mi?'), findsNothing);
+      expect(
+        find.text(schemaLabel),
+        findsOneWidget,
+        reason: '$tabLabel sekmesi $schemaLabel varsayılanını göstermeli',
+      );
+      expect(
+        find.text('Format değiştirilsin mi?'),
+        findsNothing,
+        reason: '$tabLabel sekmesine geçerken onay açılmamalı',
+      );
     }
 
     await expectTabSchema('Test (Quiz)', 'Quiz/Test (Quiz)');

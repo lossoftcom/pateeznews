@@ -136,7 +136,14 @@ class HomeRepository {
       source: _str(json['source'], fallback: 'Pateeznews'),
       slug: _str(json['slug']),
       imageAspectRatio: _positiveDouble(json['imageAspectRatio']),
+      article: _mapFeaturedArticle(json),
     );
+  }
+
+  static NewsArticle? _mapFeaturedArticle(Map<dynamic, dynamic> json) {
+    final article = json['article'];
+    if (article is! Map) return null;
+    return _mapArticle(article);
   }
 
   static NewsArticle _mapArticle(Map<dynamic, dynamic> json) {
@@ -186,6 +193,9 @@ class HomeRepository {
       pollData: _parsePollData(json['pollData']),
       vsData: _parseVsData(json['vsData']),
       quoteData: _parseQuoteData(json['quoteData']),
+      detailItems: _parseDetailItems(json['detailItems']),
+      tags: _parseTags(json['tags']),
+      faqData: _parseFaqData(json['faqData']),
       previewComments: _parseComments(json['previewComments']),
     );
   }
@@ -381,6 +391,82 @@ NewsQuoteData? _parseQuoteData(Object? value) {
     author: _plainText(value['author']),
     sourceUrl: _str(value['sourceUrl']),
   );
+}
+
+List<NewsDetailItem> _parseDetailItems(Object? value) {
+  if (value is! List) return const [];
+  final items = <NewsDetailItem>[];
+  for (var index = 0; index < value.length; index++) {
+    final raw = value[index];
+    if (raw is! Map) continue;
+    final type = _str(raw['type']).toLowerCase();
+    if (type.isEmpty) continue;
+    final id = _str(raw['id'], fallback: 'detail-item-${index + 1}');
+    final detailItem = NewsDetailItem(
+      id: id,
+      type: type,
+      title: _plainText(raw['title']),
+      description: _plainText(raw['description']),
+      source: _plainText(raw['source']),
+      moreInfoUrl: _str(raw['moreInfoUrl']),
+      mediaUrl: _str(raw['mediaUrl']),
+      mediaUrls: _strList(raw['mediaUrls']),
+      altText: _plainText(raw['altText']),
+      videoThumbUrl: _str(raw['videoThumbUrl']),
+      flipData: _parseFlipData(raw['flipData']),
+      beforeAfterData: _parseBeforeAfterData(raw['beforeAfterData']),
+      reviewData: _parseReviewData(raw['reviewData']),
+      pollData: _parsePollData(raw['pollData']),
+      vsData: _parseVsData(raw['vsData']),
+      quoteData: _parseQuoteData(raw['quoteData']),
+    );
+    if (_detailItemHasContent(detailItem)) items.add(detailItem);
+  }
+  return items;
+}
+
+bool _detailItemHasContent(NewsDetailItem item) {
+  return item.title.isNotEmpty ||
+      item.description.isNotEmpty ||
+      item.source.isNotEmpty ||
+      item.mediaUrl.isNotEmpty ||
+      item.mediaUrls.isNotEmpty ||
+      item.flipData != null ||
+      item.beforeAfterData != null ||
+      item.reviewData != null ||
+      item.pollData != null ||
+      item.vsData != null ||
+      item.quoteData != null;
+}
+
+List<String> _parseTags(Object? value) {
+  final source = value is List ? value : const [];
+  final tags = <String>[];
+  final seen = <String>{};
+  for (final item in source) {
+    final tag = _plainText(item).replaceFirst(RegExp(r'^#+'), '').trim();
+    if (tag.isEmpty) continue;
+    final key = tag.toLowerCase();
+    if (seen.contains(key)) continue;
+    seen.add(key);
+    tags.add(tag);
+    if (tags.length >= 14) break;
+  }
+  return tags;
+}
+
+List<NewsFaqItem> _parseFaqData(Object? value) {
+  if (value is! List) return const [];
+  final items = <NewsFaqItem>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    final question = _plainText(item['q'] ?? item['question'] ?? item['name']);
+    final answer = _plainText(item['a'] ?? item['answer'] ?? item['text']);
+    if (question.isEmpty || answer.isEmpty) continue;
+    items.add(NewsFaqItem(question: question, answer: answer));
+    if (items.length >= 8) break;
+  }
+  return items;
 }
 
 List<NewsComment> _parseComments(Object? value) {

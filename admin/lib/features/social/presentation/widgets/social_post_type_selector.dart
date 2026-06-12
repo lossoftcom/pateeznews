@@ -66,8 +66,9 @@ class SocialPostTypeSelector extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
                         color: selected ? Colors.white : Colors.transparent,
-                        borderRadius:
-                            BorderRadius.circular(AppRadius.value * 1.5),
+                        borderRadius: BorderRadius.circular(
+                          AppRadius.value * 1.5,
+                        ),
                         boxShadow: selected
                             ? [
                                 BoxShadow(

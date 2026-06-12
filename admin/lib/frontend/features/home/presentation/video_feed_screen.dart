@@ -199,8 +199,19 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) =>
-            NewsDetailScreen(articles: feed, initialIndex: index),
+        pageBuilder: (_, _, _) => NewsDetailScreen(
+          articles: feed,
+          initialIndex: index,
+          shellSettings: widget.shellSettings,
+          navigationItems: widget.navigationItems,
+          contentSettings: widget.contentSettings,
+          videoFeedArticles: feed,
+          authState: widget.authState,
+          postActionRepository: widget.postActionRepository,
+          onAuthRequired: widget.onAuthRequired,
+          onAuthorTap: widget.onAuthorTap,
+          onFullscreenVideoExit: widget.onFullscreenVideoExit,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,

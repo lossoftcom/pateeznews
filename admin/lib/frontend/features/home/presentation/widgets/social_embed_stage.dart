@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -12,6 +11,7 @@ import '../../../../core/platform/debug_platform_view_hot_restart.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/services/frontend_link_launcher.dart';
 
 class SocialEmbedStage extends StatefulWidget {
   const SocialEmbedStage({
@@ -221,10 +221,7 @@ class _SocialEmbedStageState extends State<SocialEmbedStage>
     final source = _resolvedSourceUrl;
     final uri = Uri.tryParse(source);
     if (uri == null || !uri.hasScheme) return;
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened) {
-      await launchUrl(uri, mode: LaunchMode.platformDefault);
-    }
+    await openFrontendUri(uri, preferNativeApp: true);
   }
 
   Uri? get _directIframeUri {

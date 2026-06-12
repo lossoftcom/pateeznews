@@ -87,7 +87,15 @@ const _trWeekdayLong = <String>[
   'Cumartesi',
   'Pazar',
 ];
-const _trWeekdayShort = <String>['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+const _trWeekdayShort = <String>[
+  'Pzt',
+  'Sal',
+  'Çar',
+  'Per',
+  'Cum',
+  'Cmt',
+  'Paz',
+];
 
 /// Bir şehir etkinliği (Niğde örnek verisi).
 ///

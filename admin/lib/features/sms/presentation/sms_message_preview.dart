@@ -291,10 +291,7 @@ class _IMessageReferansOnizleme extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                _IMessageGidenBalon(
-                  mesaj: hamMesaj,
-                  maxLines: maxLines,
-                ),
+                _IMessageGidenBalon(mesaj: hamMesaj, maxLines: maxLines),
                 const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.only(right: 4),
@@ -321,10 +318,7 @@ class _IMessageReferansOnizleme extends StatelessWidget {
 }
 
 class _IMessageGidenBalon extends StatelessWidget {
-  const _IMessageGidenBalon({
-    required this.mesaj,
-    required this.maxLines,
-  });
+  const _IMessageGidenBalon({required this.mesaj, required this.maxLines});
 
   final String mesaj;
   final int maxLines;
@@ -398,14 +392,8 @@ class _IMessageGidenBalon extends StatelessWidget {
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
           child: Container(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 1,
-              vertical: 1,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 6,
-              vertical: 2,
-            ),
+            margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: dolduruldu
                   ? const Color(0xFFFFF2E0)
@@ -482,4 +470,3 @@ const _ornekDegerler = <String, String>{
   'tarih': '24.05.2026',
   'telefon': '+90 541 947 49 80',
 };
-

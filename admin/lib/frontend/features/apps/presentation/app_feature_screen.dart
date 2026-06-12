@@ -9,9 +9,10 @@ import '../../../shared/widgets/feature_app_bar.dart';
 import '../data/app_item.dart';
 
 class AppFeatureScreen extends StatelessWidget {
-  const AppFeatureScreen({super.key, required this.item});
+  const AppFeatureScreen({super.key, required this.item, this.onSearch});
 
   final AppItem item;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +23,7 @@ class AppFeatureScreen extends StatelessWidget {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            FeatureAppBar(title: item.label),
+            FeatureAppBar(title: item.label, onSearch: onSearch),
             Expanded(
               child: ListView(
                 physics: const BouncingScrollPhysics(

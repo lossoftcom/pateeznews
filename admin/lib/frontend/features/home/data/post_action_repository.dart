@@ -25,6 +25,8 @@ class PostActionState {
     required this.liked,
     required this.disliked,
     required this.saved,
+    this.reactions = const {},
+    this.userReactions = const [],
   });
 
   final int likes;
@@ -35,6 +37,8 @@ class PostActionState {
   final bool liked;
   final bool disliked;
   final bool saved;
+  final Map<String, int> reactions;
+  final List<String> userReactions;
 
   factory PostActionState.fromJson(Map<String, Object?> json) {
     final counts = _asStringMap(json['counts']);
@@ -48,6 +52,8 @@ class PostActionState {
       liked: _bool(userState['liked']),
       disliked: _bool(userState['disliked']),
       saved: _bool(userState['saved']),
+      reactions: _intMap(json['reactions']),
+      userReactions: _strList(userState['reactions']),
     );
   }
 }
@@ -145,6 +151,31 @@ class PostActionRepository {
         if (thresholdSeconds != null)
           'thresholdSeconds': thresholdSeconds < 0 ? 0 : thresholdSeconds,
       },
+    );
+  }
+
+  Future<PostActionState> fetchState({
+    required String postId,
+    String? token,
+  }) async {
+    return _sendStateAction(
+      action: 'state',
+      postId: postId,
+      token: token,
+      extraBody: {'viewerId': await _viewerId()},
+    );
+  }
+
+  Future<PostActionState> toggleReaction({
+    required String postId,
+    String? token,
+    required String reaction,
+  }) async {
+    return _sendStateAction(
+      action: 'toggle_reaction',
+      postId: postId,
+      token: token,
+      extraBody: {'reaction': reaction, 'viewerId': await _viewerId()},
     );
   }
 
@@ -247,4 +278,23 @@ bool _bool(Object? value) {
   if (value is bool) return value;
   final normalized = value?.toString().trim().toLowerCase();
   return normalized == 'true' || normalized == '1';
+}
+
+Map<String, int> _intMap(Object? value) {
+  final map = _asStringMap(value);
+  if (map.isEmpty) return const {};
+  return {
+    for (final entry in map.entries)
+      if (entry.key.trim().isNotEmpty)
+        entry.key.trim(): _nonNegativeInt(entry.value),
+  };
+}
+
+List<String> _strList(Object? value) {
+  if (value is! List) return const [];
+  return [
+    for (final item in value)
+      if (item != null && item.toString().trim().isNotEmpty)
+        item.toString().trim(),
+  ];
 }

@@ -22,13 +22,13 @@ class LiveBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-          )
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              )
               .animate(onPlay: (c) => c.repeat(reverse: true))
               .fadeIn(duration: 700.ms)
               .fade(begin: 1, end: 0.35, duration: 700.ms),

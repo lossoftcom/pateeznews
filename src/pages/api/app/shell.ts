@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { dataService } from '@/services/dataService.server';
 import type { NavigationItem, SiteSettings } from '@/types';
 
@@ -40,6 +41,43 @@ const navigationItemPayload = (item: NavigationItem) => ({
   languageCode: text(item.language_code),
 });
 
+const pagePayload = (row: any) => ({
+  id: text(row.id),
+  title: text(row.title),
+  slug: text(row.slug),
+  categoryId: text(row.category_id),
+  category: text(row.category),
+  pageType: text(row.page_type),
+  menuOrder: Number.isFinite(Number(row.menu_order))
+    ? Number(row.menu_order)
+    : 0,
+  contentPlain: text(row.content_plain),
+  metaDescription: text(row.meta_description),
+  canonicalUrl: text(row.canonical_url),
+});
+
+async function getShellPages(languageCode: string) {
+  const result = await dbQuery<any>(
+    `SELECT
+        id,
+        title,
+        slug,
+        category_id,
+        category,
+        page_type,
+        menu_order,
+        content_plain,
+        meta_description,
+        canonical_url
+     FROM public.pages
+     WHERE language_code = $1
+       AND status = 'active'
+     ORDER BY menu_order ASC, title ASC`,
+    [languageCode]
+  );
+  return result.rows || [];
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -53,15 +91,17 @@ export const GET: APIRoute = async ({ url }) => {
   const lang = normalizeLanguageCode(url.searchParams.get('lang'));
 
   try {
-    const [settings, navigationItems] = await Promise.all([
+    const [settings, navigationItems, pages] = await Promise.all([
       dataService.getSiteSettings(lang),
       dataService.getNavigationItems(lang),
+      getShellPages(lang),
     ]);
 
     return json({
       languageCode: lang,
       siteSettings: siteSettingsPayload(settings),
       navigationItems: navigationItems.map(navigationItemPayload),
+      pages: pages.map(pagePayload),
     });
   } catch (error) {
     const message = import.meta.env.PROD ? 'Request failed' : (error as Error).message;

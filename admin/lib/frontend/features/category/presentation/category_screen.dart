@@ -47,6 +47,7 @@ class CategoryScreen extends StatefulWidget {
     this.onAuthRequired,
     this.onAuthorTap,
     this.onFullscreenVideoExit,
+    this.onSearch,
   });
 
   /// Yan menüden tıklanan öğenin etiketi (ör. "Ekonomi").
@@ -66,6 +67,7 @@ class CategoryScreen extends StatefulWidget {
   final VoidCallback? onAuthRequired;
   final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
+  final VoidCallback? onSearch;
 
   @override
   State<CategoryScreen> createState() => _CategoryScreenState();
@@ -153,8 +155,18 @@ class _CategoryScreenState extends State<CategoryScreen> {
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
         reverseTransitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (_, _, _) =>
-            NewsDetailScreen(articles: feed, initialIndex: index),
+        pageBuilder: (_, _, _) => NewsDetailScreen(
+          articles: feed,
+          initialIndex: index,
+          shellSettings: widget.shellSettings,
+          navigationItems: widget.navigationItems,
+          contentSettings: widget.contentSettings,
+          videoFeedArticles: _dateSortedVideoFeed(_feed),
+          authState: widget.authState,
+          onAuthRequired: widget.onAuthRequired,
+          onAuthorTap: widget.onAuthorTap,
+          onFullscreenVideoExit: widget.onFullscreenVideoExit,
+        ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(
             parent: animation,
@@ -191,6 +203,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                 title: _content.title,
                 scrollOffset: offset,
                 onBack: () => Navigator.of(context).maybePop(),
+                onSearch: widget.onSearch,
               ),
             ),
             Expanded(

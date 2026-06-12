@@ -23,10 +23,12 @@ class MarketsScreen extends StatefulWidget {
     super.key,
     this.initialData = const MarketsData.empty(),
     this.repository = const MarketsRepository(),
+    this.onSearch,
   });
 
   final MarketsData initialData;
   final MarketsRepository repository;
+  final VoidCallback? onSearch;
 
   @override
   State<MarketsScreen> createState() => _MarketsScreenState();
@@ -73,7 +75,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Döviz & Altın'),
+            FeatureAppBar(title: 'Döviz & Altın', onSearch: widget.onSearch),
             Expanded(
               child: RefreshIndicator(
                 color: _accent,

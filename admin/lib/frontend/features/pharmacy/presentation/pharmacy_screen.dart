@@ -27,10 +27,12 @@ class PharmacyScreen extends StatefulWidget {
     super.key,
     this.initialData = const DutyPharmacyData.empty(),
     this.repository = const PharmacyRepository(),
+    this.onSearch,
   });
 
   final DutyPharmacyData initialData;
   final PharmacyRepository repository;
+  final VoidCallback? onSearch;
 
   @override
   State<PharmacyScreen> createState() => _PharmacyScreenState();
@@ -162,7 +164,7 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Nöbetçi Eczane'),
+            FeatureAppBar(title: 'Nöbetçi Eczane', onSearch: widget.onSearch),
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.actionRed,

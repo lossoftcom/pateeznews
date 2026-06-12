@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/navigation_icon_resolver.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/brand/default_brand_assets.dart';
@@ -19,6 +20,7 @@ class PateezSideMenu extends StatefulWidget {
     required this.onClose,
     required this.onSelected,
     required this.onNavigationItemSelected,
+    required this.onPagesSelected,
     required this.onModeChanged,
   });
 
@@ -30,6 +32,7 @@ class PateezSideMenu extends StatefulWidget {
   final VoidCallback onClose;
   final ValueChanged<int> onSelected;
   final ValueChanged<AppShellNavigationItem> onNavigationItemSelected;
+  final ValueChanged<AppShellNavigationItem?> onPagesSelected;
   final ValueChanged<bool> onModeChanged;
 
   @override
@@ -37,14 +40,23 @@ class PateezSideMenu extends StatefulWidget {
 }
 
 class _PateezSideMenuState extends State<PateezSideMenu> {
-  var _defaultRootApplied = false;
-  final _openRootIds = <String>{};
+  final _scrollController = ScrollController();
+  final _closedRootIds = <String>{};
+  String? _selectedRootId;
+  var _rootPickerOpen = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.viewPaddingOf(context).top;
-    final topItems = _topMenuItems(widget.shellData);
     final sidebarItems = widget.shellData.sidebarNavigationItems;
+    final topItems = widget.shellData.topNavigationItems;
+    final selectedRoot = _currentRoot(sidebarItems);
 
     return SizedBox(
       width: widget.width,
@@ -65,28 +77,34 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
               const SizedBox(height: AppSpacing.xl),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   physics: const BouncingScrollPhysics(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ...(topItems.isEmpty
-                          ? _quickRows(widget.items)
-                          : topItems.map(_navigationRow)),
-                      if (sidebarItems.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xl),
+                      if (sidebarItems.isNotEmpty)
                         ..._sidebarRows(sidebarItems),
-                      ],
+                      if (sidebarItems.isEmpty)
+                        ...(topItems.isEmpty
+                            ? _quickRows(widget.items)
+                            : topItems.map(_navigationRow)),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _ModeToggle(
-                  darkModeSelected: widget.darkModeSelected,
-                  onModeChanged: widget.onModeChanged,
-                ),
+              Row(
+                children: [
+                  if (widget.shellData.pages.isNotEmpty)
+                    _AboutMenuLink(
+                      onTap: () => widget.onPagesSelected(selectedRoot),
+                    ),
+                  const Spacer(),
+                  _ModeToggle(
+                    darkModeSelected: widget.darkModeSelected,
+                    onModeChanged: widget.onModeChanged,
+                  ),
+                ],
               ),
             ],
           ),
@@ -114,26 +132,17 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
     );
   }
 
-  List<AppShellNavigationItem> _topMenuItems(AppShellData shellData) {
-    final topItems = shellData.topNavigationItems;
-    final promotedCategories = shellData.sidebarNavigationItems
-        .where(
-          (item) =>
-              item.parentId != null &&
-              _isCategoryNavigationType(item.type) &&
-              !_isHomeNavigationItem(item),
-        )
+  AppShellNavigationItem? _currentRoot(List<AppShellNavigationItem> items) {
+    final roots = items
+        .where((item) => item.parentId == null || item.parentId == 'root')
         .toList(growable: false);
-    if (promotedCategories.isEmpty) return topItems;
-
-    final seen = <String>{};
-    final result = <AppShellNavigationItem>[];
-    for (final item in [...topItems, ...promotedCategories]) {
-      final key = _navigationDedupKey(item);
-      if (!seen.add(key)) continue;
-      result.add(item);
-    }
-    return result;
+    if (roots.isEmpty) return null;
+    final currentId = _selectedRootId;
+    if (currentId == null) return roots.first;
+    return roots.firstWhere(
+      (root) => root.id == currentId,
+      orElse: () => roots.first,
+    );
   }
 
   List<Widget> _sidebarRows(List<AppShellNavigationItem> items) {
@@ -143,59 +152,120 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
     if (roots.isEmpty) {
       return items.map(_navigationRow).toList(growable: false);
     }
-    if (!_defaultRootApplied) {
-      _openRootIds.add(roots.first.id);
-      _defaultRootApplied = true;
-    }
+    final selectedRoot = _selectedRoot(roots);
+    final children =
+        items
+            .where((item) => item.parentId == selectedRoot.id)
+            .toList(growable: false)
+          ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    final hasChildren = children.isNotEmpty;
+    final childrenOpen = !_closedRootIds.contains(selectedRoot.id);
 
-    return roots
-        .expand((root) {
-          final children =
-              items
-                  .where((item) => item.parentId == root.id)
-                  .toList(growable: false)
-                ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-          final hasChildren = children.isNotEmpty;
-          final isOpen = _openRootIds.contains(root.id);
-
-          return [
-            _NavigationMenuRow(
-              item: root,
-              selected: widget.activeIndex == 0,
-              trailing: hasChildren
-                  ? AnimatedRotation(
-                      turns: isOpen ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 160),
-                      curve: Curves.easeOutCubic,
-                      child: const Icon(
-                        Symbols.keyboard_arrow_down_rounded,
-                        size: 16,
-                        color: AppColors.iconMuted,
-                      ),
-                    )
-                  : null,
-              onTap: () {
-                if (!hasChildren) {
-                  widget.onNavigationItemSelected(root);
-                  return;
-                }
+    return [
+      _NavigationMenuRow(
+        item: selectedRoot,
+        selected: widget.activeIndex == 0,
+        trailing: hasChildren
+            ? AnimatedRotation(
+                turns: childrenOpen ? 0.5 : 0,
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                child: const Icon(
+                  Symbols.keyboard_arrow_down_rounded,
+                  size: 16,
+                  color: AppColors.iconMuted,
+                ),
+              )
+            : null,
+        onTrailingTap: hasChildren
+            ? () {
                 setState(() {
-                  if (isOpen) {
-                    _openRootIds.remove(root.id);
+                  _rootPickerOpen = false;
+                  if (childrenOpen) {
+                    _closedRootIds.add(selectedRoot.id);
                   } else {
-                    _openRootIds.add(root.id);
+                    _closedRootIds.remove(selectedRoot.id);
                   }
                 });
-              },
-            ),
-            if (hasChildren && isOpen) ..._groupedChildRows(children),
-          ];
-        })
+                _scrollMenuToTop();
+              }
+            : null,
+        onTap: () {
+          if (roots.length <= 1) {
+            if (!hasChildren) {
+              widget.onNavigationItemSelected(selectedRoot);
+              return;
+            }
+            setState(() {
+              if (childrenOpen) {
+                _closedRootIds.add(selectedRoot.id);
+              } else {
+                _closedRootIds.remove(selectedRoot.id);
+              }
+            });
+          } else {
+            setState(() => _rootPickerOpen = !_rootPickerOpen);
+          }
+          _scrollMenuToTop();
+        },
+      ),
+      if (_rootPickerOpen) ..._rootPickerRows(roots, selectedRoot),
+      if (!_rootPickerOpen && childrenOpen) ..._groupedChildRows(children),
+    ];
+  }
+
+  AppShellNavigationItem _selectedRoot(List<AppShellNavigationItem> roots) {
+    final currentId = _selectedRootId;
+    final selected = currentId == null
+        ? roots.first
+        : roots.firstWhere(
+            (root) => root.id == currentId,
+            orElse: () => roots.first,
+          );
+    _selectedRootId = selected.id;
+    return selected;
+  }
+
+  List<Widget> _rootPickerRows(
+    List<AppShellNavigationItem> roots,
+    AppShellNavigationItem selectedRoot,
+  ) {
+    return roots
+        .where((root) => root.id != selectedRoot.id)
+        .map(
+          (root) => _NavigationMenuRow(
+            item: root,
+            dense: true,
+            selected: false,
+            onTap: () {
+              setState(() {
+                _selectedRootId = root.id;
+                _rootPickerOpen = false;
+                _closedRootIds.remove(root.id);
+              });
+              _scrollMenuToTop();
+            },
+          ),
+        )
         .toList(growable: false);
+  }
+
+  void _scrollMenuToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   List<Widget> _groupedChildRows(List<AppShellNavigationItem> children) {
     final districts = children.where((item) => item.type == 'district');
+    final categories = children.where(
+      (item) => _isCategoryNavigationType(item.type),
+    );
     final trends = children.where((item) => item.type == 'trends');
     final other = children.where(
       (item) =>
@@ -203,9 +273,12 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
           !_isCategoryNavigationType(item.type) &&
           item.type != 'trends',
     );
+    final menuItems = categories.toList(growable: false);
 
     return [
+      if (menuItems.isNotEmpty) ..._childRows(menuItems),
       if (districts.isNotEmpty) ...[
+        if (menuItems.isNotEmpty) const SizedBox(height: 6),
         const _GroupHeader('İlçeler'),
         ..._childRows(districts),
       ],
@@ -226,21 +299,6 @@ class _PateezSideMenuState extends State<PateezSideMenu> {
     return normalized == 'category' ||
         normalized == 'dropdown' ||
         normalized == 'link';
-  }
-
-  bool _isHomeNavigationItem(AppShellNavigationItem item) {
-    final key = '${item.label} ${item.value}'.trim().toLowerCase();
-    return item.value == '/' ||
-        key.contains('ana sayfa') ||
-        key.contains('anasayfa') ||
-        key.contains('home');
-  }
-
-  String _navigationDedupKey(AppShellNavigationItem item) {
-    final value = item.value.trim().toLowerCase();
-    final label = item.label.trim().toLowerCase();
-    final key = value.isNotEmpty ? value : label;
-    return '${item.type.trim().toLowerCase()}:$key';
   }
 
   List<Widget> _childRows(Iterable<AppShellNavigationItem> items) {
@@ -462,6 +520,7 @@ class _NavigationMenuRow extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.trailing,
+    this.onTrailingTap,
     this.dense = false,
   });
 
@@ -469,6 +528,7 @@ class _NavigationMenuRow extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Widget? trailing;
+  final VoidCallback? onTrailingTap;
   final bool dense;
 
   @override
@@ -479,6 +539,7 @@ class _NavigationMenuRow extends StatelessWidget {
       selected: selected,
       dense: dense,
       trailing: trailing,
+      onTrailingTap: onTrailingTap,
       onTap: onTap,
     );
   }
@@ -491,6 +552,7 @@ class _MenuRowShell extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.trailing,
+    this.onTrailingTap,
     this.dense = false,
   });
 
@@ -499,6 +561,7 @@ class _MenuRowShell extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Widget? trailing;
+  final VoidCallback? onTrailingTap;
   final bool dense;
 
   @override
@@ -543,8 +606,59 @@ class _MenuRowShell extends StatelessWidget {
                     ),
                   ),
                 ),
-                ?trailing,
+                if (trailing != null)
+                  _MenuTrailingControl(onTap: onTrailingTap, child: trailing!),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuTrailingControl extends StatelessWidget {
+  const _MenuTrailingControl({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onTap == null) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox.square(dimension: 32, child: Center(child: child)),
+      ),
+    );
+  }
+}
+
+class _AboutMenuLink extends StatelessWidget {
+  const _AboutMenuLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        mouseCursor: SystemMouseCursors.click,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Text(
+            'Hakkımızda',
+            style: AppTypography.navLabel.copyWith(
+              color: AppColors.support,
+              fontSize: 12.2,
+              fontWeight: FontWeight.w500,
+              decoration: TextDecoration.none,
             ),
           ),
         ),
@@ -619,32 +733,10 @@ class _PlainIconButton extends StatelessWidget {
 }
 
 IconData _iconFor(String name, {required String type, required bool selected}) {
-  final key = name.trim().toLowerCase();
-  final normalizedType = type.trim().toLowerCase();
-  if (key == 'home' || key == 'house') {
-    return selected ? Symbols.home_rounded : Symbols.home_outlined;
-  }
-  if (key.contains('video') || key == 'smart_display') {
-    return selected
-        ? Symbols.play_circle_rounded
-        : Symbols.play_circle_outline_rounded;
-  }
-  if (key == 'poll' || key == 'quiz') return Symbols.apps;
-  if (key == 'calendar_month' || key == 'event') return Symbols.schedule;
-  if (key == 'location_on' ||
-      key == 'where_to_vote' ||
-      normalizedType == 'district') {
-    return Symbols.location_on_rounded;
-  }
-  if (key == 'trending_up' || normalizedType == 'trends') {
-    return Symbols.trending_up_rounded;
-  }
-  if (key == 'auto_stories') return Symbols.menu_book_rounded;
-  if (key == 'forum') return Symbols.forum_outlined;
-  if (key == 'favorite') return Symbols.favorite_outline_rounded;
-  if (key == 'share') return Symbols.ios_share_rounded;
-  if (key == 'account_balance') return Symbols.newspaper;
-  if (key == 'spa') return Symbols.sparkling_fill;
-  if (normalizedType == 'category') return Symbols.grid_view_outlined;
-  return Symbols.grid_view_outlined;
+  return resolveNavigationIcon(
+    name,
+    type: type,
+    selected: selected,
+    fallback: Symbols.grid_view_outlined,
+  );
 }

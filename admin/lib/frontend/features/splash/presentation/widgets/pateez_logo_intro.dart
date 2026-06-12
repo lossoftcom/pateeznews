@@ -102,7 +102,8 @@ class _PateezLogoIntroState extends State<PateezLogoIntro>
             loadingBuilder: (context, child, progress) => progress == null
                 ? child
                 : _DefaultLogo(width: logoW, height: logoH),
-            errorBuilder: (_, _, _) => _DefaultLogo(width: logoW, height: logoH),
+            errorBuilder: (_, _, _) =>
+                _DefaultLogo(width: logoW, height: logoH),
           );
 
     return SizedBox.square(
@@ -117,8 +118,9 @@ class _PateezLogoIntroState extends State<PateezLogoIntro>
           final opacity = _reveal.value.clamp(0.0, 1.0);
           // Yalnızca giriş anında bir kez, soldan sağa süzülen ışık parıltısı.
           final introSheenT = _sheen.value;
-          final double? sheenT =
-              (introSheenT > 0.0 && introSheenT < 1.0) ? introSheenT : null;
+          final double? sheenT = (introSheenT > 0.0 && introSheenT < 1.0)
+              ? introSheenT
+              : null;
 
           Widget logo = child!;
           if (sheenT != null) {
@@ -177,10 +179,7 @@ class _PateezLogoIntroState extends State<PateezLogoIntro>
               // opak ve sabit kalır (nefes/zıplama yok) — splash boyunca durur.
               Opacity(
                 opacity: opacity,
-                child: Transform.scale(
-                  scale: springScale,
-                  child: logo,
-                ),
+                child: Transform.scale(scale: springScale, child: logo),
               ),
             ],
           );

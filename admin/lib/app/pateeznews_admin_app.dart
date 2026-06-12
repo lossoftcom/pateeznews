@@ -20,6 +20,7 @@ import '../features/settings/data/admin_general_settings_repository.dart';
 import '../features/settings/data/admin_languages_repository.dart';
 import '../features/settings/data/admin_module_settings_repository.dart';
 import '../features/settings/data/admin_security_settings_repository.dart';
+import '../features/settings/data/admin_storage_settings_repository.dart';
 import '../features/sms/data/admin_sms_repository.dart';
 import '../features/social/data/admin_social_repository.dart';
 import '../features/subscribers/data/admin_subscribers_repository.dart';
@@ -46,6 +47,7 @@ class PateeznewsAdminApp extends StatefulWidget {
     this.contentSettingsRepository,
     this.moduleSettingsRepository,
     this.securitySettingsRepository,
+    this.storageSettingsRepository,
     this.accountSettingsRepository,
     this.subscribersRepository,
     this.smsRepository,
@@ -69,6 +71,7 @@ class PateeznewsAdminApp extends StatefulWidget {
   final AdminContentSettingsRepository? contentSettingsRepository;
   final AdminModuleSettingsRepository? moduleSettingsRepository;
   final AdminSecuritySettingsRepository? securitySettingsRepository;
+  final AdminStorageSettingsRepository? storageSettingsRepository;
   final AdminAccountSettingsRepository? accountSettingsRepository;
   final AdminSubscribersRepository? subscribersRepository;
   final AdminSmsRepository? smsRepository;
@@ -157,6 +160,9 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
               securitySettingsRepository:
                   widget.securitySettingsRepository ??
                   const SupabaseAdminSecuritySettingsRepository(),
+              storageSettingsRepository:
+                  widget.storageSettingsRepository ??
+                  const SupabaseAdminStorageSettingsRepository(),
               accountSettingsRepository:
                   widget.accountSettingsRepository ??
                   const SupabaseAdminAccountSettingsRepository(),

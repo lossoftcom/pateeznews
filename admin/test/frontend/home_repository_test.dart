@@ -27,6 +27,35 @@ void main() {
               'source': 'Pateeznews',
               'slug': 'manset-basligi',
               'imageAspectRatio': 2,
+              'article': {
+                'id': 'manset-1',
+                'category': 'Gündem',
+                'title': 'Manşet başlığı',
+                'summary': '<p>Manşet detay özeti</p>',
+                'imageUrl': 'http://localhost:4321/local-upload/manset.jpg',
+                'publishedAt': '2026-06-07T13:45:00.000Z',
+                'source': 'Pateeznews',
+                'sourceAvatar':
+                    'http://localhost:4321/local-upload/manset-avatar.jpg',
+                'slug': 'manset-basligi',
+                'likes': 6,
+                'dislikes': 0,
+                'comments': 2,
+                'shares': 1,
+                'views': 55,
+                'saves': 4,
+                'userLiked': true,
+                'readMinutes': 3,
+                'isManset': true,
+                'detailItems': [
+                  {
+                    'id': 'detail-1',
+                    'type': 'paragraph',
+                    'title': 'Detay',
+                    'description': '<p>Detay açıklaması</p>',
+                  },
+                ],
+              },
             },
           ],
           'feed': [
@@ -189,6 +218,15 @@ void main() {
     expect(data.featured, hasLength(1));
     expect(data.featured.single.id, 'manset-1');
     expect(data.featured.single.imageAspectRatio, 2);
+    expect(data.featured.single.article, isNotNull);
+    expect(data.featured.single.article?.id, 'manset-1');
+    expect(data.featured.single.article?.summary, 'Manşet detay özeti');
+    expect(data.featured.single.article?.views, 55);
+    expect(data.featured.single.article?.isManset, isTrue);
+    expect(
+      data.featured.single.article?.detailItems.single.description,
+      'Detay açıklaması',
+    );
     expect(data.settings.showFeaturedSection, isTrue);
     expect(data.settings.commentSystem, isFalse);
     expect(data.settings.commentApprovalSystem, isTrue);

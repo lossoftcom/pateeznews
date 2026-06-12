@@ -25,11 +25,13 @@ class ObituariesScreen extends StatefulWidget {
     this.initialData = const DeathNoticeData.empty(),
     this.repository = const DeathNoticeRepository(),
     this.authState,
+    this.onSearch,
   });
 
   final DeathNoticeData initialData;
   final DeathNoticeRepository repository;
   final FrontendAuthState? authState;
+  final VoidCallback? onSearch;
 
   @override
   State<ObituariesScreen> createState() => _ObituariesScreenState();
@@ -106,7 +108,7 @@ class _ObituariesScreenState extends State<ObituariesScreen> {
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Ölüm İlanları'),
+            FeatureAppBar(title: 'Ölüm İlanları', onSearch: widget.onSearch),
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.deepOcean,

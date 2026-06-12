@@ -122,6 +122,8 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   var _uploadProcessing = false;
   double? _uploadProgress;
   Duration? _uploadRemaining;
+  var _uploadBatchIndex = 0;
+  var _uploadBatchTotal = 0;
   var _busyFileId = '';
   var _uploadSettings = MediaUploadSettings.defaults();
   String? _uploadSettingsLanguageCode;
@@ -201,33 +203,36 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
     final extensions = _uploadSettings.extensionsFor(widget.type);
     final typeNotAllowedMessage = context.t('media.uploadTypeNotAllowed');
     final tooLargeMessageTemplate = context.t('media.uploadTooLarge');
-    final file = extensions.isEmpty
-        ? await openFile()
-        : await openFile(
+    final files = extensions.isEmpty
+        ? await openFiles()
+        : await openFiles(
             acceptedTypeGroups: [
               XTypeGroup(label: widget.type, extensions: extensions),
             ],
           );
-    if (file == null) return;
-
-    final fileExtension = _fileExtension(file.name);
-    if (fileExtension.isEmpty || !extensions.contains(fileExtension)) {
-      if (!mounted) return;
-      _showUploadMessage(typeNotAllowedMessage);
-      return;
-    }
+    if (files.isEmpty) return;
 
     final maxBytes = _uploadSettings.maxBytesFor(widget.type);
-    final fileLength = await file.length();
-    if (fileLength > maxBytes) {
-      if (!mounted) return;
-      _showUploadMessage(
-        tooLargeMessageTemplate.replaceAll(
-          '{size}',
-          _formatMegabytes(maxBytes),
-        ),
-      );
-      return;
+    for (final file in files) {
+      final fileExtension = _fileExtension(file.name);
+      if (extensions.isNotEmpty &&
+          (fileExtension.isEmpty || !extensions.contains(fileExtension))) {
+        if (!mounted) return;
+        _showUploadMessage(typeNotAllowedMessage);
+        return;
+      }
+
+      final fileLength = await file.length();
+      if (fileLength > maxBytes) {
+        if (!mounted) return;
+        _showUploadMessage(
+          tooLargeMessageTemplate.replaceAll(
+            '{size}',
+            _formatMegabytes(maxBytes),
+          ),
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -235,32 +240,54 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
       _uploadProcessing = false;
       _uploadProgress = 0;
       _uploadRemaining = null;
+      _uploadBatchIndex = 0;
+      _uploadBatchTotal = files.length;
     });
+    final uploaded = <MediaItem>[];
     try {
-      final bytes = await file.readAsBytes();
-      final result = await widget.mediaService.uploadFile(
-        fileName: file.name,
-        bytes: bytes,
-        type: widget.type,
-        onTransferProgress: (progress) {
-          if (!mounted) return;
-          setState(() {
-            _uploadProgress = progress.progress;
-            _uploadProcessing = progress.phase == 'processing';
-            _uploadRemaining = progress.remaining;
-          });
-        },
-      );
-      if (result != null && mounted) {
+      for (var index = 0; index < files.length; index += 1) {
+        final file = files[index];
+        if (!mounted) return;
+        setState(() {
+          _uploadBatchIndex = index + 1;
+          _uploadProcessing = false;
+          _uploadProgress = files.length == 1 ? 0 : index / files.length;
+          _uploadRemaining = null;
+        });
+
+        final bytes = await file.readAsBytes();
+        final result = await widget.mediaService.uploadFile(
+          fileName: file.name,
+          bytes: bytes,
+          type: widget.type,
+          onTransferProgress: (progress) {
+            if (!mounted) return;
+            final fileProgress = progress.progress;
+            final aggregateProgress = fileProgress == null
+                ? null
+                : ((index + fileProgress) / files.length).clamp(0.0, 1.0);
+            setState(() {
+              _uploadProgress = aggregateProgress;
+              _uploadProcessing = progress.phase == 'processing';
+              _uploadRemaining = progress.remaining;
+            });
+          },
+        );
+        if (result == null || !mounted) continue;
         final raw = result.thumb ?? result.src;
         _resolvedUrls[result.id] = widget.type == 'image'
             ? widget.mediaService.resolveImageUrl(raw, width: 260, quality: 86)
             : widget.mediaService.resolveUrl(raw);
-        setState(() {
-          _files.insert(0, result);
-        });
+        uploaded.add(result);
         _lastSelectedSrc = result.src;
-        _selectedSrcs.value = {result.src};
+      }
+      if (uploaded.isNotEmpty && mounted) {
+        setState(() {
+          _files.insertAll(0, uploaded.reversed);
+        });
+        _selectedSrcs.value = widget.multiSelect
+            ? uploaded.map((file) => file.src).toSet()
+            : {_lastSelectedSrc ?? uploaded.last.src};
       }
     } catch (_) {}
     if (mounted) {
@@ -269,6 +296,8 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
         _uploadProcessing = false;
         _uploadProgress = null;
         _uploadRemaining = null;
+        _uploadBatchIndex = 0;
+        _uploadBatchTotal = 0;
       });
     }
   }
@@ -559,6 +588,8 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
                       uploadProgress: _uploadProgress,
                       processing: _uploadProcessing,
                       remaining: _uploadRemaining,
+                      batchIndex: _uploadBatchIndex,
+                      batchTotal: _uploadBatchTotal,
                       onPickFile: _pickAndUpload,
                     ),
                     Expanded(
@@ -755,6 +786,8 @@ class _UploadSidebar extends StatelessWidget {
     required this.uploadProgress,
     required this.processing,
     required this.remaining,
+    required this.batchIndex,
+    required this.batchTotal,
     required this.onPickFile,
   });
 
@@ -764,6 +797,8 @@ class _UploadSidebar extends StatelessWidget {
   final double? uploadProgress;
   final bool processing;
   final Duration? remaining;
+  final int batchIndex;
+  final int batchTotal;
   final VoidCallback onPickFile;
 
   List<String> _extensions(BuildContext context) {
@@ -910,8 +945,9 @@ class _UploadSidebar extends StatelessWidget {
     final phase = processing
         ? context.t('media.processingVideo')
         : context.t('media.uploading');
-    if (percent == null) return phase;
-    return '$phase $percent%';
+    final batch = batchTotal > 1 ? ' $batchIndex/$batchTotal' : '';
+    if (percent == null) return '$phase$batch';
+    return '$phase$batch $percent%';
   }
 
   String _remainingText(BuildContext context) {

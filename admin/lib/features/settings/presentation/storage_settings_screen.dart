@@ -8,7 +8,12 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../data/admin_storage_settings_repository.dart';
 
 class StorageSettingsScreen extends StatefulWidget {
-  const StorageSettingsScreen({super.key});
+  const StorageSettingsScreen({
+    super.key,
+    this.repository = const SupabaseAdminStorageSettingsRepository(),
+  });
+
+  final AdminStorageSettingsRepository repository;
 
   @override
   State<StorageSettingsScreen> createState() => _StorageSettingsScreenState();
@@ -19,7 +24,6 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   final _secretKeyController = TextEditingController();
   final _bucketController = TextEditingController();
   final _regionController = TextEditingController();
-  final _repository = const SupabaseAdminStorageSettingsRepository();
 
   var _activeStorage = 'storageSettings.option.localStorage';
   var _selectedProvider = _StorageProvider.awsS3;
@@ -44,7 +48,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
 
   Future<void> _loadSettings() async {
     try {
-      final settings = await _repository.fetchSettings();
+      final settings = await widget.repository.fetchSettings();
       if (!mounted) return;
       setState(() {
         _activeStorage = settings.activeStorageKey;
@@ -69,7 +73,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     _rememberProviderValues(_selectedProvider);
     setState(() => _saving = true);
     try {
-      final saved = await _repository.saveSettings(
+      final saved = await widget.repository.saveSettings(
         AdminStorageSettingsData(
           activeStorageKey: _activeStorage,
           selectedProviderId: _selectedProvider.id,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/icons/navigation_icon_resolver.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
@@ -1761,22 +1762,5 @@ String _valueLabel(BuildContext context, String value) {
 }
 
 IconData _dialogIconForName(String name) {
-  return switch (name) {
-    'home' => Symbols.home,
-    'newspaper' => Symbols.newspaper,
-    'notifications' => Symbols.notifications,
-    'person' => Symbols.person,
-    'group' => Symbols.group,
-    'lock' => Symbols.lock,
-    'visibility' => Symbols.visibility,
-    'search' => Symbols.search,
-    'schedule' => Symbols.schedule,
-    'language' || 'public' => Symbols.language,
-    'code' => Symbols.code,
-    'download' => Symbols.download,
-    'upload' => Symbols.upload,
-    'list' => Symbols.format_list_numbered,
-    'menu' => Symbols.menu,
-    _ => Symbols.short_text,
-  };
+  return resolveNavigationIcon(name);
 }

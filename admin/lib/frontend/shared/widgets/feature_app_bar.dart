@@ -3,6 +3,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../features/search/presentation/search_screen.dart';
 import 'back_circle_button.dart';
 
 /// Mini servis / uygulama sayfaları (Etkinlikler, Duyurular, Nöbetçi Eczane,
@@ -42,7 +43,7 @@ class FeatureAppBar extends StatelessWidget {
           _PlainIconButton(
             icon: Symbols.search_rounded,
             semantics: 'Ara',
-            onTap: onSearch ?? () {},
+            onTap: onSearch ?? () => _openSearch(context),
           ),
           Expanded(
             child: Row(
@@ -83,6 +84,30 @@ class FeatureAppBar extends StatelessWidget {
       ),
     );
   }
+}
+
+void _openSearch(BuildContext context) {
+  Navigator.of(context).push<void>(
+    PageRouteBuilder<void>(
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (_, _, _) => const SearchScreen(showBackButton: true),
+      transitionsBuilder: (context, animation, secondary, child) {
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(fade);
+        return FadeTransition(
+          opacity: fade,
+          child: SlideTransition(position: slide, child: child),
+        );
+      },
+    ),
+  );
 }
 
 class _PlainIconButton extends StatelessWidget {

@@ -93,12 +93,16 @@ class _SocialHashtagInputState extends State<SocialHashtagInput> {
                         ),
                       ),
                     ),
-                    prefixIconConstraints:
-                        const BoxConstraints(minWidth: 24, minHeight: 0),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 24,
+                      minHeight: 0,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.value * 2),
                       borderSide: const BorderSide(color: AppColors.line),
@@ -109,8 +113,7 @@ class _SocialHashtagInputState extends State<SocialHashtagInput> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.value * 2),
-                      borderSide:
-                          const BorderSide(color: AppColors.deepOcean),
+                      borderSide: const BorderSide(color: AppColors.deepOcean),
                     ),
                   ),
                   onSubmitted: (_) => _addTag(),
@@ -152,8 +155,10 @@ class _SocialHashtagInputState extends State<SocialHashtagInput> {
               runSpacing: 6,
               children: widget.hashtags.map((tag) {
                 return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.deepOcean.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(AppRadius.value * 3),

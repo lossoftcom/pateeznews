@@ -22,10 +22,12 @@ class PrayerTimesScreen extends StatefulWidget {
     super.key,
     this.initialData = const PrayerTimesData.empty(),
     this.repository = const PrayerTimesRepository(),
+    this.onSearch,
   });
 
   final PrayerTimesData initialData;
   final PrayerTimesRepository repository;
+  final VoidCallback? onSearch;
 
   @override
   State<PrayerTimesScreen> createState() => _PrayerTimesScreenState();
@@ -89,7 +91,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen>
         backgroundColor: AppColors.canvas,
         body: Column(
           children: [
-            const FeatureAppBar(title: 'Namaz Vakitleri'),
+            FeatureAppBar(title: 'Namaz Vakitleri', onSearch: widget.onSearch),
             Expanded(
               child: RefreshIndicator(
                 color: _accent,

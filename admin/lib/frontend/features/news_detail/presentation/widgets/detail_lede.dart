@@ -12,15 +12,21 @@ import '../../../../shared/widgets/verified_badge.dart';
 ///
 /// İçinde sırayla:
 ///   - Yazar şeridi (avatar, ad, doğrulama, sağda yazılı turuncu Takip et)
-///   - Yazar altı byline: "Türkiye / Ekonomi · 7 sa" (ana sayfa kartıyla aynı dil)
+///   - Yazar altı byline: "Türkiye / Ekonomi" (ana sayfa kartıyla aynı dil)
 ///   - Meta satırı: tek satır okuma süresi + görüntüleme
 ///   - Kırmızı dikey vurgu çubuklu büyük başlık (in-page)
 ///   - Spot/lead paragrafı
 class DetailLede extends StatelessWidget {
-  const DetailLede({super.key, required this.article, required this.onFollow});
+  const DetailLede({
+    super.key,
+    required this.article,
+    required this.onFollow,
+    this.categoryTrail = const [],
+  });
 
   final NewsArticle article;
   final VoidCallback onFollow;
+  final List<String> categoryTrail;
 
   @override
   Widget build(BuildContext context) {
@@ -28,14 +34,18 @@ class DetailLede extends StatelessWidget {
       color: AppColors.surface,
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.pageHorizontal,
-        AppSpacing.xl + 4,
+        AppSpacing.md,
         AppSpacing.pageHorizontal,
         AppSpacing.lg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _AuthorRow(article: article, onFollow: onFollow),
+          _AuthorRow(
+            article: article,
+            onFollow: onFollow,
+            categoryTrail: categoryTrail,
+          ),
           const SizedBox(height: AppSpacing.lg),
           _MetaStrip(article: article),
           const SizedBox(height: AppSpacing.lg),
@@ -49,10 +59,15 @@ class DetailLede extends StatelessWidget {
 }
 
 class _AuthorRow extends StatelessWidget {
-  const _AuthorRow({required this.article, required this.onFollow});
+  const _AuthorRow({
+    required this.article,
+    required this.onFollow,
+    required this.categoryTrail,
+  });
 
   final NewsArticle article;
   final VoidCallback onFollow;
+  final List<String> categoryTrail;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +76,7 @@ class _AuthorRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _AuthorAvatar(author: author),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,8 +103,8 @@ class _AuthorRow extends StatelessWidget {
                   ],
                 ],
               ),
-              const SizedBox(height: 4),
-              _AuthorByline(article: article),
+              const SizedBox(height: 2),
+              _AuthorByline(article: article, categoryTrail: categoryTrail),
             ],
           ),
         ),
@@ -99,17 +114,23 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
-/// Ana sayfa news_card'ındaki "Türkiye / Ekonomi  ·  7 sa" eyebrow stiliyle
-/// birebir aynı dile sahip alt yazı.
+/// Ana sayfa news_card'ındaki kategori eyebrow diliyle aynı alt yazı.
 class _AuthorByline extends StatelessWidget {
-  const _AuthorByline({required this.article});
+  const _AuthorByline({required this.article, required this.categoryTrail});
 
   final NewsArticle article;
+  final List<String> categoryTrail;
 
   @override
   Widget build(BuildContext context) {
     final region = _titleCaseLabel(article.region);
-    final category = _titleCaseLabel(article.category);
+    final trail = categoryTrail
+        .map(_titleCaseLabel)
+        .where((label) => label.trim().isNotEmpty)
+        .toList(growable: false);
+    final category = trail.isEmpty
+        ? _titleCaseLabel(article.category)
+        : trail.join(' / ');
     final color = AppColors.inkSoft;
     return DefaultTextStyle.merge(
       style: AppTypography.eyebrow.copyWith(
@@ -121,19 +142,11 @@ class _AuthorByline extends StatelessWidget {
         children: [
           Flexible(
             child: Text(
-              '$region  /  $category',
+              region.isEmpty ? category : '$region  /  $category',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            width: 2.5,
-            height: 2.5,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          Text(RelativeTime.format(article.publishedAt)),
         ],
       ),
     );
@@ -149,28 +162,54 @@ class _AuthorAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     return SizedBox(
-      width: 44,
-      height: 44,
+      width: 46,
+      height: 46,
       child: Stack(
         children: [
-          ClipOval(
-            child: Container(
-              width: 42,
-              height: 42,
-              color: AppColors.surfaceInk,
-              child: CachedImage(
-                url: author.avatarUrl,
-                fit: BoxFit.cover,
-                memCacheWidth: (42 * dpr).round(),
-                placeholderColor: AppColors.surfaceInk,
-                errorWidget: Container(
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.surface,
+              border: Border.all(
+                color: AppColors.deepOcean.withValues(alpha: 0.24),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.warmHorizon.withValues(alpha: 0.16),
+                  blurRadius: 8,
+                  spreadRadius: 0.5,
+                  offset: const Offset(0, 2),
+                ),
+                const BoxShadow(
+                  color: Color(0x120F1B26),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: ClipOval(
+                child: Container(
                   color: AppColors.surfaceInk,
-                  alignment: Alignment.center,
-                  child: Text(
-                    author.name.characters.first.toUpperCase(),
-                    style: AppTypography.titleM.copyWith(
-                      color: AppColors.deepOcean,
-                      fontSize: 15,
+                  child: CachedImage(
+                    url: author.avatarUrl,
+                    fit: BoxFit.cover,
+                    memCacheWidth: (38 * dpr).round(),
+                    placeholderColor: AppColors.surfaceInk,
+                    errorWidget: Container(
+                      color: AppColors.surfaceInk,
+                      alignment: Alignment.center,
+                      child: Text(
+                        author.name.characters.first.toUpperCase(),
+                        style: AppTypography.titleM.copyWith(
+                          color: AppColors.deepOcean,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -178,8 +217,8 @@ class _AuthorAvatar extends StatelessWidget {
             ),
           ),
           Positioned(
-            right: 0,
-            bottom: 0,
+            right: 1,
+            bottom: 1,
             child: Container(
               width: 12,
               height: 12,

@@ -42,26 +42,27 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('başkasının profilinde takip butonu görünür, düzenleme görünmez', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(440, 1800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'başkasının profilinde takip butonu görünür, düzenleme görünmez',
+    (tester) async {
+      tester.view.physicalSize = const Size(440, 1800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ProfileScreen(
-          data: ProfileData.demo(name: 'Aylin Yılmaz', isOwnProfile: false),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProfileScreen(
+            data: ProfileData.demo(name: 'Aylin Yılmaz', isOwnProfile: false),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 700));
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
 
-    expect(find.text('Aylin Yılmaz'), findsWidgets);
-    expect(find.text('TAKİP ET'), findsOneWidget);
-    expect(find.text('Profili Düzenle'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('Aylin Yılmaz'), findsWidgets);
+      expect(find.text('TAKİP ET'), findsOneWidget);
+      expect(find.text('Profili Düzenle'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

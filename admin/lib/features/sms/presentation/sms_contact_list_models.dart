@@ -77,7 +77,6 @@ class AdminSmsContactList {
   }
 }
 
-
 Color contactListSourceColor(AdminContactImportSource source) {
   return switch (source) {
     AdminContactImportSource.csv => AppColors.deepOcean,

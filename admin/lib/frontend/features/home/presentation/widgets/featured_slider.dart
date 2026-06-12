@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
@@ -19,9 +21,10 @@ import 'featured_card.dart';
 ///   3. İçerik alanının altında tam ortada, palet kırmızısı (actionRed) sayfa
 ///      göstergeleri.
 class FeaturedSlider extends StatefulWidget {
-  const FeaturedSlider({super.key, required this.items});
+  const FeaturedSlider({super.key, required this.items, this.onOpen});
 
   final List<FeaturedNews> items;
+  final ValueChanged<FeaturedNews>? onOpen;
 
   @override
   State<FeaturedSlider> createState() => _FeaturedSliderState();
@@ -188,11 +191,40 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
                     itemCount: items.length,
                     onPageChanged: (i) => setState(() => _index = i),
                     itemBuilder: (context, i) {
-                      return FeaturedCard(news: items[i], onTap: () {});
+                      return FeaturedCard(
+                        news: items[i],
+                        onTap: () => widget.onOpen?.call(items[i]),
+                      );
                     },
                   ),
                 ),
               ),
+              if (items.length > 1) ...[
+                Positioned(
+                  left: 10,
+                  top: 0,
+                  height: imageHeight,
+                  child: Center(
+                    child: _FeaturedSliderArrowButton(
+                      icon: Symbols.arrow_left_line,
+                      label: 'Önceki haber',
+                      onTap: () => _goToSlide(_index - 1),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 10,
+                  top: 0,
+                  height: imageHeight,
+                  child: Center(
+                    child: _FeaturedSliderArrowButton(
+                      icon: Symbols.arrow_forward,
+                      label: 'Sonraki haber',
+                      onTap: () => _goToSlide(_index + 1),
+                    ),
+                  ),
+                ),
+              ],
               Positioned(
                 left: 0,
                 right: 0,
@@ -215,6 +247,7 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
                   activeIndex: safeIndex,
                   onHorizontalDragEnd: _handlePanelDragEnd,
                   onIndicatorTap: _goToSlide,
+                  onOpen: () => widget.onOpen?.call(active),
                 ),
               ),
             ],
@@ -282,6 +315,61 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
   }
 }
 
+class _FeaturedSliderArrowButton extends StatelessWidget {
+  const _FeaturedSliderArrowButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: ClipOval(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.inkStrong.withValues(alpha: 0.32),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.24),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.16),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, size: 17, color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 double? _parseImageAspectRatioFromUrl(String url) {
   final segments = Uri.tryParse(url)?.pathSegments;
   if (segments == null || segments.length < 2) return null;
@@ -301,6 +389,7 @@ class _FeaturedContentPanel extends StatelessWidget {
     required this.activeIndex,
     required this.onHorizontalDragEnd,
     required this.onIndicatorTap,
+    required this.onOpen,
   });
 
   final FeaturedNews active;
@@ -308,6 +397,7 @@ class _FeaturedContentPanel extends StatelessWidget {
   final int activeIndex;
   final GestureDragEndCallback onHorizontalDragEnd;
   final ValueChanged<int> onIndicatorTap;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +426,7 @@ class _FeaturedContentPanel extends StatelessWidget {
               child: _ActiveContent(
                 key: ValueKey<String>('featured-${active.id}'),
                 news: active,
+                onTap: onOpen,
               ),
             ),
             const SizedBox(height: _FeaturedSliderState._indicatorTopGap),
@@ -354,65 +445,70 @@ class _FeaturedContentPanel extends StatelessWidget {
 }
 
 class _ActiveContent extends StatelessWidget {
-  const _ActiveContent({super.key, required this.news});
+  const _ActiveContent({super.key, required this.news, required this.onTap});
 
   final FeaturedNews news;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AdaptiveHeadline(
-          text: news.title,
-          minScale: 0.88,
-          style: _featuredTitleStyle,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          news.summary,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: _featuredSummaryStyle,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(
-              Symbols.schedule_rounded,
-              size: _FeaturedSliderState._metaIconSize,
-              color: AppColors.inkSoft.withValues(alpha: 0.85),
-            ),
-            const SizedBox(width: 5),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AdaptiveHeadline(
+            text: news.title,
+            minScale: 0.88,
+            style: _featuredTitleStyle,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            news.summary,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: _featuredSummaryStyle,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Symbols.schedule_rounded,
+                size: _FeaturedSliderState._metaIconSize,
+                color: AppColors.inkSoft.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    _formatFeaturedPublishedAt(news.publishedAt),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: _featuredTimeStyle,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _formatFeaturedPublishedAt(news.publishedAt),
+                      maxLines: 1,
+                      softWrap: false,
+                      style: _featuredTimeStyle,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                _formatFeaturedCategory(news.category),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: _featuredCategoryStyle,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  _formatFeaturedCategory(news.category),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: _featuredCategoryStyle,
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
