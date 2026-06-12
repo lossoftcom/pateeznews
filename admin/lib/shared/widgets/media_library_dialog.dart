@@ -363,6 +363,23 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
     );
   }
 
+  Future<void> _openPreviewModal(MediaItem file) async {
+    if (file.type != 'image') return;
+    final imageUrl = widget.mediaService.resolveImageUrl(
+      file.src,
+      width: 1600,
+      quality: 90,
+    );
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.50),
+      builder: (_) =>
+          _ImagePreviewModal(fileName: file.value, imageUrl: imageUrl),
+    );
+  }
+
   Future<void> _openImageEditor(MediaItem file) async {
     final imageUrl = file.src.startsWith('http')
         ? file.src
@@ -535,6 +552,43 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
     _selectedSrcs.value = selected;
   }
 
+  MediaItem? _fileBySrc(String? src) {
+    if (src == null) return null;
+    for (final file in _files) {
+      if (file.src == src) return file;
+    }
+    return null;
+  }
+
+  MediaItem? _selectedImageFile() {
+    final selected = _selectedSrcs.value;
+    if (selected.isEmpty) return null;
+
+    final lastSelected = _fileBySrc(_lastSelectedSrc);
+    if (lastSelected != null &&
+        selected.contains(lastSelected.src) &&
+        lastSelected.type == 'image') {
+      return lastSelected;
+    }
+
+    for (final src in selected.toList().reversed) {
+      final file = _fileBySrc(src);
+      if (file != null && file.type == 'image') return file;
+    }
+    return null;
+  }
+
+  Future<void> _openSelectedImagePreviewOr(
+    FutureOr<void> Function() fallback,
+  ) async {
+    final file = _selectedImageFile();
+    if (file == null) {
+      await fallback();
+      return;
+    }
+    await _openPreviewModal(file);
+  }
+
   void _useFile(MediaItem file) {
     if (widget.multiSelect) {
       _toggleSelection(file);
@@ -591,6 +645,9 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
                       batchIndex: _uploadBatchIndex,
                       batchTotal: _uploadBatchTotal,
                       onPickFile: _pickAndUpload,
+                      onEmptyTap: () => unawaited(
+                        _openSelectedImagePreviewOr(_pickAndUpload),
+                      ),
                     ),
                     Expanded(
                       child: ValueListenableBuilder<String>(
@@ -608,7 +665,11 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
                             busyFileId: _busyFileId,
                             onSelect: _toggleSelection,
                             onUseFile: _useFile,
-                            onClearSelection: _clearSelection,
+                            onGridTap: () => unawaited(
+                              _openSelectedImagePreviewOr(_clearSelection),
+                            ),
+                            onPreview: (file) =>
+                                unawaited(_openPreviewModal(file)),
                             onEdit: _openEditModal,
                             onDelete: _deleteFile,
                           );
@@ -789,6 +850,7 @@ class _UploadSidebar extends StatelessWidget {
     required this.batchIndex,
     required this.batchTotal,
     required this.onPickFile,
+    required this.onEmptyTap,
   });
 
   final String type;
@@ -800,6 +862,7 @@ class _UploadSidebar extends StatelessWidget {
   final int batchIndex;
   final int batchTotal;
   final VoidCallback onPickFile;
+  final VoidCallback onEmptyTap;
 
   List<String> _extensions(BuildContext context) {
     final extensions = settings.extensionsFor(type);
@@ -822,7 +885,7 @@ class _UploadSidebar extends StatelessWidget {
               ? SystemMouseCursors.basic
               : SystemMouseCursors.click,
           child: GestureDetector(
-            onTap: uploading ? null : onPickFile,
+            onTap: uploading ? null : onEmptyTap,
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
@@ -1087,7 +1150,8 @@ class _ImageGrid extends StatelessWidget {
     required this.busyFileId,
     required this.onSelect,
     required this.onUseFile,
-    required this.onClearSelection,
+    required this.onGridTap,
+    required this.onPreview,
     required this.onEdit,
     required this.onDelete,
   });
@@ -1098,7 +1162,8 @@ class _ImageGrid extends StatelessWidget {
   final String busyFileId;
   final ValueChanged<MediaItem> onSelect;
   final ValueChanged<MediaItem> onUseFile;
-  final VoidCallback onClearSelection;
+  final VoidCallback onGridTap;
+  final ValueChanged<MediaItem> onPreview;
   final ValueChanged<MediaItem> onEdit;
   final ValueChanged<MediaItem> onDelete;
 
@@ -1109,7 +1174,7 @@ class _ImageGrid extends StatelessWidget {
       color: Colors.white,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onClearSelection,
+        onTap: onGridTap,
         child: GridView.builder(
           padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
           gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
@@ -1129,6 +1194,7 @@ class _ImageGrid extends StatelessWidget {
                 busy: busyFileId == file.id,
                 onSelect: () => onSelect(file),
                 onDoubleSelect: () => onUseFile(file),
+                onPreview: () => onPreview(file),
                 onEdit: () => onEdit(file),
                 onDelete: () => onDelete(file),
               ),
@@ -1148,6 +1214,7 @@ class _ImageCard extends StatefulWidget {
     required this.busy,
     required this.onSelect,
     required this.onDoubleSelect,
+    required this.onPreview,
     required this.onEdit,
     required this.onDelete,
   });
@@ -1158,6 +1225,7 @@ class _ImageCard extends StatefulWidget {
   final bool busy;
   final VoidCallback onSelect;
   final VoidCallback onDoubleSelect;
+  final VoidCallback onPreview;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -1364,9 +1432,24 @@ class _ImageCardState extends State<_ImageCard> {
                           ),
                         if ((_hover || selected) && widget.file.type == 'image')
                           Positioned(
+                            left: 5,
+                            bottom: 5,
+                            child: _ImageActionButton(
+                              icon: Icons.open_in_full_rounded,
+                              tooltip: context.t('media.preview'),
+                              size: 24,
+                              iconSize: 13,
+                              onTap: widget.onPreview,
+                            ),
+                          ),
+                        if ((_hover || selected) && widget.file.type == 'image')
+                          Positioned(
                             right: 5,
                             bottom: 5,
-                            child: _ImageEditButton(onTap: widget.onEdit),
+                            child: _ImageActionButton(
+                              icon: Icons.edit_outlined,
+                              onTap: widget.onEdit,
+                            ),
                           ),
                         // Busy overlay
                         if (widget.busy)
@@ -1633,21 +1716,31 @@ class _MenuDotButtonState extends State<_MenuDotButton> {
   }
 }
 
-class _ImageEditButton extends StatefulWidget {
-  const _ImageEditButton({required this.onTap});
+class _ImageActionButton extends StatefulWidget {
+  const _ImageActionButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+    this.size = 28,
+    this.iconSize = 15,
+  });
 
+  final IconData icon;
   final VoidCallback onTap;
+  final String? tooltip;
+  final double size;
+  final double iconSize;
 
   @override
-  State<_ImageEditButton> createState() => _ImageEditButtonState();
+  State<_ImageActionButton> createState() => _ImageActionButtonState();
 }
 
-class _ImageEditButtonState extends State<_ImageEditButton> {
+class _ImageActionButtonState extends State<_ImageActionButton> {
   var _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
+    final button = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -1656,8 +1749,8 @@ class _ImageEditButtonState extends State<_ImageEditButton> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 28,
-          height: 28,
+          width: widget.size,
+          height: widget.size,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: _hover
@@ -1678,13 +1771,17 @@ class _ImageEditButtonState extends State<_ImageEditButton> {
             ],
           ),
           child: Icon(
-            Icons.edit_outlined,
-            size: 15,
+            widget.icon,
+            size: widget.iconSize,
             color: _hover ? Colors.white : AppColors.deepOcean,
           ),
         ),
       ),
     );
+
+    final tooltip = widget.tooltip;
+    if (tooltip == null || tooltip.isEmpty) return button;
+    return Tooltip(message: tooltip, child: button);
   }
 }
 
@@ -2036,6 +2133,110 @@ class _OutlinedActionButtonState extends State<_OutlinedActionButton> {
 // ─────────────────────────────────────────────────────────────────────────────
 // EDIT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
+class _ImagePreviewModal extends StatelessWidget {
+  const _ImagePreviewModal({required this.fileName, required this.imageUrl});
+
+  final String fileName;
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final width = (size.width * 0.74).clamp(680.0, 1120.0);
+    final height = (size.height * 0.76).clamp(500.0, 760.0);
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: width,
+          height: height,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.deepOcean.withValues(alpha: 0.22),
+                blurRadius: 38,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: AppColors.deepOcean.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                    ),
+                    child: const Icon(
+                      Icons.open_in_full_rounded,
+                      size: 15,
+                      color: AppColors.deepOcean,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                  _HoverIconButton(
+                    icon: Icons.close_rounded,
+                    onTap: () => Navigator.of(context).pop(),
+                    size: 30,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  child: ColoredBox(
+                    color: AppColors.surface,
+                    child: InteractiveViewer(
+                      minScale: 1,
+                      maxScale: 4,
+                      child: Center(
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.medium,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, _, _) => Icon(
+                            Icons.broken_image_outlined,
+                            size: 42,
+                            color: AppColors.placeholder.withValues(
+                              alpha: 0.45,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AudioPreviewModal extends StatelessWidget {
   const _AudioPreviewModal({required this.fileName, required this.mediaUrl});
 

@@ -161,6 +161,7 @@ class HomeRepository {
       ),
       region: _str(json['region']),
       category: _str(json['category']),
+      categoryTrail: _strList(json['categoryTrail'] ?? json['categoryPath']),
       title: _str(json['title']),
       summary: _plainText(json['summary']),
       imageUrl: _str(json['imageUrl']),
@@ -191,6 +192,7 @@ class HomeRepository {
       beforeAfterData: _parseBeforeAfterData(json['beforeAfterData']),
       reviewData: _parseReviewData(json['reviewData']),
       pollData: _parsePollData(json['pollData']),
+      quizData: _parseQuizData(json['quizData']),
       vsData: _parseVsData(json['vsData']),
       quoteData: _parseQuoteData(json['quoteData']),
       detailItems: _parseDetailItems(json['detailItems']),
@@ -348,6 +350,183 @@ List<NewsPollOption> _parsePollOptions(Object? value) {
   return options;
 }
 
+NewsQuizData? _parseQuizData(Object? value) {
+  if (value is! Map) return null;
+  final questions = _parseQuizQuestions(value['questions']);
+  if (questions.isEmpty) return null;
+  return NewsQuizData(
+    quizType: _normalizedQuizType(value['quizType']),
+    questions: questions,
+    results: _parseQuizResults(value['results']),
+    questionSorting: _normalizedQuizSorting(value['questionSorting']),
+    allowMultiple: _bool(value['allowMultiple']),
+    showResults: value['showResults'] != false,
+    endDate: _str(value['endDate']),
+  );
+}
+
+List<NewsQuizQuestion> _parseQuizQuestions(Object? value) {
+  if (value is! List) return const [];
+  final questions = <NewsQuizQuestion>[];
+  for (var index = 0; index < value.length; index++) {
+    final item = value[index];
+    if (item is! Map) continue;
+    final answers = _parseQuizAnswers(item['answers'], index);
+    final title = _plainText(item['title']);
+    if (title.isEmpty || answers.isEmpty) continue;
+    questions.add(
+      NewsQuizQuestion(
+        id: _str(item['id'], fallback: 'quiz-question-${index + 1}'),
+        title: title,
+        imageUrl: _str(item['imageUrl'] ?? item['image']),
+        description: _plainText(item['description']),
+        layout: _normalizedQuizLayout(item['layout']),
+        answers: answers,
+      ),
+    );
+  }
+  return questions;
+}
+
+List<NewsQuizAnswer> _parseQuizAnswers(Object? value, int questionIndex) {
+  if (value is! List) return const [];
+  final answers = <NewsQuizAnswer>[];
+  for (var index = 0; index < value.length; index++) {
+    final item = value[index];
+    if (item is! Map) continue;
+    final text = _plainText(item['text']);
+    if (text.isEmpty) continue;
+    answers.add(
+      NewsQuizAnswer(
+        id: _str(
+          item['id'],
+          fallback: 'quiz-answer-${questionIndex + 1}-${index + 1}',
+        ),
+        text: text,
+        imageUrl: _str(item['imageUrl'] ?? item['image']),
+        resultId: _str(item['resultId']),
+        isCorrect: _bool(item['isCorrect']),
+        explanation: _plainText(item['explanation']),
+      ),
+    );
+  }
+  return answers;
+}
+
+List<NewsQuizResult> _parseQuizResults(Object? value) {
+  if (value is! List) return const [];
+  final results = <NewsQuizResult>[];
+  for (var index = 0; index < value.length; index++) {
+    final item = value[index];
+    if (item is! Map) continue;
+    final title = _plainText(item['title']);
+    final imageUrl = _str(item['imageUrl'] ?? item['image']);
+    final description = _plainText(item['description']);
+    if (title.isEmpty && imageUrl.isEmpty && description.isEmpty) continue;
+    results.add(
+      NewsQuizResult(
+        id: _str(item['id'], fallback: 'quiz-result-${index + 1}'),
+        title: title,
+        imageUrl: imageUrl,
+        description: description,
+        minScore: _optionalNonNegativeInt(item['minScore']),
+        maxScore: _optionalNonNegativeInt(item['maxScore']),
+        answerCount: _optionalNonNegativeInt(item['answerCount']),
+      ),
+    );
+  }
+  return results;
+}
+
+NewsTocData? _parseTocData(Object? value) {
+  if (value is! Map) return null;
+  final items = _parseTocItems(value['items']);
+  if (items.isEmpty) return null;
+  final styles = _asMap(value['linkListStyle']);
+  final show = _asMap(value['showInText']);
+  return NewsTocData(
+    title: _plainText(value['title']),
+    level1Style: _normalizedTocStyle(styles['level1']),
+    level2Style: _normalizedTocStyle(styles['level2']),
+    level3Style: _normalizedTocStyle(styles['level3']),
+    showLevel1InText: _bool(show['level1']),
+    showLevel2InText: _bool(show['level2']),
+    showLevel3InText: _bool(show['level3']),
+    items: items,
+  );
+}
+
+List<NewsTocItem> _parseTocItems(Object? value) {
+  if (value is! List) return const [];
+  final items = <NewsTocItem>[];
+  for (var index = 0; index < value.length; index++) {
+    final item = value[index];
+    if (item is! Map) continue;
+    final title = _plainText(item['title']);
+    final imageUrl = _str(
+      item['imageUrl'] ?? item['image'] ?? item['mediaUrl'],
+    );
+    final content = _plainText(
+      item['content'] ?? item['description'] ?? item['body'],
+    );
+    if (title.isEmpty && imageUrl.isEmpty && content.isEmpty) continue;
+    final orderNumber = _nonNegativeInt(item['orderNumber']);
+    items.add(
+      NewsTocItem(
+        id: _str(item['id'], fallback: 'toc-item-${index + 1}'),
+        title: title,
+        parentId: _str(item['parentId'] ?? item['parent']),
+        imageUrl: imageUrl,
+        imageDescription: _plainText(
+          item['imageDescription'] ?? item['altText'] ?? item['caption'],
+        ),
+        content: content,
+        orderNumber: orderNumber > 0 ? orderNumber : index + 1,
+      ),
+    );
+  }
+  return items;
+}
+
+String _normalizedTocStyle(Object? value) {
+  return switch (_str(value).toLowerCase()) {
+    'decimal' => 'decimal',
+    'decimal-leading-zero' => 'decimal-leading-zero',
+    'circle' => 'circle',
+    'disc' => 'disc',
+    'square' => 'square',
+    'lower-alpha' => 'lower-alpha',
+    'upper-alpha' => 'upper-alpha',
+    'lower-roman' => 'lower-roman',
+    'upper-roman' => 'upper-roman',
+    _ => 'none',
+  };
+}
+
+String _normalizedQuizType(Object? value) {
+  return switch (_str(value).toLowerCase()) {
+    'trivia' => 'trivia',
+    'checklist' => 'checklist',
+    _ => 'personality',
+  };
+}
+
+String _normalizedQuizSorting(Object? value) {
+  return switch (_str(value).toLowerCase()) {
+    'desc' => 'desc',
+    'hide' || 'hidden' => 'hidden',
+    _ => 'asc',
+  };
+}
+
+String _normalizedQuizLayout(Object? value) {
+  return switch (_str(value).toLowerCase()) {
+    'grid2' => 'grid2',
+    'grid3' => 'grid3',
+    _ => 'list',
+  };
+}
+
 NewsVsData? _parseVsData(Object? value) {
   if (value is! Map) return null;
   final options = _parseVsOptions(value['options']);
@@ -417,6 +596,8 @@ List<NewsDetailItem> _parseDetailItems(Object? value) {
       beforeAfterData: _parseBeforeAfterData(raw['beforeAfterData']),
       reviewData: _parseReviewData(raw['reviewData']),
       pollData: _parsePollData(raw['pollData']),
+      quizData: _parseQuizData(raw['quizData']),
+      tocData: _parseTocData(raw['tocData']),
       vsData: _parseVsData(raw['vsData']),
       quoteData: _parseQuoteData(raw['quoteData']),
     );
@@ -435,6 +616,8 @@ bool _detailItemHasContent(NewsDetailItem item) {
       item.beforeAfterData != null ||
       item.reviewData != null ||
       item.pollData != null ||
+      item.quizData != null ||
+      item.tocData != null ||
       item.vsData != null ||
       item.quoteData != null;
 }
@@ -537,6 +720,13 @@ int _nonNegativeInt(Object? value) {
   final parsed = value is num
       ? value.toInt()
       : int.tryParse(value?.toString() ?? '') ?? 0;
+  return parsed < 0 ? 0 : parsed;
+}
+
+int? _optionalNonNegativeInt(Object? value) {
+  if (value == null) return null;
+  final parsed = value is num ? value.toInt() : int.tryParse(value.toString());
+  if (parsed == null) return null;
   return parsed < 0 ? 0 : parsed;
 }
 

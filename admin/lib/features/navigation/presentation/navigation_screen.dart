@@ -269,7 +269,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final activeMenuId = _activeMenuId;
     if (activeMenuId == null) return;
 
-    final reordered = [..._items];
+    final reordered = _treeOrderedNavigationItems(_items);
     final item = reordered.removeAt(oldIndex);
     final normalizedIndex = newIndex.clamp(0, reordered.length);
     reordered.insert(normalizedIndex, item);
@@ -630,6 +630,7 @@ class _NavigationItemsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final orderedItems = _treeOrderedNavigationItems(items);
     return Container(
       constraints: const BoxConstraints(minHeight: 500),
       padding: const EdgeInsets.all(14),
@@ -674,9 +675,9 @@ class _NavigationItemsPanel extends StatelessWidget {
                   child: child,
                 );
               },
-              itemCount: items.length,
+              itemCount: orderedItems.length,
               itemBuilder: (context, index) {
-                final item = items[index];
+                final item = orderedItems[index];
                 return _NavigationItemTile(
                   key: ValueKey(item.id),
                   item: item,
@@ -1717,6 +1718,60 @@ AdminNavigationItem? _parentFor(
     if (candidate.id == parentId) return candidate;
   }
   return null;
+}
+
+List<AdminNavigationItem> _treeOrderedNavigationItems(
+  List<AdminNavigationItem> items,
+) {
+  if (items.length < 2) return items;
+
+  final byId = {for (final item in items) item.id: item};
+  final childrenByParent = <String, List<AdminNavigationItem>>{};
+  final roots = <AdminNavigationItem>[];
+  for (final item in items) {
+    final parentId = item.parentId;
+    if (parentId == null || !byId.containsKey(parentId)) {
+      roots.add(item);
+      continue;
+    }
+    childrenByParent.putIfAbsent(parentId, () => []).add(item);
+  }
+
+  int compareItems(AdminNavigationItem a, AdminNavigationItem b) {
+    final orderComparison = a.orderIndex.compareTo(b.orderIndex);
+    if (orderComparison != 0) return orderComparison;
+    final labelComparison = a.label.compareTo(b.label);
+    if (labelComparison != 0) return labelComparison;
+    return a.id.compareTo(b.id);
+  }
+
+  roots.sort(compareItems);
+  for (final children in childrenByParent.values) {
+    children.sort(compareItems);
+  }
+
+  final ordered = <AdminNavigationItem>[];
+  final added = <String>{};
+
+  void appendBranch(AdminNavigationItem item) {
+    if (!added.add(item.id)) return;
+    ordered.add(item);
+    final children = childrenByParent[item.id] ?? const <AdminNavigationItem>[];
+    for (final child in children) {
+      appendBranch(child);
+    }
+  }
+
+  for (final root in roots) {
+    appendBranch(root);
+  }
+  if (ordered.length == items.length) return ordered;
+
+  final leftovers =
+      items.where((item) => !added.contains(item.id)).toList(growable: false)
+        ..sort(compareItems);
+  ordered.addAll(leftovers);
+  return ordered;
 }
 
 IconData _typeIcon(String type) {

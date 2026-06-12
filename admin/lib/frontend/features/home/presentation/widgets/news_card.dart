@@ -8203,8 +8203,14 @@ String _upperTr(String value) {
 int _safeReadMinutes(int value) => value < 1 ? 1 : value;
 
 String _categoryLabel(List<String> categoryTrail, NewsArticle article) {
+  final explicitArticleTrail = article.categoryTrail
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
   final source = categoryTrail.isNotEmpty
       ? categoryTrail
+      : explicitArticleTrail.isNotEmpty
+      ? explicitArticleTrail
       : [article.region, article.category];
   return source
       .map(_titleCaseLabel)

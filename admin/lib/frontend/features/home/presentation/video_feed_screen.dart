@@ -282,6 +282,12 @@ List<String> videoCategoryTrail(
   NewsArticle article,
   List<AppShellNavigationItem> navigationItems,
 ) {
+  final explicitTrail = article.categoryTrail
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+  if (explicitTrail.isNotEmpty) return explicitTrail;
+
   final cleanCategory = article.category.trim();
   if (cleanCategory.isEmpty) return const [];
 

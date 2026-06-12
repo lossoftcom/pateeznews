@@ -288,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Widget card = NewsCard(
                         article: feed[index],
                         onTap: () => _openDetail(feed, index),
-                        categoryTrail: _categoryTrail(feed[index].category),
+                        categoryTrail: _articleCategoryTrail(feed[index]),
                         videoFeedArticles: videoFeed,
                         shellSettings: widget.shellSettings,
                         commentsEnabled: widget.contentSettings.commentSystem,
@@ -392,5 +392,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return trail;
+  }
+
+  List<String> _articleCategoryTrail(NewsArticle article) {
+    final explicitTrail = article.categoryTrail
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (explicitTrail.isNotEmpty) return explicitTrail;
+    return _categoryTrail(article.category);
   }
 }

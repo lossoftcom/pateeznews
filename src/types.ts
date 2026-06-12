@@ -37,6 +37,8 @@ export interface NewsItem {
   summary: string;
   content?: string; // Detaylı haber içeriği
   category: string;
+  categoryTrail?: string[];
+  categoryPath?: string[];
   source: string;
   author: string;
   timestamp: string;

@@ -62,6 +62,7 @@ void main() {
             {
               'id': 'news-1',
               'category': 'Ekonomi',
+              'categoryTrail': ['Niğde', 'Çamardı', 'Testler'],
               'title': 'Canlı haber başlığı',
               'summary': 'Canlı haber özeti',
               'imageUrl': 'http://localhost:4321/local-upload/news.jpg',
@@ -127,6 +128,42 @@ void main() {
                   },
                 ],
               },
+              'quizData': {
+                'quizType': 'trivia',
+                'questionSorting': 'desc',
+                'allowMultiple': false,
+                'showResults': true,
+                'results': [
+                  {
+                    'id': 'strong',
+                    'title': 'Gündemi yakından takip ediyorsun',
+                    'description': '<p>Niğde gündemine hakimsin.</p>',
+                    'minScore': 1,
+                    'maxScore': 1,
+                  },
+                ],
+                'questions': [
+                  {
+                    'id': 'q1',
+                    'title': 'Gümüşler’de gündem olan olay neydi?',
+                    'description': '<p>Haberdeki ana afet başlığını seç.</p>',
+                    'layout': 'list',
+                    'answers': [
+                      {
+                        'id': 'a1',
+                        'text': 'Sel felaketi',
+                        'isCorrect': true,
+                        'explanation': '<p>Haberin ana konusu seldi.</p>',
+                      },
+                      {
+                        'id': 'a2',
+                        'text': 'Kültür festivali',
+                        'isCorrect': false,
+                      },
+                    ],
+                  },
+                ],
+              },
               'vsData': {
                 'title': 'Niğde’de öncelik hangisi olmalı?',
                 'description': '<p>Afet altyapısı mı, sosyal yatırım mı?</p>',
@@ -154,6 +191,45 @@ void main() {
                 'author': 'Vali Nedim Akmeşe’den Açıklama',
                 'sourceUrl': 'https://example.com/kaynak',
               },
+              'detailItems': [
+                {
+                  'id': 'toc-1',
+                  'type': 'toc',
+                  'title': 'Çamardı rehberi',
+                  'description': '<p>Başlıklara dokunarak bölümlere geç.</p>',
+                  'tocData': {
+                    'title': 'İçindekiler',
+                    'linkListStyle': {
+                      'level1': 'decimal-leading-zero',
+                      'level2': 'lower-alpha',
+                      'level3': 'none',
+                    },
+                    'showInText': {
+                      'level1': true,
+                      'level2': false,
+                      'level3': false,
+                    },
+                    'items': [
+                      {
+                        'id': 'intro',
+                        'title': 'Giriş',
+                        'content': '<p>Çamardı için kısa giriş.</p>',
+                        'orderNumber': 1,
+                      },
+                      {
+                        'id': 'route',
+                        'title': 'Demirkazık rotası',
+                        'parentId': 'intro',
+                        'imageUrl':
+                            'http://localhost:4321/local-upload/route.jpg',
+                        'imageDescription': '<p>Demirkazık manzarası</p>',
+                        'content': '<p>Rota ve ulaşım bilgileri.</p>',
+                        'orderNumber': 2,
+                      },
+                    ],
+                  },
+                },
+              ],
               'previewComments': [
                 {
                   'id': '17',
@@ -323,6 +399,34 @@ void main() {
       data.feed.single.pollData?.options.first.imageUrl,
       'http://localhost:4321/local-upload/a.jpg',
     );
+    expect(data.feed.single.quizData, isNotNull);
+    expect(data.feed.single.quizData?.quizType, 'trivia');
+    expect(data.feed.single.quizData?.questionSorting, 'desc');
+    expect(data.feed.single.categoryTrail, ['Niğde', 'Çamardı', 'Testler']);
+    expect(
+      data.feed.single.quizData?.results.single.title,
+      'Gündemi yakından takip ediyorsun',
+    );
+    expect(
+      data.feed.single.quizData?.results.single.description,
+      'Niğde gündemine hakimsin.',
+    );
+    expect(
+      data.feed.single.quizData?.questions.single.title,
+      'Gümüşler’de gündem olan olay neydi?',
+    );
+    expect(
+      data.feed.single.quizData?.questions.single.description,
+      'Haberdeki ana afet başlığını seç.',
+    );
+    expect(
+      data.feed.single.quizData?.questions.single.answers.first.isCorrect,
+      isTrue,
+    );
+    expect(
+      data.feed.single.quizData?.questions.single.answers.first.explanation,
+      'Haberin ana konusu seldi.',
+    );
     expect(data.feed.single.vsData, isNotNull);
     expect(data.feed.single.vsData?.title, 'Niğde’de öncelik hangisi olmalı?');
     expect(
@@ -346,6 +450,20 @@ void main() {
       'Vali Nedim Akmeşe’den Açıklama',
     );
     expect(data.feed.single.quoteData?.sourceUrl, 'https://example.com/kaynak');
+    expect(data.feed.single.detailItems, hasLength(1));
+    final tocData = data.feed.single.detailItems.single.tocData;
+    expect(tocData, isNotNull);
+    expect(tocData?.title, 'İçindekiler');
+    expect(tocData?.level1Style, 'decimal-leading-zero');
+    expect(tocData?.level2Style, 'lower-alpha');
+    expect(tocData?.showLevel1InText, isTrue);
+    expect(tocData?.items, hasLength(2));
+    expect(tocData?.items.last.parentId, 'intro');
+    expect(
+      tocData?.items.last.imageUrl,
+      'http://localhost:4321/local-upload/route.jpg',
+    );
+    expect(tocData?.items.last.imageDescription, 'Demirkazık manzarası');
     expect(data.feed.single.previewComments, hasLength(1));
     expect(data.feed.single.previewComments.single.id, '17');
     expect(data.feed.single.previewComments.single.userLiked, isTrue);

@@ -25,7 +25,10 @@ import '../../shell/data/app_shell_repository.dart';
 import 'widgets/detail_app_bar.dart';
 import 'widgets/detail_floating_dock.dart';
 import 'widgets/detail_lede.dart';
+import 'widgets/detail_poll.dart';
+import 'widgets/detail_quiz.dart';
 import 'widgets/detail_reactions.dart';
+import 'widgets/detail_toc.dart';
 
 /// Pateeznews haber detay sayfası.
 ///
@@ -727,6 +730,7 @@ class _DetailArticleSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final categoryTrail = _articleCategoryTrail(article, navigationItems);
     return Column(
       key: sectionKey,
       children: [
@@ -741,7 +745,7 @@ class _DetailArticleSection extends StatelessWidget {
         DetailLede(
               article: article,
               onFollow: onFollow,
-              categoryTrail: _categoryTrail(article.category, navigationItems),
+              categoryTrail: categoryTrail,
             )
             .animate()
             .fadeIn(delay: 80.ms, duration: 340.ms, curve: Curves.easeOutCubic)
@@ -754,7 +758,7 @@ class _DetailArticleSection extends StatelessWidget {
             ),
         _DetailItemsSection(
               article: article,
-              categoryTrail: _categoryTrail(article.category, navigationItems),
+              categoryTrail: categoryTrail,
               videoFeedArticles: videoFeedArticles,
               shellSettings: shellSettings,
               authState: authState,
@@ -783,7 +787,7 @@ class _DetailArticleSection extends StatelessWidget {
         NewsCard(
           article: article,
           onTap: () {},
-          categoryTrail: _categoryTrail(article.category, navigationItems),
+          categoryTrail: categoryTrail,
           videoFeedArticles: videoFeedArticles,
           shellSettings: shellSettings,
           commentsEnabled: contentSettings.commentSystem,
@@ -1565,6 +1569,43 @@ class _DetailItemBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pollData = item.pollData;
+    if (pollData != null && pollData.isValid) {
+      return _DetailTextInset(
+        child: DetailPollBlock(
+          data: pollData,
+          title: _nonDuplicateItemText(item.title, pollData.title),
+          description: _nonDuplicateItemText(
+            item.description,
+            pollData.description,
+          ),
+          onVoteRecorded: _recordPollVote,
+        ),
+      );
+    }
+
+    final quizData = item.quizData;
+    if (quizData != null && quizData.isValid) {
+      return _DetailTextInset(
+        child: DetailQuizBlock(
+          data: quizData,
+          title: _nonDuplicateItemText(item.title, article.title),
+          description: _nonDuplicateItemText(item.description, article.summary),
+        ),
+      );
+    }
+
+    final tocData = item.tocData;
+    if (tocData != null && tocData.isValid) {
+      return _DetailTextInset(
+        child: DetailTocBlock(
+          data: tocData,
+          title: _nonDuplicateItemText(item.title, article.title),
+          description: _nonDuplicateItemText(item.description, article.summary),
+        ),
+      );
+    }
+
     final rendersEmbedDirectly = _rendersDetailEmbedDirectly(item);
     final mediaArticle = rendersEmbedDirectly
         ? null
@@ -1631,6 +1672,24 @@ class _DetailItemBlock extends StatelessWidget {
       onAuthorTap: onAuthorTap,
       onFullscreenVideoExit: onFullscreenVideoExit,
     );
+  }
+
+  void _recordPollVote() {
+    if (int.tryParse(article.id) == null) return;
+    final token = authState?.session.accessToken.trim() ?? '';
+    unawaited(_sendPollVoteRead(token));
+  }
+
+  Future<void> _sendPollVoteRead(String token) async {
+    try {
+      await postActionRepository.recordView(
+        postId: article.id,
+        token: token.isEmpty ? null : token,
+        source: 'poll_vote',
+      );
+    } catch (_) {
+      // Oy yerelde işlendi; okuma metriği yazılamazsa kullanıcı akışı bozulmaz.
+    }
   }
 }
 
@@ -1822,6 +1881,14 @@ class _ReadingProgressBar extends StatelessWidget {
   }
 }
 
+String _nonDuplicateItemText(String itemText, String articleText) {
+  final cleanItem = itemText.trim();
+  if (cleanItem.isEmpty) return '';
+  final cleanArticle = articleText.trim();
+  if (cleanArticle.isEmpty) return cleanItem;
+  return cleanItem.toLowerCase() == cleanArticle.toLowerCase() ? '' : cleanItem;
+}
+
 bool _showExternalItemTitle(NewsDetailItem item) {
   final type = item.type;
   return item.title.isNotEmpty &&
@@ -1932,6 +1999,7 @@ NewsArticle? _mediaArticleForItem(NewsArticle base, NewsDetailItem item) {
     author: base.author,
     region: base.region,
     category: base.category,
+    categoryTrail: base.categoryTrail,
     title: hideMediaHeadline
         ? ''
         : (item.title.isNotEmpty ? item.title : base.title),
@@ -2005,6 +2073,18 @@ List<String> _categoryTrail(
   }
 
   return trail;
+}
+
+List<String> _articleCategoryTrail(
+  NewsArticle article,
+  List<AppShellNavigationItem> navigationItems,
+) {
+  final explicitTrail = article.categoryTrail
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+  if (explicitTrail.isNotEmpty) return explicitTrail;
+  return _categoryTrail(article.category, navigationItems);
 }
 
 List<NewsArticle> _dateSortedVideoFeed(List<NewsArticle> items) {

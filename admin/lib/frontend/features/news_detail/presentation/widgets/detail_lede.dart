@@ -131,6 +131,11 @@ class _AuthorByline extends StatelessWidget {
     final category = trail.isEmpty
         ? _titleCaseLabel(article.category)
         : trail.join(' / ');
+    final repeatsRegion =
+        region.isNotEmpty && trail.isNotEmpty && trail.first == region;
+    final label = region.isEmpty || repeatsRegion
+        ? category
+        : '$region  /  $category';
     final color = AppColors.inkSoft;
     return DefaultTextStyle.merge(
       style: AppTypography.eyebrow.copyWith(
@@ -141,11 +146,7 @@ class _AuthorByline extends StatelessWidget {
       child: Row(
         children: [
           Flexible(
-            child: Text(
-              region.isEmpty ? category : '$region  /  $category',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ],
       ),

@@ -789,6 +789,189 @@ const normalizeFaqData = (
   return faq;
 };
 
+const normalizeCategoryTrail = (item: NewsItem): string[] => {
+  const payload = item as unknown as {
+    categoryTrail?: unknown;
+    categoryPath?: unknown;
+  };
+  const raw = payload.categoryTrail ?? payload.categoryPath;
+  const source = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? raw.split(/[>/]/)
+      : [];
+  const trail: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of source) {
+    const label = stripHtml(String(entry || "")).trim();
+    const key = label.toLocaleLowerCase("tr-TR");
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    trail.push(label);
+  }
+  return trail;
+};
+
+const normalizeQuizData = (value: unknown, origin: string) => {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as any;
+  const data =
+    raw.quizData && typeof raw.quizData === "object" ? raw.quizData : raw;
+  const questions = Array.isArray(data.questions)
+    ? data.questions
+        .map((question: any, questionIndex: number) => {
+          const answers = Array.isArray(question?.answers)
+            ? question.answers
+                .map((answer: any, answerIndex: number) => {
+                  const text = stripHtml(String(answer?.text || ""));
+                  if (!text) return null;
+                  return {
+                    id: String(
+                      answer?.id ||
+                        `quiz-answer-${questionIndex + 1}-${answerIndex + 1}`,
+                    ),
+                    text,
+                    imageUrl: resolveAppImageUrl(
+                      String(answer?.imageUrl || answer?.image || "").trim(),
+                      origin,
+                      { width: 800, quality: 86 },
+                    ),
+                    resultId: String(answer?.resultId || ""),
+                    isCorrect: answer?.isCorrect === true,
+                    explanation: stripHtml(String(answer?.explanation || "")),
+                  };
+                })
+                .filter(Boolean)
+            : [];
+          const title = stripHtml(String(question?.title || ""));
+          if (!title || answers.length === 0) return null;
+          return {
+            id: String(question?.id || `quiz-question-${questionIndex + 1}`),
+            title,
+            imageUrl: resolveAppImageUrl(
+              String(question?.imageUrl || question?.image || "").trim(),
+              origin,
+              { width: 1000, quality: 86 },
+            ),
+            description: stripHtml(String(question?.description || "")),
+            layout: String(question?.layout || "list").trim() || "list",
+            answers,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  if (questions.length === 0) return undefined;
+
+  const results = Array.isArray(data.results)
+    ? data.results
+        .map((result: any, index: number) => {
+          const title = stripHtml(String(result?.title || ""));
+          const description = stripHtml(String(result?.description || ""));
+          const imageUrl = resolveAppImageUrl(
+            String(result?.imageUrl || result?.image || "").trim(),
+            origin,
+            { width: 1000, quality: 86 },
+          );
+          if (!title && !description && !imageUrl) return null;
+          return {
+            id: String(result?.id || `quiz-result-${index + 1}`),
+            title,
+            imageUrl,
+            description,
+            minScore: result?.minScore,
+            maxScore: result?.maxScore,
+            answerCount: result?.answerCount,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  return {
+    quizType: String(data.quizType || "personality").trim() || "personality",
+    questionSorting: String(data.questionSorting || "asc").trim() || "asc",
+    allowMultiple: data.allowMultiple === true,
+    showResults: data.showResults !== false,
+    endDate: String(data.endDate || "").trim(),
+    results,
+    questions,
+  };
+};
+
+const tocListStyles = new Set([
+  "none",
+  "decimal",
+  "decimal-leading-zero",
+  "circle",
+  "disc",
+  "square",
+  "lower-alpha",
+  "upper-alpha",
+  "lower-roman",
+  "upper-roman",
+]);
+
+const normalizeTocStyle = (value: unknown): string => {
+  const style = String(value || "").trim().toLowerCase();
+  return tocListStyles.has(style) ? style : "none";
+};
+
+const normalizeTocData = (value: unknown, origin: string) => {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as any;
+  const data = raw.tocData && typeof raw.tocData === "object" ? raw.tocData : raw;
+  const sourceItems = Array.isArray(data.items) ? data.items : [];
+  const items = sourceItems
+    .map((entry: any, index: number) => {
+      if (!entry || typeof entry !== "object") return null;
+      const title = stripHtml(String(entry.title || ""));
+      const content = stripHtml(
+        String(entry.content || entry.description || entry.body || ""),
+      );
+      const imageUrl = resolveAppImageUrl(
+        String(entry.imageUrl || entry.image || entry.mediaUrl || "").trim(),
+        origin,
+        { width: 1200, quality: 86 },
+      );
+      const imageDescription = stripHtml(
+        String(entry.imageDescription || entry.altText || entry.caption || ""),
+      );
+      if (!title && !content && !imageUrl) return null;
+      const parsedOrder = Number(entry.orderNumber || index + 1);
+      return {
+        id: String(entry.id || `toc-item-${index + 1}`),
+        title,
+        parentId: String(entry.parentId || entry.parent || "").trim(),
+        imageUrl,
+        imageDescription,
+        content,
+        orderNumber: Number.isFinite(parsedOrder) && parsedOrder > 0
+          ? Math.round(parsedOrder)
+          : index + 1,
+      };
+    })
+    .filter(Boolean);
+
+  if (items.length === 0) return undefined;
+
+  const styles = data.linkListStyle || {};
+  const show = data.showInText || {};
+  return {
+    title: stripHtml(String(data.title || raw.title || raw.blockTitle || "")),
+    linkListStyle: {
+      level1: normalizeTocStyle(styles.level1),
+      level2: normalizeTocStyle(styles.level2),
+      level3: normalizeTocStyle(styles.level3),
+    },
+    showInText: {
+      level1: show.level1 === true,
+      level2: show.level2 === true,
+      level3: show.level3 === true,
+    },
+    items,
+  };
+};
+
 const normalizeDetailItems = (blocks: any[], origin: string) => {
   return blocks
     .map((block: any, index: number) => {
@@ -837,6 +1020,8 @@ const normalizeDetailItems = (blocks: any[], origin: string) => {
               origin,
             )
           : undefined;
+      const quizData =
+        type === "quiz" ? normalizeQuizData(block, origin) : undefined;
       const vsData =
         type === "vs"
           ? normalizeVsData(
@@ -856,6 +1041,10 @@ const normalizeDetailItems = (blocks: any[], origin: string) => {
       const quoteData =
         type === "quote" || type === "paragraph"
           ? normalizeQuoteData(block)
+          : undefined;
+      const tocData =
+        type === "toc" || type === "contents" || type === "table_of_contents"
+          ? normalizeTocData(block, origin)
           : undefined;
       const beforeAfterData =
         type === "beforeafter" && block.beforeAfterData
@@ -915,6 +1104,8 @@ const normalizeDetailItems = (blocks: any[], origin: string) => {
         beforeAfterData,
         reviewData,
         pollData,
+        quizData,
+        tocData,
         vsData,
         quoteData,
       };
@@ -930,6 +1121,8 @@ const normalizeDetailItems = (blocks: any[], origin: string) => {
         beforeAfterData ||
         reviewData ||
         pollData ||
+        quizData ||
+        tocData ||
         vsData ||
         quoteData;
       return hasContent ? item : null;
@@ -945,7 +1138,17 @@ const calculateReadingMinutes = (item: NewsItem): number => {
   const itemContent = Array.isArray(raw.items)
     ? raw.items
         .map((entry) =>
-          [entry?.title, entry?.description, entry?.body]
+          [
+            entry?.title,
+            entry?.description,
+            entry?.body,
+            ...(Array.isArray((entry as any)?.tocData?.items)
+              ? (entry as any).tocData.items.flatMap((tocItem: any) => [
+                  tocItem?.title,
+                  tocItem?.content,
+                ])
+              : []),
+          ]
             .map((part) => String(part || ""))
             .join(" "),
         )
@@ -1069,6 +1272,8 @@ const mapFeedItem = (
       origin,
     ) || normalizeReviewData(item.reviewData, origin);
   const pollData = normalizePollData(item, origin);
+  const quizData =
+    itemType === "quiz" ? normalizeQuizData(item, origin) : undefined;
   const vsData = normalizeVsData(item, origin);
   const quoteData =
     homepageType === "quote"
@@ -1094,6 +1299,7 @@ const mapFeedItem = (
   return {
     id: String(item.id || ""),
     category: String(item.category || ""),
+    categoryTrail: normalizeCategoryTrail(item),
     title: String(item.title || ""),
     summary: String(item.summary || ""),
     imageUrl,
@@ -1141,6 +1347,7 @@ const mapFeedItem = (
       : undefined,
     reviewData,
     pollData,
+    quizData,
     vsData,
     quoteData,
     detailItems: normalizeDetailItems(blocks, origin),

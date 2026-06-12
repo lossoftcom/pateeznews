@@ -263,7 +263,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                           Widget card = NewsCard(
                             article: feed[index],
                             onTap: () => _openDetail(feed, index),
-                            categoryTrail: _categoryTrail(feed[index].category),
+                            categoryTrail: _articleCategoryTrail(feed[index]),
                             videoFeedArticles: videoFeed,
                             shellSettings: widget.shellSettings,
                             commentsEnabled:
@@ -357,6 +357,15 @@ class _CategoryScreenState extends State<CategoryScreen> {
     }
 
     return trail;
+  }
+
+  List<String> _articleCategoryTrail(NewsArticle article) {
+    final explicitTrail = article.categoryTrail
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (explicitTrail.isNotEmpty) return explicitTrail;
+    return _categoryTrail(article.category);
   }
 }
 

@@ -144,6 +144,7 @@ class NewsArticle {
     this.userDisliked = false,
     this.userSaved = false,
     this.slug = '',
+    this.categoryTrail = const [],
     this.imageAspectRatio,
     this.isManset = false,
     this.isPinned = false,
@@ -159,6 +160,7 @@ class NewsArticle {
     this.beforeAfterData,
     this.reviewData,
     this.pollData,
+    this.quizData,
     this.vsData,
     this.quoteData,
     this.detailItems = const [],
@@ -171,6 +173,7 @@ class NewsArticle {
   final NewsAuthor author;
   final String region;
   final String category;
+  final List<String> categoryTrail;
   final String title;
   final String summary;
   final String imageUrl;
@@ -264,6 +267,10 @@ class NewsArticle {
   /// verisi. Boşsa mevcut medya sıralaması değişmeden çalışır.
   final NewsPollData? pollData;
 
+  /// Test/quiz içeriklerinde detail sayfasında gösterilecek soru, cevap ve
+  /// sonuç verisi. Boşsa mevcut medya sıralaması değişmeden çalışır.
+  final NewsQuizData? quizData;
+
   /// Ana sayfada "VS / Düello" bloğu seçiliyse gösterilecek karşılaştırma
   /// verisi. Boşsa mevcut medya sıralaması değişmeden çalışır.
   final NewsVsData? vsData;
@@ -313,6 +320,8 @@ class NewsDetailItem {
     this.beforeAfterData,
     this.reviewData,
     this.pollData,
+    this.quizData,
+    this.tocData,
     this.vsData,
     this.quoteData,
   });
@@ -331,6 +340,8 @@ class NewsDetailItem {
   final NewsBeforeAfterData? beforeAfterData;
   final NewsReviewData? reviewData;
   final NewsPollData? pollData;
+  final NewsQuizData? quizData;
+  final NewsTocData? tocData;
   final NewsVsData? vsData;
   final NewsQuoteData? quoteData;
 }
@@ -499,6 +510,168 @@ class NewsPollOption {
   final String text;
   final String imageUrl;
   final int votes;
+}
+
+class NewsQuizData {
+  const NewsQuizData({
+    required this.quizType,
+    required this.questions,
+    required this.results,
+    this.questionSorting = 'asc',
+    this.allowMultiple = false,
+    this.showResults = true,
+    this.endDate = '',
+  });
+
+  final String quizType;
+  final List<NewsQuizQuestion> questions;
+  final List<NewsQuizResult> results;
+  final String questionSorting;
+  final bool allowMultiple;
+  final bool showResults;
+  final String endDate;
+
+  bool get isValid => questions.isNotEmpty;
+
+  bool get hideQuestionNumbers {
+    final value = questionSorting.trim().toLowerCase();
+    return value == 'hidden' || value == 'hide';
+  }
+
+  List<NewsQuizQuestion> get orderedQuestions {
+    if (questionSorting.trim().toLowerCase() == 'desc') {
+      return questions.reversed.toList(growable: false);
+    }
+    return questions;
+  }
+}
+
+class NewsQuizQuestion {
+  const NewsQuizQuestion({
+    required this.id,
+    required this.title,
+    required this.answers,
+    this.imageUrl = '',
+    this.description = '',
+    this.layout = 'list',
+  });
+
+  final String id;
+  final String title;
+  final String imageUrl;
+  final String description;
+  final String layout;
+  final List<NewsQuizAnswer> answers;
+
+  bool get isValid => title.trim().isNotEmpty && answers.isNotEmpty;
+}
+
+class NewsQuizAnswer {
+  const NewsQuizAnswer({
+    required this.id,
+    required this.text,
+    this.imageUrl = '',
+    this.resultId = '',
+    this.isCorrect = false,
+    this.explanation = '',
+  });
+
+  final String id;
+  final String text;
+  final String imageUrl;
+  final String resultId;
+  final bool isCorrect;
+  final String explanation;
+}
+
+class NewsQuizResult {
+  const NewsQuizResult({
+    required this.id,
+    required this.title,
+    this.imageUrl = '',
+    this.description = '',
+    this.minScore,
+    this.maxScore,
+    this.answerCount,
+  });
+
+  final String id;
+  final String title;
+  final String imageUrl;
+  final String description;
+  final int? minScore;
+  final int? maxScore;
+  final int? answerCount;
+
+  bool get isValid =>
+      title.trim().isNotEmpty ||
+      imageUrl.trim().isNotEmpty ||
+      description.trim().isNotEmpty;
+}
+
+class NewsTocData {
+  const NewsTocData({
+    required this.items,
+    this.title = '',
+    this.level1Style = 'none',
+    this.level2Style = 'none',
+    this.level3Style = 'none',
+    this.showLevel1InText = false,
+    this.showLevel2InText = false,
+    this.showLevel3InText = false,
+  });
+
+  final String title;
+  final String level1Style;
+  final String level2Style;
+  final String level3Style;
+  final bool showLevel1InText;
+  final bool showLevel2InText;
+  final bool showLevel3InText;
+  final List<NewsTocItem> items;
+
+  bool get isValid => items.any((item) => item.isValid);
+
+  String styleForLevel(int level) {
+    return switch (level.clamp(1, 3)) {
+      1 => level1Style,
+      2 => level2Style,
+      _ => level3Style,
+    };
+  }
+
+  bool showStyleInTextForLevel(int level) {
+    return switch (level.clamp(1, 3)) {
+      1 => showLevel1InText,
+      2 => showLevel2InText,
+      _ => showLevel3InText,
+    };
+  }
+}
+
+class NewsTocItem {
+  const NewsTocItem({
+    required this.id,
+    required this.title,
+    this.parentId = '',
+    this.imageUrl = '',
+    this.imageDescription = '',
+    this.content = '',
+    this.orderNumber = 1,
+  });
+
+  final String id;
+  final String title;
+  final String parentId;
+  final String imageUrl;
+  final String imageDescription;
+  final String content;
+  final int orderNumber;
+
+  bool get isValid =>
+      title.trim().isNotEmpty ||
+      imageUrl.trim().isNotEmpty ||
+      content.trim().isNotEmpty;
 }
 
 class NewsVsData {
