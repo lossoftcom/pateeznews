@@ -9,11 +9,16 @@ import {
 } from '@/lib/server/localUploadStorage';
 import { getStorageSettings, isLocalStorageActive } from '@/lib/server/storageSettings';
 
+import {
+  SUPPORTED_VARIANT_QUALITY,
+  TRANSFORMABLE_IMAGE_EXTENSIONS,
+  LOCAL_VARIANT_PREFIXES,
+  nearestVariantWidth,
+  objectExtension,
+  variantObjectPath,
+} from '@/lib/server/imageVariants';
+
 const IMAGE_VARIANT_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
-const TRANSFORMABLE_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
-const LOCAL_VARIANT_PREFIXES = ['image/', 'profile/'];
-const SUPPORTED_VARIANT_WIDTHS = [180, 260, 800, 900, 1200, 1440, 1600];
-const SUPPORTED_VARIANT_QUALITY = 86;
 
 function redirect(location: URL | string, cacheControl: string) {
   return new Response(null, {
@@ -45,26 +50,6 @@ function imageVariantOptions(url: URL) {
     width: nearestVariantWidth(width),
     quality: SUPPORTED_VARIANT_QUALITY,
   };
-}
-
-function nearestVariantWidth(width: number) {
-  for (const candidate of SUPPORTED_VARIANT_WIDTHS) {
-    if (width <= candidate) return candidate;
-  }
-  return SUPPORTED_VARIANT_WIDTHS[SUPPORTED_VARIANT_WIDTHS.length - 1];
-}
-
-function objectExtension(objectPath: string) {
-  const clean = objectPath.split('?')[0].split('#')[0].toLowerCase();
-  const dotIndex = clean.lastIndexOf('.');
-  return dotIndex === -1 ? '' : clean.slice(dotIndex);
-}
-
-function variantObjectPath(objectPath: string, width: number, quality: number) {
-  const clean = objectPath.replace(/^\/+/, '');
-  const dotIndex = clean.lastIndexOf('.');
-  const withoutExtension = dotIndex === -1 ? clean : clean.slice(0, dotIndex);
-  return `.variants/w${width}-q${quality}/${withoutExtension}.webp`;
 }
 
 function isLocalDevHost(url: URL) {
