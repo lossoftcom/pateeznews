@@ -10,6 +10,8 @@ import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/data/admin_image_url.dart';
+import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
@@ -1838,11 +1840,11 @@ class _VideoThumb extends StatelessWidget {
           : Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(
-                  _publicUrl(thumb),
+                AdminCachedImage(
+                  url: adminImageUrl(thumb, width: 360),
                   fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (context, _, _) => const _VideoThumbFallback(),
+                  memCacheWidth: 360,
+                  errorWidget: const _VideoThumbFallback(),
                 ),
                 Center(
                   child: AnimatedContainer(
@@ -2221,7 +2223,7 @@ class _NewsDirectModalPlayerState extends State<_NewsDirectModalPlayer> {
   }
 
   Future<void> _load() async {
-    final resolved = _publicUrl(widget.url.trim());
+    final resolved = adminImageUrl(widget.url.trim());
     final uri = Uri.tryParse(resolved);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
       if (mounted) setState(() => _failed = true);
@@ -2624,21 +2626,19 @@ class _PostThumbnail extends StatelessWidget {
                 size: 22,
               ),
             )
-          : Image.network(
-              _publicUrl(url),
+          : AdminCachedImage(
+              url: adminImageUrl(url, width: 180),
               width: 60,
               height: 60,
               fit: BoxFit.contain,
-              filterQuality: FilterQuality.medium,
-              errorBuilder: (context, _, _) {
-                return const Center(
-                  child: SymbolIcon(
-                    Symbols.visibility,
-                    color: AppColors.iconMuted,
-                    size: 22,
-                  ),
-                );
-              },
+              memCacheWidth: 180,
+              errorWidget: const Center(
+                child: SymbolIcon(
+                  Symbols.visibility,
+                  color: AppColors.iconMuted,
+                  size: 22,
+                ),
+              ),
             ),
     );
   }
@@ -3820,7 +3820,7 @@ class _NewsMobileCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               AdminMobileThumb(
-                imageUrl: thumb.isEmpty ? null : _publicUrl(thumb),
+                imageUrl: thumb.isEmpty ? null : adminImageUrl(thumb, width: 180),
                 fallbackIcon: Symbols.newspaper,
                 fit: BoxFit.cover,
               ),
@@ -3979,21 +3979,6 @@ String _typeLabel(String value) {
   if (normalized.isEmpty) return 'standard';
   final key = 'admin.post.tab.$normalized';
   return key;
-}
-
-String _publicUrl(String value) {
-  if (value.startsWith('http://') ||
-      value.startsWith('https://') ||
-      value.startsWith('data:')) {
-    return value;
-  }
-  final base = !kIsWeb
-      ? switch (defaultTargetPlatform) {
-          TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-          _ => Uri.parse('http://127.0.0.1:4321'),
-        }
-      : Uri.base;
-  return base.resolve(value).toString();
 }
 
 String _postUrl(AdminNewsPost post) {
