@@ -108,11 +108,17 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   /// aynı anda yarışan gereksiz istekleri azaltır.
   Future<void> _bootstrap() async {
     final started = DateTime.now();
+
+    // Diskteki son feed'i anında göster (ağ beklemeden). Ağ verisi gelince
+    // güncellenir; gelmezse kullanıcı boş ekran yerine son haberleri görür.
+    unawaited(_loadCachedHomeSnapshot());
+
     try {
       await Future.wait([
         _loadFontSettings(),
         _loadShellData(),
-        _loadHomeData(),
+        // Home isteği _restoreAuthState içinde, oturum/token belli olduktan
+        // sonra TEK kez atılır (anonimse anında, girişliyse doğru token ile).
         _restoreAuthState(),
       ]).timeout(_maxSplash);
     } catch (_) {
@@ -128,6 +134,19 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     if (!mounted) return;
     setState(() => _ready = true);
     unawaited(_loadSecondaryStartupData());
+  }
+
+  /// Diskteki son başarılı home anlık görüntüsünü (snapshot) açılışta hemen
+  /// gösterir. Ağ verisi henüz gelmediyse devreye girer; geldiyse dokunmaz.
+  Future<void> _loadCachedHomeSnapshot() async {
+    final cached = await widget.homeRepository.loadCachedHome();
+    if (cached == null || !mounted) return;
+    if (_homeFeedItems.isNotEmpty || _featuredItems.isNotEmpty) return;
+    setState(() {
+      _featuredItems = cached.featured;
+      _homeFeedItems = cached.feed;
+      _contentSettings = cached.settings;
+    });
   }
 
   Future<void> _loadSecondaryStartupData() async {
@@ -208,9 +227,14 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     );
     if (!mounted) return;
     unawaited(_precacheHomeImages(data));
+    final hasNew = data.feed.isNotEmpty || data.featured.isNotEmpty;
+    final hadOld = _homeFeedItems.isNotEmpty || _featuredItems.isNotEmpty;
     setState(() {
-      _featuredItems = data.featured;
-      _homeFeedItems = data.feed;
+      // Ağ boş döndüyse (hata + snapshot yok) mevcut gösterilen feed'i silme.
+      if (hasNew || !hadOld) {
+        _featuredItems = data.featured;
+        _homeFeedItems = data.feed;
+      }
       _contentSettings = data.settings;
     });
   }
@@ -270,40 +294,42 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   }
 
   Future<void> _restoreAuthState() async {
+    FrontendAuthState? authState;
     try {
-      final authState = await widget.authRepository.restoreSession();
-      if (!mounted) return;
-      setState(() {
-        _authState = authState;
-        _authLoading = false;
-      });
-      if (authState != null) {
-        try {
-          final profile = await widget.profileRepository.fetchSelf(
-            token: authState.session.accessToken,
-          );
-          if (!mounted) return;
-          await widget.authRepository.store.saveProfileCache(
-            profile.authProfile,
-          );
-          setState(() {
-            _profileData = profile.profile;
-            _authState = FrontendAuthState(
-              session: authState.session,
-              profile: profile.authProfile,
-            );
-          });
-        } catch (_) {
-          // Cached auth profile remains enough to open the app if profile refresh fails.
-        }
-        unawaited(_loadHomeData());
-      }
+      authState = await widget.authRepository.restoreSession();
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _authState = null;
-        _authLoading = false;
-      });
+      authState = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _authState = authState;
+      _authLoading = false;
+    });
+
+    // Home isteği burada TEK kez atılır: anonimse token'sız, girişliyse doğru
+    // token ile. Eski akıştaki anonim + girişli çift istek böylece kalkar.
+    unawaited(_loadHomeData());
+
+    // Giriş varsa profili arka planda tazele (home'u bloklamaz).
+    if (authState != null) {
+      final session = authState.session;
+      try {
+        final profile = await widget.profileRepository.fetchSelf(
+          token: session.accessToken,
+        );
+        if (!mounted) return;
+        await widget.authRepository.store.saveProfileCache(profile.authProfile);
+        if (!mounted) return;
+        setState(() {
+          _profileData = profile.profile;
+          _authState = FrontendAuthState(
+            session: session,
+            profile: profile.authProfile,
+          );
+        });
+      } catch (_) {
+        // Önbellekteki profil uygulamayı açmaya yeter.
+      }
     }
   }
 
