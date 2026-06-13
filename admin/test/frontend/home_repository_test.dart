@@ -4,8 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:pateeznews_admin/frontend/features/home/data/home_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('fetchHome maps featured slider and live feed items', () async {
     final repository = HomeRepository(
       apiBaseUrl: 'http://localhost:4321',
@@ -225,6 +228,83 @@ void main() {
                         'imageDescription': '<p>Demirkazık manzarası</p>',
                         'content': '<p>Rota ve ulaşım bilgileri.</p>',
                         'orderNumber': 2,
+                      },
+                    ],
+                  },
+                },
+                {
+                  'id': 'recipe-1',
+                  'type': 'recipe',
+                  'title': 'Çamardı kahvaltı tarifi',
+                  'description': '<p>Yerel malzemelerle sade tarif.</p>',
+                  'recipeData': {
+                    'prepTime': '15 dakika',
+                    'cookTime': '20 dakika',
+                    'serving': '4 kişilik',
+                    'difficulty': 'easy',
+                    'ingredients': [
+                      {'text': '2 su bardağı un'},
+                      {'text': '1 yemek kaşığı tereyağı'},
+                    ],
+                    'nutrition': [
+                      {'label': 'Protein', 'value': '12g'},
+                      {'label': 'Kalori', 'value': '280 kcal'},
+                    ],
+                    'directions': [
+                      {
+                        'id': 'step-1',
+                        'title': 'Hamuru hazırla',
+                        'content': '<p>Unu ve tereyağını yoğur.</p>',
+                        'image': 'http://localhost:4321/local-upload/step.jpg',
+                        'imageDescription': '<p>Hamur hazırlığı</p>',
+                        'orderNumber': 1,
+                      },
+                    ],
+                  },
+                },
+                {
+                  'id': 'event-1',
+                  'type': 'event',
+                  'title': 'Çamardı gençlik konseri',
+                  'description': '<p>Akşam sahnesi ve kayıt bilgileri.</p>',
+                  'eventData': {
+                    'startDateTime': '12.06.2026 20:30',
+                    'endDateTime': '12.06.2026 23:30',
+                    'organizer': 'Çamardı Belediyesi',
+                    'venueName': 'Demirkazık Meydanı',
+                    'address': 'Demirkazık Köyü, Çamardı / Niğde',
+                    'latitude': '37.8486',
+                    'longitude': '35.1092',
+                    'registrationType': 'tickets',
+                    'ticketUrl': 'https://example.com/bilet',
+                    'ticketPrice': 'Ücretsiz kayıt',
+                    'capacity': '500 kişi',
+                    'scheduleTitle': 'Sahne Akışı',
+                    'highlightsTitle': 'Etkinlik Notları',
+                    'speakersTitle': 'Sahne Konukları',
+                    'schedule': [
+                      {
+                        'id': 'slot-1',
+                        'date': '12.06.2026',
+                        'time': '20:30',
+                        'title': 'Kapı Açılışı',
+                        'description': '<p>Alan ve kayıt kontrolü başlar.</p>',
+                        'image': 'http://localhost:4321/local-upload/event.jpg',
+                        'imageDescription': '<p>Konser alanı</p>',
+                      },
+                    ],
+                    'highlights': [
+                      {'label': 'Yaş sınırı', 'value': '12+'},
+                    ],
+                    'speakers': [
+                      {
+                        'id': 'guest-1',
+                        'name': 'Neon Waves',
+                        'role': 'Ana sahne',
+                        'bio': '<p>Canlı performans ekibi.</p>',
+                        'image':
+                            'http://localhost:4321/local-upload/singer.jpg',
+                        'imageDescription': '<p>Sahne konuğu</p>',
                       },
                     ],
                   },
@@ -450,8 +530,8 @@ void main() {
       'Vali Nedim Akmeşe’den Açıklama',
     );
     expect(data.feed.single.quoteData?.sourceUrl, 'https://example.com/kaynak');
-    expect(data.feed.single.detailItems, hasLength(1));
-    final tocData = data.feed.single.detailItems.single.tocData;
+    expect(data.feed.single.detailItems, hasLength(3));
+    final tocData = data.feed.single.detailItems.first.tocData;
     expect(tocData, isNotNull);
     expect(tocData?.title, 'İçindekiler');
     expect(tocData?.level1Style, 'decimal-leading-zero');
@@ -464,6 +544,61 @@ void main() {
       'http://localhost:4321/local-upload/route.jpg',
     );
     expect(tocData?.items.last.imageDescription, 'Demirkazık manzarası');
+    final recipeData = data.feed.single.detailItems[1].recipeData;
+    final eventData = data.feed.single.detailItems.last.eventData;
+    expect(recipeData, isNotNull);
+    expect(recipeData?.prepTime, '15 dakika');
+    expect(recipeData?.cookTime, '20 dakika');
+    expect(recipeData?.serving, '4 kişilik');
+    expect(recipeData?.difficulty, 'easy');
+    expect(recipeData?.ingredients.map((item) => item.text), [
+      '2 su bardağı un',
+      '1 yemek kaşığı tereyağı',
+    ]);
+    expect(recipeData?.nutrition.last.label, 'Kalori');
+    expect(recipeData?.nutrition.last.value, '280 kcal');
+    expect(recipeData?.directions.single.title, 'Hamuru hazırla');
+    expect(recipeData?.directions.single.content, 'Unu ve tereyağını yoğur.');
+    expect(
+      recipeData?.directions.single.imageUrl,
+      'http://localhost:4321/local-upload/step.jpg',
+    );
+    expect(recipeData?.directions.single.imageDescription, 'Hamur hazırlığı');
+    expect(eventData, isNotNull);
+    expect(eventData?.startDateTime, '12.06.2026 20:30');
+    expect(eventData?.endDateTime, '12.06.2026 23:30');
+    expect(eventData?.organizer, 'Çamardı Belediyesi');
+    expect(eventData?.venueName, 'Demirkazık Meydanı');
+    expect(eventData?.address, 'Demirkazık Köyü, Çamardı / Niğde');
+    expect(eventData?.latitude, '37.8486');
+    expect(eventData?.longitude, '35.1092');
+    expect(eventData?.registrationType, 'tickets');
+    expect(eventData?.ticketUrl, 'https://example.com/bilet');
+    expect(eventData?.ticketPrice, 'Ücretsiz kayıt');
+    expect(eventData?.capacity, '500 kişi');
+    expect(eventData?.scheduleTitle, 'Sahne Akışı');
+    expect(eventData?.highlightsTitle, 'Etkinlik Notları');
+    expect(eventData?.speakersTitle, 'Sahne Konukları');
+    expect(eventData?.schedule.single.title, 'Kapı Açılışı');
+    expect(
+      eventData?.schedule.single.description,
+      'Alan ve kayıt kontrolü başlar.',
+    );
+    expect(
+      eventData?.schedule.single.imageUrl,
+      'http://localhost:4321/local-upload/event.jpg',
+    );
+    expect(eventData?.schedule.single.imageDescription, 'Konser alanı');
+    expect(eventData?.highlights.single.label, 'Yaş sınırı');
+    expect(eventData?.highlights.single.value, '12+');
+    expect(eventData?.speakers.single.name, 'Neon Waves');
+    expect(eventData?.speakers.single.role, 'Ana sahne');
+    expect(eventData?.speakers.single.bio, 'Canlı performans ekibi.');
+    expect(
+      eventData?.speakers.single.imageUrl,
+      'http://localhost:4321/local-upload/singer.jpg',
+    );
+    expect(eventData?.speakers.single.imageDescription, 'Sahne konuğu');
     expect(data.feed.single.previewComments, hasLength(1));
     expect(data.feed.single.previewComments.single.id, '17');
     expect(data.feed.single.previewComments.single.userLiked, isTrue);
@@ -491,5 +626,56 @@ void main() {
 
     expect(data.featured, isEmpty);
     expect(data.feed, isEmpty);
+  });
+
+  test('fetchHome retries on failure then returns cached snapshot', () async {
+    SharedPreferences.setMockInitialValues({});
+
+    var calls = 0;
+    final okBody = jsonEncode({
+      'featured': <Object?>[],
+      'feed': [
+        {'id': 'cached-1', 'title': 'Önbellekten haber'},
+      ],
+      'settings': {'homePageSize': 16},
+    });
+
+    // 1) Başarılı çağrı: snapshot diske yazılır.
+    final okRepo = HomeRepository(
+      apiBaseUrl: 'http://localhost:4321',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          okBody,
+          200,
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final okData = await okRepo.fetchHome();
+    expect(okData.feed.single.title, 'Önbellekten haber');
+
+    // 2) Sürekli hata veren çağrı: retry yapılır, sonra snapshot döner.
+    final failRepo = HomeRepository(
+      apiBaseUrl: 'http://localhost:4321',
+      httpClient: MockClient((request) async {
+        calls += 1;
+        return http.Response('boom', 500);
+      }),
+    );
+    final fallbackData = await failRepo.fetchHome(retries: 2);
+
+    expect(calls, 3, reason: '1 ilk deneme + 2 retry');
+    expect(fallbackData.feed.single.title, 'Önbellekten haber');
+  });
+
+  test('fetchHome returns empty when failing with no snapshot', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = HomeRepository(
+      apiBaseUrl: 'http://localhost:4321',
+      httpClient: MockClient((request) async => http.Response('x', 500)),
+    );
+    final data = await repo.fetchHome(retries: 1);
+    expect(data.feed, isEmpty);
+    expect(data.featured, isEmpty);
   });
 }

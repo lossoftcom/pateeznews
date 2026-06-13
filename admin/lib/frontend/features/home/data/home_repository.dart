@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/network/local_api_base_url.dart';
@@ -88,26 +89,66 @@ class HomeRepository {
   final http.Client? httpClient;
   final String? apiBaseUrl;
 
-  Future<HomeData> fetchHome({String lang = 'tr', String? token}) async {
+  static String _snapshotKey(String lang) => 'home_snapshot_$lang';
+
+  Future<void> _saveSnapshot(String lang, String body) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_snapshotKey(lang), body);
+    } catch (_) {
+      // Snapshot yazılamasa da akış sürer.
+    }
+  }
+
+  /// Son başarılı home yanıtını diskten döndürür. Açılışta anlık gösterim için.
+  Future<HomeData?> loadCachedHome({String lang = 'tr'}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final body = prefs.getString(_snapshotKey(lang));
+      if (body == null || body.isEmpty) return null;
+      return compute(_parseHomeData, body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<HomeData> fetchHome({
+    String lang = 'tr',
+    String? token,
+    int retries = 1,
+  }) async {
     final uri = _uri('/api/app/home').replace(queryParameters: {'lang': lang});
     final client = httpClient ?? http.Client();
     final authToken = token?.trim() ?? '';
     try {
-      final response = await client
-          .get(
-            uri,
-            headers: {
-              'Accept': 'application/json',
-              if (authToken.isNotEmpty) 'Authorization': 'Bearer $authToken',
-            },
-          )
-          .timeout(_timeout);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return const HomeData.empty();
+      for (var attempt = 0; attempt <= retries; attempt++) {
+        try {
+          final response = await client
+              .get(
+                uri,
+                headers: {
+                  'Accept': 'application/json',
+                  if (authToken.isNotEmpty)
+                    'Authorization': 'Bearer $authToken',
+                },
+              )
+              .timeout(_timeout);
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            final body = utf8.decode(response.bodyBytes);
+            await _saveSnapshot(lang, body);
+            return compute(_parseHomeData, body);
+          }
+        } catch (_) {
+          // Bu deneme başarısız; aşağıda backoff sonrası tekrar denenir.
+        }
+        if (attempt < retries) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 350 * (attempt + 1)),
+          );
+        }
       }
-      return compute(_parseHomeData, utf8.decode(response.bodyBytes));
-    } catch (_) {
-      return const HomeData.empty();
+      // Tüm denemeler başarısız: son snapshot varsa onu döndür.
+      return await loadCachedHome(lang: lang) ?? const HomeData.empty();
     } finally {
       if (httpClient == null) client.close();
     }
@@ -488,6 +529,207 @@ List<NewsTocItem> _parseTocItems(Object? value) {
   return items;
 }
 
+NewsRecipeData? _parseRecipeData(Object? value) {
+  if (value is! Map) return null;
+  final ingredients = _parseRecipeIngredients(value['ingredients']);
+  final nutrition = _parseRecipeNutrition(value['nutrition']);
+  final directions = _parseRecipeDirections(value['directions']);
+  final data = NewsRecipeData(
+    prepTime: _plainText(value['prepTime']),
+    cookTime: _plainText(value['cookTime']),
+    serving: _plainText(value['serving']),
+    difficulty: _normalizedRecipeDifficulty(value['difficulty']),
+    ingredients: ingredients,
+    nutrition: nutrition,
+    directions: directions,
+  );
+  return data.isValid ? data : null;
+}
+
+List<NewsRecipeIngredient> _parseRecipeIngredients(Object? value) {
+  if (value is! List) return const [];
+  final ingredients = <NewsRecipeIngredient>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    final text = _plainText(item['text']);
+    if (text.isEmpty) continue;
+    ingredients.add(NewsRecipeIngredient(text: text));
+  }
+  return ingredients;
+}
+
+List<NewsRecipeNutrition> _parseRecipeNutrition(Object? value) {
+  if (value is! List) return const [];
+  final nutrition = <NewsRecipeNutrition>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    final label = _plainText(item['label']);
+    final rowValue = _plainText(item['value']);
+    if (label.isEmpty && rowValue.isEmpty) continue;
+    nutrition.add(NewsRecipeNutrition(label: label, value: rowValue));
+  }
+  return nutrition;
+}
+
+List<NewsRecipeDirection> _parseRecipeDirections(Object? value) {
+  if (value is! List) return const [];
+  final directions = <NewsRecipeDirection>[];
+  for (var index = 0; index < value.length; index += 1) {
+    final item = value[index];
+    if (item is! Map) continue;
+    final title = _plainText(item['title']);
+    final content = _plainText(item['content'] ?? item['description']);
+    final imageUrl = _str(
+      item['imageUrl'] ?? item['image'] ?? item['mediaUrl'],
+    );
+    if (title.isEmpty && content.isEmpty && imageUrl.isEmpty) continue;
+    final orderNumber = _nonNegativeInt(item['orderNumber']);
+    directions.add(
+      NewsRecipeDirection(
+        id: _str(item['id'], fallback: 'recipe-step-${index + 1}'),
+        title: title,
+        content: content,
+        imageUrl: imageUrl,
+        imageDescription: _plainText(
+          item['imageDescription'] ?? item['altText'] ?? item['caption'],
+        ),
+        orderNumber: orderNumber > 0 ? orderNumber : index + 1,
+      ),
+    );
+  }
+  return directions;
+}
+
+String _normalizedRecipeDifficulty(Object? value) {
+  return switch (_str(value).toLowerCase()) {
+    'easy' || 'kolay' => 'easy',
+    'medium' || 'intermediate' || 'orta' => 'medium',
+    'hard' || 'advanced' || 'zor' => 'hard',
+    _ => '',
+  };
+}
+
+NewsEventData? _parseEventData(Object? value) {
+  if (value is! Map) return null;
+  final schedule = _parseEventSchedule(value['schedule']);
+  final highlights = _parseEventHighlights(value['highlights']);
+  final speakers = _parseEventSpeakers(value['speakers']);
+  final data = NewsEventData(
+    startDateTime: _plainText(value['startDateTime']),
+    endDateTime: _plainText(value['endDateTime']),
+    organizer: _plainText(value['organizer']),
+    venueName: _plainText(value['venueName']),
+    address: _plainText(value['address']),
+    latitude: _plainText(value['latitude']),
+    longitude: _plainText(value['longitude']),
+    registrationType: _normalizedEventRegistrationType(
+      value['registrationType'],
+    ),
+    ticketUrl: _str(value['ticketUrl']),
+    ticketPrice: _plainText(value['ticketPrice']),
+    capacity: _plainText(value['capacity']),
+    scheduleTitle: _plainText(value['scheduleTitle']),
+    highlightsTitle: _plainText(value['highlightsTitle']),
+    speakersTitle: _plainText(value['speakersTitle']),
+    schedule: schedule,
+    highlights: highlights,
+    speakers: speakers,
+  );
+  return data.isValid ? data : null;
+}
+
+List<NewsEventScheduleItem> _parseEventSchedule(Object? value) {
+  if (value is! List) return const [];
+  final items = <NewsEventScheduleItem>[];
+  for (var index = 0; index < value.length; index += 1) {
+    final item = value[index];
+    if (item is! Map) continue;
+    final title = _plainText(item['title']);
+    final description = _plainText(item['description'] ?? item['content']);
+    final imageUrl = _str(
+      item['imageUrl'] ?? item['image'] ?? item['mediaUrl'],
+    );
+    final date = _plainText(item['date']);
+    final time = _plainText(item['time']);
+    if (title.isEmpty &&
+        description.isEmpty &&
+        imageUrl.isEmpty &&
+        date.isEmpty &&
+        time.isEmpty) {
+      continue;
+    }
+    final orderNumber = _nonNegativeInt(item['orderNumber']);
+    items.add(
+      NewsEventScheduleItem(
+        id: _str(item['id'], fallback: 'event-schedule-${index + 1}'),
+        date: date,
+        time: time,
+        title: title,
+        description: description,
+        imageUrl: imageUrl,
+        imageDescription: _plainText(
+          item['imageDescription'] ?? item['altText'] ?? item['caption'],
+        ),
+        orderNumber: orderNumber > 0 ? orderNumber : index + 1,
+      ),
+    );
+  }
+  return items;
+}
+
+List<NewsEventHighlight> _parseEventHighlights(Object? value) {
+  if (value is! List) return const [];
+  final highlights = <NewsEventHighlight>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    final label = _plainText(item['label']);
+    final rowValue = _plainText(item['value']);
+    if (label.isEmpty && rowValue.isEmpty) continue;
+    highlights.add(NewsEventHighlight(label: label, value: rowValue));
+  }
+  return highlights;
+}
+
+List<NewsEventSpeaker> _parseEventSpeakers(Object? value) {
+  if (value is! List) return const [];
+  final speakers = <NewsEventSpeaker>[];
+  for (var index = 0; index < value.length; index += 1) {
+    final item = value[index];
+    if (item is! Map) continue;
+    final name = _plainText(item['name']);
+    final role = _plainText(item['role']);
+    final bio = _plainText(item['bio']);
+    final imageUrl = _str(
+      item['imageUrl'] ?? item['image'] ?? item['mediaUrl'],
+    );
+    if (name.isEmpty && role.isEmpty && bio.isEmpty && imageUrl.isEmpty) {
+      continue;
+    }
+    speakers.add(
+      NewsEventSpeaker(
+        id: _str(item['id'], fallback: 'event-speaker-${index + 1}'),
+        name: name,
+        role: role,
+        bio: bio,
+        imageUrl: imageUrl,
+        imageDescription: _plainText(
+          item['imageDescription'] ?? item['altText'] ?? item['caption'],
+        ),
+      ),
+    );
+  }
+  return speakers;
+}
+
+String _normalizedEventRegistrationType(Object? value) {
+  return switch (_str(value).toLowerCase()) {
+    'required' => 'required',
+    'tickets' => 'tickets',
+    'external' => 'external',
+    _ => 'none',
+  };
+}
+
 String _normalizedTocStyle(Object? value) {
   return switch (_str(value).toLowerCase()) {
     'decimal' => 'decimal',
@@ -598,6 +840,8 @@ List<NewsDetailItem> _parseDetailItems(Object? value) {
       pollData: _parsePollData(raw['pollData']),
       quizData: _parseQuizData(raw['quizData']),
       tocData: _parseTocData(raw['tocData']),
+      recipeData: _parseRecipeData(raw['recipeData']),
+      eventData: _parseEventData(raw['eventData']),
       vsData: _parseVsData(raw['vsData']),
       quoteData: _parseQuoteData(raw['quoteData']),
     );
@@ -618,6 +862,8 @@ bool _detailItemHasContent(NewsDetailItem item) {
       item.pollData != null ||
       item.quizData != null ||
       item.tocData != null ||
+      item.recipeData != null ||
+      item.eventData != null ||
       item.vsData != null ||
       item.quoteData != null;
 }
