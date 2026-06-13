@@ -1961,21 +1961,31 @@ export const GET: APIRoute = async ({ url, request }) => {
       ),
     );
 
-    return json({
-      featured,
-      feed,
-      settings: {
-        showFeaturedSection: settings.showFeaturedSection,
-        commentSystem: settings.commentSystem,
-        commentApprovalSystem: settings.commentApprovalSystem,
-        emojiReactions: settings.emojiReactions,
-        homePageSize: settings.homePageSize,
-        featuredContentSource: settings.featuredSource,
-        featuredSortingLogic: settings.featuredSorting,
-        featuredDurationDays: settings.featuredDurationDays,
-        featuredLimit: settings.featuredLimit,
+    // Anonim (oturumsuz) yanıt kişiye özel veri içermez (userLiked/userSaved
+    // boş). Edge'de kısa süre cache'lenir; girişli yanıtlar no-store kalır.
+    // Vary: Authorization sayesinde girişli istekler ayrı anahtar kullanır.
+    const isAnonymous = userId === null;
+    return json(
+      {
+        featured,
+        feed,
+        settings: {
+          showFeaturedSection: settings.showFeaturedSection,
+          commentSystem: settings.commentSystem,
+          commentApprovalSystem: settings.commentApprovalSystem,
+          emojiReactions: settings.emojiReactions,
+          homePageSize: settings.homePageSize,
+          featuredContentSource: settings.featuredSource,
+          featuredSortingLogic: settings.featuredSorting,
+          featuredDurationDays: settings.featuredDurationDays,
+          featuredLimit: settings.featuredLimit,
+        },
       },
-    });
+      200,
+      isAnonymous
+        ? { cacheControl: 'public, s-maxage=30, stale-while-revalidate=300' }
+        : {},
+    );
   } catch (error: any) {
     return json(
       { error: { message: error?.message || "Home fetch failed" } },

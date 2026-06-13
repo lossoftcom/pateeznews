@@ -39,18 +39,30 @@ export async function getProfileRole(userId: string) {
   return result.rows[0]?.role || 'member';
 }
 
-export function json(data: any, status = 200) {
+export function json(
+  data: any,
+  status = 200,
+  options: { cacheControl?: string } = {}
+) {
   const isProduction = import.meta.env.PROD || process.env.NODE_ENV === 'production';
   const body = status >= 500 && isProduction && data?.error?.message
     ? { ...data, error: { ...data.error, message: 'Request failed' } }
     : data;
+  // Cache başlığı YALNIZCA açıkça istenirse ve yanıt 2xx ise uygulanır; aksi
+  // halde (varsayılan + hata yanıtları) no-store kalır. Böylece mevcut tüm
+  // çağıranlar değişmeden no-store davranışını sürdürür.
+  const useCache = Boolean(options.cacheControl) && status >= 200 && status < 300;
+  const cacheControl = useCache
+    ? options.cacheControl!
+    : 'no-store, no-cache, must-revalidate, proxy-revalidate';
+  const cdnCacheControl = useCache ? options.cacheControl! : 'no-store';
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'CDN-Cache-Control': 'no-store',
-      'Cloudflare-CDN-Cache-Control': 'no-store',
+      'Cache-Control': cacheControl,
+      'CDN-Cache-Control': cdnCacheControl,
+      'Cloudflare-CDN-Cache-Control': cdnCacheControl,
       'Vary': 'Authorization',
       ...adminSecurityHeaders(),
     },
