@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -16,6 +17,7 @@ import '../data/admin_news_repository.dart';
 import '../data/admin_video_metadata_reader.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/data/media_service.dart';
+import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/admin_rich_text_editor.dart'
     show
         adminEmptyQuillDeltaJson,
@@ -8021,14 +8023,12 @@ class _MansetImagePreview extends StatelessWidget {
                             borderRadius: BorderRadius.circular(
                               AppRadius.value,
                             ),
-                            child: Image.network(
-                              resolvedImageUrl(current),
+                            child: AdminCachedImage(
+                              url: resolvedImageUrl(current),
                               fit: BoxFit.cover,
-                              alignment: Alignment.center,
                               filterQuality: FilterQuality.high,
-                              isAntiAlias: true,
-                              gaplessPlayback: true,
-                              errorBuilder: (_, _, _) => Center(
+                              useOldImageOnUrlChange: true,
+                              errorWidget: Center(
                                 child: _UploadStub(onUrlTap: onUrlTap),
                               ),
                             ),
@@ -10781,10 +10781,11 @@ class _SourceImagePreview extends StatelessWidget {
           child: SizedBox(
             width: 96,
             height: 62,
-            child: Image.network(
-              previewUrl,
+            child: AdminCachedImage(
+              url: previewUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => const _SourceImageFallback(),
+              memCacheWidth: 360,
+              errorWidget: const _SourceImageFallback(),
             ),
           ),
         ),
@@ -10817,10 +10818,11 @@ class _SourceImagePreview extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.value),
           child: SizedBox(
             height: 58,
-            child: Image.network(
-              previewUrl,
+            child: AdminCachedImage(
+              url: previewUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => const _SourceImageFallback(),
+              memCacheWidth: 360,
+              errorWidget: const _SourceImageFallback(),
             ),
           ),
         ),
@@ -11236,10 +11238,11 @@ class _EventAiImageThumb extends StatelessWidget {
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.value),
-              child: Image.network(
-                imageUrl,
+              child: AdminCachedImage(
+                url: imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const _SourceImageFallback(),
+                memCacheWidth: 360,
+                errorWidget: const _SourceImageFallback(),
               ),
             ),
           ),
@@ -11506,10 +11509,11 @@ class _SourceImageTile extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      image.url,
+                    AdminCachedImage(
+                      url: image.url,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const _SourceImageFallback(),
+                      memCacheWidth: 360,
+                      errorWidget: const _SourceImageFallback(),
                     ),
                     if (selected)
                       Align(
@@ -13012,13 +13016,13 @@ class _ImageDropAreaState extends State<_ImageDropArea> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(8),
-                        child: Image.network(
-                          _resolvedImageUrl(_imageUrl!),
+                        child: AdminCachedImage(
+                          url: _resolvedImageUrl(_imageUrl!),
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
-                          cacheWidth: 720,
-                          gaplessPlayback: true,
-                          errorBuilder: (_, _, _) => _QuizImageEmptyPicker(
+                          memCacheWidth: 720,
+                          useOldImageOnUrlChange: true,
+                          errorWidget: _QuizImageEmptyPicker(
                             onPickImage: _pickImage,
                             onPickUrl: _pickUrl,
                           ),
@@ -13752,34 +13756,29 @@ class _CoverCardState extends State<_CoverCard> {
                                 borderRadius: BorderRadius.circular(
                                   AppRadius.value,
                                 ),
-                                child: Image.network(
-                                  _resolvedCoverImageUrl(imageUrl),
+                                child: CachedNetworkImage(
+                                  imageUrl: _resolvedCoverImageUrl(imageUrl),
                                   width: double.infinity,
-                                  cacheWidth: 720,
+                                  memCacheWidth: 720,
                                   fit: BoxFit.fitWidth,
                                   alignment: Alignment.topCenter,
                                   filterQuality: FilterQuality.high,
-                                  isAntiAlias: true,
-                                  gaplessPlayback: true,
-                                  loadingBuilder: (_, child, loadingProgress) {
-                                    if (loadingProgress == null) {
-                                      return child;
-                                    }
-                                    return const SizedBox(
-                                      height: _newsAddCoverVisualHeight,
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors.deepOcean,
+                                  useOldImageOnUrlChange: true,
+                                  progressIndicatorBuilder: (_, _, _) =>
+                                      const SizedBox(
+                                        height: _newsAddCoverVisualHeight,
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.deepOcean,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    );
-                                  },
-                                  errorBuilder: (_, _, _) => SizedBox(
+                                  errorWidget: (_, _, _) => SizedBox(
                                     height: _newsAddCoverVisualHeight,
                                     child: _UploadStub(
                                       onUrlTap: _openUrlDialog,
