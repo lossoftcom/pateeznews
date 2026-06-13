@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
+import 'package:pateeznews_admin/shared/data/admin_request_retry.dart';
 
 import '../presentation/news_models.dart';
 
@@ -57,7 +58,9 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
 
   @override
   Future<AdminNewsMetricData> fetchMetrics() async {
-    final response = await _getJson('/api/admin/news/metrics');
+    final response = await withAdminRetry(
+      () => _getJson('/api/admin/news/metrics'),
+    );
     _throwIfApiError(
       response,
       fallbackMessage: 'Haber istatistikleri alınamadı',
@@ -73,7 +76,9 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
 
   @override
   Future<AdminNewsFilterOptions> fetchFilterOptions() async {
-    final response = await _getJson('/api/admin/news/filters');
+    final response = await withAdminRetry(
+      () => _getJson('/api/admin/news/filters'),
+    );
     _throwIfApiError(response, fallbackMessage: 'Haber filtreleri alınamadı');
     final data = response['data'];
     return AdminNewsFilterOptions(
@@ -100,19 +105,21 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
   }) async {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
-    final result = await _postJson('/api/admin/news/list', {
-      'search': _safeSearchTerm(search),
-      'language': language,
-      'category': category,
-      'type': type,
-      'status': status,
-      'publisher': publisher,
-      'trash': trash,
-      'page': safePage,
-      'pageSize': pageSize,
-      'sortKey': sortKey,
-      'sortAscending': sortAscending,
-    });
+    final result = await withAdminRetry(
+      () => _postJson('/api/admin/news/list', {
+        'search': _safeSearchTerm(search),
+        'language': language,
+        'category': category,
+        'type': type,
+        'status': status,
+        'publisher': publisher,
+        'trash': trash,
+        'page': safePage,
+        'pageSize': pageSize,
+        'sortKey': sortKey,
+        'sortAscending': sortAscending,
+      }),
+    );
     _throwIfApiError(result, fallbackMessage: 'Haberler alınamadı');
 
     final data = result['data'];
@@ -515,12 +522,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
   }
 
   String _safeSearchTerm(String value) {
-    return value
-        .trim()
-        .replaceAll('%', r'\%')
-        .replaceAll(',', ' ')
-        .replaceAll('\n', ' ')
-        .replaceAll('\r', ' ');
+    return value.trim().replaceAll(RegExp(r'\s+'), ' ');
   }
 
   DateTime? _parseDate(Object? value) {
