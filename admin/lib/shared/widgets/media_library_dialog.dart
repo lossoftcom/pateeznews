@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ import '../../core/localization/admin_language_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../data/media_service.dart';
+import 'admin_cached_image.dart';
 
 const _mlBorder = Color(0xFFDDE5E8);
 const _mlSoftBorder = Color(0xFFE8EEF1);
@@ -1533,21 +1535,12 @@ class _CardContent extends StatelessWidget {
         ),
       );
     }
-    return Image.network(
-      thumbUrl,
+    return AdminCachedImage(
+      url: thumbUrl,
       fit: BoxFit.contain,
-      cacheWidth: 280,
-      alignment: Alignment.center,
-      gaplessPlayback: true,
-      frameBuilder: (_, child, frame, wasSyncLoaded) {
-        if (wasSyncLoaded) return child;
-        return AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
-          duration: const Duration(milliseconds: 120),
-          child: child,
-        );
-      },
-      errorBuilder: (_, _, _) => ColoredBox(
+      memCacheWidth: 280,
+      useOldImageOnUrlChange: true,
+      errorWidget: ColoredBox(
         color: AppColors.surface,
         child: Icon(
           Icons.broken_image_outlined,
@@ -1587,13 +1580,12 @@ class _VideoCardContent extends StatelessWidget {
       return Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            url,
+          AdminCachedImage(
+            url: url,
             fit: BoxFit.contain,
-            cacheWidth: 280,
-            alignment: Alignment.center,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => _VideoFallback(extension: _extension),
+            memCacheWidth: 280,
+            useOldImageOnUrlChange: true,
+            errorWidget: _VideoFallback(extension: _extension),
           ),
           Center(
             child: Icon(
@@ -2213,12 +2205,12 @@ class _ImagePreviewModal extends StatelessWidget {
                       minScale: 1,
                       maxScale: 4,
                       child: Center(
-                        child: Image.network(
-                          imageUrl,
+                        child: AdminCachedImage(
+                          url: imageUrl,
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.medium,
-                          gaplessPlayback: true,
-                          errorBuilder: (_, _, _) => Icon(
+                          useOldImageOnUrlChange: true,
+                          errorWidget: Icon(
                             Icons.broken_image_outlined,
                             size: 42,
                             color: AppColors.placeholder.withValues(
@@ -3504,11 +3496,11 @@ class _UrlVideoPreviewBox extends StatelessWidget {
           ? Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(
-                  'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
+                AdminCachedImage(
+                  url: 'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
                   fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, _, _) => _DirectVideoPreview(url: url),
+                  useOldImageOnUrlChange: true,
+                  errorWidget: _DirectVideoPreview(url: url),
                 ),
                 Center(
                   child: Container(
@@ -3559,11 +3551,11 @@ class _UrlAudioPreviewBox extends StatelessWidget {
           ? Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(
-                  'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
+                AdminCachedImage(
+                  url: 'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
                   fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, _, _) => _AudioUrlLabelPreview(url: url),
+                  useOldImageOnUrlChange: true,
+                  errorWidget: _AudioUrlLabelPreview(url: url),
                 ),
                 Center(
                   child: Container(
@@ -4160,29 +4152,27 @@ class _UrlPreviewBox extends StatelessWidget {
           ? _PreviewEmpty()
           : error
           ? _PreviewError(message: context.t('media.urlPreviewError'))
-          : Image.network(
-              url,
+          : CachedNetworkImage(
+              imageUrl: url,
               fit: BoxFit.contain,
-              gaplessPlayback: true,
-              errorBuilder: (_, _, _) {
+              filterQuality: FilterQuality.medium,
+              useOldImageOnUrlChange: true,
+              errorWidget: (_, _, _) {
                 WidgetsBinding.instance.addPostFrameCallback((_) => onError());
                 return _PreviewError(
                   message: context.t('media.urlPreviewError'),
                 );
               },
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.deepOcean,
-                    ),
+              progressIndicatorBuilder: (_, _, _) => const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.deepOcean,
                   ),
-                );
-              },
+                ),
+              ),
             ),
     );
   }
