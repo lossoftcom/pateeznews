@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -1309,6 +1310,74 @@ class _MenuCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+/// İlk yükleme iskeleti (shimmer'lı). [AdminMobileListView]'in yükleme
+/// durumunda spinner yerine gösterilir.
+class _AdminMobileSkeletonCard extends StatelessWidget {
+  const _AdminMobileSkeletonCard();
+
+  static const _bar = Color(0xFFE9EDF0);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 88,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: _bar,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: 0.7,
+                  child: Container(
+                    height: 13,
+                    decoration: BoxDecoration(
+                      color: _bar,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: 0.45,
+                  child: Container(
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: _bar,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat()).shimmer(
+      duration: const Duration(milliseconds: 1100),
+      color: Colors.white,
+    );
+  }
+}
+
 // List shell (loading / empty / list) and pager.
 // ---------------------------------------------------------------------------
 
@@ -1333,15 +1402,13 @@ class AdminMobileListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading && itemCount == 0) {
-      return const Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.4,
-            color: AppColors.deepOcean,
-          ),
-        ),
+      // İlk yüklemede boş+spinner yerine kart iskeleti (shimmer): ekran "anında
+      // doluyormuş" hissi verir — modern (YouTube/Apple) yükleme deneyimi.
+      return ListView.separated(
+        padding: padding,
+        itemCount: 6,
+        separatorBuilder: (context, index) => SizedBox(height: gap),
+        itemBuilder: (context, index) => const _AdminMobileSkeletonCard(),
       );
     }
     if (itemCount == 0) {
