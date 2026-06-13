@@ -259,7 +259,11 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
         final clean = url.trim();
         if (clean.isEmpty || !seen.add(clean)) continue;
         futures.add(
-          precacheImage(NetworkImage(clean), context, onError: (_, _) {}),
+          precacheImage(
+            CachedNetworkImageProvider(clean),
+            context,
+            onError: (_, _) {},
+          ),
         );
       }
       await Future.wait(

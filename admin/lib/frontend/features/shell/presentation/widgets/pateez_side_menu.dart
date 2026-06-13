@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/navigation_icon_resolver.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
@@ -385,16 +386,17 @@ class _SideMenuBrand extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: SizedBox(
         height: 32,
-        child: Image.network(
-          logoUrl,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-          semanticLabel: settings.siteName.isEmpty
-              ? 'Pateeznews'
-              : settings.siteName,
-          errorBuilder: (context, error, stackTrace) {
-            return fallbackLogo;
-          },
+        child: Semantics(
+          image: true,
+          label: settings.siteName.isEmpty ? 'Pateeznews' : settings.siteName,
+          child: CachedNetworkImage(
+            imageUrl: logoUrl,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            fadeInDuration: Duration.zero,
+            placeholderFadeInDuration: Duration.zero,
+            errorWidget: (context, url, error) => fallbackLogo,
+          ),
         ),
       ),
     );

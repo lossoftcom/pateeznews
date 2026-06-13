@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -186,18 +187,18 @@ class _AccountBrandMark extends StatelessWidget {
     return SizedBox(
       width: _width,
       height: _height,
-      child: Image.network(
-        logoUrl,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        semanticLabel: settings.siteName.isEmpty
-            ? 'Pateeznews'
-            : settings.siteName,
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded || frame != null) return child;
-          return fallbackLogo;
-        },
-        errorBuilder: (_, _, _) => fallbackLogo,
+      child: Semantics(
+        image: true,
+        label: settings.siteName.isEmpty ? 'Pateeznews' : settings.siteName,
+        child: CachedNetworkImage(
+          imageUrl: logoUrl,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          fadeInDuration: Duration.zero,
+          placeholderFadeInDuration: Duration.zero,
+          placeholder: (context, url) => fallbackLogo,
+          errorWidget: (_, _, _) => fallbackLogo,
+        ),
       ),
     );
   }
@@ -721,11 +722,13 @@ class _AccountAvatar extends StatelessWidget {
                 ),
               ),
             )
-          : Image.network(
-              avatarUrl,
+          : CachedNetworkImage(
+              imageUrl: avatarUrl,
               fit: BoxFit.cover,
               filterQuality: FilterQuality.medium,
-              errorBuilder: (_, _, _) => Center(
+              fadeInDuration: Duration.zero,
+              placeholderFadeInDuration: Duration.zero,
+              errorWidget: (_, _, _) => Center(
                 child: Text(
                   authState.initials,
                   style: AppTypography.titleS.copyWith(

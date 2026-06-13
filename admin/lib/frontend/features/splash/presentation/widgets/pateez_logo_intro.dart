@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/brand/default_brand_assets.dart';
@@ -89,21 +90,25 @@ class _PateezLogoIntroState extends State<PateezLogoIntro>
     final logoUrl = widget.logoUrl.trim();
     final Widget logoImage = logoUrl.isEmpty
         ? _DefaultLogo(width: logoW, height: logoH)
-        : Image.network(
-            logoUrl,
-            width: logoW,
-            height: logoH,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-            semanticLabel: widget.semanticLabel,
-            gaplessPlayback: true,
-            // Ağ logosu inene kadar paketteki marka logosunu göster; böylece
-            // splash boyunca logo kesintisiz, hep görünür durur.
-            loadingBuilder: (context, child, progress) => progress == null
-                ? child
-                : _DefaultLogo(width: logoW, height: logoH),
-            errorBuilder: (_, _, _) =>
-                _DefaultLogo(width: logoW, height: logoH),
+        : Semantics(
+            image: true,
+            label: widget.semanticLabel,
+            child: CachedNetworkImage(
+              imageUrl: logoUrl,
+              width: logoW,
+              height: logoH,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              // Ağ logosu inene kadar (ve hata olursa) paketteki marka logosunu
+              // göster; böylece splash boyunca logo kesintisiz, hep görünür durur.
+              // Fade kapalı (Duration.zero) — logo sabit kalır, titremez.
+              fadeInDuration: Duration.zero,
+              placeholderFadeInDuration: Duration.zero,
+              placeholder: (context, url) =>
+                  _DefaultLogo(width: logoW, height: logoH),
+              errorWidget: (_, _, _) =>
+                  _DefaultLogo(width: logoW, height: logoH),
+            ),
           );
 
     return SizedBox.square(

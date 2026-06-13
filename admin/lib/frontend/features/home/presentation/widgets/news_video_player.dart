@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show FontFeature, ImageFilter;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
@@ -2220,16 +2221,16 @@ class _FullscreenBrandMark extends StatelessWidget {
     return SizedBox(
       width: _width,
       height: _height,
-      child: Image.network(
-        cleanUrl,
+      child: CachedNetworkImage(
+        imageUrl: cleanUrl,
         fit: BoxFit.contain,
         color: Colors.white,
         colorBlendMode: BlendMode.srcIn,
         filterQuality: FilterQuality.high,
-        gaplessPlayback: true,
-        loadingBuilder: (context, child, progress) =>
-            progress == null ? child : fallback,
-        errorBuilder: (_, _, _) => fallback,
+        fadeInDuration: Duration.zero,
+        placeholderFadeInDuration: Duration.zero,
+        placeholder: (context, url) => fallback,
+        errorWidget: (_, _, _) => fallback,
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -163,20 +164,18 @@ class _BrandMark extends StatelessWidget {
     return SizedBox(
       height: height,
       width: 132,
-      child: Image.network(
-        logoUrl,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        semanticLabel: settings.siteName.isEmpty
-            ? 'Pateeznews'
-            : settings.siteName,
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded || frame != null) return child;
-          return fallbackLogo;
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return fallbackLogo;
-        },
+      child: Semantics(
+        image: true,
+        label: settings.siteName.isEmpty ? 'Pateeznews' : settings.siteName,
+        child: CachedNetworkImage(
+          imageUrl: logoUrl,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          fadeInDuration: Duration.zero,
+          placeholderFadeInDuration: Duration.zero,
+          placeholder: (context, url) => fallbackLogo,
+          errorWidget: (context, url, error) => fallbackLogo,
+        ),
       ),
     );
   }

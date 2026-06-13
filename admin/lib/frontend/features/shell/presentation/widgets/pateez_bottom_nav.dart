@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -197,11 +198,13 @@ class _BottomAvatarContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final avatarUrl = authState.avatarUrl;
     if (avatarUrl.isEmpty) return _BottomAvatarFallback(authState: authState);
-    return Image.network(
-      avatarUrl,
+    return CachedNetworkImage(
+      imageUrl: avatarUrl,
       fit: BoxFit.cover,
       filterQuality: FilterQuality.medium,
-      errorBuilder: (_, _, _) => _BottomAvatarFallback(authState: authState),
+      fadeInDuration: Duration.zero,
+      placeholderFadeInDuration: Duration.zero,
+      errorWidget: (_, _, _) => _BottomAvatarFallback(authState: authState),
     );
   }
 }
