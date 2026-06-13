@@ -7,11 +7,20 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/data/admin_memory_cache.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../data/admin_news_repository.dart';
 import 'news_models.dart';
 import 'widgets/news_link_opener.dart';
 import 'widgets/news_table_card.dart';
+
+/// Oturum-içi kısa ömürlü cache'ler: News ekranına her dönüşte son veri anında
+/// gösterilir, ardından arka planda sessizce tazelenir (stale-while-revalidate).
+/// Üst düzeyde tutulur ki ekran kapanıp açılınca (geçişlerde) korunsun.
+final AdminMemoryCache<AdminNewsFilterOptions> _newsFilterCache =
+    AdminMemoryCache<AdminNewsFilterOptions>(ttl: const Duration(seconds: 60));
+final AdminMemoryCache<AdminNewsPageResult> _newsPageCache =
+    AdminMemoryCache<AdminNewsPageResult>(ttl: const Duration(seconds: 30));
 
 class NewsScreen extends StatefulWidget {
   const NewsScreen({
@@ -74,7 +83,30 @@ class _NewsScreenState extends State<NewsScreen> {
     super.dispose();
   }
 
+  String _postsCacheKey() =>
+      '${_trashMode ? 1 : 0}|$_searchQuery|$_languageFilter|$_categoryFilter|'
+      '$_typeFilter|$_statusFilter|$_publisherFilter|$_page|$_pageSize|'
+      '${_sortState.key}|${_sortState.ascending}';
+
   Future<void> _loadAll() async {
+    // Cache-öncelik: son veri varsa anında göster, sonra sessizce tazele.
+    final cachedFilters = _newsFilterCache.get('filters');
+    final cachedPage = _newsPageCache.get(_postsCacheKey());
+    if (cachedFilters != null && cachedPage != null) {
+      setState(() {
+        _filterOptions = cachedFilters;
+        _posts = cachedPage.posts;
+        _totalCount = cachedPage.totalCount;
+        _selectedPostIds.removeWhere(
+          (id) => !_posts.any((post) => post.id == id),
+        );
+        _loading = false;
+        _errorText = null;
+      });
+      unawaited(_refreshPostsSilently());
+      return;
+    }
+
     setState(() {
       _loading = true;
       _errorText = null;
@@ -86,6 +118,8 @@ class _NewsScreenState extends State<NewsScreen> {
       final filterOptions = await filtersFuture;
       final posts = await postsFuture;
       if (!mounted) return;
+      _newsFilterCache.set('filters', filterOptions);
+      _newsPageCache.set(_postsCacheKey(), posts);
       setState(() {
         _filterOptions = filterOptions;
         _posts = posts.posts;
@@ -113,6 +147,7 @@ class _NewsScreenState extends State<NewsScreen> {
     try {
       final result = await _fetchPosts();
       if (!mounted) return;
+      _newsPageCache.set(_postsCacheKey(), result);
       setState(() {
         _posts = result.posts;
         _totalCount = result.totalCount;
@@ -136,6 +171,7 @@ class _NewsScreenState extends State<NewsScreen> {
     try {
       final result = await _fetchPosts();
       if (!mounted) return;
+      _newsPageCache.set(_postsCacheKey(), result);
       setState(() {
         _posts = result.posts;
         _totalCount = result.totalCount;
