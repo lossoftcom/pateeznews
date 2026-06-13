@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/local_api_base_url.dart';
@@ -353,7 +354,7 @@ class FrontendAuthRepository {
     String path,
     Map<String, Object?> body,
   ) async {
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .post(
@@ -377,7 +378,7 @@ class FrontendAuthRepository {
       }
       return result;
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

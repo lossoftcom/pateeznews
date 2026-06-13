@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import '../network/frontend_http_client.dart';
 
 import '../network/local_api_base_url.dart';
 
@@ -162,7 +163,7 @@ class FrontendFontSettingsRepository {
     final uri = _uri(
       '/api/app/font-settings',
     ).replace(queryParameters: {'lang': _cleanLanguageCode(languageCode)});
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -208,7 +209,7 @@ class FrontendFontSettingsRepository {
     } catch (_) {
       return FrontendFontSettings.empty();
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 
@@ -235,7 +236,7 @@ class FrontendFontSettingsRepository {
       }
       try {
         final uri = _uri(source);
-        final client = httpClient ?? http.Client();
+        final client = httpClient ?? sharedFrontendClient;
         try {
           final response = await client.get(uri).timeout(_timeout);
           if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -247,7 +248,7 @@ class FrontendFontSettingsRepository {
           await loader.load();
           _loadedNetworkFamilies.add(font.family);
         } finally {
-          if (httpClient == null) client.close();
+          // Shared frontend client is not closed.
         }
       } catch (_) {
         continue;

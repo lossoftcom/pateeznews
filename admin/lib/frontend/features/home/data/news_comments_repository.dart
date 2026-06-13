@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/network/local_api_base_url.dart';
@@ -93,7 +94,7 @@ class NewsCommentsRepository {
   }
 
   Future<Map<String, Object?>> _postJson(Map<String, Object?> body) async {
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .post(
@@ -117,7 +118,7 @@ class NewsCommentsRepository {
       }
       return result;
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/network/local_api_base_url.dart';
@@ -73,7 +74,7 @@ class SearchRepository {
         'profilesLimit': '8',
       },
     );
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     final authToken = token?.trim() ?? '';
     try {
       final response = await client
@@ -92,7 +93,7 @@ class SearchRepository {
     } catch (_) {
       return const SearchData.empty();
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

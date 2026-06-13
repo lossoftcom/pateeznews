@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 
 import '../../../core/network/local_api_base_url.dart';
 
@@ -168,7 +169,7 @@ class MarketsRepository {
     final uri = _uri(
       '/api/app/markets?lang=tr${forceRefresh ? '&refresh=1' : ''}',
     );
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -187,7 +188,7 @@ class MarketsRepository {
     } catch (_) {
       return const MarketsData.empty(errorMessage: 'Piyasa verisi alınamadı');
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

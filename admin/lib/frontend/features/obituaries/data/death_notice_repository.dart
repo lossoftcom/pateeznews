@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 
 import '../../../core/network/local_api_base_url.dart';
 
@@ -153,7 +154,7 @@ class DeathNoticeRepository {
     final uri = _uri(
       '/api/app/death-notices?city=nigde${forceRefresh ? '&refresh=1' : ''}',
     );
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -174,12 +175,12 @@ class DeathNoticeRepository {
         errorMessage: 'Ölüm ilanları alınamadı',
       );
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 
   Future<bool> submitCondolence(CondolenceDraft draft) async {
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     final headers = <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json',
@@ -198,7 +199,7 @@ class DeathNoticeRepository {
     } catch (_) {
       return false;
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

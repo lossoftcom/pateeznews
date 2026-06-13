@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/local_api_base_url.dart';
@@ -199,7 +200,7 @@ class PostActionRepository {
     Map<String, Object?> body, {
     String? token,
   }) async {
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     final authToken = token?.trim() ?? '';
     try {
       final response = await client
@@ -225,7 +226,7 @@ class PostActionRepository {
       }
       return result;
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

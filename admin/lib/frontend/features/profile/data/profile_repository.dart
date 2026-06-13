@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart' show Color, IconData;
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/mock/home_mock_data.dart';
@@ -157,14 +158,14 @@ class ProfileRepository {
     if (cleanUserId.isNotEmpty) query['userId'] = cleanUserId;
     if (cleanUsername.isNotEmpty) query['username'] = cleanUsername;
     final uri = _uri('/api/app/profile').replace(queryParameters: query);
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     late final http.Response response;
     try {
       response = await client
           .get(uri, headers: _authHeaders(token))
           .timeout(_timeout);
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
     return _parseProfileResult(response);
   }
@@ -173,7 +174,7 @@ class ProfileRepository {
     required String token,
     required String profileId,
   }) async {
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     late final http.Response response;
     try {
       response = await client
@@ -187,7 +188,7 @@ class ProfileRepository {
           )
           .timeout(_timeout);
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
     final decoded = _decodeMap(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -201,7 +202,7 @@ class ProfileRepository {
     required String token,
     required ProfileUpdateInput input,
   }) async {
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     late final http.Response response;
     try {
       response = await client
@@ -212,7 +213,7 @@ class ProfileRepository {
           )
           .timeout(_timeout);
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
     return _parseProfileResult(response);
   }
@@ -222,7 +223,7 @@ class ProfileRepository {
     required String currentPassword,
     required String newPassword,
   }) async {
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     late final http.Response response;
     try {
       response = await client
@@ -237,7 +238,7 @@ class ProfileRepository {
           )
           .timeout(_timeout);
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
     final decoded = _decodeMap(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -265,8 +266,8 @@ class ProfileRepository {
         http.MultipartFile.fromBytes('file', bytes, filename: fileName),
       );
 
-    final client = httpClient ?? http.Client();
-    final closeClient = httpClient == null;
+    final client = httpClient ?? sharedFrontendClient;
+    // Shared frontend client is not closed.
     try {
       final streamed = await client.send(request).timeout(_uploadTimeout);
       final response = await http.Response.fromStream(
@@ -286,7 +287,7 @@ class ProfileRepository {
         id: _str(decoded['id']),
       );
     } finally {
-      if (closeClient) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

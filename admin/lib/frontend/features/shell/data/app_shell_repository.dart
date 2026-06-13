@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 
 import '../../../core/network/local_api_base_url.dart';
 
@@ -239,7 +240,7 @@ class AppShellRepository {
     final uri = _uri(
       '/api/app/shell',
     ).replace(queryParameters: {'lang': _cleanLanguageCode(languageCode)});
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -253,7 +254,7 @@ class AppShellRepository {
     } catch (_) {
       return const AppShellData.empty();
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

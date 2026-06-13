@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 
 import '../../../core/network/local_api_base_url.dart';
 import 'announcement_content.dart';
@@ -68,7 +69,7 @@ class AnnouncementsRepository {
 
   Future<AnnouncementData> fetch() async {
     final uri = _uri('/api/app/announcements?city=nigde&limit=80');
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -87,7 +88,7 @@ class AnnouncementsRepository {
     } catch (_) {
       return const AnnouncementData.empty(errorMessage: 'Duyurular alınamadı');
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

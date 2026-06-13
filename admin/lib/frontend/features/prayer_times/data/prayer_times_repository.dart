@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 
 import '../../../core/network/local_api_base_url.dart';
 
@@ -191,7 +192,7 @@ class PrayerTimesRepository {
     final uri = _uri(
       '/api/app/prayer-times?lang=tr${forceRefresh ? '&refresh=1' : ''}',
     );
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -212,7 +213,7 @@ class PrayerTimesRepository {
         errorMessage: 'Namaz vakitleri alınamadı',
       );
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 

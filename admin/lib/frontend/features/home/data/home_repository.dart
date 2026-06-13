@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/network/frontend_http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/mock/home_mock_data.dart';
@@ -118,7 +119,7 @@ class HomeRepository {
     int retries = 1,
   }) async {
     final uri = _uri('/api/app/home').replace(queryParameters: {'lang': lang});
-    final client = httpClient ?? http.Client();
+    final client = httpClient ?? sharedFrontendClient;
     final authToken = token?.trim() ?? '';
     try {
       for (var attempt = 0; attempt <= retries; attempt++) {
@@ -150,7 +151,7 @@ class HomeRepository {
       // Tüm denemeler başarısız: son snapshot varsa onu döndür.
       return await loadCachedHome(lang: lang) ?? const HomeData.empty();
     } finally {
-      if (httpClient == null) client.close();
+      // Shared frontend client is not closed.
     }
   }
 
