@@ -5,6 +5,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/data/admin_memory_cache.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
@@ -14,6 +15,15 @@ import 'users_models.dart';
 import 'widgets/users_dialogs.dart';
 import 'widgets/users_summary_grid.dart';
 import 'widgets/users_table_card.dart';
+
+/// Oturum-içi kısa ömürlü cache'ler: Users ekranına her dönüşte son veri anında
+/// gösterilir, ardından arka planda sessizce tazelenir (stale-while-revalidate).
+final AdminMemoryCache<List<AdminUserRole>> _usersRolesCache =
+    AdminMemoryCache<List<AdminUserRole>>(ttl: const Duration(seconds: 60));
+final AdminMemoryCache<UserMetrics> _usersMetricsCache =
+    AdminMemoryCache<UserMetrics>(ttl: const Duration(seconds: 30));
+final AdminMemoryCache<UsersPageResult> _usersPageCache =
+    AdminMemoryCache<UsersPageResult>(ttl: const Duration(seconds: 30));
 
 class UsersScreen extends StatefulWidget {
   const UsersScreen({
@@ -71,7 +81,31 @@ class _UsersScreenState extends State<UsersScreen> {
     super.dispose();
   }
 
+  String _usersPageKey() =>
+      '$_searchQuery|$_roleFilter|$_rewardFilter|$_statusFilter|$_page|'
+      '$_pageSize|${_sortState.key}|${_sortState.ascending}';
+
   Future<void> _loadAll() async {
+    // Cache-öncelik: son veri varsa anında göster, sonra sessizce tazele.
+    final cachedRoles = _usersRolesCache.get('roles');
+    final cachedMetrics = _usersMetricsCache.get('metrics');
+    final cachedUsers = _usersPageCache.get(_usersPageKey());
+    if (cachedRoles != null && cachedMetrics != null && cachedUsers != null) {
+      setState(() {
+        _roles = cachedRoles.isEmpty ? _fallbackRoles : cachedRoles;
+        _metrics = cachedMetrics;
+        _users = cachedUsers.users;
+        _totalCount = cachedUsers.totalCount;
+        _selectedUserIds.removeWhere(
+          (id) => !_users.any((user) => user.id == id),
+        );
+        _loading = false;
+        _errorText = null;
+      });
+      unawaited(_refreshUsersSilently());
+      return;
+    }
+
     setState(() {
       _loading = true;
       _errorText = null;
@@ -85,6 +119,9 @@ class _UsersScreenState extends State<UsersScreen> {
       final metrics = await metricsFuture;
       final users = await usersFuture;
       if (!mounted) return;
+      _usersRolesCache.set('roles', roles);
+      _usersMetricsCache.set('metrics', metrics);
+      _usersPageCache.set(_usersPageKey(), users);
       setState(() {
         _roles = roles.isEmpty ? _fallbackRoles : roles;
         _metrics = metrics;
@@ -104,6 +141,25 @@ class _UsersScreenState extends State<UsersScreen> {
     }
   }
 
+  /// Arka plan yenileme: listeyi spinner'a düşürmeden sessizce günceller.
+  Future<void> _refreshUsersSilently() async {
+    try {
+      final result = await _fetchUsers();
+      if (!mounted) return;
+      _usersPageCache.set(_usersPageKey(), result);
+      setState(() {
+        _users = result.users;
+        _totalCount = result.totalCount;
+        _selectedUserIds.removeWhere(
+          (id) => !_users.any((user) => user.id == id),
+        );
+        _errorText = null;
+      });
+    } catch (_) {
+      // Sessiz yenileme; mevcut veri ekranda kalır.
+    }
+  }
+
   Future<void> _loadUsers() async {
     setState(() {
       _loading = true;
@@ -113,6 +169,7 @@ class _UsersScreenState extends State<UsersScreen> {
     try {
       final result = await _fetchUsers();
       if (!mounted) return;
+      _usersPageCache.set(_usersPageKey(), result);
       setState(() {
         _users = result.users;
         _totalCount = result.totalCount;

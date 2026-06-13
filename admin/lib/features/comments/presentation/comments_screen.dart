@@ -6,6 +6,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/data/admin_memory_cache.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
@@ -15,6 +16,17 @@ import '../../users/presentation/widgets/users_summary_grid.dart';
 import '../data/admin_comments_repository.dart';
 import 'comments_models.dart';
 import 'widgets/comments_table_card.dart';
+
+/// Oturum-içi kısa ömürlü cache'ler: Comments ekranına her dönüşte son veri
+/// anında gösterilir, ardından arka planda sessizce tazelenir.
+final AdminMemoryCache<AdminCommentMetricData> _commentsMetricsCache =
+    AdminMemoryCache<AdminCommentMetricData>(ttl: const Duration(seconds: 30));
+final AdminMemoryCache<AdminCommentFilterOptions> _commentsFilterCache =
+    AdminMemoryCache<AdminCommentFilterOptions>(
+      ttl: const Duration(seconds: 60),
+    );
+final AdminMemoryCache<AdminCommentsPageResult> _commentsPageCache =
+    AdminMemoryCache<AdminCommentsPageResult>(ttl: const Duration(seconds: 30));
 
 class CommentsScreen extends StatefulWidget {
   const CommentsScreen({
@@ -71,7 +83,33 @@ class _CommentsScreenState extends State<CommentsScreen> {
     super.dispose();
   }
 
+  String _commentsPageKey() =>
+      '$_searchQuery|$_statusFilter|$_postFilter|$_userFilter|$_page|'
+      '$_pageSize|${_sortState.key}|${_sortState.ascending}';
+
   Future<void> _loadAll() async {
+    // Cache-öncelik: son veri varsa anında göster, sonra sessizce tazele.
+    final cachedMetrics = _commentsMetricsCache.get('metrics');
+    final cachedFilters = _commentsFilterCache.get('filters');
+    final cachedComments = _commentsPageCache.get(_commentsPageKey());
+    if (cachedMetrics != null &&
+        cachedFilters != null &&
+        cachedComments != null) {
+      setState(() {
+        _metrics = cachedMetrics;
+        _filterOptions = cachedFilters;
+        _comments = cachedComments.comments;
+        _totalCount = cachedComments.totalCount;
+        _selectedCommentIds.removeWhere(
+          (id) => !_comments.any((comment) => comment.id == id),
+        );
+        _loading = false;
+        _errorText = null;
+      });
+      unawaited(_refreshCommentsSilently());
+      return;
+    }
+
     setState(() {
       _loading = true;
       _errorText = null;
@@ -85,6 +123,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
       final filterOptions = await filtersFuture;
       final comments = await commentsFuture;
       if (!mounted) return;
+      _commentsMetricsCache.set('metrics', metrics);
+      _commentsFilterCache.set('filters', filterOptions);
+      _commentsPageCache.set(_commentsPageKey(), comments);
       setState(() {
         _metrics = metrics;
         _filterOptions = filterOptions;
@@ -104,6 +145,25 @@ class _CommentsScreenState extends State<CommentsScreen> {
     }
   }
 
+  /// Arka plan yenileme: listeyi spinner'a düşürmeden sessizce günceller.
+  Future<void> _refreshCommentsSilently() async {
+    try {
+      final result = await _fetchComments();
+      if (!mounted) return;
+      _commentsPageCache.set(_commentsPageKey(), result);
+      setState(() {
+        _comments = result.comments;
+        _totalCount = result.totalCount;
+        _selectedCommentIds.removeWhere(
+          (id) => !_comments.any((comment) => comment.id == id),
+        );
+        _errorText = null;
+      });
+    } catch (_) {
+      // Sessiz yenileme; mevcut veri ekranda kalır.
+    }
+  }
+
   Future<void> _loadComments() async {
     setState(() {
       _loading = true;
@@ -113,6 +173,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
     try {
       final result = await _fetchComments();
       if (!mounted) return;
+      _commentsPageCache.set(_commentsPageKey(), result);
       setState(() {
         _comments = result.comments;
         _totalCount = result.totalCount;
