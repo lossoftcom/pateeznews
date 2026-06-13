@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../social_platform_data.dart';
@@ -356,10 +358,11 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel>
               children: [
                 // Background image or gradient
                 if (hasImage)
-                  Image.network(
-                    d.effectiveImage,
+                  AdminCachedImage(
+                    url: d.effectiveImage,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
+                    memCacheWidth: 1080,
+                    errorWidget: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// X (Twitter) tweet preview with authentic layout.
 class TwitterPreview extends StatelessWidget {
   const TwitterPreview({
@@ -117,10 +119,11 @@ class TwitterPreview extends StatelessWidget {
                         aspectRatio: 16 / 9,
                         child: Container(
                           color: const Color(0xFFF7F9F9),
-                          child: Image.network(
-                            imageUrl,
+                          child: AdminCachedImage(
+                            url: imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Center(
+                            memCacheWidth: 1080,
+                            errorWidget: const Center(
                               child: Icon(
                                 Icons.image_outlined,
                                 size: 40,

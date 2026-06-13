@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// YouTube video card preview.
 class YoutubePreview extends StatelessWidget {
   const YoutubePreview({
@@ -35,10 +37,11 @@ class YoutubePreview extends StatelessWidget {
                   child: Container(
                     color: const Color(0xFF1A1A1A),
                     child: imageUrl.isNotEmpty
-                        ? Image.network(
-                            imageUrl,
+                        ? AdminCachedImage(
+                            url: imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Center(
+                            memCacheWidth: 1080,
+                            errorWidget: const Center(
                               child: Icon(
                                 Icons.play_circle_outline,
                                 size: 56,

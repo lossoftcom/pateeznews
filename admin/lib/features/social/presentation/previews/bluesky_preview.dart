@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// Bluesky post preview.
 class BlueskyPreview extends StatelessWidget {
   const BlueskyPreview({
@@ -98,10 +100,11 @@ class BlueskyPreview extends StatelessWidget {
                         aspectRatio: 16 / 9,
                         child: Container(
                           color: const Color(0xFFF5F5F5),
-                          child: Image.network(
-                            imageUrl,
+                          child: AdminCachedImage(
+                            url: imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Center(
+                            memCacheWidth: 1080,
+                            errorWidget: const Center(
                               child: Icon(
                                 Icons.image_outlined,
                                 size: 40,

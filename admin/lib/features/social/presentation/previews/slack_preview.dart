@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// Slack message preview.
 class SlackPreview extends StatelessWidget {
   const SlackPreview({
@@ -191,11 +193,12 @@ class SlackPreview extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 200),
-                        child: Image.network(
-                          imageUrl,
+                        child: AdminCachedImage(
+                          url: imageUrl,
                           fit: BoxFit.cover,
                           width: double.infinity,
-                          errorBuilder: (_, _, _) => Container(
+                          memCacheWidth: 1080,
+                          errorWidget: Container(
                             height: 100,
                             color: const Color(0xFFF8F8F8),
                             child: const Center(

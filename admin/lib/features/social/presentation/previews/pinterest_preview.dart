@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// Pinterest pin card preview.
 class PinterestPreview extends StatelessWidget {
   const PinterestPreview({
@@ -41,10 +43,11 @@ class PinterestPreview extends StatelessWidget {
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(16),
                             ),
-                            child: Image.network(
-                              imageUrl,
+                            child: AdminCachedImage(
+                              url: imageUrl,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => _pinPlaceholder(),
+                              memCacheWidth: 1080,
+                              errorWidget: _pinPlaceholder(),
                             ),
                           )
                         : _pinPlaceholder(),

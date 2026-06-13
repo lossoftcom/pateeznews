@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// TikTok vertical video preview.
 class TiktokPreview extends StatelessWidget {
   const TiktokPreview({
@@ -26,10 +28,11 @@ class TiktokPreview extends StatelessWidget {
           children: [
             if (imageUrl.isNotEmpty)
               Positioned.fill(
-                child: Image.network(
-                  imageUrl,
+                child: AdminCachedImage(
+                  url: imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  memCacheWidth: 1080,
+                  errorWidget: const SizedBox.shrink(),
                 ),
               ),
             // Right side icons

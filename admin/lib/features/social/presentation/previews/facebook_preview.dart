@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// Facebook post preview with authentic layout.
 class FacebookPreview extends StatelessWidget {
   const FacebookPreview({
@@ -131,10 +133,11 @@ class FacebookPreview extends StatelessWidget {
                 child: Container(
                   color: const Color(0xFFF0F2F5),
                   child: imageUrl.isNotEmpty
-                      ? Image.network(
-                          imageUrl,
+                      ? AdminCachedImage(
+                          url: imageUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _imagePlaceholder(),
+                          memCacheWidth: 1080,
+                          errorWidget: _imagePlaceholder(),
                         )
                       : _imagePlaceholder(),
                 ),

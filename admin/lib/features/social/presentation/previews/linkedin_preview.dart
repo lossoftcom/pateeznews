@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// LinkedIn post preview.
 class LinkedinPreview extends StatelessWidget {
   const LinkedinPreview({
@@ -104,10 +106,11 @@ class LinkedinPreview extends StatelessWidget {
               aspectRatio: 1.91,
               child: Container(
                 color: const Color(0xFFF3F6F8),
-                child: Image.network(
-                  imageUrl,
+                child: AdminCachedImage(
+                  url: imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const Center(
+                  memCacheWidth: 1080,
+                  errorWidget: const Center(
                     child: Icon(
                       Icons.image_outlined,
                       size: 48,

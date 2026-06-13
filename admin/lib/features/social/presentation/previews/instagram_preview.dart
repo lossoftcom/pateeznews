@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// Instagram feed post preview with authentic layout.
 class InstagramPreview extends StatelessWidget {
   const InstagramPreview({
@@ -106,10 +108,11 @@ class InstagramPreview extends StatelessWidget {
             child: Container(
               color: const Color(0xFFFAFAFA),
               child: imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
+                  ? AdminCachedImage(
+                      url: imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _imagePlaceholder(),
+                      memCacheWidth: 1080,
+                      errorWidget: _imagePlaceholder(),
                     )
                   : _imagePlaceholder(),
             ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/admin_cached_image.dart';
+
 /// Discord message preview with dark theme.
 class DiscordPreview extends StatelessWidget {
   const DiscordPreview({
@@ -162,11 +164,12 @@ class DiscordPreview extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 200),
-                        child: Image.network(
-                          imageUrl,
+                        child: AdminCachedImage(
+                          url: imageUrl,
                           fit: BoxFit.cover,
                           width: double.infinity,
-                          errorBuilder: (_, _, _) => Container(
+                          memCacheWidth: 1080,
+                          errorWidget: Container(
                             height: 100,
                             color: const Color(0xFF2F3136),
                             child: const Center(
