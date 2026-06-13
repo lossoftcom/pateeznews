@@ -10,6 +10,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/cached_image.dart';
 
 const Color _correctGreen = Color(0xFF1F9B6D);
+const Color _wrongWarm = AppColors.warmHorizon;
 const double _quizCornerRadius = 4;
 
 class DetailQuizBlock extends StatefulWidget {
@@ -113,13 +114,13 @@ class _DetailQuizBlockState extends State<DetailQuizBlock> {
           questionCount: questions.length,
           isComplete: isComplete,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         _QuizSectionLabel(
           icon: Symbols.format_list_numbered,
           label: 'Sorular',
           trailing: '$answeredCount/${questions.length}',
         ),
-        const SizedBox(height: 9),
+        const SizedBox(height: 10),
         for (var i = 0; i < questions.length; i++) ...[
           KeyedSubtree(
             key: _keyForQuestion(questions[i], i),
@@ -136,9 +137,9 @@ class _DetailQuizBlockState extends State<DetailQuizBlock> {
               onConfirm: () => _confirmQuestion(questions[i], i),
             ),
           ),
-          if (i != questions.length - 1) const SizedBox(height: 10),
+          if (i != questions.length - 1) const SizedBox(height: 12),
         ],
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         KeyedSubtree(
           key: _resultKey,
           child: AnimatedSwitcher(
@@ -386,20 +387,17 @@ class _QuizHeader extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 34,
+          height: 34,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.actionRed.withValues(alpha: 0.08),
+            color: AppColors.deepOcean,
             borderRadius: BorderRadius.circular(_quizCornerRadius),
-            border: Border.all(
-              color: AppColors.actionRed.withValues(alpha: 0.12),
-            ),
           ),
           child: const Icon(
             Symbols.bolt_rounded,
             size: 18,
-            color: AppColors.actionRed,
+            color: Colors.white,
           ),
         ),
         const SizedBox(width: 10),
@@ -410,11 +408,11 @@ class _QuizHeader extends StatelessWidget {
               Text(
                 'Test',
                 style: AppTypography.meta.copyWith(
-                  color: AppColors.inkStrong,
+                  color: AppColors.actionRed,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                   height: 1,
-                  letterSpacing: 0,
+                  letterSpacing: 1.1,
                 ),
               ),
               const SizedBox(height: 4),
@@ -434,6 +432,7 @@ class _QuizHeader extends StatelessWidget {
         _QuizTinyPill(
           text: isComplete ? 'Sonuç hazır' : '$answeredCount/$questionCount',
           tone: isComplete ? _QuizPillTone.green : _QuizPillTone.warm,
+          dot: true,
         ),
       ],
     );
@@ -454,26 +453,37 @@ class _QuizProgressPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = questionCount <= 0 ? 0.0 : answeredCount / questionCount;
+    final activeColor = isComplete ? _correctGreen : AppColors.actionRed;
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 11),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSoft.withValues(alpha: 0.78),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(_quizCornerRadius),
-        border: Border.all(color: AppColors.softLine),
+        border: Border.all(color: AppColors.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Icon(
-                isComplete
-                    ? Symbols.check_rounded
-                    : Symbols.lock_outline_rounded,
-                size: 15,
-                color: isComplete ? _correctGreen : AppColors.actionRed,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: activeColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(_quizCornerRadius),
+                ),
+                child: Icon(
+                  isComplete
+                      ? Symbols.check_rounded
+                      : Symbols.lock_outline_rounded,
+                  size: 13,
+                  color: activeColor,
+                ),
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   isComplete
@@ -491,7 +501,7 @@ class _QuizProgressPanel extends StatelessWidget {
               Text(
                 '${(progress * 100).round()}%',
                 style: AppTypography.meta.copyWith(
-                  color: AppColors.support,
+                  color: activeColor,
                   fontSize: 10.8,
                   fontWeight: FontWeight.w900,
                   height: 1,
@@ -500,26 +510,72 @@ class _QuizProgressPanel extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 10),
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.0, end: progress.clamp(0, 1).toDouble()),
-            duration: const Duration(milliseconds: 320),
+            duration: const Duration(milliseconds: 420),
             curve: Curves.easeOutCubic,
             builder: (context, value, _) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(_quizCornerRadius),
-                child: LinearProgressIndicator(
-                  minHeight: 7,
-                  value: value,
-                  backgroundColor: AppColors.surfaceInk,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    isComplete ? _correctGreen : AppColors.actionRed,
+              if (questionCount <= 0 || questionCount > 24) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(_quizCornerRadius),
+                  child: LinearProgressIndicator(
+                    minHeight: 7,
+                    value: value,
+                    backgroundColor: AppColors.surfaceInk,
+                    valueColor: AlwaysStoppedAnimation<Color>(activeColor),
                   ),
-                ),
+                );
+              }
+              return Row(
+                children: [
+                  for (var i = 0; i < questionCount; i += 1) ...[
+                    Expanded(
+                      child: _QuizProgressSegment(
+                        fill: ((value * questionCount) - i)
+                            .clamp(0.0, 1.0)
+                            .toDouble(),
+                        color: activeColor,
+                      ),
+                    ),
+                    if (i != questionCount - 1) const SizedBox(width: 4),
+                  ],
+                ],
               );
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuizProgressSegment extends StatelessWidget {
+  const _QuizProgressSegment({required this.fill, required this.color});
+
+  final double fill;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(2),
+      child: SizedBox(
+        height: 7,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const ColoredBox(color: AppColors.surfaceInk),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: fill,
+                heightFactor: 1,
+                child: ColoredBox(color: color),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -530,19 +586,30 @@ class _QuizSectionLabel extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.trailing,
+    this.accent = AppColors.actionRed,
   });
 
   final IconData icon;
   final String label;
   final String trailing;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: AppColors.actionRed),
-        const SizedBox(width: 6),
-        Expanded(
+        Container(
+          width: 22,
+          height: 22,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(_quizCornerRadius),
+          ),
+          child: Icon(icon, size: 13, color: accent),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
           child: Text(
             label,
             maxLines: 1,
@@ -556,15 +623,26 @@ class _QuizSectionLabel extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          trailing,
-          style: AppTypography.meta.copyWith(
-            color: AppColors.support,
-            fontSize: 10.8,
-            fontWeight: FontWeight.w700,
-            height: 1,
-            letterSpacing: 0,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(height: 1, color: AppColors.softLine),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceInk,
+            borderRadius: BorderRadius.circular(_quizCornerRadius),
+          ),
+          child: Text(
+            trailing,
+            style: AppTypography.meta.copyWith(
+              color: AppColors.inkSoft,
+              fontSize: 10.4,
+              fontWeight: FontWeight.w800,
+              height: 1,
+              letterSpacing: 0,
+            ),
           ),
         ),
       ],
@@ -606,21 +684,21 @@ class _QuizQuestionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(_quizCornerRadius),
         border: Border.all(
           color: locked
-              ? AppColors.actionRed.withValues(alpha: 0.16)
+              ? AppColors.deepOcean.withValues(alpha: 0.2)
               : AppColors.line,
         ),
         boxShadow: locked
             ? [
                 BoxShadow(
-                  color: AppColors.shadow.withValues(alpha: 0.7),
-                  blurRadius: 14,
-                  offset: const Offset(0, 7),
+                  color: AppColors.shadow.withValues(alpha: 0.65),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
                 ),
               ]
             : const [],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 11),
+        padding: const EdgeInsets.fromLTRB(11, 11, 11, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -629,7 +707,7 @@ class _QuizQuestionCard extends StatelessWidget {
               children: [
                 if (showNumber) ...[
                   _QuizQuestionNumber(value: index + 1, answered: locked),
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 10),
                 ],
                 Expanded(
                   child: Column(
@@ -677,7 +755,7 @@ class _QuizQuestionCard extends StatelessWidget {
               onAnswerTap: onAnswerTap,
             ),
             if (allowMultiple && !locked) ...[
-              const SizedBox(height: 9),
+              const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
                 child: _QuizConfirmButton(
@@ -702,26 +780,58 @@ class _QuizQuestionNumber extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 200),
       width: 30,
       height: 30,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: answered ? AppColors.actionRed : AppColors.deepOcean,
+        color: answered ? AppColors.deepOcean : AppColors.surface,
         borderRadius: BorderRadius.circular(_quizCornerRadius),
-      ),
-      child: Text(
-        value.toString(),
-        style: AppTypography.meta.copyWith(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          letterSpacing: 0,
+        border: Border.all(
+          color: answered ? AppColors.deepOcean : AppColors.line,
         ),
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        switchInCurve: Curves.easeOutBack,
+        child: answered
+            ? const Icon(
+                Symbols.check_rounded,
+                key: ValueKey('question-number-check'),
+                size: 15,
+                color: Colors.white,
+              )
+            : Text(
+                value.toString(),
+                key: const ValueKey('question-number-value'),
+                style: AppTypography.meta.copyWith(
+                  color: AppColors.deepOcean,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                  letterSpacing: 0,
+                ),
+              ),
       ),
     );
   }
+}
+
+enum _QuizAnswerState { idle, selected, correct, wrong, dimmed }
+
+_QuizAnswerState _answerStateFor({
+  required NewsQuizAnswer answer,
+  required bool selected,
+  required bool locked,
+  required bool isTrivia,
+}) {
+  if (locked && isTrivia) {
+    if (answer.isCorrect) return _QuizAnswerState.correct;
+    if (selected) return _QuizAnswerState.wrong;
+    return _QuizAnswerState.dimmed;
+  }
+  if (selected) return _QuizAnswerState.selected;
+  return locked ? _QuizAnswerState.dimmed : _QuizAnswerState.idle;
 }
 
 class _QuizAnswers extends StatelessWidget {
@@ -833,19 +943,27 @@ class _QuizAnswerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = answer.imageUrl.trim();
-    final revealCorrectness = locked && isTrivia;
-    final isCorrect = answer.isCorrect;
-    final active = selected || (revealCorrectness && isCorrect);
-    final borderColor = revealCorrectness && isCorrect
-        ? _correctGreen.withValues(alpha: 0.5)
-        : selected
-        ? AppColors.actionRed.withValues(alpha: 0.42)
-        : AppColors.softLine;
-    final background = revealCorrectness && isCorrect
-        ? _correctGreen.withValues(alpha: 0.075)
-        : selected
-        ? AppColors.actionRed.withValues(alpha: 0.055)
-        : AppColors.surfaceSoft.withValues(alpha: 0.58);
+    final state = _answerStateFor(
+      answer: answer,
+      selected: selected,
+      locked: locked,
+      isTrivia: isTrivia,
+    );
+    final borderColor = switch (state) {
+      _QuizAnswerState.correct => _correctGreen.withValues(alpha: 0.5),
+      _QuizAnswerState.wrong => _wrongWarm.withValues(alpha: 0.5),
+      _QuizAnswerState.selected => AppColors.actionRed.withValues(alpha: 0.42),
+      _QuizAnswerState.dimmed => AppColors.softLine,
+      _QuizAnswerState.idle => AppColors.softLine,
+    };
+    final background = switch (state) {
+      _QuizAnswerState.correct => _correctGreen.withValues(alpha: 0.075),
+      _QuizAnswerState.wrong => _wrongWarm.withValues(alpha: 0.07),
+      _QuizAnswerState.selected =>
+        AppColors.actionRed.withValues(alpha: 0.055),
+      _QuizAnswerState.dimmed => AppColors.surfaceSoft.withValues(alpha: 0.42),
+      _QuizAnswerState.idle => AppColors.surfaceSoft,
+    };
 
     return Semantics(
       key: ValueKey<String>('quiz-answer-tile-${_answerKey(answer, index)}'),
@@ -864,66 +982,70 @@ class _QuizAnswerTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(_quizCornerRadius),
               border: Border.all(color: borderColor),
             ),
-            child: Padding(
-              padding: EdgeInsets.all(compact ? 6 : 8),
-              child: compact
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _QuizAnswerVisual(
-                          imageUrl: imageUrl,
-                          index: index,
-                          selected: active,
-                        ),
-                        const SizedBox(height: 7),
-                        Expanded(
-                          child: _QuizAnswerText(
-                            answer: answer,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 190),
+              opacity: state == _QuizAnswerState.dimmed ? 0.62 : 1,
+              child: Padding(
+                padding: EdgeInsets.all(compact ? 6 : 8),
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _QuizAnswerVisual(
+                            imageUrl: imageUrl,
                             index: index,
-                            selected: selected,
-                            active: active,
-                            locked: locked,
-                            isTrivia: isTrivia,
-                            compact: true,
-                            showLetter: false,
+                            state: state,
                           ),
-                        ),
-                        if (_showExplanation) ...[
-                          const SizedBox(height: 6),
-                          _QuizExplanation(text: answer.explanation),
+                          const SizedBox(height: 7),
+                          Expanded(
+                            child: _QuizAnswerText(
+                              answer: answer,
+                              index: index,
+                              selected: selected,
+                              state: state,
+                              locked: locked,
+                              isTrivia: isTrivia,
+                              compact: true,
+                              showLetter: false,
+                            ),
+                          ),
+                          if (_showExplanation) ...[
+                            const SizedBox(height: 6),
+                            _QuizExplanation(text: answer.explanation),
+                          ],
                         ],
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (imageUrl.isNotEmpty) ...[
-                          _QuizThumb(imageUrl: imageUrl, size: 58),
-                          const SizedBox(width: 9),
-                        ],
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _QuizAnswerText(
-                                answer: answer,
-                                index: index,
-                                selected: selected,
-                                active: active,
-                                locked: locked,
-                                isTrivia: isTrivia,
-                                compact: false,
-                                showLetter: true,
-                              ),
-                              if (_showExplanation) ...[
-                                const SizedBox(height: 6),
-                                _QuizExplanation(text: answer.explanation),
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (imageUrl.isNotEmpty) ...[
+                            _QuizThumb(imageUrl: imageUrl, size: 58),
+                            const SizedBox(width: 9),
+                          ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _QuizAnswerText(
+                                  answer: answer,
+                                  index: index,
+                                  selected: selected,
+                                  state: state,
+                                  locked: locked,
+                                  isTrivia: isTrivia,
+                                  compact: false,
+                                  showLetter: true,
+                                ),
+                                if (_showExplanation) ...[
+                                  const SizedBox(height: 6),
+                                  _QuizExplanation(text: answer.explanation),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
@@ -943,7 +1065,7 @@ class _QuizAnswerText extends StatelessWidget {
     required this.answer,
     required this.index,
     required this.selected,
-    required this.active,
+    required this.state,
     required this.locked,
     required this.isTrivia,
     required this.compact,
@@ -953,7 +1075,7 @@ class _QuizAnswerText extends StatelessWidget {
   final NewsQuizAnswer answer;
   final int index;
   final bool selected;
-  final bool active;
+  final _QuizAnswerState state;
   final bool locked;
   final bool isTrivia;
   final bool compact;
@@ -984,7 +1106,7 @@ class _QuizAnswerText extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _QuizAnswerLetter(index: index, selected: active),
+              _QuizAnswerLetter(index: index, state: state),
               const SizedBox(width: 8),
               Expanded(child: text),
             ],
@@ -1018,38 +1140,55 @@ class _QuizAnswerText extends StatelessWidget {
 }
 
 class _QuizAnswerLetter extends StatelessWidget {
-  const _QuizAnswerLetter({required this.index, required this.selected});
+  const _QuizAnswerLetter({required this.index, required this.state});
 
   final int index;
-  final bool selected;
+  final _QuizAnswerState state;
 
   @override
   Widget build(BuildContext context) {
     final letter = String.fromCharCode(65 + (index % 26));
+    final (Color fill, Color border) = switch (state) {
+      _QuizAnswerState.correct => (_correctGreen, _correctGreen),
+      _QuizAnswerState.wrong => (_wrongWarm, _wrongWarm),
+      _QuizAnswerState.selected => (AppColors.actionRed, AppColors.actionRed),
+      _ => (AppColors.surface, AppColors.line.withValues(alpha: 0.9)),
+    };
+    final isFilled = state == _QuizAnswerState.correct ||
+        state == _QuizAnswerState.wrong ||
+        state == _QuizAnswerState.selected;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       width: 22,
       height: 22,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: selected ? AppColors.actionRed : AppColors.surface,
+        color: fill,
         shape: BoxShape.circle,
-        border: Border.all(
-          color: selected
-              ? AppColors.actionRed
-              : AppColors.line.withValues(alpha: 0.9),
-        ),
+        border: Border.all(color: border),
       ),
-      child: Text(
-        letter,
-        style: AppTypography.meta.copyWith(
-          color: selected ? Colors.white : AppColors.inkSoft,
-          fontSize: 10.5,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          letterSpacing: 0,
+      child: switch (state) {
+        _QuizAnswerState.correct => const Icon(
+          Symbols.check_rounded,
+          size: 12,
+          color: Colors.white,
         ),
-      ),
+        _QuizAnswerState.wrong => const Icon(
+          Symbols.close_rounded,
+          size: 12,
+          color: Colors.white,
+        ),
+        _ => Text(
+          letter,
+          style: AppTypography.meta.copyWith(
+            color: isFilled ? Colors.white : AppColors.inkSoft,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w900,
+            height: 1,
+            letterSpacing: 0,
+          ),
+        ),
+      },
     );
   }
 }
@@ -1065,16 +1204,22 @@ class _QuizConfirmButton extends StatelessWidget {
     return TextButton.icon(
       onPressed: enabled ? onPressed : null,
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.actionRed,
-        disabledForegroundColor: AppColors.support.withValues(alpha: 0.5),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        foregroundColor: Colors.white,
+        backgroundColor: AppColors.actionRed,
+        disabledForegroundColor: AppColors.support.withValues(alpha: 0.7),
+        disabledBackgroundColor: AppColors.surfaceInk,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_quizCornerRadius),
+        ),
       ),
       icon: const Icon(Symbols.check_rounded, size: 14),
       label: Text(
         'Cevabı onayla',
         style: AppTypography.meta.copyWith(
+          color: enabled ? Colors.white : AppColors.support,
           fontSize: 11,
           fontWeight: FontWeight.w900,
           letterSpacing: 0,
@@ -1111,19 +1256,19 @@ class _QuizLockedResultTeaser extends StatelessWidget {
           label: 'Sonuç',
           trailing: '$answeredCount/$questionCount tamamlandı',
         ),
-        const SizedBox(height: 9),
+        const SizedBox(height: 10),
         Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: remainingCount > 0 ? onJumpToMissing : null,
             borderRadius: BorderRadius.circular(_quizCornerRadius),
             child: Ink(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 11),
+              padding: const EdgeInsets.fromLTRB(11, 11, 11, 12),
               decoration: BoxDecoration(
-                color: AppColors.surfaceSoft.withValues(alpha: 0.76),
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(_quizCornerRadius),
                 border: Border.all(
-                  color: AppColors.actionRed.withValues(alpha: 0.14),
+                  color: AppColors.deepOcean.withValues(alpha: 0.16),
                 ),
               ),
               child: Row(
@@ -1134,13 +1279,13 @@ class _QuizLockedResultTeaser extends StatelessWidget {
                     height: 34,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: AppColors.actionRed.withValues(alpha: 0.08),
+                      color: AppColors.deepOcean.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(_quizCornerRadius),
                     ),
                     child: const Icon(
                       Symbols.lock_outline_rounded,
                       size: 17,
-                      color: AppColors.actionRed,
+                      color: AppColors.deepOcean,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1153,7 +1298,6 @@ class _QuizLockedResultTeaser extends StatelessWidget {
                           style: AppTypography.titleM.copyWith(
                             color: AppColors.inkStrong,
                             fontSize: 15.3,
-                            fontStyle: FontStyle.italic,
                             fontWeight: FontWeight.w900,
                             height: 1.05,
                             letterSpacing: 0,
@@ -1176,15 +1320,12 @@ class _QuizLockedResultTeaser extends StatelessWidget {
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
+                      horizontal: 9,
+                      vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: AppColors.actionRed,
                       borderRadius: BorderRadius.circular(_quizCornerRadius),
-                      border: Border.all(
-                        color: AppColors.actionRed.withValues(alpha: 0.14),
-                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1192,7 +1333,7 @@ class _QuizLockedResultTeaser extends StatelessWidget {
                         Text(
                           'Eksik soruya git',
                           style: AppTypography.meta.copyWith(
-                            color: AppColors.actionRed,
+                            color: Colors.white,
                             fontSize: 10.6,
                             fontWeight: FontWeight.w900,
                             height: 1,
@@ -1203,7 +1344,7 @@ class _QuizLockedResultTeaser extends StatelessWidget {
                         const Icon(
                           Symbols.arrow_forward_rounded,
                           size: 13,
-                          color: AppColors.actionRed,
+                          color: Colors.white,
                         ),
                       ],
                     ),
@@ -1245,11 +1386,12 @@ class _QuizResultStage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _QuizSectionLabel(
-          icon: Symbols.bolt_rounded,
+          icon: Symbols.sparkling_fill,
           label: 'Sonucun',
           trailing: score == null ? 'tamamlandı' : '$score/$questionCount',
+          accent: AppColors.warmHorizon,
         ),
-        const SizedBox(height: 9),
+        const SizedBox(height: 10),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 260),
           switchInCurve: Curves.easeOutCubic,
@@ -1293,70 +1435,115 @@ class _QuizResultCard extends StatelessWidget {
         : '$score doğru';
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 520),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        final eased = Curves.easeOutBack.transform(value);
+      duration: const Duration(milliseconds: 760),
+      curve: Curves.linear,
+      builder: (context, raw, child) {
+        final card = Curves.easeOutQuint.transform(
+          const Interval(0.0, 0.72).transform(raw),
+        );
+        final body = Curves.easeOutCubic.transform(
+          const Interval(0.22, 1.0).transform(raw),
+        );
         return Opacity(
-          opacity: value.clamp(0, 1).toDouble(),
+          opacity: card.clamp(0, 1).toDouble(),
           child: Transform.translate(
-            offset: Offset(0, (1 - value) * 18),
+            offset: Offset(0, (1 - card) * 26),
             child: Transform.scale(
-              scale: 0.94 + (0.06 * eased),
+              scale: 0.965 + (0.035 * card),
               alignment: Alignment.topCenter,
-              child: child,
+              child: _QuizResultCardBody(
+                result: result,
+                scoreLabel: scoreLabel,
+                imageUrl: imageUrl,
+                bodyReveal: body,
+              ),
             ),
           ),
         );
       },
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(_quizCornerRadius),
-          border: Border.all(
-            color: AppColors.actionRed.withValues(alpha: 0.22),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.actionRed.withValues(alpha: 0.12),
-              blurRadius: 26,
-              offset: const Offset(0, 13),
-            ),
-            BoxShadow(
-              color: AppColors.shadow.withValues(alpha: 0.9),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+    );
+  }
+}
+
+class _QuizResultCardBody extends StatelessWidget {
+  const _QuizResultCardBody({
+    required this.result,
+    required this.scoreLabel,
+    required this.imageUrl,
+    required this.bodyReveal,
+  });
+
+  final NewsQuizResult result;
+  final String scoreLabel;
+  final String imageUrl;
+  final double bodyReveal;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(_quizCornerRadius),
+        border: Border.all(
+          color: AppColors.deepOcean.withValues(alpha: 0.18),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(9),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (imageUrl.isNotEmpty) ...[
-                _QuizResultImage(imageUrl: imageUrl),
-                const SizedBox(height: 11),
-              ],
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 4,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: AppColors.actionRed,
-                      borderRadius: BorderRadius.circular(_quizCornerRadius),
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepOcean.withValues(alpha: 0.1),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: AppColors.shadow.withValues(alpha: 0.85),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const ColoredBox(
+            color: AppColors.deepOcean,
+            child: SizedBox(height: 3),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (imageUrl.isNotEmpty) ...[
+                  _QuizResultImage(imageUrl: imageUrl),
+                  const SizedBox(height: 12),
+                ],
+                Opacity(
+                  opacity: bodyReveal.clamp(0, 1).toDouble(),
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - bodyReveal) * 12),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColors.deepOcean,
+                                borderRadius: BorderRadius.circular(
+                                  _quizCornerRadius,
+                                ),
+                              ),
+                              child: const Icon(
+                                Symbols.verified,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 result.title,
@@ -1364,7 +1551,7 @@ class _QuizResultCard extends StatelessWidget {
                                   color: AppColors.inkStrong,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
-                                  height: 1.08,
+                                  height: 1.12,
                                   letterSpacing: 0,
                                 ),
                               ),
@@ -1379,27 +1566,28 @@ class _QuizResultCard extends StatelessWidget {
                           ],
                         ),
                         if (result.description.trim().isNotEmpty) ...[
-                          const SizedBox(height: 7),
+                          const SizedBox(height: 10),
                           Text(
                             result.description,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.inkSoft,
-                              fontSize: 13.2,
+                            style: const TextStyle(
+                              fontFamily: 'Newsreader',
+                              color: AppColors.ink,
+                              fontSize: 17,
                               fontStyle: FontStyle.italic,
-                              fontWeight: FontWeight.w700,
-                              height: 1.38,
-                              letterSpacing: 0,
+                              fontWeight: FontWeight.w400,
+                              height: 1.52,
+                              letterSpacing: 0.1,
                             ),
                           ),
                         ],
                       ],
                     ),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1411,7 +1599,7 @@ class _QuizEmptyResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 11, 10, 12),
+      padding: const EdgeInsets.fromLTRB(11, 11, 11, 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceSoft,
         borderRadius: BorderRadius.circular(_quizCornerRadius),
@@ -1440,20 +1628,36 @@ class _QuizExplanation extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(9, 7, 9, 8),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.86),
+        color: AppColors.surface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(_quizCornerRadius),
         border: Border.all(color: AppColors.softLine),
       ),
-      child: Text(
-        text,
-        style: AppTypography.bodySmall.copyWith(
-          color: AppColors.inkSoft,
-          fontSize: 11.6,
-          fontWeight: FontWeight.w600,
-          height: 1.35,
-          letterSpacing: 0,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 2.5,
+              color: AppColors.deepOcean.withValues(alpha: 0.3),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 7, 9, 8),
+                child: Text(
+                  text,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.inkSoft,
+                    fontSize: 11.6,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1461,10 +1665,15 @@ class _QuizExplanation extends StatelessWidget {
 }
 
 class _QuizTinyPill extends StatelessWidget {
-  const _QuizTinyPill({required this.text, this.tone = _QuizPillTone.warm});
+  const _QuizTinyPill({
+    required this.text,
+    this.tone = _QuizPillTone.warm,
+    this.dot = false,
+  });
 
   final String text;
   final _QuizPillTone tone;
+  final bool dot;
 
   @override
   Widget build(BuildContext context) {
@@ -1478,16 +1687,30 @@ class _QuizTinyPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(_quizCornerRadius),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
-      child: Text(
-        text,
-        style: AppTypography.meta.copyWith(
-          color: color,
-          fontSize: 10.2,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          letterSpacing: 0,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot) ...[
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            text,
+            style: AppTypography.meta.copyWith(
+              color: color,
+              fontSize: 10.2,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1674,12 +1897,12 @@ class _QuizAnswerVisual extends StatelessWidget {
   const _QuizAnswerVisual({
     required this.imageUrl,
     required this.index,
-    required this.selected,
+    required this.state,
   });
 
   final String imageUrl;
   final int index;
-  final bool selected;
+  final _QuizAnswerState state;
 
   @override
   Widget build(BuildContext context) {
@@ -1689,7 +1912,7 @@ class _QuizAnswerVisual extends StatelessWidget {
         Positioned(
           top: 5,
           left: 5,
-          child: _QuizAnswerImageBadge(index: index, selected: selected),
+          child: _QuizAnswerImageBadge(index: index, state: state),
         ),
       ],
     );
@@ -1697,23 +1920,28 @@ class _QuizAnswerVisual extends StatelessWidget {
 }
 
 class _QuizAnswerImageBadge extends StatelessWidget {
-  const _QuizAnswerImageBadge({required this.index, required this.selected});
+  const _QuizAnswerImageBadge({required this.index, required this.state});
 
   final int index;
-  final bool selected;
+  final _QuizAnswerState state;
 
   @override
   Widget build(BuildContext context) {
     final letter = String.fromCharCode(65 + (index % 26));
+    final background = switch (state) {
+      _QuizAnswerState.correct => _correctGreen.withValues(alpha: 0.94),
+      _QuizAnswerState.wrong => _wrongWarm.withValues(alpha: 0.94),
+      _QuizAnswerState.selected =>
+        AppColors.actionRed.withValues(alpha: 0.94),
+      _ => Colors.black.withValues(alpha: 0.78),
+    };
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       width: 23,
       height: 23,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: selected
-            ? AppColors.actionRed.withValues(alpha: 0.94)
-            : Colors.black.withValues(alpha: 0.78),
+        color: background,
         borderRadius: BorderRadius.circular(_quizCornerRadius),
         border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
         boxShadow: [
@@ -1724,16 +1952,28 @@ class _QuizAnswerImageBadge extends StatelessWidget {
           ),
         ],
       ),
-      child: Text(
-        letter,
-        style: AppTypography.meta.copyWith(
+      child: switch (state) {
+        _QuizAnswerState.correct => const Icon(
+          Symbols.check_rounded,
+          size: 13,
           color: Colors.white,
-          fontSize: 10.2,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          letterSpacing: 0,
         ),
-      ),
+        _QuizAnswerState.wrong => const Icon(
+          Symbols.close_rounded,
+          size: 13,
+          color: Colors.white,
+        ),
+        _ => Text(
+          letter,
+          style: AppTypography.meta.copyWith(
+            color: Colors.white,
+            fontSize: 10.2,
+            fontWeight: FontWeight.w900,
+            height: 1,
+            letterSpacing: 0,
+          ),
+        ),
+      },
     );
   }
 }

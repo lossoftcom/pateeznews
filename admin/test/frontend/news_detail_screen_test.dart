@@ -8,6 +8,7 @@ import 'package:pateeznews_admin/frontend/features/news_detail/presentation/news
 import 'package:pateeznews_admin/frontend/features/news_detail/presentation/widgets/detail_quiz.dart';
 import 'package:pateeznews_admin/frontend/features/news_detail/presentation/widgets/detail_reactions.dart';
 import 'package:pateeznews_admin/frontend/shared/widgets/cached_image.dart';
+import 'package:pateeznews_admin/frontend/shared/widgets/social_action.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -141,6 +142,62 @@ void main() {
             .getTopLeft(find.text('Sel sonrası bölgede çalışma yapan ekipler'))
             .dy,
       ),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('detail hero actions require auth like home card actions', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final actions = _RecordingDetailActionRepository();
+    var authRequiredCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NewsDetailScreen(
+          articles: [_detailArticle(detailItems: const [])],
+          initialIndex: 0,
+          postActionRepository: actions,
+          onAuthRequired: () => authRequiredCount++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(_heroAction('Beğen'));
+    await tester.pumpAndSettle();
+
+    expect(authRequiredCount, 1);
+    expect(actions.likeCalls, 0);
+    expect(find.text('Beğenmek için kayıt olmanız gerekiyor.'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+
+    await tester.tap(_heroAction('Beğenme'));
+    await tester.pumpAndSettle();
+
+    expect(authRequiredCount, 2);
+    expect(actions.dislikeCalls, 0);
+    expect(
+      find.text('Beğenmemek için kayıt olmanız gerekiyor.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(_heroAction('Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(authRequiredCount, 3);
+    expect(actions.saveCalls, 0);
+    expect(
+      find.text('Kaydetmek için kayıt olmanız gerekiyor.'),
+      findsOneWidget,
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -401,6 +458,225 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
   });
+
+  testWidgets('detail recipe renders timings ingredients nutrition and steps', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NewsDetailScreen(
+          articles: [
+            _detailArticle(
+              detailItems: const [
+                NewsDetailItem(
+                  id: 'recipe-1',
+                  type: 'recipe',
+                  title: 'Çamardı kahvaltı tarifi',
+                  description: 'Yerel malzemelerle sade tarif.',
+                  recipeData: NewsRecipeData(
+                    prepTime: '15 dakika',
+                    cookTime: '20 dakika',
+                    serving: '4 kişilik',
+                    difficulty: 'easy',
+                    ingredients: [
+                      NewsRecipeIngredient(text: '2 su bardağı un'),
+                      NewsRecipeIngredient(text: '1 yemek kaşığı tereyağı'),
+                    ],
+                    nutrition: [
+                      NewsRecipeNutrition(label: 'Protein', value: '12g'),
+                      NewsRecipeNutrition(label: 'Kalori', value: '280 kcal'),
+                    ],
+                    directions: [
+                      NewsRecipeDirection(
+                        id: 'step-1',
+                        title: 'Hamuru hazırla',
+                        content: 'Unu ve tereyağını yoğur.',
+                        imageUrl: 'https://example.invalid/step.jpg',
+                        imageDescription: 'Hamur hazırlığı',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+          initialIndex: 0,
+          postActionRepository: const _DetailPostActionRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Tarif').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Çamardı kahvaltı tarifi'), findsOneWidget);
+    expect(find.text('Yerel malzemelerle sade tarif.'), findsOneWidget);
+    expect(find.text('15 dakika'), findsOneWidget);
+    expect(find.text('20 dakika'), findsOneWidget);
+    expect(find.text('4 kişilik'), findsOneWidget);
+    expect(find.text('Kolay'), findsOneWidget);
+    expect(find.text('Malzemeler'), findsOneWidget);
+    expect(find.text('0/2'), findsOneWidget);
+
+    await tester.tap(find.text('2 su bardağı un'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.text('Besin Değerleri'), findsOneWidget);
+    expect(find.text('Protein'), findsOneWidget);
+    expect(find.text('12g'), findsOneWidget);
+    expect(find.text('Yapılış'), findsOneWidget);
+    expect(find.text('Hamuru hazırla'), findsOneWidget);
+    expect(find.text('Unu ve tereyağını yoğur.'), findsOneWidget);
+    expect(find.text('Hamur hazırlığı'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CachedImage &&
+            widget.url == 'https://example.invalid/step.jpg' &&
+            widget.fit == BoxFit.contain,
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'detail event renders schedule location registration and guests',
+    (tester) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NewsDetailScreen(
+            articles: [
+              _detailArticle(
+                category: 'Etkinlik',
+                detailItems: const [
+                  NewsDetailItem(
+                    id: 'event-1',
+                    type: 'event',
+                    title: 'Neon Waves Niğde Konseri',
+                    description:
+                        'Canlı sahne, ışık gösterisi ve kayıt bilgileri.',
+                    eventData: NewsEventData(
+                      startDateTime: '12.06.2026 20:30',
+                      endDateTime: '12.06.2026 23:30',
+                      organizer: 'Çamardı Belediyesi',
+                      venueName: 'Demirkazık Meydanı',
+                      address: 'Demirkazık Köyü, Çamardı / Niğde',
+                      latitude: '37.8486',
+                      longitude: '35.1092',
+                      registrationType: 'tickets',
+                      ticketUrl: 'https://example.com/bilet',
+                      ticketPrice: 'Ücretsiz kayıt',
+                      capacity: '500 kişi',
+                      scheduleTitle: 'Sahne Akışı',
+                      highlightsTitle: 'Etkinlik Notları',
+                      speakersTitle: 'Sahne Konukları',
+                      schedule: [
+                        NewsEventScheduleItem(
+                          id: 'slot-1',
+                          date: '12.06.2026',
+                          time: '20:30',
+                          title: 'Kapı Açılışı',
+                          description: 'Alan ve kayıt kontrolü başlar.',
+                          imageUrl: 'https://example.invalid/event.jpg',
+                          imageDescription: 'Konser alanı',
+                        ),
+                      ],
+                      highlights: [
+                        NewsEventHighlight(label: 'Yaş sınırı', value: '12+'),
+                      ],
+                      speakers: [
+                        NewsEventSpeaker(
+                          id: 'guest-1',
+                          name: 'Neon Waves',
+                          role: 'Ana sahne',
+                          bio: 'Canlı performans ekibi.',
+                          imageUrl: 'https://example.invalid/singer.jpg',
+                          imageDescription: 'Sahne konuğu',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            initialIndex: 0,
+            postActionRepository: const _DetailPostActionRepository(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Etkinlik').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Neon Waves Niğde Konseri'), findsOneWidget);
+      expect(
+        find.text('Canlı sahne, ışık gösterisi ve kayıt bilgileri.'),
+        findsOneWidget,
+      );
+      expect(find.text('12.06.2026 20:30'), findsOneWidget);
+      expect(find.text('12.06.2026 23:30'), findsOneWidget);
+      expect(find.text('Çamardı Belediyesi'), findsOneWidget);
+      expect(find.text('500 kişi'), findsOneWidget);
+      expect(find.text('Biletli etkinlik'), findsOneWidget);
+      expect(find.text('Ücretsiz kayıt'), findsOneWidget);
+      expect(find.text('Mekan'), findsOneWidget);
+      expect(find.text('Demirkazık Meydanı'), findsOneWidget);
+      expect(find.text('Demirkazık Köyü, Çamardı / Niğde'), findsOneWidget);
+      expect(find.text('37.8486, 35.1092'), findsOneWidget);
+      expect(find.text('Sahne Akışı'), findsOneWidget);
+      expect(find.text('Kapı Açılışı'), findsOneWidget);
+      expect(find.text('Alan ve kayıt kontrolü başlar.'), findsOneWidget);
+      expect(find.text('Konser alanı'), findsOneWidget);
+      expect(find.text('Etkinlik Notları'), findsOneWidget);
+      expect(
+        find.textContaining('Yaş sınırı: 12+', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.text('Sahne Konukları'), findsOneWidget);
+      expect(find.text('Neon Waves'), findsOneWidget);
+      expect(find.text('Ana sahne'), findsOneWidget);
+      expect(find.text('Canlı performans ekibi.'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is CachedImage &&
+              widget.url == 'https://example.invalid/event.jpg' &&
+              widget.fit == BoxFit.contain,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is CachedImage &&
+              widget.url == 'https://example.invalid/singer.jpg' &&
+              widget.fit == BoxFit.contain,
+        ),
+        findsOneWidget,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
 
   testWidgets('detail quiz reveals answers after tap and result last', (
     tester,
@@ -839,6 +1115,15 @@ Finder _cachedQuizImage(String url) {
   );
 }
 
+Finder _heroAction(String semanticLabel) {
+  return find
+      .byWidgetPredicate(
+        (widget) =>
+            widget is SocialAction && widget.semanticLabel == semanticLabel,
+      )
+      .first;
+}
+
 NewsArticle _detailArticle({
   required List<NewsDetailItem> detailItems,
   String category = 'Gündem',
@@ -903,6 +1188,39 @@ class _RecordingPostActionRepository extends _DetailPostActionRepository {
     String source = 'read',
   }) {
     recordedSources.add(source);
+    return fetchState(postId: postId, token: token);
+  }
+}
+
+class _RecordingDetailActionRepository extends _DetailPostActionRepository {
+  int likeCalls = 0;
+  int dislikeCalls = 0;
+  int saveCalls = 0;
+
+  @override
+  Future<PostActionState> toggleLike({
+    required String postId,
+    required String token,
+  }) {
+    likeCalls++;
+    return fetchState(postId: postId, token: token);
+  }
+
+  @override
+  Future<PostActionState> toggleDislike({
+    required String postId,
+    required String token,
+  }) {
+    dislikeCalls++;
+    return fetchState(postId: postId, token: token);
+  }
+
+  @override
+  Future<PostActionState> toggleSave({
+    required String postId,
+    required String token,
+  }) {
+    saveCalls++;
     return fetchState(postId: postId, token: token);
   }
 }

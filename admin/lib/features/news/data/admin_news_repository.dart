@@ -342,6 +342,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       values.putIfAbsent('likes_count', () => 0);
       values.putIfAbsent('shares_count', () => 0);
       values.putIfAbsent('comments_count', () => 0);
+      values.putIfAbsent('views_count', () => 0);
     }
 
     final result = await _postJson('/api/admin/query', {
@@ -389,7 +390,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       slug: json['slug']?.toString() ?? '',
       createdAt: _parseDate(json['created_at']),
       thumbnailUrl: json['thumbnail_url']?.toString() ?? '',
-      likesCount: _asInt(json['likes_count']),
+      viewsCount: _asInt(json['views_count'] ?? json['likes_count']),
       commentsCount: _asInt(json['comments_count']),
       languageCode: json['language_code']?.toString() ?? 'tr',
       isPinned: json['is_pinned'] == true,
@@ -399,7 +400,24 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       publisherEmail: _decodeText(profile['email']),
       categoryPath: _stringList(json['category_path'] ?? json['categoryPath']),
       parentCategory: _decodeText(json['parent_category']),
+      videos: _videoSummaries(json['video_summaries']),
     );
+  }
+
+  List<AdminNewsVideo> _videoSummaries(Object? data) {
+    if (data is! List) return const [];
+    return [
+      for (final item in data)
+        if (item is Map)
+          AdminNewsVideo(
+            id: item['id']?.toString() ?? '',
+            title: _decodeText(item['title']),
+            url: item['url']?.toString() ?? '',
+            thumbnailUrl: item['thumbnail_url']?.toString() ?? '',
+            sizeLabel: item['size_label']?.toString() ?? '-',
+            viewsCount: _asInt(item['views_count']),
+          ),
+    ];
   }
 
   Future<Map<String, dynamic>> _postJson(

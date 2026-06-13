@@ -10,7 +10,10 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/frontend_toast.dart';
+import '../../account/data/frontend_auth_repository.dart';
+import '../../home/data/home_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
+import '../../shell/data/app_shell_repository.dart';
 import '../data/profile_content.dart';
 import '../data/profile_repository.dart';
 import 'edit_profile_screen.dart';
@@ -40,7 +43,14 @@ class ProfileScreen extends StatefulWidget {
     this.targetUserId = '',
     this.targetUsername = '',
     this.repository = const ProfileRepository(),
+    this.shellSettings = const AppShellSettings.empty(),
+    this.navigationItems = const [],
+    this.contentSettings = const HomeContentSettings.defaults(),
+    this.homeFeedItems = const [],
+    this.authState,
     this.onAuthRequired,
+    this.onAuthorTap,
+    this.onFullscreenVideoExit,
     this.onProfileUpdated,
     this.onReturnHome,
   });
@@ -50,7 +60,14 @@ class ProfileScreen extends StatefulWidget {
   final String targetUserId;
   final String targetUsername;
   final ProfileRepository repository;
+  final AppShellSettings shellSettings;
+  final List<AppShellNavigationItem> navigationItems;
+  final HomeContentSettings contentSettings;
+  final List<NewsArticle> homeFeedItems;
+  final FrontendAuthState? authState;
   final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onFullscreenVideoExit;
   final ValueChanged<ProfileSaveResult>? onProfileUpdated;
   final VoidCallback? onReturnHome;
 
@@ -107,7 +124,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         pageBuilder: (_, _, _) => NewsDetailScreen(
           articles: posts,
           initialIndex: index,
+          shellSettings: widget.shellSettings,
+          navigationItems: widget.navigationItems,
+          contentSettings: widget.contentSettings,
+          videoFeedArticles: widget.homeFeedItems,
+          authState: widget.authState,
           onAuthRequired: widget.onAuthRequired,
+          onAuthorTap: widget.onAuthorTap,
+          onFullscreenVideoExit: widget.onFullscreenVideoExit,
         ),
         transitionsBuilder: (context, animation, secondary, child) {
           final fade = CurvedAnimation(

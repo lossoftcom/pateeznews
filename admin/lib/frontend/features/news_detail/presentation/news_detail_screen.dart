@@ -15,6 +15,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/services/article_share_service.dart';
 import '../../../shared/services/frontend_link_launcher.dart';
 import '../../../shared/widgets/cached_image.dart';
+import '../../../shared/widgets/frontend_toast.dart';
 import '../../../shared/widgets/social_action.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../home/data/home_repository.dart';
@@ -23,10 +24,12 @@ import '../../home/presentation/widgets/news_card.dart';
 import '../../home/presentation/widgets/social_embed_stage.dart';
 import '../../shell/data/app_shell_repository.dart';
 import 'widgets/detail_app_bar.dart';
+import 'widgets/detail_event.dart';
 import 'widgets/detail_floating_dock.dart';
 import 'widgets/detail_lede.dart';
 import 'widgets/detail_poll.dart';
 import 'widgets/detail_quiz.dart';
+import 'widgets/detail_recipe.dart';
 import 'widgets/detail_reactions.dart';
 import 'widgets/detail_toc.dart';
 
@@ -216,22 +219,10 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     return ((scrollOffset - start) / (end - start)).clamp(0.0, 1.0);
   }
 
-  void _showMessage(String text) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.deepOcean,
-          margin: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(4)),
-          ),
-        ),
-      );
-  }
+  void _showMessage(
+    String text, {
+    FrontendToastTone tone = FrontendToastTone.success,
+  }) => FrontendToast.show(context, message: text, tone: tone);
 
   _DetailActionState _actionStateFor(NewsArticle article) {
     return _detailActionStates[article.id] ??
@@ -245,7 +236,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
 
   bool _requireSignedIn(String message) {
     if (_authToken.isNotEmpty) return true;
-    _showMessage(message);
+    _showMessage(message, tone: FrontendToastTone.error);
     widget.onAuthRequired?.call();
     return false;
   }
@@ -315,11 +306,11 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     } on PostActionException catch (error) {
       if (!mounted) return;
       setState(() => _detailActionStates[article.id] = previous);
-      _showMessage(error.message);
+      _showMessage(error.message, tone: FrontendToastTone.error);
     } catch (_) {
       if (!mounted) return;
       setState(() => _detailActionStates[article.id] = previous);
-      _showMessage(fallbackMessage);
+      _showMessage(fallbackMessage, tone: FrontendToastTone.error);
     } finally {
       if (mounted) setState(() => _detailActionBusy = false);
     }
@@ -338,7 +329,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     );
     if (!mounted) return;
     if (!opened) {
-      _showMessage('Paylaşım açılamadı.');
+      _showMessage('Paylaşım açılamadı.', tone: FrontendToastTone.error);
       return;
     }
 
@@ -394,11 +385,13 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
               onAuthRequired: widget.onAuthRequired,
               onAuthorTap: widget.onAuthorTap,
               onFullscreenVideoExit: widget.onFullscreenVideoExit,
-              onLike: () => _showMessage('Beğenildi.'),
+              actionStateFor: _actionStateFor,
+              onLike: (article) => unawaited(_toggleDetailLike(article)),
+              onDislike: (article) => unawaited(_toggleDetailDislike(article)),
               onComment: () =>
                   _showMessage('Yorumlar bölümüne yönlendiriliyor.'),
               onShare: (article) => unawaited(_shareDetailArticle(article)),
-              onSave: () => _showMessage('Haber kaydedildi.'),
+              onSave: (article) => unawaited(_toggleDetailSave(article)),
               onFollow: () => _showMessage('Yazar takip ediliyor.'),
             ),
             Positioned(
@@ -618,7 +611,9 @@ class _DetailContent extends StatelessWidget {
     required this.onAuthRequired,
     required this.onAuthorTap,
     required this.onFullscreenVideoExit,
+    required this.actionStateFor,
     required this.onLike,
+    required this.onDislike,
     required this.onComment,
     required this.onShare,
     required this.onSave,
@@ -637,10 +632,12 @@ class _DetailContent extends StatelessWidget {
   final VoidCallback? onAuthRequired;
   final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
-  final VoidCallback onLike;
+  final _DetailActionState Function(NewsArticle article) actionStateFor;
+  final ValueChanged<NewsArticle> onLike;
+  final ValueChanged<NewsArticle> onDislike;
   final VoidCallback onComment;
   final ValueChanged<NewsArticle> onShare;
-  final VoidCallback onSave;
+  final ValueChanged<NewsArticle> onSave;
   final VoidCallback onFollow;
 
   @override
@@ -674,7 +671,9 @@ class _DetailContent extends StatelessWidget {
               onAuthRequired: onAuthRequired,
               onAuthorTap: onAuthorTap,
               onFullscreenVideoExit: onFullscreenVideoExit,
+              actionStateFor: actionStateFor,
               onLike: onLike,
+              onDislike: onDislike,
               onComment: onComment,
               onShare: onShare,
               onSave: onSave,
@@ -702,7 +701,9 @@ class _DetailArticleSection extends StatelessWidget {
     required this.onAuthRequired,
     required this.onAuthorTap,
     required this.onFullscreenVideoExit,
+    required this.actionStateFor,
     required this.onLike,
+    required this.onDislike,
     required this.onComment,
     required this.onShare,
     required this.onSave,
@@ -722,10 +723,12 @@ class _DetailArticleSection extends StatelessWidget {
   final VoidCallback? onAuthRequired;
   final ValueChanged<NewsAuthor>? onAuthorTap;
   final VoidCallback? onFullscreenVideoExit;
-  final VoidCallback onLike;
+  final _DetailActionState Function(NewsArticle article) actionStateFor;
+  final ValueChanged<NewsArticle> onLike;
+  final ValueChanged<NewsArticle> onDislike;
   final VoidCallback onComment;
   final ValueChanged<NewsArticle> onShare;
-  final VoidCallback onSave;
+  final ValueChanged<NewsArticle> onSave;
   final VoidCallback onFollow;
 
   @override
@@ -737,9 +740,11 @@ class _DetailArticleSection extends StatelessWidget {
         _DetailHero(
           article: article,
           isFirst: isFirst,
-          onLike: onLike,
+          actionState: actionStateFor(article),
+          onLike: () => onLike(article),
+          onDislike: () => onDislike(article),
           onComment: onComment,
-          onSave: onSave,
+          onSave: () => onSave(article),
           onShare: () => onShare(article),
         ),
         DetailLede(
@@ -815,7 +820,9 @@ class _DetailHero extends StatefulWidget {
   const _DetailHero({
     required this.article,
     required this.isFirst,
+    required this.actionState,
     required this.onLike,
+    required this.onDislike,
     required this.onComment,
     required this.onSave,
     required this.onShare,
@@ -823,7 +830,9 @@ class _DetailHero extends StatefulWidget {
 
   final NewsArticle article;
   final bool isFirst;
+  final _DetailActionState actionState;
   final VoidCallback onLike;
+  final VoidCallback onDislike;
   final VoidCallback onComment;
   final VoidCallback onSave;
   final VoidCallback onShare;
@@ -934,7 +943,9 @@ class _DetailHeroState extends State<_DetailHero> {
                 bottom: AppSpacing.sm,
                 child: _HeroOverlay(
                   article: widget.article,
+                  actionState: widget.actionState,
                   onLike: widget.onLike,
+                  onDislike: widget.onDislike,
                   onComment: widget.onComment,
                   onSave: widget.onSave,
                   onShare: widget.onShare,
@@ -975,69 +986,27 @@ class _HeroImage extends StatelessWidget {
   }
 }
 
-class _HeroOverlay extends StatefulWidget {
+class _HeroOverlay extends StatelessWidget {
   const _HeroOverlay({
     required this.article,
+    required this.actionState,
     required this.onLike,
+    required this.onDislike,
     required this.onComment,
     required this.onSave,
     required this.onShare,
   });
 
   final NewsArticle article;
+  final _DetailActionState actionState;
   final VoidCallback onLike;
+  final VoidCallback onDislike;
   final VoidCallback onComment;
   final VoidCallback onSave;
   final VoidCallback onShare;
 
   @override
-  State<_HeroOverlay> createState() => _HeroOverlayState();
-}
-
-class _HeroOverlayState extends State<_HeroOverlay> {
-  late bool _liked = widget.article.userLiked;
-  late bool _disliked = widget.article.userDisliked;
-  late bool _saved = widget.article.userSaved;
-
-  void _toggleLike() {
-    setState(() {
-      if (_liked) {
-        _liked = false;
-      } else {
-        _disliked = false;
-        _liked = true;
-      }
-    });
-    if (_liked) widget.onLike();
-  }
-
-  void _toggleDislike() {
-    setState(() {
-      if (_disliked) {
-        _disliked = false;
-      } else {
-        _liked = false;
-        _disliked = true;
-      }
-    });
-  }
-
-  void _toggleSave() {
-    setState(() => _saved = !_saved);
-    if (_saved) widget.onSave();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final article = widget.article;
-    final likes =
-        article.likes +
-        (_liked && !article.userLiked ? 1 : 0) -
-        (!_liked && article.userLiked ? 1 : 0);
-    final dislikes =
-        article.dislikes +
-        (_disliked && !article.userDisliked ? 1 : 0) -
-        (!_disliked && article.userDisliked ? 1 : 0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1048,25 +1017,25 @@ class _HeroOverlayState extends State<_HeroOverlay> {
             children: [
               SocialAction(
                 glyph: PateezSocialGlyph.sparkUp,
-                isActive: _liked,
+                isActive: actionState.liked,
                 activeColor: AppColors.deepOcean,
                 inactiveColor: Colors.white,
                 semanticLabel: 'Beğen',
                 iconSize: 21,
-                count: likes,
+                count: actionState.likes,
                 countFontSize: 11,
-                onTap: _toggleLike,
+                onTap: onLike,
               ),
               SocialAction(
                 glyph: PateezSocialGlyph.sparkDown,
-                isActive: _disliked,
+                isActive: actionState.disliked,
                 activeColor: AppColors.actionRed,
                 inactiveColor: Colors.white,
                 semanticLabel: 'Beğenme',
                 iconSize: 21,
-                count: dislikes,
+                count: actionState.dislikes,
                 countFontSize: 11,
-                onTap: _toggleDislike,
+                onTap: onDislike,
               ),
               SocialAction(
                 glyph: PateezSocialGlyph.conversation,
@@ -1077,7 +1046,7 @@ class _HeroOverlayState extends State<_HeroOverlay> {
                 iconSize: 24,
                 count: article.comments,
                 countFontSize: 11,
-                onTap: widget.onComment,
+                onTap: onComment,
               ),
               SocialAction(
                 glyph: PateezSocialGlyph.forwardShare,
@@ -1086,19 +1055,19 @@ class _HeroOverlayState extends State<_HeroOverlay> {
                 inactiveColor: Colors.white,
                 semanticLabel: 'Paylaş',
                 iconSize: 24,
-                count: article.shares,
+                count: actionState.shares,
                 countFontSize: 11,
-                onTap: widget.onShare,
+                onTap: onShare,
               ),
               const Spacer(),
               SocialAction(
                 glyph: PateezSocialGlyph.ribbon,
-                isActive: _saved,
+                isActive: actionState.saved,
                 activeColor: AppColors.warmHorizon,
                 inactiveColor: Colors.white,
                 semanticLabel: 'Kaydet',
                 iconSize: 26,
-                onTap: _toggleSave,
+                onTap: onSave,
               ),
             ],
           ),
@@ -1600,6 +1569,28 @@ class _DetailItemBlock extends StatelessWidget {
       return _DetailTextInset(
         child: DetailTocBlock(
           data: tocData,
+          title: _nonDuplicateItemText(item.title, article.title),
+          description: _nonDuplicateItemText(item.description, article.summary),
+        ),
+      );
+    }
+
+    final recipeData = item.recipeData;
+    if (recipeData != null && recipeData.isValid) {
+      return _DetailTextInset(
+        child: DetailRecipeBlock(
+          data: recipeData,
+          title: _nonDuplicateItemText(item.title, article.title),
+          description: _nonDuplicateItemText(item.description, article.summary),
+        ),
+      );
+    }
+
+    final eventData = item.eventData;
+    if (eventData != null && eventData.isValid) {
+      return _DetailTextInset(
+        child: DetailEventBlock(
+          data: eventData,
           title: _nonDuplicateItemText(item.title, article.title),
           description: _nonDuplicateItemText(item.description, article.summary),
         ),

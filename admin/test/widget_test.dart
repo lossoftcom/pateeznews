@@ -982,7 +982,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       slug: 'nigde-ruhun-yuzde-kac',
       createdAt: DateTime.utc(2026, 5, 1, 14, 33),
       thumbnailUrl: '',
-      likesCount: 0,
+      viewsCount: 0,
       commentsCount: 0,
       languageCode: 'tr',
       isPinned: true,
@@ -991,6 +991,17 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       publisherUsername: 'nasip',
       publisherEmail: 'demo.user@gmail.com',
       parentCategory: 'Niğde',
+      videos: const [
+        AdminNewsVideo(
+          id: 'video-1',
+          title: 'Festival videosu',
+          url: '/api/storage/file/video/2026-05-25/festival.mp4',
+          thumbnailUrl:
+              '/api/storage/file/video/2026-05-25/festival_thumb.webp',
+          sizeLabel: '-',
+          viewsCount: 3,
+        ),
+      ],
     ),
     AdminNewsPost(
       id: '27',
@@ -1002,7 +1013,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       slug: 'nigde-belediyesi-tiyatro-festivali',
       createdAt: DateTime.utc(2026, 5, 1, 15, 33),
       thumbnailUrl: '',
-      likesCount: 4,
+      viewsCount: 4,
       commentsCount: 2,
       languageCode: 'tr',
       isPinned: false,
@@ -1207,7 +1218,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
     return AdminNewsMetricData(
       total: _posts.length,
       published: _posts.where((post) => post.published).length,
-      views: _posts.fold<int>(0, (sum, post) => sum + post.likesCount),
+      views: _posts.fold<int>(0, (sum, post) => sum + post.viewsCount),
       scheduled: 0,
     );
   }
@@ -1259,7 +1270,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
         'status' => a.status.compareTo(b.status),
         'language' => a.languageCode.compareTo(b.languageCode),
         'author' => a.publisherName.compareTo(b.publisherName),
-        'views' => a.likesCount.compareTo(b.likesCount),
+        'views' => a.viewsCount.compareTo(b.viewsCount),
         'comments' => a.commentsCount.compareTo(b.commentsCount),
         'date' =>
           (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
@@ -1323,7 +1334,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       slug: post.slug,
       createdAt: post.createdAt,
       thumbnailUrl: post.thumbnailUrl,
-      likesCount: post.likesCount,
+      viewsCount: post.viewsCount,
       commentsCount: post.commentsCount,
       languageCode: post.languageCode,
       isPinned: isPinned ?? post.isPinned,
@@ -1332,6 +1343,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       publisherUsername: post.publisherUsername,
       publisherEmail: post.publisherEmail,
       parentCategory: post.parentCategory,
+      videos: post.videos,
     );
   }
 }
@@ -3904,7 +3916,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Haberler'), findsWidgets);
-    expect(find.text('İzlenme'), findsWidgets);
+    expect(find.text('Okunma'), findsWidgets);
     expect(find.text('Dil'), findsWidgets);
     expect(find.text('Kategori'), findsWidgets);
     expect(find.text('Tür'), findsOneWidget);
@@ -3914,6 +3926,12 @@ void main() {
     expect(find.text('Durum'), findsWidgets);
     expect(find.text('Ekleyen'), findsOneWidget);
     expect(find.text('Yorum'), findsOneWidget);
+    expect(find.text('Video içerikleri'), findsNothing);
+    await tester.tap(find.byTooltip('Video detaylarını aç').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Video içerikleri'), findsOneWidget);
+    expect(find.text('Festival videosu'), findsOneWidget);
+    expect(find.text('3'), findsWidgets);
     expect(
       find.text(
         'Niğde Ruhun Yüzde Kaç? Patates, Gazoz ve Şöyle Bi Merkeze İneyim Enerjini Ölçüyoruz!',

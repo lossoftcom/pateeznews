@@ -1,14 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
+import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/cached_image.dart';
 import '../../../shared/widgets/feature_app_bar.dart';
+import '../../account/data/frontend_auth_repository.dart';
+import '../../home/data/home_repository.dart';
+import '../../home/data/post_action_repository.dart';
+import '../../news_detail/presentation/news_detail_screen.dart';
+import '../../shell/data/app_shell_repository.dart';
 import '../data/etkinlik_mock.dart';
 import '../data/etkinlik_repository.dart';
 
@@ -27,11 +35,29 @@ class EtkinlikScreen extends StatefulWidget {
     super.key,
     this.events,
     this.repository = const EtkinlikRepository(),
+    this.shellSettings = const AppShellSettings.empty(),
+    this.navigationItems = const [],
+    this.contentSettings = const HomeContentSettings.defaults(),
+    this.homeFeedItems = const [],
+    this.authState,
+    this.postActionRepository = const PostActionRepository(),
+    this.onAuthRequired,
+    this.onAuthorTap,
+    this.onFullscreenVideoExit,
     this.onSearch,
   });
 
   final List<EtkinlikEvent>? events;
   final EtkinlikRepository repository;
+  final AppShellSettings shellSettings;
+  final List<AppShellNavigationItem> navigationItems;
+  final HomeContentSettings contentSettings;
+  final List<NewsArticle> homeFeedItems;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onFullscreenVideoExit;
   final VoidCallback? onSearch;
 
   @override
@@ -75,6 +101,61 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
       _events = events;
       _loading = false;
     });
+  }
+
+  void _openEventDetail(EtkinlikEvent event) {
+    final article = event.article;
+    if (article == null) return;
+    unawaited(_recordEventOpen(article));
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
+        pageBuilder: (_, _, _) => NewsDetailScreen(
+          articles: [article],
+          initialIndex: 0,
+          shellSettings: widget.shellSettings,
+          navigationItems: widget.navigationItems,
+          contentSettings: widget.contentSettings,
+          videoFeedArticles: widget.homeFeedItems.isEmpty
+              ? [article]
+              : widget.homeFeedItems,
+          authState: widget.authState,
+          postActionRepository: widget.postActionRepository,
+          onAuthRequired: widget.onAuthRequired,
+          onAuthorTap: widget.onAuthorTap,
+          onFullscreenVideoExit: widget.onFullscreenVideoExit,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _recordEventOpen(NewsArticle article) async {
+    if (int.tryParse(article.id) == null) return;
+    try {
+      final token = widget.authState?.session.accessToken.trim() ?? '';
+      await widget.postActionRepository.recordView(
+        postId: article.id,
+        token: token.isEmpty ? null : token,
+        source: 'open_detail',
+      );
+    } catch (_) {
+      // Detail açılışı engellenmemeli; NewsCard ile aynı tolerans korunur.
+    }
   }
 
   @override
@@ -149,7 +230,10 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
                         ),
                     if (featured != null) ...[
                       const SizedBox(height: AppSpacing.lg),
-                      _FeaturedEvent(event: featured)
+                      _FeaturedEvent(
+                            event: featured,
+                            onOpen: () => _openEventDetail(featured),
+                          )
                           .animate()
                           .fadeIn(
                             delay: 80.ms,
@@ -202,7 +286,10 @@ class _EtkinlikScreenState extends State<EtkinlikScreen> {
                       const SizedBox(height: AppSpacing.md),
                       for (var i = 0; i < rest.length; i++) ...[
                         if (i > 0) const SizedBox(height: AppSpacing.md),
-                        _EventCard(event: rest[i])
+                        _EventCard(
+                              event: rest[i],
+                              onOpen: () => _openEventDetail(rest[i]),
+                            )
                             .animate()
                             .fadeIn(
                               delay: (60 * (i + 1)).ms,
@@ -379,162 +466,167 @@ class _HeroBanner extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _FeaturedEvent extends StatelessWidget {
-  const _FeaturedEvent({required this.event});
+  const _FeaturedEvent({required this.event, required this.onOpen});
 
   final EtkinlikEvent event;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final color = event.color;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.32),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: DecoratedBox(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onOpen,
+      child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color.lerp(color, Colors.white, 0.16)!,
-              color,
-              Color.lerp(color, Colors.black, 0.34)!,
-            ],
-            stops: const [0, 0.55, 1],
-          ),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -38,
-              top: -44,
-              child: _SoftCircle(size: 150, opacity: 0.10),
-            ),
-            Positioned(
-              left: -30,
-              bottom: -50,
-              child: _SoftCircle(size: 120, opacity: 0.08),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      _PosterBadge(
-                        icon: event.icon,
-                        label: event.category.longLabel,
-                      ),
-                      const Spacer(),
-                      _CountdownChipLight(date: event.date),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(
-                        Symbols.sparkling_fill,
-                        size: 13,
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'EN YAKIN ETKİNLİK',
-                        style: AppTypography.eyebrow.copyWith(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    event.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.titleL.copyWith(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      height: 1.15,
-                    ),
-                  ),
-                  if (event.summary.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      event.summary,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: Colors.white.withValues(alpha: 0.88),
-                        fontSize: 13,
-                        height: 1.45,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  _PosterInfoLine(
-                    icon: Symbols.map_pin_line,
-                    text: event.venue,
-                  ),
-                  const SizedBox(height: 9),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PosterInfoLine(
-                          icon: Symbols.time_fill,
-                          text:
-                              '${event.weekday}, ${event.day} ${_trMonthFull[event.date.month - 1]} · ${event.time}',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _PosterPricePill(event: event),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: _FeaturedButton(
-                          icon: Symbols.navigation_fill,
-                          label: 'Yol Tarifi',
-                          filled: true,
-                          accent: color,
-                          // Aksiyon (harita) ileride bağlanacak.
-                          onTap: () {},
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: _FeaturedButton(
-                          icon: Symbols.calendar_event_line,
-                          label: 'Hatırlat',
-                          filled: false,
-                          accent: color,
-                          // Aksiyon (takvim/hatırlatma) ileride bağlanacak.
-                          onTap: () {},
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.32),
+              blurRadius: 24,
+              offset: const Offset(0, 14),
             ),
           ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(color, Colors.white, 0.16)!,
+                color,
+                Color.lerp(color, Colors.black, 0.34)!,
+              ],
+              stops: const [0, 0.55, 1],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -38,
+                top: -44,
+                child: _SoftCircle(size: 150, opacity: 0.10),
+              ),
+              Positioned(
+                left: -30,
+                bottom: -50,
+                child: _SoftCircle(size: 120, opacity: 0.08),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _PosterBadge(
+                          icon: event.icon,
+                          label: event.category.longLabel,
+                        ),
+                        const Spacer(),
+                        _CountdownChipLight(date: event.date),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(
+                          Symbols.sparkling_fill,
+                          size: 13,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'EN YAKIN ETKİNLİK',
+                          style: AppTypography.eyebrow.copyWith(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      event.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleL.copyWith(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (event.summary.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        event.summary,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          fontSize: 13,
+                          height: 1.45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    _PosterInfoLine(
+                      icon: Symbols.map_pin_line,
+                      text: event.venue,
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PosterInfoLine(
+                            icon: Symbols.time_fill,
+                            text:
+                                '${event.weekday}, ${event.day} ${_trMonthFull[event.date.month - 1]} · ${event.time}',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        _PosterPricePill(event: event),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: _FeaturedButton(
+                            icon: Symbols.navigation_fill,
+                            label: 'Yol Tarifi',
+                            filled: true,
+                            accent: color,
+                            // Aksiyon (harita) ileride bağlanacak.
+                            onTap: () {},
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: _FeaturedButton(
+                            icon: Symbols.calendar_event_line,
+                            label: 'Hatırlat',
+                            filled: false,
+                            accent: color,
+                            // Aksiyon (takvim/hatırlatma) ileride bağlanacak.
+                            onTap: () {},
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1342,9 +1434,10 @@ class _SectionHeader extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _EventCard extends StatelessWidget {
-  const _EventCard({required this.event});
+  const _EventCard({required this.event, required this.onOpen});
 
   final EtkinlikEvent event;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -1365,8 +1458,7 @@ class _EventCard extends StatelessWidget {
       child: Material(
         color: AppColors.surface,
         child: InkWell(
-          // Detay/harita ileride bağlanacak.
-          onTap: () {},
+          onTap: onOpen,
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,

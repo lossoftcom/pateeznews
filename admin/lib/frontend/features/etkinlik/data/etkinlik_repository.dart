@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/network/local_api_base_url.dart';
+import '../../home/data/home_repository.dart';
 import 'etkinlik_mock.dart';
 
 class EtkinlikRepository {
@@ -84,6 +85,9 @@ EtkinlikEvent? _mapEvent(Map<dynamic, dynamic> json) {
     organizer: _str(json['organizer']),
     address: _str(json['address']),
     imageUrl: _str(json['imageUrl']),
+    article: json['article'] is Map
+        ? HomeRepository.mapArticle(json['article'] as Map)
+        : null,
   );
 }
 

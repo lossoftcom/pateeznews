@@ -55,7 +55,7 @@ class AdminNewsPost {
     required this.slug,
     required this.createdAt,
     required this.thumbnailUrl,
-    required this.likesCount,
+    required this.viewsCount,
     required this.commentsCount,
     required this.languageCode,
     required this.isPinned,
@@ -65,6 +65,7 @@ class AdminNewsPost {
     required this.publisherEmail,
     this.categoryPath = const [],
     this.parentCategory,
+    this.videos = const [],
   });
 
   final String id;
@@ -76,7 +77,7 @@ class AdminNewsPost {
   final String slug;
   final DateTime? createdAt;
   final String thumbnailUrl;
-  final int likesCount;
+  final int viewsCount;
   final int commentsCount;
   final String languageCode;
   final bool isPinned;
@@ -86,6 +87,7 @@ class AdminNewsPost {
   final String publisherEmail;
   final List<String> categoryPath;
   final String? parentCategory;
+  final List<AdminNewsVideo> videos;
 
   bool get published => status == 'published';
 
@@ -136,6 +138,32 @@ class AdminNewsPost {
     return '${date.hour.toString().padLeft(2, '0')}:'
         '${date.minute.toString().padLeft(2, '0')}';
   }
+}
+
+class AdminNewsVideo {
+  const AdminNewsVideo({
+    required this.id,
+    required this.title,
+    required this.url,
+    required this.thumbnailUrl,
+    required this.sizeLabel,
+    required this.viewsCount,
+  });
+
+  final String id;
+  final String title;
+  final String url;
+  final String thumbnailUrl;
+  final String sizeLabel;
+  final int viewsCount;
+
+  String get displayTitle {
+    final value = title.trim();
+    if (value.isNotEmpty) return value;
+    return 'Video';
+  }
+
+  String get displayUrl => url.trim();
 }
 
 class AdminNewsPageResult {

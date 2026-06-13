@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
+import '../../../core/mock/home_mock_data.dart';
+
 /// Etkinlik kategorileri. Her kategori bir renk + ikon ile temsil edilir; böylece
 /// az okuyan / zor anlayan kullanıcı bile bakar bakmaz türünü tanır (yeşil + top
 /// = spor, mor + mikrofon = konser ...). Backend bağlanınca aynı modele yazılır.
@@ -115,6 +117,7 @@ class EtkinlikEvent {
     this.organizer = '',
     this.address = '',
     this.imageUrl = '',
+    this.article,
   });
 
   final DateTime date;
@@ -133,6 +136,7 @@ class EtkinlikEvent {
   /// Etkinlik afişi/görseli. Boşsa kategori renginde ikon poster gösterilir
   /// (Duyurular kartındaki ile aynı dil). Backend bağlanınca otomatik dolar.
   final String imageUrl;
+  final NewsArticle? article;
 
   // --- today_screen ile uyumluluk için korunan türetilmiş alanlar ---
   String get day => date.day.toString();

@@ -322,6 +322,8 @@ class NewsDetailItem {
     this.pollData,
     this.quizData,
     this.tocData,
+    this.recipeData,
+    this.eventData,
     this.vsData,
     this.quoteData,
   });
@@ -342,6 +344,8 @@ class NewsDetailItem {
   final NewsPollData? pollData;
   final NewsQuizData? quizData;
   final NewsTocData? tocData;
+  final NewsRecipeData? recipeData;
+  final NewsEventData? eventData;
   final NewsVsData? vsData;
   final NewsQuoteData? quoteData;
 }
@@ -672,6 +676,189 @@ class NewsTocItem {
       title.trim().isNotEmpty ||
       imageUrl.trim().isNotEmpty ||
       content.trim().isNotEmpty;
+}
+
+class NewsRecipeData {
+  const NewsRecipeData({
+    required this.ingredients,
+    required this.nutrition,
+    required this.directions,
+    this.prepTime = '',
+    this.cookTime = '',
+    this.serving = '',
+    this.difficulty = '',
+  });
+
+  final String prepTime;
+  final String cookTime;
+  final String serving;
+  final String difficulty;
+  final List<NewsRecipeIngredient> ingredients;
+  final List<NewsRecipeNutrition> nutrition;
+  final List<NewsRecipeDirection> directions;
+
+  bool get isValid =>
+      prepTime.trim().isNotEmpty ||
+      cookTime.trim().isNotEmpty ||
+      serving.trim().isNotEmpty ||
+      difficulty.trim().isNotEmpty ||
+      ingredients.isNotEmpty ||
+      nutrition.isNotEmpty ||
+      directions.any((direction) => direction.isValid);
+}
+
+class NewsRecipeIngredient {
+  const NewsRecipeIngredient({required this.text});
+
+  final String text;
+}
+
+class NewsRecipeNutrition {
+  const NewsRecipeNutrition({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class NewsRecipeDirection {
+  const NewsRecipeDirection({
+    required this.id,
+    required this.title,
+    this.content = '',
+    this.imageUrl = '',
+    this.imageDescription = '',
+    this.orderNumber = 1,
+  });
+
+  final String id;
+  final String title;
+  final String content;
+  final String imageUrl;
+  final String imageDescription;
+  final int orderNumber;
+
+  bool get isValid =>
+      title.trim().isNotEmpty ||
+      content.trim().isNotEmpty ||
+      imageUrl.trim().isNotEmpty;
+}
+
+class NewsEventData {
+  const NewsEventData({
+    required this.schedule,
+    required this.highlights,
+    required this.speakers,
+    this.startDateTime = '',
+    this.endDateTime = '',
+    this.organizer = '',
+    this.venueName = '',
+    this.address = '',
+    this.latitude = '',
+    this.longitude = '',
+    this.registrationType = 'none',
+    this.ticketUrl = '',
+    this.ticketPrice = '',
+    this.capacity = '',
+    this.scheduleTitle = '',
+    this.highlightsTitle = '',
+    this.speakersTitle = '',
+  });
+
+  final String startDateTime;
+  final String endDateTime;
+  final String organizer;
+  final String venueName;
+  final String address;
+  final String latitude;
+  final String longitude;
+  final String registrationType;
+  final String ticketUrl;
+  final String ticketPrice;
+  final String capacity;
+  final String scheduleTitle;
+  final String highlightsTitle;
+  final String speakersTitle;
+  final List<NewsEventScheduleItem> schedule;
+  final List<NewsEventHighlight> highlights;
+  final List<NewsEventSpeaker> speakers;
+
+  bool get isValid =>
+      startDateTime.trim().isNotEmpty ||
+      endDateTime.trim().isNotEmpty ||
+      organizer.trim().isNotEmpty ||
+      venueName.trim().isNotEmpty ||
+      address.trim().isNotEmpty ||
+      latitude.trim().isNotEmpty ||
+      longitude.trim().isNotEmpty ||
+      registrationType.trim().toLowerCase() != 'none' ||
+      ticketUrl.trim().isNotEmpty ||
+      ticketPrice.trim().isNotEmpty ||
+      capacity.trim().isNotEmpty ||
+      schedule.any((item) => item.isValid) ||
+      highlights.any((item) => item.isValid) ||
+      speakers.any((item) => item.isValid);
+}
+
+class NewsEventScheduleItem {
+  const NewsEventScheduleItem({
+    required this.id,
+    required this.title,
+    this.date = '',
+    this.time = '',
+    this.description = '',
+    this.imageUrl = '',
+    this.imageDescription = '',
+    this.orderNumber = 1,
+  });
+
+  final String id;
+  final String date;
+  final String time;
+  final String title;
+  final String description;
+  final String imageUrl;
+  final String imageDescription;
+  final int orderNumber;
+
+  bool get isValid =>
+      date.trim().isNotEmpty ||
+      time.trim().isNotEmpty ||
+      title.trim().isNotEmpty ||
+      description.trim().isNotEmpty ||
+      imageUrl.trim().isNotEmpty;
+}
+
+class NewsEventHighlight {
+  const NewsEventHighlight({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  bool get isValid => label.trim().isNotEmpty || value.trim().isNotEmpty;
+}
+
+class NewsEventSpeaker {
+  const NewsEventSpeaker({
+    required this.id,
+    required this.name,
+    this.role = '',
+    this.bio = '',
+    this.imageUrl = '',
+    this.imageDescription = '',
+  });
+
+  final String id;
+  final String name;
+  final String role;
+  final String bio;
+  final String imageUrl;
+  final String imageDescription;
+
+  bool get isValid =>
+      name.trim().isNotEmpty ||
+      role.trim().isNotEmpty ||
+      bio.trim().isNotEmpty ||
+      imageUrl.trim().isNotEmpty;
 }
 
 class NewsVsData {

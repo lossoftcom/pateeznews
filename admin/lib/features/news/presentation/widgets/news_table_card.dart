@@ -774,7 +774,7 @@ class _BulkDeleteButton extends StatelessWidget {
   }
 }
 
-class _NewsDataTable extends StatelessWidget {
+class _NewsDataTable extends StatefulWidget {
   const _NewsDataTable({
     required this.posts,
     required this.loading,
@@ -804,42 +804,68 @@ class _NewsDataTable extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onDeletePost;
 
   static const double _selectWidth = 42;
+  static const double _expandWidth = 34;
   static const double _idWidth = 62;
-  static const double _postMinWidth = 260;
+  static const double _postMinWidth = 240;
   static const double _categoryWidth = 120;
   static const double _statusWidth = 112;
-  static const double _languageWidth = 60;
+  static const double _languageWidth = 84;
   static const double _authorWidth = 130;
-  static const double _viewsWidth = 70;
-  static const double _commentsWidth = 70;
+  static const double _viewsWidth = 92;
+  static const double _commentsWidth = 84;
   static const double _createdWidth = 168;
   static const double _menuWidth = 70;
   static const double _horizontalPadding = 32;
   static const double _tableBorderWidth = 2;
 
   @override
+  State<_NewsDataTable> createState() => _NewsDataTableState();
+}
+
+class _NewsDataTableState extends State<_NewsDataTable> {
+  final _expandedPostIds = <String>{};
+
+  @override
+  void didUpdateWidget(covariant _NewsDataTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final visibleIds = widget.posts.map((post) => post.id).toSet();
+    _expandedPostIds.removeWhere((id) => !visibleIds.contains(id));
+  }
+
+  void _toggleExpanded(AdminNewsPost post) {
+    if (post.videos.isEmpty) return;
+    setState(() {
+      if (!_expandedPostIds.remove(post.id)) {
+        _expandedPostIds.add(post.id);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final fixedWidth =
-            _horizontalPadding +
-            _tableBorderWidth +
-            _selectWidth +
-            _idWidth +
-            _categoryWidth +
-            _statusWidth +
-            _languageWidth +
-            _authorWidth +
-            _viewsWidth +
-            _commentsWidth +
-            _createdWidth +
-            _menuWidth;
-        final requiredMinWidth = fixedWidth + _postMinWidth;
+            _NewsDataTable._horizontalPadding +
+            _NewsDataTable._tableBorderWidth +
+            _NewsDataTable._selectWidth +
+            _NewsDataTable._expandWidth +
+            _NewsDataTable._idWidth +
+            _NewsDataTable._categoryWidth +
+            _NewsDataTable._statusWidth +
+            _NewsDataTable._languageWidth +
+            _NewsDataTable._authorWidth +
+            _NewsDataTable._viewsWidth +
+            _NewsDataTable._commentsWidth +
+            _NewsDataTable._createdWidth +
+            _NewsDataTable._menuWidth;
+        final requiredMinWidth = fixedWidth + _NewsDataTable._postMinWidth;
         final tableWidth = constraints.maxWidth < requiredMinWidth
             ? requiredMinWidth
             : constraints.maxWidth;
-        final postWidth = (tableWidth - fixedWidth) < _postMinWidth
-            ? _postMinWidth
+        final postWidth =
+            (tableWidth - fixedWidth) < _NewsDataTable._postMinWidth
+            ? _NewsDataTable._postMinWidth
             : tableWidth - fixedWidth;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -857,32 +883,40 @@ class _NewsDataTable extends StatelessWidget {
               child: Column(
                 children: [
                   _NewsHeader(
-                    selectedCount: selectedPostIds.length,
-                    totalCount: posts.length,
+                    selectedCount: widget.selectedPostIds.length,
+                    totalCount: widget.posts.length,
                     postWidth: postWidth,
-                    sortState: sortState,
-                    onToggleAllPosts: onToggleAllPosts,
-                    onSort: onSort,
+                    sortState: widget.sortState,
+                    onToggleAllPosts: widget.onToggleAllPosts,
+                    onSort: widget.onSort,
                   ),
                   Expanded(
-                    child: loading && posts.isEmpty
+                    child: widget.loading && widget.posts.isEmpty
                         ? const _NewsLoading()
-                        : posts.isEmpty
+                        : widget.posts.isEmpty
                         ? const _NewsEmpty()
                         : SingleChildScrollView(
                             child: Column(
                               children: [
-                                for (final post in posts)
+                                for (final post in widget.posts)
                                   _NewsRow(
                                     post: post,
                                     postWidth: postWidth,
-                                    selected: selectedPostIds.contains(post.id),
-                                    onToggle: () => onTogglePost(post.id),
-                                    trashMode: trashMode,
-                                    onEditPost: onEditPost,
-                                    onToggleStatus: onToggleStatus,
-                                    onTogglePinned: onTogglePinned,
-                                    onDeletePost: onDeletePost,
+                                    selected: widget.selectedPostIds.contains(
+                                      post.id,
+                                    ),
+                                    expanded: _expandedPostIds.contains(
+                                      post.id,
+                                    ),
+                                    onToggle: () =>
+                                        widget.onTogglePost(post.id),
+                                    onToggleExpanded: () =>
+                                        _toggleExpanded(post),
+                                    trashMode: widget.trashMode,
+                                    onEditPost: widget.onEditPost,
+                                    onToggleStatus: widget.onToggleStatus,
+                                    onTogglePinned: widget.onTogglePinned,
+                                    onDeletePost: widget.onDeletePost,
                                   ),
                               ],
                             ),
@@ -939,6 +973,7 @@ class _NewsHeader extends StatelessWidget {
               onChanged: (_) => onToggleAllPosts(),
             ),
           ),
+          const SizedBox(width: _NewsDataTable._expandWidth),
           _SortableColumnHeader(
             width: _NewsDataTable._idWidth,
             label: 'ID',
@@ -986,7 +1021,7 @@ class _NewsHeader extends StatelessWidget {
           ),
           _SortableColumnHeader(
             width: _NewsDataTable._viewsWidth,
-            label: 'Views',
+            label: 'news.column.reads',
             sortKey: 'views',
             sortState: sortState,
             onSort: onSort,
@@ -1085,7 +1120,9 @@ class _NewsRow extends StatelessWidget {
     required this.post,
     required this.postWidth,
     required this.selected,
+    required this.expanded,
     required this.onToggle,
+    required this.onToggleExpanded,
     required this.trashMode,
     required this.onEditPost,
     required this.onToggleStatus,
@@ -1096,7 +1133,9 @@ class _NewsRow extends StatelessWidget {
   final AdminNewsPost post;
   final double postWidth;
   final bool selected;
+  final bool expanded;
   final VoidCallback onToggle;
+  final VoidCallback onToggleExpanded;
   final bool trashMode;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
@@ -1105,90 +1144,496 @@ class _NewsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 92),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.surface : Colors.white,
-        border: Border(
-          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
-        ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: _NewsDataTable._selectWidth,
-            child: _NewsCheckbox(value: selected, onChanged: (_) => onToggle()),
+    return Column(
+      children: [
+        Container(
+          constraints: const BoxConstraints(minHeight: 92),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.surface : Colors.white,
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.softLine.withValues(alpha: 0.86),
+              ),
+            ),
           ),
-          SizedBox(
-            width: _NewsDataTable._idWidth,
-            child: _RowSelectTapTarget(
-              onTap: onToggle,
-              child: Text(
-                post.id,
-                style: const TextStyle(
+          child: Row(
+            children: [
+              SizedBox(
+                width: _NewsDataTable._selectWidth,
+                child: _NewsCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
+              ),
+              SizedBox(
+                width: _NewsDataTable._expandWidth,
+                child: _RowExpandButton(
+                  enabled: post.videos.isNotEmpty,
+                  expanded: expanded,
+                  onTap: onToggleExpanded,
+                ),
+              ),
+              SizedBox(
+                width: _NewsDataTable._idWidth,
+                child: _RowSelectTapTarget(
+                  onTap: onToggle,
+                  child: Text(
+                    post.id,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: postWidth,
+                child: _PostIdentity(post: post),
+              ),
+              SizedBox(
+                width: _NewsDataTable._categoryWidth,
+                child: _CategoryCell(post: post),
+              ),
+              SizedBox(
+                width: _NewsDataTable._statusWidth,
+                child: _NewsStatusBadge(post: post),
+              ),
+              SizedBox(
+                width: _NewsDataTable._languageWidth,
+                child: Center(
+                  child: _LanguageBadge(value: post.displayLanguage),
+                ),
+              ),
+              SizedBox(
+                width: _NewsDataTable._authorWidth,
+                child: _AuthorCell(post: post),
+              ),
+              SizedBox(
+                width: _NewsDataTable._viewsWidth,
+                child: _NumberCell(value: post.viewsCount),
+              ),
+              SizedBox(
+                width: _NewsDataTable._commentsWidth,
+                child: _NumberCell(value: post.commentsCount),
+              ),
+              SizedBox(
+                width: _NewsDataTable._createdWidth,
+                child: _DateCell(dateTime: post.createdAt),
+              ),
+              SizedBox(
+                width: _NewsDataTable._menuWidth,
+                child: Align(
+                  alignment: Alignment.center,
+                  child: trashMode
+                      ? const SymbolIcon(
+                          Symbols.delete,
+                          color: AppColors.iconMuted,
+                          size: 18,
+                        )
+                      : _NewsRowMenu(
+                          post: post,
+                          onEditPost: onEditPost,
+                          onToggleStatus: onToggleStatus,
+                          onTogglePinned: onTogglePinned,
+                          onDeletePost: onDeletePost,
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: expanded
+              ? _NewsVideoExpansion(post: post)
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
+class _RowExpandButton extends StatelessWidget {
+  const _RowExpandButton({
+    required this.enabled,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final bool enabled;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return const SizedBox.shrink();
+    return Tooltip(
+      message: context.t(
+        expanded ? 'news.videos.collapse' : 'news.videos.expand',
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: SizedBox(
+            height: 34,
+            child: Center(
+              child: AnimatedRotation(
+                turns: expanded ? 0.5 : 0,
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                child: const SymbolIcon(
+                  Symbols.keyboard_arrow_down,
                   color: AppColors.deepOcean,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
+                  size: 18,
                 ),
               ),
             ),
           ),
-          SizedBox(
-            width: postWidth,
-            child: _PostIdentity(post: post),
-          ),
-          SizedBox(
-            width: _NewsDataTable._categoryWidth,
-            child: _CategoryCell(post: post),
-          ),
-          SizedBox(
-            width: _NewsDataTable._statusWidth,
-            child: _NewsStatusBadge(post: post),
-          ),
-          SizedBox(
-            width: _NewsDataTable._languageWidth,
-            child: Center(child: _LanguageBadge(value: post.displayLanguage)),
-          ),
-          SizedBox(
-            width: _NewsDataTable._authorWidth,
-            child: _AuthorCell(post: post),
-          ),
-          SizedBox(
-            width: _NewsDataTable._viewsWidth,
-            child: _NumberCell(value: post.likesCount),
-          ),
-          SizedBox(
-            width: _NewsDataTable._commentsWidth,
-            child: _NumberCell(value: post.commentsCount),
-          ),
-          SizedBox(
-            width: _NewsDataTable._createdWidth,
-            child: _DateCell(dateTime: post.createdAt),
-          ),
-          SizedBox(
-            width: _NewsDataTable._menuWidth,
-            child: Align(
-              alignment: Alignment.center,
-              child: trashMode
-                  ? const SymbolIcon(
-                      Symbols.delete,
-                      color: AppColors.iconMuted,
-                      size: 18,
-                    )
-                  : _NewsRowMenu(
-                      post: post,
-                      onEditPost: onEditPost,
-                      onToggleStatus: onToggleStatus,
-                      onTogglePinned: onTogglePinned,
-                      onDeletePost: onDeletePost,
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsVideoExpansion extends StatelessWidget {
+  const _NewsVideoExpansion({required this.post});
+
+  final AdminNewsPost post;
+
+  @override
+  Widget build(BuildContext context) {
+    final videos = post.videos;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.only(
+        left:
+            16 +
+            _NewsDataTable._selectWidth +
+            _NewsDataTable._expandWidth +
+            _NewsDataTable._idWidth,
+        right: 16,
+        bottom: 14,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.54),
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.9)),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: AppColors.line.withValues(alpha: 0.7)),
+        ),
+        child: Column(
+          children: [
+            _NewsVideoExpansionHeader(count: videos.length),
+            Container(
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.72),
+                border: Border(
+                  top: BorderSide(
+                    color: AppColors.softLine.withValues(alpha: 0.9),
+                  ),
+                  bottom: BorderSide(
+                    color: AppColors.softLine.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _VideoHeaderText(context.t('news.videos.video')),
+                  ),
+                  SizedBox(
+                    width: 112,
+                    child: _VideoHeaderText(
+                      context.t('news.videos.size'),
+                      centered: true,
                     ),
+                  ),
+                  SizedBox(
+                    width: 104,
+                    child: _VideoHeaderText(
+                      context.t('news.videos.views'),
+                      centered: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            for (var index = 0; index < videos.length; index++)
+              _NewsVideoDetailRow(
+                video: videos[index],
+                index: index,
+                last: index == videos.length - 1,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsVideoExpansionHeader extends StatelessWidget {
+  const _NewsVideoExpansionHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.deepOcean.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(
+                color: AppColors.deepOcean.withValues(alpha: 0.08),
+              ),
+            ),
+            child: const SymbolIcon(
+              Symbols.play_circle_outline_rounded,
+              color: AppColors.deepOcean,
+              size: 17,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.t('news.videos.title'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          Container(
+            height: 24,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(
+                color: AppColors.softLine.withValues(alpha: 0.92),
+              ),
+            ),
+            child: Text(
+              context.t('news.videos.count', values: {'count': count}),
+              style: const TextStyle(
+                color: AppColors.inkSoft,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _VideoHeaderText extends StatelessWidget {
+  const _VideoHeaderText(this.text, {this.centered = false});
+
+  final String text;
+  final bool centered;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: centered ? TextAlign.center : TextAlign.start,
+      style: const TextStyle(
+        color: AppColors.inkSoft,
+        fontSize: 11.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _NewsVideoDetailRow extends StatelessWidget {
+  const _NewsVideoDetailRow({
+    required this.video,
+    required this.index,
+    required this.last,
+  });
+
+  final AdminNewsVideo video;
+  final int index;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = video.title.trim().isEmpty
+        ? '${context.t('news.videos.video')} ${index + 1}'
+        : video.displayTitle;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 72),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: AppColors.softLine.withValues(alpha: 0.86),
+                ),
+              ),
+      ),
+      child: Row(
+        children: [
+          _VideoThumb(video: video),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _compactVideoUrl(video.displayUrl),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.support,
+                    fontSize: 10.8,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 112,
+            child: Center(
+              child: Text(
+                video.sizeLabel.trim().isEmpty ? '-' : video.sizeLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: 104, child: _NumberCell(value: video.viewsCount)),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoThumb extends StatelessWidget {
+  const _VideoThumb({required this.video});
+
+  final AdminNewsVideo video;
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = video.thumbnailUrl.trim();
+    return Container(
+      width: 72,
+      height: 46,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: thumb.isEmpty
+          ? const _VideoThumbFallback()
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.network(
+                  _publicUrl(thumb),
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (context, _, _) => const _VideoThumbFallback(),
+                ),
+                Center(
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.36),
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                    ),
+                    child: const SymbolIcon(
+                      Symbols.play_circle_rounded,
+                      color: Colors.white,
+                      size: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _VideoThumbFallback extends StatelessWidget {
+  const _VideoThumbFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: SymbolIcon(
+        Symbols.play_circle_outline_rounded,
+        color: AppColors.iconMuted,
+        size: 22,
+      ),
+    );
+  }
+}
+
+String _compactVideoUrl(String value) {
+  final raw = value.trim();
+  if (raw.isEmpty) return '-';
+  final uri = Uri.tryParse(raw);
+  if (uri == null || uri.host.isEmpty) return raw;
+  final path = uri.path.isEmpty ? '' : uri.path;
+  return '${uri.host}$path';
 }
 
 class _NewsCheckbox extends StatelessWidget {
@@ -2646,7 +3091,7 @@ class _NewsMobileCard extends StatelessWidget {
               const Spacer(),
               AdminMobileMeta(
                 icon: Symbols.visibility,
-                value: '${post.likesCount}',
+                value: '${post.viewsCount}',
               ),
               const SizedBox(width: 12),
               AdminMobileMeta(

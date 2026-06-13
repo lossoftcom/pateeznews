@@ -19,7 +19,7 @@ class FrontendToast {
     BuildContext context, {
     required String message,
     FrontendToastTone tone = FrontendToastTone.success,
-    Duration duration = const Duration(milliseconds: 2200),
+    Duration duration = const Duration(milliseconds: 2500),
   }) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
@@ -120,9 +120,11 @@ class _FrontendToastOverlayState extends State<_FrontendToastOverlay>
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final keyboardGap = widget.tone == FrontendToastTone.error ? 72.0 : 16.0;
+    final safeBottomGap = widget.tone == FrontendToastTone.error ? 154.0 : 82.0;
     final bottom = math.max(
-      media.viewInsets.bottom + 16,
-      media.padding.bottom + 82,
+      media.viewInsets.bottom + keyboardGap,
+      media.padding.bottom + safeBottomGap,
     );
     return Positioned(
       left: 20,
@@ -234,6 +236,8 @@ class _FrontendStatusToast extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                           height: 1.15,
                           letterSpacing: 0,
+                          decoration: TextDecoration.none,
+                          decorationColor: Colors.transparent,
                         ),
                       ),
                     ),

@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
-import { json } from '@/lib/server/appDb';
+import { getSessionFromRequest, json } from '@/lib/server/appDb';
+import { mapAppFeedItems } from '@/lib/server/appFeed';
 import { dbQuery } from '@/lib/server/supabaseDb';
+import { dataService } from '@/services/dataService.server';
 
 export const prerender = false;
 
@@ -69,7 +71,7 @@ const eventItemFromPost = (row: any) => {
   return candidates.find((item) => asObject(item.eventData)) || candidates[0] || {};
 };
 
-const mapEvent = (row: any, origin: string) => {
+const mapEvent = (row: any, origin: string, article?: any) => {
   const item = eventItemFromPost(row);
   const eventData = asObject(item.eventData);
   const imageUrl = resolveImageUrl(
@@ -97,19 +99,35 @@ const mapEvent = (row: any, origin: string) => {
     ticketUrl: str(eventData.ticketUrl),
     ticketPrice: str(eventData.ticketPrice),
     capacity: str(eventData.capacity),
+    article,
   };
 };
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
   try {
     const lang = String(url.searchParams.get('lang') || 'tr').trim() || 'tr';
     const limit = numberParam(url.searchParams.get('limit'), 30, 1, 50);
     const origin = new URL(url).origin;
+    const session = await getSessionFromRequest(request);
     const result = await dbQuery(
       `SELECT
-         p.id, p.created_at, p.published_at, p.title, p.summary, p.category,
-         p.type, p.thumbnail_url, p.media_url, p.slug, p.card_data, p.items
+         p.id, p.created_at, p.published_at, p.updated_at, p.publisher_id,
+         p.title, p.summary, p.content, p.category, p.type,
+         p.thumbnail_url, p.thumbnail_alt, p.media_url,
+         p.likes_count, p.dislikes_count, p.comments_count, p.shares_count,
+         p.views_count, p.saves_count, p.slug, p.status, p.seo_title,
+         p.seo_description, p.keywords, p.language_code, p.is_pinned,
+         p.show_in_manset, p.fact_checked, p.schema_type, p.card_data,
+         p.items, p.faq_data,
+         json_build_object(
+           'id', pr.id,
+           'username', pr.username,
+           'full_name', pr.full_name,
+           'avatar_url', pr.avatar_url,
+           'role', pr.role
+         ) AS profiles
        FROM public.posts p
+       LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
        WHERE p.status = 'published'
          AND p.language_code = $1
          AND (p.published_at <= now() OR p.published_at IS NULL)
@@ -134,7 +152,18 @@ export const GET: APIRoute = async ({ url }) => {
       [lang, limit],
     );
 
-    const items = result.rows.map((row) => mapEvent(row, origin));
+    const feedItems = result.rows.map((row) => dataService.mapPost(row));
+    const articles = await mapAppFeedItems(
+      feedItems,
+      origin,
+      session?.user?.id || null,
+    );
+    const articleById = new Map(
+      articles.map((article) => [String(article.id || ''), article]),
+    );
+    const items = result.rows.map((row) =>
+      mapEvent(row, origin, articleById.get(String(row.id || ''))),
+    );
     return json({ items });
   } catch (error: any) {
     return json({ error: error?.message || 'Events failed', items: [] }, 500);

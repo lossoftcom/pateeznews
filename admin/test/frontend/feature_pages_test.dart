@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pateeznews_admin/frontend/core/mock/home_mock_data.dart';
 import 'package:pateeznews_admin/frontend/features/announcements/data/announcement_content.dart';
 import 'package:pateeznews_admin/frontend/features/announcements/data/announcements_repository.dart';
 import 'package:pateeznews_admin/frontend/features/announcements/presentation/announcements_screen.dart';
+import 'package:pateeznews_admin/frontend/features/etkinlik/data/etkinlik_mock.dart';
 import 'package:pateeznews_admin/frontend/features/etkinlik/presentation/etkinlik_screen.dart';
+import 'package:pateeznews_admin/frontend/features/home/data/post_action_repository.dart';
 import 'package:pateeznews_admin/frontend/features/markets/presentation/markets_screen.dart';
 import 'package:pateeznews_admin/frontend/features/markets/data/markets_repository.dart';
 import 'package:pateeznews_admin/frontend/features/obituaries/data/death_notice_repository.dart';
@@ -249,6 +252,95 @@ void main() {
     expect(find.text('Niğde Bağ Bozumu Festivali'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Etkinlik kartı article varsa haber detayına açılır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 1500);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final actions = _EventPostActionRepository();
+    final eventDate = DateTime.now().add(const Duration(days: 1));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EtkinlikScreen(
+          events: [
+            EtkinlikEvent(
+              date: eventDate,
+              category: EtkinlikCategory.konser,
+              title: 'Karttaki Etkinlik',
+              venue: 'Niğde Kültür Merkezi',
+              time: '20:00',
+              free: true,
+              summary: 'Etkinlik kart özeti.',
+              article: NewsArticle(
+                id: '123',
+                author: const NewsAuthor(
+                  id: 'publisher-1',
+                  name: 'Pateez Niğde',
+                  avatarUrl: '',
+                  isOfficial: true,
+                ),
+                region: 'Niğde',
+                category: 'Etkinlik',
+                title: 'Detay Haber Başlığı',
+                summary: 'Etkinlik detay özeti.',
+                imageUrl: '',
+                publishedAt: DateTime.utc(2026, 6, 12, 10),
+                readMinutes: 2,
+                likes: 4,
+                dislikes: 1,
+                comments: 3,
+                shares: 2,
+                views: 9,
+                saves: 1,
+              ),
+            ),
+          ],
+          postActionRepository: actions,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Karttaki Etkinlik'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Detay Haber Başlığı'), findsWidgets);
+    expect(find.text('Yorumunuzu ekleyin'), findsOneWidget);
+    expect(actions.recordCalls, 1);
+    expect(actions.recordedSource, 'open_detail');
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _EventPostActionRepository extends PostActionRepository {
+  int recordCalls = 0;
+  String? recordedSource;
+
+  @override
+  Future<PostActionState> recordView({
+    required String postId,
+    String? token,
+    String source = 'read',
+  }) {
+    recordCalls++;
+    recordedSource = source;
+    return Future<PostActionState>.value(
+      const PostActionState(
+        likes: 4,
+        dislikes: 1,
+        shares: 2,
+        views: 10,
+        saves: 1,
+        liked: false,
+        disliked: false,
+        saved: false,
+      ),
+    );
+  }
 }
 
 const _announcementFixture = AnnouncementData(
