@@ -63,7 +63,7 @@ class _NewsScreenState extends State<NewsScreen> {
     unawaited(_loadAll());
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
-      unawaited(_loadPosts());
+      unawaited(_refreshPostsSilently());
     });
   }
 
@@ -127,6 +127,25 @@ class _NewsScreenState extends State<NewsScreen> {
         _errorText = error.toString();
         _loading = false;
       });
+    }
+  }
+
+  /// Arka plan (periyodik) yenileme: listeyi spinner'a düşürmeden, sessizce
+  /// günceller. Hata olursa mevcut liste korunur — kullanıcı kesintiye uğramaz.
+  Future<void> _refreshPostsSilently() async {
+    try {
+      final result = await _fetchPosts();
+      if (!mounted) return;
+      setState(() {
+        _posts = result.posts;
+        _totalCount = result.totalCount;
+        _selectedPostIds.removeWhere(
+          (id) => !_posts.any((post) => post.id == id),
+        );
+        _errorText = null;
+      });
+    } catch (_) {
+      // Sessiz yenileme; mevcut veri ekranda kalır.
     }
   }
 
