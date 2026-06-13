@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -6,6 +5,8 @@ import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/data/admin_image_url.dart';
+import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
@@ -450,7 +451,7 @@ class _UsersMobileCard extends StatelessWidget {
               const SizedBox(width: 12),
               AdminMobileAvatar(
                 label: user.displayName,
-                imageUrl: avatar.isEmpty ? null : _publicUrl(avatar),
+                imageUrl: avatar.isEmpty ? null : adminImageUrl(avatar, width: 96),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1546,15 +1547,13 @@ class _UserAvatar extends StatelessWidget {
           color: AppColors.softLine,
           child: avatarUrl.isEmpty
               ? Center(child: _UserAvatarFallback(user: user))
-              : Image.network(
-                  _publicUrl(avatarUrl),
+              : AdminCachedImage(
+                  url: adminImageUrl(avatarUrl, width: 96),
                   width: 34,
                   height: 34,
                   fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (context, _, _) {
-                    return Center(child: _UserAvatarFallback(user: user));
-                  },
+                  memCacheWidth: 96,
+                  errorWidget: Center(child: _UserAvatarFallback(user: user)),
                 ),
         ),
       ),
@@ -2146,17 +2145,3 @@ class _PageButton extends StatelessWidget {
   }
 }
 
-String _publicUrl(String value) {
-  if (value.startsWith('http://') ||
-      value.startsWith('https://') ||
-      value.startsWith('data:')) {
-    return value;
-  }
-  final base = !kIsWeb
-      ? switch (defaultTargetPlatform) {
-          TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-          _ => Uri.parse('http://127.0.0.1:4321'),
-        }
-      : Uri.base;
-  return base.resolve(value).toString();
-}
