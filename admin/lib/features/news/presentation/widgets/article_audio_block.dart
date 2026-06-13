@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:video_player/video_player.dart';
@@ -1060,13 +1061,14 @@ class _YoutubeAudioThumbnailState extends State<_YoutubeAudioThumbnail> {
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      _url,
+    return CachedNetworkImage(
+      imageUrl: _url,
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) {
+      filterQuality: FilterQuality.medium,
+      useOldImageOnUrlChange: true,
+      errorWidget: (_, _, _) {
         if (!_usedFallback) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;

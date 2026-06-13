@@ -5,6 +5,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/media_service.dart';
+import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
@@ -637,13 +638,13 @@ class _SelectedReviewImage extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.all(8),
-          child: Image.network(
-            _resolvedImageUrl(imageUrl, width: 720),
+          child: AdminCachedImage(
+            url: _resolvedImageUrl(imageUrl, width: 720),
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
-            cacheWidth: 720,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => Center(
+            memCacheWidth: 720,
+            useOldImageOnUrlChange: true,
+            errorWidget: Center(
               child: Text(
                 context.t('newsAdd.reviewImageError'),
                 style: const TextStyle(

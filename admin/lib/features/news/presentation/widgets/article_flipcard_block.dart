@@ -7,6 +7,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/media_service.dart';
+import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
@@ -620,13 +621,13 @@ class _SelectedFlipImage extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.all(8),
-          child: Image.network(
-            _resolvedImageUrl(imageUrl, width: 720),
+          child: AdminCachedImage(
+            url: _resolvedImageUrl(imageUrl, width: 720),
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
-            cacheWidth: 720,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => const Center(
+            memCacheWidth: 720,
+            useOldImageOnUrlChange: true,
+            errorWidget: const Center(
               child: Icon(
                 Icons.broken_image_outlined,
                 color: AppColors.iconMuted,
@@ -823,13 +824,13 @@ class _FlipPreviewFace extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (hasImage)
-            Image.network(
-              _resolvedImageUrl(normalizedImage, width: 900),
+            AdminCachedImage(
+              url: _resolvedImageUrl(normalizedImage, width: 900),
               fit: BoxFit.cover,
               filterQuality: FilterQuality.high,
-              cacheWidth: 900,
-              gaplessPlayback: true,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              memCacheWidth: 900,
+              useOldImageOnUrlChange: true,
+              errorWidget: const SizedBox.shrink(),
             ),
           DecoratedBox(
             decoration: BoxDecoration(

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:video_player/video_player.dart';
@@ -7,6 +8,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/media_service.dart';
+import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
@@ -861,13 +863,13 @@ class _DirectVideoPreviewState extends State<_DirectVideoPreview> {
     final displayUrl = _resolveVideoUrl(widget.mediaUrl);
     final isImageThumb = _isImagePath(displayUrl);
     if (isImageThumb) {
-      return Image.network(
-        displayUrl,
+      return AdminCachedImage(
+        url: displayUrl,
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        gaplessPlayback: true,
-        errorBuilder: (_, _, _) => _VideoPlaceholder(mediaUrl: widget.mediaUrl),
+        useOldImageOnUrlChange: true,
+        errorWidget: _VideoPlaceholder(mediaUrl: widget.mediaUrl),
       );
     }
 
@@ -1325,13 +1327,14 @@ class _YoutubeThumbnailState extends State<_YoutubeThumbnail> {
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      _url,
+    return CachedNetworkImage(
+      imageUrl: _url,
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) {
+      filterQuality: FilterQuality.medium,
+      useOldImageOnUrlChange: true,
+      errorWidget: (_, _, _) {
         if (!_usedFallback) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;

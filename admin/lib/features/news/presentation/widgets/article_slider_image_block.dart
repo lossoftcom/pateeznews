@@ -5,6 +5,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/media_service.dart';
+import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
@@ -581,13 +582,13 @@ class _SliderImageThumbState extends State<_SliderImageThumb> {
           children: [
             Padding(
               padding: const EdgeInsets.all(6),
-              child: Image.network(
-                _resolvedImageUrl(widget.imageUrl),
+              child: AdminCachedImage(
+                url: _resolvedImageUrl(widget.imageUrl),
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.high,
-                cacheWidth: 360,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) => Icon(
+                memCacheWidth: 360,
+                useOldImageOnUrlChange: true,
+                errorWidget: Icon(
                   Icons.broken_image_outlined,
                   size: 26,
                   color: AppColors.placeholder.withValues(alpha: 0.45),
