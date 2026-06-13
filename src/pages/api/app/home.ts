@@ -3,6 +3,13 @@ import { getSessionFromRequest, json } from "@/lib/server/appDb";
 import { exactLocalStaticPath } from "@/lib/server/localUploadStorage";
 import { dbQuery } from "@/lib/server/supabaseDb";
 import { dataService } from "@/services/dataService.server";
+import {
+  LOCAL_VARIANT_PREFIXES,
+  TRANSFORMABLE_IMAGE_EXTENSIONS,
+  nearestVariantWidth,
+  objectExtension,
+  variantObjectPath,
+} from "@/lib/server/imageVariants";
 import type { NewsItem, OptimizedImage } from "@/types";
 
 export const prerender = false;
@@ -44,6 +51,24 @@ const withLocalImageVariant = (
     ) {
       return resolvedUrl;
     }
+
+    // "/api/storage/file/image/.." veya "/local-upload/image/.." -> "image/.."
+    const objectPath = parsed.pathname
+      .replace(/^\/api\/storage\/file\//, "")
+      .replace(/^\/local-upload\//, "");
+    const extension = objectExtension(objectPath);
+    const isVariantEligible =
+      LOCAL_VARIANT_PREFIXES.some((prefix) => objectPath.startsWith(prefix)) &&
+      TRANSFORMABLE_IMAGE_EXTENSIONS.has(extension);
+
+    if (isVariantEligible) {
+      // Doğrudan statik varyant: tek istek, CDN'den, redirect yok.
+      const target = nearestVariantWidth(Math.min(Math.max(width, 64), 3840));
+      const variantPath = variantObjectPath(objectPath, target);
+      return new URL(`/local-upload/${variantPath}`, baseUrl).toString();
+    }
+
+    // Diğer durumlar (ör. cdn-cgi yolu gereken haller) eski davranışta kalır.
     parsed.searchParams.set("w", String(Math.min(Math.max(width, 64), 3840)));
     const quality = Math.round(Number(options.quality || 0));
     if (quality > 0) {
@@ -884,9 +909,7 @@ const normalizeKeywords = (value: unknown): string[] => {
   return keywords;
 };
 
-const normalizeFaqData = (
-  value: unknown,
-): Array<{ q: string; a: string }> => {
+const normalizeFaqData = (value: unknown): Array<{ q: string; a: string }> => {
   if (!Array.isArray(value)) return [];
   const faq: Array<{ q: string; a: string }> = [];
   for (const item of value) {
@@ -1024,14 +1047,17 @@ const tocListStyles = new Set([
 ]);
 
 const normalizeTocStyle = (value: unknown): string => {
-  const style = String(value || "").trim().toLowerCase();
+  const style = String(value || "")
+    .trim()
+    .toLowerCase();
   return tocListStyles.has(style) ? style : "none";
 };
 
 const normalizeTocData = (value: unknown, origin: string) => {
   if (!value || typeof value !== "object") return undefined;
   const raw = value as any;
-  const data = raw.tocData && typeof raw.tocData === "object" ? raw.tocData : raw;
+  const data =
+    raw.tocData && typeof raw.tocData === "object" ? raw.tocData : raw;
   const sourceItems = Array.isArray(data.items) ? data.items : [];
   const items = sourceItems
     .map((entry: any, index: number) => {
@@ -1057,9 +1083,10 @@ const normalizeTocData = (value: unknown, origin: string) => {
         imageUrl,
         imageDescription,
         content,
-        orderNumber: Number.isFinite(parsedOrder) && parsedOrder > 0
-          ? Math.round(parsedOrder)
-          : index + 1,
+        orderNumber:
+          Number.isFinite(parsedOrder) && parsedOrder > 0
+            ? Math.round(parsedOrder)
+            : index + 1,
       };
     })
     .filter(Boolean);
@@ -1084,11 +1111,266 @@ const normalizeTocData = (value: unknown, origin: string) => {
   };
 };
 
+const normalizeRecipeData = (value: unknown, origin: string) => {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as any;
+  const data =
+    raw.recipeData && typeof raw.recipeData === "object" ? raw.recipeData : raw;
+  const ingredients = Array.isArray(data.ingredients)
+    ? data.ingredients
+        .map((entry: any) => {
+          const text = stripHtml(String(entry?.text || ""));
+          return text ? { text } : null;
+        })
+        .filter(Boolean)
+    : [];
+  const nutrition = Array.isArray(data.nutrition)
+    ? data.nutrition
+        .map((entry: any) => {
+          const label = stripHtml(String(entry?.label || ""));
+          const rowValue = stripHtml(String(entry?.value || ""));
+          return label || rowValue ? { label, value: rowValue } : null;
+        })
+        .filter(Boolean)
+    : [];
+  const directions = Array.isArray(data.directions)
+    ? data.directions
+        .map((entry: any, index: number) => {
+          if (!entry || typeof entry !== "object") return null;
+          const title = stripHtml(String(entry.title || ""));
+          const content = stripHtml(
+            String(entry.content || entry.description || ""),
+          );
+          const imageUrl = resolveImageUrl(
+            String(
+              entry.imageUrl || entry.image || entry.mediaUrl || "",
+            ).trim(),
+            origin,
+            { width: 1200, quality: 86 },
+          );
+          const imageDescription = stripHtml(
+            String(
+              entry.imageDescription || entry.altText || entry.caption || "",
+            ),
+          );
+          if (!title && !content && !imageUrl) return null;
+          const parsedOrder = Number(entry.orderNumber || index + 1);
+          return {
+            id: String(entry.id || `recipe-step-${index + 1}`),
+            title,
+            content,
+            imageUrl,
+            imageDescription,
+            orderNumber:
+              Number.isFinite(parsedOrder) && parsedOrder > 0
+                ? Math.round(parsedOrder)
+                : index + 1,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const prepTime = stripHtml(String(data.prepTime || ""));
+  const cookTime = stripHtml(String(data.cookTime || ""));
+  const serving = stripHtml(String(data.serving || ""));
+  const difficulty = String(data.difficulty || "")
+    .trim()
+    .toLowerCase();
+  const normalizedDifficulty =
+    difficulty === "easy" || difficulty === "medium" || difficulty === "hard"
+      ? difficulty
+      : difficulty === "kolay"
+        ? "easy"
+        : difficulty === "orta" || difficulty === "intermediate"
+          ? "medium"
+          : difficulty === "zor" || difficulty === "advanced"
+            ? "hard"
+            : "";
+
+  if (
+    !prepTime &&
+    !cookTime &&
+    !serving &&
+    !normalizedDifficulty &&
+    ingredients.length === 0 &&
+    nutrition.length === 0 &&
+    directions.length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    prepTime,
+    cookTime,
+    serving,
+    difficulty: normalizedDifficulty,
+    ingredients,
+    nutrition,
+    directions,
+  };
+};
+
+const normalizeEventRegistrationType = (value: unknown) => {
+  const type = String(value || "")
+    .trim()
+    .toLowerCase();
+  return type === "required" || type === "tickets" || type === "external"
+    ? type
+    : "none";
+};
+
+const normalizeEventData = (value: unknown, origin: string) => {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as any;
+  const data =
+    raw.eventData && typeof raw.eventData === "object" ? raw.eventData : raw;
+
+  const schedule = Array.isArray(data.schedule)
+    ? data.schedule
+        .map((entry: any, index: number) => {
+          if (!entry || typeof entry !== "object") return null;
+          const date = stripHtml(String(entry.date || ""));
+          const time = stripHtml(String(entry.time || ""));
+          const title = stripHtml(String(entry.title || ""));
+          const description = stripHtml(
+            String(entry.description || entry.content || ""),
+          );
+          const imageUrl = resolveImageUrl(
+            String(
+              entry.imageUrl || entry.image || entry.mediaUrl || "",
+            ).trim(),
+            origin,
+            { width: 1200, quality: 86 },
+          );
+          const imageDescription = stripHtml(
+            String(
+              entry.imageDescription || entry.altText || entry.caption || "",
+            ),
+          );
+          if (!date && !time && !title && !description && !imageUrl)
+            return null;
+          const parsedOrder = Number(entry.orderNumber || index + 1);
+          return {
+            id: String(entry.id || `event-schedule-${index + 1}`),
+            date,
+            time,
+            title,
+            description,
+            imageUrl,
+            imageDescription,
+            orderNumber:
+              Number.isFinite(parsedOrder) && parsedOrder > 0
+                ? Math.round(parsedOrder)
+                : index + 1,
+          };
+        })
+        .filter(Boolean)
+    : [];
+  const highlights = Array.isArray(data.highlights)
+    ? data.highlights
+        .map((entry: any) => {
+          const label = stripHtml(String(entry?.label || ""));
+          const rowValue = stripHtml(String(entry?.value || ""));
+          return label || rowValue ? { label, value: rowValue } : null;
+        })
+        .filter(Boolean)
+    : [];
+  const speakers = Array.isArray(data.speakers)
+    ? data.speakers
+        .map((entry: any, index: number) => {
+          if (!entry || typeof entry !== "object") return null;
+          const name = stripHtml(String(entry.name || ""));
+          const role = stripHtml(String(entry.role || ""));
+          const bio = stripHtml(String(entry.bio || ""));
+          const imageUrl = resolveImageUrl(
+            String(
+              entry.imageUrl || entry.image || entry.mediaUrl || "",
+            ).trim(),
+            origin,
+            { width: 900, quality: 86 },
+          );
+          const imageDescription = stripHtml(
+            String(
+              entry.imageDescription || entry.altText || entry.caption || "",
+            ),
+          );
+          if (!name && !role && !bio && !imageUrl) return null;
+          return {
+            id: String(entry.id || `event-speaker-${index + 1}`),
+            name,
+            role,
+            bio,
+            imageUrl,
+            imageDescription,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const startDateTime = stripHtml(String(data.startDateTime || ""));
+  const endDateTime = stripHtml(String(data.endDateTime || ""));
+  const organizer = stripHtml(String(data.organizer || ""));
+  const venueName = stripHtml(String(data.venueName || ""));
+  const address = stripHtml(String(data.address || ""));
+  const latitude = stripHtml(String(data.latitude || ""));
+  const longitude = stripHtml(String(data.longitude || ""));
+  const registrationType = normalizeEventRegistrationType(
+    data.registrationType,
+  );
+  const ticketUrl = String(data.ticketUrl || "").trim();
+  const ticketPrice = stripHtml(String(data.ticketPrice || ""));
+  const capacity = stripHtml(String(data.capacity || ""));
+  const scheduleTitle = stripHtml(String(data.scheduleTitle || ""));
+  const highlightsTitle = stripHtml(String(data.highlightsTitle || ""));
+  const speakersTitle = stripHtml(String(data.speakersTitle || ""));
+
+  if (
+    !startDateTime &&
+    !endDateTime &&
+    !organizer &&
+    !venueName &&
+    !address &&
+    !latitude &&
+    !longitude &&
+    registrationType === "none" &&
+    !ticketUrl &&
+    !ticketPrice &&
+    !capacity &&
+    schedule.length === 0 &&
+    highlights.length === 0 &&
+    speakers.length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    startDateTime,
+    endDateTime,
+    organizer,
+    venueName,
+    address,
+    latitude,
+    longitude,
+    registrationType,
+    ticketUrl,
+    ticketPrice,
+    capacity,
+    scheduleTitle,
+    highlightsTitle,
+    speakersTitle,
+    schedule,
+    highlights,
+    speakers,
+  };
+};
+
 const normalizeDetailItems = (blocks: any[], origin: string) => {
   return blocks
     .map((block: any, index: number) => {
       if (!block || typeof block !== "object") return null;
-      const rawType = String(block.type || "").trim().toLowerCase();
+      const rawType = String(block.type || "")
+        .trim()
+        .toLowerCase();
       if (!rawType) return null;
       if (rawType === "faq") return null;
       const type =
@@ -1158,6 +1440,14 @@ const normalizeDetailItems = (blocks: any[], origin: string) => {
         type === "toc" || type === "contents" || type === "table_of_contents"
           ? normalizeTocData(block, origin)
           : undefined;
+      const recipeData =
+        type === "recipe" || type === "tarif"
+          ? normalizeRecipeData(block, origin)
+          : undefined;
+      const eventData =
+        type === "event" || type === "etkinlik"
+          ? normalizeEventData(block, origin)
+          : undefined;
       const beforeAfterData =
         type === "beforeafter" && block.beforeAfterData
           ? {
@@ -1217,6 +1507,8 @@ const normalizeDetailItems = (blocks: any[], origin: string) => {
         pollData,
         quizData,
         tocData,
+        recipeData,
+        eventData,
         vsData,
         quoteData,
       };
@@ -1234,6 +1526,8 @@ const normalizeDetailItems = (blocks: any[], origin: string) => {
         pollData ||
         quizData ||
         tocData ||
+        recipeData ||
+        eventData ||
         vsData ||
         quoteData;
       return hasContent ? item : null;
@@ -1257,6 +1551,51 @@ const calculateReadingMinutes = (item: NewsItem): number => {
               ? (entry as any).tocData.items.flatMap((tocItem: any) => [
                   tocItem?.title,
                   tocItem?.content,
+                ])
+              : []),
+            ...(Array.isArray((entry as any)?.recipeData?.ingredients)
+              ? (entry as any).recipeData.ingredients.map(
+                  (ingredient: any) => ingredient?.text,
+                )
+              : []),
+            ...(Array.isArray((entry as any)?.recipeData?.nutrition)
+              ? (entry as any).recipeData.nutrition.flatMap((row: any) => [
+                  row?.label,
+                  row?.value,
+                ])
+              : []),
+            ...(Array.isArray((entry as any)?.recipeData?.directions)
+              ? (entry as any).recipeData.directions.flatMap((step: any) => [
+                  step?.title,
+                  step?.content,
+                ])
+              : []),
+            (entry as any)?.eventData?.startDateTime,
+            (entry as any)?.eventData?.endDateTime,
+            (entry as any)?.eventData?.organizer,
+            (entry as any)?.eventData?.venueName,
+            (entry as any)?.eventData?.address,
+            (entry as any)?.eventData?.ticketPrice,
+            (entry as any)?.eventData?.capacity,
+            ...(Array.isArray((entry as any)?.eventData?.schedule)
+              ? (entry as any).eventData.schedule.flatMap((slot: any) => [
+                  slot?.date,
+                  slot?.time,
+                  slot?.title,
+                  slot?.description,
+                ])
+              : []),
+            ...(Array.isArray((entry as any)?.eventData?.highlights)
+              ? (entry as any).eventData.highlights.flatMap((row: any) => [
+                  row?.label,
+                  row?.value,
+                ])
+              : []),
+            ...(Array.isArray((entry as any)?.eventData?.speakers)
+              ? (entry as any).eventData.speakers.flatMap((speaker: any) => [
+                  speaker?.name,
+                  speaker?.role,
+                  speaker?.bio,
                 ])
               : []),
           ]
