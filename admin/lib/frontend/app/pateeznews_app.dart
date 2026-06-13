@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
@@ -286,7 +287,11 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     try {
       await Future.wait([
         for (final url in urls)
-          precacheImage(NetworkImage(url), context, onError: (_, _) {}),
+          precacheImage(
+            CachedNetworkImageProvider(url),
+            context,
+            onError: (_, _) {},
+          ),
       ]).timeout(const Duration(milliseconds: 1400), onTimeout: () => const []);
     } catch (_) {
       // Home görselleri önceden yüklenemese de normal lazy yükleme çalışır.
