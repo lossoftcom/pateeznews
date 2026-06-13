@@ -170,11 +170,8 @@ export async function deleteLocalUploadFiles(type: StorageType, id: string) {
   return deleted;
 }
 
-function localDateFromPath(relativeId: string) {
-  const match = relativeId.match(/(?:^|\/)(\d{4}-\d{2}-\d{2})(?:\/|$)/);
-  if (!match) return 0;
-  const time = new Date(`${match[1]}T00:00:00Z`).getTime();
-  return Number.isFinite(time) ? Math.floor(time / 1000) : 0;
+function localUploadDate(stat: { mtimeMs: number }) {
+  return Math.floor(stat.mtimeMs / 1000);
 }
 
 function isVideoThumb(relativeId: string) {
@@ -221,7 +218,7 @@ export function localUploadItemsForType(type: StorageType): LocalUploadItem[] {
         id: relativeId,
         value: parsed.base,
         size: stat.size,
-        date: localDateFromPath(relativeId) || Math.floor(stat.mtimeMs / 1000),
+        date: localUploadDate(stat),
         type,
         src,
         thumb: localApiPath(type, thumbId),
@@ -230,5 +227,6 @@ export function localUploadItemsForType(type: StorageType): LocalUploadItem[] {
         provider: 'local' as const,
       };
     })
-    .filter(isLocalUploadItem);
+    .filter(isLocalUploadItem)
+    .sort((a, b) => b.date - a.date || b.id.localeCompare(a.id));
 }

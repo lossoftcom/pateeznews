@@ -29,6 +29,10 @@ class ArticleVideoBlockEntry {
   final TextEditingController sourceController;
   final quill.QuillController descriptionController;
   String? mediaUrl;
+  String videoThumbUrl = '';
+  String videoPlatform = '';
+  String videoPublishedAt = '';
+  String videoAddedAt = '';
   var showOnHomepage = false;
   var extraSettingsExpanded = false;
 

@@ -13,6 +13,7 @@ import '../../settings/data/admin_content_settings_repository.dart';
 import '../data/admin_news_ai_repository.dart';
 import '../data/admin_news_source_reader.dart';
 import '../data/admin_news_repository.dart';
+import '../data/admin_video_metadata_reader.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/data/media_service.dart';
 import '../../../shared/widgets/admin_rich_text_editor.dart'
@@ -55,6 +56,7 @@ const _newsAddStrongLine = Color(0xFFDDE5E8);
 const _newsAddSoftLine = Color(0xFFE8EEF1);
 const _newsAddTabMuted = Color(0xFF5F6F78);
 const _newsAddUploadInk = Color(0xFF6D7B83);
+const _newsAddMediaSeoGreen = Color(0xFF11835B);
 const _newsAddActionHeight = 42.0;
 const _newsAddCoverVisualHeight = 160.0;
 const _newsAddFormatCategoryAliases = <NewsAddFormatTab, List<String>>{
@@ -245,6 +247,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   final _recipeVideoBlock = ArticleVideoBlockEntry();
   final _eventBlock = EventBlockEntry();
   final _eventContentBlocks = <Object>[];
+  final _mediaService = MediaService();
+  final _videoMetadataReader = const AdminVideoMetadataReader();
 
   // ── Misc state ────────────────────────────────────────────────────────────
   var _schemaType = 'NewsArticle';
@@ -1047,6 +1051,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _clearController(block.sourceController);
     adminSetQuillHtml(block.descriptionController, '');
     block.mediaUrl = null;
+    block.videoThumbUrl = '';
+    block.videoPlatform = '';
+    block.videoPublishedAt = '';
+    block.videoAddedAt = '';
     block.showOnHomepage = false;
     block.extraSettingsExpanded = false;
   }
@@ -1529,6 +1537,33 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _hydrateCommonBlock(block, item);
     adminSetQuillHtml(block.descriptionController, _text(item['description']));
     block.mediaUrl = _nullableText(item['mediaUrl']);
+    block.videoThumbUrl = _firstNonEmpty([
+      _text(item['videoThumbUrl']),
+      _text(item['thumbnailUrl']),
+      _text(item['thumbUrl']),
+      _text(item['mediaThumbUrl']),
+      _text(item['thumbnail']),
+      _text(item['thumb']),
+      _text(item['posterUrl']),
+      _text(item['poster']),
+    ]);
+    block.videoPlatform = _firstNonEmpty([
+      _text(item['videoPlatform']),
+      _text(item['platform']),
+    ]);
+    if (block.videoPlatform.isEmpty && block.mediaUrl != null) {
+      block.videoPlatform = adminVideoPlatformLabel(block.mediaUrl!);
+    }
+    block.videoPublishedAt = _firstNonEmpty([
+      _text(item['videoPublishedAt']),
+      _text(item['publishedAt']),
+      _text(item['datePublished']),
+    ]);
+    block.videoAddedAt = _firstNonEmpty([
+      _text(item['videoAddedAt']),
+      _text(item['addedAt']),
+      _text(item['createdAt']),
+    ]);
     block.showOnHomepage = _bool(item['showOnHomepage']);
   }
 
@@ -1734,6 +1769,32 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     }
     if (videoUrl.isNotEmpty) {
       _recipeVideoBlock.mediaUrl = videoUrl;
+      _recipeVideoBlock.videoThumbUrl = _firstNonEmpty([
+        _text(data['videoThumbUrl']),
+        _text(data['thumbnailUrl']),
+        _text(data['thumbUrl']),
+        _text(data['mediaThumbUrl']),
+        _text(data['thumbnail']),
+        _text(data['thumb']),
+        _text(data['posterUrl']),
+        _text(data['poster']),
+      ]);
+      _recipeVideoBlock.videoPlatform = _firstNonEmpty([
+        _text(data['videoPlatform']),
+        _text(data['platform']),
+      ]);
+      if (_recipeVideoBlock.videoPlatform.isEmpty) {
+        _recipeVideoBlock.videoPlatform = adminVideoPlatformLabel(videoUrl);
+      }
+      _recipeVideoBlock.videoPublishedAt = _firstNonEmpty([
+        _text(data['videoPublishedAt']),
+        _text(data['publishedAt']),
+        _text(data['datePublished']),
+      ]);
+      _recipeVideoBlock.videoAddedAt = _firstNonEmpty([
+        _text(data['videoAddedAt']),
+        _text(data['addedAt']),
+      ]);
     }
   }
 
@@ -2468,6 +2529,11 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         showOnHomepage: block.showOnHomepage,
       ),
       'mediaUrl': block.mediaUrl ?? '',
+      'videoThumbUrl': block.videoThumbUrl,
+      'thumbnailUrl': block.videoThumbUrl,
+      'videoPlatform': block.videoPlatform,
+      'videoPublishedAt': block.videoPublishedAt,
+      'videoAddedAt': block.videoAddedAt,
     };
   }
 
@@ -2758,7 +2824,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       'mediaUrl',
       'mediaList',
       'thumbnail',
+      'thumbnailUrl',
       'thumbnailAlt',
+      'videoThumbUrl',
       'flipData',
       'beforeAfterData',
       'reviewData',
@@ -2821,6 +2889,19 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         type == 'social' ||
         type == 'iframe') {
       cardData['mediaUrl'] = _text(featured['mediaUrl']);
+      if (type == 'video') {
+        final videoThumbUrl = _text(featured['videoThumbUrl']).trim();
+        if (videoThumbUrl.isEmpty) {
+          cardData.remove('videoThumbUrl');
+          cardData.remove('thumbnailUrl');
+        } else {
+          cardData['videoThumbUrl'] = videoThumbUrl;
+          cardData['thumbnailUrl'] = videoThumbUrl;
+          if ((_coverImageUrl ?? '').trim().isEmpty) {
+            cardData['thumbnail'] = videoThumbUrl;
+          }
+        }
+      }
     } else if (type == 'slider') {
       cardData['mediaList'] = _stringList(featured['mediaUrls']);
     } else if (type == 'image') {
@@ -3467,6 +3548,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   void _handleClearRecipeVideoBlock() {
     setState(() {
       _recipeVideoBlock.mediaUrl = null;
+      _recipeVideoBlock.videoThumbUrl = '';
+      _recipeVideoBlock.videoPlatform = '';
+      _recipeVideoBlock.videoPublishedAt = '';
+      _recipeVideoBlock.videoAddedAt = '';
       _recipeVideoBlock.titleController.clear();
       _recipeVideoBlock.sourceController.clear();
     });
@@ -3762,9 +3847,56 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ArticleVideoBlockEntry block,
     String? videoUrl,
   ) {
+    final normalized = videoUrl?.trim();
     setState(() {
-      block.mediaUrl = videoUrl;
+      block.mediaUrl = normalized == null || normalized.isEmpty
+          ? null
+          : normalized;
+      block.videoThumbUrl = '';
+      block.videoPlatform = block.mediaUrl == null
+          ? ''
+          : adminVideoPlatformLabel(block.mediaUrl!);
+      block.videoPublishedAt = '';
+      block.videoAddedAt = block.mediaUrl == null
+          ? ''
+          : DateTime.now().toUtc().toIso8601String();
     });
+    if (normalized != null && normalized.isNotEmpty) {
+      unawaited(_resolveArticleVideoMetadata(block, normalized));
+      unawaited(_resolveArticleVideoThumbnail(block, normalized));
+    }
+  }
+
+  Future<void> _resolveArticleVideoMetadata(
+    ArticleVideoBlockEntry block,
+    String videoUrl,
+  ) async {
+    final metadata = await _videoMetadataReader.read(videoUrl);
+    if (!mounted || block.mediaUrl?.trim() != videoUrl.trim()) return;
+    setState(() {
+      block.videoPlatform = metadata.platformLabel;
+      if (metadata.publishedAt.isNotEmpty) {
+        block.videoPublishedAt = metadata.publishedAt;
+      }
+    });
+  }
+
+  Future<void> _resolveArticleVideoThumbnail(
+    ArticleVideoBlockEntry block,
+    String videoUrl,
+  ) async {
+    final result = await _mediaService.resolveVideoThumbnail(
+      url: videoUrl,
+      title: _firstNonEmpty([
+        block.titleController.text,
+        _titleController.text,
+        _seoTitleController.text,
+      ]),
+    );
+    if (!mounted || block.mediaUrl?.trim() != videoUrl.trim()) return;
+    final thumbnailUrl = result?.thumbnailUrl.trim() ?? '';
+    if (thumbnailUrl.isEmpty) return;
+    setState(() => block.videoThumbUrl = thumbnailUrl);
   }
 
   void _handleArticleAudioHomeChanged(
@@ -4398,6 +4530,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           faqEntries: _faqEntries,
           onAddFaq: _handleAddFaq,
           onRemoveFaq: _handleRemoveFaq,
+          onAiMediaSeo: _openAiMediaSeoDialog,
           onAiGenerate: _openAiContentGenerator,
         ),
         const SizedBox(height: 20),
@@ -4433,6 +4566,492 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       eventImages: result.eventImages,
     );
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
+  }
+
+  Future<void> _openAiMediaSeoDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (dialogContext) {
+        return _AiMediaSeoDialog(
+          mediaCount: _collectAiMediaSeoReferences().length,
+          hasCoverImage: (_coverImageUrl?.trim().isNotEmpty ?? false),
+          onRun: _runAiMediaSeo,
+        );
+      },
+    );
+  }
+
+  Future<_AiMediaSeoReport> _runAiMediaSeo({
+    required bool updateNames,
+    required bool updateCoverAlt,
+  }) async {
+    final references = _collectAiMediaSeoReferences();
+    final contextText = _aiMediaSeoContext();
+    final rows = <_AiMediaSeoRow>[];
+    var renamedCount = 0;
+    var skippedCount = 0;
+    var failedCount = 0;
+
+    if (updateNames) {
+      for (final reference in references) {
+        if (!mounted) break;
+        final oldName = _mediaFileName(reference.src);
+        if (!_isLocalStorageSeoMedia(reference.src)) {
+          skippedCount++;
+          rows.add(
+            _AiMediaSeoRow(
+              label: reference.label,
+              oldName: oldName,
+              newName: '-',
+              status: _AiMediaSeoRowStatus.skipped,
+              messageKey: 'newsAdd.aiMediaSeoModal.localOnly',
+            ),
+          );
+          continue;
+        }
+
+        try {
+          final result = await _mediaService.renameMediaWithAi(
+            src: reference.src,
+            type: reference.type,
+            languageCode: _languageCode,
+            mediaKind: reference.label,
+            context: contextText,
+          );
+          if (!mounted) break;
+          if (result == null || !result.success) {
+            failedCount++;
+            rows.add(
+              _AiMediaSeoRow(
+                label: reference.label,
+                oldName: oldName,
+                newName: '-',
+                status: _AiMediaSeoRowStatus.failed,
+                messageKey: 'newsAdd.aiMediaSeoModal.failed',
+              ),
+            );
+            continue;
+          }
+
+          if (result.replacements.isEmpty) {
+            skippedCount++;
+            rows.add(
+              _AiMediaSeoRow(
+                label: reference.label,
+                oldName: oldName,
+                newName: _mediaFileName(result.src),
+                status: _AiMediaSeoRowStatus.unchanged,
+                messageKey: 'newsAdd.aiMediaSeoModal.unchanged',
+              ),
+            );
+            continue;
+          }
+
+          _applyMediaSeoReplacements(result.replacements);
+          renamedCount++;
+          rows.add(
+            _AiMediaSeoRow(
+              label: reference.label,
+              oldName: oldName,
+              newName: _mediaFileName(result.src),
+              status: _AiMediaSeoRowStatus.renamed,
+              messageKey: 'newsAdd.aiMediaSeoModal.renamed',
+            ),
+          );
+        } catch (_) {
+          failedCount++;
+          rows.add(
+            _AiMediaSeoRow(
+              label: reference.label,
+              oldName: oldName,
+              newName: '-',
+              status: _AiMediaSeoRowStatus.failed,
+              messageKey: 'newsAdd.aiMediaSeoModal.failed',
+            ),
+          );
+        }
+      }
+    }
+
+    var altTextUpdated = false;
+    final coverSource = _coverImageUrl?.trim();
+    if (updateCoverAlt && coverSource != null && coverSource.isNotEmpty) {
+      try {
+        final altResult = await _mediaService.generateMediaAltTextWithAi(
+          src: coverSource,
+          languageCode: _languageCode,
+          mediaKind: 'Haber kapağı',
+          context: contextText,
+          currentAlt: _coverAltController.text,
+        );
+        final altText = altResult?.altText.trim() ?? '';
+        if (mounted && altResult?.success == true && altText.isNotEmpty) {
+          setState(() => _coverAltController.text = altText);
+          altTextUpdated = true;
+        }
+      } catch (_) {
+        altTextUpdated = false;
+      }
+    }
+
+    return _AiMediaSeoReport(
+      foundCount: references.length,
+      renamedCount: renamedCount,
+      skippedCount: skippedCount,
+      failedCount: failedCount,
+      altTextUpdated: altTextUpdated,
+      rows: rows,
+    );
+  }
+
+  List<_AiMediaReference> _collectAiMediaSeoReferences() {
+    final references = <_AiMediaReference>[];
+
+    void add(String? source, String type, String label) {
+      final normalized = source?.trim();
+      if (normalized == null || normalized.isEmpty) return;
+      references.add(
+        _AiMediaReference(
+          src: normalized,
+          type: type,
+          label: label.trim().isEmpty ? 'Haber medyası' : label.trim(),
+        ),
+      );
+    }
+
+    add(_coverImageUrl, 'image', 'Haber kapağı');
+    add(_mansetImageUrl, 'image', 'Manşet slider görseli');
+    for (final block in _articleBlocks) {
+      _collectAiMediaSeoBlockMedia(block, add);
+    }
+    for (final result in _quizResults) {
+      add(
+        result.imageUrl,
+        'image',
+        _mediaSeoLabel('Quiz sonucu', result.titleController.text),
+      );
+    }
+    for (final question in _quizQuestions) {
+      add(
+        question.imageUrl,
+        'image',
+        _mediaSeoLabel('Quiz sorusu', question.titleController.text),
+      );
+      for (final answer in question.answers) {
+        add(
+          answer.imageUrl,
+          'image',
+          _mediaSeoLabel('Quiz cevabı', answer.answerController.text),
+        );
+      }
+    }
+    for (final poll in _pollQuestions) {
+      _collectAiMediaSeoBlockMedia(poll, add);
+    }
+    for (final block in _videoBlocks) {
+      _collectAiMediaSeoBlockMedia(block, add);
+    }
+    for (final item in _tocBlock.items) {
+      add(
+        item.imageUrl,
+        'image',
+        _mediaSeoLabel('İçindekiler görseli', item.titleController.text),
+      );
+    }
+    for (final direction in _recipeBlock.directions) {
+      add(
+        direction.imageUrl,
+        'image',
+        _mediaSeoLabel('Tarif adımı görseli', direction.titleController.text),
+      );
+    }
+    add(
+      _recipeVideoBlock.mediaUrl,
+      'video',
+      _mediaSeoLabel('Tarif videosu', _recipeVideoBlock.titleController.text),
+    );
+    for (final schedule in _eventBlock.schedule) {
+      add(
+        schedule.imageUrl,
+        'image',
+        _mediaSeoLabel(
+          'Etkinlik programı görseli',
+          schedule.titleController.text,
+        ),
+      );
+    }
+    for (final speaker in _eventBlock.speakers) {
+      add(
+        speaker.imageUrl,
+        'image',
+        _mediaSeoLabel('Konuşmacı görseli', speaker.nameController.text),
+      );
+    }
+    for (final block in _eventContentBlocks) {
+      _collectAiMediaSeoBlockMedia(block, add);
+    }
+
+    final seen = <String>{};
+    return [
+      for (final reference in references)
+        if (seen.add('${reference.type}|${reference.src}')) reference,
+    ];
+  }
+
+  void _collectAiMediaSeoBlockMedia(
+    Object block,
+    void Function(String? source, String type, String label) add,
+  ) {
+    if (block is ArticleImageBlockEntry) {
+      add(
+        block.imageUrl,
+        'image',
+        _mediaSeoLabel('Görsel blok', block.titleController.text),
+      );
+    } else if (block is ArticleSliderImageBlockEntry) {
+      for (var index = 0; index < block.imageUrls.length; index++) {
+        add(block.imageUrls[index], 'image', 'Slider görseli ${index + 1}');
+      }
+    } else if (block is ArticleVideoBlockEntry) {
+      add(
+        block.mediaUrl,
+        'video',
+        _mediaSeoLabel('Video blok', block.titleController.text),
+      );
+    } else if (block is ArticleAudioBlockEntry) {
+      add(
+        block.mediaUrl,
+        'audio',
+        _mediaSeoLabel('Ses blok', block.titleController.text),
+      );
+    } else if (block is ArticleFileBlockEntry) {
+      add(
+        block.mediaUrl,
+        'file',
+        _mediaSeoLabel('Dosya blok', block.titleController.text),
+      );
+    } else if (block is ArticleFlipcardBlockEntry) {
+      add(
+        block.frontImageUrl,
+        'image',
+        _mediaSeoLabel('Flipcard ön görsel', block.frontTitleController.text),
+      );
+      add(
+        block.backImageUrl,
+        'image',
+        _mediaSeoLabel('Flipcard arka görsel', block.backTitleController.text),
+      );
+    } else if (block is ArticleBeforeAfterBlockEntry) {
+      add(
+        block.beforeImageUrl,
+        'image',
+        _mediaSeoLabel('Önce görseli', block.beforeLabelController.text),
+      );
+      add(
+        block.afterImageUrl,
+        'image',
+        _mediaSeoLabel('Sonra görseli', block.afterLabelController.text),
+      );
+    } else if (block is PollQuestionBlockEntry) {
+      add(
+        block.imageUrl,
+        'image',
+        _mediaSeoLabel('Anket görseli', block.titleController.text),
+      );
+      for (final answer in block.answers) {
+        add(
+          answer.imageUrl,
+          'image',
+          _mediaSeoLabel('Anket cevabı görseli', answer.answerController.text),
+        );
+      }
+    } else if (block is ArticleVsBlockEntry) {
+      add(
+        block.mainImageUrl,
+        'image',
+        _mediaSeoLabel('VS ana görsel', block.titleController.text),
+      );
+      for (final option in block.options) {
+        add(
+          option.imageUrl,
+          'image',
+          _mediaSeoLabel('VS seçenek görseli', option.textController.text),
+        );
+      }
+    } else if (block is ArticleReviewBlockEntry) {
+      add(
+        block.imageUrl,
+        'image',
+        _mediaSeoLabel('İnceleme görseli', block.productNameController.text),
+      );
+    }
+  }
+
+  String _mediaSeoLabel(String base, String detail) {
+    final text = detail.trim();
+    return text.isEmpty ? base : '$base: $text';
+  }
+
+  String _aiMediaSeoContext() {
+    final lines = <String>[];
+    final seed = _currentAiContentSeed().trim();
+    if (seed.isNotEmpty) lines.add(seed);
+    final categoryPath = _selectedCategoryPath.join(' > ');
+    if (categoryPath.isNotEmpty) lines.add('Kategori yolu: $categoryPath');
+    lines.add('Aktif haber tipi: $_postTypeForActiveTab');
+    return lines.join('\n').trim();
+  }
+
+  bool _isLocalStorageSeoMedia(String source) {
+    final clean = source.trim().split(RegExp(r'[?#]')).first;
+    return clean.contains('/api/storage/file/');
+  }
+
+  String _mediaFileName(String source) {
+    final clean = source.trim().split(RegExp(r'[?#]')).first;
+    final uri = Uri.tryParse(clean);
+    final segments = uri?.pathSegments ?? clean.split('/');
+    final fileName = segments.where((segment) => segment.isNotEmpty).isEmpty
+        ? clean
+        : segments.where((segment) => segment.isNotEmpty).last;
+    return Uri.decodeComponent(fileName);
+  }
+
+  void _applyMediaSeoReplacements(List<MediaSeoReplacement> replacements) {
+    if (replacements.isEmpty) return;
+    setState(() {
+      _coverImageUrl = _replaceMediaSeoUrl(_coverImageUrl, replacements);
+      _mansetImageUrl = _replaceMediaSeoUrl(_mansetImageUrl, replacements);
+      for (final block in _articleBlocks) {
+        _applyMediaSeoBlockReplacements(block, replacements);
+      }
+      for (final result in _quizResults) {
+        result.imageUrl = _replaceMediaSeoUrl(result.imageUrl, replacements);
+      }
+      for (final question in _quizQuestions) {
+        question.imageUrl = _replaceMediaSeoUrl(
+          question.imageUrl,
+          replacements,
+        );
+        for (final answer in question.answers) {
+          answer.imageUrl = _replaceMediaSeoUrl(answer.imageUrl, replacements);
+        }
+      }
+      for (final poll in _pollQuestions) {
+        _applyMediaSeoBlockReplacements(poll, replacements);
+      }
+      for (final block in _videoBlocks) {
+        _applyMediaSeoBlockReplacements(block, replacements);
+      }
+      for (final item in _tocBlock.items) {
+        item.imageUrl = _replaceMediaSeoUrl(item.imageUrl, replacements);
+      }
+      for (final direction in _recipeBlock.directions) {
+        direction.imageUrl = _replaceMediaSeoUrl(
+          direction.imageUrl,
+          replacements,
+        );
+      }
+      _recipeVideoBlock.mediaUrl = _replaceMediaSeoUrl(
+        _recipeVideoBlock.mediaUrl,
+        replacements,
+      );
+      _recipeVideoBlock.videoThumbUrl =
+          _replaceMediaSeoUrl(_recipeVideoBlock.videoThumbUrl, replacements) ??
+          _recipeVideoBlock.videoThumbUrl;
+      for (final schedule in _eventBlock.schedule) {
+        schedule.imageUrl = _replaceMediaSeoUrl(
+          schedule.imageUrl,
+          replacements,
+        );
+      }
+      for (final speaker in _eventBlock.speakers) {
+        speaker.imageUrl = _replaceMediaSeoUrl(speaker.imageUrl, replacements);
+      }
+      for (final block in _eventContentBlocks) {
+        _applyMediaSeoBlockReplacements(block, replacements);
+      }
+    });
+  }
+
+  void _applyMediaSeoBlockReplacements(
+    Object block,
+    List<MediaSeoReplacement> replacements,
+  ) {
+    if (block is ArticleImageBlockEntry) {
+      block.imageUrl = _replaceMediaSeoUrl(block.imageUrl, replacements);
+    } else if (block is ArticleSliderImageBlockEntry) {
+      for (var index = 0; index < block.imageUrls.length; index++) {
+        block.imageUrls[index] =
+            _replaceMediaSeoUrl(block.imageUrls[index], replacements) ??
+            block.imageUrls[index];
+      }
+    } else if (block is ArticleVideoBlockEntry) {
+      block.mediaUrl = _replaceMediaSeoUrl(block.mediaUrl, replacements);
+      block.videoThumbUrl =
+          _replaceMediaSeoUrl(block.videoThumbUrl, replacements) ??
+          block.videoThumbUrl;
+    } else if (block is ArticleAudioBlockEntry) {
+      block.mediaUrl = _replaceMediaSeoUrl(block.mediaUrl, replacements);
+    } else if (block is ArticleFileBlockEntry) {
+      block.mediaUrl = _replaceMediaSeoUrl(block.mediaUrl, replacements);
+    } else if (block is ArticleFlipcardBlockEntry) {
+      block.frontImageUrl = _replaceMediaSeoUrl(
+        block.frontImageUrl,
+        replacements,
+      );
+      block.backImageUrl = _replaceMediaSeoUrl(
+        block.backImageUrl,
+        replacements,
+      );
+    } else if (block is ArticleBeforeAfterBlockEntry) {
+      block.beforeImageUrl = _replaceMediaSeoUrl(
+        block.beforeImageUrl,
+        replacements,
+      );
+      block.afterImageUrl = _replaceMediaSeoUrl(
+        block.afterImageUrl,
+        replacements,
+      );
+    } else if (block is PollQuestionBlockEntry) {
+      block.imageUrl = _replaceMediaSeoUrl(block.imageUrl, replacements);
+      for (final answer in block.answers) {
+        answer.imageUrl = _replaceMediaSeoUrl(answer.imageUrl, replacements);
+      }
+    } else if (block is ArticleVsBlockEntry) {
+      block.mainImageUrl = _replaceMediaSeoUrl(
+        block.mainImageUrl,
+        replacements,
+      );
+      for (final option in block.options) {
+        option.imageUrl = _replaceMediaSeoUrl(option.imageUrl, replacements);
+      }
+    } else if (block is ArticleReviewBlockEntry) {
+      block.imageUrl = _replaceMediaSeoUrl(block.imageUrl, replacements);
+    }
+  }
+
+  String? _replaceMediaSeoUrl(
+    String? source,
+    List<MediaSeoReplacement> replacements,
+  ) {
+    final raw = source?.trim();
+    if (raw == null || raw.isEmpty) return source;
+    var next = source!;
+    for (final replacement in replacements) {
+      if (replacement.oldSrc.isEmpty || replacement.newSrc.isEmpty) continue;
+      if (next == replacement.oldSrc) {
+        next = replacement.newSrc;
+      } else if (next.contains(replacement.oldSrc)) {
+        next = next.replaceAll(replacement.oldSrc, replacement.newSrc);
+      }
+      final oldEncoded = Uri.encodeFull(replacement.oldSrc);
+      if (oldEncoded != replacement.oldSrc && next.contains(oldEncoded)) {
+        next = next.replaceAll(oldEncoded, Uri.encodeFull(replacement.newSrc));
+      }
+    }
+    return next;
   }
 
   String get _aiFormatSubtypeForActiveTab {
@@ -7681,6 +8300,7 @@ class _ContentInfoCard extends StatelessWidget {
     required this.faqEntries,
     required this.onAddFaq,
     required this.onRemoveFaq,
+    required this.onAiMediaSeo,
     required this.onAiGenerate,
   });
 
@@ -7706,6 +8326,7 @@ class _ContentInfoCard extends StatelessWidget {
   final List<_FaqEntry> faqEntries;
   final VoidCallback onAddFaq;
   final ValueChanged<_FaqEntry> onRemoveFaq;
+  final VoidCallback onAiMediaSeo;
   final VoidCallback onAiGenerate;
 
   @override
@@ -7745,6 +8366,7 @@ class _ContentInfoCard extends StatelessWidget {
                     pinToTop: pinToTop,
                     onMansetChanged: onMansetChanged,
                     onPinChanged: onPinChanged,
+                    onAiMediaSeo: onAiMediaSeo,
                     onAiGenerate: onAiGenerate,
                   ),
                 ),
@@ -7902,6 +8524,7 @@ class _HeaderToggles extends StatelessWidget {
     required this.pinToTop,
     required this.onMansetChanged,
     required this.onPinChanged,
+    required this.onAiMediaSeo,
     required this.onAiGenerate,
   });
 
@@ -7909,6 +8532,7 @@ class _HeaderToggles extends StatelessWidget {
   final bool pinToTop;
   final ValueChanged<bool> onMansetChanged;
   final ValueChanged<bool> onPinChanged;
+  final VoidCallback onAiMediaSeo;
   final VoidCallback onAiGenerate;
 
   @override
@@ -7932,6 +8556,7 @@ class _HeaderToggles extends StatelessWidget {
           activeColor: AppColors.warmHorizon,
           showCheckIcon: true,
         ),
+        _AiMediaSeoButton(onTap: onAiMediaSeo),
         _AiButton(onTap: onAiGenerate),
       ],
     );
@@ -7979,6 +8604,54 @@ class _NamedToggle extends StatelessWidget {
   }
 }
 
+class _AiMediaSeoButton extends StatelessWidget {
+  const _AiMediaSeoButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: _newsAddMediaSeoGreen.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: _newsAddMediaSeoGreen.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.drive_file_rename_outline,
+                size: 14,
+                color: _newsAddMediaSeoGreen,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                context.t('newsAdd.aiMediaSeo'),
+                style: const TextStyle(
+                  color: _newsAddMediaSeoGreen,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AiButton extends StatelessWidget {
   const _AiButton({required this.onTap});
 
@@ -8016,6 +8689,922 @@ class _AiButton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _AiMediaSeoRowStatus { renamed, unchanged, skipped, failed }
+
+class _AiMediaReference {
+  const _AiMediaReference({
+    required this.src,
+    required this.type,
+    required this.label,
+  });
+
+  final String src;
+  final String type;
+  final String label;
+}
+
+class _AiMediaSeoRow {
+  const _AiMediaSeoRow({
+    required this.label,
+    required this.oldName,
+    required this.newName,
+    required this.status,
+    required this.messageKey,
+  });
+
+  final String label;
+  final String oldName;
+  final String newName;
+  final _AiMediaSeoRowStatus status;
+  final String messageKey;
+}
+
+class _AiMediaSeoReport {
+  const _AiMediaSeoReport({
+    required this.foundCount,
+    required this.renamedCount,
+    required this.skippedCount,
+    required this.failedCount,
+    required this.altTextUpdated,
+    required this.rows,
+  });
+
+  final int foundCount;
+  final int renamedCount;
+  final int skippedCount;
+  final int failedCount;
+  final bool altTextUpdated;
+  final List<_AiMediaSeoRow> rows;
+
+  int get fixedCount => renamedCount + (altTextUpdated ? 1 : 0);
+}
+
+class _AiMediaSeoDialog extends StatefulWidget {
+  const _AiMediaSeoDialog({
+    required this.mediaCount,
+    required this.hasCoverImage,
+    required this.onRun,
+  });
+
+  final int mediaCount;
+  final bool hasCoverImage;
+  final Future<_AiMediaSeoReport> Function({
+    required bool updateNames,
+    required bool updateCoverAlt,
+  })
+  onRun;
+
+  @override
+  State<_AiMediaSeoDialog> createState() => _AiMediaSeoDialogState();
+}
+
+class _AiMediaSeoDialogState extends State<_AiMediaSeoDialog> {
+  var _updateNames = true;
+  late bool _updateCoverAlt;
+  var _running = false;
+  String? _errorKey;
+  _AiMediaSeoReport? _report;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateCoverAlt = widget.hasCoverImage;
+  }
+
+  Future<void> _run() async {
+    if (_running) return;
+    if (!_updateNames && !_updateCoverAlt) {
+      setState(() => _errorKey = 'newsAdd.aiMediaSeoModal.noOption');
+      return;
+    }
+    if (widget.mediaCount == 0 && !_updateCoverAlt) {
+      setState(() => _errorKey = 'newsAdd.aiMediaSeoModal.noMedia');
+      return;
+    }
+
+    setState(() {
+      _running = true;
+      _errorKey = null;
+      _report = null;
+    });
+    try {
+      final report = await widget.onRun(
+        updateNames: _updateNames,
+        updateCoverAlt: _updateCoverAlt,
+      );
+      if (!mounted) return;
+      setState(() => _report = report);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _errorKey = 'newsAdd.aiMediaSeoModal.failed');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final maxWidth = size.width < 860 ? size.width - 28 : 780.0;
+    final maxHeight = size.height < 760 ? size.height - 40 : 720.0;
+    return Dialog(
+      insetPadding: const EdgeInsets.all(14),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          child: Material(
+            color: Colors.white,
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    _AiMediaSeoHeader(onClose: _running ? null : _close),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(28, 22, 28, 22),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _AiMediaSeoSummaryCard(
+                              mediaCount: widget.mediaCount,
+                              hasCoverImage: widget.hasCoverImage,
+                            ),
+                            const SizedBox(height: 12),
+                            _AiMediaSeoOptions(
+                              updateNames: _updateNames,
+                              updateCoverAlt: _updateCoverAlt,
+                              coverAltEnabled: widget.hasCoverImage,
+                              onUpdateNamesChanged: _running
+                                  ? (_) {}
+                                  : (value) =>
+                                        setState(() => _updateNames = value),
+                              onUpdateCoverAltChanged: _running
+                                  ? (_) {}
+                                  : (value) =>
+                                        setState(() => _updateCoverAlt = value),
+                            ),
+                            if (_errorKey != null) ...[
+                              const SizedBox(height: 12),
+                              _AiMediaSeoNotice(
+                                icon: Icons.error_outline,
+                                color: AppColors.actionRed,
+                                text: context.t(_errorKey!),
+                              ),
+                            ],
+                            if (_report != null) ...[
+                              const SizedBox(height: 16),
+                              _AiMediaSeoReportView(report: _report!),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    _AiMediaSeoFooter(
+                      running: _running,
+                      onClose: _running ? null : _close,
+                      onRun: _running ? null : _run,
+                    ),
+                  ],
+                ),
+                if (_running) const _AiMediaSeoRunningOverlay(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _close() => Navigator.of(context).pop();
+}
+
+class _AiMediaSeoHeader extends StatelessWidget {
+  const _AiMediaSeoHeader({required this.onClose});
+
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(28, 18, 20, 18),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _newsAddMediaSeoGreen.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: const Icon(
+              Icons.drive_file_rename_outline,
+              size: 18,
+              color: _newsAddMediaSeoGreen,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              context.t('newsAdd.aiMediaSeoModal.title'),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          _GoogleAiReadyBadge(),
+          const SizedBox(width: 12),
+          MouseRegion(
+            cursor: onClose == null
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClose,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  Icons.close,
+                  size: 20,
+                  color: onClose == null
+                      ? AppColors.iconMuted.withValues(alpha: 0.45)
+                      : AppColors.iconMuted,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoSummaryCard extends StatelessWidget {
+  const _AiMediaSeoSummaryCard({
+    required this.mediaCount,
+    required this.hasCoverImage,
+  });
+
+  final int mediaCount;
+  final bool hasCoverImage;
+
+  @override
+  Widget build(BuildContext context) {
+    final countText = context
+        .t(
+          'newsAdd.aiMediaSeoModal.mediaFound',
+          values: {'count': mediaCount.toString()},
+        )
+        .trim();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: _newsAddMediaSeoGreen.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(
+          color: _newsAddMediaSeoGreen.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(
+                color: _newsAddMediaSeoGreen.withValues(alpha: 0.18),
+              ),
+            ),
+            child: const Icon(
+              Icons.perm_media_outlined,
+              size: 19,
+              color: _newsAddMediaSeoGreen,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  countText,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  context.t('newsAdd.aiMediaSeoModal.subtitle'),
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (hasCoverImage) ...[
+            const SizedBox(width: 12),
+            _AiMediaSeoBadge(label: 'newsAdd.aiMediaSeoModal.coverReady'),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoOptions extends StatelessWidget {
+  const _AiMediaSeoOptions({
+    required this.updateNames,
+    required this.updateCoverAlt,
+    required this.coverAltEnabled,
+    required this.onUpdateNamesChanged,
+    required this.onUpdateCoverAltChanged,
+  });
+
+  final bool updateNames;
+  final bool updateCoverAlt;
+  final bool coverAltEnabled;
+  final ValueChanged<bool> onUpdateNamesChanged;
+  final ValueChanged<bool> onUpdateCoverAltChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+        final children = [
+          _AiMediaSeoOptionCard(
+            icon: Icons.edit_note_outlined,
+            title: 'newsAdd.aiMediaSeoModal.updateNames',
+            description: 'newsAdd.aiMediaSeoModal.updateNamesHint',
+            value: updateNames,
+            onChanged: onUpdateNamesChanged,
+          ),
+          _AiMediaSeoOptionCard(
+            icon: Icons.closed_caption_outlined,
+            title: 'newsAdd.aiMediaSeoModal.updateCoverAlt',
+            description: coverAltEnabled
+                ? 'newsAdd.aiMediaSeoModal.updateCoverAltHint'
+                : 'newsAdd.aiMediaSeoModal.coverMissingHint',
+            value: coverAltEnabled && updateCoverAlt,
+            onChanged: coverAltEnabled ? onUpdateCoverAltChanged : (_) {},
+            disabled: !coverAltEnabled,
+          ),
+        ];
+        if (compact) {
+          return Column(
+            children: [children[0], const SizedBox(height: 10), children[1]],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: children[0]),
+            const SizedBox(width: 12),
+            Expanded(child: children[1]),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AiMediaSeoOptionCard extends StatelessWidget {
+  const _AiMediaSeoOptionCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+    this.disabled = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool disabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: disabled ? 0.58 : 1,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: _newsAddStrongLine),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.deepOcean.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              child: Icon(icon, color: AppColors.deepOcean, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.t(title),
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    context.t(description),
+                    style: const TextStyle(
+                      color: AppColors.iconMuted,
+                      fontSize: 11.3,
+                      fontWeight: FontWeight.w600,
+                      height: 1.28,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _ToggleSwitch(
+              value: value,
+              onChanged: disabled ? (_) {} : onChanged,
+              activeColor: _newsAddMediaSeoGreen,
+              showCheckIcon: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoReportView extends StatelessWidget {
+  const _AiMediaSeoReportView({required this.report});
+
+  final _AiMediaSeoReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = context.t(
+      'newsAdd.aiMediaSeoModal.reportSummary',
+      values: {
+        'found': report.foundCount.toString(),
+        'fixed': report.fixedCount.toString(),
+      },
+    );
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddStrongLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.summarize_outlined,
+                  size: 18,
+                  color: AppColors.deepOcean,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.t('newsAdd.aiMediaSeoModal.report'),
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        summary,
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (report.altTextUpdated)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: _AiMediaSeoNotice(
+                icon: Icons.closed_caption_outlined,
+                color: _newsAddMediaSeoGreen,
+                text: context.t('newsAdd.aiMediaSeoModal.coverAltUpdated'),
+              ),
+            ),
+          if (report.rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Text(
+                context.t('newsAdd.aiMediaSeoModal.noRenameRows'),
+                style: const TextStyle(
+                  color: AppColors.iconMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          else
+            Column(
+              children: [
+                for (var index = 0; index < report.rows.length; index++)
+                  _AiMediaSeoReportRow(
+                    row: report.rows[index],
+                    isLast: index == report.rows.length - 1,
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoReportRow extends StatelessWidget {
+  const _AiMediaSeoReportRow({required this.row, required this.isLast});
+
+  final _AiMediaSeoRow row;
+  final bool isLast;
+
+  Color get _color {
+    return switch (row.status) {
+      _AiMediaSeoRowStatus.renamed => _newsAddMediaSeoGreen,
+      _AiMediaSeoRowStatus.unchanged => AppColors.warmHorizon,
+      _AiMediaSeoRowStatus.skipped => AppColors.iconMuted,
+      _AiMediaSeoRowStatus.failed => AppColors.actionRed,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(top: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 9,
+            height: 9,
+            margin: const EdgeInsets.only(top: 5),
+            decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  row.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 5,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _AiMediaSeoFileChip(text: row.oldName),
+                    const Icon(
+                      Icons.arrow_forward,
+                      size: 13,
+                      color: AppColors.iconMuted,
+                    ),
+                    _AiMediaSeoFileChip(
+                      text: row.newName,
+                      highlight: row.status == _AiMediaSeoRowStatus.renamed,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _AiMediaSeoStatusPill(label: row.messageKey, color: _color),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoFileChip extends StatelessWidget {
+  const _AiMediaSeoFileChip({required this.text, this.highlight = false});
+
+  final String text;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 240),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: highlight
+            ? _newsAddMediaSeoGreen.withValues(alpha: 0.08)
+            : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(
+          color: highlight
+              ? _newsAddMediaSeoGreen.withValues(alpha: 0.18)
+              : _newsAddSoftLine,
+        ),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: highlight ? _newsAddMediaSeoGreen : AppColors.inkSoft,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoStatusPill extends StatelessWidget {
+  const _AiMediaSeoStatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        context.t(label),
+        style: TextStyle(
+          color: color,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoBadge extends StatelessWidget {
+  const _AiMediaSeoBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddMediaSeoGreen.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        context.t(label),
+        style: const TextStyle(
+          color: _newsAddMediaSeoGreen,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoNotice extends StatelessWidget {
+  const _AiMediaSeoNotice({
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoFooter extends StatelessWidget {
+  const _AiMediaSeoFooter({
+    required this.running,
+    required this.onClose,
+    required this.onRun,
+  });
+
+  final bool running;
+  final VoidCallback? onClose;
+  final VoidCallback? onRun;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(28, 16, 28, 18),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          final closeButton = _PillButton(
+            icon: Icons.close,
+            label: 'newsAdd.aiModal.close',
+            onTap: onClose,
+            background: Colors.white,
+            foreground: AppColors.inkSoft,
+            borderColor: _newsAddStrongLine,
+            height: 38,
+          );
+          final runButton = _PillButton(
+            icon: running ? Icons.hourglass_empty : Icons.auto_awesome,
+            label: running
+                ? 'newsAdd.aiMediaSeoModal.running'
+                : 'newsAdd.aiMediaSeoModal.run',
+            onTap: onRun,
+            background: _newsAddMediaSeoGreen,
+            foreground: Colors.white,
+            height: 38,
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [runButton, const SizedBox(height: 10), closeButton],
+            );
+          }
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [closeButton, const SizedBox(width: 10), runButton],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoRunningOverlay extends StatelessWidget {
+  const _AiMediaSeoRunningOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.white.withValues(alpha: 0.76),
+        child: Center(
+          child: Container(
+            width: 330,
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: _newsAddStrongLine),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.deepOcean.withValues(alpha: 0.14),
+                  blurRadius: 28,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _newsAddMediaSeoGreen.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  child: const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: _newsAddMediaSeoGreen,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  context.t('newsAdd.aiMediaSeoModal.running'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  context.t('newsAdd.aiMediaSeoModal.runningHint'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

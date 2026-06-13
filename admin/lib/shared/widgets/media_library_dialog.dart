@@ -283,7 +283,9 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
       }
       if (uploaded.isNotEmpty && mounted) {
         setState(() {
-          _files.insertAll(0, uploaded.reversed);
+          _files
+            ..insertAll(0, uploaded.reversed)
+            ..sort(compareNewestMedia);
         });
         _selectedSrcs.value = widget.multiSelect
             ? uploaded.map((file) => file.src).toSet()

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import { LOCAL_UPLOAD_ROOT } from '@/lib/server/localUploadStorage';
@@ -13,6 +14,7 @@ type StorageType = typeof STORAGE_TYPES[number];
 const STORAGE_FILE_MARKER = '/api/storage/file/';
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 const IMAGE_VARIANT_SUFFIXES = ['_sm', '_xl', '_md', '_lg'] as const;
+const MAX_AI_IMAGE_DIMENSION = 1600;
 
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
@@ -126,6 +128,16 @@ const collectRenameTargets = (baseDir: string, type: StorageType, fileId: string
         }
     }
 
+    if (type === 'video' && fs.existsSync(fullDir) && fs.statSync(fullDir).isDirectory()) {
+        const thumbRegex = new RegExp(`^${escapeRegExp(parsed.name)}_thumb\\.(webp|jpe?g|png)$`, 'i');
+        for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
+            if (!entry.isFile() || !thumbRegex.test(entry.name)) continue;
+            const siblingParsed = path.parse(entry.name);
+            const siblingId = dir ? `${dir}/${entry.name}` : entry.name;
+            targets.set(siblingId, { id: siblingId, variant: '_thumb', ext: siblingParsed.ext });
+        }
+    }
+
     return Array.from(targets.values());
 };
 
@@ -170,11 +182,36 @@ const fetchAiSettings = async (languageCode: string) => {
     return fallback.rows[0] || null;
 };
 
+const prepareInlineImage = async (filePath: string) => {
+    const input = fs.readFileSync(filePath);
+    const image = sharp(input, { animated: false });
+    const buffer = await image
+        .rotate()
+        .resize({
+            width: MAX_AI_IMAGE_DIMENSION,
+            height: MAX_AI_IMAGE_DIMENSION,
+            fit: 'inside',
+            withoutEnlargement: true,
+            kernel: 'lanczos3'
+        })
+        .jpeg({
+            quality: 84,
+            mozjpeg: true
+        })
+        .toBuffer();
+
+    return {
+        mimeType: 'image/jpeg',
+        data: buffer.toString('base64')
+    };
+};
+
 const buildPrompt = (input: {
     context: string;
     currentName: string;
     mediaKind: string;
     type: StorageType;
+    hasImage: boolean;
 }) => `
 Sen uluslararası SEO, Google News, Yandex News, Discover ve yapay zeka tarayıcıları için görsel/video dosya adlandırma uzmanısın.
 
@@ -189,10 +226,13 @@ Kurallar:
 - Google SEO, Yandex SEO, Google Images, Discover ve AI crawler anlayışı için somut kişi/yer/konu/olay kelimelerini öne al.
 - "image", "foto", "resim", "whatsapp", "img", "edited", "screenshot", tarih-saat, rastgele sayı gibi anlamsız kelimeleri kullanma.
 - Clickbait, iddia, abartı veya olmayan bilgi ekleme.
+- Görsel verisi eklendiyse görseldeki kişi, kurum, mekan ve ana nesneyi doğrudan analiz et.
+- Haber bağlamında açık olan kişi/kurum/yer bilgilerini, görselle çelişmiyorsa dosya adında kullan.
 - Haber metninde belirsizse mevcut dosya adından ve medya türünden güvenli çıkarım yap; uydurma isim/kurum ekleme.
 
 Medya türü: ${input.type}
 Medya konumu: ${input.mediaKind}
+Görsel verisi eklendi mi: ${input.hasImage ? 'evet' : 'hayır'}
 Mevcut dosya adı: ${input.currentName}
 
 Haber bağlamı:
@@ -213,10 +253,20 @@ const generateSeoName = async (input: {
     currentName: string;
     mediaKind: string;
     type: StorageType;
+    inlineImage: { mimeType: string; data: string } | null;
 }) => {
-    const prompt = buildPrompt(input);
+    const prompt = buildPrompt({ ...input, hasImage: Boolean(input.inlineImage) });
+    const parts: Array<any> = [{ text: prompt }];
+    if (input.inlineImage) {
+        parts.push({
+            inlineData: {
+                mimeType: input.inlineImage.mimeType,
+                data: input.inlineImage.data
+            }
+        });
+    }
     const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts }],
         generationConfig: {
             temperature: 0.2,
             topK: 32,
@@ -299,13 +349,22 @@ export const POST: APIRoute = async ({ request }) => {
         const context = String(body?.context || '').slice(0, 6000);
         const mediaKind = String(body?.mediaKind || 'haber medyası').slice(0, 120);
         const model = normalizeGeminiModelName(settings.google_ai_model) || 'gemini-2.5-flash';
+        let inlineImage: { mimeType: string; data: string } | null = null;
+        if (ref.type === 'image') {
+            try {
+                inlineImage = await prepareInlineImage(exactPath);
+            } catch {
+                inlineImage = null;
+            }
+        }
         const requestedBase = await generateSeoName({
             apiKey: settings.google_ai_api_key,
             model,
             context,
             currentName,
             mediaKind,
-            type: ref.type
+            type: ref.type,
+            inlineImage
         });
 
         const targets = collectRenameTargets(baseDir, ref.type, candidateId);

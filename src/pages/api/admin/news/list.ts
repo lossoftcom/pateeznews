@@ -169,6 +169,52 @@ function videoSizeLabel(entry: Record<string, any>) {
   return `${Math.round(size)} B`;
 }
 
+function videoExtension(url: string, origin: string) {
+  let pathname = url;
+  try {
+    pathname = new URL(url, origin).pathname;
+  } catch {
+    pathname = url.split('?')[0] || url;
+  }
+  const file = pathname.split('/').filter(Boolean).pop() || '';
+  const dot = file.lastIndexOf('.');
+  if (dot < 0 || dot === file.length - 1) return '';
+  const extension = file.slice(dot + 1).toLowerCase();
+  return extension.length <= 6 ? extension : '';
+}
+
+function videoPlatformLabel(entry: Record<string, any>, url: string, origin: string) {
+  const explicit = cleanText(entry.videoPlatform ?? entry.platform ?? entry.platformLabel);
+  if (explicit) return explicit;
+  const youtubeId = youtubeIdFrom(url);
+  if (youtubeId) return 'YouTube';
+  const extension = videoExtension(url, origin);
+  const suffix = extension ? ` · ${extension.toUpperCase()}` : '';
+  try {
+    const parsed = new URL(url, origin);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const localPath = localVideoObjectPath(parsed.pathname);
+    if (localPath) return `Yerel Depo${suffix}`;
+    if (host.includes('pexels.com')) return `Pexels${suffix}`;
+    if (host.includes('vimeo.com')) return `Vimeo${suffix}`;
+    if (host.includes('dailymotion.com')) return `Dailymotion${suffix}`;
+    return `${host}${suffix}`;
+  } catch {
+    return `Yerel Depo${suffix}`;
+  }
+}
+
+function videoPublishedAt(entry: Record<string, any>) {
+  return cleanText(
+    entry.videoPublishedAt ??
+      entry.publishedAt ??
+      entry.datePublished ??
+      entry.videoAddedAt ??
+      entry.addedAt ??
+      entry.createdAt
+  );
+}
+
 function addVideoCandidate(
   candidates: Record<string, any>[],
   entry: Record<string, any>,
@@ -248,6 +294,8 @@ function videoSummariesFromRow(
       title: cleanText(entry.title) || `Video ${index + 1}`,
       url,
       thumbnail_url: thumb,
+      platform_label: videoPlatformLabel(entry, url, origin),
+      published_at: videoPublishedAt(entry),
       size_label: videoSizeLabel(entry),
       views_count: viewCounts.get(`${row.id}|${key}`) || 0,
     });

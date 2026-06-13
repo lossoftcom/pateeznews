@@ -610,6 +610,21 @@ export const dataService = {
 
             if (homepageType === NewsType.VIDEO || homepageType === NewsType.AUDIO || homepageType === NewsType.EMBED) {
                 if (homepageMediaUrl) merged.mediaUrl = homepageMediaUrl;
+                if (homepageType === NewsType.VIDEO) {
+                    const homepageVideoThumb =
+                        typeof (homepageItem as any)?.videoThumbUrl === 'string' ? (homepageItem as any).videoThumbUrl.trim() :
+                        typeof (homepageItem as any)?.thumbnailUrl === 'string' ? (homepageItem as any).thumbnailUrl.trim() :
+                        typeof (homepageItem as any)?.thumbUrl === 'string' ? (homepageItem as any).thumbUrl.trim() :
+                        typeof (homepageItem as any)?.mediaThumbUrl === 'string' ? (homepageItem as any).mediaThumbUrl.trim() :
+                        typeof (homepageItem as any)?.thumb === 'string' ? (homepageItem as any).thumb.trim() :
+                        '';
+                    if (homepageVideoThumb) {
+                        merged.videoThumbUrl = homepageVideoThumb;
+                        if (!String(merged.thumbnail || '').trim()) {
+                            merged.thumbnail = homepageVideoThumb;
+                        }
+                    }
+                }
             }
 
             if (homepageType === NewsType.GALLERY) {

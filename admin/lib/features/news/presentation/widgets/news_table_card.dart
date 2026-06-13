@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart' as youtube;
 
 import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
@@ -13,6 +15,30 @@ import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../news_models.dart';
 import 'news_link_opener.dart';
+
+class _NewsVideoDetailColumns {
+  const _NewsVideoDetailColumns({
+    required this.platform,
+    required this.date,
+    required this.size,
+    required this.views,
+  });
+
+  factory _NewsVideoDetailColumns.forWidth(double width) {
+    final safeWidth = width.isFinite ? width : 1180.0;
+    return _NewsVideoDetailColumns(
+      platform: (safeWidth * 0.105).clamp(146.0, 184.0).toDouble(),
+      date: (safeWidth * 0.155).clamp(198.0, 258.0).toDouble(),
+      size: (safeWidth * 0.082).clamp(104.0, 132.0).toDouble(),
+      views: (safeWidth * 0.058).clamp(82.0, 96.0).toDouble(),
+    );
+  }
+
+  final double platform;
+  final double date;
+  final double size;
+  final double views;
+}
 
 class NewsTableCard extends StatelessWidget {
   const NewsTableCard({
@@ -1318,65 +1344,127 @@ class _NewsVideoExpansion extends StatelessWidget {
             _NewsDataTable._expandWidth +
             _NewsDataTable._idWidth,
         right: 16,
-        bottom: 14,
+        top: 14,
+        bottom: 20,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.54),
+        color: const Color(0xFFF3F8FA),
         border: Border(
-          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.9)),
+          top: BorderSide(
+            color: const Color(0xFFDDECEF).withValues(alpha: 0.9),
+          ),
+          bottom: BorderSide(
+            color: const Color(0xFFDDECEF).withValues(alpha: 0.9),
+          ),
         ),
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFFFFF), Color(0xFFF9FCFC)],
+          ),
           borderRadius: BorderRadius.circular(AppRadius.value),
-          border: Border.all(color: AppColors.line.withValues(alpha: 0.7)),
+          border: Border.all(color: const Color(0xFFD7E8EC)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deepOcean.withValues(alpha: 0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
-        child: Column(
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
           children: [
-            _NewsVideoExpansionHeader(count: videos.length),
-            Container(
-              height: 34,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(alpha: 0.72),
-                border: Border(
-                  top: BorderSide(
-                    color: AppColors.softLine.withValues(alpha: 0.9),
-                  ),
-                  bottom: BorderSide(
-                    color: AppColors.softLine.withValues(alpha: 0.9),
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _VideoHeaderText(context.t('news.videos.video')),
-                  ),
-                  SizedBox(
-                    width: 112,
-                    child: _VideoHeaderText(
-                      context.t('news.videos.size'),
-                      centered: true,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 104,
-                    child: _VideoHeaderText(
-                      context.t('news.videos.views'),
-                      centered: true,
-                    ),
-                  ),
-                ],
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(width: 4, color: AppColors.actionRed),
               ),
             ),
-            for (var index = 0; index < videos.length; index++)
-              _NewsVideoDetailRow(
-                video: videos[index],
-                index: index,
-                last: index == videos.length - 1,
-              ),
+            Column(
+              children: [
+                _NewsVideoExpansionHeader(count: videos.length),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = _NewsVideoDetailColumns.forWidth(
+                      constraints.maxWidth,
+                    );
+                    return Column(
+                      children: [
+                        Container(
+                          height: 38,
+                          padding: const EdgeInsets.only(left: 18, right: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF6F7),
+                            border: Border(
+                              top: BorderSide(
+                                color: const Color(
+                                  0xFFDCECEF,
+                                ).withValues(alpha: 0.9),
+                              ),
+                              bottom: BorderSide(
+                                color: const Color(
+                                  0xFFDCECEF,
+                                ).withValues(alpha: 0.9),
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _VideoHeaderText(
+                                  context.t('news.videos.video'),
+                                ),
+                              ),
+                              SizedBox(
+                                width: columns.platform,
+                                child: _VideoHeaderText(
+                                  context.t('news.videos.platform'),
+                                  centered: true,
+                                ),
+                              ),
+                              SizedBox(
+                                width: columns.date,
+                                child: _VideoHeaderText(
+                                  context.t('news.videos.addedDate'),
+                                  centered: true,
+                                ),
+                              ),
+                              SizedBox(
+                                width: columns.size,
+                                child: _VideoHeaderText(
+                                  context.t('news.videos.size'),
+                                  centered: true,
+                                ),
+                              ),
+                              SizedBox(
+                                width: columns.views,
+                                child: _VideoHeaderText(
+                                  context.t('news.videos.views'),
+                                  centered: true,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        for (var index = 0; index < videos.length; index++)
+                          _NewsVideoDetailRow(
+                            video: videos[index],
+                            index: index,
+                            last: index == videos.length - 1,
+                            columns: columns,
+                            onTap: () =>
+                                _openNewsVideoPreview(context, videos[index]),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -1392,24 +1480,24 @@ class _NewsVideoExpansionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
+      padding: const EdgeInsets.fromLTRB(18, 14, 12, 13),
       child: Row(
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.deepOcean.withValues(alpha: 0.06),
+              color: AppColors.actionRed.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppRadius.value),
               border: Border.all(
-                color: AppColors.deepOcean.withValues(alpha: 0.08),
+                color: AppColors.actionRed.withValues(alpha: 0.16),
               ),
             ),
             child: const SymbolIcon(
               Symbols.play_circle_outline_rounded,
-              color: AppColors.deepOcean,
-              size: 17,
+              color: AppColors.actionRed,
+              size: 18,
             ),
           ),
           const SizedBox(width: 10),
@@ -1420,7 +1508,7 @@ class _NewsVideoExpansionHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.deepOcean,
-                fontSize: 12.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),
@@ -1429,18 +1517,18 @@ class _NewsVideoExpansionHeader extends StatelessWidget {
           Container(
             height: 24,
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 9),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: const Color(0xFFFFF4F2),
               borderRadius: BorderRadius.circular(AppRadius.value),
               border: Border.all(
-                color: AppColors.softLine.withValues(alpha: 0.92),
+                color: AppColors.actionRed.withValues(alpha: 0.15),
               ),
             ),
             child: Text(
               context.t('news.videos.count', values: {'count': count}),
               style: const TextStyle(
-                color: AppColors.inkSoft,
+                color: AppColors.actionRed,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0,
@@ -1476,86 +1564,236 @@ class _VideoHeaderText extends StatelessWidget {
   }
 }
 
-class _NewsVideoDetailRow extends StatelessWidget {
+class _NewsVideoDetailRow extends StatefulWidget {
   const _NewsVideoDetailRow({
     required this.video,
     required this.index,
     required this.last,
+    required this.columns,
+    required this.onTap,
   });
 
   final AdminNewsVideo video;
   final int index;
   final bool last;
+  final _NewsVideoDetailColumns columns;
+  final VoidCallback onTap;
+
+  @override
+  State<_NewsVideoDetailRow> createState() => _NewsVideoDetailRowState();
+}
+
+class _NewsVideoDetailRowState extends State<_NewsVideoDetailRow> {
+  var _hovering = false;
 
   @override
   Widget build(BuildContext context) {
-    final title = video.title.trim().isEmpty
-        ? '${context.t('news.videos.video')} ${index + 1}'
-        : video.displayTitle;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 72),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        border: last
-            ? null
-            : Border(
-                bottom: BorderSide(
-                  color: AppColors.softLine.withValues(alpha: 0.86),
-                ),
-              ),
-      ),
-      child: Row(
-        children: [
-          _VideoThumb(video: video),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final title = widget.video.title.trim().isEmpty
+        ? '${context.t('news.videos.video')} ${widget.index + 1}'
+        : widget.video.displayTitle;
+    return Tooltip(
+      message: context.t('news.videos.play'),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            constraints: const BoxConstraints(minHeight: 86),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              color: _hovering
+                  ? const Color(0xFFFFF8F6)
+                  : Colors.white.withValues(alpha: 0),
+              border: widget.last
+                  ? null
+                  : Border(
+                      bottom: BorderSide(
+                        color: const Color(0xFFE8F0F2).withValues(alpha: 0.92),
+                      ),
+                    ),
+            ),
+            child: Row(
               children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.deepOcean,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    height: 1.15,
-                    letterSpacing: 0,
+                _VideoThumb(video: widget.video, active: _hovering),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            fit: FlexFit.loose,
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _hovering
+                                    ? AppColors.actionRed
+                                    : AppColors.deepOcean,
+                                fontSize: 12.8,
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          _VideoPlayChip(active: _hovering),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _compactVideoUrl(widget.video.displayUrl),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.support,
+                          fontSize: 10.8,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  _compactVideoUrl(video.displayUrl),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.support,
-                    fontSize: 10.8,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0,
+                SizedBox(
+                  width: widget.columns.platform,
+                  child: _VideoPlatformCell(
+                    label: widget.video.displayPlatform,
+                    maxWidth: widget.columns.platform - 18,
                   ),
+                ),
+                SizedBox(
+                  width: widget.columns.date,
+                  child: _VideoPublishedDateCell(
+                    dateTime: widget.video.publishedAt,
+                  ),
+                ),
+                SizedBox(
+                  width: widget.columns.size,
+                  child: Center(
+                    child: Text(
+                      widget.video.sizeLabel.trim().isEmpty
+                          ? '-'
+                          : widget.video.sizeLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: widget.columns.views,
+                  child: _NumberCell(value: widget.video.viewsCount),
                 ),
               ],
             ),
           ),
-          SizedBox(
-            width: 112,
-            child: Center(
-              child: Text(
-                video.sizeLabel.trim().isEmpty ? '-' : video.sizeLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.inkSoft,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoPlatformCell extends StatelessWidget {
+  const _VideoPlatformCell({required this.label, required this.maxWidth});
+
+  final String label;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = label.trim().isEmpty ? '-' : label.trim();
+    return Center(
+      child: Container(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF2F8F9),
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: const Color(0xFFDCECEF)),
+        ),
+        child: Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoPublishedDateCell extends StatelessWidget {
+  const _VideoPublishedDateCell({required this.dateTime});
+
+  final DateTime? dateTime;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = dateTime;
+    if (value == null) {
+      return const Center(
+        child: Text(
+          '-',
+          style: TextStyle(
+            color: AppColors.inkSoft,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            formatAdminFullDate(context, value),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 11.2,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
           ),
-          SizedBox(width: 104, child: _NumberCell(value: video.viewsCount)),
+          const SizedBox(height: 4),
+          Text(
+            context.t(
+              'news.videos.dayCount',
+              values: {'count': _videoAgeInDays(value)},
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.support,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
         ],
       ),
     );
@@ -1563,20 +1801,36 @@ class _NewsVideoDetailRow extends StatelessWidget {
 }
 
 class _VideoThumb extends StatelessWidget {
-  const _VideoThumb({required this.video});
+  const _VideoThumb({required this.video, required this.active});
 
   final AdminNewsVideo video;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
     final thumb = video.thumbnailUrl.trim();
-    return Container(
-      width: 72,
-      height: 46,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutCubic,
+      width: 84,
+      height: 52,
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: const Color(0xFFF3F7F8),
         borderRadius: BorderRadius.circular(AppRadius.value),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+        border: Border.all(
+          color: active
+              ? AppColors.actionRed.withValues(alpha: 0.34)
+              : const Color(0xFFDDE8EB),
+        ),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: AppColors.actionRed.withValues(alpha: 0.12),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ]
+            : null,
       ),
       clipBehavior: Clip.antiAlias,
       child: thumb.isEmpty
@@ -1591,12 +1845,15 @@ class _VideoThumb extends StatelessWidget {
                   errorBuilder: (context, _, _) => const _VideoThumbFallback(),
                 ),
                 Center(
-                  child: Container(
-                    width: 22,
-                    height: 22,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: active ? 28 : 24,
+                    height: active ? 28 : 24,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.36),
+                      color: active
+                          ? AppColors.actionRed.withValues(alpha: 0.9)
+                          : Colors.black.withValues(alpha: 0.42),
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const SymbolIcon(
@@ -1608,6 +1865,50 @@ class _VideoThumb extends StatelessWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _VideoPlayChip extends StatelessWidget {
+  const _VideoPlayChip({required this.active});
+
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: active ? AppColors.actionRed : const Color(0xFFF1F6F7),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(
+          color: active
+              ? AppColors.actionRed
+              : const Color(0xFFDDE8EB).withValues(alpha: 0.9),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SymbolIcon(
+            Symbols.play_circle_rounded,
+            color: active ? Colors.white : AppColors.deepOcean,
+            size: 13,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            context.t('news.videos.play'),
+            style: TextStyle(
+              color: active ? Colors.white : AppColors.deepOcean,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1634,6 +1935,547 @@ String _compactVideoUrl(String value) {
   if (uri == null || uri.host.isEmpty) return raw;
   final path = uri.path.isEmpty ? '' : uri.path;
   return '${uri.host}$path';
+}
+
+int _videoAgeInDays(DateTime value) {
+  final local = value.toLocal();
+  final date = DateTime(local.year, local.month, local.day);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final days = today.difference(date).inDays;
+  return days < 0 ? 0 : days;
+}
+
+void _openNewsVideoPreview(BuildContext context, AdminNewsVideo video) {
+  showDialog<void>(
+    context: context,
+    barrierColor: const Color(0xB20D1B24),
+    builder: (_) => _NewsVideoPreviewDialog(video: video),
+  );
+}
+
+class _NewsVideoPreviewDialog extends StatelessWidget {
+  const _NewsVideoPreviewDialog({required this.video});
+
+  final AdminNewsVideo video;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = video.displayTitle;
+    final url = video.displayUrl;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth < 960
+              ? constraints.maxWidth
+              : 960.0;
+          final maxHeight = constraints.maxHeight < 760
+              ? constraints.maxHeight
+              : 760.0;
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: maxWidth,
+                maxHeight: maxHeight,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10212B),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 34,
+                      offset: const Offset(0, 18),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _NewsVideoPreviewHeader(title: title, url: url),
+                    Flexible(
+                      child: Container(
+                        width: double.infinity,
+                        color: Colors.black,
+                        child: AspectRatio(
+                          aspectRatio: _isShortsVideoUrl(url) ? 9 / 16 : 16 / 9,
+                          child: _NewsVideoModalPlayer(video: video),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NewsVideoPreviewHeader extends StatelessWidget {
+  const _NewsVideoPreviewHeader({required this.title, required this.url});
+
+  final String title;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 12, 13),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Color(0xFF112B37), Color(0xFF172C34)],
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(
+                color: AppColors.actionRed.withValues(alpha: 0.24),
+              ),
+            ),
+            child: const SymbolIcon(
+              Symbols.play_circle_rounded,
+              color: AppColors.actionRed,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _compactVideoUrl(url),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.58),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Tooltip(
+            message: context.t('news.videos.close'),
+            child: IconButton(
+              mouseCursor: SystemMouseCursors.click,
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close_rounded),
+              color: Colors.white,
+              iconSize: 20,
+              splashRadius: 18,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsVideoModalPlayer extends StatelessWidget {
+  const _NewsVideoModalPlayer({required this.video});
+
+  final AdminNewsVideo video;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = video.displayUrl;
+    final youtubeId = _youtubeVideoId(url);
+    if (youtubeId != null) {
+      return _NewsYoutubeModalPlayer(videoId: youtubeId);
+    }
+    return _NewsDirectModalPlayer(url: url);
+  }
+}
+
+class _NewsYoutubeModalPlayer extends StatefulWidget {
+  const _NewsYoutubeModalPlayer({required this.videoId});
+
+  final String videoId;
+
+  @override
+  State<_NewsYoutubeModalPlayer> createState() =>
+      _NewsYoutubeModalPlayerState();
+}
+
+class _NewsYoutubeModalPlayerState extends State<_NewsYoutubeModalPlayer> {
+  late youtube.YoutubePlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = _createController(widget.videoId);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NewsYoutubeModalPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videoId != widget.videoId) {
+      _controller.close();
+      _controller = _createController(widget.videoId);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.close();
+    super.dispose();
+  }
+
+  youtube.YoutubePlayerController _createController(String id) {
+    return youtube.YoutubePlayerController.fromVideoId(
+      videoId: id,
+      autoPlay: true,
+      params: const youtube.YoutubePlayerParams(
+        mute: false,
+        showControls: true,
+        showFullscreenButton: true,
+        strictRelatedVideos: true,
+        playsInline: true,
+        enableCaption: false,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return youtube.YoutubePlayer(controller: _controller);
+  }
+}
+
+class _NewsDirectModalPlayer extends StatefulWidget {
+  const _NewsDirectModalPlayer({required this.url});
+
+  final String url;
+
+  @override
+  State<_NewsDirectModalPlayer> createState() => _NewsDirectModalPlayerState();
+}
+
+class _NewsDirectModalPlayerState extends State<_NewsDirectModalPlayer> {
+  VideoPlayerController? _controller;
+  var _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _NewsDirectModalPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _disposeController();
+      _failed = false;
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeController();
+    super.dispose();
+  }
+
+  void _disposeController() {
+    final controller = _controller;
+    _controller = null;
+    controller?.removeListener(_refresh);
+    controller?.dispose();
+  }
+
+  Future<void> _load() async {
+    final resolved = _publicUrl(widget.url.trim());
+    final uri = Uri.tryParse(resolved);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      if (mounted) setState(() => _failed = true);
+      return;
+    }
+
+    final controller = VideoPlayerController.networkUrl(uri);
+    _controller = controller;
+    try {
+      await controller.initialize();
+      await controller.setVolume(1);
+      controller.addListener(_refresh);
+      if (!mounted || _controller != controller) return;
+      setState(() {});
+      await controller.play();
+    } catch (_) {
+      if (!mounted || _controller != controller) return;
+      await controller.dispose();
+      _controller = null;
+      setState(() => _failed = true);
+    }
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (_failed) {
+      return _NewsVideoStatusSurface(
+        icon: Icons.error_outline_rounded,
+        title: context.t('news.videos.playbackError'),
+        subtitle: _compactVideoUrl(widget.url),
+      );
+    }
+    if (controller == null || !controller.value.isInitialized) {
+      return _NewsVideoStatusSurface(
+        icon: Icons.hourglass_top_rounded,
+        title: context.t('news.videos.loading'),
+        subtitle: _compactVideoUrl(widget.url),
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _NewsDirectVideoFrame(controller: controller),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _NewsDirectVideoControls(controller: controller),
+        ),
+      ],
+    );
+  }
+}
+
+class _NewsDirectVideoFrame extends StatelessWidget {
+  const _NewsDirectVideoFrame({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = controller.value.size;
+    if (size.width <= 0 || size.height <= 0) {
+      return VideoPlayer(controller);
+    }
+    return FittedBox(
+      fit: BoxFit.contain,
+      child: SizedBox(
+        width: size.width,
+        height: size.height,
+        child: VideoPlayer(controller),
+      ),
+    );
+  }
+}
+
+class _NewsDirectVideoControls extends StatelessWidget {
+  const _NewsDirectVideoControls({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = controller.value;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 18, 10, 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.72)],
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: () {
+              value.isPlaying ? controller.pause() : controller.play();
+            },
+            icon: Icon(
+              value.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: Colors.white,
+            ),
+          ),
+          Expanded(
+            child: VideoProgressIndicator(
+              controller,
+              allowScrubbing: true,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              colors: const VideoProgressColors(
+                playedColor: AppColors.actionRed,
+                bufferedColor: Color(0x80FFFFFF),
+                backgroundColor: Color(0x33FFFFFF),
+              ),
+            ),
+          ),
+          Text(
+            _formatVideoPosition(value.position, value.duration),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: () => controller.setVolume(value.volume > 0 ? 0 : 1),
+            icon: Icon(
+              value.volume > 0
+                  ? Icons.volume_up_rounded
+                  : Icons.volume_off_rounded,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsVideoStatusSurface extends StatelessWidget {
+  const _NewsVideoStatusSurface({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 26),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.56),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+bool _isShortsVideoUrl(String value) {
+  final uri = Uri.tryParse(value.trim());
+  return uri?.pathSegments.any(
+        (segment) => segment.toLowerCase() == 'shorts',
+      ) ??
+      false;
+}
+
+String? _youtubeVideoId(String value) {
+  final raw = value.trim();
+  if (RegExp(r'^[_\-a-zA-Z0-9]{11}$').hasMatch(raw)) return raw;
+  var uri = Uri.tryParse(raw);
+  if (uri != null && !uri.hasScheme && raw.contains('youtube')) {
+    uri = Uri.tryParse('https://$raw');
+  }
+  if (uri == null || uri.host.isEmpty) return null;
+  final host = uri.host.toLowerCase().replaceFirst('www.', '');
+  if (host == 'youtu.be' && uri.pathSegments.isNotEmpty) {
+    return _cleanYoutubeId(uri.pathSegments.first);
+  }
+  if (!host.endsWith('youtube.com') && host != 'youtube-nocookie.com') {
+    return null;
+  }
+  final directId = _cleanYoutubeId(uri.queryParameters['v']);
+  if (directId != null) return directId;
+  final segments = uri.pathSegments;
+  for (var index = 0; index < segments.length - 1; index += 1) {
+    if (const {'shorts', 'embed', 'live'}.contains(segments[index])) {
+      return _cleanYoutubeId(segments[index + 1]);
+    }
+  }
+  return null;
+}
+
+String? _cleanYoutubeId(String? value) {
+  final match = RegExp(r'[_\-a-zA-Z0-9]{11}').firstMatch(value ?? '');
+  return match?.group(0);
+}
+
+String _formatVideoPosition(Duration position, Duration duration) {
+  String format(Duration value) {
+    final hours = value.inHours;
+    final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+  }
+
+  return '${format(position)} / ${format(duration)}';
 }
 
 class _NewsCheckbox extends StatelessWidget {

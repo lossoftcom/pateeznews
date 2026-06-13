@@ -3,8 +3,11 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
 import multiparty from 'multiparty';
 import sharp from 'sharp';
+import ffmpegStaticPath from 'ffmpeg-static';
 
 const PORT = Number(process.env.PATEEZ_LOCAL_STORAGE_PORT || 4322);
 const PROJECT_ROOT = process.env.PATEEZNEWS_PROJECT_ROOT ||
@@ -17,6 +20,12 @@ const THUMB_EXTENSIONS = ['.webp', '.jpg', '.jpeg', '.png'];
 const IMAGE_VARIANT_WIDTHS = [180, 260, 800, 900, 1200, 1440, 1600];
 const IMAGE_VARIANT_QUALITY = 86;
 const VARIANT_ROOT = path.resolve(ROOT, '.variants');
+const FFMPEG_BIN = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg';
+const VIDEO_THUMB_MAX_DIMENSION = 1280;
+const VIDEO_THUMB_QUALITY = 80;
+const VIDEO_THUMB_TIMEOUT_MS = 22000;
+const VIDEO_THUMB_MAX_FRAME_BYTES = 64 * 1024 * 1024;
+const VIDEO_EXTENSIONS = new Set(['.3gp', '.avi', '.m4v', '.mkv', '.mov', '.mp4', '.webm']);
 
 function json(res, status, body) {
   res.writeHead(status, {
@@ -240,17 +249,209 @@ function videoThumbIds(id) {
   return THUMB_EXTENSIONS.map((ext) => `${parsed.dir ? `${parsed.dir}/` : ''}${parsed.name}_thumb${ext}`);
 }
 
+function cleanYoutubeId(value) {
+  const match = String(value || '').match(/[_\-a-zA-Z0-9]{11}/);
+  return match?.[0] || '';
+}
+
+function youtubeIdFrom(value) {
+  try {
+    const parsed = new URL(String(value || '').trim(), 'https://example.invalid');
+    const host = parsed.hostname.toLowerCase();
+    if (!host.includes('youtube.com') && !host.includes('youtu.be') && !host.includes('youtube-nocookie.com')) {
+      return '';
+    }
+    if (host.includes('youtu.be')) return cleanYoutubeId(parsed.pathname.split('/').filter(Boolean)[0]);
+    const queryId = cleanYoutubeId(parsed.searchParams.get('v') || '');
+    if (queryId) return queryId;
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    for (let index = 0; index < segments.length - 1; index += 1) {
+      const segment = segments[index].toLowerCase();
+      if (segment === 'shorts' || segment === 'embed' || segment === 'live') {
+        return cleanYoutubeId(segments[index + 1]);
+      }
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+function youtubeThumbUrl(value) {
+  const id = youtubeIdFrom(value);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : '';
+}
+
+function safeDecodePath(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function localVideoIdFromUrl(value) {
+  try {
+    const parsed = new URL(String(value || '').trim(), 'http://127.0.0.1');
+    const decoded = safeDecodePath(parsed.pathname);
+    if (decoded.startsWith('/api/storage/file/video/')) {
+      return normalizePath(decoded.slice('/api/storage/file/video/'.length));
+    }
+    if (decoded.startsWith('/local-upload/video/')) {
+      return normalizePath(decoded.slice('/local-upload/video/'.length));
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+function seoSlug(value, fallback = 'video-thumb') {
+  const slug = String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[ıİ]/g, 'i')
+    .replace(/[ğĞ]/g, 'g')
+    .replace(/[üÜ]/g, 'u')
+    .replace(/[şŞ]/g, 's')
+    .replace(/[öÖ]/g, 'o')
+    .replace(/[çÇ]/g, 'c')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 72)
+    .replace(/-+$/g, '');
+  return slug || fallback;
+}
+
+function remoteVideoThumbId(videoUrl, title = '') {
+  let sourceName = title;
+  try {
+    const parsed = new URL(videoUrl);
+    sourceName = sourceName || path.posix.parse(safeDecodePath(parsed.pathname)).name || parsed.hostname;
+  } catch {
+    sourceName = sourceName || 'uzak-video';
+  }
+  const hash = crypto.createHash('sha256').update(videoUrl).digest('hex').slice(0, 12);
+  return `remote-thumbs/${seoSlug(sourceName)}-${hash}_thumb.webp`;
+}
+
+function isLikelyDirectVideoUrl(value) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    if (youtubeIdFrom(value)) return false;
+    return VIDEO_EXTENSIONS.has(path.posix.extname(parsed.pathname).toLowerCase()) || parsed.pathname.includes('/video/');
+  } catch {
+    return false;
+  }
+}
+
+function captureVideoFrame(input, { remote = false, seek = '00:00:01.000' } = {}) {
+  return new Promise((resolve, reject) => {
+    const args = ['-hide_banner', '-loglevel', 'error', '-y'];
+    if (remote) args.push('-user_agent', 'PateezNewsAdmin/1.0');
+    args.push(
+      '-ss', seek,
+      '-i', input,
+      '-map', '0:v:0',
+      '-frames:v', '1',
+      '-an',
+      '-f', 'image2pipe',
+      '-vcodec', 'png',
+      'pipe:1',
+    );
+
+    const child = spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const chunks = [];
+    const errors = [];
+    let total = 0;
+    let killedForSize = false;
+    const timeout = setTimeout(() => child.kill('SIGKILL'), VIDEO_THUMB_TIMEOUT_MS);
+
+    child.stdout.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > VIDEO_THUMB_MAX_FRAME_BYTES) {
+        killedForSize = true;
+        child.kill('SIGKILL');
+        return;
+      }
+      chunks.push(chunk);
+    });
+    child.stderr.on('data', (chunk) => errors.push(chunk));
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      if (killedForSize) {
+        reject(new Error('Video frame is too large'));
+        return;
+      }
+      const output = Buffer.concat(chunks);
+      if (code === 0 && output.length > 0) {
+        resolve(output);
+        return;
+      }
+      reject(new Error(Buffer.concat(errors).toString('utf8').trim() || `ffmpeg exited with ${code}`));
+    });
+  });
+}
+
+async function extractVideoFrame(input, options = {}) {
+  try {
+    return await captureVideoFrame(input, options);
+  } catch (firstError) {
+    if (options.seek === '00:00:00.000') throw firstError;
+    return captureVideoFrame(input, { ...options, seek: '00:00:00.000' });
+  }
+}
+
+async function writeVideoThumbFromInput(input, thumbId, options = {}) {
+  const resolved = resolveUploadPath('video', thumbId);
+  if (!resolved) return '';
+  const frame = await extractVideoFrame(input, options);
+  const thumbBuffer = await sharp(frame, { animated: false, failOn: 'none' })
+    .rotate()
+    .resize({
+      width: VIDEO_THUMB_MAX_DIMENSION,
+      height: VIDEO_THUMB_MAX_DIMENSION,
+      fit: 'inside',
+      withoutEnlargement: true,
+      kernel: 'lanczos3',
+    })
+    .webp({
+      quality: VIDEO_THUMB_QUALITY,
+      alphaQuality: 90,
+      effort: 5,
+      smartSubsample: true,
+      preset: 'photo',
+    })
+    .toBuffer();
+  await fs.promises.mkdir(path.dirname(resolved.absolutePath), { recursive: true });
+  await fs.promises.writeFile(resolved.absolutePath, thumbBuffer);
+  return resolved.relativeId;
+}
+
+async function ensureLocalVideoThumb(id) {
+  const relativeId = normalizePath(id);
+  if (!relativeId) return '';
+  for (const candidate of videoThumbIds(relativeId)) {
+    const resolvedThumb = resolveUploadPath('video', candidate);
+    if (resolvedThumb && fs.existsSync(resolvedThumb.absolutePath)) return candidate;
+  }
+  const resolvedVideo = resolveUploadPath('video', relativeId);
+  if (!resolvedVideo || !fs.existsSync(resolvedVideo.absolutePath)) return '';
+  return writeVideoThumbFromInput(resolvedVideo.absolutePath, videoThumbIds(relativeId)[0]);
+}
+
 function isVideoThumb(id) {
   const parsed = path.posix.parse(id);
   return parsed.name.endsWith('_thumb') && THUMB_EXTENSIONS.includes(parsed.ext.toLowerCase());
 }
 
-function dateFromPath(id, stat) {
-  const match = id.match(/(?:^|\/)(\d{4}-\d{2}-\d{2})(?:\/|$)/);
-  if (match) {
-    const time = new Date(`${match[1]}T00:00:00Z`).getTime();
-    if (Number.isFinite(time)) return Math.floor(time / 1000);
-  }
+function uploadDate(stat) {
   return Math.floor(stat.mtimeMs / 1000);
 }
 
@@ -273,7 +474,7 @@ function listItems(type) {
         id,
         value: parsed.base,
         size: stat.size,
-        date: dateFromPath(id, stat),
+        date: uploadDate(stat),
         type,
         src: localApiPath(type, id),
         thumb: localApiPath(type, thumbId),
@@ -283,7 +484,7 @@ function listItems(type) {
       };
     })
     .filter(Boolean)
-    .sort((a, b) => b.date - a.date);
+    .sort((a, b) => b.date - a.date || String(b.id).localeCompare(String(a.id)));
 }
 
 function parseMultipart(req) {
@@ -344,6 +545,14 @@ async function upload(req, res) {
   await fs.promises.mkdir(path.dirname(resolved.absolutePath), { recursive: true });
   await fs.promises.writeFile(resolved.absolutePath, buffer);
   await writeImageVariants(type, relativeId, buffer);
+  let thumbId = relativeId;
+  if (type === 'video') {
+    try {
+      thumbId = await ensureLocalVideoThumb(relativeId) || relativeId;
+    } catch (error) {
+      console.warn('Video thumbnail generation skipped:', error?.message || error);
+    }
+  }
 
   if (replaceId && replaceId !== relativeId) {
     for (const id of [replaceId, ...(type === 'video' ? videoThumbIds(replaceId) : [])]) {
@@ -359,12 +568,13 @@ async function upload(req, res) {
   const parsed = path.posix.parse(relativeId);
   const src = localApiPath(type, relativeId);
   const publicSrc = localPublicPath(type, relativeId);
+  const thumb = localApiPath(type, thumbId);
   return json(res, 200, {
     id: relativeId,
     value: finalFilename,
     src,
     publicSrc,
-    thumb: src,
+    thumb,
     type,
     path: parsed.dir,
     size: buffer.length,
@@ -378,6 +588,66 @@ async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   return Buffer.concat(chunks).toString('utf8');
+}
+
+async function resolveVideoThumb(req, res) {
+  const body = JSON.parse(await readBody(req) || '{}');
+  const videoUrl = String(body.url || body.videoUrl || '').trim();
+  const title = String(body.title || body.context || '').trim();
+  if (!videoUrl) return json(res, 400, { error: 'Video URL required' });
+
+  const youtubeThumb = youtubeThumbUrl(videoUrl);
+  if (youtubeThumb) {
+    return json(res, 200, {
+      success: true,
+      thumb: youtubeThumb,
+      provider: 'youtube',
+    });
+  }
+
+  const localId = localVideoIdFromUrl(videoUrl);
+  if (localId) {
+    const thumbId = await ensureLocalVideoThumb(localId).catch((error) => {
+      console.warn('Local video thumbnail skipped:', error?.message || error);
+      return '';
+    });
+    return json(res, 200, {
+      success: Boolean(thumbId),
+      thumb: thumbId ? localApiPath('video', thumbId) : '',
+      provider: 'local',
+    });
+  }
+
+  if (!isLikelyDirectVideoUrl(videoUrl)) {
+    return json(res, 200, {
+      success: false,
+      thumb: '',
+      provider: 'remote',
+    });
+  }
+
+  const thumbId = remoteVideoThumbId(videoUrl, title);
+  const existing = resolveUploadPath('video', thumbId);
+  if (existing && fs.existsSync(existing.absolutePath)) {
+    return json(res, 200, {
+      success: true,
+      thumb: localApiPath('video', thumbId),
+      provider: 'remote',
+    });
+  }
+
+  const generatedId = await writeVideoThumbFromInput(videoUrl, thumbId, {
+    remote: true,
+  }).catch((error) => {
+    console.warn('Remote video thumbnail skipped:', error?.message || error);
+    return '';
+  });
+
+  return json(res, 200, {
+    success: Boolean(generatedId),
+    thumb: generatedId ? localApiPath('video', generatedId) : '',
+    provider: 'remote',
+  });
 }
 
 async function remove(req, res) {
@@ -410,6 +680,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, listItems(storageType(url.searchParams.get('type'))));
     }
     if (req.method === 'POST' && url.pathname === '/api/local-storage/upload') return upload(req, res);
+    if (req.method === 'POST' && url.pathname === '/api/local-storage/video-thumb') return resolveVideoThumb(req, res);
     if (req.method === 'DELETE' && url.pathname === '/api/local-storage/delete') return remove(req, res);
     return json(res, 404, { error: 'Not found' });
   } catch (error) {

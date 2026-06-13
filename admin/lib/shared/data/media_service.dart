@@ -42,6 +42,102 @@ class MediaItem {
   }
 }
 
+class MediaSeoReplacement {
+  const MediaSeoReplacement({
+    required this.oldId,
+    required this.newId,
+    required this.oldSrc,
+    required this.newSrc,
+  });
+
+  factory MediaSeoReplacement.fromJson(Map<String, dynamic> json) {
+    return MediaSeoReplacement(
+      oldId: (json['oldId'] ?? '').toString(),
+      newId: (json['newId'] ?? '').toString(),
+      oldSrc: (json['oldSrc'] ?? '').toString(),
+      newSrc: (json['newSrc'] ?? '').toString(),
+    );
+  }
+
+  final String oldId;
+  final String newId;
+  final String oldSrc;
+  final String newSrc;
+}
+
+class MediaSeoRenameResult {
+  const MediaSeoRenameResult({
+    required this.success,
+    required this.filename,
+    required this.src,
+    required this.replacements,
+  });
+
+  factory MediaSeoRenameResult.fromJson(Map<String, dynamic> json) {
+    return MediaSeoRenameResult(
+      success: json['success'] == true,
+      filename: (json['filename'] ?? '').toString(),
+      src: (json['src'] ?? '').toString(),
+      replacements: [
+        for (final row in (json['replacements'] as List? ?? const []))
+          if (row is Map<String, dynamic>) MediaSeoReplacement.fromJson(row),
+      ],
+    );
+  }
+
+  final bool success;
+  final String filename;
+  final String src;
+  final List<MediaSeoReplacement> replacements;
+}
+
+class MediaSeoAltTextResult {
+  const MediaSeoAltTextResult({
+    required this.success,
+    required this.altText,
+    required this.usedVision,
+  });
+
+  factory MediaSeoAltTextResult.fromJson(Map<String, dynamic> json) {
+    return MediaSeoAltTextResult(
+      success: json['success'] == true,
+      altText: (json['altText'] ?? '').toString(),
+      usedVision: json['usedVision'] == true,
+    );
+  }
+
+  final bool success;
+  final String altText;
+  final bool usedVision;
+}
+
+class MediaVideoThumbnailResult {
+  const MediaVideoThumbnailResult({
+    required this.success,
+    required this.thumbnailUrl,
+    required this.provider,
+  });
+
+  factory MediaVideoThumbnailResult.fromJson(Map<String, dynamic> json) {
+    final thumb = (json['thumbnailUrl'] ?? json['thumb'] ?? '').toString();
+    return MediaVideoThumbnailResult(
+      success: json['success'] == true && thumb.trim().isNotEmpty,
+      thumbnailUrl: thumb,
+      provider: (json['provider'] ?? '').toString(),
+    );
+  }
+
+  final bool success;
+  final String thumbnailUrl;
+  final String provider;
+}
+
+int compareNewestMedia(MediaItem a, MediaItem b) {
+  final dateCompare = b.date.compareTo(a.date);
+  if (dateCompare != 0) return dateCompare;
+  return b.id.compareTo(a.id);
+}
+
 class MediaTransferProgress {
   const MediaTransferProgress({
     required this.phase,
@@ -144,6 +240,7 @@ class MediaService {
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _timeout = Duration(seconds: 15);
+  static const _aiTimeout = Duration(seconds: 45);
   static const _uploadTimeout = Duration(seconds: 120);
   static final _uploadSettingsCache = <String, MediaUploadSettings>{};
 
@@ -176,7 +273,8 @@ class MediaService {
     return decoded
         .whereType<Map<String, dynamic>>()
         .map((json) => MediaItem.fromJson(json, type))
-        .toList();
+        .toList()
+      ..sort(compareNewestMedia);
   }
 
   Future<MediaUploadSettings> fetchUploadSettings({
@@ -536,6 +634,77 @@ class MediaService {
     return '$micros-$random';
   }
 
+  Future<MediaSeoRenameResult?> renameMediaWithAi({
+    required String src,
+    String type = 'image',
+    required String languageCode,
+    required String mediaKind,
+    required String context,
+  }) async {
+    final response = await _request(
+      'POST',
+      _resolve('/api/storage/seo-rename'),
+      headers: await adminJsonHeaders(),
+      body: jsonEncode({
+        'src': src,
+        'type': type,
+        'languageCode': languageCode,
+        'mediaKind': mediaKind,
+        'context': context,
+      }),
+      timeout: _aiTimeout,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) return null;
+    return MediaSeoRenameResult.fromJson(decoded);
+  }
+
+  Future<MediaSeoAltTextResult?> generateMediaAltTextWithAi({
+    required String src,
+    required String languageCode,
+    required String mediaKind,
+    required String context,
+    String currentAlt = '',
+  }) async {
+    final response = await _request(
+      'POST',
+      _resolve('/api/storage/seo-alt-text'),
+      headers: await adminJsonHeaders(),
+      body: jsonEncode({
+        'src': src,
+        'languageCode': languageCode,
+        'mediaKind': mediaKind,
+        'context': context,
+        'currentAlt': currentAlt,
+      }),
+      timeout: _aiTimeout,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) return null;
+    return MediaSeoAltTextResult.fromJson(decoded);
+  }
+
+  Future<MediaVideoThumbnailResult?> resolveVideoThumbnail({
+    required String url,
+    String title = '',
+  }) async {
+    final response = await _request(
+      'POST',
+      _resolve('/api/storage/video-thumbnail'),
+      headers: await adminJsonHeaders(),
+      body: jsonEncode({'url': url, 'title': title}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) return null;
+    return MediaVideoThumbnailResult.fromJson(decoded);
+  }
+
   Future<bool> deleteFile(String fileId, {String? type}) async {
     final uri = _resolve('/api/storage/delete');
     final body = <String, dynamic>{'id': fileId};
@@ -601,6 +770,7 @@ class MediaService {
     Uri uri, {
     String? body,
     Map<String, String>? headers,
+    Duration? timeout,
   }) async {
     final client = httpClient ?? adminHttpClient;
     final closeClient = shouldCloseAdminHttpClient(client, httpClient);
@@ -611,8 +781,9 @@ class MediaService {
         request.headers['Origin'] = '${uri.scheme}://${uri.authority}';
       }
       if (body != null) request.body = body;
-      final streamed = await (client.send(request)).timeout(_timeout);
-      return http.Response.fromStream(streamed);
+      final effectiveTimeout = timeout ?? _timeout;
+      final streamed = await (client.send(request)).timeout(effectiveTimeout);
+      return http.Response.fromStream(streamed).timeout(effectiveTimeout);
     } finally {
       if (closeClient) client.close();
     }

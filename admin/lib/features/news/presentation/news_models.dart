@@ -146,7 +146,9 @@ class AdminNewsVideo {
     required this.title,
     required this.url,
     required this.thumbnailUrl,
+    required this.platformLabel,
     required this.sizeLabel,
+    required this.publishedAt,
     required this.viewsCount,
   });
 
@@ -154,7 +156,9 @@ class AdminNewsVideo {
   final String title;
   final String url;
   final String thumbnailUrl;
+  final String platformLabel;
   final String sizeLabel;
+  final DateTime? publishedAt;
   final int viewsCount;
 
   String get displayTitle {
@@ -164,6 +168,12 @@ class AdminNewsVideo {
   }
 
   String get displayUrl => url.trim();
+
+  String get displayPlatform {
+    final value = platformLabel.trim();
+    if (value.isNotEmpty) return value;
+    return 'Video';
+  }
 }
 
 class AdminNewsPageResult {

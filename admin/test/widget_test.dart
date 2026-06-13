@@ -991,14 +991,16 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       publisherUsername: 'nasip',
       publisherEmail: 'demo.user@gmail.com',
       parentCategory: 'Niğde',
-      videos: const [
+      videos: [
         AdminNewsVideo(
           id: 'video-1',
           title: 'Festival videosu',
           url: '/api/storage/file/video/2026-05-25/festival.mp4',
           thumbnailUrl:
               '/api/storage/file/video/2026-05-25/festival_thumb.webp',
+          platformLabel: 'Yerel Depo · MP4',
           sizeLabel: '-',
+          publishedAt: DateTime.utc(2025, 6, 13),
           viewsCount: 3,
         ),
       ],

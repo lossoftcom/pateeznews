@@ -414,7 +414,16 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
             title: _decodeText(item['title']),
             url: item['url']?.toString() ?? '',
             thumbnailUrl: item['thumbnail_url']?.toString() ?? '',
+            platformLabel: _decodeText(
+              item['platform_label'] ?? item['platformLabel'],
+            ),
             sizeLabel: item['size_label']?.toString() ?? '-',
+            publishedAt: _parseDate(
+              item['published_at'] ??
+                  item['publishedAt'] ??
+                  item['video_published_at'] ??
+                  item['videoPublishedAt'],
+            ),
             viewsCount: _asInt(item['views_count']),
           ),
     ];
