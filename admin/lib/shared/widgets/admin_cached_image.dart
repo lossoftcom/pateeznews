@@ -19,6 +19,8 @@ class AdminCachedImage extends StatelessWidget {
     this.placeholderColor = AppColors.surface,
     this.errorWidget,
     this.fadeIn = true,
+    this.filterQuality = FilterQuality.medium,
+    this.useOldImageOnUrlChange = false,
   });
 
   final String url;
@@ -39,6 +41,15 @@ class AdminCachedImage extends StatelessWidget {
   /// Liste hücrelerinde kısa fade; tek görsellerde de kullanılabilir.
   final bool fadeIn;
 
+  /// Decode kalitesi. Editör önizlemeleri `FilterQuality.high` ister; liste
+  /// hücreleri varsayılan `medium` ile yeterli.
+  final FilterQuality filterQuality;
+
+  /// URL değişince yeni görsel inene kadar eskisini göster (eski
+  /// `Image.network(gaplessPlayback: true)` karşılığı). Liste hücrelerinde
+  /// (widget geri dönüştürülürken yanlış görsel riskine karşı) `false` bırak.
+  final bool useOldImageOnUrlChange;
+
   @override
   Widget build(BuildContext context) {
     final cacheWidth = (memCacheWidth != null && memCacheWidth! > 0)
@@ -50,7 +61,8 @@ class AdminCachedImage extends StatelessWidget {
       height: height,
       fit: fit,
       memCacheWidth: cacheWidth,
-      filterQuality: FilterQuality.medium,
+      filterQuality: filterQuality,
+      useOldImageOnUrlChange: useOldImageOnUrlChange,
       fadeInDuration: Duration(milliseconds: fadeIn ? 180 : 0),
       fadeOutDuration: Duration(milliseconds: fadeIn ? 120 : 0),
       placeholder: (context, _) => Container(color: placeholderColor),
