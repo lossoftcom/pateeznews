@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'admin_cached_image.dart';
 import 'symbol_icon.dart';
 
 /// Shared, production-grade building blocks for the **mobile** card layout used
@@ -850,13 +851,15 @@ class AdminMobileThumb extends StatelessWidget {
                     size: size * 0.4,
                   ),
                 )
-              : Image.network(
-                  url,
+              : AdminCachedImage(
+                  url: url,
                   width: size,
                   height: size,
                   fit: fit,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (context, _, _) => Center(
+                  memCacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
+                      .round(),
+                  placeholderColor: AppColors.surface,
+                  errorWidget: Center(
                     child: SymbolIcon(
                       fallbackIcon,
                       color: AppColors.iconMuted,
@@ -904,17 +907,21 @@ class AdminMobileAvatar extends StatelessWidget {
                 color: AppColors.deepOcean,
               ),
             )
-          : Image.network(
-              url,
+          : AdminCachedImage(
+              url: url,
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorBuilder: (context, _, _) => Text(
-                initials,
-                style: TextStyle(
-                  fontSize: size * 0.36,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.deepOcean,
+              memCacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
+                  .round(),
+              errorWidget: Center(
+                child: Text(
+                  initials,
+                  style: TextStyle(
+                    fontSize: size * 0.36,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepOcean,
+                  ),
                 ),
               ),
             ),
