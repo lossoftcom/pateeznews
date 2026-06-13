@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:pateeznews_admin/features/auth/data/admin_auth_models.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/data/admin_image_url.dart';
+import '../../../../shared/widgets/admin_cached_image.dart';
 import 'user_menu_card.dart';
 
 class UserAvatarMenu extends StatefulWidget {
@@ -133,40 +134,24 @@ class _AvatarCircle extends StatelessWidget {
               ? Center(
                   child: _AvatarInitials(profile: profile, session: session),
                 )
-              : Image.network(
-                  _publicUrl(avatarUrl),
+              : AdminCachedImage(
+                  url: adminImageUrl(avatarUrl, width: 96),
                   width: 36,
                   height: 36,
                   fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (context, _, _) {
-                    return Center(
-                      child: _AvatarInitials(
-                        profile: profile,
-                        session: session,
-                      ),
-                    );
-                  },
+                  memCacheWidth: 96,
+                  errorWidget: Center(
+                    child: _AvatarInitials(
+                      profile: profile,
+                      session: session,
+                    ),
+                  ),
                 ),
         ),
       ),
     );
   }
 
-  String _publicUrl(String value) {
-    if (value.startsWith('http://') ||
-        value.startsWith('https://') ||
-        value.startsWith('data:')) {
-      return value;
-    }
-    final base = !kIsWeb
-        ? switch (defaultTargetPlatform) {
-            TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-            _ => Uri.parse('http://127.0.0.1:4321'),
-          }
-        : Uri.base;
-    return base.resolve(value).toString();
-  }
 }
 
 class _AvatarInitials extends StatelessWidget {

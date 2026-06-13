@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -8,6 +7,8 @@ import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/data/admin_image_url.dart';
+import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
@@ -229,7 +230,7 @@ class _StoriesScreenState extends State<StoriesScreen> {
   void _openMedia(AdminStory story) {
     final mediaUrl = story.mediaUrl.trim();
     if (mediaUrl.isEmpty) return;
-    unawaited(openNewsLink(_publicUrl(mediaUrl)));
+    unawaited(openNewsLink(adminImageUrl(mediaUrl)));
   }
 
   @override
@@ -615,7 +616,7 @@ class _StoriesMobileCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               AdminMobileThumb(
-                imageUrl: media.isEmpty ? null : _publicUrl(media),
+                imageUrl: media.isEmpty ? null : adminImageUrl(media, width: 180),
                 fallbackIcon: Symbols.photo_camera,
               ),
               const SizedBox(width: 12),
@@ -1536,21 +1537,19 @@ class _StoryThumbnail extends StatelessWidget {
                       size: 20,
                     ),
                   )
-                : Image.network(
-                    _publicUrl(url),
+                : AdminCachedImage(
+                    url: adminImageUrl(url, width: 180),
                     width: 48,
                     height: 64,
                     fit: BoxFit.cover,
-                    filterQuality: FilterQuality.medium,
-                    errorBuilder: (context, _, _) {
-                      return const Center(
-                        child: SymbolIcon(
-                          Symbols.photo_camera,
-                          color: AppColors.iconMuted,
-                          size: 20,
-                        ),
-                      );
-                    },
+                    memCacheWidth: 180,
+                    errorWidget: const Center(
+                      child: SymbolIcon(
+                        Symbols.photo_camera,
+                        color: AppColors.iconMuted,
+                        size: 20,
+                      ),
+                    ),
                   ),
           ),
           Positioned(
@@ -2700,20 +2699,6 @@ class _DialogRadioOption extends StatelessWidget {
   }
 }
 
-String _publicUrl(String value) {
-  if (value.startsWith('http://') ||
-      value.startsWith('https://') ||
-      value.startsWith('data:')) {
-    return value;
-  }
-  final base = !kIsWeb
-      ? switch (defaultTargetPlatform) {
-          TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-          _ => Uri.parse('http://127.0.0.1:4321'),
-        }
-      : Uri.base;
-  return base.resolve(value).toString();
-}
 
 DateTime? _parseInputDate(String value) {
   final raw = value.trim();
