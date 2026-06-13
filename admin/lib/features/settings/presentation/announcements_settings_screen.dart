@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../../news/data/admin_news_repository.dart';
@@ -1236,10 +1237,11 @@ class _AnnouncementThumb extends StatelessWidget {
                   color: AppColors.inkSoft,
                 ),
               )
-            : Image.network(
-                item.imageUrl,
+            : AdminCachedImage(
+                url: item.imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Center(
+                memCacheWidth: 360,
+                errorWidget: const Center(
                   child: SymbolIcon(
                     Symbols.visibility,
                     size: 24,
@@ -1620,11 +1622,11 @@ class _LinkedPostField extends StatelessWidget {
                         size: 22,
                       ),
                     )
-                  : Image.network(
-                      thumbnailUrl,
+                  : AdminCachedImage(
+                      url: thumbnailUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Center(
+                      memCacheWidth: 360,
+                      errorWidget: const Center(
                             child: SymbolIcon(
                               Symbols.article,
                               color: AppColors.inkSoft,
@@ -1943,11 +1945,11 @@ class _NewsPickerRow extends StatelessWidget {
                             size: 22,
                           ),
                         )
-                      : Image.network(
-                          post.thumbnailUrl,
+                      : AdminCachedImage(
+                          url: post.thumbnailUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Center(
+                          memCacheWidth: 360,
+                          errorWidget: const Center(
                                 child: SymbolIcon(
                                   Symbols.article,
                                   color: AppColors.inkSoft,

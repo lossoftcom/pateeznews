@@ -7,6 +7,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_general_settings_repository.dart';
@@ -1705,10 +1706,11 @@ class _SmallImagePreview extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.value),
         border: Border.all(color: AppColors.line),
       ),
-      child: Image.network(
-        publicUrl(url),
+      child: AdminCachedImage(
+        url: publicUrl(url),
         fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => const SymbolIcon(
+        memCacheWidth: 200,
+        errorWidget: const SymbolIcon(
           Symbols.newspaper,
           color: AppColors.inkSoft,
           size: 20,
@@ -1905,11 +1907,11 @@ class _LogoPreview extends StatelessWidget {
       child: url.isNotEmpty
           ? Padding(
               padding: EdgeInsets.all(compact ? 14 : 10),
-              child: Image.network(
-                publicUrl(url),
+              child: AdminCachedImage(
+                url: publicUrl(url),
                 fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) =>
-                    _LogoFallback(compact: compact),
+                memCacheWidth: 400,
+                errorWidget: _LogoFallback(compact: compact),
               ),
             )
           : _LogoFallback(compact: compact),

@@ -7,6 +7,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_account_settings_repository.dart';
@@ -774,10 +775,11 @@ class _ProfileHero extends StatelessWidget {
                   height: 190,
                   child: coverUrl.isEmpty
                       ? const ColoredBox(color: AppColors.surface)
-                      : Image.network(
-                          coverUrl,
+                      : AdminCachedImage(
+                          url: coverUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
+                          memCacheWidth: 1080,
+                          errorWidget:
                               const ColoredBox(color: AppColors.surface),
                         ),
                 ),
@@ -815,10 +817,11 @@ class _ProfileHero extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                         child: avatarUrl.isEmpty
                             ? _ProfileInitials(profile: profile)
-                            : Image.network(
-                                avatarUrl,
+                            : AdminCachedImage(
+                                url: avatarUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
+                                memCacheWidth: 200,
+                                errorWidget:
                                     _ProfileInitials(profile: profile),
                               ),
                       ),
