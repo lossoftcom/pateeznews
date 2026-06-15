@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
+import 'package:pateeznews_admin/shared/widgets/app_confirmation_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
@@ -100,13 +103,25 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
 
   _SocialAccountRowData _rowFromAccount(AdminSocialConnectedAccount account) {
     final info = platformInfoFor(account.platform);
+    final status = account.status.trim().toLowerCase();
     final title = account.displayName.trim().isNotEmpty
         ? account.displayName.trim()
         : account.accountName.trim();
     final handle = account.username.trim().isNotEmpty
         ? '@${account.username.replaceFirst(RegExp(r'^@'), '')}'
         : account.channelName;
+    final statusKey = switch (status) {
+      'connected' => 'social.accounts.status.ready',
+      'disabled' => 'social.accounts.status.passive',
+      _ => 'social.accounts.status.review',
+    };
+    final statusColor = switch (status) {
+      'connected' => const Color(0xFF198754),
+      'disabled' => AppColors.support,
+      _ => AppColors.warmHorizon,
+    };
     return _SocialAccountRowData(
+      account: account,
       platform: info,
       accountName: title.isEmpty ? account.accountName : title,
       handle: handle,
@@ -114,12 +129,9 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
           ? account.platformType
           : account.channelName.trim(),
       connectionLabel: 'Bundle.social',
-      statusKey: account.status == 'connected'
-          ? 'social.accounts.status.ready'
-          : 'social.accounts.status.review',
-      statusColor: account.status == 'connected'
-          ? const Color(0xFF198754)
-          : AppColors.warmHorizon,
+      status: status,
+      statusKey: statusKey,
+      statusColor: statusColor,
       connectedAt: account.connectedAt == null
           ? ''
           : formatAdminFullDate(context, account.connectedAt!),
@@ -133,6 +145,98 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
       message: error.toString(),
       tone: AdminToastTone.error,
     );
+  }
+
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    AdminToast.show(context, message: message, tone: AdminToastTone.success);
+  }
+
+  Future<void> _editAccount(_SocialAccountRowData row) async {
+    final values = await showDialog<Map<String, Object?>>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.34),
+      builder: (context) => _SocialAccountEditDialog(row: row),
+    );
+    if (values == null || !mounted) return;
+
+    try {
+      await widget.repository.updateConnectedAccount(
+        widget.session,
+        row.account,
+        values,
+      );
+      if (!mounted) return;
+      _showSuccess(context.t('social.accounts.toast.updated'));
+      await _loadAccounts();
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _toggleAccountActive(_SocialAccountRowData row) async {
+    final active = row.active;
+    try {
+      await widget.repository.updateConnectedAccount(
+        widget.session,
+        row.account,
+        {'status': active ? 'disabled' : 'connected'},
+      );
+      if (!mounted) return;
+      _showSuccess(
+        context.t(
+          active
+              ? 'social.accounts.toast.deactivated'
+              : 'social.accounts.toast.activated',
+        ),
+      );
+      await _loadAccounts();
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _reconnectAccount(_SocialAccountRowData row) async {
+    final openFailedMessage = context.t('social.accounts.openFailed');
+    try {
+      final url = await widget.repository.createPortalLink(
+        widget.session,
+        socialAccountId: row.account.socialAccountId,
+        platforms: {row.platform.platform},
+      );
+      final launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) throw Exception(openFailedMessage);
+      if (!mounted) return;
+      _showSuccess(context.t('social.accounts.toast.reconnectOpened'));
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _deleteAccount(_SocialAccountRowData row) async {
+    final confirmed = await showAppConfirmationDialog(
+      context,
+      title: 'social.accounts.deleteTitle',
+      message: 'social.accounts.deleteMessage',
+      confirmLabel: 'common.delete',
+      danger: true,
+    );
+    if (!confirmed || !mounted) return;
+
+    try {
+      await widget.repository.deleteConnectedAccount(
+        widget.session,
+        row.account,
+      );
+      if (!mounted) return;
+      _showSuccess(context.t('social.accounts.toast.deleted'));
+      await _loadAccounts();
+    } catch (error) {
+      _showError(error);
+    }
   }
 
   Future<void> _openLoginDialog() async {
@@ -219,6 +323,11 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
                       },
                       onCreate: _openLoginDialog,
                       onRefresh: _loadAccounts,
+                      onEdit: (row) => unawaited(_editAccount(row)),
+                      onToggleActive: (row) =>
+                          unawaited(_toggleAccountActive(row)),
+                      onReconnect: (row) => unawaited(_reconnectAccount(row)),
+                      onDelete: (row) => unawaited(_deleteAccount(row)),
                     ),
             ),
           ],
@@ -327,6 +436,10 @@ class _SocialAccountsTableCard extends StatelessWidget {
     required this.onSearchChanged,
     required this.onCreate,
     required this.onRefresh,
+    required this.onEdit,
+    required this.onToggleActive,
+    required this.onReconnect,
+    required this.onDelete,
   });
 
   static const _minTableWidth = 1120.0;
@@ -341,6 +454,10 @@ class _SocialAccountsTableCard extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onCreate;
   final VoidCallback onRefresh;
+  final ValueChanged<_SocialAccountRowData> onEdit;
+  final ValueChanged<_SocialAccountRowData> onToggleActive;
+  final ValueChanged<_SocialAccountRowData> onReconnect;
+  final ValueChanged<_SocialAccountRowData> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -357,6 +474,10 @@ class _SocialAccountsTableCard extends StatelessWidget {
             onSearchChanged: onSearchChanged,
             onCreate: onCreate,
             onRefresh: onRefresh,
+            onEdit: onEdit,
+            onToggleActive: onToggleActive,
+            onReconnect: onReconnect,
+            onDelete: onDelete,
           );
         }
         return Column(
@@ -402,6 +523,10 @@ class _SocialAccountsTableCard extends StatelessWidget {
                                       itemBuilder: (context, index) {
                                         return _SocialAccountsTableRow(
                                           row: rows[index],
+                                          onEdit: onEdit,
+                                          onToggleActive: onToggleActive,
+                                          onReconnect: onReconnect,
+                                          onDelete: onDelete,
                                         );
                                       },
                                     ),
@@ -439,6 +564,10 @@ class _SocialAccountsMobileView extends StatelessWidget {
     required this.onSearchChanged,
     required this.onCreate,
     required this.onRefresh,
+    required this.onEdit,
+    required this.onToggleActive,
+    required this.onReconnect,
+    required this.onDelete,
   });
 
   final List<_SocialAccountRowData> rows;
@@ -450,6 +579,10 @@ class _SocialAccountsMobileView extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onCreate;
   final VoidCallback onRefresh;
+  final ValueChanged<_SocialAccountRowData> onEdit;
+  final ValueChanged<_SocialAccountRowData> onToggleActive;
+  final ValueChanged<_SocialAccountRowData> onReconnect;
+  final ValueChanged<_SocialAccountRowData> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -504,7 +637,13 @@ class _SocialAccountsMobileView extends StatelessWidget {
             itemCount: rows.length,
             emptyLabel: context.t('social.accounts.empty'),
             itemBuilder: (context, index) {
-              return _SocialAccountsMobileCard(row: rows[index]);
+              return _SocialAccountsMobileCard(
+                row: rows[index],
+                onEdit: onEdit,
+                onToggleActive: onToggleActive,
+                onReconnect: onReconnect,
+                onDelete: onDelete,
+              );
             },
           ),
         ),
@@ -525,9 +664,19 @@ class _SocialAccountsMobileView extends StatelessWidget {
 }
 
 class _SocialAccountsMobileCard extends StatelessWidget {
-  const _SocialAccountsMobileCard({required this.row});
+  const _SocialAccountsMobileCard({
+    required this.row,
+    required this.onEdit,
+    required this.onToggleActive,
+    required this.onReconnect,
+    required this.onDelete,
+  });
 
   final _SocialAccountRowData row;
+  final ValueChanged<_SocialAccountRowData> onEdit;
+  final ValueChanged<_SocialAccountRowData> onToggleActive;
+  final ValueChanged<_SocialAccountRowData> onReconnect;
+  final ValueChanged<_SocialAccountRowData> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -575,6 +724,14 @@ class _SocialAccountsMobileCard extends StatelessWidget {
                     ],
                   ],
                 ),
+              ),
+              const SizedBox(width: 8),
+              _SocialAccountRowMenu(
+                row: row,
+                onEdit: onEdit,
+                onToggleActive: onToggleActive,
+                onReconnect: onReconnect,
+                onDelete: onDelete,
               ),
             ],
           ),
@@ -785,9 +942,19 @@ class _HeaderText extends StatelessWidget {
 }
 
 class _SocialAccountsTableRow extends StatelessWidget {
-  const _SocialAccountsTableRow({required this.row});
+  const _SocialAccountsTableRow({
+    required this.row,
+    required this.onEdit,
+    required this.onToggleActive,
+    required this.onReconnect,
+    required this.onDelete,
+  });
 
   final _SocialAccountRowData row;
+  final ValueChanged<_SocialAccountRowData> onEdit;
+  final ValueChanged<_SocialAccountRowData> onToggleActive;
+  final ValueChanged<_SocialAccountRowData> onReconnect;
+  final ValueChanged<_SocialAccountRowData> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -875,9 +1042,12 @@ class _SocialAccountsTableRow extends StatelessWidget {
           ),
           SizedBox(
             width: _SocialAccountsTableHeader._connectionWidth,
-            child: _SoftBadge(
-              label: row.connectionLabel,
-              color: row.platform.color,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _SoftBadge(
+                label: row.connectionLabel,
+                color: row.platform.color,
+              ),
             ),
           ),
           SizedBox(
@@ -907,18 +1077,244 @@ class _SocialAccountsTableRow extends StatelessWidget {
           SizedBox(
             width: _SocialAccountsTableHeader._actionsWidth,
             child: Center(
+              child: _SocialAccountRowMenu(
+                row: row,
+                onEdit: onEdit,
+                onToggleActive: onToggleActive,
+                onReconnect: onReconnect,
+                onDelete: onDelete,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SocialAccountRowMenu extends StatefulWidget {
+  const _SocialAccountRowMenu({
+    required this.row,
+    required this.onEdit,
+    required this.onToggleActive,
+    required this.onReconnect,
+    required this.onDelete,
+  });
+
+  final _SocialAccountRowData row;
+  final ValueChanged<_SocialAccountRowData> onEdit;
+  final ValueChanged<_SocialAccountRowData> onToggleActive;
+  final ValueChanged<_SocialAccountRowData> onReconnect;
+  final ValueChanged<_SocialAccountRowData> onDelete;
+
+  @override
+  State<_SocialAccountRowMenu> createState() => _SocialAccountRowMenuState();
+}
+
+class _SocialAccountRowMenuState extends State<_SocialAccountRowMenu> {
+  final _layerLink = LayerLink();
+  OverlayEntry? _menuEntry;
+
+  @override
+  void dispose() {
+    _closeMenu();
+    super.dispose();
+  }
+
+  void _openMenu() {
+    if (_menuEntry != null) return;
+
+    _menuEntry = OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _closeMenu,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomRight,
+              followerAnchor: Alignment.topRight,
+              offset: const Offset(0, 8),
+              child: _SocialAccountMenuCard(
+                row: widget.row,
+                onEdit: () => _runAndClose(() => widget.onEdit(widget.row)),
+                onToggleActive: () =>
+                    _runAndClose(() => widget.onToggleActive(widget.row)),
+                onReconnect: () =>
+                    _runAndClose(() => widget.onReconnect(widget.row)),
+                onDelete: () => _runAndClose(() => widget.onDelete(widget.row)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_menuEntry!);
+  }
+
+  void _runAndClose(VoidCallback action) {
+    _closeMenu();
+    action();
+  }
+
+  void _closeMenu() {
+    _menuEntry?.remove();
+    _menuEntry = null;
+  }
+
+  void _toggleMenu() {
+    if (_menuEntry == null) {
+      _openMenu();
+    } else {
+      _closeMenu();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: Tooltip(
+        message: context.t('social.accounts.actionsTooltip'),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleMenu,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Text(
                 '...',
                 style: TextStyle(
-                  color: AppColors.iconMuted.withValues(alpha: 0.9),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  color: AppColors.support.withValues(alpha: 0.92),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
                   letterSpacing: 0,
                 ),
               ),
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialAccountMenuCard extends StatelessWidget {
+  const _SocialAccountMenuCard({
+    required this.row,
+    required this.onEdit,
+    required this.onToggleActive,
+    required this.onReconnect,
+    required this.onDelete,
+  });
+
+  final _SocialAccountRowData row;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleActive;
+  final VoidCallback onReconnect;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 230,
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: AppColors.line),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deepOcean.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SocialAccountMenuItem(
+              icon: Symbols.edit_square,
+              label: 'social.accounts.action.edit',
+              onTap: onEdit,
+            ),
+            _SocialAccountMenuItem(
+              icon: row.active ? Symbols.visibility_off : Symbols.check,
+              label: row.active
+                  ? 'social.accounts.action.deactivate'
+                  : 'social.accounts.action.activate',
+              onTap: onToggleActive,
+            ),
+            _SocialAccountMenuItem(
+              icon: Symbols.sync,
+              label: 'social.accounts.action.reconnect',
+              onTap: onReconnect,
+            ),
+            _SocialAccountMenuItem(
+              icon: Symbols.delete,
+              label: 'social.accounts.action.delete',
+              onTap: onDelete,
+              danger: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialAccountMenuItem extends StatelessWidget {
+  const _SocialAccountMenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? AppColors.actionRed : AppColors.deepOcean;
+
+    return InkWell(
+      mouseCursor: SystemMouseCursors.click,
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Row(
+          children: [
+            SymbolIcon(icon, color: color, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                context.t(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -940,6 +1336,233 @@ const _bundlePortalSupportedTypes = <String>{
   'BLUESKY',
   'GOOGLE_BUSINESS',
 };
+
+class _SocialAccountEditDialog extends StatefulWidget {
+  const _SocialAccountEditDialog({required this.row});
+
+  final _SocialAccountRowData row;
+
+  @override
+  State<_SocialAccountEditDialog> createState() =>
+      _SocialAccountEditDialogState();
+}
+
+class _SocialAccountEditDialogState extends State<_SocialAccountEditDialog> {
+  late final TextEditingController _displayNameController;
+  late final TextEditingController _usernameController;
+  late final TextEditingController _channelNameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayNameController = TextEditingController(
+      text: widget.row.account.displayName.trim().isEmpty
+          ? widget.row.accountName
+          : widget.row.account.displayName.trim(),
+    );
+    _usernameController = TextEditingController(
+      text: widget.row.account.username.replaceFirst(RegExp(r'^@'), ''),
+    );
+    _channelNameController = TextEditingController(
+      text: widget.row.account.channelName.trim(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    _usernameController.dispose();
+    _channelNameController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.of(context).pop({
+      'display_name': _displayNameController.text.trim(),
+      'username': _usernameController.text
+          .replaceFirst(RegExp(r'^@+'), '')
+          .trim(),
+      'channel_name': _channelNameController.text.trim(),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        context.t('social.accounts.editTitle'),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.deepOcean,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => Navigator.of(context).pop(),
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: SymbolIcon(
+                            Symbols.close,
+                            color: AppColors.deepOcean,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _SocialAccountEditField(
+                  controller: _displayNameController,
+                  label: context.t('social.accounts.field.displayName'),
+                ),
+                const SizedBox(height: 12),
+                _SocialAccountEditField(
+                  controller: _usernameController,
+                  label: context.t('social.accounts.field.username'),
+                  prefixText: '@',
+                ),
+                const SizedBox(height: 12),
+                _SocialAccountEditField(
+                  controller: _channelNameController,
+                  label: context.t('social.accounts.field.channelName'),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style:
+                          TextButton.styleFrom(
+                            foregroundColor: AppColors.deepOcean,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            textStyle: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0,
+                            ),
+                          ).copyWith(
+                            mouseCursor: const WidgetStatePropertyAll(
+                              SystemMouseCursors.click,
+                            ),
+                          ),
+                      child: Text(context.t('common.cancel')),
+                    ),
+                    const SizedBox(width: 14),
+                    SizedBox(
+                      height: 36,
+                      child: TextButton(
+                        onPressed: _submit,
+                        style:
+                            TextButton.styleFrom(
+                              backgroundColor: AppColors.deepOcean,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.value,
+                                ),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0,
+                              ),
+                            ).copyWith(
+                              mouseCursor: const WidgetStatePropertyAll(
+                                SystemMouseCursors.click,
+                              ),
+                            ),
+                        child: Text(context.t('common.save')),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialAccountEditField extends StatelessWidget {
+  const _SocialAccountEditField({
+    required this.controller,
+    required this.label,
+    this.prefixText,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String? prefixText;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      cursorColor: AppColors.deepOcean,
+      style: const TextStyle(
+        color: AppColors.deepOcean,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixText: prefixText,
+        filled: true,
+        fillColor: AppColors.surface,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 13,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          borderSide: const BorderSide(color: AppColors.line),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          borderSide: const BorderSide(color: AppColors.line),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          borderSide: const BorderSide(color: AppColors.deepOcean),
+        ),
+      ),
+    );
+  }
+}
 
 class _SocialAccountLoginDialog extends StatefulWidget {
   const _SocialAccountLoginDialog({required this.onConnect});
@@ -1643,24 +2266,30 @@ class _SocialAccountsEmptyState extends StatelessWidget {
 
 class _SocialAccountRowData {
   const _SocialAccountRowData({
+    required this.account,
     required this.platform,
     required this.accountName,
     required this.handle,
     required this.permissionSummary,
     required this.connectionLabel,
+    required this.status,
     required this.statusKey,
     required this.statusColor,
     required this.connectedAt,
   });
 
+  final AdminSocialConnectedAccount account;
   final SocialPlatformInfo platform;
   final String accountName;
   final String handle;
   final String permissionSummary;
   final String connectionLabel;
+  final String status;
   final String statusKey;
   final Color statusColor;
   final String connectedAt;
+
+  bool get active => status == 'connected';
 }
 
 String _platformDisplayName(SocialPlatformInfo info) => switch (info.platform) {

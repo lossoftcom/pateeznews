@@ -129,6 +129,17 @@ abstract class AdminSocialRepository {
     AdminSession session,
   );
 
+  Future<AdminSocialConnectedAccount> updateConnectedAccount(
+    AdminSession session,
+    AdminSocialConnectedAccount account,
+    Map<String, Object?> values,
+  );
+
+  Future<void> deleteConnectedAccount(
+    AdminSession session,
+    AdminSocialConnectedAccount account,
+  );
+
   Future<String> createPortalLink(
     AdminSession session, {
     int? socialAccountId,
@@ -247,6 +258,33 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
               .map(_connectedAccountFromJson)
               .toList(growable: false)
         : const <AdminSocialConnectedAccount>[];
+  }
+
+  @override
+  Future<AdminSocialConnectedAccount> updateConnectedAccount(
+    AdminSession session,
+    AdminSocialConnectedAccount account,
+    Map<String, Object?> values,
+  ) async {
+    final result = await _requestJson(
+      'PATCH',
+      '/api/admin/social/accounts',
+      session,
+      {'id': account.id, ...values},
+    );
+    final row = result['account'];
+    if (row is Map) return _connectedAccountFromJson(row);
+    throw const AdminSocialException('Sosyal medya hesabı güncellenemedi');
+  }
+
+  @override
+  Future<void> deleteConnectedAccount(
+    AdminSession session,
+    AdminSocialConnectedAccount account,
+  ) async {
+    await _requestJson('DELETE', '/api/admin/social/accounts', session, {
+      'id': account.id,
+    });
   }
 
   @override

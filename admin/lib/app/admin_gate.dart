@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 
 import '../core/theme/app_colors.dart';
+import '../core/theme/app_radius.dart';
 import '../features/account/data/admin_account_settings_repository.dart';
 import '../features/auth/data/admin_auth_models.dart';
 import '../features/auth/data/admin_auth_repository.dart';
@@ -26,7 +27,6 @@ import '../features/social/data/admin_social_repository.dart';
 import '../features/stories/data/admin_stories_repository.dart';
 import '../shared/branding/admin_branding.dart';
 import '../shared/data/media_service.dart';
-import '../shared/widgets/admin_brand_mark.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/settings/data/admin_languages_repository.dart';
@@ -315,41 +315,7 @@ class _AdminGateState extends State<AdminGate> {
   @override
   Widget build(BuildContext context) {
     if (_checkingSession) {
-      return Scaffold(
-        body: Center(
-          child: ValueListenableBuilder<AdminBrandingData>(
-            valueListenable: adminBranding,
-            builder: (context, branding, _) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AdminBrandMark(branding: branding, size: 64),
-                  if (branding.hasSiteName) ...[
-                    const SizedBox(height: 18),
-                    Text(
-                      branding.siteName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.deepOcean,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 22),
-                  const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.deepOcean,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      );
+      return const _AdminStartupLoadingScreen();
     }
 
     final session = _session;
@@ -384,5 +350,178 @@ class _AdminGateState extends State<AdminGate> {
             onOpenFrontend: widget.onOpenFrontend,
           )
         : LoginScreen(onLogin: _login);
+  }
+}
+
+class _AdminStartupLoadingScreen extends StatelessWidget {
+  const _AdminStartupLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.surface,
+      body: Center(child: _AdminStartupLoading()),
+    );
+  }
+}
+
+class _AdminStartupLoading extends StatefulWidget {
+  const _AdminStartupLoading();
+
+  @override
+  State<_AdminStartupLoading> createState() => _AdminStartupLoadingState();
+}
+
+class _AdminStartupLoadingState extends State<_AdminStartupLoading>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1350),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
+      color: AppColors.deepOcean,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    );
+
+    return RepaintBoundary(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 148,
+            height: 22,
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                return CustomPaint(
+                  painter: _StartupLoadingPainter(progress: _controller.value),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Loading', style: labelStyle),
+              const SizedBox(width: 6),
+              _LoadingDots(animation: _controller),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingDots extends StatelessWidget {
+  const _LoadingDots({required this.animation});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < 3; index++)
+              Container(
+                width: 4,
+                height: 4,
+                margin: EdgeInsets.only(left: index == 0 ? 0 : 4),
+                decoration: BoxDecoration(
+                  color: AppColors.actionRed.withValues(
+                    alpha: _dotOpacity(animation.value, index),
+                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  double _dotOpacity(double value, int index) {
+    final phase = (value + index * 0.18) % 1;
+    return 0.28 + (0.62 * (1 - (phase - 0.5).abs() * 2));
+  }
+}
+
+class _StartupLoadingPainter extends CustomPainter {
+  const _StartupLoadingPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerY = size.height / 2;
+    final railRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, centerY - 2, size.width, 4),
+      const Radius.circular(AppRadius.value),
+    );
+    canvas.drawRRect(
+      railRect,
+      Paint()
+        ..color = AppColors.softLine
+        ..style = PaintingStyle.fill,
+    );
+
+    final markerX = size.width * _pingPong(progress);
+    canvas.drawCircle(
+      Offset(markerX, centerY),
+      16,
+      Paint()
+        ..color = AppColors.actionRed.withValues(alpha: 0.12)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+
+    final segmentWidth = size.width * 0.36;
+    final travel = size.width + segmentWidth;
+    final left = travel * progress - segmentWidth;
+    final activeRect = Rect.fromLTWH(left, centerY - 2, segmentWidth, 4);
+    final activeRRect = RRect.fromRectAndRadius(
+      activeRect,
+      const Radius.circular(AppRadius.value),
+    );
+    canvas.drawRRect(
+      activeRRect,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [
+            AppColors.deepOcean,
+            AppColors.actionRed,
+            AppColors.warmHorizon,
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+  }
+
+  double _pingPong(double value) {
+    return value < 0.5 ? value * 2 : (1 - value) * 2;
+  }
+
+  @override
+  bool shouldRepaint(_StartupLoadingPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }

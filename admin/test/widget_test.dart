@@ -3135,6 +3135,14 @@ class _FakeAdminSocialRepository implements AdminSocialRepository {
   }
 
   @override
+  Future<void> deleteConnectedAccount(
+    AdminSession session,
+    AdminSocialConnectedAccount account,
+  ) async {
+    connectedAccounts.removeWhere((item) => item.id == account.id);
+  }
+
+  @override
   Future<List<AdminSocialConnectedAccount>> fetchConnectedAccounts(
     AdminSession session,
   ) async {
@@ -3212,6 +3220,36 @@ class _FakeAdminSocialRepository implements AdminSocialRepository {
           : account.active,
     );
     settings
+      ..removeWhere((item) => item.id == account.id)
+      ..insert(0, updated);
+    return updated;
+  }
+
+  @override
+  Future<AdminSocialConnectedAccount> updateConnectedAccount(
+    AdminSession session,
+    AdminSocialConnectedAccount account,
+    Map<String, Object?> values,
+  ) async {
+    final updated = AdminSocialConnectedAccount(
+      id: account.id,
+      socialAccountId: account.socialAccountId,
+      bundleSocialAccountId: account.bundleSocialAccountId,
+      platform: account.platform,
+      platformType: account.platformType,
+      accountName: account.accountName,
+      displayName: values['display_name']?.toString() ?? account.displayName,
+      username: values['username']?.toString() ?? account.username,
+      avatarUrl: account.avatarUrl,
+      channelId: account.channelId,
+      channelName: values['channel_name']?.toString() ?? account.channelName,
+      status: values['status']?.toString() ?? account.status,
+      teamId: account.teamId,
+      twitterSubType: account.twitterSubType,
+      rawJson: account.rawJson,
+      connectedAt: account.connectedAt,
+    );
+    connectedAccounts
       ..removeWhere((item) => item.id == account.id)
       ..insert(0, updated);
     return updated;
@@ -4676,6 +4714,43 @@ void main() {
     expect(find.text('Instagram hesabı bağla'), findsOneWidget);
     expect(find.text('Google Business Profile hesabı bağla'), findsOneWidget);
     expect(find.text('Slack hesabı bağla'), findsOneWidget);
+  });
+
+  testWidgets('Sosyal medya hesap satırı işlem menüsü çalışır', (tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final socialRepository = _FakeAdminSocialRepository();
+    await _pumpAdminApp(tester, socialRepository: socialRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sosyal Medya'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hesap Ekle'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('...').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Düzenle'), findsOneWidget);
+    expect(find.text('Pasifleştir'), findsOneWidget);
+    expect(find.text('Yeniden bağla'), findsOneWidget);
+    expect(find.text('Sil'), findsOneWidget);
+
+    await tester.tap(find.text('Pasifleştir'));
+    await tester.pumpAndSettle();
+
+    expect(socialRepository.connectedAccounts.first.status, 'disabled');
+    expect(find.text('Pasif'), findsOneWidget);
   });
 
   testWidgets('Kullanıcı ekleme düzenleme silme modalları çalışır', (

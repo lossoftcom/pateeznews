@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep -l \"http\\\\|dio\\\\|ApiService\\\\|repository\")",
+      "Bash(flutter analyze *)"
+    ]
+  }
+}

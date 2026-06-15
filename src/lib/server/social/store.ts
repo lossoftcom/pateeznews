@@ -36,6 +36,29 @@ export const SOCIAL_ACCOUNT_COLUMNS = `
   client_secret AS client_secret_encrypted
 `;
 
+export const SOCIAL_CONNECTED_ACCOUNT_COLUMNS = `
+  ca.id::text AS id,
+  ca.social_account_id::text AS social_account_id,
+  ca.bundle_social_account_id,
+  ca.platform_tipi AS platform_type,
+  ca.display_name,
+  ca.username,
+  ca.avatar_url,
+  ca.channel_id,
+  ca.channel_name,
+  ca.raw_json,
+  COALESCE(
+    NULLIF(ca.raw_json->>'twitterSubType', ''),
+    NULLIF(ca.raw_json->>'twitter_sub_type', ''),
+    ''
+  ) AS twitter_sub_type,
+  ca.durum AS status,
+  ca.baglanma_tarihi AS connected_at,
+  ca.guncelleme_tarihi AS updated_at,
+  sa.hesap_adi AS account_name,
+  sa.team_id
+`;
+
 export function socialAccountForClient(row: any) {
   if (!row) return row;
   const { api_key_encrypted, client_secret_encrypted, ...rest } = row;
@@ -54,7 +77,11 @@ function bundleSocialEnvApiKey() {
 export function resolveBundleApiKey(row: any) {
   const envKey = bundleSocialEnvApiKey();
   if (envKey) return envKey;
-  return decryptSecret(row?.api_key_encrypted || row?.api_anahtari || '');
+  try {
+    return decryptSecret(row?.api_key_encrypted || row?.api_anahtari || '');
+  } catch {
+    return '';
+  }
 }
 
 export async function getSocialAccountById(id?: unknown) {
@@ -65,7 +92,7 @@ export async function getSocialAccountById(id?: unknown) {
        FROM public.social_accounts
        WHERE id = $1::bigint
        LIMIT 1`,
-      [value]
+      [value],
     );
     if (result.rows[0]) return result.rows[0];
   }
@@ -75,7 +102,7 @@ export async function getSocialAccountById(id?: unknown) {
      FROM public.social_accounts
      WHERE aktif_mi IS TRUE
      ORDER BY api_dogrulandi DESC, oauth_dogrulandi DESC, olusturma_tarihi DESC
-     LIMIT 1`
+     LIMIT 1`,
   );
   return fallback.rows[0] || null;
 }
@@ -95,10 +122,20 @@ export async function syncBundleTeam(account: any, apiKey: string) {
     teamId,
   });
 
-  const socialAccounts = Array.isArray(team?.socialAccounts) ? team.socialAccounts : [];
+  const socialAccounts = Array.isArray(team?.socialAccounts)
+    ? team.socialAccounts
+    : [];
 
   for (const item of socialAccounts) {
-    const type = String(item?.type || item?.socialAccountType || item?.platform || item?.provider || '').trim().toUpperCase();
+    const type = String(
+      item?.type ||
+        item?.socialAccountType ||
+        item?.platform ||
+        item?.provider ||
+        '',
+    )
+      .trim()
+      .toUpperCase();
     const bundleId = String(item?.id || '').trim();
     if (!type || !bundleId) continue;
     const channel = firstChannel(item);
@@ -141,21 +178,29 @@ export async function syncBundleTeam(account: any, apiKey: string) {
          avatar_url = EXCLUDED.avatar_url,
          channel_id = EXCLUDED.channel_id,
          channel_name = EXCLUDED.channel_name,
-         durum = 'connected',
+         durum = CASE
+           WHEN public.social_connected_accounts.durum IN ('disabled', 'deleted')
+             THEN public.social_connected_accounts.durum
+           ELSE 'connected'
+         END,
          raw_json = EXCLUDED.raw_json,
          guncelleme_tarihi = now()`,
       [
         account.id,
         bundleId,
         type,
-        String(item.displayName || item.name || item.userDisplayName || '').trim(),
+        String(
+          item.displayName || item.name || item.userDisplayName || '',
+        ).trim(),
         String(item.username || item.userUsername || '').trim(),
         String(item.avatarUrl || '').trim(),
         String(channel.id || '').trim(),
-        String(channel.name || channel.username || channel.address || '').trim(),
+        String(
+          channel.name || channel.username || channel.address || '',
+        ).trim(),
         JSON.stringify(item || {}),
         item.createdAt || null,
-      ]
+      ],
     );
   }
 
@@ -170,7 +215,12 @@ export async function syncBundleTeam(account: any, apiKey: string) {
          son_senkron_tarihi = now(),
          guncelleme_tarihi = now()
      WHERE id = $4::bigint`,
-    [socialAccounts.length > 0, socialAccounts.length > 0 ? 'connected' : 'configured', JSON.stringify(team || {}), account.id]
+    [
+      socialAccounts.length > 0,
+      socialAccounts.length > 0 ? 'connected' : 'configured',
+      JSON.stringify(team || {}),
+      account.id,
+    ],
   );
 
   return { team, socialAccounts };
@@ -183,37 +233,32 @@ export async function updateSocialAccountError(id: unknown, message: string) {
          son_hata_mesaji = $1,
          guncelleme_tarihi = now()
      WHERE id = $2::bigint`,
-    [message, String(id)]
+    [message, String(id)],
   );
 }
 
 export async function fetchConnectedAccounts() {
   const result = await dbQuery(
-    `SELECT
-       ca.id::text AS id,
-       ca.social_account_id::text AS social_account_id,
-       ca.bundle_social_account_id,
-       ca.platform_tipi AS platform_type,
-       ca.display_name,
-       ca.username,
-       ca.avatar_url,
-       ca.channel_id,
-       ca.channel_name,
-       ca.raw_json,
-       COALESCE(
-         NULLIF(ca.raw_json->>'twitterSubType', ''),
-         NULLIF(ca.raw_json->>'twitter_sub_type', ''),
-         ''
-       ) AS twitter_sub_type,
-       ca.durum AS status,
-       ca.baglanma_tarihi AS connected_at,
-       ca.guncelleme_tarihi AS updated_at,
-       sa.hesap_adi AS account_name,
-       sa.team_id
+    `SELECT ${SOCIAL_CONNECTED_ACCOUNT_COLUMNS}
      FROM public.social_connected_accounts ca
      JOIN public.social_accounts sa ON sa.id = ca.social_account_id
      WHERE sa.aktif_mi IS TRUE
-     ORDER BY ca.guncelleme_tarihi DESC, ca.id DESC`
+       AND ca.durum <> 'deleted'
+     ORDER BY ca.guncelleme_tarihi DESC, ca.id DESC`,
   );
   return result.rows;
+}
+
+export async function fetchConnectedAccountById(id: unknown) {
+  const result = await dbQuery(
+    `SELECT ${SOCIAL_CONNECTED_ACCOUNT_COLUMNS}
+     FROM public.social_connected_accounts ca
+     JOIN public.social_accounts sa ON sa.id = ca.social_account_id
+     WHERE ca.id = $1::bigint
+       AND sa.aktif_mi IS TRUE
+       AND ca.durum <> 'deleted'
+     LIMIT 1`,
+    [String(id || '').trim()],
+  );
+  return result.rows[0] || null;
 }
