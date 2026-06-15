@@ -93,8 +93,30 @@ abstract class AdminMailRepository {
   Future<AdminContactList> importContacts(
     AdminSession session,
     AdminContactList list,
-    String text,
+    List<AdminContactImportRow> contacts,
   );
+
+  Future<List<AdminMailContact>> fetchContacts(
+    AdminSession session,
+    int listId,
+  );
+
+  Future<AdminMailContact> saveContact(
+    AdminSession session, {
+    required int listId,
+    int? id,
+    required String email,
+    required String firstName,
+    required String lastName,
+    required String phone,
+    required bool active,
+  });
+
+  Future<void> deleteContact(
+    AdminSession session, {
+    required int listId,
+    required int contactId,
+  });
 
   Future<void> deleteContactLists(AdminSession session, Iterable<int> ids);
 
@@ -313,17 +335,75 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
   Future<AdminContactList> importContacts(
     AdminSession session,
     AdminContactList list,
-    String text,
+    List<AdminContactImportRow> contacts,
   ) async {
     await _requestJson('POST', '/api/admin/mail/import', session, {
       'list_id': list.id,
       'list_name': list.name,
       'description': list.description,
       'source': list.source.value,
-      'text': text,
+      'contacts': contacts.map((contact) => contact.toJson()).toList(),
     });
     final lists = await fetchContactLists(session);
     return lists.firstWhere((item) => item.id == list.id, orElse: () => list);
+  }
+
+  @override
+  Future<List<AdminMailContact>> fetchContacts(
+    AdminSession session,
+    int listId,
+  ) async {
+    final result = await _getJson('/api/admin/mail/contacts', session, {
+      'list_id': '$listId',
+      'limit': '500',
+    });
+    final rows = result['items'];
+    return rows is List
+        ? rows.whereType<Map>().map(_contactFromJson).toList(growable: false)
+        : const <AdminMailContact>[];
+  }
+
+  @override
+  Future<AdminMailContact> saveContact(
+    AdminSession session, {
+    required int listId,
+    int? id,
+    required String email,
+    required String firstName,
+    required String lastName,
+    required String phone,
+    required bool active,
+  }) async {
+    final payload = <String, Object?>{
+      'list_id': listId,
+      'email': email.trim().toLowerCase(),
+      'first_name': firstName.trim(),
+      'last_name': lastName.trim(),
+      'phone': phone.trim(),
+      'is_active': active,
+    };
+    if (id != null) payload['id'] = id;
+    final result = await _requestJson(
+      id == null ? 'POST' : 'PATCH',
+      '/api/admin/mail/contacts',
+      session,
+      payload,
+    );
+    final row = result['contact'];
+    if (row is Map) return _contactFromJson(row);
+    throw const AdminMailException('Kişi kaydedilemedi');
+  }
+
+  @override
+  Future<void> deleteContact(
+    AdminSession session, {
+    required int listId,
+    required int contactId,
+  }) async {
+    await _requestJson('DELETE', '/api/admin/mail/contacts', session, {
+      'id': contactId,
+      'list_id': listId,
+    });
   }
 
   @override
@@ -488,6 +568,8 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       'subject': template.subject.trim(),
       'preview_text': template.previewText.trim(),
       'content_html': template.body.trim(),
+      'content_mjml': template.contentMjml.trim(),
+      'design_json': _asJsonPayload(template.designJson),
       'variables': _templateVariables(template),
       'is_ready': template.ready,
       'is_active': template.active,
@@ -511,7 +593,7 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       'campaign_name': campaign.name.trim(),
       'subject': campaign.subject.trim(),
       'preview_text': campaign.preview.trim(),
-      'content_html': campaign.preview.trim(),
+      'content_html': campaign.contentHtml.trim(),
       'template_id': _nullableIntString(campaign.templateId),
       'contact_list_id': _nullableIntString(campaign.contactListId),
       'recipient_count': campaign.recipientCount,
@@ -574,6 +656,8 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       subject: subject.isNotEmpty ? subject : name,
       previewText: _decodeText(json['preview_text']),
       body: body,
+      contentMjml: _decodeText(json['content_mjml']),
+      designJson: _jsonText(json['design_json']),
     );
   }
 
@@ -590,6 +674,18 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
     );
   }
 
+  AdminMailContact _contactFromJson(Map<dynamic, dynamic> json) {
+    return AdminMailContact(
+      id: _asInt(json['id']),
+      email: _decodeText(json['email']),
+      firstName: _decodeText(json['first_name']),
+      lastName: _decodeText(json['last_name']),
+      phone: _decodeText(json['phone']),
+      active: _asBool(json['is_active'], fallback: true),
+      createdAt: _parseDate(json['created_at']) ?? DateTime.now(),
+    );
+  }
+
   AdminBulkMailCampaign _campaignFromJson(Map<dynamic, dynamic> json) {
     return AdminBulkMailCampaign(
       id: _asInt(json['id']),
@@ -599,6 +695,7 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       name: _decodeText(json['campaign_name']),
       subject: _decodeText(json['subject']),
       preview: _decodeText(json['preview_text']),
+      contentHtml: _decodeText(json['content_html']),
       templateName: _decodeText(json['template_name']),
       templateCategory: _templateCategoryLabel(json['template_category']),
       senderAccount: _decodeText(json['account_name']),
@@ -729,6 +826,22 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
   }
 
   String _decodeText(Object? value) => value?.toString() ?? '';
+
+  Object _asJsonPayload(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return <String, Object?>{};
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is Map || decoded is List) return decoded as Object;
+    } catch (_) {}
+    return <String, Object?>{};
+  }
+
+  String _jsonText(Object? value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    return jsonEncode(value);
+  }
 
   String _domainFromEmail(String email) {
     final at = email.indexOf('@');

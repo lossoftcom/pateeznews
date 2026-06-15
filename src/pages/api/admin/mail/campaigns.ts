@@ -80,6 +80,31 @@ async function contactCount(listId?: string | null) {
   return Number(result.rows[0]?.count || 0);
 }
 
+async function campaignSendError(id: string) {
+  const result = await dbQuery(
+    `SELECT
+       mc.icerik_html,
+       mc.sablon_id,
+       mc.kisi_listesi_id,
+       ma.aktif_mi AS account_active
+     FROM public.mail_campaigns mc
+     LEFT JOIN public.mail_accounts ma ON ma.id = mc.hesap_id
+     WHERE mc.id = $1::bigint
+     LIMIT 1`,
+    [id]
+  );
+  const campaign = result.rows[0];
+  if (!campaign) return 'Campaign not found';
+  if (!campaign.account_active) return 'An active sender account is required';
+  if (!campaign.sablon_id || !String(campaign.icerik_html || '').trim()) {
+    return 'A mail template is required';
+  }
+  if (!campaign.kisi_listesi_id || (await contactCount(campaign.kisi_listesi_id)) === 0) {
+    return 'The contact list has no sendable contacts';
+  }
+  return '';
+}
+
 function normalizeOptionalUuids(payload: Record<string, any>) {
   for (const key of ['hesap_id', 'sablon_id', 'kisi_listesi_id']) {
     if (Object.prototype.hasOwnProperty.call(payload, key) && !String(payload[key] || '').trim()) {
@@ -175,6 +200,9 @@ export const POST: APIRoute = async ({ request }) => {
     payload.guncelleme_tarihi = new Date().toISOString();
 
     if (!payload.kampanya_adi || !payload.konu) return json({ error: { message: 'Campaign name and subject are required' } }, 400);
+    if (!payload.hesap_id || !payload.sablon_id || !payload.kisi_listesi_id || !String(payload.icerik_html || '').trim()) {
+      return json({ error: { message: 'Sender account, template, contact list, and content are required' } }, 400);
+    }
 
     const keys = Object.keys(payload);
     const result = await dbQuery(
@@ -223,7 +251,34 @@ export const PATCH: APIRoute = async ({ request }) => {
       if (action === 'schedule') {
         const scheduled = String(body.scheduled_start_at || '').trim();
         if (!scheduled) return json({ error: { message: 'Schedule date required' } }, 400);
+        const sendError = await campaignSendError(id);
+        if (sendError) return json({ error: { message: sendError } }, 400);
         await dbQuery("UPDATE public.mail_campaigns SET durum = 'scheduled', zamanlanmis_baslangic = $1, guncelleme_tarihi = now() WHERE id = $2::bigint", [scheduled, id]);
+      } else if (action === 'start') {
+        const sendError = await campaignSendError(id);
+        if (sendError) return json({ error: { message: sendError } }, 400);
+        await dbQuery(
+          `UPDATE public.mail_campaigns
+           SET durum = 'sending',
+               baslangic_tarihi = COALESCE(baslangic_tarihi, now()),
+               zamanlanmis_baslangic = null,
+               guncelleme_tarihi = now()
+           WHERE id = $1::bigint`,
+          [id]
+        );
+      } else if (action === 'resume') {
+        await dbQuery(
+          `UPDATE public.mail_outbox
+           SET durum = 'queued', hata_mesaji = null
+           WHERE kampanya_id = $1::bigint AND durum = 'failed'`,
+          [id]
+        );
+        await dbQuery(
+          `UPDATE public.mail_campaigns
+           SET durum = 'sending', guncelleme_tarihi = now()
+           WHERE id = $1::bigint`,
+          [id]
+        );
       } else if (actionSql[action]) {
         await dbQuery(`UPDATE public.mail_campaigns SET ${actionSql[action]}, guncelleme_tarihi = now() WHERE id = $1::bigint`, [id]);
       } else {

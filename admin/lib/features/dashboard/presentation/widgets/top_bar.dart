@@ -75,7 +75,7 @@ class TopBar extends StatelessWidget {
                       ),
                     ),
                     SizedBox(
-                      width: onOpenFrontend == null ? 36 : compactSideWidth,
+                      width: onOpenFrontend == null ? 40 : compactSideWidth,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [

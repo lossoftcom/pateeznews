@@ -30,6 +30,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     const body = await request.json().catch(() => ({}));
     const events = normalizeEvents(body);
     const handled: any[] = [];
+    const campaignIds = new Set<string>();
 
     for (const event of events) {
       const status = eventStatus(event);
@@ -45,26 +46,58 @@ export const POST: APIRoute = async ({ request, params }) => {
 
       if (status === 'opened' || status === 'clicked' || status === 'delivered') {
         const column = status === 'opened' ? 'acilma_tarihi' : status === 'clicked' ? 'tiklanma_tarihi' : 'teslim_tarihi';
-        await dbQuery(
+        const updated = await dbQuery(
           `UPDATE public.mail_outbox
            SET durum = $1, ${column} = now()
            WHERE ($2 <> '' AND servis_message_id = $2)
-              OR ($3 <> '' AND lower(alici_eposta) = lower($3))`,
+              OR ($3 <> '' AND lower(alici_eposta) = lower($3))
+           RETURNING kampanya_id::text AS campaign_id`,
           [status, messageId, email]
         );
+        for (const row of updated.rows) {
+          if (row.campaign_id) campaignIds.add(String(row.campaign_id));
+        }
       } else {
         const message = String(event.reason || event.error || provider || status);
-        await dbQuery(
+        const updated = await dbQuery(
           `UPDATE public.mail_outbox
            SET durum = $1,
                hata_mesaji = CASE WHEN $1 = 'failed' THEN $2 ELSE hata_mesaji END,
                bounce_nedeni = CASE WHEN $1 = 'bounce' THEN $2 ELSE bounce_nedeni END
            WHERE ($3 <> '' AND servis_message_id = $3)
-              OR ($4 <> '' AND lower(alici_eposta) = lower($4))`,
+              OR ($4 <> '' AND lower(alici_eposta) = lower($4))
+           RETURNING kampanya_id::text AS campaign_id`,
           [status, message, messageId, email]
         );
+        for (const row of updated.rows) {
+          if (row.campaign_id) campaignIds.add(String(row.campaign_id));
+        }
       }
       handled.push({ status, messageId, email });
+    }
+
+    if (campaignIds.size > 0) {
+      await dbQuery(
+        `UPDATE public.mail_campaigns mc
+         SET teslim_edilen = stats.delivered,
+             acilan = stats.opened,
+             tiklanan = stats.clicked,
+             bouncelar = stats.bounced,
+             guncelleme_tarihi = now()
+         FROM (
+           SELECT
+             kampanya_id,
+             COUNT(*) FILTER (WHERE teslim_tarihi IS NOT NULL)::integer AS delivered,
+             COUNT(*) FILTER (WHERE acilma_tarihi IS NOT NULL)::integer AS opened,
+             COUNT(*) FILTER (WHERE tiklanma_tarihi IS NOT NULL)::integer AS clicked,
+             COUNT(*) FILTER (WHERE durum = 'bounce')::integer AS bounced
+           FROM public.mail_outbox
+           WHERE kampanya_id = ANY($1::bigint[])
+           GROUP BY kampanya_id
+         ) stats
+         WHERE mc.id = stats.kampanya_id`,
+        [Array.from(campaignIds)]
+      );
     }
 
     return json({ ok: true, provider, handled });

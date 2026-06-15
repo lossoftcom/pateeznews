@@ -69,6 +69,7 @@ class AdminBulkMailCampaign {
     required this.name,
     required this.subject,
     required this.preview,
+    this.contentHtml = '',
     required this.templateName,
     required this.templateCategory,
     required this.senderAccount,
@@ -92,6 +93,7 @@ class AdminBulkMailCampaign {
   final String name;
   final String subject;
   final String preview;
+  final String contentHtml;
   final String templateName;
   final String templateCategory;
   final String senderAccount;
@@ -132,6 +134,7 @@ class AdminBulkMailCampaign {
     String? name,
     String? subject,
     String? preview,
+    String? contentHtml,
     String? templateName,
     String? templateCategory,
     String? senderAccount,
@@ -155,6 +158,7 @@ class AdminBulkMailCampaign {
       name: name ?? this.name,
       subject: subject ?? this.subject,
       preview: preview ?? this.preview,
+      contentHtml: contentHtml ?? this.contentHtml,
       templateName: templateName ?? this.templateName,
       templateCategory: templateCategory ?? this.templateCategory,
       senderAccount: senderAccount ?? this.senderAccount,

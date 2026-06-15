@@ -112,11 +112,9 @@ function isLocalHyperdriveEmulation(hyperdriveUrl: string) {
 function databaseRoleMode(url: string, usesHyperdriveBinding: boolean): RoleMode {
   const role = getDatabaseRole();
   if (!role) return 'direct';
+  if (usesHyperdriveBinding) return 'direct';
   const user = databaseUrlUser(url);
   if (user === role) return 'direct';
-  if (usesHyperdriveBinding) {
-    throw new Error(`Cloudflare Hyperdrive must connect directly as ${role}`);
-  }
   return 'set-role';
 }
 

@@ -2687,7 +2687,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     'mail.campaign.category.newsletter',
     'mail.campaign.category.corporate',
   ];
-  static const _emptyTemplateOption = 'mail.templates.empty';
+  static const _emptyTemplateOption = 'mail.campaign.templatePlaceholder';
   static const _emptyAccountOption = 'mail.settings.empty';
   static const _emptyListOption = 'mail.contacts.empty';
 
@@ -2699,9 +2699,10 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   late String _account;
   late String _recipientList;
 
-  List<String> get _templateOptions => widget.templates.isEmpty
-      ? [_emptyTemplateOption]
-      : widget.templates.map((item) => item.nameKey).toList(growable: false);
+  List<String> get _templateOptions => [
+    _emptyTemplateOption,
+    ...widget.templates.map((item) => item.nameKey),
+  ];
 
   List<String> get _accountOptions => widget.accounts.isEmpty
       ? [_emptyAccountOption]
@@ -2805,6 +2806,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   bool get _canSave =>
       widget.accounts.isNotEmpty &&
       widget.lists.isNotEmpty &&
+      _selectedTemplate() != null &&
       _nameController.text.trim().isNotEmpty &&
       _subjectController.text.trim().isNotEmpty &&
       _previewController.text.trim().isNotEmpty;
@@ -2827,6 +2829,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
       name: _nameController.text.trim(),
       subject: _subjectController.text.trim(),
       preview: _previewController.text.trim(),
+      contentHtml: selectedTemplate?.body ?? '',
       templateName: selectedTemplate?.nameKey ?? '',
       templateCategory: context.t(_category),
       senderAccount: selectedAccount.accountName,
@@ -2850,6 +2853,26 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
       if (template.nameKey == _template) return template;
     }
     return null;
+  }
+
+  void _selectTemplate(String value) {
+    AdminMailTemplate? selected;
+    for (final template in widget.templates) {
+      if (template.nameKey == value) {
+        selected = template;
+        break;
+      }
+    }
+    setState(() {
+      _template = value;
+      if (selected == null) {
+        _subjectController.clear();
+        _previewController.clear();
+      } else {
+        _subjectController.text = selected.subject;
+        _previewController.text = selected.previewText;
+      }
+    });
   }
 
   AdminMailAccount? _selectedAccount() {
@@ -2937,8 +2960,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                               previewController: _previewController,
                               onCategoryChanged: (value) =>
                                   setState(() => _category = value),
-                              onTemplateChanged: (value) =>
-                                  setState(() => _template = value),
+                              onTemplateChanged: _selectTemplate,
                               onAccountChanged: (value) =>
                                   setState(() => _account = value),
                               onRecipientListChanged: (value) =>
@@ -2950,8 +2972,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                               child: _LivePreview(
                                 subject: _subjectController.text.trim(),
                                 preview: _previewController.text.trim(),
-                                template: context.t(_template),
-                                category: context.t(_category),
+                                template: _selectedTemplate(),
                               ),
                             ),
                           ],
@@ -2978,8 +2999,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                             previewController: _previewController,
                             onCategoryChanged: (value) =>
                                 setState(() => _category = value),
-                            onTemplateChanged: (value) =>
-                                setState(() => _template = value),
+                            onTemplateChanged: _selectTemplate,
                             onAccountChanged: (value) =>
                                 setState(() => _account = value),
                             onRecipientListChanged: (value) =>
@@ -2993,8 +3013,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                             child: _LivePreview(
                               subject: _subjectController.text.trim(),
                               preview: _previewController.text.trim(),
-                              template: context.t(_template),
-                              category: context.t(_category),
+                              template: _selectedTemplate(),
                             ),
                           ),
                         ),
@@ -3517,13 +3536,11 @@ class _LivePreview extends StatelessWidget {
     required this.subject,
     required this.preview,
     required this.template,
-    required this.category,
   });
 
   final String subject;
   final String preview;
-  final String template;
-  final String category;
+  final AdminMailTemplate? template;
 
   @override
   Widget build(BuildContext context) {
@@ -3603,15 +3620,16 @@ class _LivePreview extends StatelessWidget {
               border: Border.all(color: AppColors.line),
             ),
             child: SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
-                child: _EmailPreviewCard(
-                  subject: subject,
-                  preview: preview,
-                  template: template,
-                  category: category,
-                ),
-              ),
+              child: template == null
+                  ? const SizedBox.shrink()
+                  : ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: _EmailPreviewCard(
+                        subject: subject,
+                        preview: preview,
+                        template: template!,
+                      ),
+                    ),
             ),
           ),
         ),
@@ -3625,22 +3643,16 @@ class _EmailPreviewCard extends StatelessWidget {
     required this.subject,
     required this.preview,
     required this.template,
-    required this.category,
   });
 
   final String subject;
   final String preview;
-  final String template;
-  final String category;
+  final AdminMailTemplate template;
 
   @override
   Widget build(BuildContext context) {
-    final headline = subject.isEmpty
-        ? context.t('mail.campaign.previewHeadline')
-        : subject;
-    final body = preview.isEmpty
-        ? context.t('mail.campaign.previewBody')
-        : preview;
+    final headline = subject;
+    final body = preview;
 
     return Container(
       decoration: BoxDecoration(
@@ -3724,7 +3736,7 @@ class _EmailPreviewCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: Text(
-                      category,
+                      context.t(template.category.labelKey),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -3738,7 +3750,7 @@ class _EmailPreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  template,
+                  template.nameKey,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,

@@ -98,7 +98,6 @@ class _UserAvatarMenuState extends State<UserAvatarMenu> {
         message: title,
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
-          onEnter: (_) => _openMenu(),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _toggleMenu,
@@ -119,35 +118,38 @@ class _AvatarCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final avatarUrl = profile?.avatarUrl?.trim();
+    final hasImage = avatarUrl != null && avatarUrl.isNotEmpty;
 
-    return Container(
-      width: 36,
-      height: 36,
-      foregroundDecoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.support),
-      ),
-      child: ClipOval(
-        child: ColoredBox(
+    final fallback = Center(
+      child: _AvatarInitials(profile: profile, session: session),
+    );
+
+    // Sabit 40×40 kutu + dairesel decoration + antiAlias kırpma:
+    // içerik (foto/baş harf) daireye tam oturur, üzerine kalın çerçeve çizilir
+    // → her yerleşimde kusursuz TAM DAİRE (asla oval olmaz).
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Container(
+        decoration: const BoxDecoration(
           color: AppColors.surface,
-          child: avatarUrl == null || avatarUrl.isEmpty
-              ? Center(
-                  child: _AvatarInitials(profile: profile, session: session),
-                )
-              : AdminCachedImage(
-                  url: adminImageUrl(avatarUrl, width: 96),
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 96,
-                  errorWidget: Center(
-                    child: _AvatarInitials(
-                      profile: profile,
-                      session: session,
-                    ),
-                  ),
-                ),
+          shape: BoxShape.circle,
         ),
+        foregroundDecoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.deepOcean, width: 2.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: hasImage
+            ? AdminCachedImage(
+                url: adminImageUrl(avatarUrl, width: 96),
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                memCacheWidth: 96,
+                errorWidget: fallback,
+              )
+            : fallback,
       ),
     );
   }

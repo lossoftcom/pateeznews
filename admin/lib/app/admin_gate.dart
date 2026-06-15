@@ -1,11 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 
 import '../core/theme/app_colors.dart';
-import '../core/theme/app_radius.dart';
 import '../features/account/data/admin_account_settings_repository.dart';
 import '../features/auth/data/admin_auth_models.dart';
 import '../features/auth/data/admin_auth_repository.dart';
@@ -27,6 +27,7 @@ import '../features/social/data/admin_social_repository.dart';
 import '../features/stories/data/admin_stories_repository.dart';
 import '../shared/branding/admin_branding.dart';
 import '../shared/data/media_service.dart';
+import '../shared/widgets/admin_brand_mark.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/settings/data/admin_languages_repository.dart';
@@ -246,6 +247,9 @@ class _AdminGateState extends State<AdminGate> {
         AdminBrandingData(
           siteName: settings.siteName,
           logoUrl: widget.generalSettingsRepository.publicUrl(settings.logoUrl),
+          emailLogoUrl: widget.generalSettingsRepository.publicUrl(
+            settings.emailLogoUrl,
+          ),
           faviconUrl: widget.generalSettingsRepository.publicUrl(
             settings.faviconUrl,
           ),
@@ -393,135 +397,89 @@ class _AdminStartupLoadingState extends State<_AdminStartupLoading>
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-      color: AppColors.deepOcean,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 0,
-    );
-
     return RepaintBoundary(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 148,
-            height: 22,
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                return CustomPaint(
-                  painter: _StartupLoadingPainter(progress: _controller.value),
-                );
-              },
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final t = _controller.value;
+          final pulse = 0.97 + 0.03 * (0.5 + 0.5 * math.sin(t * 2 * math.pi));
+          return SizedBox(
+            width: 92,
+            height: 92,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size.square(92),
+                  painter: _StartupLoadingPainter(rotation: t),
+                ),
+                Transform.scale(scale: pulse, child: child),
+              ],
             ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Loading', style: labelStyle),
-              const SizedBox(width: 6),
-              _LoadingDots(animation: _controller),
-            ],
-          ),
-        ],
+          );
+        },
+        child: const _AdminStartupBrandMark(),
       ),
     );
   }
 }
 
-class _LoadingDots extends StatelessWidget {
-  const _LoadingDots({required this.animation});
-
-  final Animation<double> animation;
+class _AdminStartupBrandMark extends StatelessWidget {
+  const _AdminStartupBrandMark();
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < 3; index++)
-              Container(
-                width: 4,
-                height: 4,
-                margin: EdgeInsets.only(left: index == 0 ? 0 : 4),
-                decoration: BoxDecoration(
-                  color: AppColors.actionRed.withValues(
-                    alpha: _dotOpacity(animation.value, index),
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-              ),
-          ],
-        );
+    return ValueListenableBuilder<AdminBrandingData>(
+      valueListenable: adminBranding,
+      builder: (context, branding, _) {
+        return AdminBrandMark(branding: branding, size: 40);
       },
     );
-  }
-
-  double _dotOpacity(double value, int index) {
-    final phase = (value + index * 0.18) % 1;
-    return 0.28 + (0.62 * (1 - (phase - 0.5).abs() * 2));
   }
 }
 
 class _StartupLoadingPainter extends CustomPainter {
-  const _StartupLoadingPainter({required this.progress});
+  const _StartupLoadingPainter({required this.rotation});
 
-  final double progress;
+  /// 0..1 → bir tam tur. AnimationController.value doğrudan beslenir.
+  final double rotation;
+
+  static const double _twoPi = math.pi * 2;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final centerY = size.height / 2;
-    final railRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, centerY - 2, size.width, 4),
-      const Radius.circular(AppRadius.value),
-    );
-    canvas.drawRRect(
-      railRect,
-      Paint()
-        ..color = AppColors.softLine
-        ..style = PaintingStyle.fill,
-    );
+    final center = Offset(size.width / 2, size.height / 2);
+    const stroke = 4.0;
+    final radius = size.shortestSide / 2 - 6;
 
-    final markerX = size.width * _pingPong(progress);
+    // İnce, soluk tam halka (ilerleme rayı).
     canvas.drawCircle(
-      Offset(markerX, centerY),
-      16,
+      center,
+      radius,
       Paint()
-        ..color = AppColors.actionRed.withValues(alpha: 0.12)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..color = AppColors.softLine,
     );
 
-    final segmentWidth = size.width * 0.36;
-    final travel = size.width + segmentWidth;
-    final left = travel * progress - segmentWidth;
-    final activeRect = Rect.fromLTWH(left, centerY - 2, segmentWidth, 4);
-    final activeRRect = RRect.fromRectAndRadius(
-      activeRect,
-      const Radius.circular(AppRadius.value),
-    );
-    canvas.drawRRect(
-      activeRRect,
+    // Tek düz renkli dönen yay — renk geçişi / gradient YOK.
+    // Yumuşak hızlanıp yavaşlayan organik dönüş (geri sarmaz).
+    final spin = rotation * _twoPi + 0.5 * math.sin(rotation * _twoPi);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      spin,
+      _twoPi * 0.72,
+      false,
       Paint()
-        ..shader = const LinearGradient(
-          colors: [
-            AppColors.deepOcean,
-            AppColors.actionRed,
-            AppColors.warmHorizon,
-          ],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeCap = StrokeCap.round
+        ..color = AppColors.actionRed,
     );
-  }
-
-  double _pingPong(double value) {
-    return value < 0.5 ? value * 2 : (1 - value) * 2;
   }
 
   @override
   bool shouldRepaint(_StartupLoadingPainter oldDelegate) {
-    return oldDelegate.progress != progress;
+    return oldDelegate.rotation != rotation;
   }
 }

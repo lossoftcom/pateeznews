@@ -78,6 +78,54 @@ class AdminContactList {
   }
 }
 
+class AdminContactImportRow {
+  const AdminContactImportRow({
+    required this.email,
+    this.firstName = '',
+    this.lastName = '',
+    this.phone = '',
+  });
+
+  final String email;
+  final String firstName;
+  final String lastName;
+  final String phone;
+
+  Map<String, String> toJson() {
+    return {
+      'email': email,
+      'first_name': firstName,
+      'last_name': lastName,
+      'phone': phone,
+    };
+  }
+}
+
+class AdminMailContact {
+  const AdminMailContact({
+    required this.id,
+    required this.email,
+    required this.firstName,
+    required this.lastName,
+    required this.phone,
+    required this.active,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String email;
+  final String firstName;
+  final String lastName;
+  final String phone;
+  final bool active;
+  final DateTime createdAt;
+
+  String get fullName => [
+    firstName,
+    lastName,
+  ].where((value) => value.trim().isNotEmpty).join(' ').trim();
+}
+
 Color contactListSourceColor(AdminContactImportSource source) {
   return switch (source) {
     AdminContactImportSource.csv => AppColors.deepOcean,

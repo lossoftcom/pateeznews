@@ -1,5 +1,6 @@
 import astroWorker from '@astrojs/cloudflare/entrypoints/server';
 import { runAnnouncementsRefresh } from './lib/server/announcementsData';
+import { processMailCampaigns } from './lib/server/mail/campaignProcessor';
 
 const handler = astroWorker as {
   fetch: ExportedHandlerFetchHandler;
@@ -7,14 +8,23 @@ const handler = astroWorker as {
 
 export default {
   fetch: handler.fetch,
-  scheduled(_controller, _env, ctx) {
-    ctx.waitUntil(
-      runAnnouncementsRefresh({
-        runType: 'cron',
-        discoverSources: true,
-      }).catch((error) => {
-        console.error('announcement cron failed', error);
-      })
-    );
+  scheduled(controller, _env, ctx) {
+    if (controller.cron === '*/5 * * * *') {
+      ctx.waitUntil(
+        processMailCampaigns().catch((error) => {
+          console.error('mail campaign cron failed', error);
+        })
+      );
+    }
+    if (controller.cron === '*/30 * * * *') {
+      ctx.waitUntil(
+        runAnnouncementsRefresh({
+          runType: 'cron',
+          discoverSources: true,
+        }).catch((error) => {
+          console.error('announcement cron failed', error);
+        })
+      );
+    }
   },
 } satisfies ExportedHandler;

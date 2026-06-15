@@ -11,11 +11,13 @@ class AdminBrandingData {
   const AdminBrandingData({
     this.siteName = '',
     this.logoUrl = '',
+    this.emailLogoUrl = '',
     this.faviconUrl = '',
   });
 
   final String siteName;
   final String logoUrl;
+  final String emailLogoUrl;
   final String faviconUrl;
 
   /// Kare marka kutusunda gösterilecek görsel: kare favicon tercih edilir,
@@ -32,6 +34,7 @@ class AdminBrandingData {
   Map<String, Object?> toJson() => {
     'siteName': siteName,
     'logoUrl': logoUrl,
+    'emailLogoUrl': emailLogoUrl,
     'faviconUrl': faviconUrl,
   };
 
@@ -39,6 +42,7 @@ class AdminBrandingData {
     return AdminBrandingData(
       siteName: (json['siteName'] ?? '').toString(),
       logoUrl: (json['logoUrl'] ?? '').toString(),
+      emailLogoUrl: (json['emailLogoUrl'] ?? '').toString(),
       faviconUrl: (json['faviconUrl'] ?? '').toString(),
     );
   }
@@ -97,9 +101,9 @@ class AdminBrandingStore {
   static Future<void> refreshFromShell({String languageCode = 'tr'}) async {
     final client = http.Client();
     try {
-      final uri = _resolveApiUri('/api/app/shell').replace(
-        queryParameters: {'lang': _safeLang(languageCode)},
-      );
+      final uri = _resolveApiUri(
+        '/api/app/shell',
+      ).replace(queryParameters: {'lang': _safeLang(languageCode)});
       final response = await client.get(uri).timeout(_shellTimeout);
       if (response.statusCode < 200 || response.statusCode >= 300) return;
       final decoded = jsonDecode(response.body);
@@ -110,6 +114,7 @@ class AdminBrandingStore {
         AdminBrandingData(
           siteName: (settings['siteName'] ?? '').toString().trim(),
           logoUrl: _publicUrl((settings['logoUrl'] ?? '').toString()),
+          emailLogoUrl: _publicUrl((settings['emailLogoUrl'] ?? '').toString()),
           faviconUrl: _publicUrl((settings['faviconUrl'] ?? '').toString()),
         ),
       );

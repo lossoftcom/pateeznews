@@ -189,9 +189,23 @@ export const PATCH: APIRoute = async ({ request }) => {
       const account = result.rows[0];
       if (!account) return json({ error: { message: 'Account not found' } }, 404);
       const domain = String(account.domain || '').trim() || String(account.sender_email || '').split('@')[1] || '';
-      const checklist = dnsChecklist(domain, account.service_type);
-      await dbQuery('UPDATE public.mail_accounts SET dns_son_kontrol = now(), guncelleme_tarihi = now() WHERE id = $1::bigint', [id]);
-      return json({ checklist });
+      const dns = await dnsChecklist(domain, account.service_type);
+      const updated = await dbQuery(
+        `UPDATE public.mail_accounts
+         SET spf_kayitli = $1,
+             dkim_kayitli = $2,
+             dmarc_kayitli = $3,
+             dmarc_politikasi = NULLIF($4, ''),
+             dns_son_kontrol = now(),
+             guncelleme_tarihi = now()
+         WHERE id = $5::bigint
+         RETURNING ${ACCOUNT_COLUMNS}`,
+        [dns.spfReady, dns.dkimReady, dns.dmarcReady, dns.dmarcPolicy, id]
+      );
+      return json({
+        checklist: dns.checklist,
+        account: accountForClient(updated.rows[0]),
+      });
     }
 
     const update = normalizeAccountPayload(body);

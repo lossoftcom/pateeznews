@@ -1,0 +1,1801 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LosPos Posta Şablon Builder</title>
+  <link rel="stylesheet" href="vendor/grapes.min.css">
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #f8fafc;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .builder-shell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: #f8fafc;
+    }
+
+    #gjs {
+      height: 100%;
+      min-height: 100%;
+      border: 0;
+    }
+
+    .builder-loading {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .builder-loading.is-hidden {
+      display: none;
+    }
+
+    .gjs-editor {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .gjs-one-bg {
+      background-color: #1f2937;
+    }
+
+    .gjs-two-color {
+      color: #e5e7eb;
+    }
+
+    .gjs-three-bg {
+      background-color: #ea4335;
+      color: #ffffff;
+    }
+
+    .gjs-four-color,
+    .gjs-four-color-h:hover {
+      color: #ea4335;
+    }
+
+    .gjs-pn-panel {
+      box-shadow: none;
+      border-color: #e5e7eb;
+    }
+
+    .gjs-pn-views,
+    .gjs-pn-views-container {
+      width: 290px;
+      border-left: 1px solid #e5e7eb;
+    }
+
+    .gjs-title:empty {
+      display: none;
+    }
+
+    .gjs-pn-btn {
+      border-radius: 6px;
+      margin: 2px;
+    }
+
+    .gjs-pn-btn.gjs-pn-active {
+      background: #ea4335;
+      color: #ffffff;
+      box-shadow: none;
+    }
+
+    .gjs-block {
+      min-height: 74px;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+      box-shadow: none;
+      transition: border-color 140ms ease, background-color 140ms ease;
+    }
+
+    .gjs-block:hover {
+      border-color: #ea4335;
+      background: #fff7f7;
+    }
+
+    .gjs-block-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .gjs-cv-canvas {
+      background: #eef2f7;
+      top: 42px;
+      width: calc(100% - 290px);
+      height: calc(100% - 42px);
+    }
+
+    .gjs-pn-commands {
+      min-height: 42px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .gjs-pn-options {
+      right: 290px;
+      min-height: 42px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .gjs-pn-devices-c {
+      left: 50%;
+      min-height: 42px;
+      transform: translateX(-50%);
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .gjs-sm-sector .gjs-sm-title,
+    .gjs-clm-tags .gjs-sm-title {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0;
+      color: #111827;
+      background: #f8fafc;
+      border-color: #e5e7eb;
+    }
+
+      .gjs-field,
+      .gjs-field input,
+      .gjs-field select,
+      .gjs-field textarea {
+        border-radius: 6px;
+        font-size: 12px;
+        letter-spacing: 0;
+      }
+
+      .losposta-external-drop-line {
+        position: absolute;
+        z-index: 40;
+        display: none;
+        height: 3px;
+        pointer-events: none;
+        background: #22c55e;
+        border-radius: 999px;
+        box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.24),
+          0 0 14px rgba(34, 197, 94, 0.45);
+      }
+
+      .losposta-external-drop-line::before {
+        position: absolute;
+        top: 50%;
+        left: -5px;
+        width: 9px;
+        height: 9px;
+        content: "";
+        background: #22c55e;
+        border-radius: 999px;
+        transform: translateY(-50%);
+        box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
+      }
+
+      .losposta-external-drop-line.is-visible {
+        display: block;
+      }
+
+      @media (max-width: 820px) {
+      .gjs-cv-canvas {
+        width: 100%;
+      }
+
+      .gjs-pn-views,
+      .gjs-pn-views-container {
+        width: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="builder-shell">
+    <div id="builder-loading" class="builder-loading">Şablon editörü hazırlanıyor...</div>
+    <div id="gjs"></div>
+  </div>
+
+  <script src="vendor/grapes.min.js"></script>
+  <script src="vendor/grapesjs-mjml.min.js"></script>
+  <script>
+    (function () {
+      var editor = null;
+        var pendingTemplate = null;
+        var ready = false;
+        var changeTimer = null;
+        var activeDeviceKey = 'desktop';
+        var dropIndicator = null;
+        var lastExternalDropTarget = null;
+        var lastExternalDropSequence = 0;
+        var assetUploadSequence = 0;
+        var pendingAssetUploads = {};
+        var suppressedAssetSources = [];
+        var previewLogoReplacement = '';
+        var previewLogoOriginalSource = '';
+
+      var DEVICES = {
+        desktop: {
+          buttonId: 'set-device-desktop',
+          name: 'Desktop',
+          width: '',
+          widthMedia: ''
+        },
+        tablet: {
+          buttonId: 'set-device-tablet',
+          name: 'Tablet',
+          width: '768px',
+          widthMedia: '992px'
+        },
+        mobile: {
+          buttonId: 'set-device-mobile',
+          name: 'Mobile portrait',
+          width: '375px',
+          widthMedia: '480px'
+        }
+      };
+
+      var DEFAULT_MJML = [
+        '<mjml>',
+        '  <mj-head>',
+        '    <mj-preview>Pateez posta şablonu</mj-preview>',
+        '  </mj-head>',
+        '  <mj-body background-color="#f4f7fb">',
+        '    <mj-section background-color="#ffffff" padding="28px 24px">',
+        '      <mj-column>',
+        '        <mj-text font-size="22px" font-weight="700" color="#111827" align="center">',
+        '          Yeni Şablon',
+        '        </mj-text>',
+        '        <mj-text font-size="14px" color="#475569" line-height="1.6" align="center">',
+        '          Mail içeriğinizi buradan düzenleyin.',
+        '        </mj-text>',
+        '      </mj-column>',
+        '    </mj-section>',
+        '  </mj-body>',
+        '</mjml>'
+      ].join('\n');
+
+      var MJML_I18N_TR = {
+        'grapesjs-mjml': {
+          category: '',
+          panels: {
+            buttons: {
+              undo: 'Geri Al',
+              redo: 'İleri Al',
+              desktop: 'Masaüstü',
+              tablet: 'Tablet',
+              mobile: 'Mobil',
+              import: 'MJML İçe Aktar'
+            },
+            import: {
+              title: 'MJML İçe Aktar',
+              button: 'İçe Aktar',
+              label: ''
+            },
+            export: {
+              title: 'MJML Çıktısı'
+            }
+          },
+          components: {
+            names: {
+              body: 'Gövde',
+              button: 'Buton',
+              column: 'Sütun',
+              oneColumn: '1 Sütun',
+              twoColumn: '2 Sütun',
+              threeColumn: '3 Sütun',
+              divider: 'Ayraç',
+              group: 'Grup',
+              hero: 'Hero',
+              image: 'Görsel',
+              navBar: 'Menü',
+              navLink: 'Menü Linki',
+              section: 'Bölüm',
+              socialGroup: 'Sosyal Grup',
+              socialElement: 'Sosyal Eleman',
+              spacer: 'Boşluk',
+              text: 'Metin',
+              wrapper: 'Kapsayıcı',
+              raw: 'Ham HTML'
+            }
+          }
+        }
+      };
+
+      var VARIABLE_IMAGE_PLACEHOLDER_SRC = 'data:image/svg+xml;utf8,' + encodeURIComponent([
+        '<svg xmlns="http://www.w3.org/2000/svg" width="700" height="420" viewBox="0 0 700 420">',
+        '<rect width="700" height="420" rx="18" fill="#eef2f7"/>',
+        '<rect x="86" y="72" width="528" height="276" rx="16" fill="#ffffff" stroke="#cbd5e1" stroke-width="8"/>',
+        '<path d="M182 285h336l-102-118-70 84-48-58-116 92z" fill="#94a3b8"/>',
+        '<circle cx="470" cy="142" r="38" fill="#cbd5e1"/>',
+        '</svg>'
+      ].join(''));
+
+      function sendToFlutter(message) {
+        try {
+          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+            window.flutter_inappwebview.callHandler('LosposMailBuilder', message);
+          }
+        } catch (_) {}
+
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(message, '*');
+          }
+        } catch (_) {}
+      }
+
+      function hideLoading() {
+        var loading = document.getElementById('builder-loading');
+        if (loading) {
+          loading.classList.add('is-hidden');
+        }
+      }
+
+      function looksLikeMjml(value) {
+        return typeof value === 'string' && value.trim().toLowerCase().indexOf('<mjml') === 0;
+      }
+
+      function looksLikeMarkup(value) {
+        return typeof value === 'string' && /<\/?[a-z][\s\S]*>/i.test(value);
+      }
+
+      function escapeHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function normalizeAssetSource(asset) {
+        if (!asset) return '';
+        if (typeof asset === 'string') return asset;
+        try {
+          if (asset.get) return String(asset.get('src') || asset.get('url') || '');
+        } catch (_) {}
+        return String(asset.src || asset.url || '');
+      }
+
+      function getComponentAttributes(component) {
+        if (!component) return {};
+        try {
+          if (component.getAttributes) return component.getAttributes() || {};
+        } catch (_) {}
+        try {
+          return component.get('attributes') || {};
+        } catch (_) {
+          return {};
+        }
+      }
+
+      function setComponentAttributes(component, attributes) {
+        if (!component) return;
+        try {
+          if (component.setAttributes) {
+            component.setAttributes(attributes);
+            return;
+          }
+        } catch (_) {}
+        try {
+          component.set('attributes', attributes);
+        } catch (_) {}
+      }
+
+      function isImageComponent(component) {
+        if (!component) return false;
+        var tag = getComponentTag(component);
+        var type = '';
+        try {
+          type = component.get ? String(component.get('type') || '').toLowerCase() : '';
+        } catch (_) {}
+        return tag === 'mj-image' || type === 'mj-image' || type === 'image';
+      }
+
+      function selectedImageComponent() {
+        if (!editor) return null;
+        var selected = null;
+        try {
+          selected = editor.getSelected && editor.getSelected();
+        } catch (_) {}
+        if (!selected) return null;
+        if (isImageComponent(selected)) return selected;
+        try {
+          var child = selected.find && (selected.find('mj-image')[0] || selected.find('[type=image]')[0]);
+          return child || null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function applyImageSourceToComponent(component, src) {
+        if (!component || !src) return false;
+        var attributes = Object.assign({}, getComponentAttributes(component));
+        attributes.src = src;
+
+        // A real uploaded image should stop behaving like a variable placeholder.
+        if (attributes.name && String(attributes.name).indexOf('{{') !== -1) {
+          delete attributes.name;
+        }
+        if (attributes['css-class']) {
+          var classes = String(attributes['css-class'])
+            .split(/\s+/)
+            .filter(function (item) { return item && item !== 'lospos-variable-image'; })
+            .join(' ');
+          if (classes) {
+            attributes['css-class'] = classes;
+          } else {
+            delete attributes['css-class'];
+          }
+        }
+
+        setComponentAttributes(component, attributes);
+        try {
+          component.set('src', src);
+        } catch (_) {}
+        selectInsertedComponent(component);
+        refreshEditorAfterInsert();
+        notifyChanged();
+        return true;
+      }
+
+      function applyAssetToSelectedImage(asset) {
+        var src = normalizeAssetSource(asset);
+        if (!src) return false;
+        var suppressedIndex = suppressedAssetSources.indexOf(src);
+        if (suppressedIndex !== -1) {
+          suppressedAssetSources.splice(suppressedIndex, 1);
+          return false;
+        }
+        return applyImageSourceToComponent(selectedImageComponent(), src);
+      }
+
+      function filesFromUploadEvent(event) {
+        var source = event && (event.dataTransfer || event.target || event);
+        var files = source && source.files ? source.files : [];
+        return Array.prototype.slice.call(files || []);
+      }
+
+      function readFileAsDataUrl(file) {
+        return new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () { resolve(String(reader.result || '')); };
+          reader.onerror = function () { reject(reader.error || new Error('Görsel okunamadı.')); };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function requestImageAssetUpload(file, dataUrl, component) {
+        var requestId = 'asset-' + Date.now() + '-' + (++assetUploadSequence);
+        pendingAssetUploads[requestId] = {
+          component: component || null,
+          timer: setTimeout(function () {
+            if (!pendingAssetUploads[requestId]) return;
+            delete pendingAssetUploads[requestId];
+            sendToFlutter({
+              type: 'LOSPOSTA_BUILDER_WARNING',
+              message: 'Görsel yükleme zaman aşımına uğradı.'
+            });
+          }, 45000)
+        };
+        sendToFlutter({
+          type: 'LOSPOSTA_UPLOAD_ASSET',
+          requestId: requestId,
+          payload: {
+            name: file.name || 'posta-gorsel',
+            mimeType: file.type || 'image/*',
+            dataUrl: dataUrl
+          }
+        });
+      }
+
+      function handleAssetUploadResult(message) {
+        var requestId = message && message.requestId ? String(message.requestId) : '';
+        var pending = requestId ? pendingAssetUploads[requestId] : null;
+        if (!pending) return false;
+        clearTimeout(pending.timer);
+        delete pendingAssetUploads[requestId];
+
+        if (!message.success) {
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_WARNING',
+            message: message.message || 'Görsel yüklenemedi.'
+          });
+          return false;
+        }
+
+        var src = normalizeAssetSource(message.src || (message.payload && message.payload.src));
+        if (!src) {
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_WARNING',
+            message: 'Görsel URL bilgisi alınamadı.'
+          });
+          return false;
+        }
+
+        suppressedAssetSources.push(src);
+        var asset = editor.AssetManager.add({
+          type: 'image',
+          src: src,
+          name: message.name || 'posta-gorsel'
+        });
+        setTimeout(function () {
+          var index = suppressedAssetSources.indexOf(src);
+          if (index !== -1) suppressedAssetSources.splice(index, 1);
+        }, 0);
+        return applyImageSourceToComponent(pending.component || selectedImageComponent(), normalizeAssetSource(asset));
+      }
+
+      function uploadInlineImageAssets(event) {
+        var files = filesFromUploadEvent(event).filter(function (file) {
+          return file && /^image\//i.test(String(file.type || ''));
+        });
+        if (!files.length) {
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_WARNING',
+            message: 'Yalnızca görsel dosyaları eklenebilir.'
+          });
+          return;
+        }
+
+        var targetComponent = selectedImageComponent();
+        files.forEach(function (file) {
+          readFileAsDataUrl(file).then(function (src) {
+            if (!src) return;
+            requestImageAssetUpload(file, src, targetComponent);
+          }).catch(function (error) {
+            sendToFlutter({
+              type: 'LOSPOSTA_BUILDER_WARNING',
+              message: 'Görsel eklenemedi: ' + String(error && error.message ? error.message : error)
+            });
+          });
+        });
+      }
+
+      function getAttributeValue(attributes, name) {
+        var matcher = new RegExp("\\s" + name + "=(['\"])([\\s\\S]*?)\\1", 'i');
+        var match = String(attributes || '').match(matcher);
+        return match ? match[2] : '';
+      }
+
+      function setAttributeValue(attributes, name, value) {
+        var source = String(attributes || '');
+        var matcher = new RegExp("\\s" + name + "=(['\"])[\\s\\S]*?\\1", 'i');
+        var next = ' ' + name + '="' + escapeHtml(value) + '"';
+        return matcher.test(source) ? source.replace(matcher, next) : source + next;
+      }
+
+      function removeAttribute(attributes, name) {
+        var matcher = new RegExp("\\s" + name + "=(['\"])[\\s\\S]*?\\1", 'gi');
+        return String(attributes || '').replace(matcher, '');
+      }
+
+      function normalizedUrlPath(value) {
+        var source = String(value || '').trim();
+        if (!source || source.indexOf('__SITE_LOGO_URL__') !== -1 ||
+            source.indexOf('{{site_logo}}') !== -1) {
+          return '';
+        }
+        try {
+          return new URL(source, 'https://preview.invalid/').pathname;
+        } catch (_) {
+          return '';
+        }
+      }
+
+      function isBrandLogo(attributes, payload) {
+        var src = getAttributeValue(attributes, 'src');
+        if (!src) return false;
+        if (src.indexOf('__SITE_LOGO_URL__') !== -1 ||
+            src.indexOf('{{site_logo}}') !== -1) {
+          return true;
+        }
+
+        var expectedPath = normalizedUrlPath(payload && payload.previewLogoUrl);
+        var actualPath = normalizedUrlPath(src);
+        if (expectedPath && actualPath === expectedPath) {
+          return true;
+        }
+
+        var siteName = String((payload && payload.previewSiteName) || '')
+          .trim()
+          .toLowerCase();
+        var alt = getAttributeValue(attributes, 'alt').trim().toLowerCase();
+        return !!siteName && alt === siteName;
+      }
+
+      function replaceBrandLogo(markup, payload) {
+        var replacement = String(
+          (payload && payload.previewLogoDataUri) ||
+          (payload && payload.previewLogoUrl) ||
+          ''
+        ).trim();
+        if (!replacement) return String(markup || '');
+
+        return String(markup || '').replace(
+          /<(mj-image|img)\b([\s\S]*?)>/gi,
+          function (match, tagName, attributes) {
+            if (!isBrandLogo(attributes, payload)) return match;
+            var source = getAttributeValue(attributes, 'src');
+            if (!previewLogoOriginalSource && source) {
+              previewLogoOriginalSource = source;
+            }
+            var nextAttributes = setAttributeValue(
+              attributes,
+              'src',
+              replacement
+            );
+            return '<' + tagName + nextAttributes + '>';
+          }
+        );
+      }
+
+      function prepareTemplatePreviewLogo(payload) {
+        var source = payload || {};
+        previewLogoReplacement = String(
+          source.previewLogoDataUri || source.previewLogoUrl || ''
+        ).trim();
+        previewLogoOriginalSource = '';
+        if (!previewLogoReplacement) return source;
+
+        var prepared = Object.assign({}, source);
+        prepared.mjml = replaceBrandLogo(source.mjml, source);
+        prepared.html = replaceBrandLogo(source.html, source);
+        return prepared;
+      }
+
+      function restoreTemplateLogo(value) {
+        var source = String(value || '');
+        if (!previewLogoReplacement || !previewLogoOriginalSource) {
+          return source;
+        }
+        return source.split(previewLogoReplacement).join(
+          previewLogoOriginalSource
+        );
+      }
+
+      function hasVariableImageClass(attributes) {
+        var classes = getAttributeValue(attributes, 'css-class');
+        return /(^|\s)lospos-variable-image(\s|$)/.test(classes);
+      }
+
+      function normalizeVariableImageSources(mjml) {
+        return String(mjml || '').replace(/<mj-image\b([\s\S]*?)>/gi, function (match, attributes) {
+          if (!hasVariableImageClass(attributes)) return match;
+
+          var variableSrc = getAttributeValue(attributes, 'name');
+          if (!variableSrc || variableSrc.indexOf('{{') === -1) return match;
+
+          var nextAttributes = removeAttribute(attributes, 'name');
+          nextAttributes = removeAttribute(nextAttributes, 'css-class');
+          nextAttributes = setAttributeValue(nextAttributes, 'src', variableSrc);
+          return '<mj-image' + nextAttributes + '>';
+        });
+      }
+
+      function prepareMjmlForEditor(mjml) {
+        return String(mjml || '').replace(/<mj-image\b([\s\S]*?)>/gi, function (match, attributes) {
+          var src = getAttributeValue(attributes, 'src');
+          if (!src || src.indexOf('{{') === -1) return match;
+
+          var nextAttributes = setAttributeValue(attributes, 'name', src);
+          nextAttributes = setAttributeValue(nextAttributes, 'src', VARIABLE_IMAGE_PLACEHOLDER_SRC);
+
+          var classes = getAttributeValue(nextAttributes, 'css-class');
+          if (!/(^|\s)lospos-variable-image(\s|$)/.test(classes)) {
+            nextAttributes = setAttributeValue(
+              nextAttributes,
+              'css-class',
+              (classes ? classes + ' ' : '') + 'lospos-variable-image'
+            );
+          }
+
+          return '<mj-image' + nextAttributes + '>';
+        });
+      }
+
+      function normalizeMjml(payload) {
+        payload = payload || {};
+        if (looksLikeMjml(payload.mjml)) {
+          return prepareMjmlForEditor(payload.mjml);
+        }
+        if (looksLikeMjml(payload.html)) {
+          return prepareMjmlForEditor(payload.html);
+        }
+
+        var legacy = payload.html || '';
+        if (!legacy.trim().length) {
+          return DEFAULT_MJML;
+        }
+        var body = legacy.trim().length
+          ? (looksLikeMarkup(legacy) ? legacy : escapeHtml(legacy).replace(/\n/g, '<br>'))
+          : '';
+
+        return [
+          '<mjml>',
+          '  <mj-body background-color="#f4f7fb">',
+          '    <mj-section background-color="#ffffff" padding="24px">',
+          '      <mj-column>',
+          '        <mj-text font-size="14px" color="#334155" line-height="1.6">',
+          body,
+          '        </mj-text>',
+          '      </mj-column>',
+          '    </mj-section>',
+          '  </mj-body>',
+          '</mjml>'
+        ].join('\n');
+      }
+
+      function parseProjectData(projectData) {
+        if (!projectData) {
+          return null;
+        }
+        if (typeof projectData === 'string') {
+          try {
+            return JSON.parse(projectData);
+          } catch (_) {
+            return null;
+          }
+        }
+        return projectData;
+      }
+
+      function repairMjmlStructure(mjml) {
+        var source = String(mjml || '').trim();
+        if (!looksLikeMjml(source)) {
+          return source;
+        }
+
+        var openIndex = source.search(/<mjml[\s>]/i);
+        if (openIndex < 0) {
+          return source;
+        }
+
+        var rootMatch = source.match(/<\/mjml>/i);
+        if (!rootMatch) {
+          return source;
+        }
+
+        var closeIndex = rootMatch.index;
+        var root = source.slice(openIndex, closeIndex + rootMatch[0].length);
+        var prefix = source.slice(0, openIndex).trim();
+        var suffix = source.slice(closeIndex + rootMatch[0].length).trim();
+        var strayParts = [];
+
+        var trailingInsideRoot = root.match(/<\/mj-body>([\s\S]*?)<\/mjml>/i);
+        if (trailingInsideRoot && trailingInsideRoot[1].trim()) {
+          strayParts.push(trailingInsideRoot[1].trim());
+          root = root.replace(
+            trailingInsideRoot[0],
+            '\n</mj-body>\n</mjml>'
+          );
+        }
+
+        if (prefix) {
+          strayParts.push(prefix);
+        }
+        if (suffix) {
+          strayParts.push(suffix);
+        }
+
+        var stray = strayParts.join('\n').trim();
+        if (!stray) {
+          return root;
+        }
+
+        if (/<\/mj-body>/i.test(root)) {
+          return root.replace(/<\/mj-body>/i, stray + '\n</mj-body>');
+        }
+
+        return root.replace(
+          /<\/mjml>/i,
+          '<mj-body>\n' + stray + '\n</mj-body>\n</mjml>'
+        );
+      }
+
+      function loadTemplate(payload) {
+        if (!editor || !ready) {
+          pendingTemplate = payload || {};
+          return;
+        }
+
+        var preparedPayload = prepareTemplatePreviewLogo(payload || {});
+        var projectData = parseProjectData(preparedPayload.projectData);
+        var hasSerializedTemplate = looksLikeMjml(preparedPayload.mjml) ||
+          looksLikeMjml(preparedPayload.html) ||
+          !!String(preparedPayload.html || '').trim();
+        try {
+          if (!hasSerializedTemplate && projectData && typeof editor.loadProjectData === 'function') {
+            editor.loadProjectData(projectData);
+          } else {
+            editor.setComponents(normalizeMjml(preparedPayload));
+          }
+        } catch (error) {
+          editor.setComponents(normalizeMjml(preparedPayload));
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_WARNING',
+            message: String(error && error.message ? error.message : error)
+          });
+        }
+
+        normalizeDeviceManager();
+        setResponsiveDevice(activeDeviceKey);
+      }
+
+      function activateBlocksPanel() {
+        if (!editor) {
+          return;
+        }
+
+        try {
+          var panels = editor.Panels;
+          ['open-sm', 'open-tm', 'open-layers'].forEach(function (id) {
+            var button = panels.getButton('views', id);
+            if (button) {
+              button.set('active', false);
+            }
+          });
+
+          editor.runCommand('open-blocks');
+
+          var blocksButton = panels.getButton('views', 'open-blocks');
+          if (blocksButton) {
+            blocksButton.set('active', true);
+          }
+        } catch (_) {}
+      }
+
+      function normalizeDeviceManager() {
+        if (!editor || !editor.Devices) {
+          return;
+        }
+
+        var deviceItems = Object.keys(DEVICES).map(function (key) {
+          var device = DEVICES[key];
+          return {
+            name: device.name,
+            width: device.width,
+            widthMedia: device.widthMedia
+          };
+        });
+
+        try {
+          var devices = editor.Devices.getDevices && editor.Devices.getDevices();
+          if (devices && devices.reset) {
+            devices.reset(deviceItems);
+            return;
+          }
+        } catch (_) {}
+
+        try {
+          deviceItems.forEach(function (device) {
+            if (!editor.Devices.get(device.name)) {
+              editor.Devices.add(device);
+            }
+          });
+        } catch (_) {}
+      }
+
+      function syncDeviceButtons(activeButtonId) {
+        if (!editor || !editor.Panels) {
+          return;
+        }
+
+        try {
+          ['set-device-desktop', 'set-device-tablet', 'set-device-mobile'].forEach(function (id) {
+            var button = editor.Panels.getButton('devices-c', id);
+            if (button) {
+              button.set('active', id === activeButtonId);
+            }
+          });
+        } catch (_) {}
+      }
+
+      function forceFrameWidth(device) {
+        var apply = function () {
+          var frameWrapper = document.querySelector('.gjs-frame-wrapper');
+          var frame = document.querySelector('.gjs-frame');
+
+          if (frameWrapper) {
+            if (device.width) {
+              frameWrapper.style.width = device.width;
+              frameWrapper.style.maxWidth = 'calc(100% - 48px)';
+            } else {
+              frameWrapper.style.width = '100%';
+              frameWrapper.style.maxWidth = '';
+            }
+          }
+
+          if (frame) {
+            frame.style.width = '100%';
+            frame.style.height = '100%';
+          }
+        };
+
+        apply();
+        setTimeout(apply, 60);
+        setTimeout(apply, 220);
+      }
+
+      function setResponsiveDevice(key) {
+        var device = DEVICES[key] || DEVICES.desktop;
+        activeDeviceKey = key in DEVICES ? key : 'desktop';
+
+        try {
+          editor.setDevice(device.name);
+        } catch (_) {}
+
+        syncDeviceButtons(device.buttonId);
+        forceFrameWidth(device);
+
+        try {
+          editor.refresh();
+        } catch (_) {}
+      }
+
+      function installDeviceCommands() {
+        if (!editor || !editor.Commands) {
+          return;
+        }
+
+        editor.Commands.add('set-device-desktop', {
+          run: function () {
+            setResponsiveDevice('desktop');
+          },
+          stop: function () {
+            syncDeviceButtons(DEVICES[activeDeviceKey].buttonId);
+          }
+        });
+
+        editor.Commands.add('set-device-tablet', {
+          run: function () {
+            setResponsiveDevice('tablet');
+          },
+          stop: function () {
+            syncDeviceButtons(DEVICES[activeDeviceKey].buttonId);
+          }
+        });
+
+        editor.Commands.add('set-device-mobile', {
+          run: function () {
+            setResponsiveDevice('mobile');
+          },
+          stop: function () {
+            syncDeviceButtons(DEVICES[activeDeviceKey].buttonId);
+          }
+        });
+      }
+
+      function exportTemplate() {
+        if (!editor) {
+          return {
+            html: '',
+            mjml: '',
+            projectData: '',
+            errors: ['Editor hazır değil.']
+          };
+        }
+
+        var mjml = '';
+        var html = '';
+        var errors = [];
+        var projectData = '';
+
+        function extractCompiledHtml(compiledResult) {
+          if (!compiledResult) {
+            return '';
+          }
+
+          if (typeof compiledResult === 'string') {
+            return compiledResult;
+          }
+
+          if (typeof compiledResult.html === 'string') {
+            return compiledResult.html;
+          }
+
+          if (compiledResult.html != null) {
+            return String(compiledResult.html);
+          }
+
+          return '';
+        }
+
+        function extractCompiledErrors(compiledResult) {
+          if (!compiledResult || !Array.isArray(compiledResult.errors)) {
+            return [];
+          }
+
+          return compiledResult.errors.map(function (item) {
+            return item.formattedMessage || item.message || String(item);
+          });
+        }
+
+        try {
+          mjml = editor.runCommand('mjml-code') || '';
+          mjml = repairMjmlStructure(normalizeVariableImageSources(mjml));
+          var compiled = editor.runCommand('mjml-code-to-html', {
+            mjml: mjml,
+            validationLevel: 'soft'
+          });
+          html = extractCompiledHtml(compiled);
+          errors = extractCompiledErrors(compiled);
+
+          if (!html || looksLikeMjml(html)) {
+            var editorHtml = editor.getHtml();
+            if (editorHtml && !looksLikeMjml(editorHtml)) {
+              html = editorHtml;
+            }
+          }
+        } catch (error) {
+          html = editor.getHtml();
+          errors = [String(error && error.message ? error.message : error)];
+        }
+
+        try {
+          projectData = JSON.stringify(editor.getProjectData());
+        } catch (_) {
+          projectData = '';
+        }
+
+        return {
+          html: restoreTemplateLogo(html),
+          mjml: restoreTemplateLogo(mjml),
+          projectData: restoreTemplateLogo(projectData),
+          errors: errors
+        };
+      }
+
+        function notifyChanged() {
+          clearTimeout(changeTimer);
+          changeTimer = setTimeout(function () {
+            sendToFlutter({
+              type: 'LOSPOSTA_BUILDER_CHANGED',
+              payload: exportTemplate()
+            });
+          }, 650);
+        }
+
+        function asNumber(value) {
+          var number = Number(value);
+          return isFinite(number) ? number : 0;
+        }
+
+        function normalizeVariableDropPayload(payload) {
+          payload = payload || {};
+          return {
+            key: String(payload.key || ''),
+            label: String(payload.label || payload.key || ''),
+          varType: String(payload.varType || 'metin'),
+          x: asNumber(payload.x),
+          y: asNumber(payload.y),
+          sequence: asNumber(payload.sequence)
+        };
+      }
+
+      function acceptExternalDropCommand(payload) {
+        if (!payload || payload.sequence === undefined || payload.sequence === null) {
+          return true;
+        }
+
+        var sequence = asNumber(payload.sequence);
+        if (sequence > 0 && sequence < lastExternalDropSequence) {
+          return false;
+        }
+        if (sequence > 0) {
+          lastExternalDropSequence = sequence;
+        }
+        return true;
+      }
+
+        function isImageVariable(varType) {
+          return varType === 'gorsel' || varType === 'görsel' || varType === 'image';
+        }
+
+        function createVariableComponent(payload) {
+          var text = '{{' + payload.key + '}}';
+          var label = payload.label || payload.key;
+          if (isImageVariable(payload.varType)) {
+            return [
+              '<mj-image',
+              ' src="' + escapeHtml(VARIABLE_IMAGE_PLACEHOLDER_SRC) + '"',
+              ' name="' + escapeHtml(text) + '"',
+              ' css-class="lospos-variable-image"',
+              ' alt="' + escapeHtml(label) + '"',
+              ' width="180px"',
+              ' padding="10px 0"',
+              ' />'
+            ].join('');
+          }
+
+          return [
+            '<mj-text font-size="14px" color="#334155" line-height="1.6" align="center" padding="8px 0">',
+            '<span style="display:inline-block;padding:6px 10px;border-radius:6px;background:#E6FFFA;color:#0F766E;font-weight:700;">',
+            escapeHtml(text),
+            '</span>',
+            '</mj-text>'
+          ].join('');
+        }
+
+        function getDropIndicator() {
+          if (!dropIndicator) {
+            dropIndicator = document.createElement('div');
+            dropIndicator.className = 'losposta-external-drop-line';
+            document.querySelector('.builder-shell').appendChild(dropIndicator);
+          }
+          return dropIndicator;
+        }
+
+        function showDropIndicator(line) {
+          if (!line) {
+            clearVariableDrop();
+            return;
+          }
+
+          var indicator = getDropIndicator();
+          indicator.style.left = Math.round(line.left) + 'px';
+          indicator.style.top = Math.round(line.top) + 'px';
+          indicator.style.width = Math.max(42, Math.round(line.width)) + 'px';
+          indicator.classList.add('is-visible');
+        }
+
+      function clearVariableDrop(payload) {
+        if (!acceptExternalDropCommand(payload)) {
+          return false;
+        }
+        lastExternalDropTarget = null;
+        if (dropIndicator) {
+          dropIndicator.classList.remove('is-visible');
+        }
+        return true;
+      }
+
+        function getComponentTag(component) {
+          if (!component || !component.get) return '';
+          return String(component.get('tagName') || component.get('type') || '').toLowerCase();
+        }
+
+        function getComponentElement(component) {
+          if (!component) return null;
+          try {
+            if (component.getEl) {
+              return component.getEl();
+            }
+          } catch (_) {}
+          return component.view && component.view.el ? component.view.el : null;
+        }
+
+        function getComponentChildren(component) {
+          if (!component || !component.components) return [];
+          var children = component.components();
+          if (!children) return [];
+          if (children.toArray) return children.toArray();
+          if (children.models) return children.models.slice();
+          if (Array.isArray(children)) return children.slice();
+
+          var result = [];
+          if (children.each) {
+            children.each(function (child) {
+              result.push(child);
+            });
+          }
+          return result;
+        }
+
+        function findFirstComponent(selector) {
+          if (!editor) return null;
+          var wrapper = editor.getWrapper && editor.getWrapper();
+          var found = wrapper && wrapper.find ? wrapper.find(selector) : [];
+          return found && found.length ? found[0] : null;
+        }
+
+        function findComponentByElement(element) {
+          if (!editor || !element) return null;
+
+          var wrapper = editor.getWrapper && editor.getWrapper();
+          var found = null;
+
+          function walk(component) {
+            if (!component) return;
+            var componentEl = getComponentElement(component);
+            var contains = componentEl && (componentEl === element || componentEl.contains(element));
+            if (!contains) return;
+
+            found = component;
+            getComponentChildren(component).forEach(walk);
+          }
+
+          walk(wrapper);
+          return found;
+        }
+
+        function findAncestor(component, predicate) {
+          var current = component;
+          while (current) {
+            if (predicate(current)) return current;
+            current = current.parent ? current.parent() : null;
+          }
+          return null;
+        }
+
+        function uniqueComponents(components) {
+          var seen = [];
+          var result = [];
+          components.forEach(function (component) {
+            if (component && seen.indexOf(component) === -1) {
+              seen.push(component);
+              result.push(component);
+            }
+          });
+          return result;
+        }
+
+        function getColumnsInScope(scope) {
+          var columns = [];
+          if (scope && getComponentTag(scope) === 'mj-column') {
+            columns.push(scope);
+          }
+          if (scope && scope.find) {
+            columns = columns.concat(scope.find('mj-column') || []);
+          }
+          if (!columns.length && editor && editor.getWrapper) {
+            var wrapper = editor.getWrapper();
+            columns = wrapper && wrapper.find ? wrapper.find('mj-column') || [] : [];
+          }
+          return uniqueComponents(columns);
+        }
+
+        function pointDistanceFromRect(x, y, rect) {
+          var dx = x < rect.left ? rect.left - x : (x > rect.right ? x - rect.right : 0);
+          var dy = y < rect.top ? rect.top - y : (y > rect.bottom ? y - rect.bottom : 0);
+          return { dx: dx, dy: dy };
+        }
+
+        function findNearestColumn(frameX, frameY, scope) {
+          var section = findAncestor(scope, function (component) {
+            return getComponentTag(component) === 'mj-section';
+          });
+          var columns = getColumnsInScope(section || scope);
+          var best = null;
+          var bestScore = Infinity;
+
+          columns.forEach(function (column) {
+            var element = getComponentElement(column);
+            if (!element) return;
+            var rect = element.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return;
+            var distance = pointDistanceFromRect(frameX, frameY, rect);
+            var score = distance.dy * 3 + distance.dx;
+            if (frameY >= rect.top - 16 && frameY <= rect.bottom + 16) score -= 30;
+            if (frameX >= rect.left && frameX <= rect.right) score -= 20;
+            if (score < bestScore) {
+              bestScore = score;
+              best = column;
+            }
+          });
+
+          return best;
+        }
+
+        function insertionIndexForColumn(column, frameY) {
+          var children = getComponentChildren(column);
+          if (!children.length) return 0;
+
+          for (var index = 0; index < children.length; index++) {
+            var childElement = getComponentElement(children[index]);
+            if (!childElement) continue;
+            var rect = childElement.getBoundingClientRect();
+            if (frameY < rect.top + rect.height / 2) {
+              return index;
+            }
+          }
+
+          return children.length;
+        }
+
+        function lineForColumn(column, index, frameRect, frameY) {
+          var columnElement = getComponentElement(column);
+          if (!columnElement) return null;
+
+          var columnRect = columnElement.getBoundingClientRect();
+          var children = getComponentChildren(column);
+          var lineY = Math.min(Math.max(frameY, columnRect.top + 10), columnRect.bottom - 10);
+
+          if (children.length && index < children.length) {
+            var nextElement = getComponentElement(children[index]);
+            if (nextElement) lineY = nextElement.getBoundingClientRect().top;
+          } else if (children.length) {
+            var previousElement = getComponentElement(children[children.length - 1]);
+            if (previousElement) lineY = previousElement.getBoundingClientRect().bottom;
+          }
+
+          lineY = Math.min(Math.max(lineY, columnRect.top), columnRect.bottom);
+          return {
+            left: frameRect.left + columnRect.left + 4,
+            top: frameRect.top + lineY - 2,
+            width: Math.max(42, columnRect.width - 8)
+          };
+        }
+
+        function lineForNewSection(frameRect, frameX, frameY) {
+          var horizontalPadding = Math.min(48, frameRect.width * 0.12);
+          return {
+            left: frameRect.left + horizontalPadding,
+            top: frameRect.top + Math.max(24, frameY) - 2,
+            width: Math.max(80, frameRect.width - horizontalPadding * 2)
+          };
+        }
+
+        function getFrameInfo() {
+          if (!editor || !editor.Canvas || !editor.Canvas.getFrameEl) return null;
+          var frameEl = editor.Canvas.getFrameEl();
+          var frameDoc = frameEl && frameEl.contentDocument;
+          if (!frameEl || !frameDoc) return null;
+          return {
+            frameEl: frameEl,
+            frameDoc: frameDoc,
+            rect: frameEl.getBoundingClientRect()
+          };
+        }
+
+        function resolveExternalDropTarget(payload) {
+          if (!editor || !ready) return null;
+          payload = normalizeVariableDropPayload(payload);
+          if (!payload.key) return null;
+
+          var frameInfo = getFrameInfo();
+          if (!frameInfo) return null;
+
+          var frameRect = frameInfo.rect;
+          if (
+            payload.x < frameRect.left ||
+            payload.y < frameRect.top ||
+            payload.x > frameRect.right ||
+            payload.y > frameRect.bottom
+          ) {
+            return null;
+          }
+
+          var frameX = payload.x - frameRect.left;
+          var frameY = payload.y - frameRect.top;
+          var element = frameInfo.frameDoc.elementFromPoint(frameX, frameY);
+          var component = findComponentByElement(element);
+          var column = findAncestor(component, function (candidate) {
+            return getComponentTag(candidate) === 'mj-column';
+          });
+
+          if (!column) {
+            column = findNearestColumn(frameX, frameY, component);
+          }
+
+          if (!column) {
+            return {
+              payload: payload,
+              column: null,
+              index: 0,
+              line: lineForNewSection(frameRect, frameX, frameY)
+            };
+          }
+
+          var index = insertionIndexForColumn(column, frameY);
+          return {
+            payload: payload,
+            column: column,
+            index: index,
+            line: lineForColumn(column, index, frameRect, frameY)
+          };
+        }
+
+        function selectInsertedComponent(component) {
+          if (!component) return;
+          try {
+            editor.select(component);
+          } catch (_) {}
+        }
+
+        function normalizeInsertedResult(result) {
+          if (!result) return null;
+          if (Array.isArray(result)) return result[0] || null;
+          if (result.models && result.models.length) return result.models[0];
+          return result;
+        }
+
+        function childInsertedAt(component, index, beforeCount) {
+          var children = getComponentChildren(component);
+          if (children.length <= beforeCount) return null;
+          var safeIndex = Math.max(0, Math.min(index, children.length - 1));
+          return children[safeIndex] || null;
+        }
+
+        function firstVariableComponentInside(component) {
+          if (!component || !component.find) return component || null;
+          return component.find('mj-text')[0] || component.find('mj-image')[0] || component;
+        }
+
+        function refreshEditorAfterInsert() {
+          try {
+            editor.refresh();
+          } catch (_) {}
+          setTimeout(function () {
+            try {
+              editor.refresh();
+            } catch (_) {}
+          }, 60);
+        }
+
+        function insertVariableIntoTarget(target) {
+          if (!target || !target.payload || !target.payload.key) return false;
+
+          var componentDefinition = createVariableComponent(target.payload);
+          var inserted = null;
+
+          if (target.column) {
+            var beforeCount = getComponentChildren(target.column).length;
+            try {
+              inserted = target.column.append(componentDefinition, { at: target.index });
+            } catch (_) {
+              inserted = target.column.append(componentDefinition);
+            }
+            inserted = childInsertedAt(target.column, target.index, beforeCount) ||
+              normalizeInsertedResult(inserted);
+            if (!inserted || getComponentChildren(target.column).length <= beforeCount) {
+              return false;
+            }
+            selectInsertedComponent(firstVariableComponentInside(inserted));
+            refreshEditorAfterInsert();
+            notifyChanged();
+            return true;
+          }
+
+          var body = findFirstComponent('mj-body') || (editor.getWrapper && editor.getWrapper());
+          if (!body || !body.append) return false;
+
+          var beforeBodyCount = getComponentChildren(body).length;
+          var section = body.append([
+            '<mj-section background-color="#ffffff" padding="20px 24px">',
+            '<mj-column>',
+            componentDefinition,
+            '</mj-column>',
+            '</mj-section>'
+          ].join(''));
+          section = childInsertedAt(body, beforeBodyCount, beforeBodyCount) ||
+            normalizeInsertedResult(section);
+          if (!section || getComponentChildren(body).length <= beforeBodyCount) {
+            return false;
+          }
+          var selectable = firstVariableComponentInside(section);
+          selectInsertedComponent(selectable);
+          refreshEditorAfterInsert();
+          notifyChanged();
+          return true;
+        }
+
+      function previewVariableDrop(payload) {
+        if (!acceptExternalDropCommand(payload)) {
+          return false;
+        }
+        var target = resolveExternalDropTarget(payload);
+        if (!target || !target.line) {
+          clearVariableDrop();
+            return false;
+          }
+
+          lastExternalDropTarget = target;
+          showDropIndicator(target.line);
+          return true;
+        }
+
+      function commitVariableDrop(payload) {
+        if (!acceptExternalDropCommand(payload)) {
+          return false;
+        }
+        var target = resolveExternalDropTarget(payload) || lastExternalDropTarget;
+        if (!target) {
+          clearVariableDrop();
+            return false;
+          }
+
+          var inserted = insertVariableIntoTarget(target);
+          clearVariableDrop();
+          return inserted;
+        }
+
+        function initEditor() {
+        var mjmlPlugin = window['grapesjs-mjml'];
+        if (!window.grapesjs || !mjmlPlugin) {
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_ERROR',
+            message: 'Builder dosyaları yüklenemedi.'
+          });
+          return;
+        }
+
+        editor = window.grapesjs.init({
+          container: '#gjs',
+          height: '100%',
+          fromElement: false,
+          components: DEFAULT_MJML,
+          storageManager: false,
+          assetManager: {
+            upload: false,
+            dropzone: true,
+            openAssetsOnDrop: true,
+            uploadFile: uploadInlineImageAssets
+          },
+          selectorManager: { componentFirst: true },
+          deviceManager: {
+            devices: [
+              { name: 'Desktop', width: '' },
+              { name: 'Tablet', width: '768px', widthMedia: '992px' },
+              { name: 'Mobile portrait', width: '375px', widthMedia: '480px' }
+            ]
+          },
+          i18n: {
+            locale: 'tr',
+            localeFallback: 'en',
+            detectLocale: false
+          },
+          plugins: ['grapesjs-mjml'],
+          pluginsOpts: {
+            'grapesjs-mjml': {
+              useCustomTheme: true,
+              resetDevices: true,
+              i18n: {
+                tr: MJML_I18N_TR
+              },
+              imagePlaceholderSrc:
+                'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="700" height="420" viewBox="0 0 700 420"><rect width="700" height="420" rx="12" fill="%23eef2f7"/><path d="M280 250h140l-42-58-30 38-21-28-47 48z" fill="%2394a3b8"/><circle cx="417" cy="154" r="28" fill="%23cbd5e1"/></svg>'
+            }
+          }
+        });
+
+        normalizeDeviceManager();
+        installDeviceCommands();
+
+        editor.on('load', function () {
+          ready = true;
+          hideLoading();
+          loadTemplate(pendingTemplate || {});
+          pendingTemplate = null;
+          setResponsiveDevice(activeDeviceKey);
+          activateBlocksPanel();
+          setTimeout(activateBlocksPanel, 80);
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_READY',
+            payload: exportTemplate()
+          });
+        });
+
+        editor.on('component:update component:add component:remove style:property:update', notifyChanged);
+        editor.on('asset:add', applyAssetToSelectedImage);
+        editor.on('canvas:frame:load', function () {
+          setResponsiveDevice(activeDeviceKey);
+        });
+      }
+
+      function insertTextAtCursor(text) {
+        if (!editor || !ready) return false;
+
+        try {
+          // 1. Aktif RTE (Rich Text Editor) varsa, imleç pozisyonuna ekle
+          var rte = editor.RichTextEditor;
+          var rteToolbar = rte && rte.getToolbarEl && rte.getToolbarEl();
+          var isRteActive = rteToolbar && rteToolbar.style.display !== 'none';
+
+          if (isRteActive) {
+            var iframeEl = editor.Canvas.getFrameEl();
+            var iframeDoc = iframeEl && iframeEl.contentDocument;
+            var iframeWin = iframeEl && iframeEl.contentWindow;
+            if (iframeDoc && iframeWin) {
+              var sel = iframeWin.getSelection();
+              if (sel && sel.rangeCount > 0) {
+                var range = sel.getRangeAt(0);
+                range.deleteContents();
+                var textNode = iframeDoc.createTextNode(text);
+                range.insertNode(textNode);
+                range.setStartAfter(textNode);
+                range.setEndAfter(textNode);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                notifyChanged();
+                return true;
+              }
+            }
+          }
+
+          // 2. Seçili component varsa, içeriğine ekle
+          var selected = editor.getSelected();
+          if (selected) {
+            var tagName = selected.get('tagName') || '';
+            var type = selected.get('type') || '';
+            var isTextLike = tagName === 'mj-text' || tagName === 'mj-button' ||
+                             type === 'text' || type === 'mj-text';
+            if (isTextLike) {
+              var currentContent = selected.get('content') || '';
+              selected.set('content', currentContent + text);
+              notifyChanged();
+              return true;
+            }
+
+            // Text alt bileşeni bul
+            var textChild = selected.find('mj-text')[0] || selected.find('[type=text]')[0];
+            if (textChild) {
+              var childContent = textChild.get('content') || '';
+              textChild.set('content', childContent + text);
+              notifyChanged();
+              return true;
+            }
+          }
+
+          // 3. İlk mj-text bileşenine ekle (fallback)
+          var allTexts = editor.DomComponents.getWrapper().find('mj-text');
+          if (allTexts.length > 0) {
+            var firstText = allTexts[0];
+            var tc = firstText.get('content') || '';
+            firstText.set('content', tc + text);
+            notifyChanged();
+            return true;
+          }
+
+          return false;
+        } catch (e) {
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_WARNING',
+            message: 'Metin eklenemedi: ' + String(e.message || e)
+          });
+          return false;
+        }
+      }
+
+      function addVariable(key, label, varType) {
+        if (!editor || !ready) return false;
+        varType = varType || 'metin';
+        var text = '{{' + key + '}}';
+        var payload = normalizeVariableDropPayload({
+          key: key,
+          label: label,
+          varType: varType
+        });
+        var isImage = isImageVariable(varType);
+
+        try {
+          // İmleç aktifse ona ekle (sadece metin için)
+          if (!isImage) {
+            var inserted = insertTextAtCursor(text);
+            if (inserted) return true;
+          }
+
+          // Hedef column bul
+          var targetColumn = null;
+          var selected = editor.getSelected();
+
+          if (selected) {
+            var p = selected;
+            while (p) {
+              if (p.get && p.get('tagName') === 'mj-column') {
+                targetColumn = p;
+                break;
+              }
+              p = p.parent();
+            }
+          }
+
+          if (!targetColumn) {
+            var wrapper = editor.DomComponents.getWrapper();
+            var columns = wrapper.find('mj-column');
+            if (columns.length > 0) {
+              targetColumn = columns[columns.length - 1];
+            }
+          }
+
+          if (!targetColumn) {
+            return insertVariableIntoTarget({
+              payload: payload,
+              column: null,
+              index: 0
+            });
+          }
+
+          return insertVariableIntoTarget({
+            payload: payload,
+            column: targetColumn,
+            index: getComponentChildren(targetColumn).length
+          });
+        } catch (e) {
+          sendToFlutter({
+            type: 'LOSPOSTA_BUILDER_WARNING',
+            message: 'De\u011fi\u015fken eklenemedi: ' + String(e.message || e)
+          });
+          return false;
+        }
+      }
+
+        window.LosposMailBuilder = {
+          loadTemplate: loadTemplate,
+          exportTemplate: exportTemplate,
+          insertTextAtCursor: insertTextAtCursor,
+          addVariable: addVariable,
+          previewVariableDrop: previewVariableDrop,
+          commitVariableDrop: commitVariableDrop,
+          clearVariableDrop: clearVariableDrop,
+          handleAssetUploadResult: handleAssetUploadResult,
+          isReady: function () {
+            return ready;
+          }
+        };
+
+      window.addEventListener('message', function (event) {
+        var data = event.data || {};
+        if (!data || typeof data !== 'object') {
+          return;
+        }
+        if (data.type === 'LOSPOSTA_LOAD_TEMPLATE') {
+          loadTemplate(data.payload || {});
+          return;
+        }
+        if (data.type === 'LOSPOSTA_REQUEST_EXPORT') {
+          sendToFlutter({
+            type: 'LOSPOSTA_EXPORT_RESULT',
+            requestId: data.requestId,
+            payload: exportTemplate()
+          });
+          return;
+        }
+        if (data.type === 'LOSPOSTA_INSERT_TEXT') {
+          var result = insertTextAtCursor(data.text || '');
+          sendToFlutter({
+            type: 'LOSPOSTA_INSERT_RESULT',
+            success: result
+          });
+          return;
+        }
+          if (data.type === 'LOSPOSTA_ADD_VARIABLE') {
+            var addResult = addVariable(data.key || '', data.label || '', data.varType || 'metin');
+            sendToFlutter({
+              type: 'LOSPOSTA_ADD_VARIABLE_RESULT',
+              success: addResult,
+              key: data.key || ''
+            });
+            return;
+          }
+          if (data.type === 'LOSPOSTA_PREVIEW_VARIABLE_DROP') {
+            previewVariableDrop(data);
+            return;
+          }
+          if (data.type === 'LOSPOSTA_COMMIT_VARIABLE_DROP') {
+            var dropResult = commitVariableDrop(data);
+            sendToFlutter({
+              type: 'LOSPOSTA_COMMIT_VARIABLE_DROP_RESULT',
+              success: dropResult,
+              key: data.key || ''
+            });
+            return;
+          }
+          if (data.type === 'LOSPOSTA_CLEAR_VARIABLE_DROP') {
+            clearVariableDrop(data);
+            return;
+          }
+          if (data.type === 'LOSPOSTA_UPLOAD_ASSET_RESULT') {
+            handleAssetUploadResult(data);
+          }
+        });
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initEditor);
+      } else {
+        initEditor();
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -9,6 +11,7 @@ import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/branding/admin_branding.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
@@ -16,6 +19,7 @@ import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_mail_repository.dart';
+import 'builder/posta_mjml_builder.dart';
 import 'mail_template_models.dart';
 
 class MailTemplatesScreen extends StatefulWidget {
@@ -30,6 +34,77 @@ class MailTemplatesScreen extends StatefulWidget {
 
   @override
   State<MailTemplatesScreen> createState() => _MailTemplatesScreenState();
+}
+
+final Map<String, Future<String>> _mailPreviewLogoDataUriCache =
+    <String, Future<String>>{};
+
+Future<String> _mailPreviewLogoDataUri(String url) {
+  final normalized = url.trim();
+  if (normalized.isEmpty) return Future<String>.value('');
+  return _mailPreviewLogoDataUriCache.putIfAbsent(normalized, () async {
+    try {
+      final response = await http
+          .get(Uri.parse(normalized))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode < 200 || response.statusCode >= 300) return '';
+      final contentType =
+          response.headers['content-type']?.split(';').first.trim() ??
+          _mailPreviewLogoMimeType(normalized);
+      if (!contentType.startsWith('image/')) return '';
+      return 'data:$contentType;base64,${base64Encode(response.bodyBytes)}';
+    } catch (_) {
+      return '';
+    }
+  });
+}
+
+String _mailPreviewLogoMimeType(String url) {
+  final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+  if (path.endsWith('.svg')) return 'image/svg+xml';
+  if (path.endsWith('.webp')) return 'image/webp';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.gif')) return 'image/gif';
+  return 'image/png';
+}
+
+class _MailPreviewBrandingBuilder extends StatelessWidget {
+  const _MailPreviewBrandingBuilder({required this.builder});
+
+  final Widget Function(String siteName, String logoUrl, String logoDataUri)
+  builder;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<AdminBrandingData>(
+      valueListenable: adminBranding,
+      builder: (context, branding, _) {
+        final siteName = branding.siteName.trim().isNotEmpty
+            ? branding.siteName.trim()
+            : context.t('brand.name');
+        final logoUrl = branding.emailLogoUrl.trim().isNotEmpty
+            ? branding.emailLogoUrl.trim()
+            : branding.logoUrl.trim();
+        if (logoUrl.isEmpty) return builder(siteName, '', '');
+
+        return FutureBuilder<String>(
+          future: _mailPreviewLogoDataUri(logoUrl),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              );
+            }
+            return builder(siteName, logoUrl, snapshot.data ?? '');
+          },
+        );
+      },
+    );
+  }
 }
 
 class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
@@ -1913,7 +1988,7 @@ class _TemplateDetailDrawer extends StatelessWidget {
           ),
           const Divider(height: 1, color: AppColors.softLine),
           Expanded(
-            child: SingleChildScrollView(
+            child: Padding(
               padding: const EdgeInsets.all(28),
               child: Container(
                 padding: const EdgeInsets.all(16),
@@ -1947,7 +2022,12 @@ class _TemplateDetailDrawer extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _TemplatePreviewFrame(template: template, compact: true),
+                    Expanded(
+                      child: _TemplatePreviewFrame(
+                        template: template,
+                        compact: true,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1978,9 +2058,12 @@ class MailTemplateEditorView extends StatefulWidget {
 class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
   late final TextEditingController _subjectController;
   late final TextEditingController _previewController;
-  late final TextEditingController _bodyController;
-  var _selectedDevice = 'desktop';
-  var _selectedBlock = 'mail.template.editor.block.text';
+  late final PostaMjmlBuilderController _builderController;
+  final GlobalKey _builderDropKey = GlobalKey();
+  PostaMjmlBuilderValue? _lastBuilderValue;
+  Offset? _lastVariableDragGlobalPosition;
+  var _variableDragInsideBuilder = false;
+  var _saving = false;
 
   @override
   void initState() {
@@ -1988,12 +2071,13 @@ class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
     final template = widget.template;
     _subjectController = TextEditingController(text: template?.subject ?? '');
     _previewController = TextEditingController(
-      text: template?.previewText ?? 'mail.template.previewText',
+      text: template?.previewText ?? '',
     );
-    _bodyController = TextEditingController(
-      text:
-          template?.body ??
-          'Sayin {{uye_adi}}, Pateeznews uzerinden sizin icin hazirlanan duyuru.',
+    _builderController = PostaMjmlBuilderController();
+    _lastBuilderValue = PostaMjmlBuilderValue(
+      html: template?.body ?? '',
+      mjml: template?.contentMjml ?? '',
+      projectData: template?.designJson ?? '',
     );
   }
 
@@ -2001,21 +2085,152 @@ class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
   void dispose() {
     _subjectController.dispose();
     _previewController.dispose();
-    _bodyController.dispose();
     super.dispose();
   }
 
-  void _addToken(String token) {
-    final current = _bodyController.text.trimRight();
-    final separator = current.isEmpty ? '' : ' ';
-    setState(() => _bodyController.text = '$current$separator$token');
+  String _variableKey(AdminMailTemplateVariable variable) {
+    final token = variable.token.trim();
+    if (token.startsWith('{{') && token.endsWith('}}') && token.length > 4) {
+      return token.substring(2, token.length - 2).trim();
+    }
+    return token;
   }
 
-  int _variableCount() {
+  String _variableType(AdminMailTemplateVariable variable) {
+    return variable.isImage ? 'gorsel' : 'metin';
+  }
+
+  Future<void> _addVariable(AdminMailTemplateVariable variable) async {
+    await _builderController.addVariable(
+      _variableKey(variable),
+      context.t(variable.labelKey),
+      _variableType(variable),
+    );
+  }
+
+  Offset? _builderLocalPosition(Offset globalPosition) {
+    final renderObject = _builderDropKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return null;
+
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    final size = renderObject.size;
+    if (localPosition.dx < 0 ||
+        localPosition.dy < 0 ||
+        localPosition.dx > size.width ||
+        localPosition.dy > size.height) {
+      return null;
+    }
+
+    return localPosition;
+  }
+
+  void _updateVariableDrag(
+    AdminMailTemplateVariable variable,
+    Offset globalPosition,
+  ) {
+    _lastVariableDragGlobalPosition = globalPosition;
+
+    final localPosition = _builderLocalPosition(globalPosition);
+    if (localPosition == null) {
+      if (_variableDragInsideBuilder) {
+        unawaited(_builderController.clearVariableDrop());
+      }
+      _variableDragInsideBuilder = false;
+      return;
+    }
+
+    _variableDragInsideBuilder = true;
+    unawaited(
+      _builderController.previewVariableDrop(
+        _variableKey(variable),
+        context.t(variable.labelKey),
+        _variableType(variable),
+        localPosition.dx,
+        localPosition.dy,
+      ),
+    );
+  }
+
+  Future<void> _finishVariableDrag(AdminMailTemplateVariable variable) async {
+    final globalPosition = _lastVariableDragGlobalPosition;
+    final localPosition = globalPosition == null
+        ? null
+        : _builderLocalPosition(globalPosition);
+
+    _lastVariableDragGlobalPosition = null;
+    _variableDragInsideBuilder = false;
+
+    if (localPosition == null) {
+      await _builderController.clearVariableDrop();
+      return;
+    }
+
+    await _builderController.commitVariableDrop(
+      _variableKey(variable),
+      context.t(variable.labelKey),
+      _variableType(variable),
+      localPosition.dx,
+      localPosition.dy,
+    );
+  }
+
+  bool _looksLikeMjml(String value) {
+    return value.trim().toLowerCase().startsWith('<mjml');
+  }
+
+  String _firstFilled(Iterable<String?> values) {
+    for (final value in values) {
+      final normalized = value?.trim() ?? '';
+      if (normalized.isNotEmpty) return normalized;
+    }
+    return '';
+  }
+
+  PostaMjmlBuilderValue _safeBuilderValue(PostaMjmlBuilderValue builderValue) {
+    final lastValue = _lastBuilderValue;
+    final existing = widget.template;
+
+    final html = _firstFilled([
+      !_looksLikeMjml(builderValue.html) ? builderValue.html : null,
+      lastValue != null && !_looksLikeMjml(lastValue.html)
+          ? lastValue.html
+          : null,
+      existing != null && !_looksLikeMjml(existing.body) ? existing.body : null,
+      builderValue.html,
+      lastValue?.html,
+    ]);
+
+    final mjml = _firstFilled([
+      builderValue.mjml,
+      lastValue?.mjml,
+      _looksLikeMjml(builderValue.html) ? builderValue.html : null,
+      lastValue != null && _looksLikeMjml(lastValue.html)
+          ? lastValue.html
+          : null,
+      existing?.contentMjml,
+    ]);
+
+    final projectData = _firstFilled([
+      builderValue.projectData,
+      lastValue?.projectData,
+      existing?.designJson,
+    ]);
+
+    return PostaMjmlBuilderValue(
+      html: html,
+      mjml: mjml,
+      projectData: projectData,
+      errors: builderValue.errors,
+    );
+  }
+
+  int _variableCount(PostaMjmlBuilderValue builderValue) {
     final text = [
       _subjectController.text,
       _previewController.text,
-      _bodyController.text,
+      builderValue.html,
+      builderValue.mjml,
+      builderValue.projectData,
     ].join(' ');
     final matches = RegExp(r'\{\{[^}]+\}\}').allMatches(text);
     return matches
@@ -2026,6 +2241,8 @@ class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
+
     final existing = widget.template;
     final payload = await showDialog<_TemplateSavePayload>(
       context: context,
@@ -2034,25 +2251,41 @@ class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
     );
     if (payload == null) return;
 
+    setState(() => _saving = true);
+    late final PostaMjmlBuilderValue builderValue;
+    try {
+      builderValue = _safeBuilderValue(
+        await _builderController.requestExport(),
+      );
+      _lastBuilderValue = builderValue;
+    } catch (error) {
+      if (mounted) {
+        AdminToast.show(
+          context,
+          message: error.toString(),
+          tone: AdminToastTone.error,
+        );
+        setState(() => _saving = false);
+      }
+      return;
+    }
+
     final next = AdminMailTemplate(
       id: existing?.id ?? DateTime.now().millisecondsSinceEpoch,
       nameKey: payload.name,
       category: payload.category,
-      variableCount: _variableCount(),
+      variableCount: _variableCount(builderValue),
       ready: existing?.ready ?? false,
       active: existing?.active ?? true,
       updatedAt: DateTime.now(),
-      subject: _subjectController.text.trim().isEmpty
-          ? '{{uye_adi}}'
-          : _subjectController.text.trim(),
-      previewText: _previewController.text.trim().isEmpty
-          ? 'mail.template.previewText'
-          : _previewController.text.trim(),
-      body: _bodyController.text.trim().isEmpty
-          ? '{{uye_adi}}'
-          : _bodyController.text.trim(),
+      subject: _subjectController.text.trim(),
+      previewText: _previewController.text.trim(),
+      body: builderValue.html.trim(),
+      contentMjml: builderValue.mjml.trim(),
+      designJson: builderValue.projectData.trim(),
     );
     widget.onSaved(next);
+    if (mounted) setState(() => _saving = false);
   }
 
   @override
@@ -2119,29 +2352,39 @@ class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
                         SizedBox(
                           width: 280,
                           child: _TemplateVariablePanel(
-                            onTokenSelected: _addToken,
+                            onVariableSelected: _addVariable,
+                            onVariableDragUpdate: _updateVariableDrag,
+                            onVariableDragEnd: _finishVariableDrag,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _TemplateBuilderCanvas(
-                            subjectController: _subjectController,
-                            previewController: _previewController,
-                            bodyController: _bodyController,
-                            selectedDevice: _selectedDevice,
-                            selectedBlock: _selectedBlock,
-                            onDeviceChanged: (value) =>
-                                setState(() => _selectedDevice = value),
-                            onTokenDropped: _addToken,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 292,
-                          child: _TemplateBlocksPanel(
-                            selectedBlock: _selectedBlock,
-                            onBlockSelected: (value) =>
-                                setState(() => _selectedBlock = value),
+                          child: Container(
+                            key: _builderDropKey,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(color: AppColors.line),
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.value,
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: _MailPreviewBrandingBuilder(
+                              builder: (siteName, logoUrl, logoDataUri) {
+                                return PostaMjmlBuilder(
+                                  controller: _builderController,
+                                  initialHtml: widget.template?.body ?? '',
+                                  initialMjml: widget.template?.contentMjml,
+                                  initialProjectData:
+                                      widget.template?.designJson,
+                                  previewSiteName: siteName,
+                                  previewLogoUrl: logoUrl,
+                                  previewLogoDataUri: logoDataUri,
+                                  onChanged: (value) =>
+                                      _lastBuilderValue = value,
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ],
@@ -2158,9 +2401,18 @@ class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
 }
 
 class _TemplateVariablePanel extends StatefulWidget {
-  const _TemplateVariablePanel({required this.onTokenSelected});
+  const _TemplateVariablePanel({
+    required this.onVariableSelected,
+    required this.onVariableDragUpdate,
+    required this.onVariableDragEnd,
+  });
 
-  final ValueChanged<String> onTokenSelected;
+  final Future<void> Function(AdminMailTemplateVariable variable)
+  onVariableSelected;
+  final void Function(AdminMailTemplateVariable variable, Offset globalPosition)
+  onVariableDragUpdate;
+  final Future<void> Function(AdminMailTemplateVariable variable)
+  onVariableDragEnd;
 
   @override
   State<_TemplateVariablePanel> createState() => _TemplateVariablePanelState();
@@ -2169,7 +2421,7 @@ class _TemplateVariablePanel extends StatefulWidget {
 class _TemplateVariablePanelState extends State<_TemplateVariablePanel> {
   final _controller = TextEditingController();
   var _query = '';
-  var _expanded = true;
+  final Set<String> _collapsed = <String>{};
 
   @override
   void dispose() {
@@ -2179,13 +2431,7 @@ class _TemplateVariablePanelState extends State<_TemplateVariablePanel> {
 
   @override
   Widget build(BuildContext context) {
-    final variables = adminMailTemplateMemberVariables
-        .where((variable) {
-          final text = '${context.t(variable.labelKey)} ${variable.token}'
-              .toLowerCase();
-          return text.contains(_query.trim().toLowerCase());
-        })
-        .toList(growable: false);
+    final query = _query.trim().toLowerCase();
 
     return Container(
       decoration: BoxDecoration(
@@ -2242,34 +2488,99 @@ class _TemplateVariablePanelState extends State<_TemplateVariablePanel> {
             ),
           ),
           const Divider(height: 1, color: AppColors.softLine),
-          _VariableGroupHeader(
-            expanded: _expanded,
-            count: adminMailTemplateMemberVariables.length,
-            onTap: () => setState(() => _expanded = !_expanded),
-          ),
-          if (_expanded)
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final variable in variables)
-                        _VariableTokenChip(
-                          variable: variable,
-                          onTap: () => widget.onTokenSelected(variable.token),
-                        ),
-                    ],
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final group in adminMailTemplateVariableGroups)
+                  _VariableGroupSection(
+                    group: group,
+                    query: query,
+                    collapsed: _collapsed.contains(group.titleKey),
+                    onToggle: () => setState(() {
+                      if (!_collapsed.remove(group.titleKey)) {
+                        _collapsed.add(group.titleKey);
+                      }
+                    }),
+                    onVariableSelected: widget.onVariableSelected,
+                    onVariableDragUpdate: widget.onVariableDragUpdate,
+                    onVariableDragEnd: widget.onVariableDragEnd,
                   ),
-                ],
-              ),
-            )
-          else
-            const Spacer(),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _VariableGroupSection extends StatelessWidget {
+  const _VariableGroupSection({
+    required this.group,
+    required this.query,
+    required this.collapsed,
+    required this.onToggle,
+    required this.onVariableSelected,
+    required this.onVariableDragUpdate,
+    required this.onVariableDragEnd,
+  });
+
+  final AdminMailTemplateVariableGroup group;
+  final String query;
+  final bool collapsed;
+  final VoidCallback onToggle;
+  final Future<void> Function(AdminMailTemplateVariable variable)
+  onVariableSelected;
+  final void Function(AdminMailTemplateVariable variable, Offset globalPosition)
+  onVariableDragUpdate;
+  final Future<void> Function(AdminMailTemplateVariable variable)
+  onVariableDragEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final searching = query.isNotEmpty;
+    final variables = group.variables
+        .where((variable) {
+          if (!searching) return true;
+          final text = '${context.t(variable.labelKey)} ${variable.token}'
+              .toLowerCase();
+          return text.contains(query);
+        })
+        .toList(growable: false);
+
+    if (searching && variables.isEmpty) return const SizedBox.shrink();
+    final expanded = searching || !collapsed;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _VariableGroupHeader(
+          group: group,
+          expanded: expanded,
+          count: variables.length,
+          onTap: onToggle,
+        ),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final variable in variables)
+                  _VariableTokenChip(
+                    variable: variable,
+                    onTap: () => unawaited(onVariableSelected(variable)),
+                    onDragUpdate: (globalPosition) =>
+                        onVariableDragUpdate(variable, globalPosition),
+                    onDragEnd: () => unawaited(onVariableDragEnd(variable)),
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -2330,11 +2641,13 @@ class _PanelSearchField extends StatelessWidget {
 
 class _VariableGroupHeader extends StatelessWidget {
   const _VariableGroupHeader({
+    required this.group,
     required this.expanded,
     required this.count,
     required this.onTap,
   });
 
+  final AdminMailTemplateVariableGroup group;
   final bool expanded;
   final int count;
   final VoidCallback onTap;
@@ -2359,19 +2672,15 @@ class _VariableGroupHeader extends StatelessWidget {
                 height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: group.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),
-                child: const Icon(
-                  Symbols.group_outlined,
-                  size: 17,
-                  color: Color(0xFF2F80ED),
-                ),
+                child: Icon(group.icon, size: 17, color: group.accent),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  context.t('mail.template.editor.memberInfo'),
+                  context.t(group.titleKey),
                   style: const TextStyle(
                     color: AppColors.deepOcean,
                     fontWeight: FontWeight.w700,
@@ -2415,20 +2724,30 @@ class _VariableGroupHeader extends StatelessWidget {
 }
 
 class _VariableTokenChip extends StatelessWidget {
-  const _VariableTokenChip({required this.variable, required this.onTap});
+  const _VariableTokenChip({
+    required this.variable,
+    required this.onTap,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+  });
 
   final AdminMailTemplateVariable variable;
   final VoidCallback onTap;
+  final ValueChanged<Offset> onDragUpdate;
+  final VoidCallback onDragEnd;
 
   @override
   Widget build(BuildContext context) {
     final child = _VariableChipContent(variable: variable);
-    return Draggable<String>(
-      data: variable.token,
+    return Draggable<AdminMailTemplateVariable>(
+      data: variable,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: Material(
         color: Colors.transparent,
         child: _VariableChipContent(variable: variable, dragging: true),
       ),
+      onDragUpdate: (details) => onDragUpdate(details.globalPosition),
+      onDragEnd: (_) => onDragEnd(),
       childWhenDragging: Opacity(opacity: 0.45, child: child),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -2493,272 +2812,6 @@ class _VariableChipContent extends StatelessWidget {
   }
 }
 
-class _TemplateBuilderCanvas extends StatelessWidget {
-  const _TemplateBuilderCanvas({
-    required this.subjectController,
-    required this.previewController,
-    required this.bodyController,
-    required this.selectedDevice,
-    required this.selectedBlock,
-    required this.onDeviceChanged,
-    required this.onTokenDropped,
-  });
-
-  final TextEditingController subjectController;
-  final TextEditingController previewController;
-  final TextEditingController bodyController;
-  final String selectedDevice;
-  final String selectedBlock;
-  final ValueChanged<String> onDeviceChanged;
-  final ValueChanged<String> onTokenDropped;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.line),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          _BuilderToolbar(
-            selectedDevice: selectedDevice,
-            selectedBlock: selectedBlock,
-            onDeviceChanged: onDeviceChanged,
-          ),
-          Expanded(
-            child: DragTarget<String>(
-              onAcceptWithDetails: (details) => onTokenDropped(details.data),
-              builder: (context, candidate, rejected) {
-                return Container(
-                  color: candidate.isNotEmpty
-                      ? const Color(0xFFEFF6FF)
-                      : const Color(0xFFF3F6FA),
-                  child: Center(
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([
-                        subjectController,
-                        previewController,
-                        bodyController,
-                      ]),
-                      builder: (context, _) {
-                        return _TemplateEmailCanvas(
-                          subject: subjectController.text,
-                          preview: previewController.text,
-                          body: bodyController.text,
-                          device: selectedDevice,
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BuilderToolbar extends StatelessWidget {
-  const _BuilderToolbar({
-    required this.selectedDevice,
-    required this.selectedBlock,
-    required this.onDeviceChanged,
-  });
-
-  final String selectedDevice;
-  final String selectedBlock;
-  final ValueChanged<String> onDeviceChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      color: const Color(0xFF242832),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          _ToolbarIconButton(
-            selected: selectedDevice == 'desktop',
-            tooltip: context.t('mail.template.editor.deviceDesktop'),
-            icon: Symbols.desktop_mac_outlined,
-            onTap: () => onDeviceChanged('desktop'),
-          ),
-          _ToolbarIconButton(
-            selected: selectedDevice == 'tablet',
-            tooltip: context.t('mail.template.editor.deviceTablet'),
-            icon: Symbols.tablet_mac_outlined,
-            onTap: () => onDeviceChanged('tablet'),
-          ),
-          _ToolbarIconButton(
-            selected: selectedDevice == 'mobile',
-            tooltip: context.t('mail.template.editor.deviceMobile'),
-            icon: Symbols.phone_iphone_outlined,
-            onTap: () => onDeviceChanged('mobile'),
-          ),
-          const Spacer(),
-          _ToolbarIconButton(
-            selected: true,
-            tooltip: context.t('mail.template.editor.canvas'),
-            icon: Symbols.crop_square_outlined,
-            onTap: () {},
-          ),
-          _ToolbarIconButton(
-            tooltip: context.t('mail.template.editor.livePreview'),
-            icon: Symbols.visibility_outlined,
-            onTap: () {},
-          ),
-          _ToolbarIconButton(
-            tooltip: context.t('mail.template.editor.code'),
-            icon: Symbols.code_outlined,
-            onTap: () {},
-          ),
-          _ToolbarIconButton(
-            tooltip: context.t('mail.template.editor.download'),
-            icon: Symbols.download_outlined,
-            onTap: () {},
-          ),
-          _ToolbarIconButton(
-            tooltip: context.t('mail.compose.undo'),
-            icon: Symbols.undo_outlined,
-            onTap: () {},
-          ),
-          _ToolbarIconButton(
-            tooltip: context.t('mail.compose.redo'),
-            icon: Symbols.redo_outlined,
-            onTap: () {},
-          ),
-          const SizedBox(width: 12),
-          _ToolbarLabel(text: context.t(selectedBlock)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToolbarIconButton extends StatelessWidget {
-  const _ToolbarIconButton({
-    required this.icon,
-    required this.onTap,
-    this.tooltip,
-    this.selected = false,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String? tooltip;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final button = MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          width: 30,
-          height: 30,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.actionRed : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Icon(
-            icon,
-            color: selected ? Colors.white : Colors.white70,
-            size: 18,
-          ),
-        ),
-      ),
-    );
-    if (tooltip == null) return button;
-    return Tooltip(message: tooltip!, child: button);
-  }
-}
-
-class _ToolbarLabel extends StatelessWidget {
-  const _ToolbarLabel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 28,
-      constraints: const BoxConstraints(maxWidth: 160),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-      ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _TemplateEmailCanvas extends StatelessWidget {
-  const _TemplateEmailCanvas({
-    required this.subject,
-    required this.preview,
-    required this.body,
-    required this.device,
-  });
-
-  final String subject;
-  final String preview;
-  final String body;
-  final String device;
-
-  @override
-  Widget build(BuildContext context) {
-    final width = switch (device) {
-      'mobile' => 340.0,
-      'tablet' => 470.0,
-      _ => 620.0,
-    };
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 26),
-      child: SizedBox(
-        width: width,
-        child: _TemplatePreviewFrame(
-          template: AdminMailTemplate(
-            id: 0,
-            nameKey: 'mail.template.previewTitle',
-            category: AdminMailTemplateCategory.campaign,
-            variableCount: 0,
-            ready: true,
-            active: true,
-            updatedAt: DateTime.now(),
-            subject: subject.isEmpty ? '{{uye_adi}}' : subject,
-            previewText: preview.isEmpty
-                ? 'mail.template.previewText'
-                : preview,
-            body: body.isEmpty ? '{{uye_adi}}' : body,
-          ),
-          compact: false,
-        ),
-      ),
-    );
-  }
-}
-
 class _TemplatePreviewFrame extends StatelessWidget {
   const _TemplatePreviewFrame({required this.template, required this.compact});
 
@@ -2767,414 +2820,59 @@ class _TemplatePreviewFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bodyText = template.body;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.value),
-        boxShadow: compact
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 22,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: EdgeInsets.symmetric(
-              vertical: compact ? 22 : 30,
-              horizontal: compact ? 22 : 40,
-            ),
-            color: AppColors.deepOcean,
-            child: Column(
-              children: [
-                Container(
-                  width: 86,
-                  height: 24,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Text(
-                    'Pateez',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  context.t(template.subject),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: compact ? 18 : 22,
-                    fontWeight: FontWeight.w900,
-                    height: 1.2,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  width: 58,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: AppColors.actionRed,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.all(compact ? 22 : 34),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.actionRed,
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Text(
-                    context.t('mail.template.previewBadge').toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.7,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  context.t(template.nameKey),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.deepOcean,
-                    fontSize: compact ? 22 : 30,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  context.t(template.previewText),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.iconMuted,
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 26),
-                Container(
-                  padding: EdgeInsets.all(compact ? 18 : 24),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: compact ? 120 : 170,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(
-                              AppRadius.value,
-                            ),
-                          ),
-                          child: Icon(
-                            Symbols.image_not_supported_outlined,
-                            color: AppColors.placeholder.withValues(
-                              alpha: 0.65,
-                            ),
-                            size: compact ? 64 : 82,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 22),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              bodyText,
-                              style: const TextStyle(
-                                color: AppColors.inkSoft,
-                                fontWeight: FontWeight.w700,
-                                height: 1.55,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            const Divider(color: AppColors.line),
-                            const SizedBox(height: 14),
-                            Text(
-                              context.t('mail.template.previewPrice'),
-                              style: const TextStyle(
-                                color: AppColors.placeholder,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '{{uye_odul_puani}}',
-                              style: const TextStyle(
-                                color: AppColors.actionRed,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: 40,
-                  child: TextButton(
-                    onPressed: () {},
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppColors.deepOcean,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 28),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.value),
-                      ),
-                      textStyle: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    child: Text(context.t('mail.template.previewButton')),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-            color: AppColors.surface,
-            child: Column(
-              children: [
-                Text(
-                  context.t('mail.template.previewFooterTitle'),
-                  style: const TextStyle(
-                    color: AppColors.deepOcean,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  context.t('mail.template.previewFooter'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.placeholder,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TemplateBlocksPanel extends StatelessWidget {
-  const _TemplateBlocksPanel({
-    required this.selectedBlock,
-    required this.onBlockSelected,
-  });
-
-  final String selectedBlock;
-  final ValueChanged<String> onBlockSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final blocks = [
-      _TemplateBlock(
-        Symbols.crop_square_outlined,
-        'mail.template.editor.block.oneColumn',
-      ),
-      _TemplateBlock(
-        Symbols.view_week_outlined,
-        'mail.template.editor.block.twoColumn',
-      ),
-      _TemplateBlock(
-        Symbols.view_column_outlined,
-        'mail.template.editor.block.threeColumn',
-      ),
-      _TemplateBlock(Symbols.title_outlined, 'mail.template.editor.block.text'),
-      _TemplateBlock(
-        Symbols.smart_button_outlined,
-        'mail.template.editor.block.button',
-      ),
-      _TemplateBlock(
-        Symbols.image_outlined,
-        'mail.template.editor.block.image',
-      ),
-      _TemplateBlock(
-        Symbols.format_align_left_outlined,
-        'mail.template.editor.block.divider',
-      ),
-      _TemplateBlock(
-        Symbols.share_outlined,
-        'mail.template.editor.block.socialGroup',
-      ),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF2B2D36),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            color: const Color(0xFF242832),
-            child: Row(
-              children: [
-                const Icon(
-                  Symbols.brush_outlined,
-                  color: Colors.white70,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    context.t('mail.template.editor.blocks'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Symbols.grid_view_outlined,
-                  color: AppColors.actionRed,
-                  size: 22,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: blocks.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.92,
-              ),
-              itemBuilder: (context, index) {
-                final block = blocks[index];
-                return _TemplateBlockTile(
-                  block: block,
-                  selected: selectedBlock == block.labelKey,
-                  onTap: () => onBlockSelected(block.labelKey),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TemplateBlock {
-  const _TemplateBlock(this.icon, this.labelKey);
-
-  final IconData icon;
-  final String labelKey;
-}
-
-class _TemplateBlockTile extends StatelessWidget {
-  const _TemplateBlockTile({
-    required this.block,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _TemplateBlock block;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
+    return _MailPreviewBrandingBuilder(
+      builder: (siteName, logoUrl, logoDataUri) {
+        return Container(
           decoration: BoxDecoration(
-            color: selected
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.transparent,
-            border: Border.all(
-              color: selected ? AppColors.actionRed : Colors.white54,
-            ),
+            color: const Color(0xFFF4F7FB),
+            border: Border.all(color: AppColors.softLine),
             borderRadius: BorderRadius.circular(AppRadius.value),
+            boxShadow: compact
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 22,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                block.icon,
-                color: selected ? AppColors.actionRed : Colors.white54,
-                size: 54,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                context.t(block.labelKey),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: selected ? Colors.white : Colors.white60,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0,
-                ),
-              ),
-            ],
+          clipBehavior: Clip.antiAlias,
+          child: PostaMjmlPreview(
+            html: _applyPreviewBranding(
+              template.body,
+              siteName: siteName,
+              logoUrl: logoUrl,
+            ),
+            mjml: _applyPreviewBranding(
+              template.contentMjml,
+              siteName: siteName,
+              logoUrl: logoUrl,
+            ),
+            projectData: template.designJson,
+            previewSiteName: siteName,
+            previewLogoUrl: logoUrl,
+            previewLogoDataUri: logoDataUri,
           ),
-        ),
-      ),
+        );
+      },
     );
+  }
+
+  String _applyPreviewBranding(
+    String value, {
+    required String siteName,
+    required String logoUrl,
+  }) {
+    var result = value
+        .replaceAll('__SITE_NAME__', siteName)
+        .replaceAll('{{site_adi}}', siteName);
+    if (logoUrl.isNotEmpty) {
+      result = result
+          .replaceAll('__SITE_LOGO_URL__', logoUrl)
+          .replaceAll('{{site_logo}}', logoUrl);
+    }
+    return result;
   }
 }
 

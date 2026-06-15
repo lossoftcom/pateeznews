@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LosPos Mail Preview</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f4f7fb;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+
+    #preview-viewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f4f7fb;
+    }
+
+    #preview-frame {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      border: 0;
+      display: block;
+      background: #f4f7fb;
+      transform-origin: top center;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #gjs-host {
+      position: fixed;
+      left: -99999px;
+      top: -99999px;
+      width: 1280px;
+      height: 40px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="gjs-host">
+    <div id="gjs"></div>
+  </div>
+  <div id="preview-viewport">
+    <iframe id="preview-frame" title="LosPos mail preview" scrolling="no"></iframe>
+  </div>
+
+  <script src="vendor/grapes.min.js"></script>
+  <script src="vendor/grapesjs-mjml.min.js"></script>
+  <script>
+    (function () {
+      var editor = null;
+      var ready = false;
+      var pendingPayload = null;
+      var renderSequence = 0;
+      var previewViewport = document.getElementById('preview-viewport');
+      var previewFrame = document.getElementById('preview-frame');
+      var previewFitTimer = 0;
+      var previewFitDelays = [];
+      var previewImageListeners = [];
+
+      var DEFAULT_MJML = [
+        '<mjml>',
+        '  <mj-body background-color="#f4f7fb">',
+        '    <mj-section background-color="#ffffff" padding="24px">',
+        '      <mj-column>',
+        '        <mj-text font-size="20px" font-weight="700" color="#111827" align="center">',
+        '          Yeni Sablon',
+        '        </mj-text>',
+        '        <mj-text font-size="14px" color="#475569" line-height="1.6" align="center">',
+        '          Onizleme hazirlaniyor.',
+        '        </mj-text>',
+        '      </mj-column>',
+        '    </mj-section>',
+        '  </mj-body>',
+        '</mjml>'
+      ].join('\n');
+
+      var VARIABLE_IMAGE_PLACEHOLDER_SRC = 'data:image/svg+xml;utf8,' + encodeURIComponent([
+        '<svg xmlns="http://www.w3.org/2000/svg" width="700" height="420" viewBox="0 0 700 420">',
+        '<rect width="700" height="420" rx="18" fill="#eef2f7"/>',
+        '<rect x="86" y="72" width="528" height="276" rx="16" fill="#ffffff" stroke="#cbd5e1" stroke-width="8"/>',
+        '<path d="M182 285h336l-102-118-70 84-48-58-116 92z" fill="#94a3b8"/>',
+        '<circle cx="470" cy="142" r="38" fill="#cbd5e1"/>',
+        '</svg>'
+      ].join(''));
+
+      function sendToFlutter(message) {
+        try {
+          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+            window.flutter_inappwebview.callHandler('LosposMailPreview', message);
+          }
+        } catch (_) {}
+
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(message, '*');
+          }
+        } catch (_) {}
+      }
+
+      function looksLikeMjml(value) {
+        return typeof value === 'string' && value.trim().toLowerCase().indexOf('<mjml') === 0;
+      }
+
+      function looksLikeMarkup(value) {
+        return typeof value === 'string' && /<\/?[a-z][\s\S]*>/i.test(value);
+      }
+
+      function escapeHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function parseProjectData(projectData) {
+        if (!projectData) {
+          return null;
+        }
+        if (typeof projectData === 'string') {
+          try {
+            return JSON.parse(projectData);
+          } catch (_) {
+            return null;
+          }
+        }
+        return projectData;
+      }
+
+      function getAttributeValue(attributes, name) {
+        var matcher = new RegExp("\\s" + name + "=(['\"])([\\s\\S]*?)\\1", 'i');
+        var match = String(attributes || '').match(matcher);
+        return match ? match[2] : '';
+      }
+
+      function setAttributeValue(attributes, name, value) {
+        var source = String(attributes || '');
+        var matcher = new RegExp("\\s" + name + "=(['\"])[\\s\\S]*?\\1", 'i');
+        var next = ' ' + name + '="' + escapeHtml(value) + '"';
+        return matcher.test(source) ? source.replace(matcher, next) : source + next;
+      }
+
+      function removeAttribute(attributes, name) {
+        var matcher = new RegExp("\\s" + name + "=(['\"])[\\s\\S]*?\\1", 'gi');
+        return String(attributes || '').replace(matcher, '');
+      }
+
+      function normalizedUrlPath(value) {
+        var source = String(value || '').trim();
+        if (!source || source.indexOf('__SITE_LOGO_URL__') !== -1 ||
+            source.indexOf('{{site_logo}}') !== -1) {
+          return '';
+        }
+        try {
+          return new URL(source, 'https://preview.invalid/').pathname;
+        } catch (_) {
+          return '';
+        }
+      }
+
+      function isBrandLogo(attributes, payload) {
+        var src = getAttributeValue(attributes, 'src');
+        if (!src) return false;
+        if (src.indexOf('__SITE_LOGO_URL__') !== -1 ||
+            src.indexOf('{{site_logo}}') !== -1) {
+          return true;
+        }
+
+        var expectedPath = normalizedUrlPath(payload && payload.previewLogoUrl);
+        var actualPath = normalizedUrlPath(src);
+        if (expectedPath && actualPath === expectedPath) {
+          return true;
+        }
+
+        var siteName = String((payload && payload.previewSiteName) || '')
+          .trim()
+          .toLowerCase();
+        var alt = getAttributeValue(attributes, 'alt').trim().toLowerCase();
+        return !!siteName && alt === siteName;
+      }
+
+      function applyBrandLogo(markup, payload) {
+        var replacement = String(
+          (payload && payload.previewLogoDataUri) ||
+          (payload && payload.previewLogoUrl) ||
+          ''
+        ).trim();
+        if (!replacement) return String(markup || '');
+
+        return String(markup || '').replace(
+          /<(mj-image|img)\b([\s\S]*?)>/gi,
+          function (match, tagName, attributes) {
+            if (!isBrandLogo(attributes, payload)) return match;
+            var nextAttributes = setAttributeValue(
+              attributes,
+              'src',
+              replacement
+            );
+            return '<' + tagName + nextAttributes + '>';
+          }
+        );
+      }
+
+      function hasVariableImageClass(attributes) {
+        var classes = getAttributeValue(attributes, 'css-class');
+        return /(^|\s)lospos-variable-image(\s|$)/.test(classes);
+      }
+
+      function normalizeVariableImageSources(mjml) {
+        return String(mjml || '').replace(/<mj-image\b([\s\S]*?)>/gi, function (match, attributes) {
+          if (!hasVariableImageClass(attributes)) return match;
+
+          var variableSrc = getAttributeValue(attributes, 'name');
+          if (!variableSrc || variableSrc.indexOf('{{') === -1) return match;
+
+          var nextAttributes = removeAttribute(attributes, 'name');
+          nextAttributes = removeAttribute(nextAttributes, 'css-class');
+          nextAttributes = setAttributeValue(nextAttributes, 'src', variableSrc);
+          return '<mj-image' + nextAttributes + '>';
+        });
+      }
+
+      function prepareMjmlForPreview(mjml) {
+        return String(mjml || '').replace(/<mj-image\b([\s\S]*?)>/gi, function (match, attributes) {
+          var src = getAttributeValue(attributes, 'src');
+          var name = getAttributeValue(attributes, 'name');
+          var variableSrc = '';
+
+          if (src && src.indexOf('{{') !== -1) {
+            variableSrc = src;
+          } else if (name && name.indexOf('{{') !== -1) {
+            variableSrc = name;
+          } else if (hasVariableImageClass(attributes)) {
+            variableSrc = name || src;
+          }
+
+          if (!variableSrc) return match;
+
+          var nextAttributes = removeAttribute(attributes, 'name');
+          nextAttributes = removeAttribute(nextAttributes, 'css-class');
+          nextAttributes = setAttributeValue(nextAttributes, 'src', VARIABLE_IMAGE_PLACEHOLDER_SRC);
+          if (!getAttributeValue(nextAttributes, 'alt')) {
+            nextAttributes = setAttributeValue(nextAttributes, 'alt', variableSrc);
+          }
+          return '<mj-image' + nextAttributes + '>';
+        });
+      }
+
+      function normalizeMjml(payload) {
+        payload = payload || {};
+        if (looksLikeMjml(payload.mjml)) {
+          return prepareMjmlForPreview(payload.mjml);
+        }
+        if (looksLikeMjml(payload.html)) {
+          return prepareMjmlForPreview(payload.html);
+        }
+
+        var legacy = payload.html || '';
+        var body = legacy.trim().length
+          ? (looksLikeMarkup(legacy) ? legacy : escapeHtml(legacy).replace(/\n/g, '<br>'))
+          : 'Onizlenecek sablon icerigi yok.';
+
+        return [
+          '<mjml>',
+          '  <mj-body background-color="#f4f7fb">',
+          '    <mj-section background-color="#ffffff" padding="24px">',
+          '      <mj-column>',
+          '        <mj-text font-size="14px" color="#334155" line-height="1.6">',
+          body,
+          '        </mj-text>',
+          '      </mj-column>',
+          '    </mj-section>',
+          '  </mj-body>',
+          '</mjml>'
+        ].join('\n');
+      }
+
+      function repairMjmlStructure(mjml) {
+        var source = String(mjml || '').trim();
+        if (!looksLikeMjml(source)) {
+          return source;
+        }
+
+        var openIndex = source.search(/<mjml[\s>]/i);
+        if (openIndex < 0) {
+          return source;
+        }
+
+        var rootMatch = source.match(/<\/mjml>/i);
+        if (!rootMatch) {
+          return source;
+        }
+
+        var closeIndex = rootMatch.index;
+        var root = source.slice(openIndex, closeIndex + rootMatch[0].length);
+        var prefix = source.slice(0, openIndex).trim();
+        var suffix = source.slice(closeIndex + rootMatch[0].length).trim();
+        var strayParts = [];
+
+        var trailingInsideRoot = root.match(/<\/mj-body>([\s\S]*?)<\/mjml>/i);
+        if (trailingInsideRoot && trailingInsideRoot[1].trim()) {
+          strayParts.push(trailingInsideRoot[1].trim());
+          root = root.replace(
+            trailingInsideRoot[0],
+            '\n</mj-body>\n</mjml>'
+          );
+        }
+
+        if (prefix) {
+          strayParts.push(prefix);
+        }
+        if (suffix) {
+          strayParts.push(suffix);
+        }
+
+        var stray = strayParts.join('\n').trim();
+        if (!stray) {
+          return root;
+        }
+
+        if (/<\/mj-body>/i.test(root)) {
+          return root.replace(/<\/mj-body>/i, stray + '\n</mj-body>');
+        }
+
+        return root.replace(/<\/mjml>/i, '<mj-body>\n' + stray + '\n</mj-body>\n</mjml>');
+      }
+
+      function extractCompiledHtml(compiledResult) {
+        if (!compiledResult) {
+          return '';
+        }
+        if (typeof compiledResult === 'string') {
+          return compiledResult;
+        }
+        if (typeof compiledResult.html === 'string') {
+          return compiledResult.html;
+        }
+        if (compiledResult.html != null) {
+          return String(compiledResult.html);
+        }
+        return '';
+      }
+
+      function extractCompiledErrors(compiledResult) {
+        if (!compiledResult || !Array.isArray(compiledResult.errors)) {
+          return [];
+        }
+        return compiledResult.errors.map(function (item) {
+          return item.formattedMessage || item.message || String(item);
+        });
+      }
+
+      function buildPreviewDocument(html) {
+        var raw = String(html || '').trim();
+        var content = raw || '<div style="padding:24px;font-family:Inter,Arial,sans-serif;color:#475569;">Onizlenecek sablon icerigi yok.</div>';
+        var hasHtmlTag = /<html[\s>]/i.test(content);
+
+        if (!hasHtmlTag) {
+          return [
+            '<!doctype html>',
+            '<html lang="tr">',
+            '<head>',
+            '  <meta charset="utf-8">',
+            '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+            '  ' + previewCss(),
+            '</head>',
+            '<body style="margin:0;padding:28px 12px;background:#F4F7FB;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',Arial,sans-serif;color:#111827;">',
+            '  ' + content,
+            '</body>',
+            '</html>'
+          ].join('\n');
+        }
+
+        var documentHtml = content;
+        if (!/<head[^>]*>/i.test(documentHtml)) {
+          documentHtml = documentHtml.replace(
+            /<html([^>]*)>/i,
+            '<html$1>\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  ' + previewCss() + '\n</head>'
+          );
+          return documentHtml;
+        }
+
+        if (!/<meta[^>]+name=["']viewport["']/i.test(documentHtml)) {
+          documentHtml = documentHtml.replace(
+            /<head([^>]*)>/i,
+            '<head$1>\n  <meta name="viewport" content="width=device-width, initial-scale=1">'
+          );
+        }
+
+        return documentHtml.replace(/<\/head>/i, previewCss() + '\n</head>');
+      }
+
+      function previewCss() {
+        return [
+          '<style id="lospos-preview-fit">',
+          '  html { background:#F4F7FB; overflow:hidden !important; }',
+          '  body { overflow:hidden !important; }',
+          '  * { box-sizing:border-box; }',
+          '  img { max-width:100% !important; height:auto !important; }',
+          '  table { max-width:100%; }',
+          '  @media only screen and (max-width: 660px) {',
+          '    table[width="640"], .container {',
+          '      width:100% !important;',
+          '      max-width:100% !important;',
+          '    }',
+          '  }',
+          '</style>'
+        ].join('\n');
+      }
+
+      function clearProgressiveFitQueue() {
+        while (previewFitDelays.length) {
+          window.clearTimeout(previewFitDelays.pop());
+        }
+      }
+
+      function clearPreviewImageListeners() {
+        while (previewImageListeners.length) {
+          var item = previewImageListeners.pop();
+          item.image.removeEventListener('load', item.handler);
+          item.image.removeEventListener('error', item.handler);
+        }
+      }
+
+      function resetPreviewFrame() {
+        clearProgressiveFitQueue();
+        clearPreviewImageListeners();
+        window.clearTimeout(previewFitTimer);
+        previewFrame.style.width = '100%';
+        previewFrame.style.height = '100%';
+        previewFrame.style.top = '0px';
+        previewFrame.style.transform = 'translateX(-50%) scale(1)';
+        previewFrame.style.opacity = '0';
+      }
+
+      function schedulePreviewFit(delay) {
+        window.clearTimeout(previewFitTimer);
+        previewFitTimer = window.setTimeout(fitPreviewFrame, delay || 0);
+      }
+
+      function scheduleProgressivePreviewFit() {
+        clearProgressiveFitQueue();
+        [0, 24, 96, 240, 480].forEach(function (delay) {
+          previewFitDelays.push(window.setTimeout(fitPreviewFrame, delay));
+        });
+      }
+
+      function getPreviewContentMetrics(doc) {
+        var root = doc && doc.documentElement;
+        var body = doc && doc.body;
+        if (!root || !body) {
+          return { width: 0, height: 0 };
+        }
+
+        var bodyRect = body.getBoundingClientRect();
+        var rootRect = root.getBoundingClientRect();
+
+        return {
+          width: Math.ceil(Math.max(
+            root.scrollWidth,
+            root.offsetWidth,
+            body.scrollWidth,
+            body.offsetWidth,
+            rootRect.width,
+            bodyRect.width
+          )),
+          height: Math.ceil(Math.max(
+            root.scrollHeight,
+            root.offsetHeight,
+            body.scrollHeight,
+            body.offsetHeight,
+            rootRect.height,
+            bodyRect.height
+          ))
+        };
+      }
+
+      function fitPreviewFrame() {
+        var previewDoc = previewFrame.contentDocument;
+        if (!previewDoc || !previewViewport) {
+          return;
+        }
+
+        var viewportWidth = previewViewport.clientWidth;
+        var viewportHeight = previewViewport.clientHeight;
+        if (!viewportWidth || !viewportHeight) {
+          return;
+        }
+
+        var metrics = getPreviewContentMetrics(previewDoc);
+        if (!metrics.width || !metrics.height) {
+          return;
+        }
+
+        var availableWidth = Math.max(viewportWidth - 24, 1);
+        var availableHeight = Math.max(viewportHeight - 24, 1);
+        var scale = Math.min(
+          availableWidth / metrics.width,
+          availableHeight / metrics.height,
+          1
+        );
+
+        if (!isFinite(scale) || scale <= 0) {
+          scale = 1;
+        }
+
+        var scaledHeight = metrics.height * scale;
+        var topOffset = Math.max((viewportHeight - scaledHeight) / 2, 0);
+
+        previewFrame.style.width = metrics.width + 'px';
+        previewFrame.style.height = metrics.height + 'px';
+        previewFrame.style.top = Math.round(topOffset) + 'px';
+        previewFrame.style.transform =
+          'translateX(-50%) scale(' + scale.toFixed(4) + ')';
+        previewFrame.style.opacity = '1';
+      }
+
+      function watchPreviewImages() {
+        clearPreviewImageListeners();
+        var previewDoc = previewFrame.contentDocument;
+        if (!previewDoc || !previewDoc.images) {
+          return;
+        }
+
+        Array.prototype.forEach.call(previewDoc.images, function (image) {
+          var handler = function () {
+            schedulePreviewFit();
+          };
+
+          image.addEventListener('load', handler);
+          image.addEventListener('error', handler);
+          previewImageListeners.push({
+            image: image,
+            handler: handler
+          });
+        });
+      }
+
+      previewFrame.addEventListener('load', function () {
+        watchPreviewImages();
+        scheduleProgressivePreviewFit();
+      });
+
+      window.addEventListener('resize', function () {
+        schedulePreviewFit();
+      });
+
+      function renderPreviewNow(payload) {
+        payload = payload || {};
+
+        try {
+          var projectData = parseProjectData(payload.projectData);
+          var hasSerializedTemplate = looksLikeMjml(payload.mjml) ||
+            looksLikeMjml(payload.html) ||
+            !!String(payload.html || '').trim();
+          if (!hasSerializedTemplate && projectData && typeof editor.loadProjectData === 'function') {
+            editor.loadProjectData(projectData);
+          } else {
+            editor.setComponents(normalizeMjml(payload));
+          }
+        } catch (_) {
+          editor.setComponents(normalizeMjml(payload));
+        }
+
+        var result = {
+          html: '',
+          mjml: '',
+          errors: []
+        };
+
+        try {
+          var rawMjml = editor.runCommand('mjml-code') || normalizeMjml(payload);
+          rawMjml = normalizeVariableImageSources(rawMjml);
+          result.mjml = repairMjmlStructure(rawMjml);
+
+          var compiled = editor.runCommand('mjml-code-to-html', {
+            mjml: prepareMjmlForPreview(result.mjml),
+            validationLevel: 'soft'
+          });
+
+          result.html = extractCompiledHtml(compiled);
+          result.errors = extractCompiledErrors(compiled);
+
+          if ((!result.html || looksLikeMjml(result.html)) && payload.html) {
+            result.html = payload.html;
+          }
+        } catch (error) {
+          result.html = payload.html || '';
+          result.errors = [String(error && error.message ? error.message : error)];
+        }
+
+        result.html = applyBrandLogo(result.html, payload);
+        resetPreviewFrame();
+        previewFrame.srcdoc = buildPreviewDocument(result.html);
+        sendToFlutter({
+          type: 'LOSPOSTA_PREVIEW_RENDERED',
+          payload: result
+        });
+      }
+
+      function loadPreview(payload) {
+        pendingPayload = payload || {};
+        if (!editor || !ready) {
+          return;
+        }
+
+        var sequence = ++renderSequence;
+        window.requestAnimationFrame(function () {
+          if (sequence !== renderSequence) {
+            return;
+          }
+          try {
+            renderPreviewNow(pendingPayload);
+          } catch (error) {
+            previewFrame.srcdoc = buildPreviewDocument((pendingPayload && pendingPayload.html) || '');
+            sendToFlutter({
+              type: 'LOSPOSTA_PREVIEW_ERROR',
+              message: String(error && error.message ? error.message : error)
+            });
+          }
+        });
+      }
+
+      function initPreview() {
+        var mjmlPlugin = window['grapesjs-mjml'];
+        if (!window.grapesjs || !mjmlPlugin) {
+          sendToFlutter({
+            type: 'LOSPOSTA_PREVIEW_ERROR',
+            message: 'Preview assets could not be loaded.'
+          });
+          return;
+        }
+
+        editor = window.grapesjs.init({
+          container: '#gjs',
+          height: '10px',
+          fromElement: false,
+          components: DEFAULT_MJML,
+          storageManager: false,
+          selectorManager: { componentFirst: true },
+          panels: { defaults: [] },
+          deviceManager: {
+            devices: [{ name: 'Desktop', width: '' }]
+          },
+          plugins: [mjmlPlugin],
+          pluginsOpts: {
+            'grapesjs-mjml': {
+              useCustomTheme: true,
+              resetDevices: true,
+              imagePlaceholderSrc: VARIABLE_IMAGE_PLACEHOLDER_SRC
+            }
+          }
+        });
+
+        editor.on('load', function () {
+          ready = true;
+          sendToFlutter({ type: 'LOSPOSTA_PREVIEW_READY' });
+          if (pendingPayload) {
+            loadPreview(pendingPayload);
+          }
+        });
+      }
+
+      window.LosposMailPreview = {
+        loadPreview: loadPreview
+      };
+
+      window.addEventListener('message', function (event) {
+        var data = event.data || {};
+        if (data.type === 'LOSPOSTA_LOAD_PREVIEW') {
+          loadPreview(data.payload || {});
+        }
+      });
+
+      initPreview();
+    })();
+  </script>
+</body>
+</html>

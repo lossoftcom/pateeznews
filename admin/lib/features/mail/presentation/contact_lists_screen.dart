@@ -17,6 +17,8 @@ import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_mail_repository.dart';
+import 'contact_import_parser.dart';
+import 'contact_list_contacts_dialog.dart';
 import 'contact_list_models.dart';
 
 class ContactListsScreen extends StatefulWidget {
@@ -300,14 +302,14 @@ class _ContactListsScreenState extends State<ContactListsScreen> {
         id: list?.id,
         list: result.list,
       );
-      final importText = result.importText?.trim();
+      final importRows = result.importRows;
       if (result.importContacts &&
-          importText != null &&
-          importText.isNotEmpty) {
+          importRows != null &&
+          importRows.isNotEmpty) {
         saved = await widget.repository.importContacts(
           widget.session,
           saved,
-          importText,
+          importRows,
         );
       }
     } catch (error) {
@@ -327,6 +329,27 @@ class _ContactListsScreenState extends State<ContactListsScreen> {
       }
       _resetListState();
     });
+  }
+
+  Future<void> _showContacts(AdminContactList list) async {
+    final size = MediaQuery.sizeOf(context);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: SizedBox(
+          width: (size.width - 48).clamp(640.0, 980.0).toDouble(),
+          height: (size.height - 48).clamp(520.0, 760.0).toDouble(),
+          child: ContactListContactsDialog(
+            session: widget.session,
+            repository: widget.repository,
+            list: list,
+          ),
+        ),
+      ),
+    );
+    if (mounted) await _loadLists();
   }
 
   @override
@@ -363,6 +386,7 @@ class _ContactListsScreenState extends State<ContactListsScreen> {
                 onSort: _changeSort,
                 onCreate: () => _showListDialog(),
                 onEdit: (list) => _showListDialog(list: list),
+                onContacts: _showContacts,
                 onToggleSync: (list) => unawaited(_toggleSync(list)),
                 onToggleActive: (list) => unawaited(_toggleActive(list)),
                 onDelete: _deleteList,
@@ -452,6 +476,7 @@ class _ContactListsTableCard extends StatelessWidget {
     required this.onSort,
     required this.onCreate,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -475,6 +500,7 @@ class _ContactListsTableCard extends StatelessWidget {
   final ValueChanged<String> onSort;
   final VoidCallback onCreate;
   final ValueChanged<AdminContactList> onEdit;
+  final ValueChanged<AdminContactList> onContacts;
   final ValueChanged<AdminContactList> onToggleSync;
   final ValueChanged<AdminContactList> onToggleActive;
   final ValueChanged<AdminContactList> onDelete;
@@ -500,6 +526,7 @@ class _ContactListsTableCard extends StatelessWidget {
             onToggleList: onToggleList,
             onCreate: onCreate,
             onEdit: onEdit,
+            onContacts: onContacts,
             onToggleSync: onToggleSync,
             onToggleActive: onToggleActive,
             onDelete: onDelete,
@@ -560,6 +587,7 @@ class _ContactListsTableCard extends StatelessWidget {
                                           ),
                                           onToggle: () => onToggleList(list.id),
                                           onEdit: () => onEdit(list),
+                                          onContacts: () => onContacts(list),
                                           onToggleSync: () =>
                                               onToggleSync(list),
                                           onToggleActive: () =>
@@ -605,6 +633,7 @@ class _ContactListsMobileView extends StatelessWidget {
     required this.onToggleList,
     required this.onCreate,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -622,6 +651,7 @@ class _ContactListsMobileView extends StatelessWidget {
   final ValueChanged<int> onToggleList;
   final VoidCallback onCreate;
   final ValueChanged<AdminContactList> onEdit;
+  final ValueChanged<AdminContactList> onContacts;
   final ValueChanged<AdminContactList> onToggleSync;
   final ValueChanged<AdminContactList> onToggleActive;
   final ValueChanged<AdminContactList> onDelete;
@@ -666,6 +696,7 @@ class _ContactListsMobileView extends StatelessWidget {
                 selected: selectedIds.contains(list.id),
                 onToggle: () => onToggleList(list.id),
                 onEdit: () => onEdit(list),
+                onContacts: () => onContacts(list),
                 onToggleSync: () => onToggleSync(list),
                 onToggleActive: () => onToggleActive(list),
                 onDelete: () => onDelete(list),
@@ -695,6 +726,7 @@ class _ContactListsMobileCard extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -704,6 +736,7 @@ class _ContactListsMobileCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -772,6 +805,11 @@ class _ContactListsMobileCard extends StatelessWidget {
               const SizedBox(width: 6),
               AdminMobileMenuButton(
                 actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.group,
+                    label: context.t('mail.contacts.action.people'),
+                    onTap: onContacts,
+                  ),
                   AdminMobileMenuAction(
                     icon: Symbols.edit_square,
                     label: context.t('mail.contacts.action.edit'),
@@ -1072,6 +1110,7 @@ class _ContactListTableRow extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -1081,6 +1120,7 @@ class _ContactListTableRow extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -1226,6 +1266,7 @@ class _ContactListTableRow extends StatelessWidget {
               child: _ContactListRowMenu(
                 list: list,
                 onEdit: onEdit,
+                onContacts: onContacts,
                 onToggleSync: onToggleSync,
                 onToggleActive: onToggleActive,
                 onDelete: onDelete,
@@ -1251,12 +1292,12 @@ class _ContactListDialogResult {
   const _ContactListDialogResult({
     required this.list,
     required this.importContacts,
-    this.importText,
+    this.importRows,
   });
 
   final AdminContactList list;
   final bool importContacts;
-  final String? importText;
+  final List<AdminContactImportRow>? importRows;
 }
 
 class _ContactListDialogState extends State<_ContactListDialog> {
@@ -1265,7 +1306,7 @@ class _ContactListDialogState extends State<_ContactListDialog> {
   late AdminContactImportSource _source;
   late bool _active;
   String? _selectedFileName;
-  String? _importText;
+  List<AdminContactImportRow>? _importRows;
   var _readyCount = 0;
   var _nameHasError = false;
 
@@ -1293,7 +1334,7 @@ class _ContactListDialogState extends State<_ContactListDialog> {
     setState(() {
       _source = source;
       _selectedFileName = null;
-      _importText = null;
+      _importRows = null;
       _readyCount = widget.list?.source == source
           ? widget.list?.contactCount ?? 0
           : 0;
@@ -1303,20 +1344,27 @@ class _ContactListDialogState extends State<_ContactListDialog> {
   Future<void> _chooseFile() async {
     try {
       final file = await openFile(
-        acceptedTypeGroups: const [
+        acceptedTypeGroups: [
           XTypeGroup(
-            label: 'Delimited contacts',
-            extensions: ['csv', 'txt', 'tsv'],
+            label: _source == AdminContactImportSource.csv
+                ? 'Delimited contacts'
+                : 'Excel contacts',
+            extensions: _source == AdminContactImportSource.csv
+                ? const ['csv', 'txt', 'tsv']
+                : const ['xlsx'],
           ),
         ],
       );
       if (file == null || !mounted) return;
-      final text = await file.readAsString();
+      final bytes = await file.readAsBytes();
+      final rows = _source == AdminContactImportSource.csv
+          ? AdminContactImportParser.parseCsv(bytes)
+          : AdminContactImportParser.parseXlsx(bytes);
       if (!mounted) return;
       setState(() {
         _selectedFileName = file.name;
-        _importText = text;
-        _readyCount = _countValidContacts(text);
+        _importRows = rows;
+        _readyCount = rows.length;
       });
     } catch (error) {
       if (!mounted) return;
@@ -1326,27 +1374,6 @@ class _ContactListDialogState extends State<_ContactListDialog> {
         tone: AdminToastTone.error,
       );
     }
-  }
-
-  int _countValidContacts(String text) {
-    final emailPattern = RegExp(
-      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-      caseSensitive: false,
-    );
-    final seen = <String>{};
-    for (final rawLine in text.split(RegExp(r'\r?\n'))) {
-      final columns = rawLine
-          .split(RegExp(r'[;,|\t]'))
-          .map((value) => value.trim().toLowerCase())
-          .where((value) => value.isNotEmpty);
-      for (final column in columns) {
-        if (emailPattern.hasMatch(column)) {
-          seen.add(column);
-          break;
-        }
-      }
-    }
-    return seen.length;
   }
 
   void _submit({required bool importContacts}) {
@@ -1362,9 +1389,8 @@ class _ContactListDialogState extends State<_ContactListDialog> {
         : existing?.contactCount ?? 0;
     Navigator.of(context).pop(
       _ContactListDialogResult(
-        importContacts:
-            importContacts && (_importText?.trim().isNotEmpty ?? false),
-        importText: _importText,
+        importContacts: importContacts && (_importRows?.isNotEmpty ?? false),
+        importRows: _importRows,
         list: AdminContactList(
           id: existing?.id ?? DateTime.now().millisecondsSinceEpoch,
           name: name,
@@ -2379,6 +2405,7 @@ class _ContactListRowMenu extends StatefulWidget {
   const _ContactListRowMenu({
     required this.list,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -2386,6 +2413,7 @@ class _ContactListRowMenu extends StatefulWidget {
 
   final AdminContactList list;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -2431,6 +2459,7 @@ class _ContactListRowMenuState extends State<_ContactListRowMenu> {
             child: _ContactListMenuCard(
               list: widget.list,
               onEdit: () => _tap(widget.onEdit),
+              onContacts: () => _tap(widget.onContacts),
               onToggleSync: () => _tap(widget.onToggleSync),
               onToggleActive: () => _tap(widget.onToggleActive),
               onDelete: () => _tap(widget.onDelete),
@@ -2486,6 +2515,7 @@ class _ContactListMenuCard extends StatelessWidget {
   const _ContactListMenuCard({
     required this.list,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -2493,6 +2523,7 @@ class _ContactListMenuCard extends StatelessWidget {
 
   final AdminContactList list;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -2519,6 +2550,11 @@ class _ContactListMenuCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _MenuItem(
+              icon: Symbols.group,
+              label: 'mail.contacts.action.people',
+              onTap: onContacts,
+            ),
             _MenuItem(
               icon: Symbols.edit_square,
               label: 'mail.contacts.action.edit',
