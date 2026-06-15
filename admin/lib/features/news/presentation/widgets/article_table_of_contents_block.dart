@@ -9,6 +9,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _tocBlockStrongLine = Color(0xFFDDE5E8);
 const _tocBlockSoftLine = Color(0xFFE8EEF1);
@@ -158,7 +159,7 @@ class ArticleTableOfContentsBlockCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _TocSectionHeader(
-                icon: Icons.format_list_bulleted,
+                icon: Symbols.format_list_bulleted,
                 title: 'newsAdd.toc.blockTitle',
                 subtitle: 'newsAdd.toc.blockDescription',
               ),
@@ -212,7 +213,7 @@ class _LinkStylePanel extends StatelessWidget {
         Row(
           children: [
             const Icon(
-              Icons.format_list_numbered,
+              Symbols.format_list_numbered,
               size: 17,
               color: _tocBlockMutedText,
             ),
@@ -377,7 +378,7 @@ class _TocStyleSelect extends StatelessWidget {
           value: value,
           isExpanded: true,
           icon: const Icon(
-            Icons.keyboard_arrow_down,
+            Symbols.keyboard_arrow_down,
             size: 18,
             color: _tocBlockMutedText,
           ),
@@ -463,7 +464,7 @@ class _TocItemCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.format_list_numbered,
+                          Symbols.format_list_numbered,
                           color: AppColors.actionRed,
                           size: 18,
                         ),
@@ -708,19 +709,19 @@ class _TocActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _TocRailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _TocRailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _TocRailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: canDelete,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -794,7 +795,9 @@ class _TocCollapseButton extends StatelessWidget {
           width: 34,
           height: 34,
           child: Icon(
-            collapsed ? Icons.keyboard_arrow_left : Icons.keyboard_arrow_down,
+            collapsed
+                ? Symbols.keyboard_arrow_left
+                : Symbols.keyboard_arrow_down,
             size: 22,
             color: _tocBlockMutedText,
           ),
@@ -1058,13 +1061,13 @@ class _TocDashedImageBox extends StatelessWidget {
                     child: Row(
                       children: [
                         _TocImageActionButton(
-                          icon: Icons.edit_outlined,
+                          icon: Symbols.edit_outlined,
                           color: AppColors.deepOcean,
                           onTap: onPickImage,
                         ),
                         const SizedBox(width: 8),
                         _TocImageActionButton(
-                          icon: Icons.delete_outline,
+                          icon: Symbols.delete_outline,
                           color: AppColors.actionRed,
                           onTap: onClear,
                         ),
@@ -1099,7 +1102,7 @@ class _TocEmptyImagePicker extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add, color: _tocBlockUploadInk, size: 32),
+              const Icon(Symbols.add, color: _tocBlockUploadInk, size: 32),
               const SizedBox(height: 8),
               Text(
                 context.t('newsAdd.imageSelect'),
@@ -1142,7 +1145,7 @@ class _TocUrlUploadButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+              const Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
               const SizedBox(width: 6),
               Text(
                 context.t('newsAdd.addUrl'),

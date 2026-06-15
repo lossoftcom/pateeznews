@@ -5,15 +5,32 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
+import '../../../../shared/widgets/highlighted_text.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../users_models.dart';
+
+/// Aktif arama sorgusunu satır hücrelerine taşır (highlight için).
+class _RolesSearchScope extends InheritedWidget {
+  const _RolesSearchScope({required this.query, required super.child});
+
+  final String query;
+
+  static String of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_RolesSearchScope>()?.query ??
+      '';
+
+  @override
+  bool updateShouldNotify(_RolesSearchScope oldWidget) =>
+      oldWidget.query != query;
+}
 
 class RolesPermissionsTable extends StatelessWidget {
   const RolesPermissionsTable({
     super.key,
     required this.roles,
     required this.loading,
+    required this.searchQuery,
     required this.selectedRoleIds,
     required this.sortState,
     required this.onToggleRole,
@@ -26,6 +43,7 @@ class RolesPermissionsTable extends StatelessWidget {
 
   final List<ManagedRole> roles;
   final bool loading;
+  final String searchQuery;
   final Set<String> selectedRoleIds;
   final TableSortState sortState;
   final ValueChanged<ManagedRole> onToggleRole;
@@ -36,19 +54,22 @@ class RolesPermissionsTable extends StatelessWidget {
   final ValueChanged<String> onSort;
 
   static const _activeGreen = Color(0xFF198754);
-  static const double _minWidth = 920;
+  static const double _minWidth = 1180;
   static const double _selectWidth = 42;
-  static const double _orderWidth = 70;
-  static const double _slugWidth = 130;
-  static const double _permissionsWidth = 260;
-  static const double _statusWidth = 130;
-  static const double _menuWidth = 100;
-  static const double _columnGap = 12;
+  static const double _orderWidth = 84;
+  static const double _slugWidth = 150;
+  static const double _permissionsWidth = 360;
+  static const double _statusWidth = 132;
+  static const double _menuWidth = 120;
+  static const double _columnGap = 16;
   static const double _statusActionGap = 20;
+  static const double _contentSpacing = 36;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
+    return _RolesSearchScope(
+      query: searchQuery,
+      child: LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < AdminMobile.breakpoint) {
           return _RolesMobileList(
@@ -64,17 +85,7 @@ class RolesPermissionsTable extends StatelessWidget {
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
-        final nameWidth =
-            tableWidth -
-            _selectWidth -
-            _orderWidth -
-            _slugWidth -
-            _permissionsWidth -
-            _statusWidth -
-            _menuWidth -
-            _columnGap -
-            _statusActionGap -
-            36;
+        final layout = _RolesTableColumnLayout.forWidth(tableWidth);
         final selectableCount = roles
             .where((role) => !role.systemLocked)
             .length;
@@ -95,7 +106,7 @@ class RolesPermissionsTable extends StatelessWidget {
               child: Column(
                 children: [
                   _RolesHeader(
-                    nameWidth: nameWidth,
+                    layout: layout,
                     selectedCount: selectedRoleIds.length,
                     selectableCount: selectableCount,
                     sortState: sortState,
@@ -113,7 +124,7 @@ class RolesPermissionsTable extends StatelessWidget {
                                 for (final role in roles)
                                   _RolesTableRow(
                                     role: role,
-                                    nameWidth: nameWidth,
+                                    layout: layout,
                                     selected: selectedRoleIds.contains(role.id),
                                     onToggle: () => onToggleRole(role),
                                     onEditRole: onEditRole,
@@ -130,13 +141,56 @@ class RolesPermissionsTable extends StatelessWidget {
           ),
         );
       },
+      ),
+    );
+  }
+}
+
+class _RolesTableColumnLayout {
+  const _RolesTableColumnLayout({
+    required this.nameWidth,
+    required this.slugWidth,
+    required this.permissionsWidth,
+    required this.statusWidth,
+    required this.menuWidth,
+  });
+
+  final double nameWidth;
+  final double slugWidth;
+  final double permissionsWidth;
+  final double statusWidth;
+  final double menuWidth;
+
+  static double get _baseNameWidth {
+    return RolesPermissionsTable._minWidth -
+        RolesPermissionsTable._selectWidth -
+        RolesPermissionsTable._orderWidth -
+        RolesPermissionsTable._slugWidth -
+        RolesPermissionsTable._permissionsWidth -
+        RolesPermissionsTable._statusWidth -
+        RolesPermissionsTable._menuWidth -
+        RolesPermissionsTable._columnGap -
+        RolesPermissionsTable._statusActionGap -
+        RolesPermissionsTable._contentSpacing;
+  }
+
+  factory _RolesTableColumnLayout.forWidth(double tableWidth) {
+    final extraWidth = tableWidth - RolesPermissionsTable._minWidth;
+
+    return _RolesTableColumnLayout(
+      nameWidth: _baseNameWidth + (extraWidth * 0.24),
+      slugWidth: RolesPermissionsTable._slugWidth + (extraWidth * 0.12),
+      permissionsWidth:
+          RolesPermissionsTable._permissionsWidth + (extraWidth * 0.40),
+      statusWidth: RolesPermissionsTable._statusWidth + (extraWidth * 0.12),
+      menuWidth: RolesPermissionsTable._menuWidth + (extraWidth * 0.12),
     );
   }
 }
 
 class _RolesHeader extends StatelessWidget {
   const _RolesHeader({
-    required this.nameWidth,
+    required this.layout,
     required this.selectedCount,
     required this.selectableCount,
     required this.sortState,
@@ -144,7 +198,7 @@ class _RolesHeader extends StatelessWidget {
     required this.onSort,
   });
 
-  final double nameWidth;
+  final _RolesTableColumnLayout layout;
   final int selectedCount;
   final int selectableCount;
   final TableSortState sortState;
@@ -179,14 +233,14 @@ class _RolesHeader extends StatelessWidget {
           SizedBox(
             width: RolesPermissionsTable._orderWidth,
             child: SortableTableHeader(
-              label: 'Order No',
+              label: 'ID',
               sortKey: 'order',
               sortState: sortState,
               onSort: onSort,
             ),
           ),
           SizedBox(
-            width: nameWidth,
+            width: layout.nameWidth,
             child: SortableTableHeader(
               label: 'Role Name',
               sortKey: 'name',
@@ -195,7 +249,7 @@ class _RolesHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: RolesPermissionsTable._slugWidth,
+            width: layout.slugWidth,
             child: SortableTableHeader(
               label: 'Slug',
               sortKey: 'slug',
@@ -205,7 +259,7 @@ class _RolesHeader extends StatelessWidget {
           ),
           const SizedBox(width: RolesPermissionsTable._columnGap),
           SizedBox(
-            width: RolesPermissionsTable._permissionsWidth,
+            width: layout.permissionsWidth,
             child: SortableTableHeader(
               label: 'Permissions',
               sortKey: 'permissions',
@@ -214,18 +268,19 @@ class _RolesHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: RolesPermissionsTable._statusWidth,
+            width: layout.statusWidth,
             child: SortableTableHeader(
               label: 'Status',
               sortKey: 'status',
               sortState: sortState,
               onSort: onSort,
+              mainAxisAlignment: MainAxisAlignment.center,
             ),
           ),
           const SizedBox(width: RolesPermissionsTable._statusActionGap),
-          const SizedBox(
-            width: RolesPermissionsTable._menuWidth,
-            child: _HeaderText('Action'),
+          SizedBox(
+            width: layout.menuWidth,
+            child: const Center(child: _HeaderText('Action')),
           ),
         ],
       ),
@@ -236,7 +291,7 @@ class _RolesHeader extends StatelessWidget {
 class _RolesTableRow extends StatelessWidget {
   const _RolesTableRow({
     required this.role,
-    required this.nameWidth,
+    required this.layout,
     required this.selected,
     required this.onToggle,
     required this.onEditRole,
@@ -245,7 +300,7 @@ class _RolesTableRow extends StatelessWidget {
   });
 
   final ManagedRole role;
-  final double nameWidth;
+  final _RolesTableColumnLayout layout;
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<ManagedRole> onEditRole;
@@ -292,7 +347,7 @@ class _RolesTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: nameWidth,
+            width: layout.nameWidth,
             child: _RowSelectTapTarget(
               enabled: !role.systemLocked,
               onTap: onToggle,
@@ -300,9 +355,12 @@ class _RolesTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: RolesPermissionsTable._slugWidth,
-            child: Text(
+            width: layout.slugWidth,
+            child: HighlightedText(
               role.slug,
+              query: _RolesSearchScope.of(context),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.support,
                 fontWeight: FontWeight.w500,
@@ -312,43 +370,48 @@ class _RolesTableRow extends StatelessWidget {
           ),
           const SizedBox(width: RolesPermissionsTable._columnGap),
           SizedBox(
-            width: RolesPermissionsTable._permissionsWidth,
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                if (visibleLabels.isEmpty)
-                  const _PermissionChip(label: 'Henüz yetki atanmamış')
-                else ...[
-                  for (final label in visibleLabels)
-                    _PermissionChip(label: label),
-                  if (extraCount > 0)
-                    _PermissionChip(
-                      label: '+$extraCount ${context.t('More')}',
-                      isExtra: true,
-                    ),
+            width: layout.permissionsWidth,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (visibleLabels.isEmpty)
+                    const _PermissionChip(label: 'Henüz yetki atanmamış')
+                  else ...[
+                    for (final label in visibleLabels)
+                      _PermissionChip(label: label),
+                    if (extraCount > 0)
+                      _PermissionChip(
+                        label: '+$extraCount ${context.t('More')}',
+                        isExtra: true,
+                      ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           SizedBox(
-            width: RolesPermissionsTable._statusWidth,
-            child: role.systemLocked
-                ? const _StatusBadge(
-                    label: 'Sistem Kilitli',
-                    color: AppColors.inkSoft,
-                  )
-                : const _StatusBadge(
-                    label: 'Aktif',
-                    color: RolesPermissionsTable._activeGreen,
-                    dot: true,
-                  ),
+            width: layout.statusWidth,
+            child: Center(
+              child: role.systemLocked
+                  ? const _StatusBadge(
+                      label: 'Sistem Kilitli',
+                      color: AppColors.inkSoft,
+                    )
+                  : const _StatusBadge(
+                      label: 'Aktif',
+                      color: RolesPermissionsTable._activeGreen,
+                      dot: true,
+                    ),
+            ),
           ),
           const SizedBox(width: RolesPermissionsTable._statusActionGap),
           SizedBox(
-            width: RolesPermissionsTable._menuWidth,
+            width: layout.menuWidth,
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.center,
               child: role.systemLocked
                   ? const _SystemLockedBadge()
                   : _RoleRowMenu(
@@ -396,8 +459,9 @@ class _RoleIdentity extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              HighlightedText(
                 context.t(role.label),
+                query: _RolesSearchScope.of(context),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -538,7 +602,7 @@ class _SystemLockedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: Alignment.center,
       child: SizedBox(
         height: 28,
         child: Container(
@@ -807,7 +871,7 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: Alignment.center,
       child: SizedBox(
         height: 28,
         child: Container(
@@ -1013,8 +1077,9 @@ class _RolesMobileCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    HighlightedText(
                       context.t(role.label),
+                      query: _RolesSearchScope.of(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -1096,8 +1161,9 @@ class _RolesMobileCard extends StatelessWidget {
               const Spacer(),
               if (role.slug.trim().isNotEmpty)
                 Flexible(
-                  child: Text(
+                  child: HighlightedText(
                     role.slug,
+                    query: _RolesSearchScope.of(context),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.end,

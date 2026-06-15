@@ -84,10 +84,8 @@ flutter:
   config:
     enable-swift-package-manager: true
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
-  uses-material-design: true
+  # Admin icons use only the local RemixIcon font.
+  uses-material-design: false
   fonts:
     - family: PateezSans
       fonts:

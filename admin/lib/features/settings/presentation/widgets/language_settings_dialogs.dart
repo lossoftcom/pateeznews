@@ -4,6 +4,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -635,8 +636,10 @@ class _ExportLanguageDialog extends StatelessWidget {
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: jsonContent));
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(context.t('common.copied'))),
+                    AdminToast.show(
+                      context,
+                      message: context.t('common.copied'),
+                      tone: AdminToastTone.success,
                     );
                   }
                 },

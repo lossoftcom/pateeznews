@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 enum AdminSmsProviderMode { smtp, api, sendmail, oauth }
 
@@ -67,7 +68,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'İletimerkezi',
     mode: AdminSmsProviderMode.api,
     easySetup: false,
-    icon: Icons.cloud_queue_outlined,
+    icon: Symbols.cloud_queue_outlined,
     color: Color(0xFF198754),
     badgeKey: 'sms.settings.badge.recommended',
     apiBaseUrl: 'https://api.iletimerkezi.com/v1/send-sms/json',
@@ -77,7 +78,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'NetGSM',
     mode: AdminSmsProviderMode.api,
     easySetup: false,
-    icon: Icons.api_outlined,
+    icon: Symbols.api_outlined,
     color: Color(0xFF2F80ED),
     badgeKey: 'sms.settings.badge.highVolume',
     apiBaseUrl: 'https://api.netgsm.com.tr',
@@ -87,7 +88,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'Mobildev',
     mode: AdminSmsProviderMode.api,
     easySetup: false,
-    icon: Icons.hub_outlined,
+    icon: Symbols.hub_outlined,
     color: Color(0xFFF39C12),
     apiBaseUrl: 'https://api.mobildev.com',
   ),
@@ -96,7 +97,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'VatanSMS',
     mode: AdminSmsProviderMode.api,
     easySetup: false,
-    icon: Icons.bolt_outlined,
+    icon: Symbols.bolt_outlined,
     color: Color(0xFFE67E22),
     apiBaseUrl: 'https://api.vatansms.net',
   ),
@@ -105,7 +106,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'MesajGo',
     mode: AdminSmsProviderMode.api,
     easySetup: false,
-    icon: Icons.near_me_outlined,
+    icon: Symbols.near_me_outlined,
     color: Color(0xFF8E44AD),
     apiBaseUrl: 'https://api.mesajgo.com',
   ),
@@ -114,7 +115,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'BulutSMS',
     mode: AdminSmsProviderMode.api,
     easySetup: true,
-    icon: Icons.cloud_done_outlined,
+    icon: Symbols.cloud_done_outlined,
     color: Color(0xFF16A085),
     badgeKey: 'sms.settings.badge.delivery',
     apiBaseUrl: 'https://api.bulutsms.com',
@@ -124,7 +125,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'Twilio SMS',
     mode: AdminSmsProviderMode.api,
     easySetup: false,
-    icon: Icons.sms_outlined,
+    icon: Symbols.sms_outlined,
     color: Color(0xFFEA4335),
     apiBaseUrl:
         'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json',
@@ -134,7 +135,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'Vonage SMS',
     mode: AdminSmsProviderMode.api,
     easySetup: false,
-    icon: Icons.near_me_outlined,
+    icon: Symbols.near_me_outlined,
     color: Color(0xFF8E44AD),
     apiBaseUrl: 'https://rest.nexmo.com/sms/json',
   ),
@@ -143,7 +144,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'Infobip SMS',
     mode: AdminSmsProviderMode.api,
     easySetup: true,
-    icon: Icons.public_outlined,
+    icon: Symbols.public_outlined,
     color: Color(0xFF2F80ED),
     apiBaseUrl: 'https://api.infobip.com/sms/3/messages',
   ),
@@ -152,7 +153,7 @@ const adminSmsProviderPresets = <AdminSmsProviderPreset>[
     name: 'Özel SMS API',
     mode: AdminSmsProviderMode.api,
     easySetup: true,
-    icon: Icons.settings_input_component_outlined,
+    icon: Symbols.settings_input_component_outlined,
     color: AppColors.deepOcean,
   ),
 ];

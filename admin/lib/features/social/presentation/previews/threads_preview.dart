@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Threads post preview.
 class ThreadsPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class ThreadsPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -69,10 +72,11 @@ class ThreadsPreview extends StatelessWidget {
                     ),
                     const SizedBox(width: 2),
                     const Icon(
-                      Icons.verified,
+                      Symbols.verified,
                       size: 14,
                       color: Color(0xFF000000),
                     ),
+                    ?accountAction,
                     const Spacer(),
                     const Text(
                       'Şimdi',
@@ -84,7 +88,7 @@ class ThreadsPreview extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     const Icon(
-                      Icons.more_horiz,
+                      Symbols.more_horiz,
                       size: 18,
                       color: Color(0xFF999999),
                     ),
@@ -114,13 +118,13 @@ class ThreadsPreview extends StatelessWidget {
                         aspectRatio: 16 / 9,
                         child: Container(
                           color: const Color(0xFFF5F5F5),
-                          child: AdminCachedImage(
+                          child: SocialMediaPreview(
                             url: imageUrl,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                             memCacheWidth: 1080,
                             errorWidget: const Center(
                               child: Icon(
-                                Icons.image_outlined,
+                                Symbols.image_outlined,
                                 size: 40,
                                 color: Color(0xFFCCCCCC),
                               ),
@@ -135,25 +139,25 @@ class ThreadsPreview extends StatelessWidget {
                   child: Row(
                     children: const [
                       Icon(
-                        Icons.favorite_border_rounded,
+                        Symbols.favorite_border_rounded,
                         size: 22,
                         color: Color(0xFF000000),
                       ),
                       SizedBox(width: 16),
                       Icon(
-                        Icons.chat_bubble_outline_rounded,
+                        Symbols.chat_bubble_outline_rounded,
                         size: 20,
                         color: Color(0xFF000000),
                       ),
                       SizedBox(width: 16),
                       Icon(
-                        Icons.repeat_rounded,
+                        Symbols.repeat_rounded,
                         size: 22,
                         color: Color(0xFF000000),
                       ),
                       SizedBox(width: 16),
                       Icon(
-                        Icons.send_outlined,
+                        Symbols.send_outlined,
                         size: 20,
                         color: Color(0xFF000000),
                       ),

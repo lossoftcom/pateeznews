@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import {
   deleteAnnouncement,
+  deleteAnnouncements,
   listAdminAnnouncements,
   setAnnouncementActive,
   updateAnnouncement,
@@ -29,7 +30,16 @@ export const POST: APIRoute = async ({ request, url }) => {
     const body = await request.json();
     const action = String(body?.action || 'save');
     if (action === 'delete') {
+      const ids = Array.isArray(body?.ids)
+        ? body.ids
+            .map((value: unknown) => String(value || '').trim())
+            .filter((value: string) => value.length > 0)
+        : [];
+
       const id = String(body?.id || '').trim();
+      if (ids.length > 0) {
+        return adminJson({ data: await deleteAnnouncements(ids), error: null });
+      }
       if (!id) return adminJson({ data: null, error: { message: 'Duyuru id gerekli' } }, 400);
       return adminJson({ data: await deleteAnnouncement(id), error: null });
     }

@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/data/admin_memory_cache.dart';
+import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../data/admin_news_repository.dart';
 import 'news_models.dart';
@@ -65,6 +66,9 @@ class _NewsScreenState extends State<NewsScreen> {
   var _publisherFilter = _all;
   var _sortState = const TableSortState(key: 'date', ascending: false);
   var _trashMode = false;
+  var _videoOnly = false;
+  var _searching = false;
+  var _searchSeq = 0;
 
   @override
   void initState() {
@@ -84,7 +88,7 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   String _postsCacheKey() =>
-      '${_trashMode ? 1 : 0}|$_searchQuery|$_languageFilter|$_categoryFilter|'
+      '${_trashMode ? 1 : 0}|${_videoOnly ? 1 : 0}|$_searchQuery|$_languageFilter|$_categoryFilter|'
       '$_typeFilter|$_statusFilter|$_publisherFilter|$_page|$_pageSize|'
       '${_sortState.key}|${_sortState.ascending}';
 
@@ -167,10 +171,17 @@ class _NewsScreenState extends State<NewsScreen> {
 
   /// Arka plan (periyodik) yenileme: listeyi spinner'a düşürmeden, sessizce
   /// günceller. Hata olursa mevcut liste korunur — kullanıcı kesintiye uğramaz.
-  Future<void> _refreshPostsSilently() async {
+  ///
+  /// [isSearch] true olduğunda (kullanıcı yazarken) "Aranıyor…" göstergesi için
+  /// bayrak set edilir; sıra (seq) koruması ile yalnızca en güncel yanıt uygulanır.
+  Future<void> _refreshPostsSilently({bool isSearch = false}) async {
+    final seq = ++_searchSeq;
+    if (isSearch && mounted && !_searching) {
+      setState(() => _searching = true);
+    }
     try {
       final result = await _fetchPosts();
-      if (!mounted) return;
+      if (!mounted || seq != _searchSeq) return;
       _newsPageCache.set(_postsCacheKey(), result);
       setState(() {
         _posts = result.posts;
@@ -179,23 +190,60 @@ class _NewsScreenState extends State<NewsScreen> {
           (id) => !_posts.any((post) => post.id == id),
         );
         _errorText = null;
+        _searching = false;
       });
     } catch (_) {
       // Sessiz yenileme; mevcut veri ekranda kalır.
+      if (mounted && seq == _searchSeq && _searching) {
+        setState(() => _searching = false);
+      }
     }
   }
 
+  /// Anlık (0ms) istemci filtresi: yüklü satırlar arasında, sunucuyla aynı
+  /// Türkçe normalizasyonla eşleşenleri hemen gösterir (ışık hızında his).
+  /// Sunucu yanıtı gelince [_posts] otoriter sonuçla tazelenir.
+  List<AdminNewsPost> _visiblePosts() {
+    final query = _searchQuery.trim();
+    if (query.isEmpty) return _posts;
+    return _posts
+        .where((post) => searchMatchesAll(_postHaystack(post), query))
+        .toList(growable: false);
+  }
+
+  String _postHaystack(AdminNewsPost post) {
+    return [
+      post.id,
+      post.title,
+      post.category,
+      post.parentCategory ?? '',
+      ...post.categoryPath,
+      post.type,
+      post.status,
+      post.languageCode,
+      post.publisherName,
+      post.publisherUsername,
+      post.publisherEmail,
+      for (final video in post.videos) video.title,
+    ].join(' ');
+  }
+
   Future<AdminNewsPageResult> _fetchPosts() {
+    // Video modunda TÜM videolu haberleri tek seferde çekeriz (sayfalama yok);
+    // arama istemci tarafında Video Kütüphanesi'nde yapılır (video başlığına da
+    // bakar), o yüzden sunucuya arama gönderilmez.
+    final videoMode = _videoOnly;
     return widget.repository.fetchPosts(
-      search: _searchQuery,
+      search: videoMode ? '' : _searchQuery,
       language: _languageFilter,
       category: _categoryFilter,
       type: _typeFilter,
       status: _statusFilter,
       publisher: _publisherFilter,
       trash: _trashMode,
-      page: _page,
-      pageSize: _pageSize,
+      videoOnly: _videoOnly,
+      page: videoMode ? 1 : _page,
+      pageSize: videoMode ? 500 : _pageSize,
       sortKey: _sortState.key,
       sortAscending: _sortState.ascending,
     );
@@ -235,15 +283,19 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   void _changeSearch(String value) {
-    setState(() => _searchQuery = value);
+    // Anlık his: yazar yazmaz görünür satırlar istemci tarafında filtrelenir
+    // (_visiblePosts) ve highlight uygulanır — sunucu yanıtı beklenmez.
+    setState(() {
+      _searchQuery = value;
+      _page = 1;
+      _selectedPostIds.clear();
+    });
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      setState(() {
-        _page = 1;
-        _selectedPostIds.clear();
-      });
-      unawaited(_loadPosts());
+      // Spinner'sız (sessiz) sunucu sorgusu: içerik/SEO/diğer sayfalardaki
+      // eşleşmeleri de getirip listeyi otoriter sonuçla tamamlar.
+      unawaited(_refreshPostsSilently(isSearch: true));
     });
   }
 
@@ -280,6 +332,15 @@ class _NewsScreenState extends State<NewsScreen> {
       _trashMode = !_trashMode;
       _page = 1;
       _statusFilter = _all;
+      _selectedPostIds.clear();
+    });
+    unawaited(_loadPosts());
+  }
+
+  void _toggleVideoOnly() {
+    setState(() {
+      _videoOnly = !_videoOnly;
+      _page = 1;
       _selectedPostIds.clear();
     });
     unawaited(_loadPosts());
@@ -392,9 +453,10 @@ class _NewsScreenState extends State<NewsScreen> {
             SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: NewsTableCard(
-                posts: _posts,
+                posts: _videoOnly ? _posts : _visiblePosts(),
                 filterOptions: _filterOptions,
                 loading: _loading,
+                searching: _searching && _searchQuery.trim().isNotEmpty,
                 page: _page,
                 pageSize: _pageSize,
                 totalCount: _totalCount,
@@ -407,6 +469,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 selectedPostIds: _selectedPostIds,
                 sortState: _sortState,
                 trashMode: _trashMode,
+                videoOnly: _videoOnly,
                 onPageSizeChanged: _changePageSize,
                 onSearchChanged: _changeSearch,
                 onLanguageChanged: (value) => _changeFilter(language: value),
@@ -425,6 +488,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 onDeletePost: (post) => unawaited(_deletePost(post)),
                 onDeleteSelected: () => unawaited(_deleteSelected()),
                 onToggleTrashMode: _toggleTrashMode,
+                onToggleVideoOnly: _toggleVideoOnly,
               ),
             ),
           ],

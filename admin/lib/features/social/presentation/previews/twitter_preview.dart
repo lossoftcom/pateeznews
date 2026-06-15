@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// X (Twitter) tweet preview with authentic layout.
 class TwitterPreview extends StatelessWidget {
@@ -11,6 +12,10 @@ class TwitterPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.profileUsername = 'pateeznews',
+    this.avatarUrl = '',
+    this.verified = false,
+    this.accountAction,
   });
 
   final String caption;
@@ -18,10 +23,22 @@ class TwitterPreview extends StatelessWidget {
   final String linkUrl;
   final String linkTitle;
   final String profileName;
+  final String profileUsername;
+  final String avatarUrl;
+  final bool verified;
+
+  /// Avatar başlığında ismin yanında gösterilecek "hesap değiştir" oku (opsiyonel).
+  final Widget? accountAction;
 
   @override
   Widget build(BuildContext context) {
-    final handle = '@${profileName.toLowerCase().replaceAll(' ', '')}';
+    final cleanUsername = profileUsername.trim().replaceFirst(
+      RegExp(r'^@'),
+      '',
+    );
+    final fallbackUsername = profileName.toLowerCase().replaceAll(' ', '');
+    final handle =
+        '@${cleanUsername.isEmpty ? fallbackUsername : cleanUsername}';
 
     return Container(
       decoration: BoxDecoration(
@@ -36,6 +53,9 @@ class TwitterPreview extends StatelessWidget {
           CircleAvatar(
             radius: 20,
             backgroundColor: const Color(0xFF0F1419),
+            foregroundImage: avatarUrl.trim().isNotEmpty
+                ? NetworkImage(avatarUrl.trim())
+                : null,
             child: Text(
               profileName.isNotEmpty ? profileName[0] : 'P',
               style: const TextStyle(
@@ -67,18 +87,24 @@ class TwitterPreview extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 2),
-                    const Icon(
-                      Icons.verified,
-                      size: 16,
-                      color: Color(0xFF1D9BF0),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      handle,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF536471),
-                        letterSpacing: 0,
+                    if (verified) ...[
+                      const Icon(
+                        Symbols.verified,
+                        size: 16,
+                        color: Color(0xFF1D9BF0),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        handle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF536471),
+                          letterSpacing: 0,
+                        ),
                       ),
                     ),
                     const Text(
@@ -89,6 +115,7 @@ class TwitterPreview extends StatelessWidget {
                         letterSpacing: 0,
                       ),
                     ),
+                    ?accountAction,
                   ],
                 ),
 
@@ -115,17 +142,18 @@ class TwitterPreview extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 10),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: Container(
-                          color: const Color(0xFFF7F9F9),
-                          child: AdminCachedImage(
-                            url: imageUrl,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 1080,
-                            errorWidget: const Center(
+                      child: Container(
+                        color: const Color(0xFFF7F9F9),
+                        child: SocialMediaPreview(
+                          url: imageUrl,
+                          width: double.infinity,
+                          fit: BoxFit.fitWidth,
+                          memCacheWidth: 1080,
+                          errorWidget: const SizedBox(
+                            height: 160,
+                            child: Center(
                               child: Icon(
-                                Icons.image_outlined,
+                                Symbols.image_outlined,
                                 size: 40,
                                 color: Color(0xFFCFD9DE),
                               ),
@@ -154,7 +182,7 @@ class TwitterPreview extends StatelessWidget {
                             color: const Color(0xFFF7F9F9),
                             child: const Center(
                               child: Icon(
-                                Icons.link,
+                                Symbols.link,
                                 size: 32,
                                 color: Color(0xFFCFD9DE),
                               ),
@@ -206,22 +234,22 @@ class TwitterPreview extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _ActionIcon(
-                        icon: Icons.chat_bubble_outline_rounded,
+                        icon: Symbols.chat_bubble_outline_rounded,
                         count: '2',
                         color: const Color(0xFF536471),
                       ),
                       _ActionIcon(
-                        icon: Icons.repeat_rounded,
+                        icon: Symbols.repeat_rounded,
                         count: '5',
                         color: const Color(0xFF00BA7C),
                       ),
                       _ActionIcon(
-                        icon: Icons.favorite_border_rounded,
+                        icon: Symbols.favorite_border_rounded,
                         count: '18',
                         color: const Color(0xFFF91880),
                       ),
                       _ActionIcon(
-                        icon: Icons.bar_chart_rounded,
+                        icon: Symbols.bar_chart_rounded,
                         count: '1.2K',
                         color: const Color(0xFF536471),
                       ),
@@ -229,13 +257,13 @@ class TwitterPreview extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.bookmark_border_rounded,
+                            Symbols.bookmark_border_rounded,
                             size: 18,
                             color: const Color(0xFF536471),
                           ),
                           const SizedBox(width: 12),
                           Icon(
-                            Icons.ios_share_rounded,
+                            Symbols.ios_share_rounded,
                             size: 18,
                             color: const Color(0xFF536471),
                           ),

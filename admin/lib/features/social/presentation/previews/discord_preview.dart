@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Discord message preview with dark theme.
 class DiscordPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class DiscordPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -54,6 +57,7 @@ class DiscordPreview extends StatelessWidget {
                         letterSpacing: 0,
                       ),
                     ),
+                    ?accountAction,
                     Container(
                       margin: const EdgeInsets.only(left: 6),
                       padding: const EdgeInsets.symmetric(
@@ -164,9 +168,9 @@ class DiscordPreview extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 200),
-                        child: AdminCachedImage(
+                        child: SocialMediaPreview(
                           url: imageUrl,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                           width: double.infinity,
                           memCacheWidth: 1080,
                           errorWidget: Container(
@@ -174,7 +178,7 @@ class DiscordPreview extends StatelessWidget {
                             color: const Color(0xFF2F3136),
                             child: const Center(
                               child: Icon(
-                                Icons.image_outlined,
+                                Symbols.image_outlined,
                                 size: 40,
                                 color: Color(0xFF72767D),
                               ),

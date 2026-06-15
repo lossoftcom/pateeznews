@@ -10,6 +10,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 enum PollQuestionAnswerLayout { grid2, grid3, list }
 
@@ -155,7 +156,7 @@ class PollQuestionBlockCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.bar_chart_outlined,
+                          Symbols.bar_chart_outlined,
                           color: AppColors.deepOcean,
                           size: 18,
                         ),
@@ -434,19 +435,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -726,17 +727,17 @@ class _AnswerLayoutSelector extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _LayoutOption(
-                  icon: Icons.grid_view_outlined,
+                  icon: Symbols.grid_view_outlined,
                   selected: layout == PollQuestionAnswerLayout.grid2,
                   onTap: () => onLayoutChanged(PollQuestionAnswerLayout.grid2),
                 ),
                 _LayoutOption(
-                  icon: Icons.window_outlined,
+                  icon: Symbols.window_outlined,
                   selected: layout == PollQuestionAnswerLayout.grid3,
                   onTap: () => onLayoutChanged(PollQuestionAnswerLayout.grid3),
                 ),
                 _LayoutOption(
-                  icon: Icons.view_list_outlined,
+                  icon: Symbols.view_list_outlined,
                   selected: layout == PollQuestionAnswerLayout.list,
                   onTap: () => onLayoutChanged(PollQuestionAnswerLayout.list),
                 ),
@@ -1122,7 +1123,7 @@ class _VoteInput extends StatelessWidget {
         children: [
           const SizedBox(width: 10),
           const Icon(
-            Icons.group_outlined,
+            Symbols.group_outlined,
             size: 13,
             color: AppColors.iconMuted,
           ),
@@ -1214,13 +1215,13 @@ class _DashedImageBox extends StatelessWidget {
                     child: Row(
                       children: [
                         _ImageActionButton(
-                          icon: Icons.edit_outlined,
+                          icon: Symbols.edit_outlined,
                           color: AppColors.deepOcean,
                           onTap: onPickImage,
                         ),
                         const SizedBox(width: 8),
                         _ImageActionButton(
-                          icon: Icons.delete_outline,
+                          icon: Symbols.delete_outline,
                           color: AppColors.actionRed,
                           onTap: onClear,
                         ),
@@ -1252,7 +1253,7 @@ class _EmptyImagePicker extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add, color: _pollBlockUploadInk, size: 32),
+              const Icon(Symbols.add, color: _pollBlockUploadInk, size: 32),
               const SizedBox(height: 8),
               Text(
                 context.t('newsAdd.imageSelect'),
@@ -1295,7 +1296,7 @@ class _UrlUploadButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+              const Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
               const SizedBox(width: 6),
               Text(
                 context.t('newsAdd.addUrl'),
@@ -1416,8 +1417,8 @@ class _ExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _pollBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -1538,7 +1539,7 @@ class _PollCompactAddButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.add_rounded,
+                    Symbols.add_rounded,
                     color: AppColors.actionRed,
                     size: 16,
                   ),
@@ -1593,7 +1594,7 @@ class _AnswerDeleteButton extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(Icons.close, size: 14, color: Colors.white),
+            child: const Icon(Symbols.close, size: 14, color: Colors.white),
           ),
         ),
       ),

@@ -11,10 +11,29 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/admin_image_url.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
+import '../../../../shared/widgets/highlighted_text.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../comments_models.dart';
 import 'comment_link_opener.dart';
+
+/// Aktif arama sorgusunu satır hücrelerine (yorum/kullanıcı/haber/ID) taşır;
+/// böylece highlight için her hücreye tek tek parametre geçmeye gerek kalmaz.
+class _CommentsSearchScope extends InheritedWidget {
+  const _CommentsSearchScope({required this.query, required super.child});
+
+  final String query;
+
+  static String of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_CommentsSearchScope>()
+          ?.query ??
+      '';
+
+  @override
+  bool updateShouldNotify(_CommentsSearchScope oldWidget) =>
+      oldWidget.query != query;
+}
 
 class CommentsTableCard extends StatelessWidget {
   const CommentsTableCard({
@@ -22,6 +41,7 @@ class CommentsTableCard extends StatelessWidget {
     required this.comments,
     required this.filterOptions,
     required this.loading,
+    this.searching = false,
     required this.page,
     required this.pageSize,
     required this.totalCount,
@@ -46,11 +66,14 @@ class CommentsTableCard extends StatelessWidget {
     required this.onReplyComment,
     required this.onDeleteComment,
     required this.onDeleteSelected,
+    required this.onApproveSelected,
+    required this.onRejectSelected,
   });
 
   final List<AdminComment> comments;
   final AdminCommentFilterOptions filterOptions;
   final bool loading;
+  final bool searching;
   final int page;
   final int pageSize;
   final int totalCount;
@@ -75,90 +98,98 @@ class CommentsTableCard extends StatelessWidget {
   final ValueChanged<AdminComment> onReplyComment;
   final ValueChanged<AdminComment> onDeleteComment;
   final VoidCallback onDeleteSelected;
+  final VoidCallback onApproveSelected;
+  final VoidCallback onRejectSelected;
 
   static const double toolbarHeight = 38;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < AdminMobile.breakpoint) {
-          return _CommentsMobileView(
-            comments: comments,
-            filterOptions: filterOptions,
-            loading: loading,
-            page: page,
-            pageSize: pageSize,
-            totalCount: totalCount,
-            searchQuery: searchQuery,
-            statusFilter: statusFilter,
-            postFilter: postFilter,
-            userFilter: userFilter,
-            selectedCommentIds: selectedCommentIds,
-            onPageSizeChanged: onPageSizeChanged,
-            onSearchChanged: onSearchChanged,
-            onStatusChanged: onStatusChanged,
-            onPostChanged: onPostChanged,
-            onUserChanged: onUserChanged,
-            onPageChanged: onPageChanged,
-            onToggleComment: onToggleComment,
-            onApproveComment: onApproveComment,
-            onRejectComment: onRejectComment,
-            onTogglePinned: onTogglePinned,
-            onReplyComment: onReplyComment,
-            onDeleteComment: onDeleteComment,
-            onDeleteSelected: onDeleteSelected,
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _CommentsFilters(
+    return _CommentsSearchScope(
+      query: searchQuery,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < AdminMobile.breakpoint) {
+            return _CommentsMobileView(
+              comments: comments,
               filterOptions: filterOptions,
-              statusFilter: statusFilter,
-              postFilter: postFilter,
-              userFilter: userFilter,
-              onStatusChanged: onStatusChanged,
-              onPostChanged: onPostChanged,
-              onUserChanged: onUserChanged,
-            ),
-            const SizedBox(height: 28),
-            _CommentsToolbar(
-              pageSize: pageSize,
-              searchQuery: searchQuery,
-              selectedCount: selectedCommentIds.length,
-              onPageSizeChanged: onPageSizeChanged,
-              onSearchChanged: onSearchChanged,
-              onDeleteSelected: onDeleteSelected,
-            ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: _CommentsDataTable(
-                comments: comments,
-                loading: loading,
-                selectedCommentIds: selectedCommentIds,
-                sortState: sortState,
-                onToggleComment: onToggleComment,
-                onToggleAllComments: onToggleAllComments,
-                onSort: onSort,
-                onApproveComment: onApproveComment,
-                onRejectComment: onRejectComment,
-                onTogglePinned: onTogglePinned,
-                onReplyComment: onReplyComment,
-                onDeleteComment: onDeleteComment,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _CommentsFooter(
+              loading: loading,
               page: page,
               pageSize: pageSize,
               totalCount: totalCount,
-              loading: loading,
+              searchQuery: searchQuery,
+              statusFilter: statusFilter,
+              postFilter: postFilter,
+              userFilter: userFilter,
+              selectedCommentIds: selectedCommentIds,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onStatusChanged: onStatusChanged,
+              onPostChanged: onPostChanged,
+              onUserChanged: onUserChanged,
               onPageChanged: onPageChanged,
-            ),
-          ],
-        );
-      },
+              onToggleComment: onToggleComment,
+              onApproveComment: onApproveComment,
+              onRejectComment: onRejectComment,
+              onTogglePinned: onTogglePinned,
+              onReplyComment: onReplyComment,
+              onDeleteComment: onDeleteComment,
+              onDeleteSelected: onDeleteSelected,
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _CommentsFilters(
+                filterOptions: filterOptions,
+                statusFilter: statusFilter,
+                postFilter: postFilter,
+                userFilter: userFilter,
+                onStatusChanged: onStatusChanged,
+                onPostChanged: onPostChanged,
+                onUserChanged: onUserChanged,
+              ),
+              const SizedBox(height: 28),
+              _CommentsToolbar(
+                pageSize: pageSize,
+                searchQuery: searchQuery,
+                selectedCount: selectedCommentIds.length,
+                onPageSizeChanged: onPageSizeChanged,
+                onSearchChanged: onSearchChanged,
+                onDeleteSelected: onDeleteSelected,
+                onApproveSelected: onApproveSelected,
+                onRejectSelected: onRejectSelected,
+              ),
+              const SizedBox(height: 18),
+              Expanded(
+                child: _CommentsDataTable(
+                  comments: comments,
+                  loading: loading,
+                  searching: searching,
+                  selectedCommentIds: selectedCommentIds,
+                  sortState: sortState,
+                  onToggleComment: onToggleComment,
+                  onToggleAllComments: onToggleAllComments,
+                  onSort: onSort,
+                  onApproveComment: onApproveComment,
+                  onRejectComment: onRejectComment,
+                  onTogglePinned: onTogglePinned,
+                  onReplyComment: onReplyComment,
+                  onDeleteComment: onDeleteComment,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _CommentsFooter(
+                page: page,
+                pageSize: pageSize,
+                totalCount: totalCount,
+                loading: loading,
+                onPageChanged: onPageChanged,
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -433,7 +464,9 @@ class _CommentsMobileCard extends StatelessWidget {
               const SizedBox(width: 12),
               AdminMobileAvatar(
                 label: context.t(comment.displayUser),
-                imageUrl: avatar.isEmpty ? null : adminImageUrl(avatar, width: 96),
+                imageUrl: avatar.isEmpty
+                    ? null
+                    : adminImageUrl(avatar, width: 96),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -441,6 +474,7 @@ class _CommentsMobileCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (comment.isPinned) ...[
                           const SymbolIcon(
@@ -450,16 +484,10 @@ class _CommentsMobileCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 5),
                         ],
-                        Flexible(
-                          child: Text(
-                            context.t(comment.displayUser),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.deepOcean,
-                            ),
+                        Expanded(
+                          child: _CommentAuthorDetails(
+                            comment: comment,
+                            compact: true,
                           ),
                         ),
                         if (comment.hasReports) ...[
@@ -475,8 +503,9 @@ class _CommentsMobileCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 5),
-                    Text(
+                    HighlightedText(
                       comment.content,
+                      query: _CommentsSearchScope.of(context),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -748,6 +777,8 @@ class _CommentsToolbar extends StatelessWidget {
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onDeleteSelected,
+    required this.onApproveSelected,
+    required this.onRejectSelected,
   });
 
   final int pageSize;
@@ -756,12 +787,14 @@ class _CommentsToolbar extends StatelessWidget {
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onDeleteSelected;
+  final VoidCallback onApproveSelected;
+  final VoidCallback onRejectSelected;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
+        final compact = constraints.maxWidth < 940;
         final pageSizeSelect = _PageSizeSelect(
           value: pageSize,
           onChanged: onPageSizeChanged,
@@ -782,15 +815,38 @@ class _CommentsToolbar extends StatelessWidget {
                 selectedCount: selectedCount,
                 onPressed: onDeleteSelected,
               );
+        final approveButton = selectedCount == 0
+            ? null
+            : _BulkStatusButton(
+                icon: Symbols.check,
+                label: 'Approve',
+                color: const Color(0xFF198754),
+                filled: true,
+                onPressed: onApproveSelected,
+              );
+        final rejectButton = selectedCount == 0
+            ? null
+            : _BulkStatusButton(
+                icon: Symbols.close,
+                label: 'Reject',
+                color: AppColors.actionRed,
+                filled: false,
+                onPressed: onRejectSelected,
+              );
+        final actionButtons = <Widget>[
+          ?deleteButton,
+          ?approveButton,
+          ?rejectButton,
+        ];
 
         if (compact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Align(alignment: Alignment.centerLeft, child: pageSizeSelect),
-              if (deleteButton != null) ...[
+              if (actionButtons.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Align(alignment: Alignment.centerLeft, child: deleteButton),
+                Wrap(spacing: 8, runSpacing: 8, children: actionButtons),
               ],
               const SizedBox(height: 14),
               search,
@@ -801,15 +857,68 @@ class _CommentsToolbar extends StatelessWidget {
         return Row(
           children: [
             pageSizeSelect,
-            if (deleteButton != null) ...[
+            if (actionButtons.isNotEmpty) ...[
               const SizedBox(width: 12),
-              deleteButton,
+              ...[
+                for (var index = 0; index < actionButtons.length; index++) ...[
+                  if (index > 0) const SizedBox(width: 8),
+                  actionButtons[index],
+                ],
+              ],
             ],
             const Spacer(),
             search,
           ],
         );
       },
+    );
+  }
+}
+
+class _SearchClearButton extends StatefulWidget {
+  const _SearchClearButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_SearchClearButton> createState() => _SearchClearButtonState();
+}
+
+class _SearchClearButtonState extends State<_SearchClearButton> {
+  var _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: context.t('comments.search.clear'),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, right: 8),
+            child: Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _hovering
+                    ? AppColors.line.withValues(alpha: 0.55)
+                    : AppColors.surface,
+                shape: BoxShape.circle,
+              ),
+              child: SymbolIcon(
+                Symbols.close,
+                color: _hovering ? AppColors.deepOcean : AppColors.iconMuted,
+                size: 13,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -875,6 +984,7 @@ class _CommentSearchField extends StatefulWidget {
 
 class _CommentSearchFieldState extends State<_CommentSearchField> {
   late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -896,6 +1006,7 @@ class _CommentSearchFieldState extends State<_CommentSearchField> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -910,6 +1021,7 @@ class _CommentSearchFieldState extends State<_CommentSearchField> {
       ),
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         mouseCursor: SystemMouseCursors.text,
         cursorColor: AppColors.support,
         textAlignVertical: TextAlignVertical.center,
@@ -933,6 +1045,23 @@ class _CommentSearchFieldState extends State<_CommentSearchField> {
           ),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 39,
+            minHeight: CommentsTableCard.toolbarHeight,
+          ),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return _SearchClearButton(
+                onTap: () {
+                  _controller.clear();
+                  widget.onChanged('');
+                  _focusNode.requestFocus();
+                },
+              );
+            },
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 38,
             minHeight: CommentsTableCard.toolbarHeight,
           ),
           filled: true,
@@ -1003,10 +1132,74 @@ class _BulkDeleteButton extends StatelessWidget {
   }
 }
 
+class _BulkStatusButton extends StatelessWidget {
+  const _BulkStatusButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.filled,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool filled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = filled ? Colors.white : color;
+
+    return SizedBox(
+      height: 34,
+      child: TextButton(
+        onPressed: onPressed,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: filled ? color : Colors.white,
+              foregroundColor: foreground,
+              side: filled
+                  ? BorderSide.none
+                  : BorderSide(color: color.withValues(alpha: 0.28)),
+              minimumSize: const Size(0, 34),
+              maximumSize: const Size(double.infinity, 34),
+              padding: const EdgeInsets.symmetric(horizontal: 11),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              overlayColor: WidgetStatePropertyAll(
+                color.withValues(alpha: filled ? 0.18 : 0.08),
+              ),
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(icon, color: foreground, size: 14),
+            const SizedBox(width: 6),
+            Text(context.t(label)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CommentsDataTable extends StatelessWidget {
   const _CommentsDataTable({
     required this.comments,
     required this.loading,
+    this.searching = false,
     required this.selectedCommentIds,
     required this.sortState,
     required this.onToggleComment,
@@ -1021,6 +1214,7 @@ class _CommentsDataTable extends StatelessWidget {
 
   final List<AdminComment> comments;
   final bool loading;
+  final bool searching;
   final Set<String> selectedCommentIds;
   final TableSortState sortState;
   final ValueChanged<String> onToggleComment;
@@ -1032,15 +1226,17 @@ class _CommentsDataTable extends StatelessWidget {
   final ValueChanged<AdminComment> onReplyComment;
   final ValueChanged<AdminComment> onDeleteComment;
 
-  static const double _minWidth = 1120;
+  static const double _minWidth = 1320;
   static const double _selectWidth = 42;
   static const double _idWidth = 64;
-  static const double _postWidth = 280;
+  static const double _postWidth = 238;
   static const double _statusWidth = 132;
-  static const double _likesWidth = 70;
-  static const double _repliesWidth = 70;
-  static const double _createdWidth = 168;
+  static const double _likesWidth = 92;
+  static const double _repliesWidth = 92;
+  static const double _createdWidth = 236;
   static const double _menuWidth = 70;
+  static const double _contentSpacing = 36;
+  static const double _rowMinHeight = 86;
 
   @override
   Widget build(BuildContext context) {
@@ -1049,17 +1245,7 @@ class _CommentsDataTable extends StatelessWidget {
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
-        final commentWidth =
-            tableWidth -
-            _selectWidth -
-            _idWidth -
-            _postWidth -
-            _statusWidth -
-            _likesWidth -
-            _repliesWidth -
-            _createdWidth -
-            _menuWidth -
-            36;
+        final layout = _CommentsTableColumnLayout.forWidth(tableWidth);
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1077,7 +1263,7 @@ class _CommentsDataTable extends StatelessWidget {
               child: Column(
                 children: [
                   _CommentsHeader(
-                    commentWidth: commentWidth,
+                    layout: layout,
                     selectedCount: selectedCommentIds.length,
                     totalCount: comments.length,
                     sortState: sortState,
@@ -1085,7 +1271,7 @@ class _CommentsDataTable extends StatelessWidget {
                     onSort: onSort,
                   ),
                   Expanded(
-                    child: loading
+                    child: (loading || searching) && comments.isEmpty
                         ? const _CommentsLoading()
                         : comments.isEmpty
                         ? const _CommentsEmpty()
@@ -1095,7 +1281,7 @@ class _CommentsDataTable extends StatelessWidget {
                                 for (final comment in comments)
                                   _CommentsRow(
                                     comment: comment,
-                                    commentWidth: commentWidth,
+                                    layout: layout,
                                     selected: selectedCommentIds.contains(
                                       comment.id,
                                     ),
@@ -1120,9 +1306,53 @@ class _CommentsDataTable extends StatelessWidget {
   }
 }
 
+class _CommentsTableColumnLayout {
+  const _CommentsTableColumnLayout({
+    required this.commentWidth,
+    required this.postWidth,
+    required this.statusWidth,
+    required this.likesWidth,
+    required this.repliesWidth,
+    required this.createdWidth,
+  });
+
+  final double commentWidth;
+  final double postWidth;
+  final double statusWidth;
+  final double likesWidth;
+  final double repliesWidth;
+  final double createdWidth;
+
+  static double get _baseCommentWidth {
+    return _CommentsDataTable._minWidth -
+        _CommentsDataTable._selectWidth -
+        _CommentsDataTable._idWidth -
+        _CommentsDataTable._postWidth -
+        _CommentsDataTable._statusWidth -
+        _CommentsDataTable._likesWidth -
+        _CommentsDataTable._repliesWidth -
+        _CommentsDataTable._createdWidth -
+        _CommentsDataTable._menuWidth -
+        _CommentsDataTable._contentSpacing;
+  }
+
+  factory _CommentsTableColumnLayout.forWidth(double tableWidth) {
+    final extraWidth = tableWidth - _CommentsDataTable._minWidth;
+
+    return _CommentsTableColumnLayout(
+      commentWidth: _baseCommentWidth + (extraWidth * 0.36),
+      postWidth: _CommentsDataTable._postWidth + (extraWidth * 0.10),
+      statusWidth: _CommentsDataTable._statusWidth + (extraWidth * 0.08),
+      likesWidth: _CommentsDataTable._likesWidth + (extraWidth * 0.08),
+      repliesWidth: _CommentsDataTable._repliesWidth + (extraWidth * 0.08),
+      createdWidth: _CommentsDataTable._createdWidth + (extraWidth * 0.30),
+    );
+  }
+}
+
 class _CommentsHeader extends StatelessWidget {
   const _CommentsHeader({
-    required this.commentWidth,
+    required this.layout,
     required this.selectedCount,
     required this.totalCount,
     required this.sortState,
@@ -1130,7 +1360,7 @@ class _CommentsHeader extends StatelessWidget {
     required this.onSort,
   });
 
-  final double commentWidth;
+  final _CommentsTableColumnLayout layout;
   final int selectedCount;
   final int totalCount;
   final TableSortState sortState;
@@ -1169,42 +1399,44 @@ class _CommentsHeader extends StatelessWidget {
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: commentWidth,
+            width: layout.commentWidth,
             label: 'Comment',
             sortKey: 'comment',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _CommentsDataTable._postWidth,
+            width: layout.postWidth,
             label: 'Post',
             sortKey: 'post',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _CommentsDataTable._statusWidth,
+            width: layout.statusWidth,
             label: 'Status',
             sortKey: 'status',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _CommentsDataTable._likesWidth,
+            width: layout.likesWidth,
             label: 'Likes',
             sortKey: 'likes',
             sortState: sortState,
             onSort: onSort,
+            centered: true,
           ),
           _SortableColumnHeader(
-            width: _CommentsDataTable._repliesWidth,
+            width: layout.repliesWidth,
             label: 'Replies',
             sortKey: 'replies',
             sortState: sortState,
             onSort: onSort,
+            centered: true,
           ),
           _SortableColumnHeader(
-            width: _CommentsDataTable._createdWidth,
+            width: layout.createdWidth,
             label: 'Date',
             sortKey: 'date',
             sortState: sortState,
@@ -1227,6 +1459,7 @@ class _SortableColumnHeader extends StatelessWidget {
     required this.sortKey,
     required this.sortState,
     required this.onSort,
+    this.centered = false,
   });
 
   final double width;
@@ -1234,17 +1467,20 @@ class _SortableColumnHeader extends StatelessWidget {
   final String sortKey;
   final TableSortState sortState;
   final ValueChanged<String> onSort;
+  final bool centered;
 
   @override
   Widget build(BuildContext context) {
+    final header = SortableTableHeader(
+      label: label,
+      sortKey: sortKey,
+      sortState: sortState,
+      onSort: onSort,
+    );
+
     return SizedBox(
       width: width,
-      child: SortableTableHeader(
-        label: label,
-        sortKey: sortKey,
-        sortState: sortState,
-        onSort: onSort,
-      ),
+      child: centered ? Center(child: IntrinsicWidth(child: header)) : header,
     );
   }
 }
@@ -1252,7 +1488,7 @@ class _SortableColumnHeader extends StatelessWidget {
 class _CommentsRow extends StatelessWidget {
   const _CommentsRow({
     required this.comment,
-    required this.commentWidth,
+    required this.layout,
     required this.selected,
     required this.onToggle,
     required this.onApproveComment,
@@ -1263,7 +1499,7 @@ class _CommentsRow extends StatelessWidget {
   });
 
   final AdminComment comment;
-  final double commentWidth;
+  final _CommentsTableColumnLayout layout;
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<AdminComment> onApproveComment;
@@ -1275,8 +1511,10 @@ class _CommentsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 68),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      constraints: const BoxConstraints(
+        minHeight: _CommentsDataTable._rowMinHeight,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
       decoration: BoxDecoration(
         color: selected ? AppColors.surface : Colors.white,
         border: Border(
@@ -1306,30 +1544,30 @@ class _CommentsRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: commentWidth,
+            width: layout.commentWidth,
             child: _RowSelectTapTarget(
               onTap: onToggle,
               child: _CommentIdentity(comment: comment),
             ),
           ),
           SizedBox(
-            width: _CommentsDataTable._postWidth,
+            width: layout.postWidth,
             child: _PostCell(comment: comment),
           ),
           SizedBox(
-            width: _CommentsDataTable._statusWidth,
+            width: layout.statusWidth,
             child: _StatusBadge(comment: comment),
           ),
           SizedBox(
-            width: _CommentsDataTable._likesWidth,
+            width: layout.likesWidth,
             child: _NumberCell(value: comment.likesCount),
           ),
           SizedBox(
-            width: _CommentsDataTable._repliesWidth,
+            width: layout.repliesWidth,
             child: _NumberCell(value: comment.repliesCount),
           ),
           SizedBox(
-            width: _CommentsDataTable._createdWidth,
+            width: layout.createdWidth,
             child: _DateCell(dateTime: comment.createdAt),
           ),
           SizedBox(
@@ -1426,9 +1664,10 @@ class _CommentIdentity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _CommentAvatar(comment: comment),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1448,31 +1687,29 @@ class _CommentIdentity extends StatelessWidget {
                     const SizedBox(width: 5),
                   ],
                   Expanded(
-                    child: Text(
+                    child: HighlightedText(
                       comment.content,
+                      query: _CommentsSearchScope.of(context),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.deepOcean,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                        height: 1.18,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 7),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Flexible(
-                    child: Text(
-                      context.t(comment.displayUser),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.support,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  Expanded(
+                    child: _CommentAuthorDetails(
+                      comment: comment,
+                      compact: false,
                     ),
                   ),
                   if (comment.hasReports) ...[
@@ -1489,6 +1726,107 @@ class _CommentIdentity extends StatelessWidget {
   }
 }
 
+class _CommentAuthorDetails extends StatefulWidget {
+  const _CommentAuthorDetails({required this.comment, required this.compact});
+
+  final AdminComment comment;
+  final bool compact;
+
+  @override
+  State<_CommentAuthorDetails> createState() => _CommentAuthorDetailsState();
+}
+
+class _CommentAuthorDetailsState extends State<_CommentAuthorDetails> {
+  var _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final comment = widget.comment;
+    final isProfile = comment.isRegisteredUser;
+    final profileSlug = comment.profileSlug;
+    final linkable = isProfile && profileSlug.isNotEmpty;
+    final name = isProfile
+        ? comment.profileDisplayName
+        : context.t(comment.displayUser);
+    final email = isProfile ? comment.profileEmail : '';
+    final handle = isProfile ? comment.profileHandle : '';
+    final compact = widget.compact;
+    final nameStyle = TextStyle(
+      color: linkable && _hovering ? AppColors.actionRed : AppColors.deepOcean,
+      fontSize: compact ? 11.5 : 11.2,
+      fontWeight: FontWeight.w600,
+      decoration: linkable && _hovering ? TextDecoration.underline : null,
+      decorationColor: AppColors.actionRed,
+      letterSpacing: 0,
+      height: 1.16,
+    );
+    final secondaryStyle = TextStyle(
+      color: AppColors.support.withValues(alpha: 0.94),
+      fontSize: compact ? 10.1 : 9.8,
+      fontWeight: FontWeight.w500,
+      letterSpacing: 0,
+      height: 1.18,
+    );
+    final handleStyle = TextStyle(
+      color: linkable && _hovering ? AppColors.actionRed : AppColors.support,
+      fontSize: compact ? 10.2 : 9.9,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0,
+      height: 1.18,
+    );
+
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        HighlightedText(
+          name.isEmpty ? context.t('Anonymous User') : name,
+          query: _CommentsSearchScope.of(context),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: nameStyle,
+        ),
+        if (email.isNotEmpty) ...[
+          SizedBox(height: compact ? 2 : 2),
+          HighlightedText(
+            email,
+            query: _CommentsSearchScope.of(context),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: secondaryStyle,
+          ),
+        ],
+        if (handle.isNotEmpty) ...[
+          SizedBox(height: compact ? 2 : 2),
+          HighlightedText(
+            handle,
+            query: _CommentsSearchScope.of(context),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: handleStyle,
+          ),
+        ],
+      ],
+    );
+
+    if (!linkable) return content;
+
+    return Tooltip(
+      message: context.t('comments.openProfile'),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => unawaited(_openExternalUrl(_profileUrl(comment))),
+          child: content,
+        ),
+      ),
+    );
+  }
+}
+
 class _CommentAvatar extends StatelessWidget {
   const _CommentAvatar({required this.comment});
 
@@ -1499,8 +1837,8 @@ class _CommentAvatar extends StatelessWidget {
     final avatarUrl = comment.userAvatar.trim();
 
     return Container(
-      width: 34,
-      height: 34,
+      width: 38,
+      height: 38,
       foregroundDecoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.support),
@@ -1512,8 +1850,8 @@ class _CommentAvatar extends StatelessWidget {
               ? Center(child: _CommentAvatarFallback(comment: comment))
               : AdminCachedImage(
                   url: adminImageUrl(avatarUrl, width: 96),
-                  width: 34,
-                  height: 34,
+                  width: 38,
+                  height: 38,
                   fit: BoxFit.cover,
                   memCacheWidth: 96,
                   errorWidget: Center(
@@ -1539,7 +1877,7 @@ class _CommentAvatarFallback extends StatelessWidget {
       overflow: TextOverflow.clip,
       style: const TextStyle(
         color: AppColors.deepOcean,
-        fontSize: 11,
+        fontSize: 11.5,
         fontWeight: FontWeight.w800,
         letterSpacing: 0,
       ),
@@ -1601,16 +1939,18 @@ class _PostCellState extends State<_PostCell> {
         onTap: hasPost
             ? () => unawaited(_openExternalUrl(_postUrl(widget.comment)))
             : null,
-        child: Text(
+        child: HighlightedText(
           title,
+          query: _CommentsSearchScope.of(context),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: hasPost && _hovering
                 ? AppColors.actionRed
                 : AppColors.deepOcean,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w500,
             fontSize: 12.5,
+            height: 1.25,
             decoration: hasPost && _hovering ? TextDecoration.underline : null,
             decorationColor: AppColors.actionRed,
           ),
@@ -2172,10 +2512,17 @@ class _PageButton extends StatelessWidget {
   }
 }
 
-
 String _postUrl(AdminComment comment) {
   return _siteBaseUri()
       .resolve('/haber/${Uri.encodeComponent(comment.postId)}')
+      .toString();
+}
+
+String _profileUrl(AdminComment comment) {
+  final slug = comment.profileSlug;
+  if (slug.isEmpty) return '';
+  return _siteBaseUri()
+      .resolve('/profil/${Uri.encodeComponent(slug)}')
       .toString();
 }
 

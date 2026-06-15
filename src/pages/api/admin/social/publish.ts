@@ -39,6 +39,18 @@ function normalizeBundleTypes(value: unknown) {
   );
 }
 
+function normalizeSelectedConnectedAccountIds(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const selected: Record<string, string> = {};
+  for (const [key, rawId] of Object.entries(value as Record<string, unknown>)) {
+    const platform = String(key || '').trim().toUpperCase();
+    const id = String(rawId || '').trim();
+    if (!BUNDLE_TYPES.has(platform) || !id) continue;
+    selected[platform] = id;
+  }
+  return selected;
+}
+
 function siteBaseUrl() {
   const env = import.meta.env as Record<string, string | undefined>;
   return String(process.env.PUBLIC_SITE_URL || process.env.SITE_URL || env.PUBLIC_SITE_URL || env.SITE_URL || 'https://pateeznews.com')
@@ -61,7 +73,16 @@ function postTypeFor(platform: string, requestedType: string) {
   return 'POST';
 }
 
-function connectionFor(rows: any[], platform: string) {
+function connectionFor(rows: any[], platform: string, selectedIds: Record<string, string>) {
+  const selectedId = selectedIds[platform];
+  if (selectedId) {
+    const selected = rows.find(
+      (row) =>
+        String(row.id || '').trim() === selectedId &&
+        String(row.platform_tipi || '').toUpperCase() === platform
+    );
+    if (selected) return selected;
+  }
   return rows.find((row) => String(row.platform_tipi || '').toUpperCase() === platform) || null;
 }
 
@@ -73,9 +94,10 @@ function platformData(options: {
   uploadIds: string[];
   link: string;
   connectedRows: any[];
+  selectedConnectedAccountIds: Record<string, string>;
 }) {
-  const { platform, text, title, postType, uploadIds, link, connectedRows } = options;
-  const connected = connectionFor(connectedRows, platform);
+  const { platform, text, title, postType, uploadIds, link, connectedRows, selectedConnectedAccountIds } = options;
+  const connected = connectionFor(connectedRows, platform, selectedConnectedAccountIds);
   const channelId = String(connected?.channel_id || '').trim();
   const channelName = String(connected?.channel_name || connected?.username || '').trim();
   const common: Record<string, any> = { text };
@@ -170,6 +192,9 @@ export const POST: APIRoute = async ({ request }) => {
 
     const socialAccountTypes = normalizeBundleTypes(body.social_account_types || body.platform_types);
     if (!socialAccountTypes.length) return json({ error: { message: 'At least one social platform must be selected' } }, 400);
+    const selectedConnectedAccountIds = normalizeSelectedConnectedAccountIds(
+      body.selected_connected_account_ids || body.selectedConnectedAccountIds
+    );
 
     const title = String(body.title || body.campaign_name || 'Pateeznews social post').trim();
     const text = String(body.text || body.caption || '').trim();
@@ -207,6 +232,7 @@ export const POST: APIRoute = async ({ request }) => {
         uploadIds,
         link,
         connectedRows: connected.rows,
+        selectedConnectedAccountIds,
       });
     }
 
@@ -222,6 +248,7 @@ export const POST: APIRoute = async ({ request }) => {
       socialAccountTypes,
       data,
     };
+    const storedRequestBody = { ...requestBody, selectedConnectedAccountIds };
 
     const created = await createPost({
       apiKey,
@@ -275,7 +302,7 @@ export const POST: APIRoute = async ({ request }) => {
         link,
         mediaUrls,
         uploadIds,
-        JSON.stringify(requestBody),
+        JSON.stringify(storedRequestBody),
         JSON.stringify(created || {}),
         access.session!.user.id,
       ]

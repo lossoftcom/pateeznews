@@ -12,6 +12,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _videoBlockStrongLine = Color(0xFFDDE5E8);
 const _videoBlockSoftLine = Color(0xFFE8EEF1);
@@ -126,7 +127,7 @@ class ArticleVideoBlockCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.videocam_outlined,
+                          Symbols.videocam_outlined,
                           color: AppColors.deepOcean,
                           size: 18,
                         ),
@@ -360,19 +361,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -532,7 +533,7 @@ class _EmptyVideoPicker extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.add,
+                  Symbols.add,
                   color: _videoBlockUploadInk,
                   size: 32,
                 ),
@@ -574,7 +575,7 @@ class _EmptyVideoPicker extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.public,
+                          Symbols.public,
                           size: 13,
                           color: AppColors.deepOcean,
                         ),
@@ -700,12 +701,12 @@ class _SelectedVideoPreviewState extends State<_SelectedVideoPreview> {
                   child: Row(
                     children: [
                       _VideoPreviewActionButton(
-                        icon: Icons.edit_outlined,
+                        icon: Symbols.edit_outlined,
                         onTap: widget.onEdit,
                       ),
                       const SizedBox(width: 8),
                       _VideoPreviewActionButton(
-                        icon: Icons.delete_outline,
+                        icon: Symbols.delete_outline,
                         color: AppColors.actionRed,
                         onTap: widget.onClear,
                       ),
@@ -737,7 +738,7 @@ class _VideoPlayButton extends StatelessWidget {
         child: const Padding(
           padding: EdgeInsets.all(8),
           child: Icon(
-            Icons.play_circle_fill_rounded,
+            Symbols.play_circle_fill_rounded,
             size: 58,
             color: Colors.white,
             shadows: [
@@ -962,7 +963,9 @@ class _DirectCenterToggleButtonState extends State<_DirectCenterToggleButton> {
         behavior: HitTestBehavior.opaque,
         onTap: _toggle,
         child: Icon(
-          playing ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill,
+          playing
+              ? Symbols.pause_circle_filled_rounded
+              : Symbols.play_circle_fill,
           size: 62,
           color: Colors.white,
           shadows: const [
@@ -1080,15 +1083,15 @@ class _DirectVideoControlsState extends State<_DirectVideoControls> {
         children: [
           _PlayerIconButton(
             icon: initialized && value.isPlaying
-                ? Icons.pause_rounded
-                : Icons.play_arrow_rounded,
+                ? Symbols.pause_rounded
+                : Symbols.play_arrow_rounded,
             onTap: _togglePlayback,
           ),
           const SizedBox(width: 6),
           _PlayerIconButton(
             icon: volume <= 0
-                ? Icons.volume_off_rounded
-                : Icons.volume_up_rounded,
+                ? Symbols.volume_off_rounded
+                : Symbols.volume_up_rounded,
             onTap: _toggleMute,
           ),
           const SizedBox(width: 4),
@@ -1211,7 +1214,7 @@ class _PlayerErrorSurface extends StatelessWidget {
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+            Icon(Symbols.error_outline_rounded, color: Colors.white, size: 18),
             SizedBox(width: 8),
             _PlayerErrorText(),
           ],
@@ -1391,7 +1394,7 @@ class _VideoFallbackSurface extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
-                Icons.videocam_outlined,
+                Symbols.videocam_outlined,
                 color: Colors.white,
                 size: 18,
               ),
@@ -1656,8 +1659,8 @@ class _ExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _videoBlockMutedText.withValues(alpha: 0.72),
                     ),

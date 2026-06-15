@@ -10,6 +10,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/frontend_toast.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../account/presentation/account_sign_in_screen.dart';
 import '../../announcements/data/announcements_repository.dart';
@@ -527,9 +528,7 @@ class _ShellScreenState extends State<ShellScreen>
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.deepOcean),
-    );
+    FrontendToast.show(context, message: message, tone: FrontendToastTone.info);
   }
 
   void _closeMenu() {
@@ -648,9 +647,7 @@ class _ShellScreenState extends State<ShellScreen>
     _closeMenu();
     _closeAccountMenu();
     _closeAppsSheet();
-    final pages = root == null
-        ? widget.shellData.pages
-        : widget.shellData.pagesForRoot(root.id);
+    final pages = widget.shellData.pagesForRoot(root?.id ?? '');
     if (pages.isEmpty) {
       _showMessage('Sayfa bulunamadı.');
       return;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// TikTok vertical video preview.
 class TiktokPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class TiktokPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +31,9 @@ class TiktokPreview extends StatelessWidget {
           children: [
             if (imageUrl.isNotEmpty)
               Positioned.fill(
-                child: AdminCachedImage(
+                child: SocialMediaPreview(
                   url: imageUrl,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   memCacheWidth: 1080,
                   errorWidget: const SizedBox.shrink(),
                 ),
@@ -43,25 +46,25 @@ class TiktokPreview extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _TkIcon(
-                    icon: Icons.favorite_rounded,
+                    icon: Symbols.favorite_rounded,
                     label: '1.2K',
                     color: Colors.white,
                   ),
                   const SizedBox(height: 18),
                   _TkIcon(
-                    icon: Icons.chat_bubble_rounded,
+                    icon: Symbols.chat_bubble_rounded,
                     label: '84',
                     color: Colors.white,
                   ),
                   const SizedBox(height: 18),
                   _TkIcon(
-                    icon: Icons.bookmark_rounded,
+                    icon: Symbols.bookmark_rounded,
                     label: '256',
                     color: Colors.white,
                   ),
                   const SizedBox(height: 18),
                   _TkIcon(
-                    icon: Icons.reply_rounded,
+                    icon: Symbols.reply_rounded,
                     label: 'Paylaş',
                     color: Colors.white,
                   ),
@@ -75,7 +78,7 @@ class TiktokPreview extends StatelessWidget {
                       color: const Color(0xFF25F4EE),
                     ),
                     child: const Icon(
-                      Icons.music_note,
+                      Symbols.music_note,
                       size: 18,
                       color: Colors.white,
                     ),
@@ -92,14 +95,23 @@ class TiktokPreview extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '@${profileName.toLowerCase().replaceAll(' ', '')}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '@${profileName.toLowerCase().replaceAll(' ', '')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      ?accountAction,
+                    ],
                   ),
                   if (caption.isNotEmpty)
                     Padding(
@@ -120,7 +132,7 @@ class TiktokPreview extends StatelessWidget {
                   Row(
                     children: [
                       const Icon(
-                        Icons.music_note_rounded,
+                        Symbols.music_note_rounded,
                         size: 14,
                         color: Colors.white,
                       ),
@@ -176,7 +188,7 @@ class TiktokPreview extends StatelessWidget {
                         color: Color(0xFFEE1D52),
                       ),
                       child: const Icon(
-                        Icons.add,
+                        Symbols.add,
                         size: 14,
                         color: Colors.white,
                       ),

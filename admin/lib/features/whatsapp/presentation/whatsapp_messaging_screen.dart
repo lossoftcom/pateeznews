@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -85,11 +86,10 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   }
 
   void _showWhatsappError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -268,7 +268,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                 child: const Row(
                   children: [
                     Icon(
-                      Icons.check_circle,
+                      Symbols.check_circle,
                       color: Color(0xFF25D366),
                       size: 12,
                     ),
@@ -474,7 +474,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
               if (isCompact) ...[
                 IconButton(
                   icon: const Icon(
-                    Icons.arrow_back,
+                    Symbols.arrow_back,
                     color: AppColors.deepOcean,
                   ),
                   onPressed: () {
@@ -543,7 +543,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
               // Header actions stubs
               IconButton(
                 icon: const Icon(
-                  Icons.search,
+                  Symbols.search,
                   size: 20,
                   color: AppColors.iconMuted,
                 ),
@@ -551,7 +551,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
               ),
               IconButton(
                 icon: const Icon(
-                  Icons.more_vert,
+                  Symbols.more_vert,
                   size: 20,
                   color: AppColors.iconMuted,
                 ),
@@ -595,7 +595,10 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
             children: [
               // Attach button
               IconButton(
-                icon: const Icon(Icons.attach_file, color: AppColors.iconMuted),
+                icon: const Icon(
+                  Symbols.attach_file,
+                  color: AppColors.iconMuted,
+                ),
                 onPressed: () {},
               ),
 
@@ -606,7 +609,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                     _showAiHelper = !_showAiHelper;
                   });
                 },
-                icon: const Icon(Icons.auto_awesome, size: 14),
+                icon: const Icon(Symbols.auto_awesome, size: 14),
                 label: Text(context.t('whatsapp.aiWriter')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.deepOcean,
@@ -666,7 +669,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
 
               // Send button
               IconButton(
-                icon: const Icon(Icons.send, color: AppColors.actionRed),
+                icon: const Icon(Symbols.send, color: AppColors.actionRed),
                 onPressed: _sendMessage,
               ),
             ],
@@ -691,7 +694,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                 border: Border.all(color: AppColors.line, width: 2),
               ),
               child: const Icon(
-                Icons.chat_bubble_outline,
+                Symbols.chat_bubble_outline,
                 size: 64,
                 color: AppColors.placeholder,
               ),
@@ -812,7 +815,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                 if (message.isOutgoing) ...[
                   const SizedBox(width: 4),
                   Icon(
-                    message.isRead ? Icons.done_all : Icons.done,
+                    message.isRead ? Symbols.done_all : Symbols.done,
                     size: 13,
                     color: message.isRead ? Colors.blue : AppColors.placeholder,
                   ),
@@ -880,7 +883,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
           Row(
             children: [
               const Icon(
-                Icons.auto_awesome,
+                Symbols.auto_awesome,
                 size: 16,
                 color: Color(0xFF2E7D32),
               ),
@@ -897,7 +900,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
               InkWell(
                 onTap: () => setState(() => _showAiHelper = false),
                 child: const Icon(
-                  Icons.close,
+                  Symbols.close,
                   size: 16,
                   color: Color(0xFF2E7D32),
                 ),

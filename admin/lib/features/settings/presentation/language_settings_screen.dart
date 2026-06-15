@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/localization/admin_translations.dart';
@@ -308,10 +309,11 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(context.t(message))));
+  void _showMessage(
+    String message, {
+    AdminToastTone tone = AdminToastTone.info,
+  }) {
+    AdminToast.show(context, message: context.t(message), tone: tone);
   }
 
   String _sampleLanguagePackJson() {
@@ -908,7 +910,7 @@ class _LanguageSettingsFooter extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: hasPrevious ? onPrevious : null,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(Symbols.chevron_left),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -928,7 +930,7 @@ class _LanguageSettingsFooter extends StatelessWidget {
               ),
               IconButton(
                 onPressed: hasNext ? onNext : null,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(Symbols.chevron_right),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,

@@ -86,9 +86,6 @@ export const POST: APIRoute = async ({ request }) => {
     const apiKey = resolveBundleApiKey(account);
     if (!apiKey) return json({ error: { message: 'Bundle Social API key is missing' } }, 400);
 
-    const redirectUrl = String(body.redirect_url || account.redirect_url || '').trim();
-    if (!redirectUrl) return json({ error: { message: 'Bundle Social redirectUrl is required' } }, 400);
-
     const socialAccountTypes = normalizeTypes(body.social_account_types || body.platform_types);
     if (!socialAccountTypes.length) return json({ error: { message: 'At least one Bundle Social account type is required' } }, 400);
 
@@ -96,7 +93,7 @@ export const POST: APIRoute = async ({ request }) => {
       apiKey,
       apiBaseUrl: account.api_base_url,
       teamId: account.team_id,
-      redirectUrl,
+      redirectUrl: String(body.redirect_url || account.redirect_url || '').trim(),
       socialAccountTypes,
     });
 

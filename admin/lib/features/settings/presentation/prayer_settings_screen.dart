@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -198,9 +199,16 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AdminToast.show(context, message: message, tone: _toastToneFor(message));
+  }
+
+  AdminToastTone _toastToneFor(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('hata') ||
+            lower.contains('edilemedi') ||
+            lower.contains('kaydedilemedi')
+        ? AdminToastTone.error
+        : AdminToastTone.success;
   }
 
   @override

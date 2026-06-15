@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -75,11 +76,10 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
   }
 
   void _showWhatsappError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -929,7 +929,7 @@ class _WhatsappTemplateMobileCard extends StatelessWidget {
                   ),
                   AdminMobileMenuAction(
                     icon: template.ready
-                        ? Icons.remove_circle_outline
+                        ? Symbols.remove_circle_outline
                         : Symbols.check,
                     label: context.t(
                       template.ready
@@ -1649,7 +1649,7 @@ class _TemplateMenuCard extends StatelessWidget {
             ),
             _TemplateMenuItem(
               icon: template.ready
-                  ? Icons.remove_circle_outline
+                  ? Symbols.remove_circle_outline
                   : Symbols.check,
               label: template.ready
                   ? 'whatsapp.template.action.markNotReady'
@@ -2359,7 +2359,7 @@ class _WhatsappTemplateEditorViewState
                         ),
                       ),
                       child: const Icon(
-                        Icons.description_rounded,
+                        Symbols.description_rounded,
                         size: 18,
                         color: Color(0xFF25D366),
                       ),
@@ -2420,7 +2420,7 @@ class _WhatsappTemplateEditorViewState
                     const SizedBox(width: 10),
                     FilledButton.icon(
                       onPressed: _save,
-                      icon: const Icon(Icons.save_rounded, size: 16),
+                      icon: const Icon(Symbols.save_rounded, size: 16),
                       label: Text(
                         widget.template == null
                             ? context.t('whatsapp.template.editor.save')
@@ -2578,11 +2578,11 @@ extension _WhatsAppMediaTypeData on _WhatsAppMediaType {
 
   IconData get icon {
     return switch (this) {
-      _WhatsAppMediaType.none => Icons.chat_bubble_outline,
-      _WhatsAppMediaType.image => Icons.image_outlined,
-      _WhatsAppMediaType.video => Icons.play_circle_outline,
-      _WhatsAppMediaType.audio => Icons.graphic_eq_outlined,
-      _WhatsAppMediaType.document => Icons.picture_as_pdf_outlined,
+      _WhatsAppMediaType.none => Symbols.chat_bubble_outline,
+      _WhatsAppMediaType.image => Symbols.image_outlined,
+      _WhatsAppMediaType.video => Symbols.play_circle_outline,
+      _WhatsAppMediaType.audio => Symbols.graphic_eq_outlined,
+      _WhatsAppMediaType.document => Symbols.picture_as_pdf_outlined,
     };
   }
 }
@@ -4514,7 +4514,7 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.arrow_back_rounded,
+                    Symbols.arrow_back_rounded,
                     color: Colors.white.withValues(alpha: 0.92),
                     size: 20,
                   ),
@@ -4569,19 +4569,19 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
                     ),
                   ),
                   Icon(
-                    Icons.videocam_outlined,
+                    Symbols.videocam_outlined,
                     color: Colors.white.withValues(alpha: 0.86),
                     size: 20,
                   ),
                   const SizedBox(width: 14),
                   Icon(
-                    Icons.call_outlined,
+                    Symbols.call_outlined,
                     color: Colors.white.withValues(alpha: 0.86),
                     size: 18,
                   ),
                   const SizedBox(width: 14),
                   Icon(
-                    Icons.more_vert_rounded,
+                    Symbols.more_vert_rounded,
                     color: Colors.white.withValues(alpha: 0.86),
                     size: 20,
                   ),
@@ -4675,7 +4675,7 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 3),
                                 Icon(
-                                  Icons.done_all_rounded,
+                                  Symbols.done_all_rounded,
                                   size: 14,
                                   color: const Color(0xFF53BDEB),
                                 ),
@@ -4761,10 +4761,10 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
                           children: [
                             Icon(
                               button.hasUrl
-                                  ? Icons.open_in_new_rounded
+                                  ? Symbols.open_in_new_rounded
                                   : button.hasPhone
-                                  ? Icons.call_outlined
-                                  : Icons.reply_rounded,
+                                  ? Symbols.call_outlined
+                                  : Symbols.reply_rounded,
                               size: 14,
                               color: const Color(0xFF00A884),
                             ),
@@ -4796,7 +4796,7 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.emoji_emotions_outlined,
+                    Symbols.emoji_emotions_outlined,
                     color: const Color(0xFF54656F),
                     size: 22,
                   ),
@@ -4826,7 +4826,7 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Icon(
-                    Icons.attach_file_rounded,
+                    Symbols.attach_file_rounded,
                     color: const Color(0xFF54656F),
                     size: 20,
                   ),
@@ -4839,7 +4839,7 @@ class _WhatsAppPhoneFrame extends StatelessWidget {
                       borderRadius: BorderRadius.circular(15),
                     ),
                     child: const Icon(
-                      Icons.mic_rounded,
+                      Symbols.mic_rounded,
                       color: Colors.white,
                       size: 18,
                     ),
@@ -4899,7 +4899,7 @@ class _WhatsAppPreviewMedia extends StatelessWidget {
           ? Row(
               children: [
                 const Icon(
-                  Icons.play_arrow_rounded,
+                  Symbols.play_arrow_rounded,
                   color: AppColors.actionRed,
                   size: 28,
                 ),
@@ -5322,7 +5322,7 @@ class _TemplateVariablePanelState extends State<_TemplateVariablePanel> {
                 Row(
                   children: [
                     const Icon(
-                      Icons.data_object_outlined,
+                      Symbols.data_object_outlined,
                       size: 18,
                       color: AppColors.deepOcean,
                     ),
@@ -5423,7 +5423,7 @@ class _PanelSearchField extends StatelessWidget {
             letterSpacing: 0,
           ),
           prefixIcon: const Icon(
-            Icons.search,
+            Symbols.search,
             size: 17,
             color: AppColors.iconMuted,
           ),
@@ -5480,7 +5480,7 @@ class _VariableGroupHeader extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),
                 child: const Icon(
-                  Icons.group_outlined,
+                  Symbols.group_outlined,
                   size: 17,
                   color: Color(0xFF2F80ED),
                 ),

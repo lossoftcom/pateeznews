@@ -6,9 +6,14 @@ import '../../../../shared/widgets/symbol_icon.dart';
 import '../users_models.dart';
 
 class UsersSummaryGrid extends StatelessWidget {
-  const UsersSummaryGrid({super.key, required this.metrics});
+  const UsersSummaryGrid({
+    super.key,
+    required this.metrics,
+    this.compact = false,
+  });
 
   final List<UserMetric> metrics;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +35,7 @@ class UsersSummaryGrid extends StatelessWidget {
             for (final metric in metrics)
               SizedBox(
                 width: itemWidth,
-                child: _MetricCard(metric: metric),
+                child: _MetricCard(metric: metric, compact: compact),
               ),
           ],
         );
@@ -40,16 +45,20 @@ class UsersSummaryGrid extends StatelessWidget {
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.metric});
+  const _MetricCard({required this.metric, required this.compact});
 
   final UserMetric metric;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final centered = metric.centerContent;
     return Container(
-      constraints: const BoxConstraints(minHeight: 146),
-      padding: const EdgeInsets.all(24),
+      constraints: BoxConstraints(minHeight: compact ? 110 : 146),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 20 : 24,
+        vertical: compact ? 16 : 24,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.value),
@@ -63,7 +72,9 @@ class _MetricCard extends StatelessWidget {
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: compact
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
@@ -76,11 +87,12 @@ class _MetricCard extends StatelessWidget {
                   textAlign: centered ? TextAlign.center : TextAlign.start,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.deepOcean,
+                    fontSize: compact ? 13 : null,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: compact ? 8 : 12),
                 Row(
                   mainAxisAlignment: centered
                       ? MainAxisAlignment.center
@@ -92,6 +104,7 @@ class _MetricCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
                             color: AppColors.deepOcean,
+                            fontSize: compact ? 26 : null,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0,
                             height: 1,
@@ -104,6 +117,7 @@ class _MetricCard extends StatelessWidget {
                         metric.change,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.warmHorizon,
+                          fontSize: compact ? 11.5 : null,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
                         ),
@@ -111,11 +125,12 @@ class _MetricCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: compact ? 14 : 24),
                 Text(
                   metric.description,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.deepOcean,
+                    fontSize: compact ? 11.5 : null,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0,
                   ),
@@ -124,14 +139,18 @@ class _MetricCard extends StatelessWidget {
             ),
           ),
           Container(
-            width: 42,
-            height: 42,
+            width: compact ? 36 : 42,
+            height: compact ? 36 : 42,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppRadius.value),
             ),
-            child: SymbolIcon(metric.icon, color: metric.iconColor, size: 20),
+            child: SymbolIcon(
+              metric.icon,
+              color: metric.iconColor,
+              size: compact ? 18 : 20,
+            ),
           ),
         ],
       ),

@@ -1,20 +1,23 @@
 import type { APIRoute } from 'astro';
 import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import { LOCAL_UPLOAD_ROOT } from '@/lib/server/localUploadStorage';
-import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
-import { buildSeoFilenameFallback, cleanAiScalarText, extractJsonStringField, isBoilerplateAiText, toSeoSlug } from '@/lib/mediaSeoText';
+import { renameLocalStorageFile } from '@/lib/server/localStorageProxy';
+import { renameLocalMediaRecord } from '@/lib/server/storageSettings';
+import { geminiFastModelAttempts, geminiThinkingConfigForModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
+import { buildSeoFilenameFallback, cleanAiScalarText, extractJsonStringField, isBoilerplateAiText, isTechnicalMediaText, toSeoSlug } from '@/lib/mediaSeoText';
+import { fetchMediaSeoSystemPrompt } from '@/lib/server/mediaSeoPrompt';
 
 const STORAGE_TYPES = ['image', 'video', 'audio', 'file', 'logo', 'profile'] as const;
 type StorageType = typeof STORAGE_TYPES[number];
 
 const STORAGE_FILE_MARKER = '/api/storage/file/';
+const LOCAL_STATIC_MARKER = '/local-upload/';
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
-const IMAGE_VARIANT_SUFFIXES = ['_sm', '_xl', '_md', '_lg'] as const;
-const MAX_AI_IMAGE_DIMENSION = 1600;
+const AI_REQUEST_TIMEOUT_MS = 24_000;
+const MAX_AI_IMAGE_BYTES = 4_000_000;
 
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
@@ -61,6 +64,11 @@ const parseStorageRef = (src: string, typeHint?: unknown): { type: StorageType; 
     const markerIndex = cleanSrc.indexOf(STORAGE_FILE_MARKER);
     if (markerIndex >= 0) {
         rawPath = cleanSrc.slice(markerIndex + STORAGE_FILE_MARKER.length);
+    } else {
+        const localMarkerIndex = cleanSrc.indexOf(LOCAL_STATIC_MARKER);
+        if (localMarkerIndex >= 0) {
+            rawPath = cleanSrc.slice(localMarkerIndex + LOCAL_STATIC_MARKER.length);
+        }
     }
 
     rawPath = normalizeRelativePath(rawPath);
@@ -76,17 +84,20 @@ const parseStorageRef = (src: string, typeHint?: unknown): { type: StorageType; 
     return { type, id: rawPath };
 };
 
-const stripKnownVariant = (baseName: string) => {
-    for (const suffix of IMAGE_VARIANT_SUFFIXES) {
-        if (baseName.toLowerCase().endsWith(suffix)) {
-            return {
-                rootBase: baseName.slice(0, -suffix.length),
-                variant: baseName.slice(-suffix.length)
-            };
-        }
-    }
+const walkFiles = (baseDir: string, currentDir = baseDir): string[] => {
+    if (!fs.existsSync(currentDir)) return [];
+    return fs.readdirSync(currentDir, { withFileTypes: true }).flatMap((entry) => {
+        const fullPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) return walkFiles(baseDir, fullPath);
+        if (!entry.isFile()) return [];
+        return path.relative(baseDir, fullPath).split(path.sep).join('/');
+    });
+};
 
-    return { rootBase: baseName, variant: '' };
+const basenameEquals = (left: string, right: string) => {
+    const a = left.normalize('NFC');
+    const b = right.normalize('NFC');
+    return a === b || a.normalize('NFD') === b.normalize('NFD');
 };
 
 const getCandidateId = (baseDir: string, fileId: string) => {
@@ -102,62 +113,92 @@ const getCandidateId = (baseDir: string, fileId: string) => {
         if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) return candidate;
     }
 
+    const fileName = path.posix.basename(normalizeRelativePath(fileId));
+    if (fileName) {
+        const matches = walkFiles(baseDir).filter((id) => basenameEquals(path.posix.basename(id), fileName));
+        if (matches.length === 1) return matches[0];
+        if (matches.length > 1) {
+            throw Object.assign(new Error('Multiple local media files match this filename'), { status: 409 });
+        }
+    }
+
     return null;
 };
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeLikePattern = (value: string) =>
+    value.replace(/[\\%_]/g, '\\$&');
 
-const collectRenameTargets = (baseDir: string, type: StorageType, fileId: string) => {
-    const exactFullPath = path.resolve(baseDir, fileId);
-    const parsed = path.parse(fileId);
-    const dir = parsed.dir;
-    const fullDir = path.dirname(exactFullPath);
-    const { rootBase } = stripKnownVariant(parsed.name);
-
-    const targets = new Map<string, { id: string; variant: string; ext: string }>();
-    targets.set(fileId, { id: fileId, variant: stripKnownVariant(parsed.name).variant, ext: parsed.ext });
-
-    if (type === 'image' && fs.existsSync(fullDir) && fs.statSync(fullDir).isDirectory()) {
-        const siblingRegex = new RegExp(`^${escapeRegExp(rootBase)}(?:_sm|_xl|_md|_lg)?\\.[^.]+$`, 'i');
-        for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
-            if (!entry.isFile() || !siblingRegex.test(entry.name)) continue;
-            const siblingParsed = path.parse(entry.name);
-            const siblingVariant = stripKnownVariant(siblingParsed.name).variant;
-            const siblingId = dir ? `${dir}/${entry.name}` : entry.name;
-            targets.set(siblingId, { id: siblingId, variant: siblingVariant, ext: siblingParsed.ext });
-        }
+const buildStorageFormPairs = (
+    oldSrc: string,
+    newSrc: string,
+) => {
+    if (!oldSrc.startsWith('/api/storage/file/') || !newSrc.startsWith('/api/storage/file/')) {
+        return [{ oldText: oldSrc, newText: newSrc }];
     }
 
-    if (type === 'video' && fs.existsSync(fullDir) && fs.statSync(fullDir).isDirectory()) {
-        const thumbRegex = new RegExp(`^${escapeRegExp(parsed.name)}_thumb\\.(webp|jpe?g|png)$`, 'i');
-        for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
-            if (!entry.isFile() || !thumbRegex.test(entry.name)) continue;
-            const siblingParsed = path.parse(entry.name);
-            const siblingId = dir ? `${dir}/${entry.name}` : entry.name;
-            targets.set(siblingId, { id: siblingId, variant: '_thumb', ext: siblingParsed.ext });
-        }
-    }
-
-    return Array.from(targets.values());
+    const oldObjectPath = oldSrc.slice('/api/storage/file/'.length);
+    const newObjectPath = newSrc.slice('/api/storage/file/'.length);
+    return [
+        { oldText: oldSrc, newText: newSrc },
+        { oldText: `/local-upload/${oldObjectPath}`, newText: `/local-upload/${newObjectPath}` },
+        { oldText: `local-upload/${oldObjectPath}`, newText: `local-upload/${newObjectPath}` },
+    ];
 };
 
-const chooseUniqueBase = (baseDir: string, type: StorageType, targets: Array<{ id: string; variant: string; ext: string }>, requestedBase: string) => {
-    const oldIds = new Set(targets.map((target) => target.id));
+const updatePostsMediaReferences = async (
+    replacements: Array<{ oldSrc: string; newSrc: string }>,
+) => {
+    const updateTextColumns = ['thumbnail_url', 'media_url', 'content'];
+    const updateJsonColumns = ['card_data', 'items', 'faq_data'];
+    const changedPostIds = new Set<string>();
 
-    for (let attempt = 0; attempt < 100; attempt++) {
-        const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
-        const candidateBase = `${requestedBase}${suffix}`;
-        const conflicts = targets.some((target) => {
-            const parsed = path.parse(target.id);
-            const newId = `${parsed.dir ? `${parsed.dir}/` : ''}${candidateBase}${target.variant}${target.ext.toLowerCase() || '.webp'}`;
-            const fullPath = path.resolve(baseDir, newId);
-            return !oldIds.has(newId) && fs.existsSync(fullPath);
-        });
+    for (const pair of replacements) {
+        if (!pair.oldSrc || !pair.newSrc || pair.oldSrc === pair.newSrc) continue;
+        const variants = buildStorageFormPairs(pair.oldSrc, pair.newSrc);
 
-        if (!conflicts) return candidateBase;
+        const uniq = new Map<string, { oldText: string; newText: string }>();
+        for (const item of variants) {
+            if (!item.oldText || !item.newText || item.oldText === item.newText) continue;
+            uniq.set(JSON.stringify(item), item);
+        }
+
+        for (const { oldText, newText } of uniq.values()) {
+            const safeOld = oldText;
+            const safeNew = newText;
+            const likePattern = `%${escapeLikePattern(safeOld)}%`;
+            const conditionParts = [
+                ...updateTextColumns.map(
+                    (column) => `COALESCE(${column}, '') LIKE $3 ESCAPE '\\\\'`,
+                ),
+                ...updateJsonColumns.map(
+                    (column) => `COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\\\'`,
+                ),
+            ];
+
+            const sets = [
+                ...updateTextColumns.map(
+                    (column) =>
+                        `${column} = NULLIF(REPLACE(COALESCE(${column}, ''), $1, $2), '')`,
+                ),
+                ...updateJsonColumns.map(
+                    (column) =>
+                        `${column} = CASE WHEN COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\\\' THEN (REPLACE(${column}::text, $1, $2))::jsonb ELSE ${column} END`,
+                ),
+            ];
+
+            const result = await dbQuery<{ id: string }>(`
+                UPDATE public.posts
+                SET ${sets.join(',\n            ')}
+                WHERE ${conditionParts.join('\n          OR ')}
+                RETURNING id
+            `, [safeOld, safeNew, likePattern]);
+            for (const row of result.rows) {
+                if (row.id != null) changedPostIds.add(String(row.id));
+            }
+        }
     }
 
-    return `${requestedBase}-${Date.now()}`;
+    return { updatedPosts: changedPostIds.size };
 };
 
 const fetchAiSettings = async (languageCode: string) => {
@@ -182,26 +223,22 @@ const fetchAiSettings = async (languageCode: string) => {
     return fallback.rows[0] || null;
 };
 
+const imageMimeTypeForPath = (filePath: string) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+    if (ext === '.png') return 'image/png';
+    if (ext === '.webp') return 'image/webp';
+    return '';
+};
+
 const prepareInlineImage = async (filePath: string) => {
-    const input = fs.readFileSync(filePath);
-    const image = sharp(input, { animated: false });
-    const buffer = await image
-        .rotate()
-        .resize({
-            width: MAX_AI_IMAGE_DIMENSION,
-            height: MAX_AI_IMAGE_DIMENSION,
-            fit: 'inside',
-            withoutEnlargement: true,
-            kernel: 'lanczos3'
-        })
-        .jpeg({
-            quality: 84,
-            mozjpeg: true
-        })
-        .toBuffer();
+    const stat = fs.statSync(filePath);
+    const mimeType = imageMimeTypeForPath(filePath);
+    if (!mimeType || stat.size <= 0 || stat.size > MAX_AI_IMAGE_BYTES) return null;
+    const buffer = fs.readFileSync(filePath);
 
     return {
-        mimeType: 'image/jpeg',
+        mimeType,
         data: buffer.toString('base64')
     };
 };
@@ -213,12 +250,10 @@ const buildPrompt = (input: {
     type: StorageType;
     hasImage: boolean;
 }) => `
-Sen uluslararası SEO, Google News, Yandex News, Discover ve yapay zeka tarayıcıları için görsel/video dosya adlandırma uzmanısın.
+	Aşağıdaki medya için SEO uyumlu tek dosya adı kökü üret.
 
-Görev: Aşağıdaki haber bağlamına ve mevcut medya adına göre tek bir mükemmel dosya adı kökü üret.
-
-Kurallar:
-- Çıktı SADECE JSON olsun: {"filename":"kisa-seo-dosya-adi"}
+	Kurallar:
+	- Çıktı SADECE JSON olsun: {"filename":"kisa-seo-dosya-adi"}
 - JSON öncesine veya sonrasına açıklama, "Here is the JSON requested", markdown, kod bloğu, yorum, not veya Türkçe/İngilizce giriş cümlesi yazma.
 - Uzantı yazma. .webp, .jpg, .mp4 gibi ekleme.
 - Türkçe karakter kullanma; ASCII küçük harf, rakam ve tire kullan.
@@ -246,45 +281,74 @@ const extractAiFilename = (text: string) => {
     return cleanAiScalarText(String(text || ''));
 };
 
+const shouldRetryTextOnly = (result: { ok: boolean; status?: number; message?: unknown }) => {
+    if (result.ok || result.status !== 400) return false;
+    const message = String(result.message || '').toLowerCase();
+    return (
+        message.includes('inline') ||
+        message.includes('image') ||
+        message.includes('mime') ||
+        message.includes('data') ||
+        message.includes('invalid')
+    );
+};
+
+const usableSeoFilename = (value: string) => {
+    if (!value) return false;
+    if (isBoilerplateAiText(value)) return false;
+    if (isTechnicalMediaText(value)) return false;
+    return true;
+};
+
 const generateSeoName = async (input: {
     apiKey: string;
     model: string;
     context: string;
-    currentName: string;
-    mediaKind: string;
-    type: StorageType;
-    inlineImage: { mimeType: string; data: string } | null;
-}) => {
-    const prompt = buildPrompt({ ...input, hasImage: Boolean(input.inlineImage) });
-    const parts: Array<any> = [{ text: prompt }];
-    if (input.inlineImage) {
-        parts.push({
-            inlineData: {
-                mimeType: input.inlineImage.mimeType,
-                data: input.inlineImage.data
-            }
-        });
-    }
-    const payload = {
-        contents: [{ parts }],
-        generationConfig: {
-            temperature: 0.2,
-            topK: 32,
-            topP: 0.9,
-            maxOutputTokens: 160,
-            responseMimeType: 'application/json',
-        },
-    };
+	    currentName: string;
+	    mediaKind: string;
+	    type: StorageType;
+	    inlineImage: { mimeType: string; data: string } | null;
+	    systemPrompt: string;
+	}) => {
+	    const prompt = buildPrompt({ ...input, hasImage: Boolean(input.inlineImage) });
+	    const makePayload = (modelId: string, inlineImage = input.inlineImage) => {
+	        const parts: Array<any> = [{ text: prompt }];
+	        if (inlineImage) {
+	            parts.push({
+	                inlineData: {
+	                    mimeType: inlineImage.mimeType,
+	                    data: inlineImage.data
+	                }
+	            });
+	        }
+	        const generationConfig: Record<string, unknown> = {
+	            temperature: 0.2,
+	            topK: 32,
+	            topP: 0.9,
+	            maxOutputTokens: 160,
+	            responseMimeType: 'application/json',
+	        };
+	        const thinkingConfig = geminiThinkingConfigForModel(modelId);
+	        if (thinkingConfig) generationConfig.thinkingConfig = thinkingConfig;
+	        return {
+	            system_instruction: {
+	                parts: [{ text: input.systemPrompt.trim() || 'Medya SEO uzmanısın.' }],
+	            },
+	            contents: [{ role: 'user', parts }],
+	            generationConfig,
+	        };
+	    };
 
-    const call = async (apiVersion: 'v1beta' | 'v1', modelId: string) => {
-        const response = await fetch(
+	    const call = async (apiVersion: 'v1beta' | 'v1', modelId: string, inlineImage = input.inlineImage) => {
+	        const response = await fetch(
             `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(input.apiKey)}`,
             {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }
-        );
+	                method: 'POST',
+	                headers: { 'Content-Type': 'application/json' },
+	                body: JSON.stringify(makePayload(modelId, inlineImage)),
+	                signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)
+	            }
+	        );
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data?.error) {
             const message = data?.error?.message || `Gemini HTTP ${response.status}`;
@@ -293,10 +357,7 @@ const generateSeoName = async (input: {
         return { ok: true as const, data, modelId };
     };
 
-    const primaryModel = normalizeGeminiModelName(input.model) || 'gemini-2.5-flash';
-    const fallbackModel = getOneLowerGeminiModel(primaryModel);
-    const modelQueue = [primaryModel];
-    if (fallbackModel && fallbackModel !== primaryModel) modelQueue.push(fallbackModel);
+    const modelQueue = geminiFastModelAttempts(input.model || 'gemini-2.5-flash');
     const fallbackFilename = buildSeoFilenameFallback({
         context: input.context,
         currentName: input.currentName,
@@ -306,23 +367,96 @@ const generateSeoName = async (input: {
     let result: Awaited<ReturnType<typeof call>> | null = null;
     for (let index = 0; index < modelQueue.length; index++) {
         const modelId = modelQueue[index];
-        result = await call('v1beta', modelId);
-        if (!result.ok && result.status === 404) result = await call('v1', modelId);
-        if (result.ok) break;
+        try {
+            result = await call('v1beta', modelId);
+            if (!result.ok && result.status === 404) result = await call('v1', modelId);
+            if (!result.ok && input.inlineImage && shouldRetryTextOnly(result)) {
+                result = await call('v1beta', modelId, null);
+                if (!result.ok && result.status === 404) result = await call('v1', modelId, null);
+            }
+        } catch (error: any) {
+            result = {
+                ok: false as const,
+                status: error?.name === 'TimeoutError' ? 408 : 0,
+                message: error?.message || 'Gemini request failed',
+                modelId,
+            };
+        }
+        if (result.ok) {
+            const aiText = result.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const aiFilename = extractAiFilename(aiText);
+            const selectedSlug = toSeoSlug(aiFilename, '');
+            if (usableSeoFilename(selectedSlug)) return selectedSlug;
+            result = {
+                ok: false as const,
+                status: 422,
+                message: 'Gemini returned unusable media filename',
+                modelId,
+            };
+        }
 
-        const canTryFallback = index === 0 && modelQueue.length > 1 && isGeminiFallbackWorthTrying(result.status, result.message);
-        if (canTryFallback) continue;
+        const canTryFallback = index < modelQueue.length - 1 && isGeminiFallbackWorthTrying(result.status, result.message);
+        if (canTryFallback || result.status === 422) continue;
         break;
     }
 
-    if (!result?.ok) return fallbackFilename;
+    return usableSeoFilename(fallbackFilename) ? fallbackFilename : 'haber-gorseli';
+};
 
-    const aiText = result.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const aiFilename = extractAiFilename(aiText);
-    const selectedName = aiFilename && !isBoilerplateAiText(aiFilename) ? aiFilename : fallbackFilename;
-    const selectedSlug = toSeoSlug(selectedName, 'haber-gorseli');
+type LocalRenameReplacement = {
+    oldId: string;
+    newId: string;
+    oldSrc: string;
+    newSrc: string;
+    oldPublicSrc?: string;
+    newPublicSrc?: string;
+    value?: string;
+    path?: string;
+    size?: number;
+    contentType?: string;
+    thumb?: string;
+    type?: StorageType;
+};
 
-    return isBoilerplateAiText(selectedSlug) ? fallbackFilename : selectedSlug;
+const normalizeRenameReplacements = (value: unknown): LocalRenameReplacement[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+        .map((item) => ({
+            oldId: String(item.oldId || ''),
+            newId: String(item.newId || ''),
+            oldSrc: String(item.oldSrc || ''),
+            newSrc: String(item.newSrc || ''),
+            oldPublicSrc: String(item.oldPublicSrc || ''),
+            newPublicSrc: String(item.newPublicSrc || ''),
+            value: String(item.value || ''),
+            path: String(item.path || ''),
+            size: Number(item.size || 0),
+            contentType: String(item.contentType || ''),
+            thumb: String(item.thumb || ''),
+            type: getStorageType(item.type) || undefined,
+        }))
+        .filter((item) => item.oldId && item.newId && item.oldSrc && item.newSrc);
+};
+
+const updateLocalMediaRecords = async (
+    type: StorageType,
+    replacements: LocalRenameReplacement[],
+) => {
+    for (const replacement of replacements) {
+        await renameLocalMediaRecord({
+            oldId: replacement.oldId,
+            id: replacement.newId,
+            type: replacement.type || type,
+            value: replacement.value || path.posix.basename(replacement.newId),
+            path: replacement.path || path.posix.dirname(replacement.newId),
+            size: Number.isFinite(replacement.size) ? replacement.size || 0 : 0,
+            contentType: replacement.contentType || '',
+            src: replacement.newSrc,
+            publicSrc: replacement.newPublicSrc || replacement.newSrc,
+            thumb: replacement.thumb || replacement.newSrc,
+        });
+    }
 };
 
 export const POST: APIRoute = async ({ request }) => {
@@ -347,9 +481,10 @@ export const POST: APIRoute = async ({ request }) => {
 
         const currentName = path.basename(candidateId);
         const context = String(body?.context || '').slice(0, 6000);
-        const mediaKind = String(body?.mediaKind || 'haber medyası').slice(0, 120);
-        const model = normalizeGeminiModelName(settings.google_ai_model) || 'gemini-2.5-flash';
-        let inlineImage: { mimeType: string; data: string } | null = null;
+	        const mediaKind = String(body?.mediaKind || 'haber medyası').slice(0, 120);
+	        const model = normalizeGeminiModelName(settings.google_ai_model) || 'gemini-2.5-flash';
+	        const systemPrompt = await fetchMediaSeoSystemPrompt(languageCode);
+	        let inlineImage: { mimeType: string; data: string } | null = null;
         if (ref.type === 'image') {
             try {
                 inlineImage = await prepareInlineImage(exactPath);
@@ -362,45 +497,31 @@ export const POST: APIRoute = async ({ request }) => {
             model,
             context,
             currentName,
-            mediaKind,
+	            mediaKind,
+	            type: ref.type,
+	            inlineImage,
+	            systemPrompt
+	        });
+
+        const renameResult = await renameLocalStorageFile({
             type: ref.type,
-            inlineImage
+            id: candidateId,
+            newBase: requestedBase,
         });
-
-        const targets = collectRenameTargets(baseDir, ref.type, candidateId);
-        const uniqueBase = chooseUniqueBase(baseDir, ref.type, targets, requestedBase);
-        const replacements: Array<{ oldId: string; newId: string; oldSrc: string; newSrc: string }> = [];
-
-        for (const target of targets) {
-            const parsed = path.parse(target.id);
-            const ext = target.ext.toLowerCase() || (ref.type === 'video' ? '.mp4' : '.webp');
-            const newFileName = `${uniqueBase}${target.variant}${ext}`;
-            const newId = parsed.dir ? `${parsed.dir}/${newFileName}` : newFileName;
-            const oldFullPath = path.resolve(baseDir, target.id);
-            const newFullPath = path.resolve(baseDir, newId);
-
-            if (!isInside(baseDir, oldFullPath) || !isInside(baseDir, newFullPath)) continue;
-            if (!fs.existsSync(oldFullPath) || target.id === newId) continue;
-
-            fs.renameSync(oldFullPath, newFullPath);
-            replacements.push({
-                oldId: target.id,
-                newId,
-                oldSrc: `/api/storage/file/${ref.type}/${target.id}`,
-                newSrc: `/api/storage/file/${ref.type}/${newId}`
-            });
-        }
-
+        const replacements = normalizeRenameReplacements(renameResult?.replacements);
         const selectedReplacement = replacements.find((item) => item.oldId === candidateId) || replacements[0];
+        await updateLocalMediaRecords(ref.type, replacements);
+        const mediaUpdateResult = await updatePostsMediaReferences(replacements);
 
         return json({
             success: true,
-            filename: uniqueBase,
-            src: selectedReplacement?.newSrc || `/api/storage/file/${ref.type}/${candidateId}`,
-            replacements
+            filename: String(renameResult?.filename || requestedBase),
+            src: String(renameResult?.src || selectedReplacement?.newSrc || `/api/storage/file/${ref.type}/${candidateId}`),
+            replacements,
+            dbUpdatedPosts: mediaUpdateResult.updatedPosts,
         });
     } catch (error: any) {
-        console.error('SEO Rename Error:', error);
+        if ((error?.status || 500) >= 500) console.error('SEO Rename Error:', error);
         return json({ error: error.message || 'SEO rename failed' }, error?.status || 500);
     }
 };

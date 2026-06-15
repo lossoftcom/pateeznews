@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _articleBlockStrongLine = Color(0xFFDDE5E8);
 const _articleBlockSoftLine = Color(0xFFE8EEF1);
@@ -86,7 +87,7 @@ class ArticleTextBlockCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.text_fields,
+                          Symbols.text_fields,
                           color: AppColors.actionRed,
                           size: 18,
                         ),
@@ -216,19 +217,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: canDelete,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -374,8 +375,8 @@ class _ExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _articleBlockMutedText.withValues(alpha: 0.72),
                     ),

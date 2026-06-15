@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
+import 'package:pateeznews_admin/shared/widgets/highlighted_text.dart';
 
 import '../../../shared/widgets/admin_rich_text_editor.dart';
 import '../presentation/pages_models.dart';
@@ -125,20 +126,63 @@ class SupabaseAdminPagesRepository implements AdminPagesRepository {
     required String sortKey,
     required bool sortAscending,
   }) async {
-    final filters = <Map<String, Object?>>[];
-    final term = _safeSearchTerm(search);
-    if (term.isNotEmpty) {
-      final pattern = '%$term%';
-      filters.add({
-        'type': 'or',
-        'value':
-            'title.ilike.$pattern,slug.ilike.$pattern,category.ilike.$pattern,page_type.ilike.$pattern,status.ilike.$pattern,language_code.ilike.$pattern',
-      });
-    }
-    if (category != _all) filters.add(_eqFilter('category_id', category));
-    if (type != _all) filters.add(_eqFilter('page_type', type));
-    if (status != _all) filters.add(_eqFilter('status', status));
+    final baseFilters = <Map<String, Object?>>[];
+    if (category != _all) baseFilters.add(_eqFilter('category_id', category));
+    if (type != _all) baseFilters.add(_eqFilter('page_type', type));
+    if (status != _all) baseFilters.add(_eqFilter('status', status));
 
+    final term = _safeSearchTerm(search);
+    if (term.isEmpty) {
+      return _fetchPagesPage(
+        filters: baseFilters,
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    }
+    // Haberler ile AYNI teknoloji: normalize (Türkçe-duyarsız) + trigram'lı
+    // admin_search_text. Şema/sürüm güncel değilse eski ham filtreye düşeriz.
+    try {
+      return await _fetchPagesPage(
+        filters: [_normalizedSearchFilter(term), ...baseFilters],
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    } catch (_) {
+      return _fetchPagesPage(
+        filters: [_legacySearchFilter(term), ...baseFilters],
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    }
+  }
+
+  Map<String, Object?> _normalizedSearchFilter(String term) {
+    final pattern = '%${normalizeSearchText(term).replaceAll(',', ' ').trim()}%';
+    return {'type': 'or', 'value': 'admin_search_text.ilike.$pattern'};
+  }
+
+  Map<String, Object?> _legacySearchFilter(String term) {
+    final pattern = '%$term%';
+    return {
+      'type': 'or',
+      'value':
+          'title.ilike.$pattern,slug.ilike.$pattern,page_group.ilike.$pattern,category.ilike.$pattern,page_type.ilike.$pattern,status.ilike.$pattern,language_code.ilike.$pattern',
+    };
+  }
+
+  Future<AdminPagesPageResult> _fetchPagesPage({
+    required List<Map<String, Object?>> filters,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
@@ -146,7 +190,7 @@ class SupabaseAdminPagesRepository implements AdminPagesRepository {
       'table': 'pages',
       'method': 'select',
       'select':
-          'id,title,slug,category,category_id,page_type,status,language_code,location,parent_page_id,show_title,show_breadcrumb,show_sidebar,registered_only,menu_order,content_delta,content_plain,meta_title,meta_keywords,meta_description,canonical_url,created_at',
+          'id,title,slug,page_group,category,category_id,page_type,status,language_code,location,parent_page_id,show_title,show_breadcrumb,show_sidebar,registered_only,menu_order,content_delta,content_plain,meta_title,meta_keywords,meta_description,canonical_url,created_at',
       'filters': filters,
       'orders': _pageOrders(sortKey, sortAscending),
       'range': {'from': from, 'to': to},
@@ -222,6 +266,9 @@ class SupabaseAdminPagesRepository implements AdminPagesRepository {
       'slug': data.slug.trim().isEmpty
           ? _slugify(data.title)
           : _slugify(data.slug),
+      'page_group': data.pageGroup.trim().isEmpty
+          ? 'Kurumsal'
+          : data.pageGroup.trim(),
       'language_code': data.languageCode.trim().isEmpty
           ? 'tr'
           : data.languageCode.trim(),
@@ -343,6 +390,7 @@ class SupabaseAdminPagesRepository implements AdminPagesRepository {
   List<Map<String, Object?>> _pageOrders(String sortKey, bool ascending) {
     final column = switch (sortKey) {
       'title' => 'title',
+      'group' => 'page_group',
       'category' => 'category',
       'type' => 'page_type',
       'status' => 'status',
@@ -443,6 +491,7 @@ class SupabaseAdminPagesRepository implements AdminPagesRepository {
       rowNumber: rowNumber,
       title: _decodeText(json['title']),
       slug: json['slug']?.toString() ?? '',
+      pageGroup: _decodeText(json['page_group']),
       category: category,
       categoryId: categoryId,
       type: json['page_type']?.toString() ?? 'custom',

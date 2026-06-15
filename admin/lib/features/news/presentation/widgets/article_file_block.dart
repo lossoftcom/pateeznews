@@ -11,6 +11,7 @@ import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
 import 'news_link_opener.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _fileBlockStrongLine = Color(0xFFDDE5E8);
 const _fileBlockSoftLine = Color(0xFFE8EEF1);
@@ -114,7 +115,7 @@ class ArticleFileBlockCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.attach_file_rounded,
+                          Symbols.attach_file_rounded,
                           color: AppColors.deepOcean,
                           size: 18,
                         ),
@@ -346,19 +347,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -515,7 +516,7 @@ class _EmptyFilePicker extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.add,
+                  Symbols.add,
                   color: _fileBlockUploadInk,
                   size: 32,
                 ),
@@ -569,7 +570,7 @@ class _EmptyFilePicker extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.link_rounded,
+                          Symbols.link_rounded,
                           size: 13,
                           color: AppColors.deepOcean,
                         ),
@@ -698,7 +699,7 @@ class _SelectedFilePreviewState extends State<_SelectedFilePreview> {
                         Expanded(child: _FileViewButton(onTap: _openFile)),
                         const SizedBox(width: 8),
                         _FileSquareActionButton(
-                          icon: Icons.delete_outline,
+                          icon: Symbols.delete_outline,
                           color: AppColors.actionRed,
                           onTap: widget.onClear,
                         ),
@@ -717,7 +718,7 @@ class _SelectedFilePreviewState extends State<_SelectedFilePreview> {
                   duration: const Duration(milliseconds: 120),
                   opacity: _hover ? 1 : 0,
                   child: _FileSquareActionButton(
-                    icon: Icons.edit_outlined,
+                    icon: Symbols.edit_outlined,
                     onTap: widget.onPickFile,
                   ),
                 ),
@@ -779,7 +780,7 @@ class _FileIconTile extends StatelessWidget {
               ],
             ),
             child: const Icon(
-              Icons.download_rounded,
+              Symbols.download_rounded,
               color: Colors.white,
               size: 14,
             ),
@@ -821,7 +822,7 @@ class _FileViewButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(
-                Icons.open_in_new_rounded,
+                Symbols.open_in_new_rounded,
                 color: AppColors.deepOcean,
                 size: 13,
               ),
@@ -962,8 +963,8 @@ class _ExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _fileBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -1236,21 +1237,21 @@ String _safeDecode(String value) {
 IconData _fileIcon(String extension) {
   switch (extension.toLowerCase()) {
     case 'pdf':
-      return Icons.description_outlined;
+      return Symbols.description_outlined;
     case 'doc':
     case 'docx':
-      return Icons.text_snippet_outlined;
+      return Symbols.text_snippet_outlined;
     case 'xls':
     case 'xlsx':
-      return Icons.table_chart_outlined;
+      return Symbols.table_chart_outlined;
     case 'ppt':
     case 'pptx':
-      return Icons.slideshow_outlined;
+      return Symbols.slideshow_outlined;
     case 'txt':
     case 'md':
-      return Icons.article_outlined;
+      return Symbols.article_outlined;
     default:
-      return Icons.insert_drive_file_outlined;
+      return Symbols.insert_drive_file_outlined;
   }
 }
 

@@ -1437,6 +1437,11 @@ abstract class AdminModuleSettingsRepository {
     required String id,
   });
 
+  Future<void> deleteAnnouncements({
+    required AdminSession session,
+    required List<String> ids,
+  });
+
   Future<AnnouncementRefreshResult> refreshAnnouncements({
     required AdminSession session,
   });
@@ -1755,6 +1760,19 @@ class SupabaseAdminModuleSettingsRepository
       'id': id,
     });
     _throwIfApiError(result, fallbackMessage: 'Duyuru silinemedi');
+  }
+
+  @override
+  Future<void> deleteAnnouncements({
+    required AdminSession session,
+    required List<String> ids,
+  }) async {
+    if (ids.isEmpty) return;
+    final result = await _postJson('/api/admin/announcements/items', {
+      'action': 'delete',
+      'ids': ids,
+    });
+    _throwIfApiError(result, fallbackMessage: 'Duyurular silinemedi');
   }
 
   @override

@@ -109,6 +109,7 @@ class AppShellPage {
     required this.contentPlain,
     required this.metaDescription,
     required this.canonicalUrl,
+    this.pageGroup = 'Kurumsal',
   });
 
   factory AppShellPage.fromJson(Map<dynamic, dynamic> json) {
@@ -118,6 +119,7 @@ class AppShellPage {
       slug: _string(json['slug']),
       categoryId: _string(json['categoryId']),
       category: _string(json['category']),
+      pageGroup: _string(json['pageGroup']),
       pageType: _string(json['pageType']),
       menuOrder: int.tryParse(json['menuOrder']?.toString() ?? '') ?? 0,
       contentPlain: _string(json['contentPlain']),
@@ -131,6 +133,7 @@ class AppShellPage {
   final String slug;
   final String categoryId;
   final String category;
+  final String pageGroup;
   final String pageType;
   final int menuOrder;
   final String contentPlain;
@@ -141,6 +144,8 @@ class AppShellPage {
     final cleanRootId = rootId.trim();
     return cleanRootId.isNotEmpty && categoryId == cleanRootId;
   }
+
+  String get pageGroupKey => _normalizedPageGroup(pageGroup);
 }
 
 class AppShellData {
@@ -223,7 +228,21 @@ class AppShellData {
     final rootPages = pages
         .where((page) => page.belongsToRoot(rootId))
         .toList(growable: false);
-    return rootPages.isEmpty ? pages : rootPages;
+    return _primaryPageGroup(rootPages.isEmpty ? pages : rootPages);
+  }
+
+  List<AppShellPage> _primaryPageGroup(List<AppShellPage> scopedPages) {
+    final groups = scopedPages
+        .map((page) => page.pageGroupKey)
+        .where((group) => group.isNotEmpty)
+        .toList(growable: false);
+    if (groups.isEmpty) return scopedPages;
+    final selectedGroup = groups.contains('kurumsal')
+        ? 'kurumsal'
+        : groups.first;
+    return scopedPages
+        .where((page) => page.pageGroupKey == selectedGroup)
+        .toList(growable: false);
   }
 }
 
@@ -280,6 +299,20 @@ String _string(Object? value) => (value ?? '').toString().trim();
 String? _nullableString(Object? value) {
   final result = _string(value);
   return result.isEmpty ? null : result;
+}
+
+String _normalizedPageGroup(String value) {
+  return value
+      .trim()
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ş', 's')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c')
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
 }
 
 int _menuRank(String code) {

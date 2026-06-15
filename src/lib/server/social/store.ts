@@ -199,6 +199,12 @@ export async function fetchConnectedAccounts() {
        ca.avatar_url,
        ca.channel_id,
        ca.channel_name,
+       ca.raw_json,
+       COALESCE(
+         NULLIF(ca.raw_json->>'twitterSubType', ''),
+         NULLIF(ca.raw_json->>'twitter_sub_type', ''),
+         ''
+       ) AS twitter_sub_type,
        ca.durum AS status,
        ca.baglanma_tarihi AS connected_at,
        ca.guncelleme_tarihi AS updated_at,

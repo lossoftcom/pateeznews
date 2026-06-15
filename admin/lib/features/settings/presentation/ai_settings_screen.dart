@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -122,6 +123,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             adminContentsAiDefaultPromptData,
             adminRecipeAiDefaultPromptData,
             adminEventAiDefaultPromptData,
+            adminMediaSeoAiDefaultPromptData,
           ];
     final normalizedTitles = {
       for (final prompt in prompts) _normalizePromptTitle(prompt.title),
@@ -266,10 +268,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(context.t(message))));
+  void _showMessage(
+    String message, {
+    AdminToastTone tone = AdminToastTone.info,
+  }) {
+    AdminToast.show(context, message: context.t(message), tone: tone);
   }
 
   void _selectTab(_AiSettingsTab tab) {

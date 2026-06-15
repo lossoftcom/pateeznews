@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 enum AdminContactImportSource { csv, excel }
 
@@ -28,8 +29,8 @@ extension AdminContactImportSourceData on AdminContactImportSource {
 
   IconData get icon {
     return switch (this) {
-      AdminContactImportSource.csv => Icons.table_chart_outlined,
-      AdminContactImportSource.excel => Icons.grid_on_outlined,
+      AdminContactImportSource.csv => Symbols.table_chart_outlined,
+      AdminContactImportSource.excel => Symbols.grid_on_outlined,
     };
   }
 }

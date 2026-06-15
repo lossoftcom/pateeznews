@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Slack message preview.
 class SlackPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class SlackPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -60,6 +63,7 @@ class SlackPreview extends StatelessWidget {
                         letterSpacing: 0,
                       ),
                     ),
+                    ?accountAction,
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -193,9 +197,9 @@ class SlackPreview extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 200),
-                        child: AdminCachedImage(
+                        child: SocialMediaPreview(
                           url: imageUrl,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                           width: double.infinity,
                           memCacheWidth: 1080,
                           errorWidget: Container(
@@ -203,7 +207,7 @@ class SlackPreview extends StatelessWidget {
                             color: const Color(0xFFF8F8F8),
                             child: const Center(
                               child: Icon(
-                                Icons.image_outlined,
+                                Symbols.image_outlined,
                                 size: 40,
                                 color: Color(0xFFE0E0E0),
                               ),
@@ -271,7 +275,7 @@ class SlackPreview extends StatelessWidget {
                       ),
                       const Spacer(),
                       const Icon(
-                        Icons.chat_bubble_outline_rounded,
+                        Symbols.chat_bubble_outline_rounded,
                         size: 16,
                         color: Color(0xFF1264A3),
                       ),

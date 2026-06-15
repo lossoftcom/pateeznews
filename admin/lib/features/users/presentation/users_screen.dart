@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/data/admin_memory_cache.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_users_repository.dart';
@@ -68,6 +69,8 @@ class _UsersScreenState extends State<UsersScreen> {
   var _rewardFilter = _all;
   var _statusFilter = _all;
   var _sortState = const TableSortState(key: 'created', ascending: false);
+  var _searching = false;
+  var _searchSeq = 0;
 
   @override
   void initState() {
@@ -142,10 +145,14 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 
   /// Arka plan yenileme: listeyi spinner'a düşürmeden sessizce günceller.
-  Future<void> _refreshUsersSilently() async {
+  Future<void> _refreshUsersSilently({bool isSearch = false}) async {
+    final seq = ++_searchSeq;
+    if (isSearch && mounted && !_searching) {
+      setState(() => _searching = true);
+    }
     try {
       final result = await _fetchUsers();
-      if (!mounted) return;
+      if (!mounted || seq != _searchSeq) return;
       _usersPageCache.set(_usersPageKey(), result);
       setState(() {
         _users = result.users;
@@ -154,10 +161,35 @@ class _UsersScreenState extends State<UsersScreen> {
           (id) => !_users.any((user) => user.id == id),
         );
         _errorText = null;
+        _searching = false;
       });
     } catch (_) {
       // Sessiz yenileme; mevcut veri ekranda kalır.
+      if (mounted && seq == _searchSeq && _searching) {
+        setState(() => _searching = false);
+      }
     }
+  }
+
+  /// Anlık (0ms) istemci filtresi — Haberler ile aynı Türkçe-duyarsız eşleşme.
+  List<ManagedUser> _visibleUsers() {
+    final query = _searchQuery.trim();
+    if (query.isEmpty) return _users;
+    return _users
+        .where((user) => searchMatchesAll(_userHaystack(user), query))
+        .toList(growable: false);
+  }
+
+  String _userHaystack(ManagedUser user) {
+    return [
+      user.id,
+      user.displayName,
+      user.fullName,
+      user.username,
+      user.email,
+      user.role,
+      user.roleLabel,
+    ].join(' ');
   }
 
   Future<void> _loadUsers() async {
@@ -233,15 +265,16 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 
   void _changeSearch(String value) {
-    setState(() => _searchQuery = value);
+    // Anlık his: yazar yazmaz görünür satırlar istemci tarafında filtrelenir.
+    setState(() {
+      _searchQuery = value;
+      _page = 1;
+      _selectedUserIds.clear();
+    });
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      setState(() {
-        _page = 1;
-        _selectedUserIds.clear();
-      });
-      unawaited(_loadUsers());
+      unawaited(_refreshUsersSilently(isSearch: true));
     });
   }
 
@@ -426,7 +459,6 @@ class _UsersScreenState extends State<UsersScreen> {
         description: context.t('Active systems'),
         icon: Symbols.verified,
         iconColor: AppColors.actionRed,
-        centerContent: true,
       ),
       UserMetric(
         title: context.t('Active Users'),
@@ -460,18 +492,19 @@ class _UsersScreenState extends State<UsersScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const _UsersTitle(),
-            const SizedBox(height: 22),
-            UsersSummaryGrid(metrics: _metricCards),
+            const SizedBox(height: 16),
+            UsersSummaryGrid(metrics: _metricCards, compact: true),
             if (_errorText != null) ...[
               const SizedBox(height: 16),
               _UsersErrorBanner(message: _errorText!),
             ],
-            SizedBox(height: mobile ? 14 : 24),
+            SizedBox(height: mobile ? 12 : 16),
             Expanded(
               child: UsersTableCard(
-                users: _users,
+                users: _visibleUsers(),
                 roles: _roles,
                 loading: _loading,
+                searching: _searching && _searchQuery.trim().isNotEmpty,
                 page: _page,
                 pageSize: _pageSize,
                 totalCount: _totalCount,

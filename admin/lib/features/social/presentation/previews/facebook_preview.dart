@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Facebook post preview with authentic layout.
 class FacebookPreview extends StatelessWidget {
@@ -11,6 +12,9 @@ class FacebookPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.profileUsername = 'pateeznews',
+    this.avatarUrl = '',
+    this.accountAction,
   });
 
   final String caption;
@@ -18,9 +22,19 @@ class FacebookPreview extends StatelessWidget {
   final String linkUrl;
   final String linkTitle;
   final String profileName;
+  final String profileUsername;
+  final String avatarUrl;
+
+  /// Avatar başlığında ismin yanında gösterilecek "hesap değiştir" oku (opsiyonel).
+  final Widget? accountAction;
 
   @override
   Widget build(BuildContext context) {
+    final cleanUsername = profileUsername.trim().replaceFirst(
+      RegExp(r'^@'),
+      '',
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -46,6 +60,9 @@ class FacebookPreview extends StatelessWidget {
                 CircleAvatar(
                   radius: 19,
                   backgroundColor: const Color(0xFF1877F2),
+                  foregroundImage: avatarUrl.trim().isNotEmpty
+                      ? NetworkImage(avatarUrl.trim())
+                      : null,
                   child: Text(
                     profileName.isNotEmpty ? profileName[0] : 'P',
                     style: const TextStyle(
@@ -60,18 +77,50 @@ class FacebookPreview extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        profileName,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF050505),
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      const Row(
+                      Row(
                         children: [
-                          Text(
+                          Flexible(
+                            child: Text(
+                              profileName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF050505),
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                          ?accountAction,
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          if (cleanUsername.isNotEmpty) ...[
+                            Flexible(
+                              child: Text(
+                                '@$cleanUsername',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF65676B),
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              '•',
+                              style: TextStyle(
+                                color: Color(0xFF65676B),
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          const Text(
                             'Şimdi',
                             style: TextStyle(
                               fontSize: 12,
@@ -79,17 +128,17 @@ class FacebookPreview extends StatelessWidget {
                               letterSpacing: 0,
                             ),
                           ),
-                          SizedBox(width: 4),
-                          Text(
+                          const SizedBox(width: 4),
+                          const Text(
                             '•',
                             style: TextStyle(
                               color: Color(0xFF65676B),
                               fontSize: 12,
                             ),
                           ),
-                          SizedBox(width: 4),
-                          Icon(
-                            Icons.public,
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Symbols.public,
                             size: 12,
                             color: Color(0xFF65676B),
                           ),
@@ -99,7 +148,7 @@ class FacebookPreview extends StatelessWidget {
                   ),
                 ),
                 const Icon(
-                  Icons.more_horiz,
+                  Symbols.more_horiz,
                   color: Color(0xFF65676B),
                   size: 22,
                 ),
@@ -128,19 +177,20 @@ class FacebookPreview extends StatelessWidget {
           if (imageUrl.isNotEmpty || linkUrl.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(
-                  color: const Color(0xFFF0F2F5),
-                  child: imageUrl.isNotEmpty
-                      ? AdminCachedImage(
-                          url: imageUrl,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 1080,
-                          errorWidget: _imagePlaceholder(),
-                        )
-                      : _imagePlaceholder(),
-                ),
+              child: Container(
+                color: const Color(0xFFF0F2F5),
+                child: imageUrl.isNotEmpty
+                    ? SocialMediaPreview(
+                        url: imageUrl,
+                        width: double.infinity,
+                        fit: BoxFit.fitWidth,
+                        memCacheWidth: 1080,
+                        errorWidget: SizedBox(
+                          height: 160,
+                          child: _imagePlaceholder(),
+                        ),
+                      )
+                    : SizedBox(height: 160, child: _imagePlaceholder()),
               ),
             ),
 
@@ -165,7 +215,7 @@ class FacebookPreview extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Icon(
-                        Icons.link,
+                        Symbols.link,
                         size: 20,
                         color: Color(0xFF65676B),
                       ),
@@ -216,7 +266,7 @@ class FacebookPreview extends StatelessWidget {
                     color: Color(0xFF1877F2),
                   ),
                   child: const Icon(
-                    Icons.thumb_up,
+                    Symbols.thumb_up,
                     size: 10,
                     color: Colors.white,
                   ),
@@ -231,7 +281,7 @@ class FacebookPreview extends StatelessWidget {
                       color: Color(0xFFED4956),
                     ),
                     child: const Icon(
-                      Icons.favorite,
+                      Symbols.favorite,
                       size: 10,
                       color: Colors.white,
                     ),
@@ -263,14 +313,14 @@ class FacebookPreview extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _ActionButton(
-                  icon: Icons.thumb_up_alt_outlined,
+                  icon: Symbols.thumb_up_alt_outlined,
                   label: 'Beğen',
                 ),
                 _ActionButton(
-                  icon: Icons.chat_bubble_outline_rounded,
+                  icon: Symbols.chat_bubble_outline_rounded,
                   label: 'Yorum',
                 ),
-                _ActionButton(icon: Icons.reply_rounded, label: 'Paylaş'),
+                _ActionButton(icon: Symbols.reply_rounded, label: 'Paylaş'),
               ],
             ),
           ),
@@ -283,7 +333,7 @@ class FacebookPreview extends StatelessWidget {
     return Container(
       color: const Color(0xFFF0F2F5),
       child: const Center(
-        child: Icon(Icons.image_outlined, size: 48, color: Color(0xFFBCC0C4)),
+        child: Icon(Symbols.image_outlined, size: 48, color: Color(0xFFBCC0C4)),
       ),
     );
   }

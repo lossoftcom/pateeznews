@@ -616,6 +616,9 @@ class _FakeAdminCommentsRepository implements AdminCommentsRepository {
       userAvatar: '',
       guestName: '',
       guestEmail: '',
+      userFullName: 'Pateez Niğde',
+      userEmail: 'pateezcom@gmail.com',
+      userUsername: 'nigdejournal',
     ),
     AdminComment(
       id: '2',
@@ -635,11 +638,16 @@ class _FakeAdminCommentsRepository implements AdminCommentsRepository {
       userAvatar: '',
       guestName: '',
       guestEmail: '',
+      userFullName: 'Nasip Gündoğu',
+      userEmail: 'demo.user@gmail.com',
+      userUsername: 'nasip',
     ),
   ];
 
   String? approvedCommentId;
+  List<String>? approvedCommentIds;
   String? rejectedCommentId;
+  List<String>? rejectedCommentIds;
   String? toggledPinnedCommentId;
   bool? toggledPinnedValue;
   String? deletedCommentId;
@@ -654,9 +662,21 @@ class _FakeAdminCommentsRepository implements AdminCommentsRepository {
   }
 
   @override
+  Future<void> approveComments(List<String> commentIds) async {
+    approvedCommentIds = commentIds;
+    _updateStatuses(commentIds, 'approved');
+  }
+
+  @override
   Future<void> rejectComment(String commentId) async {
     rejectedCommentId = commentId;
     _updateStatus(commentId, 'rejected');
+  }
+
+  @override
+  Future<void> rejectComments(List<String> commentIds) async {
+    rejectedCommentIds = commentIds;
+    _updateStatuses(commentIds, 'rejected');
   }
 
   @override
@@ -792,6 +812,9 @@ class _FakeAdminCommentsRepository implements AdminCommentsRepository {
         userAvatar: '',
         guestName: '',
         guestEmail: '',
+        userFullName: 'Nasip Gündoğu',
+        userEmail: 'demo.user@gmail.com',
+        userUsername: 'nasip',
       ),
     );
   }
@@ -812,6 +835,12 @@ class _FakeAdminCommentsRepository implements AdminCommentsRepository {
     final index = _comments.indexWhere((comment) => comment.id == commentId);
     if (index == -1) return;
     _comments[index] = _copyComment(_comments[index], status: status);
+  }
+
+  void _updateStatuses(List<String> commentIds, String status) {
+    for (final commentId in commentIds) {
+      _updateStatus(commentId, status);
+    }
   }
 
   int _numericId(String value) => int.tryParse(value) ?? 0;
@@ -840,6 +869,9 @@ class _FakeAdminCommentsRepository implements AdminCommentsRepository {
       userAvatar: comment.userAvatar,
       guestName: comment.guestName,
       guestEmail: comment.guestEmail,
+      userFullName: comment.userFullName,
+      userEmail: comment.userEmail,
+      userUsername: comment.userUsername,
     );
   }
 }
@@ -1234,6 +1266,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
     required String status,
     required String publisher,
     required bool trash,
+    required bool videoOnly,
     required int page,
     required int pageSize,
     required String sortKey,
@@ -1255,12 +1288,14 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
           final matchesStatus = status == 'Tümü' || post.status == status;
           final matchesPublisher =
               publisher == 'Tümü' || post.publisherId == publisher;
+          final matchesVideoOnly = !videoOnly || post.videos.isNotEmpty;
           return matchesSearch &&
               matchesLanguage &&
               matchesCategory &&
               matchesType &&
               matchesStatus &&
-              matchesPublisher;
+              matchesPublisher &&
+              matchesVideoOnly;
         })
         .toList(growable: false);
     rows.sort((a, b) {
@@ -2582,6 +2617,7 @@ class _FakeAdminModuleSettingsRepository
   String? toggledAnnouncementId;
   bool? toggledAnnouncementActive;
   String? deletedAnnouncementId;
+  final deletedAnnouncementIds = <String>[];
   MarketSettingsData marketSettings = const MarketSettingsData(
     languageCode: 'tr',
     enabled: true,
@@ -3005,6 +3041,14 @@ class _FakeAdminModuleSettingsRepository
   }) async {
     deletedAnnouncementId = id;
   }
+
+  @override
+  Future<void> deleteAnnouncements({
+    required AdminSession session,
+    required List<String> ids,
+  }) async {
+    deletedAnnouncementIds.addAll(ids);
+  }
 }
 
 class _FakeAdminSocialRepository implements AdminSocialRepository {
@@ -3393,7 +3437,7 @@ void main() {
   testWidgets('Giriş ekranı temel alanları gösterir', (tester) async {
     await _pumpAdminApp(tester);
 
-    expect(find.text('Pateeznews admin'), findsOneWidget);
+    expect(find.text('Pateez'), findsOneWidget);
     expect(find.text('Yönetim girişi'), findsOneWidget);
     expect(find.text('E-posta adresi'), findsOneWidget);
     expect(find.text('Şifre'), findsOneWidget);
@@ -3762,11 +3806,19 @@ void main() {
     expect(find.text('İşlem'), findsOneWidget);
     expect(find.text('Sabit onaylı yorum.'), findsOneWidget);
     expect(find.text('İlk yorum onay bekliyor.'), findsOneWidget);
+    expect(find.text('demo.user@gmail.com'), findsOneWidget);
+    expect(find.text('@nasip'), findsOneWidget);
+    expect(find.text('pateezcom@gmail.com'), findsOneWidget);
+    expect(find.text('@nigdejournal'), findsOneWidget);
     expect(find.text('Onaylı haber'), findsOneWidget);
     expect(find.text('Deneme haberi'), findsOneWidget);
     expect(find.text('1 Şikayet'), findsOneWidget);
     expect(find.text('1 - 2 / 2 kayıt gösteriliyor'), findsOneWidget);
     expect(find.byTooltip('Yorum işlemleri'), findsNWidgets(2));
+
+    await tester.tap(find.text('@nasip'));
+    await tester.pumpAndSettle();
+    expect(find.text('Seçili 1 yorumu sil'), findsNothing);
 
     await tester.tap(find.text('...').first);
     await tester.pumpAndSettle();
@@ -3786,6 +3838,24 @@ void main() {
     await tester.tap(find.byType(Checkbox).at(1));
     await tester.pumpAndSettle();
     expect(find.text('Seçili 1 yorumu sil'), findsOneWidget);
+    expect(find.text('Onayla'), findsOneWidget);
+    expect(find.text('Reddet'), findsOneWidget);
+
+    await tester.tap(find.text('Onayla'));
+    await tester.pumpAndSettle();
+
+    expect(commentsRepository.approvedCommentIds, ['2']);
+
+    await tester.tap(find.byType(Checkbox).at(1));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Reddet'));
+    await tester.pumpAndSettle();
+
+    expect(commentsRepository.rejectedCommentIds, ['2']);
+
+    await tester.tap(find.byType(Checkbox).at(1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Seçili 1 yorumu sil'));
     await tester.pumpAndSettle();
@@ -3823,6 +3893,33 @@ void main() {
     expect(find.text('IP'), findsOneWidget);
     expect(find.text('Şehir'), findsOneWidget);
     expect(find.text('1 - 2 / 2 kayıt gösteriliyor'), findsOneWidget);
+
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) => widget.runtimeType.toString() == '_ListCheckbox',
+          )
+          .at(1),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 seçili aboneyi sil'), findsOneWidget);
+
+    await tester.tap(find.text('1 seçili aboneyi sil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seçili aboneler silinsin mi?'), findsOneWidget);
+    await tester.tap(find.text('İptal'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) => widget.runtimeType.toString() == '_ListCheckbox',
+          )
+          .at(1),
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Abone Ekle'));
     await tester.pumpAndSettle();
@@ -4467,7 +4564,7 @@ void main() {
     expect(find.text('Yeni Menü'), findsOneWidget);
     await tester.tap(find.text('Örn: location_on, poll, quiz'));
     await tester.pumpAndSettle();
-    expect(find.text('İkon Adı (Material Symbols)'), findsOneWidget);
+    expect(find.text('İkon Adı (RemixIcon)'), findsOneWidget);
     await tester.tapAt(tester.getCenter(find.text('home').last));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Kaydet').last);
@@ -4680,7 +4777,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(_isTextAbove(tester, 'Editör', 'Süper Yönetici'), isTrue);
 
-    await tester.tap(find.text('Sıra No'));
+    await tester.tap(find.text('ID'));
     await tester.pumpAndSettle();
     expect(_isTextAbove(tester, 'Süper Yönetici', 'Editör'), isTrue);
 

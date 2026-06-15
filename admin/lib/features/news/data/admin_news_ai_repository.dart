@@ -834,6 +834,14 @@ bool _isEventPromptTitle(String title) {
       normalized.contains('program');
 }
 
+bool _isMediaSeoPromptTitle(String title) {
+  final normalized = title.trim().toLowerCase();
+  return normalized.contains('medya seo') ||
+      normalized.contains('media seo') ||
+      normalized.contains('ai medya') ||
+      normalized.contains('yapay zeka medya');
+}
+
 bool _isInteractivePromptTitle(String title) {
   return _isQuizPromptTitle(title) || _isPollPromptTitle(title);
 }
@@ -843,7 +851,8 @@ bool _isDedicatedFormatPromptTitle(String title) {
       _isVideoPromptTitle(title) ||
       _isContentsPromptTitle(title) ||
       _isRecipePromptTitle(title) ||
-      _isEventPromptTitle(title);
+      _isEventPromptTitle(title) ||
+      _isMediaSeoPromptTitle(title);
 }
 
 String _deepResearchSettingsLine(AdminNewsAiDraftRequest request) {

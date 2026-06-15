@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 enum AdminSmsTemplateCategory { campaign, info, invitation, order, quote }
 
@@ -30,7 +31,7 @@ class AdminSmsTemplateVariable {
   const AdminSmsTemplateVariable({
     required this.token,
     required this.labelKey,
-    this.icon = Icons.data_object_outlined,
+    this.icon = Symbols.data_object_outlined,
   });
 
   final String token;
@@ -95,62 +96,62 @@ const adminSmsTemplateMemberVariables = <AdminSmsTemplateVariable>[
   AdminSmsTemplateVariable(
     token: '{{uye_adi}}',
     labelKey: 'sms.template.variable.memberName',
-    icon: Icons.person_outline,
+    icon: Symbols.person_outline,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_kullanici_adi}}',
     labelKey: 'sms.template.variable.username',
-    icon: Icons.alternate_email,
+    icon: Symbols.alternate_email,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_eposta}}',
     labelKey: 'sms.template.variable.email',
-    icon: Icons.mail_outline,
+    icon: Symbols.mail_outline,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_telefon}}',
     labelKey: 'sms.template.variable.phone',
-    icon: Icons.phone_outlined,
+    icon: Symbols.phone_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_rol}}',
     labelKey: 'sms.template.variable.role',
-    icon: Icons.verified_user_outlined,
+    icon: Symbols.verified_user_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_kayit_tarihi}}',
     labelKey: 'sms.template.variable.registerDate',
-    icon: Icons.calendar_today_outlined,
+    icon: Symbols.calendar_today_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_son_giris}}',
     labelKey: 'sms.template.variable.lastLogin',
-    icon: Icons.schedule_outlined,
+    icon: Symbols.schedule_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_profil_linki}}',
     labelKey: 'sms.template.variable.profileUrl',
-    icon: Icons.link_outlined,
+    icon: Symbols.link_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_avatar}}',
     labelKey: 'sms.template.variable.avatar',
-    icon: Icons.image_outlined,
+    icon: Symbols.image_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_onay_durumu}}',
     labelKey: 'sms.template.variable.approvalStatus',
-    icon: Icons.fact_check_outlined,
+    icon: Symbols.fact_check_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_odul_puani}}',
     labelKey: 'sms.template.variable.rewardPoint',
-    icon: Icons.workspace_premium_outlined,
+    icon: Symbols.workspace_premium_outlined,
   ),
   AdminSmsTemplateVariable(
     token: '{{uye_abonelik_durumu}}',
     labelKey: 'sms.template.variable.subscriptionStatus',
-    icon: Icons.notifications_active_outlined,
+    icon: Symbols.notifications_active_outlined,
   ),
 ];
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// YouTube video card preview.
 class YoutubePreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class YoutubePreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     final title = linkTitle.isNotEmpty
@@ -37,13 +40,13 @@ class YoutubePreview extends StatelessWidget {
                   child: Container(
                     color: const Color(0xFF1A1A1A),
                     child: imageUrl.isNotEmpty
-                        ? AdminCachedImage(
+                        ? SocialMediaPreview(
                             url: imageUrl,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                             memCacheWidth: 1080,
                             errorWidget: const Center(
                               child: Icon(
-                                Icons.play_circle_outline,
+                                Symbols.play_circle_outline,
                                 size: 56,
                                 color: Color(0xFF666666),
                               ),
@@ -51,7 +54,7 @@ class YoutubePreview extends StatelessWidget {
                           )
                         : const Center(
                             child: Icon(
-                              Icons.play_circle_outline,
+                              Symbols.play_circle_outline,
                               size: 56,
                               color: Color(0xFF666666),
                             ),
@@ -68,7 +71,7 @@ class YoutubePreview extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
-                      Icons.play_arrow_rounded,
+                      Symbols.play_arrow_rounded,
                       size: 32,
                       color: Colors.white,
                     ),
@@ -148,7 +151,12 @@ class YoutubePreview extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.more_vert, size: 20, color: Color(0xFF606060)),
+                ?accountAction,
+                const Icon(
+                  Symbols.more_vert,
+                  size: 20,
+                  color: Color(0xFF606060),
+                ),
               ],
             ),
           ),

@@ -79,7 +79,8 @@ export async function requireAdminToken(token?: string | null, permission?: stri
     const cached = getCachedAdminContext(cacheKey, session.user.id);
     if (cached) {
       const cachedContext = { ...cached, session };
-      const cachedIsAdmin = cachedContext.profile.role === 'admin';
+      const cachedRole = String(cachedContext.profile.role || '').toLowerCase();
+      const cachedIsAdmin = cachedRole === 'admin' || cachedRole === 'super_admin';
       if (!cachedIsAdmin && (!permission || !cachedContext.permissions.has(permission))) {
         throw Object.assign(new Error('Admin permission denied'), { status: 403 });
       }
@@ -108,7 +109,8 @@ export async function requireAdminToken(token?: string | null, permission?: stri
     [profile.role]
   );
   const permissions = new Set(permissionResult.rows.map((row) => row.permission_key));
-  const isAdmin = profile.role === 'admin';
+  const role = String(profile.role || '').toLowerCase();
+  const isAdmin = role === 'admin' || role === 'super_admin';
 
   if (!isAdmin && (!permission || !permissions.has(permission))) {
     throw Object.assign(new Error('Admin permission denied'), { status: 403 });

@@ -11,7 +11,7 @@ const SORT_COLUMNS: Record<string, string> = {
   category: 'p.category',
   status: 'p.status',
   language: 'p.language_code',
-  author: 'p.publisher_id',
+  author: 'publisher.full_name',
   views: 'p.views_count',
   comments: 'p.comments_count',
   date: 'p.created_at',
@@ -28,16 +28,48 @@ const VIDEO_THUMB_FIELDS = [
   'thumb',
   'poster',
 ];
+const VIDEO_CONTENT_EXISTS_SQL = `(
+  (
+    lower(coalesce(p.type, '')) = 'video'
+    AND btrim(coalesce(p.media_url, p.card_data ->> 'mediaUrl', p.card_data ->> 'videoUrl', '')) <> ''
+  )
+  OR (
+    lower(coalesce(p.card_data ->> 'type', '')) = 'video'
+    AND btrim(coalesce(p.card_data ->> 'mediaUrl', p.card_data ->> 'videoUrl', '')) <> ''
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(
+      CASE WHEN jsonb_typeof(p.items) = 'array' THEN p.items ELSE '[]'::jsonb END
+    ) AS video_item(item)
+    WHERE (
+      lower(coalesce(video_item.item ->> 'type', '')) = 'video'
+      AND (
+        btrim(coalesce(
+          video_item.item ->> 'mediaUrl',
+          video_item.item ->> 'videoUrl',
+          video_item.item ->> 'url',
+          ''
+        )) <> ''
+        OR jsonb_array_length(
+          CASE
+            WHEN jsonb_typeof(video_item.item -> 'mediaUrls') = 'array'
+            THEN video_item.item -> 'mediaUrls'
+            ELSE '[]'::jsonb
+          END
+        ) > 0
+      )
+    )
+    OR btrim(coalesce(video_item.item #>> '{recipeData,videoUrl}', '')) <> ''
+  )
+)`;
 
-function escapeSearchTerm(value: unknown) {
-  return String(value || '')
-    .trim()
-    .replaceAll('\\', '\\\\')
-    .replaceAll('%', '\\%')
-    .replaceAll('_', '\\_')
-    .replaceAll(',', ' ')
-    .replaceAll('\n', ' ')
-    .replaceAll('\r', ' ');
+function cleanSearchTerm(value: unknown) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function escapeLikePattern(value: string) {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
 }
 
 function safePositiveInt(value: unknown, fallback: number) {
@@ -316,6 +348,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const values: unknown[] = [];
     const where: string[] = [];
+    let searchOrderSql = '';
     const push = (value: unknown) => {
       values.push(value);
       return `$${values.length}`;
@@ -326,20 +359,31 @@ export const POST: APIRoute = async ({ request }) => {
         : `(p.deleted_at IS NULL AND COALESCE(p.status, '') <> 'trash')`
     );
 
-    const search = escapeSearchTerm(body.search);
+    const search = cleanSearchTerm(body.search);
     if (search) {
-      const pattern = push(`%${search}%`);
+      const rawTerm = push(search);
+      const pattern = push(`%${escapeLikePattern(search)}%`);
+      const normalizedPattern = `public.pateez_admin_normalize_search_text(${pattern})`;
+      const tsQuery = `websearch_to_tsquery('turkish', public.unaccent('public.unaccent'::regdictionary, ${rawTerm}))`;
+      searchOrderSql = `
+         CASE
+           WHEN p.id::text = ${rawTerm} THEN 0
+           WHEN public.pateez_admin_normalize_search_text(p.title) = public.pateez_admin_normalize_search_text(${rawTerm}) THEN 1
+           WHEN publisher.email ILIKE ${pattern} ESCAPE '\\' THEN 2
+           ELSE 3
+         END,`;
       where.push(`(
-        p.title ILIKE ${pattern} ESCAPE '\\'
-        OR p.slug ILIKE ${pattern} ESCAPE '\\'
-        OR p.category ILIKE ${pattern} ESCAPE '\\'
-        OR p.type ILIKE ${pattern} ESCAPE '\\'
-        OR p.status ILIKE ${pattern} ESCAPE '\\'
-        OR p.seo_title ILIKE ${pattern} ESCAPE '\\'
-        OR p.seo_description ILIKE ${pattern} ESCAPE '\\'
-        OR p.keywords ILIKE ${pattern} ESCAPE '\\'
-        OR p.summary ILIKE ${pattern} ESCAPE '\\'
+        p.admin_search_text LIKE ${normalizedPattern} ESCAPE '\\'
+        OR COALESCE(p.search_vector, ''::tsvector) @@ ${tsQuery}
+        OR COALESCE(publisher.search_vector, ''::tsvector) @@ ${tsQuery}
+        OR publisher.full_name ILIKE ${pattern} ESCAPE '\\'
+        OR publisher.username ILIKE ${pattern} ESCAPE '\\'
+        OR publisher.email ILIKE ${pattern} ESCAPE '\\'
       )`);
+    }
+
+    if (body.videoOnly === true) {
+      where.push(VIDEO_CONTENT_EXISTS_SQL);
     }
 
     for (const [column, value] of [
@@ -422,7 +466,7 @@ export const POST: APIRoute = async ({ request }) => {
        LEFT JOIN public.navigation_items parent ON parent.id = category_item.parent_id
        LEFT JOIN public.navigation_items grandparent ON grandparent.id = parent.parent_id
        ${whereSql}
-       ORDER BY p.is_pinned DESC, ${sortColumn} ${sortDirection} NULLS LAST, p.id DESC
+       ORDER BY ${searchOrderSql} p.is_pinned DESC, ${sortColumn} ${sortDirection} NULLS LAST, p.id DESC
        LIMIT ${limitSql}
        OFFSET ${offsetSql}`,
         values
@@ -430,6 +474,7 @@ export const POST: APIRoute = async ({ request }) => {
       dbQuery<{ count: string }>(
         `SELECT COUNT(*)::bigint AS count
          FROM public.posts p
+         LEFT JOIN public.profiles publisher ON publisher.id = p.publisher_id
          ${whereSql}`,
         countValues
       ),

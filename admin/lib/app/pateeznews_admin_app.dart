@@ -6,6 +6,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 
 import '../core/localization/admin_language_controller.dart';
 import '../core/theme/app_theme.dart';
+import '../shared/branding/admin_branding.dart';
 import '../features/account/data/admin_account_settings_repository.dart';
 import '../features/auth/data/admin_auth_repository.dart';
 import '../features/auth/data/supabase_auth_client.dart';
@@ -103,11 +104,15 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
     return AdminLocalizationScope(
       controller: _languageController,
       child: AnimatedBuilder(
-        animation: _languageController,
+        animation: Listenable.merge([_languageController, adminBranding]),
         builder: (context, _) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            title: _languageController.t('app.title'),
+            // Web sekmesi / uygulama değiştirici başlığı: genel ayarlardaki site
+            // adı (yoksa markasız varsayılan). Hiçbir yerde "Pateeznews" yok.
+            title: adminBranding.value.hasSiteName
+                ? adminBranding.value.siteName
+                : _languageController.t('app.title'),
             locale: _languageController.locale,
             supportedLocales: _languageController.supportedLocales,
             localizationsDelegates: const [

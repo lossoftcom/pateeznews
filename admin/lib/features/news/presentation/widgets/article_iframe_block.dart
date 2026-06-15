@@ -4,6 +4,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _iframeBlockStrongLine = Color(0xFFDDE5E8);
 const _iframeBlockSoftLine = Color(0xFFE8EEF1);
@@ -172,7 +173,7 @@ class _IframeHeader extends StatelessWidget {
             ],
           ),
           child: const Icon(
-            Icons.code_rounded,
+            Symbols.code_rounded,
             color: AppColors.deepOcean,
             size: 19,
           ),
@@ -222,7 +223,7 @@ class _IframeCodeAreaLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10, left: 2),
       child: Row(
         children: [
-          const Icon(Icons.public, size: 14, color: AppColors.deepOcean),
+          const Icon(Symbols.public, size: 14, color: AppColors.deepOcean),
           const SizedBox(width: 10),
           Text(
             context.t('newsAdd.iframeCode'),
@@ -286,7 +287,7 @@ class _IframeCodeInput extends StatelessWidget {
             top: 12,
             right: 12,
             child: Icon(
-              Icons.code_rounded,
+              Symbols.code_rounded,
               color: _iframeBlockMutedText.withValues(alpha: 0.12),
               size: 16,
             ),
@@ -440,8 +441,8 @@ class _IframeExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _iframeBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -666,19 +667,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,

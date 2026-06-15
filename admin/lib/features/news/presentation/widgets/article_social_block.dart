@@ -11,6 +11,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _socialBlockStrongLine = Color(0xFFDDE5E8);
 const _socialBlockSoftLine = Color(0xFFE8EEF1);
@@ -131,7 +132,7 @@ class _ArticleSocialBlockCardState extends State<ArticleSocialBlockCard> {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.share_outlined,
+                          Symbols.share_outlined,
                           color: AppColors.deepOcean,
                           size: 18,
                         ),
@@ -358,19 +359,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -651,7 +652,7 @@ class _EmptySocialPreview extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.public_rounded,
+            Symbols.public_rounded,
             color: AppColors.deepOcean.withValues(alpha: 0.34),
             size: 48,
           ),
@@ -790,8 +791,8 @@ class _ExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _socialBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -1016,15 +1017,15 @@ class _SocialEmbedInfo {
 
   IconData get icon {
     return switch (platform) {
-      _SocialPlatform.x => Icons.close_rounded,
-      _SocialPlatform.instagram => Icons.camera_alt_outlined,
-      _SocialPlatform.tiktok => Icons.music_note_outlined,
-      _SocialPlatform.facebook => Icons.facebook_rounded,
-      _SocialPlatform.pinterest => Icons.push_pin_outlined,
-      _SocialPlatform.nsosyal => Icons.forum_outlined,
-      _SocialPlatform.iframe => Icons.code_rounded,
-      _SocialPlatform.link => Icons.open_in_new_rounded,
-      _SocialPlatform.embed => Icons.public_rounded,
+      _SocialPlatform.x => Symbols.close_rounded,
+      _SocialPlatform.instagram => Symbols.camera_alt_outlined,
+      _SocialPlatform.tiktok => Symbols.music_note_outlined,
+      _SocialPlatform.facebook => Symbols.facebook_rounded,
+      _SocialPlatform.pinterest => Symbols.push_pin_outlined,
+      _SocialPlatform.nsosyal => Symbols.forum_outlined,
+      _SocialPlatform.iframe => Symbols.code_rounded,
+      _SocialPlatform.link => Symbols.open_in_new_rounded,
+      _SocialPlatform.embed => Symbols.public_rounded,
     };
   }
 

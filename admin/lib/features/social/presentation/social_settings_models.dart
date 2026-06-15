@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'social_platform_data.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 enum AdminSocialConnectionMode { bundle, directApi, webhook }
 
@@ -52,7 +53,7 @@ const adminSocialProviderPresets = <AdminSocialProviderPreset>[
     apiBaseUrl: 'https://api.bundle.social/api/v1',
     defaultScopes:
         'Instagram, Facebook, X, TikTok, LinkedIn, YouTube, Pinterest, Reddit, Threads, Bluesky, Mastodon, Google Business, Discord, Slack',
-    fallbackIcon: Icons.hub_outlined,
+    fallbackIcon: Symbols.hub_outlined,
   ),
 ];
 

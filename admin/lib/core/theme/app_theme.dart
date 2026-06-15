@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'app_radius.dart';
+import '../../shared/widgets/admin_toast.dart';
 
 class AppTheme {
   const AppTheme._();
@@ -101,6 +102,7 @@ class AppTheme {
               ),
             ),
       ),
+      snackBarTheme: AdminToast.theme(),
       textButtonTheme: TextButtonThemeData(
         style:
             TextButton.styleFrom(

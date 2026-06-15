@@ -35,6 +35,41 @@ const BOILERPLATE_PATTERNS = [
     'elbette'
 ];
 
+const TECHNICAL_FILENAME_WORDS = new Set([
+    'chatgpt',
+    'image',
+    'img',
+    'foto',
+    'photo',
+    'picture',
+    'screenshot',
+    'screen',
+    'whatsapp',
+    'edited',
+    'copy',
+    'upload',
+    'file',
+    'haz',
+    'ocak',
+    'subat',
+    'şubat',
+    'mart',
+    'nisan',
+    'mayis',
+    'mayıs',
+    'haziran',
+    'temmuz',
+    'agustos',
+    'ağustos',
+    'eylul',
+    'eylül',
+    'ekim',
+    'kasim',
+    'kasım',
+    'aralik',
+    'aralık',
+]);
+
 const TEXT_ENTITY_MAP: Record<string, string> = {
     amp: '&',
     apos: "'",
@@ -116,6 +151,23 @@ export const isBoilerplateAiText = (value: unknown) => {
 
     if (!text) return true;
     return BOILERPLATE_PATTERNS.some((pattern) => text.includes(pattern));
+};
+
+export const isTechnicalMediaText = (value: unknown) => {
+    const text = transliterateTurkish(String(value || ''))
+        .toLowerCase()
+        .replace(/\.[a-z0-9]{2,5}\b/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!text) return true;
+    if (/\b\d{10,}\b/.test(text)) return true;
+    const words = text.split(' ').filter(Boolean);
+    const technicalCount = words.filter((word) => TECHNICAL_FILENAME_WORDS.has(word)).length;
+    if (technicalCount > 0 && words.length <= 8) return true;
+    if (technicalCount >= 2) return true;
+    return false;
 };
 
 const stripCodeFences = (value: string) => String(value || '')
@@ -229,6 +281,27 @@ const removeDuplicatePieces = (pieces: string[]) => {
     });
 };
 
+const cleanCurrentFilenameText = (value: string) => {
+    const stem = htmlToPlainText(value)
+        .replace(/\.[a-z0-9]{2,5}$/i, '')
+        .replace(/[_-]+/g, ' ');
+    const words = stem
+        .split(/\s+/)
+        .map((word) => word.trim())
+        .filter(Boolean)
+        .filter((word) => {
+            const normalized = transliterateTurkish(word)
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, '');
+            if (!normalized || normalized.length <= 2) return false;
+            if (/^\d+$/.test(normalized)) return false;
+            if (TECHNICAL_FILENAME_WORDS.has(normalized)) return false;
+            return true;
+        });
+    const cleaned = words.join(' ').replace(/\s+/g, ' ').trim();
+    return isTechnicalMediaText(cleaned) ? '' : cleaned;
+};
+
 export const buildSeoFilenameFallback = (input: {
     context: string;
     currentName: string;
@@ -244,10 +317,16 @@ export const buildSeoFilenameFallback = (input: {
         .filter((piece) => !isBoilerplateAiText(piece));
 
     const source = pieces.join(' ');
-    const fallback = htmlToPlainText(input.currentName).replace(/\.[a-z0-9]+$/i, '');
-    const slug = toSeoSlug(source || fallback, 'haber-gorseli');
+    const fallback = cleanCurrentFilenameText(input.currentName);
+    const normalizedKind = transliterateTurkish(htmlToPlainText(input.mediaKind)).toLowerCase();
+    const generic = (normalizedKind.includes('kapak') || normalizedKind.includes('kapagi'))
+        ? 'haber kapagi'
+        : 'haber medyasi';
+    const slug = toSeoSlug(source || fallback || generic, 'haber-gorseli');
 
-    return isBoilerplateAiText(slug) ? `haber-gorseli-${Date.now()}` : slug;
+    return isBoilerplateAiText(slug) || isTechnicalMediaText(slug)
+        ? toSeoSlug(generic, 'haber-gorseli')
+        : slug;
 };
 
 export const buildAltTextFallback = (input: {
@@ -259,12 +338,15 @@ export const buildAltTextFallback = (input: {
     const title = getContextLine(input.context, 'Haber başlığı');
     const summary = getContextLine(input.context, 'Kısa özet/spot');
     const seoDescription = getContextLine(input.context, 'SEO açıklama');
+    const filenameText = cleanCurrentFilenameText(input.currentName);
 
-    const pieces = removeDuplicatePieces([focused, title, summary, seoDescription])
+    const pieces = removeDuplicatePieces([focused, title, summary, seoDescription, filenameText])
         .filter((piece) => !isBoilerplateAiText(piece));
-    const source = pieces.join('. ') || htmlToPlainText(input.currentName).replace(/\.[a-z0-9]+$/i, '');
+    const source = pieces.join('. ');
     const sentence = source.replace(/\s+/g, ' ').trim();
-    if (!sentence) return 'Haber içeriğiyle ilişkili kapak görseli';
+    if (!sentence || isTechnicalMediaText(sentence)) {
+        return 'Haber içeriğiyle ilişkili erişilebilir kapak görseli.';
+    }
     if (sentence.length <= 180) return sentence.replace(/[. ]*$/, '.');
 
     return `${sentence.slice(0, 177).replace(/\s+\S*$/, '').trim()}.`;

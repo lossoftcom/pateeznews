@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/pateeznews_admin_app.dart';
 import 'frontend/app/pateeznews_app.dart';
+import 'shared/branding/desktop_window_title.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,8 @@ Future<void> main() async {
     return;
   }
 
+  // Masaüstü pencere başlığını genel ayarlardaki site adına bağla (macOS).
+  DesktopWindowTitle.start();
   runApp(const PateeznewsAdminApp());
 }
 

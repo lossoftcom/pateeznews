@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
+import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../../news/data/admin_news_repository.dart';
@@ -50,6 +52,7 @@ class _AnnouncementsSettingsScreenState
   List<AnnouncementRunData> _runs = const [];
   AnnouncementPreviewData _preview = const AnnouncementPreviewData.empty();
   AnnouncementRefreshResult? _lastRefresh;
+  final Set<String> _selectedAnnouncementIds = {};
 
   @override
   void initState() {
@@ -81,6 +84,7 @@ class _AnnouncementsSettingsScreenState
         _preview = preview;
         _runs = runs;
         _loading = false;
+        _selectedAnnouncementIds.clear();
       });
     } catch (error) {
       if (!mounted) return;
@@ -111,6 +115,7 @@ class _AnnouncementsSettingsScreenState
         _runs = runs;
         _lastRefresh = result;
         _refreshing = false;
+        _selectedAnnouncementIds.clear();
       });
       _showMessage('Duyuru taraması tamamlandı');
     } catch (error) {
@@ -194,6 +199,7 @@ class _AnnouncementsSettingsScreenState
       if (!mounted) return;
       setState(() {
         _preview = _preview.copyWith(announcements: items);
+        _selectedAnnouncementIds.remove(item.id);
         _saving = false;
       });
       _showMessage('Duyuru güncellendi');
@@ -237,30 +243,13 @@ class _AnnouncementsSettingsScreenState
 
   Future<void> _deleteAnnouncement(AnnouncementPreviewItem item) async {
     if (item.id.isEmpty) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text('Duyuruyu sil'),
-        content: Text(
+    final confirmed = await showAppConfirmationDialog(
+      context,
+      title: 'Duyuruyu sil',
+      message:
           '"${item.title}" duyurusu kalıcı olarak silinecek. Devam edilsin mi?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.actionRed,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Sil',
+      danger: true,
     );
     if (!mounted || confirmed != true) return;
     setState(() => _saving = true);
@@ -275,6 +264,7 @@ class _AnnouncementsSettingsScreenState
       if (!mounted) return;
       setState(() {
         _preview = _preview.copyWith(announcements: items);
+        _selectedAnnouncementIds.remove(item.id);
         _saving = false;
       });
       _showMessage('Duyuru silindi');
@@ -285,10 +275,102 @@ class _AnnouncementsSettingsScreenState
     }
   }
 
+  void _toggleAnnouncementSelection(String id, bool selected) {
+    if (id.isEmpty) return;
+    setState(() {
+      if (selected) {
+        _selectedAnnouncementIds.add(id);
+      } else {
+        _selectedAnnouncementIds.remove(id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedAnnouncements() async {
+    if (_selectedAnnouncementIds.isEmpty) return;
+    final selectedIds = _selectedAnnouncementIds.toList(growable: false);
+    final confirmed = await showAppConfirmationDialog(
+      context,
+      title: 'Seçili duyuruları sil',
+      message:
+          'Seçilen ${selectedIds.length} duyuru kalıcı olarak silinecek. Devam edilsin mi?',
+      confirmLabel: 'Sil',
+      danger: true,
+    );
+    if (!mounted || !confirmed) return;
+    setState(() => _saving = true);
+    try {
+      await widget.repository.deleteAnnouncements(
+        session: widget.session,
+        ids: selectedIds,
+      );
+      final announcements = await widget.repository.fetchAnnouncementPreview();
+      if (!mounted) return;
+      setState(() {
+        _preview = _preview.copyWith(
+          announcements: announcements.announcements,
+        );
+        _selectedAnnouncementIds.clear();
+        _saving = false;
+      });
+      _showMessage('Seçilen duyurular silindi');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showMessage('Seçili duyurular silinemedi: $error');
+    }
+  }
+
+  Widget _announcementTabTrailing() {
+    if (_selectedAnnouncementIds.isEmpty) {
+      return _PrimaryButton(
+        label: _refreshing ? 'Taranıyor' : 'Veriyi Yenile',
+        icon: Symbols.schedule_send,
+        enabled: !_refreshing,
+        onPressed: _refresh,
+      );
+    }
+
+    return Wrap(
+      spacing: 10,
+      children: [
+        Text(
+          '${_selectedAnnouncementIds.length} öğe seçildi',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+        _OutlineButton(
+          label: 'Seçimi Kaldır',
+          icon: Symbols.close,
+          onPressed: () => setState(() => _selectedAnnouncementIds.clear()),
+        ),
+        _PrimaryButton(
+          label: 'Seçilenleri Sil',
+          icon: Symbols.delete,
+          enabled: !_saving && !_refreshing,
+          onPressed: _deleteSelectedAnnouncements,
+        ),
+      ],
+    );
+  }
+
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AdminToast.show(context, message: message, tone: _toastToneFor(message));
+  }
+
+  AdminToastTone _toastToneFor(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('hata') ||
+            lower.contains('edilemedi') ||
+            lower.contains('yenilenemedi') ||
+            lower.contains('silinemedi') ||
+            lower.contains('güncellenemedi') ||
+            lower.contains('kaydedilemedi')
+        ? AdminToastTone.error
+        : AdminToastTone.success;
   }
 
   @override
@@ -328,12 +410,7 @@ class _AnnouncementsSettingsScreenState
                       enabled: !_saving,
                       onPressed: () => _openSourceDialog(),
                     ),
-                    _AnnouncementsTab.preview => _PrimaryButton(
-                      label: _refreshing ? 'Taranıyor' : 'Veriyi Yenile',
-                      icon: Symbols.schedule_send,
-                      enabled: !_refreshing,
-                      onPressed: _refresh,
-                    ),
+                    _AnnouncementsTab.preview => _announcementTabTrailing(),
                     _AnnouncementsTab.runs => _OutlineButton(
                       label: 'Yenile',
                       icon: Symbols.refresh_line,
@@ -355,6 +432,8 @@ class _AnnouncementsSettingsScreenState
                       onEdit: _openAnnouncementDialog,
                       onSetActive: _setAnnouncementActive,
                       onDelete: _deleteAnnouncement,
+                      selectedIds: _selectedAnnouncementIds,
+                      onToggleSelection: _toggleAnnouncementSelection,
                     ),
                     _AnnouncementsTab.runs => _RunsPanel(runs: _runs),
                   },
@@ -699,6 +778,8 @@ class _PreviewPanel extends StatefulWidget {
     required this.onEdit,
     required this.onSetActive,
     required this.onDelete,
+    required this.selectedIds,
+    required this.onToggleSelection,
   });
 
   final AnnouncementPreviewData preview;
@@ -707,6 +788,8 @@ class _PreviewPanel extends StatefulWidget {
   final ValueChanged<AnnouncementPreviewItem> onEdit;
   final void Function(AnnouncementPreviewItem item, bool isActive) onSetActive;
   final ValueChanged<AnnouncementPreviewItem> onDelete;
+  final Set<String> selectedIds;
+  final void Function(String id, bool selected) onToggleSelection;
 
   @override
   State<_PreviewPanel> createState() => _PreviewPanelState();
@@ -804,9 +887,11 @@ class _PreviewPanelState extends State<_PreviewPanel> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _PreviewAnnouncement(
                     item: item,
+                    isSelected: widget.selectedIds.contains(item.id),
                     onEdit: widget.onEdit,
                     onSetActive: widget.onSetActive,
                     onDelete: widget.onDelete,
+                    onToggleSelection: widget.onToggleSelection,
                   ),
                 ),
             ],
@@ -945,7 +1030,7 @@ class _DateFilterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: onTap,
-      icon: const Icon(Icons.calendar_today_outlined, size: 16),
+      icon: const Icon(Symbols.calendar_today_outlined, size: 16),
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.deepOcean,
@@ -1015,15 +1100,19 @@ class _AdminDistrictTabs extends StatelessWidget {
 class _PreviewAnnouncement extends StatelessWidget {
   const _PreviewAnnouncement({
     required this.item,
+    required this.isSelected,
     required this.onEdit,
     required this.onSetActive,
     required this.onDelete,
+    required this.onToggleSelection,
   });
 
   final AnnouncementPreviewItem item;
+  final bool isSelected;
   final ValueChanged<AnnouncementPreviewItem> onEdit;
   final void Function(AnnouncementPreviewItem item, bool isActive) onSetActive;
   final ValueChanged<AnnouncementPreviewItem> onDelete;
+  final void Function(String id, bool selected) onToggleSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -1042,6 +1131,14 @@ class _PreviewAnnouncement extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Checkbox(
+            value: isSelected,
+            onChanged: (value) => onToggleSelection(item.id, value == true),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(width: 8),
           Container(
             width: 4,
             height: 72,
@@ -1627,12 +1724,12 @@ class _LinkedPostField extends StatelessWidget {
                       fit: BoxFit.cover,
                       memCacheWidth: 360,
                       errorWidget: const Center(
-                            child: SymbolIcon(
-                              Symbols.article,
-                              color: AppColors.inkSoft,
-                              size: 22,
-                            ),
-                          ),
+                        child: SymbolIcon(
+                          Symbols.article,
+                          color: AppColors.inkSoft,
+                          size: 22,
+                        ),
+                      ),
                     ),
             ),
           ),
@@ -1759,6 +1856,7 @@ class _AnnouncementNewsPickerDialogState
         status: 'published',
         publisher: 'Tümü',
         trash: false,
+        videoOnly: false,
         page: 1,
         pageSize: 24,
         sortKey: 'date',
@@ -1950,12 +2048,12 @@ class _NewsPickerRow extends StatelessWidget {
                           fit: BoxFit.cover,
                           memCacheWidth: 360,
                           errorWidget: const Center(
-                                child: SymbolIcon(
-                                  Symbols.article,
-                                  color: AppColors.inkSoft,
-                                  size: 22,
-                                ),
-                              ),
+                            child: SymbolIcon(
+                              Symbols.article,
+                              color: AppColors.inkSoft,
+                              size: 22,
+                            ),
+                          ),
                         ),
                 ),
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Pinterest pin card preview.
 class PinterestPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class PinterestPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     final title = linkTitle.isNotEmpty
@@ -43,9 +46,9 @@ class PinterestPreview extends StatelessWidget {
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(16),
                             ),
-                            child: AdminCachedImage(
+                            child: SocialMediaPreview(
                               url: imageUrl,
-                              fit: BoxFit.cover,
+                              fit: BoxFit.contain,
                               memCacheWidth: 1080,
                               errorWidget: _pinPlaceholder(),
                             ),
@@ -110,7 +113,7 @@ class PinterestPreview extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
-                          Icons.ios_share_rounded,
+                          Symbols.ios_share_rounded,
                           size: 16,
                           color: Color(0xFF333333),
                         ),
@@ -124,7 +127,7 @@ class PinterestPreview extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
-                          Icons.more_horiz,
+                          Symbols.more_horiz,
                           size: 16,
                           color: Color(0xFF333333),
                         ),
@@ -148,7 +151,7 @@ class PinterestPreview extends StatelessWidget {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.link,
+                          Symbols.link,
                           size: 14,
                           color: Color(0xFF767676),
                         ),
@@ -192,15 +195,20 @@ class PinterestPreview extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      profileName.toLowerCase().replaceAll(' ', ''),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF111111),
-                        letterSpacing: 0,
+                    Flexible(
+                      child: Text(
+                        profileName.toLowerCase().replaceAll(' ', ''),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111111),
+                          letterSpacing: 0,
+                        ),
                       ),
                     ),
+                    ?accountAction,
                   ],
                 ),
               ],
@@ -213,7 +221,7 @@ class PinterestPreview extends StatelessWidget {
 
   Widget _pinPlaceholder() => const Center(
     child: Icon(
-      Icons.photo_library_outlined,
+      Symbols.photo_library_outlined,
       size: 48,
       color: Color(0xFFBDBDBD),
     ),

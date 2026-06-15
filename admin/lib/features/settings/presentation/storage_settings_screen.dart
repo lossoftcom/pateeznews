@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -95,15 +96,19 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(
+      AdminToast.show(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+        message: error.toString(),
+        tone: AdminToastTone.error,
+      );
     }
   }
 
   void _showSavedMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.t('storageSettings.saveSuccess'))),
+    AdminToast.show(
+      context,
+      message: context.t('storageSettings.saveSuccess'),
+      tone: AdminToastTone.success,
     );
   }
 

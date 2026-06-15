@@ -11,6 +11,7 @@ import '../../../../shared/data/media_service.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _audioBlockStrongLine = Color(0xFFDDE5E8);
 const _audioBlockSoftLine = Color(0xFFE8EEF1);
@@ -113,7 +114,7 @@ class ArticleAudioBlockCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.mic_none_rounded,
+                          Symbols.mic_none_rounded,
                           color: AppColors.deepOcean,
                           size: 18,
                         ),
@@ -345,19 +346,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -517,7 +518,7 @@ class _EmptyAudioPicker extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.add,
+                  Symbols.add,
                   color: _audioBlockUploadInk,
                   size: 32,
                 ),
@@ -559,7 +560,7 @@ class _EmptyAudioPicker extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.public,
+                          Symbols.public,
                           size: 13,
                           color: AppColors.deepOcean,
                         ),
@@ -631,12 +632,12 @@ class _SelectedAudioPreviewState extends State<_SelectedAudioPreview> {
                   child: Row(
                     children: [
                       _AudioPreviewActionButton(
-                        icon: Icons.edit_outlined,
+                        icon: Symbols.edit_outlined,
                         onTap: widget.onPickAudio,
                       ),
                       const SizedBox(width: 8),
                       _AudioPreviewActionButton(
-                        icon: Icons.delete_outline,
+                        icon: Symbols.delete_outline,
                         color: AppColors.actionRed,
                         onTap: widget.onClear,
                       ),
@@ -864,8 +865,8 @@ class _AudioPlayerCardState extends State<_AudioPlayerCard> {
                 const SizedBox(width: 8),
                 _AudioIconButton(
                   icon: volume <= 0
-                      ? Icons.volume_off_rounded
-                      : Icons.volume_up_rounded,
+                      ? Symbols.volume_off_rounded
+                      : Symbols.volume_up_rounded,
                   enabled: initialized,
                   onTap: _toggleMute,
                 ),
@@ -928,7 +929,7 @@ class _YoutubeAudioCardState extends State<_YoutubeAudioCard> {
                   child: const Padding(
                     padding: EdgeInsets.all(8),
                     child: Icon(
-                      Icons.play_circle_fill_rounded,
+                      Symbols.play_circle_fill_rounded,
                       size: 54,
                       color: Colors.white,
                       shadows: [
@@ -957,8 +958,8 @@ class _YoutubeAudioCardState extends State<_YoutubeAudioCard> {
                 children: [
                   Icon(
                     widget.info.isMusic
-                        ? Icons.music_note_rounded
-                        : Icons.play_arrow_rounded,
+                        ? Symbols.music_note_rounded
+                        : Symbols.play_arrow_rounded,
                     color: Colors.white,
                     size: 15,
                   ),
@@ -1108,7 +1109,7 @@ class _AudioYoutubeFallbackSurface extends StatelessWidget {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.music_note_rounded, color: Colors.white, size: 18),
+              Icon(Symbols.music_note_rounded, color: Colors.white, size: 18),
               SizedBox(width: 8),
               Text(
                 'YOUTUBE',
@@ -1163,7 +1164,7 @@ class _AudioPlayButton extends StatelessWidget {
             ],
           ),
           child: Icon(
-            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            playing ? Symbols.pause_rounded : Symbols.play_arrow_rounded,
             color: Colors.white,
             size: 26,
           ),
@@ -1345,8 +1346,8 @@ class _ExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _audioBlockMutedText.withValues(alpha: 0.72),
                     ),

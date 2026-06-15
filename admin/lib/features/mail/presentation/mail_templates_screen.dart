@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -74,11 +75,10 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
   }
 
   void _showMailError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -929,7 +929,7 @@ class _MailTemplateMobileCard extends StatelessWidget {
                   ),
                   AdminMobileMenuAction(
                     icon: template.ready
-                        ? Icons.remove_circle_outline
+                        ? Symbols.remove_circle_outline
                         : Symbols.check,
                     label: context.t(
                       template.ready
@@ -1649,7 +1649,7 @@ class _TemplateMenuCard extends StatelessWidget {
             ),
             _TemplateMenuItem(
               icon: template.ready
-                  ? Icons.remove_circle_outline
+                  ? Symbols.remove_circle_outline
                   : Symbols.check,
               label: template.ready
                   ? 'mail.template.action.markNotReady'
@@ -2205,7 +2205,7 @@ class _TemplateVariablePanelState extends State<_TemplateVariablePanel> {
                 Row(
                   children: [
                     const Icon(
-                      Icons.data_object_outlined,
+                      Symbols.data_object_outlined,
                       size: 18,
                       color: AppColors.deepOcean,
                     ),
@@ -2306,7 +2306,7 @@ class _PanelSearchField extends StatelessWidget {
             letterSpacing: 0,
           ),
           prefixIcon: const Icon(
-            Icons.search,
+            Symbols.search,
             size: 17,
             color: AppColors.iconMuted,
           ),
@@ -2363,7 +2363,7 @@ class _VariableGroupHeader extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),
                 child: const Icon(
-                  Icons.group_outlined,
+                  Symbols.group_outlined,
                   size: 17,
                   color: Color(0xFF2F80ED),
                 ),
@@ -2585,51 +2585,51 @@ class _BuilderToolbar extends StatelessWidget {
           _ToolbarIconButton(
             selected: selectedDevice == 'desktop',
             tooltip: context.t('mail.template.editor.deviceDesktop'),
-            icon: Icons.desktop_mac_outlined,
+            icon: Symbols.desktop_mac_outlined,
             onTap: () => onDeviceChanged('desktop'),
           ),
           _ToolbarIconButton(
             selected: selectedDevice == 'tablet',
             tooltip: context.t('mail.template.editor.deviceTablet'),
-            icon: Icons.tablet_mac_outlined,
+            icon: Symbols.tablet_mac_outlined,
             onTap: () => onDeviceChanged('tablet'),
           ),
           _ToolbarIconButton(
             selected: selectedDevice == 'mobile',
             tooltip: context.t('mail.template.editor.deviceMobile'),
-            icon: Icons.phone_iphone_outlined,
+            icon: Symbols.phone_iphone_outlined,
             onTap: () => onDeviceChanged('mobile'),
           ),
           const Spacer(),
           _ToolbarIconButton(
             selected: true,
             tooltip: context.t('mail.template.editor.canvas'),
-            icon: Icons.crop_square_outlined,
+            icon: Symbols.crop_square_outlined,
             onTap: () {},
           ),
           _ToolbarIconButton(
             tooltip: context.t('mail.template.editor.livePreview'),
-            icon: Icons.visibility_outlined,
+            icon: Symbols.visibility_outlined,
             onTap: () {},
           ),
           _ToolbarIconButton(
             tooltip: context.t('mail.template.editor.code'),
-            icon: Icons.code_outlined,
+            icon: Symbols.code_outlined,
             onTap: () {},
           ),
           _ToolbarIconButton(
             tooltip: context.t('mail.template.editor.download'),
-            icon: Icons.download_outlined,
+            icon: Symbols.download_outlined,
             onTap: () {},
           ),
           _ToolbarIconButton(
             tooltip: context.t('mail.compose.undo'),
-            icon: Icons.undo_outlined,
+            icon: Symbols.undo_outlined,
             onTap: () {},
           ),
           _ToolbarIconButton(
             tooltip: context.t('mail.compose.redo'),
-            icon: Icons.redo_outlined,
+            icon: Symbols.redo_outlined,
             onTap: () {},
           ),
           const SizedBox(width: 12),
@@ -2903,7 +2903,7 @@ class _TemplatePreviewFrame extends StatelessWidget {
                             ),
                           ),
                           child: Icon(
-                            Icons.image_not_supported_outlined,
+                            Symbols.image_not_supported_outlined,
                             color: AppColors.placeholder.withValues(
                               alpha: 0.65,
                             ),
@@ -3023,29 +3023,32 @@ class _TemplateBlocksPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final blocks = [
       _TemplateBlock(
-        Icons.crop_square_outlined,
+        Symbols.crop_square_outlined,
         'mail.template.editor.block.oneColumn',
       ),
       _TemplateBlock(
-        Icons.view_week_outlined,
+        Symbols.view_week_outlined,
         'mail.template.editor.block.twoColumn',
       ),
       _TemplateBlock(
-        Icons.view_column_outlined,
+        Symbols.view_column_outlined,
         'mail.template.editor.block.threeColumn',
       ),
-      _TemplateBlock(Icons.title_outlined, 'mail.template.editor.block.text'),
+      _TemplateBlock(Symbols.title_outlined, 'mail.template.editor.block.text'),
       _TemplateBlock(
-        Icons.smart_button_outlined,
+        Symbols.smart_button_outlined,
         'mail.template.editor.block.button',
       ),
-      _TemplateBlock(Icons.image_outlined, 'mail.template.editor.block.image'),
       _TemplateBlock(
-        Icons.format_align_left_outlined,
+        Symbols.image_outlined,
+        'mail.template.editor.block.image',
+      ),
+      _TemplateBlock(
+        Symbols.format_align_left_outlined,
         'mail.template.editor.block.divider',
       ),
       _TemplateBlock(
-        Icons.share_outlined,
+        Symbols.share_outlined,
         'mail.template.editor.block.socialGroup',
       ),
     ];
@@ -3065,7 +3068,7 @@ class _TemplateBlocksPanel extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  Icons.brush_outlined,
+                  Symbols.brush_outlined,
                   color: Colors.white70,
                   size: 18,
                 ),
@@ -3081,7 +3084,7 @@ class _TemplateBlocksPanel extends StatelessWidget {
                   ),
                 ),
                 const Icon(
-                  Icons.grid_view_outlined,
+                  Symbols.grid_view_outlined,
                   color: AppColors.actionRed,
                   size: 22,
                 ),

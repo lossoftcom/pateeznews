@@ -16,6 +16,7 @@ const ROOT = path.resolve(PROJECT_ROOT, 'public', 'local-upload');
 const TYPES = new Set(['image', 'video', 'audio', 'file', 'logo', 'profile', 'font']);
 const IMAGE_TYPES = new Set(['image', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
+const IMAGE_VARIANT_SUFFIXES = ['_sm', '_xl', '_md', '_lg'];
 const THUMB_EXTENSIONS = ['.webp', '.jpg', '.jpeg', '.png'];
 const IMAGE_VARIANT_WIDTHS = [180, 260, 800, 900, 1200, 1440, 1600];
 const IMAGE_VARIANT_QUALITY = 86;
@@ -227,6 +228,165 @@ async function deleteImageVariants(type, id) {
       if (error?.code !== 'ENOENT') throw error;
     });
   }));
+}
+
+async function renameImageVariants(type, oldId, newId) {
+  if (!IMAGE_TYPES.has(type)) return;
+  const oldVariants = imageVariantIds(type, oldId);
+  const newVariants = imageVariantIds(type, newId);
+  await Promise.all(oldVariants.map(async ({ id: oldVariantId }, index) => {
+    const newVariantId = newVariants[index]?.id;
+    if (!newVariantId) return;
+    const oldPath = resolveVariantPath(oldVariantId);
+    const newPath = resolveVariantPath(newVariantId);
+    if (!oldPath || !newPath) return;
+    if (!fs.existsSync(oldPath)) return;
+    await fs.promises.mkdir(path.dirname(newPath), { recursive: true });
+    if (fs.existsSync(newPath)) {
+      await fs.promises.unlink(newPath).catch((error) => {
+        if (error?.code !== 'ENOENT') throw error;
+      });
+    }
+    await fs.promises.rename(oldPath, newPath);
+  }));
+}
+
+function stripKnownVariant(baseName) {
+  for (const suffix of IMAGE_VARIANT_SUFFIXES) {
+    if (baseName.toLowerCase().endsWith(suffix)) {
+      return {
+        rootBase: baseName.slice(0, -suffix.length),
+        variant: baseName.slice(-suffix.length),
+      };
+    }
+  }
+  return { rootBase: baseName, variant: '' };
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeStorageId(type, id) {
+  return normalizePath(id)
+    .replace(/^api\/storage\/file\//, '')
+    .replace(/^local-upload\//, '')
+    .replace(new RegExp(`^${type}/`), '');
+}
+
+function basenameEquals(left, right) {
+  const a = String(left || '').normalize('NFC');
+  const b = String(right || '').normalize('NFC');
+  return a === b || a.normalize('NFD') === b.normalize('NFD');
+}
+
+function getCandidateId(type, id) {
+  const base = path.resolve(ROOT, type);
+  const normalizedId = normalizeStorageId(type, id);
+  const candidates = [
+    normalizedId,
+    normalizedId.normalize('NFC'),
+    normalizedId.normalize('NFD'),
+  ];
+  for (const candidate of [...new Set(candidates)]) {
+    const resolved = resolveUploadPath(type, candidate);
+    if (!resolved || !inside(base, resolved.absolutePath)) continue;
+    if (fs.existsSync(resolved.absolutePath) && fs.statSync(resolved.absolutePath).isFile()) {
+      return candidate;
+    }
+  }
+
+  const fileName = path.posix.basename(normalizedId);
+  if (fileName) {
+    const matches = walk(base).filter((candidate) => basenameEquals(path.posix.basename(candidate), fileName));
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      const error = new Error('Multiple local media files match this filename');
+      error.status = 409;
+      throw error;
+    }
+  }
+  return '';
+}
+
+function collectRenameTargets(type, fileId) {
+  const resolved = resolveUploadPath(type, fileId);
+  if (!resolved) return [];
+  const parsed = path.posix.parse(fileId);
+  const dir = parsed.dir;
+  const fullDir = path.dirname(resolved.absolutePath);
+  const known = stripKnownVariant(parsed.name);
+  const targets = new Map();
+  targets.set(fileId, {
+    id: fileId,
+    variant: known.variant,
+    ext: parsed.ext,
+  });
+
+  if (IMAGE_TYPES.has(type) && fs.existsSync(fullDir) && fs.statSync(fullDir).isDirectory()) {
+    const siblingRegex = new RegExp(`^${escapeRegExp(known.rootBase)}(?:_sm|_xl|_md|_lg)?\\.[^.]+$`, 'i');
+    for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !siblingRegex.test(entry.name)) continue;
+      const siblingParsed = path.posix.parse(entry.name);
+      const siblingKnown = stripKnownVariant(siblingParsed.name);
+      const siblingId = dir ? `${dir}/${entry.name}` : entry.name;
+      targets.set(siblingId, {
+        id: siblingId,
+        variant: siblingKnown.variant,
+        ext: siblingParsed.ext,
+      });
+    }
+  }
+
+  if (type === 'video' && fs.existsSync(fullDir) && fs.statSync(fullDir).isDirectory()) {
+    const thumbRegex = new RegExp(`^${escapeRegExp(parsed.name)}_thumb\\.(webp|jpe?g|png)$`, 'i');
+    for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !thumbRegex.test(entry.name)) continue;
+      const siblingParsed = path.posix.parse(entry.name);
+      const siblingId = dir ? `${dir}/${entry.name}` : entry.name;
+      targets.set(siblingId, {
+        id: siblingId,
+        variant: '_thumb',
+        ext: siblingParsed.ext,
+      });
+    }
+  }
+
+  return [...targets.values()];
+}
+
+function seoBase(value) {
+  const base = normalizePath(value)
+    .split('/')
+    .pop()
+    .replace(/\.[a-z0-9]{2,8}$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 90)
+    .replace(/-+$/g, '');
+  return base || `haber-medyasi-${Date.now()}`;
+}
+
+function chooseUniqueBase(type, targets, requestedBase) {
+  const oldIds = new Set(targets.map((target) => target.id));
+  const baseDir = path.resolve(ROOT, type);
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
+    const candidateBase = `${requestedBase}${suffix}`;
+    const conflicts = targets.some((target) => {
+      const parsed = path.posix.parse(target.id);
+      const ext = (target.ext || '').toLowerCase() || (type === 'video' ? '.mp4' : '.webp');
+      const newId = `${parsed.dir ? `${parsed.dir}/` : ''}${candidateBase}${target.variant}${ext}`;
+      const fullPath = path.resolve(baseDir, newId);
+      return !oldIds.has(newId) && fs.existsSync(fullPath);
+    });
+    if (!conflicts) return candidateBase;
+  }
+
+  return `${requestedBase}-${Date.now()}`;
 }
 
 function shouldOptimize(type, filename, contentType) {
@@ -650,6 +810,61 @@ async function resolveVideoThumb(req, res) {
   });
 }
 
+async function renameStoredFile(req, res) {
+  const body = JSON.parse(await readBody(req) || '{}');
+  const type = storageType(body.type);
+  const candidateId = getCandidateId(type, body.id);
+  if (!candidateId) return json(res, 404, { error: 'File not found' });
+
+  const targets = collectRenameTargets(type, candidateId);
+  if (!targets.length) return json(res, 404, { error: 'File not found' });
+
+  const uniqueBase = chooseUniqueBase(type, targets, seoBase(body.newBase || body.filename));
+  const replacements = [];
+  for (const target of targets) {
+    const parsed = path.posix.parse(target.id);
+    const ext = (target.ext || '').toLowerCase() || (type === 'video' ? '.mp4' : '.webp');
+    const newFileName = `${uniqueBase}${target.variant}${ext}`;
+    const newId = parsed.dir ? `${parsed.dir}/${newFileName}` : newFileName;
+    if (target.id === newId) continue;
+
+    const oldResolved = resolveUploadPath(type, target.id);
+    const newResolved = resolveUploadPath(type, newId);
+    if (!oldResolved || !newResolved) continue;
+    if (!fs.existsSync(oldResolved.absolutePath)) continue;
+
+    await fs.promises.mkdir(path.dirname(newResolved.absolutePath), { recursive: true });
+    await fs.promises.rename(oldResolved.absolutePath, newResolved.absolutePath);
+    await renameImageVariants(type, target.id, newId);
+
+    const stat = await fs.promises.stat(newResolved.absolutePath);
+    const parsedNew = path.posix.parse(newId);
+    replacements.push({
+      oldId: target.id,
+      newId,
+      oldSrc: localApiPath(type, target.id),
+      newSrc: localApiPath(type, newId),
+      oldPublicSrc: localPublicPath(type, target.id),
+      newPublicSrc: localPublicPath(type, newId),
+      value: parsedNew.base,
+      path: parsedNew.dir,
+      size: stat.size,
+      contentType: contentTypeForFilename(newId),
+      thumb: localApiPath(type, newId),
+      type,
+      provider: 'local',
+    });
+  }
+
+  const selected = replacements.find((item) => item.oldId === candidateId) || replacements[0] || null;
+  return json(res, 200, {
+    success: true,
+    filename: uniqueBase,
+    src: selected?.newSrc || localApiPath(type, candidateId),
+    replacements,
+  });
+}
+
 async function remove(req, res) {
   const body = JSON.parse(await readBody(req) || '{}');
   const rawId = normalizePath(body.id);
@@ -681,11 +896,15 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/local-storage/upload') return upload(req, res);
     if (req.method === 'POST' && url.pathname === '/api/local-storage/video-thumb') return resolveVideoThumb(req, res);
+    if (req.method === 'POST' && url.pathname === '/api/local-storage/rename') return renameStoredFile(req, res);
     if (req.method === 'DELETE' && url.pathname === '/api/local-storage/delete') return remove(req, res);
     return json(res, 404, { error: 'Not found' });
   } catch (error) {
     console.error('Local storage server error:', error);
-    return json(res, 500, { error: error?.message || 'Local storage server error' });
+    const status = Number(error?.status || 500);
+    return json(res, status >= 400 && status < 600 ? status : 500, {
+      error: error?.message || 'Local storage server error',
+    });
   }
 });
 

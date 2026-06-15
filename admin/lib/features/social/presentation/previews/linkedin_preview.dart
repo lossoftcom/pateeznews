@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// LinkedIn post preview.
 class LinkedinPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class LinkedinPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
 
   @override
   Widget build(BuildContext context) {
@@ -54,14 +57,23 @@ class LinkedinPreview extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        profileName,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF191919),
-                          letterSpacing: 0,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              profileName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF191919),
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                          ?accountAction,
+                        ],
                       ),
                       const Text(
                         'Haber Portalı',
@@ -82,7 +94,7 @@ class LinkedinPreview extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.more_horiz, color: Color(0xFF666666)),
+                const Icon(Symbols.more_horiz, color: Color(0xFF666666)),
               ],
             ),
           ),
@@ -106,13 +118,13 @@ class LinkedinPreview extends StatelessWidget {
               aspectRatio: 1.91,
               child: Container(
                 color: const Color(0xFFF3F6F8),
-                child: AdminCachedImage(
+                child: SocialMediaPreview(
                   url: imageUrl,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   memCacheWidth: 1080,
                   errorWidget: const Center(
                     child: Icon(
-                      Icons.image_outlined,
+                      Symbols.image_outlined,
                       size: 48,
                       color: Color(0xFFCCCCCC),
                     ),
@@ -167,7 +179,7 @@ class LinkedinPreview extends StatelessWidget {
                     color: Color(0xFF0A66C2),
                   ),
                   child: const Icon(
-                    Icons.thumb_up,
+                    Symbols.thumb_up,
                     size: 10,
                     color: Colors.white,
                   ),
@@ -182,7 +194,7 @@ class LinkedinPreview extends StatelessWidget {
                       color: Color(0xFFDF704D),
                     ),
                     child: const Icon(
-                      Icons.favorite,
+                      Symbols.favorite,
                       size: 10,
                       color: Colors.white,
                     ),
@@ -198,7 +210,7 @@ class LinkedinPreview extends StatelessWidget {
                       color: Color(0xFFF5BB5C),
                     ),
                     child: const Icon(
-                      Icons.lightbulb,
+                      Symbols.lightbulb,
                       size: 10,
                       color: Colors.white,
                     ),
@@ -227,13 +239,13 @@ class LinkedinPreview extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: const [
-                _LiAction(icon: Icons.thumb_up_alt_outlined, label: 'Beğen'),
+                _LiAction(icon: Symbols.thumb_up_alt_outlined, label: 'Beğen'),
                 _LiAction(
-                  icon: Icons.chat_bubble_outline_rounded,
+                  icon: Symbols.chat_bubble_outline_rounded,
                   label: 'Yorum',
                 ),
-                _LiAction(icon: Icons.repeat_rounded, label: 'Paylaş'),
-                _LiAction(icon: Icons.send_outlined, label: 'Gönder'),
+                _LiAction(icon: Symbols.repeat_rounded, label: 'Paylaş'),
+                _LiAction(icon: Symbols.send_outlined, label: 'Gönder'),
               ],
             ),
           ),

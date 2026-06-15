@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
+import 'package:pateeznews_admin/shared/widgets/highlighted_text.dart';
 
 import '../presentation/subscribers_models.dart';
 
@@ -45,17 +46,58 @@ class SupabaseAdminSubscribersRepository implements AdminSubscribersRepository {
     required String sortKey,
     required bool sortAscending,
   }) async {
-    final filters = <Map<String, Object?>>[];
     final term = _safeSearchTerm(search);
-    if (term.isNotEmpty) {
-      final pattern = '%$term%';
-      filters.add({
-        'type': 'or',
-        'value':
-            'full_name.ilike.$pattern,email.ilike.$pattern,phone.ilike.$pattern,ip_address.ilike.$pattern,city.ilike.$pattern,status.ilike.$pattern,source.ilike.$pattern',
-      });
+    if (term.isEmpty) {
+      return _fetchSubscribersPage(
+        searchFilter: null,
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
     }
+    // Haberler ile AYNI teknoloji: normalize (Türkçe-duyarsız) + trigram'lı
+    // admin_search_text. Şema/sürüm güncel değilse eski ham filtreye düşeriz.
+    try {
+      return await _fetchSubscribersPage(
+        searchFilter: _normalizedSearchFilter(term),
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    } catch (_) {
+      return _fetchSubscribersPage(
+        searchFilter: _legacySearchFilter(term),
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    }
+  }
 
+  Map<String, Object?> _normalizedSearchFilter(String term) {
+    final pattern = '%${normalizeSearchText(term).replaceAll(',', ' ').trim()}%';
+    return {'type': 'or', 'value': 'admin_search_text.ilike.$pattern'};
+  }
+
+  Map<String, Object?> _legacySearchFilter(String term) {
+    final pattern = '%$term%';
+    return {
+      'type': 'or',
+      'value':
+          'full_name.ilike.$pattern,email.ilike.$pattern,phone.ilike.$pattern,ip_address.ilike.$pattern,city.ilike.$pattern,status.ilike.$pattern,source.ilike.$pattern',
+    };
+  }
+
+  Future<AdminSubscribersPageResult> _fetchSubscribersPage({
+    required Map<String, Object?>? searchFilter,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
@@ -64,7 +106,7 @@ class SupabaseAdminSubscribersRepository implements AdminSubscribersRepository {
       'method': 'select',
       'select':
           'id,email,full_name,phone,ip_address,city,language_code,source,status,created_at,updated_at',
-      'filters': filters,
+      'filters': [?searchFilter],
       'orders': _subscriberOrders(sortKey, sortAscending),
       'range': {'from': from, 'to': to},
       'count': 'exact',

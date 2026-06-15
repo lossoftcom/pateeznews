@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -12,10 +13,26 @@ import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/admin_rich_text_editor.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../news/presentation/widgets/article_text_block.dart';
 import '../data/admin_pages_repository.dart';
 import 'pages_models.dart';
+
+/// Aktif arama sorgusunu satır hücrelerine taşır (highlight için).
+class _PagesSearchScope extends InheritedWidget {
+  const _PagesSearchScope({required this.query, required super.child});
+
+  final String query;
+
+  static String of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PagesSearchScope>()?.query ??
+      '';
+
+  @override
+  bool updateShouldNotify(_PagesSearchScope oldWidget) =>
+      oldWidget.query != query;
+}
 
 class PagesScreen extends StatefulWidget {
   const PagesScreen({
@@ -51,18 +68,21 @@ class _PagesScreenState extends State<PagesScreen> {
   var _sortAscending = false;
   var _showForm = false;
   AdminPage? _editingPage;
+  Timer? _searchDebounce;
+  var _searchSeq = 0;
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_reloadFirstPage);
+    _searchController.addListener(_onSearchChanged);
     unawaited(_loadInitial());
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController
-      ..removeListener(_reloadFirstPage)
+      ..removeListener(_onSearchChanged)
       ..dispose();
     super.dispose();
   }
@@ -131,6 +151,56 @@ class _PagesScreenState extends State<PagesScreen> {
     }
   }
 
+  /// Arama yazılırken: anlık istemci filtresi (_visiblePages) + spinner'sız
+  /// (sessiz) sunucu yenileme. Filtre dropdownları eski yolla (_reloadFirstPage).
+  void _onSearchChanged() {
+    setState(() => _page = 1);
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      unawaited(_refreshPagesSilently());
+    });
+  }
+
+  Future<void> _refreshPagesSilently() async {
+    final seq = ++_searchSeq;
+    try {
+      final result = await _fetchPages();
+      if (!mounted || seq != _searchSeq) return;
+      setState(() {
+        _pages = result.pages;
+        _totalCount = result.totalCount;
+        _error = null;
+      });
+    } catch (_) {
+      // Sessiz yenileme; mevcut veri ekranda kalır.
+    }
+  }
+
+  /// Anlık (0ms) istemci filtresi — Haberler ile aynı Türkçe-duyarsız eşleşme.
+  List<AdminPage> _visiblePages() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return _pages;
+    return _pages
+        .where((page) => searchMatchesAll(_pageHaystack(page), query))
+        .toList(growable: false);
+  }
+
+  String _pageHaystack(AdminPage page) {
+    return [
+      page.id,
+      page.title,
+      page.slug,
+      page.pageGroup,
+      page.category,
+      page.type,
+      page.status,
+      page.languageCode,
+      page.location,
+      page.metaTitle,
+    ].join(' ');
+  }
+
   Future<void> _savePage(AdminPageFormData data) async {
     setState(() => _saving = true);
     try {
@@ -178,9 +248,7 @@ class _PagesScreenState extends State<PagesScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.deepOcean),
-    );
+    AdminToast.show(context, message: message, tone: AdminToastTone.error);
   }
 
   void _sort(String key) {
@@ -215,179 +283,182 @@ class _PagesScreenState extends State<PagesScreen> {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+    return _PagesSearchScope(
+      query: _searchController.text,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
 
-        if (constraints.maxWidth < AdminMobile.breakpoint) {
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              18,
-              horizontalPadding,
-              28,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  context.t('pages.title'),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: AppColors.deepOcean,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _PagesMobileView(
-                    pages: _pages,
-                    loading: _loading,
-                    page: _page,
-                    pageSize: _pageSize,
-                    totalCount: _totalCount,
-                    searchController: _searchController,
-                    category: _category,
-                    type: _type,
-                    status: _status,
-                    options: _options,
-                    error: _error,
-                    onCategoryChanged: (value) {
-                      setState(() => _category = value);
-                      _reloadFirstPage();
-                    },
-                    onTypeChanged: (value) {
-                      setState(() => _type = value);
-                      _reloadFirstPage();
-                    },
-                    onStatusChanged: (value) {
-                      setState(() => _status = value);
-                      _reloadFirstPage();
-                    },
-                    onAdd: () {
-                      setState(() {
-                        _editingPage = null;
-                        _showForm = true;
-                      });
-                    },
-                    onEdit: (page) {
-                      setState(() {
-                        _editingPage = page;
-                        _showForm = true;
-                      });
-                    },
-                    onToggleStatus: (page) => unawaited(_toggleStatus(page)),
-                    onDelete: (page) => unawaited(_deletePage(page)),
-                    onPageChanged: (page) {
-                      setState(() => _page = page);
-                      unawaited(_reloadPages());
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final content = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              context.t('pages.title'),
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppColors.deepOcean,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
+          if (constraints.maxWidth < AdminMobile.breakpoint) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                18,
+                horizontalPadding,
+                28,
               ),
-            ),
-            const SizedBox(height: 24),
-            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _FilterRow(
-                    category: _category,
-                    type: _type,
-                    status: _status,
-                    options: _options,
-                    onCategoryChanged: (value) {
-                      setState(() => _category = value);
-                      _reloadFirstPage();
-                    },
-                    onTypeChanged: (value) {
-                      setState(() => _type = value);
-                      _reloadFirstPage();
-                    },
-                    onStatusChanged: (value) {
-                      setState(() => _status = value);
-                      _reloadFirstPage();
-                    },
+                  Text(
+                    context.t('pages.title'),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
                   ),
-                  const SizedBox(height: 28),
-                  _Toolbar(
-                    pageSize: _pageSize,
-                    searchController: _searchController,
-                    onPageSizeChanged: (value) {
-                      setState(() {
-                        _pageSize = value;
-                        _page = 1;
-                      });
-                      unawaited(_reloadPages());
-                    },
-                    onAdd: () {
-                      setState(() {
-                        _editingPage = null;
-                        _showForm = true;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
                   Expanded(
-                    child: _error != null
-                        ? Center(child: Text(_error!, style: _errorStyle))
-                        : _PagesTable(
-                            pages: _pages,
-                            loading: _loading,
-                            sortKey: _sortKey,
-                            sortAscending: _sortAscending,
-                            onSort: _sort,
-                            onEdit: (page) {
-                              setState(() {
-                                _editingPage = page;
-                                _showForm = true;
-                              });
-                            },
-                            onToggleStatus: (page) =>
-                                unawaited(_toggleStatus(page)),
-                            onDelete: (page) => unawaited(_deletePage(page)),
-                          ),
-                  ),
-                  const SizedBox(height: 16),
-                  _PagesFooter(
-                    page: _page,
-                    pageSize: _pageSize,
-                    totalCount: _totalCount,
-                    onPageChanged: (page) {
-                      setState(() => _page = page);
-                      unawaited(_reloadPages());
-                    },
+                    child: _PagesMobileView(
+                      pages: _visiblePages(),
+                      loading: _loading,
+                      page: _page,
+                      pageSize: _pageSize,
+                      totalCount: _totalCount,
+                      searchController: _searchController,
+                      category: _category,
+                      type: _type,
+                      status: _status,
+                      options: _options,
+                      error: _error,
+                      onCategoryChanged: (value) {
+                        setState(() => _category = value);
+                        _reloadFirstPage();
+                      },
+                      onTypeChanged: (value) {
+                        setState(() => _type = value);
+                        _reloadFirstPage();
+                      },
+                      onStatusChanged: (value) {
+                        setState(() => _status = value);
+                        _reloadFirstPage();
+                      },
+                      onAdd: () {
+                        setState(() {
+                          _editingPage = null;
+                          _showForm = true;
+                        });
+                      },
+                      onEdit: (page) {
+                        setState(() {
+                          _editingPage = page;
+                          _showForm = true;
+                        });
+                      },
+                      onToggleStatus: (page) => unawaited(_toggleStatus(page)),
+                      onDelete: (page) => unawaited(_deletePage(page)),
+                      onPageChanged: (page) {
+                        setState(() => _page = page);
+                        unawaited(_reloadPages());
+                      },
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
-        );
+            );
+          }
 
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            28,
-            horizontalPadding,
-            28,
-          ),
-          child: content,
-        );
-      },
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                context.t('pages.title'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FilterRow(
+                      category: _category,
+                      type: _type,
+                      status: _status,
+                      options: _options,
+                      onCategoryChanged: (value) {
+                        setState(() => _category = value);
+                        _reloadFirstPage();
+                      },
+                      onTypeChanged: (value) {
+                        setState(() => _type = value);
+                        _reloadFirstPage();
+                      },
+                      onStatusChanged: (value) {
+                        setState(() => _status = value);
+                        _reloadFirstPage();
+                      },
+                    ),
+                    const SizedBox(height: 28),
+                    _Toolbar(
+                      pageSize: _pageSize,
+                      searchController: _searchController,
+                      onPageSizeChanged: (value) {
+                        setState(() {
+                          _pageSize = value;
+                          _page = 1;
+                        });
+                        unawaited(_reloadPages());
+                      },
+                      onAdd: () {
+                        setState(() {
+                          _editingPage = null;
+                          _showForm = true;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    Expanded(
+                      child: _error != null
+                          ? Center(child: Text(_error!, style: _errorStyle))
+                          : _PagesTable(
+                              pages: _visiblePages(),
+                              loading: _loading,
+                              sortKey: _sortKey,
+                              sortAscending: _sortAscending,
+                              onSort: _sort,
+                              onEdit: (page) {
+                                setState(() {
+                                  _editingPage = page;
+                                  _showForm = true;
+                                });
+                              },
+                              onToggleStatus: (page) =>
+                                  unawaited(_toggleStatus(page)),
+                              onDelete: (page) => unawaited(_deletePage(page)),
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+                    _PagesFooter(
+                      page: _page,
+                      pageSize: _pageSize,
+                      totalCount: _totalCount,
+                      onPageChanged: (page) {
+                        setState(() => _page = page);
+                        unawaited(_reloadPages());
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              28,
+              horizontalPadding,
+              28,
+            ),
+            child: content,
+          );
+        },
+      ),
     );
   }
 
@@ -421,6 +492,7 @@ class _PageFormViewState extends State<PageFormView> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _slugController;
+  late final TextEditingController _groupController;
   late final TextEditingController _menuOrderController;
   late final TextEditingController _metaTitleController;
   late final TextEditingController _metaKeywordsController;
@@ -445,6 +517,11 @@ class _PageFormViewState extends State<PageFormView> {
     final page = widget.page;
     _titleController = TextEditingController(text: page?.title ?? '');
     _slugController = TextEditingController(text: page?.slug ?? '');
+    _groupController = TextEditingController(
+      text: page?.pageGroup.trim().isNotEmpty == true
+          ? page!.pageGroup
+          : 'Kurumsal',
+    );
     _menuOrderController = TextEditingController(
       text: (page?.menuOrder ?? 1).toString(),
     );
@@ -481,6 +558,7 @@ class _PageFormViewState extends State<PageFormView> {
   void dispose() {
     _titleController.dispose();
     _slugController.dispose();
+    _groupController.dispose();
     _menuOrderController.dispose();
     _metaTitleController.dispose();
     _metaKeywordsController.dispose();
@@ -591,6 +669,7 @@ class _PageFormViewState extends State<PageFormView> {
       AdminPageFormData(
         title: _titleController.text,
         slug: _slugController.text,
+        pageGroup: _groupController.text,
         languageCode: _languageCode,
         categoryId: _selectedCategoryId,
         category: category?.label ?? widget.page?.category ?? '',
@@ -725,6 +804,11 @@ class _PageFormViewState extends State<PageFormView> {
                               label: 'pages.field.slug',
                               controller: _slugController,
                               helper: 'pages.hint.slug',
+                            ),
+                            _TextField(
+                              label: 'pages.field.group',
+                              controller: _groupController,
+                              helper: 'pages.hint.group',
                             ),
                             _SelectField(
                               label: 'pages.field.type',
@@ -1059,6 +1143,25 @@ class _Toolbar extends StatelessWidget {
                   minWidth: 39,
                   minHeight: _toolbarHeight,
                 ),
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: searchController,
+                  builder: (context, value, _) {
+                    if (value.text.isEmpty) return const SizedBox.shrink();
+                    return IconButton(
+                      mouseCursor: SystemMouseCursors.click,
+                      onPressed: searchController.clear,
+                      icon: const SymbolIcon(
+                        Symbols.close,
+                        color: AppColors.iconMuted,
+                        size: 16,
+                      ),
+                    );
+                  },
+                ),
+                suffixIconConstraints: const BoxConstraints(
+                  minWidth: 38,
+                  minHeight: _toolbarHeight,
+                ),
                 filled: true,
                 fillColor: Colors.white,
                 isDense: true,
@@ -1154,10 +1257,11 @@ class _PagesTable extends StatelessWidget {
   final ValueChanged<AdminPage> onToggleStatus;
   final ValueChanged<AdminPage> onDelete;
 
-  static const double _minWidth = 980;
+  static const double _minWidth = 1080;
   static const double _horizontalPadding = 32;
   static const double _tableBorderWidth = 2;
   static const double _titleWidth = 300;
+  static const double _groupWidth = 120;
   static const double _categoryWidth = 140;
   static const double _typeWidth = 120;
   static const double _statusWidth = 112;
@@ -1165,6 +1269,7 @@ class _PagesTable extends StatelessWidget {
   static const double _actionsWidth = 76;
   static const double _minContentWidth =
       _titleWidth +
+      _groupWidth +
       _categoryWidth +
       _typeWidth +
       _statusWidth +
@@ -1250,6 +1355,7 @@ class _PagesTable extends StatelessWidget {
 class _PagesTableWidths {
   const _PagesTableWidths({
     required this.title,
+    required this.group,
     required this.category,
     required this.type,
     required this.status,
@@ -1258,6 +1364,7 @@ class _PagesTableWidths {
   });
 
   final double title;
+  final double group;
   final double category;
   final double type;
   final double status;
@@ -1273,6 +1380,7 @@ class _PagesTableWidths {
     final scale = contentWidth / _PagesTable._minContentWidth;
     return _PagesTableWidths(
       title: _PagesTable._titleWidth * scale,
+      group: _PagesTable._groupWidth * scale,
       category: _PagesTable._categoryWidth * scale,
       type: _PagesTable._typeWidth * scale,
       status: _PagesTable._statusWidth * scale,
@@ -1311,6 +1419,14 @@ class _TableHeader extends StatelessWidget {
             'pages.column.title',
             'title',
             widths.title,
+            sortKey,
+            sortAscending,
+            onSort,
+          ),
+          _HeaderCell(
+            'pages.column.group',
+            'group',
+            widths.group,
             sortKey,
             sortAscending,
             onSort,
@@ -1454,6 +1570,10 @@ class _PageRow extends StatelessWidget {
           SizedBox(
             width: widths.title,
             child: _PageTitleCell(page: page),
+          ),
+          SizedBox(
+            width: widths.group,
+            child: _PageGroupCell(page: page),
           ),
           SizedBox(
             width: widths.category,
@@ -1718,8 +1838,9 @@ class _PageTitleCell extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        HighlightedText(
           context.t(page.displayTitle),
+          query: _PagesSearchScope.of(context),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -1730,8 +1851,9 @@ class _PageTitleCell extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Text(
+        HighlightedText(
           '${page.slug.isEmpty ? '-' : page.slug} • ${page.displayLanguage}',
+          query: _PagesSearchScope.of(context),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -1741,6 +1863,23 @@ class _PageTitleCell extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PageGroupCell extends StatelessWidget {
+  const _PageGroupCell({required this.page});
+
+  final AdminPage page;
+
+  @override
+  Widget build(BuildContext context) {
+    return HighlightedText(
+      page.displayGroup,
+      query: _PagesSearchScope.of(context),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: _smallStrong,
     );
   }
 }
@@ -1758,8 +1897,9 @@ class _PageCategoryCell extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (parent != null && parent.isNotEmpty) ...[
-          Text(
+          HighlightedText(
             parent,
+            query: _PagesSearchScope.of(context),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: _smallStrong,
@@ -1774,8 +1914,9 @@ class _PageCategoryCell extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Flexible(
-                child: Text(
+                child: HighlightedText(
                   page.displayCategory,
+                  query: _PagesSearchScope.of(context),
                   style: _smallStrong,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1783,8 +1924,9 @@ class _PageCategoryCell extends StatelessWidget {
             ],
           ),
         ] else
-          Text(
+          HighlightedText(
             page.displayCategory,
+            query: _PagesSearchScope.of(context),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: _smallStrong,
@@ -2076,7 +2218,7 @@ class _NumberStepperField extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _StepperButton(icon: Icons.remove, onTap: () => _changeBy(-1)),
+              _StepperButton(icon: Symbols.remove, onTap: () => _changeBy(-1)),
               Expanded(
                 child: TextFormField(
                   controller: controller,
@@ -2099,7 +2241,7 @@ class _NumberStepperField extends StatelessWidget {
                   ),
                 ),
               ),
-              _StepperButton(icon: Icons.add, onTap: () => _changeBy(1)),
+              _StepperButton(icon: Symbols.add, onTap: () => _changeBy(1)),
             ],
           ),
         ),
@@ -2532,7 +2674,7 @@ class _PagesFooter extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(Symbols.chevron_left),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -2552,7 +2694,7 @@ class _PagesFooter extends StatelessWidget {
               ),
               IconButton(
                 onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(Symbols.chevron_right),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -2937,8 +3079,9 @@ class _PagesMobileCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    HighlightedText(
                       context.t(page.displayTitle),
+                      query: _PagesSearchScope.of(context),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -2996,6 +3139,11 @@ class _PagesMobileCard extends StatelessWidget {
             runSpacing: 6,
             children: [
               _TypeBadge(type: page.displayType),
+              if (page.displayGroup.trim().isNotEmpty)
+                AdminMobileChip(
+                  label: page.displayGroup,
+                  color: AppColors.deepOcean,
+                ),
               if (page.displayCategory.trim().isNotEmpty)
                 AdminMobileChip(
                   label: page.displayCategory,

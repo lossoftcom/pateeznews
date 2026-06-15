@@ -327,6 +327,7 @@ CREATE TABLE public.pages (
   language_code text DEFAULT 'tr'::text,
   category_id uuid,
   category text DEFAULT ''::text,
+  page_group text NOT NULL DEFAULT 'Kurumsal'::text,
   page_type text DEFAULT 'custom'::text,
   status text DEFAULT 'active'::text,
   location text DEFAULT 'top_menu'::text,
@@ -352,6 +353,7 @@ CREATE TABLE public.pages (
 CREATE UNIQUE INDEX pages_language_slug_unique ON public.pages USING btree (language_code, slug) WHERE ((slug IS NOT NULL) AND (slug <> ''::text));
 CREATE INDEX pages_status_created_idx ON public.pages USING btree (status, created_at DESC);
 CREATE INDEX pages_category_idx ON public.pages USING btree (category);
+CREATE INDEX pages_group_idx ON public.pages USING btree (language_code, category_id, page_group, menu_order);
 CREATE TABLE public.app_cache (
   key text NOT NULL,
   payload jsonb NOT NULL,

@@ -4,6 +4,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../social_platform_data.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Rich-ish caption editor with toolbar and character counter.
 class SocialCaptionEditor extends StatelessWidget {
@@ -12,16 +13,18 @@ class SocialCaptionEditor extends StatelessWidget {
     required this.controller,
     required this.selectedPlatforms,
     required this.onChanged,
+    this.platformCharLimits = const {},
   });
 
   final TextEditingController controller;
   final Set<SocialPlatform> selectedPlatforms;
   final ValueChanged<String> onChanged;
+  final Map<SocialPlatform, int> platformCharLimits;
 
   int get _minCharLimit {
     if (selectedPlatforms.isEmpty) return 2200;
     return selectedPlatforms
-        .map((p) => platformInfoFor(p).charLimit)
+        .map((p) => platformCharLimits[p] ?? platformInfoFor(p).charLimit)
         .reduce((a, b) => a < b ? a : b);
   }
 
@@ -61,12 +64,12 @@ class SocialCaptionEditor extends StatelessWidget {
           child: Row(
             children: [
               _ToolbarButton(
-                icon: Icons.format_bold_rounded,
+                icon: Symbols.format_bold_rounded,
                 tooltip: 'Bold',
                 onTap: () => _insertWrap('**'),
               ),
               _ToolbarButton(
-                icon: Icons.format_italic_rounded,
+                icon: Symbols.format_italic_rounded,
                 tooltip: 'Italic',
                 onTap: () => _insertWrap('_'),
               ),
@@ -75,17 +78,17 @@ class SocialCaptionEditor extends StatelessWidget {
                 child: VerticalDivider(width: 16, thickness: 1),
               ),
               _ToolbarButton(
-                icon: Icons.link_rounded,
+                icon: Symbols.link_rounded,
                 tooltip: 'Link',
                 onTap: () {},
               ),
               _ToolbarButton(
-                icon: Icons.tag_rounded,
+                icon: Symbols.tag_rounded,
                 tooltip: 'Hashtag',
                 onTap: () => _insertText('#'),
               ),
               _ToolbarButton(
-                icon: Icons.emoji_emotions_outlined,
+                icon: Symbols.emoji_emotions_outlined,
                 tooltip: 'Emoji',
                 onTap: () {},
               ),
@@ -199,7 +202,7 @@ class SocialCaptionEditor extends StatelessWidget {
               if (overLimit) ...[
                 const SizedBox(width: 6),
                 Icon(
-                  Icons.warning_amber_rounded,
+                  Symbols.warning_amber_rounded,
                   size: 13,
                   color: AppColors.actionRed,
                 ),

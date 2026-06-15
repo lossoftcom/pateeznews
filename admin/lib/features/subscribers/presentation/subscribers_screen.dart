@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -10,6 +11,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../data/admin_subscribers_repository.dart';
@@ -39,6 +41,8 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
   var _page = 1;
   var _pageSize = 25;
   var _sortState = const TableSortState(key: 'date', ascending: false);
+  var _searching = false;
+  var _searchSeq = 0;
 
   @override
   void initState() {
@@ -90,6 +94,57 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
     }
   }
 
+  /// Spinner'sız (sessiz) sunucu yenileme — seq korumalı + "Aranıyor…" bayrağı.
+  Future<void> _refreshSubscribersSilently({bool isSearch = false}) async {
+    final seq = ++_searchSeq;
+    if (isSearch && mounted && !_searching) {
+      setState(() => _searching = true);
+    }
+    try {
+      final result = await widget.repository.fetchSubscribers(
+        search: _searchQuery,
+        page: _page,
+        pageSize: _pageSize,
+        sortKey: _sortState.key,
+        sortAscending: _sortState.ascending,
+      );
+      if (!mounted || seq != _searchSeq) return;
+      setState(() {
+        _subscribers = result.subscribers;
+        _totalCount = result.totalCount;
+        _selectedIds.removeWhere(
+          (id) => !_subscribers.any((subscriber) => subscriber.id == id),
+        );
+        _errorText = null;
+        _searching = false;
+      });
+    } catch (_) {
+      if (mounted && seq == _searchSeq && _searching) {
+        setState(() => _searching = false);
+      }
+    }
+  }
+
+  /// Anlık (0ms) istemci filtresi — Haberler ile aynı Türkçe-duyarsız eşleşme.
+  List<AdminSubscriber> _visibleSubscribers() {
+    final query = _searchQuery.trim();
+    if (query.isEmpty) return _subscribers;
+    return _subscribers
+        .where((s) => searchMatchesAll(_subscriberHaystack(s), query))
+        .toList(growable: false);
+  }
+
+  String _subscriberHaystack(AdminSubscriber subscriber) {
+    return [
+      subscriber.id,
+      subscriber.fullName,
+      subscriber.email,
+      subscriber.phone,
+      subscriber.ipAddress,
+      subscriber.city,
+    ].join(' ');
+  }
+
   void _changePageSize(int? value) {
     if (value == null || value == _pageSize) return;
     setState(() {
@@ -100,14 +155,15 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
   }
 
   void _changeSearch(String value) {
+    // Anlık his: yazar yazmaz görünür satırlar istemci tarafında filtrelenir.
     setState(() {
       _searchQuery = value;
+      _resetTableState();
     });
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      setState(_resetTableState);
-      unawaited(_loadSubscribers());
+      unawaited(_refreshSubscribersSilently(isSearch: true));
     });
   }
 
@@ -239,13 +295,10 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
   }
 
   void _showMessage(String messageKey) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(context.t(messageKey)),
-        backgroundColor: AppColors.deepOcean,
-      ),
+    AdminToast.show(
+      context,
+      message: context.t(messageKey),
+      tone: AdminToastTone.success,
     );
   }
 
@@ -260,10 +313,7 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SubscribersTitle(
-              selectedCount: _selectedIds.length,
-              onDeleteSelected: _deleteSelectedSubscribers,
-            ),
+            const _SubscribersTitle(),
             if (_errorText != null) ...[
               const SizedBox(height: 22),
               _SubscribersErrorBanner(message: _errorText!),
@@ -271,8 +321,9 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
             SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: _SubscribersTableCard(
-                subscribers: _subscribers,
+                subscribers: _visibleSubscribers(),
                 loading: _loading,
+                searching: _searching && _searchQuery.trim().isNotEmpty,
                 page: _page,
                 pageSize: _pageSize,
                 totalCount: _totalCount,
@@ -283,6 +334,7 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
                 onPageSizeChanged: _changePageSize,
                 onSearchChanged: _changeSearch,
                 onPageChanged: _changePage,
+                onDeleteSelected: _deleteSelectedSubscribers,
                 onToggleSubscriber: _toggleSubscriber,
                 onToggleAllSubscribers: _toggleAllSubscribers,
                 onSort: _changeSort,
@@ -326,37 +378,17 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
 }
 
 class _SubscribersTitle extends StatelessWidget {
-  const _SubscribersTitle({
-    required this.selectedCount,
-    required this.onDeleteSelected,
-  });
-
-  final int selectedCount;
-  final VoidCallback onDeleteSelected;
+  const _SubscribersTitle();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            context.t('subscribers.title'),
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: AppColors.deepOcean,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
-        if (selectedCount > 0)
-          _DangerTextButton(
-            label: context.t(
-              'subscribers.selectedDelete',
-              values: {'count': selectedCount},
-            ),
-            onTap: onDeleteSelected,
-          ),
-      ],
+    return Text(
+      context.t('subscribers.title'),
+      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+        color: AppColors.deepOcean,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+      ),
     );
   }
 }
@@ -387,10 +419,28 @@ class _SubscribersErrorBanner extends StatelessWidget {
   }
 }
 
+/// Aktif arama sorgusunu satır hücrelerine taşır (highlight için).
+class _SubscribersSearchScope extends InheritedWidget {
+  const _SubscribersSearchScope({required this.query, required super.child});
+
+  final String query;
+
+  static String of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_SubscribersSearchScope>()
+          ?.query ??
+      '';
+
+  @override
+  bool updateShouldNotify(_SubscribersSearchScope oldWidget) =>
+      oldWidget.query != query;
+}
+
 class _SubscribersTableCard extends StatelessWidget {
   const _SubscribersTableCard({
     required this.subscribers,
     required this.loading,
+    this.searching = false,
     required this.page,
     required this.pageSize,
     required this.totalCount,
@@ -401,6 +451,7 @@ class _SubscribersTableCard extends StatelessWidget {
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onPageChanged,
+    required this.onDeleteSelected,
     required this.onToggleSubscriber,
     required this.onToggleAllSubscribers,
     required this.onSort,
@@ -414,6 +465,7 @@ class _SubscribersTableCard extends StatelessWidget {
 
   final List<AdminSubscriber> subscribers;
   final bool loading;
+  final bool searching;
   final int page;
   final int pageSize;
   final int totalCount;
@@ -424,6 +476,7 @@ class _SubscribersTableCard extends StatelessWidget {
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
+  final VoidCallback onDeleteSelected;
   final ValueChanged<String> onToggleSubscriber;
   final VoidCallback onToggleAllSubscribers;
   final ValueChanged<String> onSort;
@@ -437,109 +490,119 @@ class _SubscribersTableCard extends StatelessWidget {
     final pageIds = subscribers.map((subscriber) => subscriber.id).toSet();
     final allSelected = pageIds.isNotEmpty && selectedIds.containsAll(pageIds);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < AdminMobile.breakpoint) {
-          return _SubscribersMobileView(
-            subscribers: subscribers,
-            loading: loading,
-            page: page,
-            pageSize: pageSize,
-            totalCount: totalCount,
-            searchQuery: searchQuery,
-            selectedIds: selectedIds,
-            onSearchChanged: onSearchChanged,
-            onPageChanged: onPageChanged,
-            onToggleSubscriber: onToggleSubscriber,
-            onCreate: onCreate,
-            onEdit: onEdit,
-            onUpdate: onUpdate,
-            onDelete: onDelete,
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _SubscribersToolbar(
-              pageSize: pageSize,
-              searchController: searchController,
-              searchQuery: searchQuery,
-              onPageSizeChanged: onPageSizeChanged,
-              onSearchChanged: onSearchChanged,
-              onCreate: onCreate,
-            ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: AppColors.line),
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = math.max(
-                      constraints.maxWidth,
-                      _minTableWidth,
-                    );
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(
-                        width: width,
-                        height: constraints.hasBoundedHeight
-                            ? constraints.maxHeight
-                            : null,
-                        child: Column(
-                          children: [
-                            _SubscriberTableHeader(
-                              selected: allSelected,
-                              sortState: sortState,
-                              onToggle: onToggleAllSubscribers,
-                              onSort: onSort,
-                            ),
-                            Expanded(
-                              child: loading && subscribers.isEmpty
-                                  ? const _SubscriberLoadingState()
-                                  : subscribers.isEmpty
-                                  ? const _SubscriberEmptyState()
-                                  : ListView.builder(
-                                      itemCount: subscribers.length,
-                                      itemBuilder: (context, index) {
-                                        final subscriber = subscribers[index];
-                                        return _SubscriberTableRow(
-                                          subscriber: subscriber,
-                                          selected: selectedIds.contains(
-                                            subscriber.id,
-                                          ),
-                                          onToggle: () =>
-                                              onToggleSubscriber(subscriber.id),
-                                          onEdit: () => onEdit(subscriber),
-                                          onUpdate: () => onUpdate(subscriber),
-                                          onDelete: () => onDelete(subscriber),
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _SubscribersFooter(
+    return _SubscribersSearchScope(
+      query: searchQuery,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < AdminMobile.breakpoint) {
+            return _SubscribersMobileView(
+              subscribers: subscribers,
               loading: loading,
               page: page,
               pageSize: pageSize,
               totalCount: totalCount,
+              searchQuery: searchQuery,
+              selectedIds: selectedIds,
+              onSearchChanged: onSearchChanged,
               onPageChanged: onPageChanged,
-            ),
-          ],
-        );
-      },
+              onToggleSubscriber: onToggleSubscriber,
+              onCreate: onCreate,
+              onEdit: onEdit,
+              onUpdate: onUpdate,
+              onDelete: onDelete,
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SubscribersToolbar(
+                pageSize: pageSize,
+                searchController: searchController,
+                searchQuery: searchQuery,
+                selectedCount: selectedIds.length,
+                onPageSizeChanged: onPageSizeChanged,
+                onSearchChanged: onSearchChanged,
+                onDeleteSelected: onDeleteSelected,
+                onCreate: onCreate,
+              ),
+              const SizedBox(height: 18),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.line),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = math.max(
+                        constraints.maxWidth,
+                        _minTableWidth,
+                      );
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(
+                          width: width,
+                          height: constraints.hasBoundedHeight
+                              ? constraints.maxHeight
+                              : null,
+                          child: Column(
+                            children: [
+                              _SubscriberTableHeader(
+                                selected: allSelected,
+                                sortState: sortState,
+                                onToggle: onToggleAllSubscribers,
+                                onSort: onSort,
+                              ),
+                              Expanded(
+                                child:
+                                    (loading || searching) &&
+                                        subscribers.isEmpty
+                                    ? const _SubscriberLoadingState()
+                                    : subscribers.isEmpty
+                                    ? const _SubscriberEmptyState()
+                                    : ListView.builder(
+                                        itemCount: subscribers.length,
+                                        itemBuilder: (context, index) {
+                                          final subscriber = subscribers[index];
+                                          return _SubscriberTableRow(
+                                            subscriber: subscriber,
+                                            selected: selectedIds.contains(
+                                              subscriber.id,
+                                            ),
+                                            onToggle: () => onToggleSubscriber(
+                                              subscriber.id,
+                                            ),
+                                            onEdit: () => onEdit(subscriber),
+                                            onUpdate: () =>
+                                                onUpdate(subscriber),
+                                            onDelete: () =>
+                                                onDelete(subscriber),
+                                          );
+                                        },
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SubscribersFooter(
+                loading: loading,
+                page: page,
+                pageSize: pageSize,
+                totalCount: totalCount,
+                onPageChanged: onPageChanged,
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -682,8 +745,9 @@ class _SubscribersMobileCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    HighlightedText(
                       subscriber.fullName,
+                      query: _SubscribersSearchScope.of(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -694,8 +758,9 @@ class _SubscribersMobileCard extends StatelessWidget {
                     ),
                     if (subscriber.email.trim().isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
+                      HighlightedText(
                         subscriber.email,
+                        query: _SubscribersSearchScope.of(context),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -783,16 +848,20 @@ class _SubscribersToolbar extends StatelessWidget {
     required this.pageSize,
     required this.searchController,
     required this.searchQuery,
+    required this.selectedCount,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
+    required this.onDeleteSelected,
     required this.onCreate,
   });
 
   final int pageSize;
   final TextEditingController searchController;
   final String searchQuery;
+  final int selectedCount;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
+  final VoidCallback onDeleteSelected;
   final VoidCallback onCreate;
 
   @override
@@ -822,12 +891,28 @@ class _SubscribersToolbar extends StatelessWidget {
             ),
           ],
         );
+        final deleteButton = selectedCount == 0
+            ? null
+            : _BulkDeleteButton(
+                selectedCount: selectedCount,
+                onPressed: onDeleteSelected,
+              );
 
         if (compact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _PageSizeSelect(value: pageSize, onChanged: onPageSizeChanged),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _PageSizeSelect(
+                  value: pageSize,
+                  onChanged: onPageSizeChanged,
+                ),
+              ),
+              if (deleteButton != null) ...[
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerLeft, child: deleteButton),
+              ],
               const SizedBox(height: 12),
               actions,
             ],
@@ -837,11 +922,69 @@ class _SubscribersToolbar extends StatelessWidget {
         return Row(
           children: [
             _PageSizeSelect(value: pageSize, onChanged: onPageSizeChanged),
+            if (deleteButton != null) ...[
+              const SizedBox(width: 12),
+              deleteButton,
+            ],
             const Spacer(),
             actions,
           ],
         );
       },
+    );
+  }
+}
+
+class _BulkDeleteButton extends StatelessWidget {
+  const _BulkDeleteButton({
+    required this.selectedCount,
+    required this.onPressed,
+  });
+
+  final int selectedCount;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: TextButton(
+        onPressed: onPressed,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: AppColors.actionRed,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 34),
+              maximumSize: const Size(double.infinity, 34),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SymbolIcon(Symbols.delete, color: Colors.white, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              context.t(
+                'subscribers.selectedDelete',
+                values: {'count': selectedCount},
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1053,8 +1196,9 @@ class _SubscriberTableRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
+                  child: HighlightedText(
                     subscriber.fullName,
+                    query: _SubscribersSearchScope.of(context),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1151,8 +1295,9 @@ class _SubscriberTextCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return HighlightedText(
       value,
+      query: _SubscribersSearchScope.of(context),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -1727,7 +1872,7 @@ class _SubscriberRowMenuState extends State<_SubscriberRowMenu> {
             showWhenUnlinked: false,
             targetAnchor: Alignment.bottomRight,
             followerAnchor: Alignment.topRight,
-            offset: const Offset(10, 8),
+            offset: const Offset(0, 8),
             child: _SubscriberMenuCard(
               onEdit: () => _tap(widget.onEdit),
               onUpdate: () => _tap(widget.onUpdate),
@@ -1796,7 +1941,7 @@ class _SubscriberMenuCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: Container(
-        width: 188,
+        width: 230,
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -2258,7 +2403,7 @@ class _SubscribersFooter extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(Symbols.chevron_left),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -2278,7 +2423,7 @@ class _SubscribersFooter extends StatelessWidget {
               ),
               IconButton(
                 onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(Symbols.chevron_right),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -2403,33 +2548,6 @@ class _PagerButton extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DangerTextButton extends StatelessWidget {
-  const _DangerTextButton({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onTap,
-      icon: const SymbolIcon(
-        Symbols.delete,
-        color: AppColors.actionRed,
-        size: 17,
-      ),
-      label: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.actionRed,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
         ),
       ),
     );

@@ -834,6 +834,8 @@ String _groupLabel(String groupName) {
   return switch (groupName) {
     'sidebar' => 'Menü Erişimi',
     'content' => 'İçerik Yönetimi',
+    'communication' => 'İletişim Modülleri',
+    'settings' => 'Ayarlar',
     'system' => 'Sistem Araçları',
     _ => groupName,
   };

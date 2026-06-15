@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -143,15 +144,19 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   }
 
   void _showSavedMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.t('contentSettings.saveSuccess'))),
+    AdminToast.show(
+      context,
+      message: context.t('contentSettings.saveSuccess'),
+      tone: AdminToastTone.success,
     );
   }
 
   void _showErrorMessage(Object error) {
-    ScaffoldMessenger.of(
+    AdminToast.show(
       context,
-    ).showSnackBar(SnackBar(content: Text(error.toString())));
+      message: error.toString(),
+      tone: AdminToastTone.error,
+    );
   }
 
   void _applySnapshot(ContentSettingsSnapshot settings) {

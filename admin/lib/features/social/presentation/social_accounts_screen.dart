@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
@@ -127,16 +128,16 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
 
   void _showError(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
   Future<void> _openLoginDialog() async {
-    final platforms = await showDialog<Set<SocialPlatform>>(
+    final openFailedMessage = context.t('social.accounts.openFailed');
+    await showDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (context) {
@@ -147,28 +148,26 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
           ),
           backgroundColor: Colors.transparent,
           child: _SocialAccountLoginDialog(
-            initiallySelected: socialPlatforms
-                .map((info) => info.platform)
-                .toSet(),
+            onConnect: (platform) async {
+              try {
+                final url = await widget.repository.createPortalLink(
+                  widget.session,
+                  platforms: {platform},
+                );
+                final launched = await launchUrl(
+                  Uri.parse(url),
+                  mode: LaunchMode.externalApplication,
+                );
+                if (!launched) throw Exception(openFailedMessage);
+              } catch (error) {
+                _showError(error);
+                rethrow;
+              }
+            },
           ),
         );
       },
     );
-    if (platforms == null || platforms.isEmpty || !mounted) return;
-    final openFailedMessage = context.t('social.accounts.openFailed');
-    try {
-      final url = await widget.repository.createPortalLink(
-        widget.session,
-        platforms: platforms,
-      );
-      final launched = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!launched) throw Exception(openFailedMessage);
-    } catch (error) {
-      _showError(error);
-    }
   }
 
   @override
@@ -925,10 +924,27 @@ class _SocialAccountsTableRow extends StatelessWidget {
   }
 }
 
-class _SocialAccountLoginDialog extends StatefulWidget {
-  const _SocialAccountLoginDialog({required this.initiallySelected});
+const _bundlePortalSupportedTypes = <String>{
+  'TIKTOK',
+  'YOUTUBE',
+  'INSTAGRAM',
+  'FACEBOOK',
+  'TWITTER',
+  'THREADS',
+  'LINKEDIN',
+  'PINTEREST',
+  'REDDIT',
+  'MASTODON',
+  'DISCORD',
+  'SLACK',
+  'BLUESKY',
+  'GOOGLE_BUSINESS',
+};
 
-  final Set<SocialPlatform> initiallySelected;
+class _SocialAccountLoginDialog extends StatefulWidget {
+  const _SocialAccountLoginDialog({required this.onConnect});
+
+  final Future<void> Function(SocialPlatform platform) onConnect;
 
   @override
   State<_SocialAccountLoginDialog> createState() =>
@@ -936,22 +952,23 @@ class _SocialAccountLoginDialog extends StatefulWidget {
 }
 
 class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
-  late var _selected = Set<SocialPlatform>.of(widget.initiallySelected);
+  SocialPlatform? _connectingPlatform;
 
-  void _toggle(SocialPlatform platform) {
-    setState(() {
-      if (_selected.contains(platform)) {
-        _selected = {..._selected}..remove(platform);
-      } else {
-        _selected = {..._selected, platform};
-      }
-    });
+  Future<void> _connect(SocialPlatform platform) async {
+    if (_connectingPlatform != null) return;
+    setState(() => _connectingPlatform = platform);
+    try {
+      await widget.onConnect(platform);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) setState(() => _connectingPlatform = null);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 760),
+      constraints: const BoxConstraints(maxWidth: 720),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -964,59 +981,107 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
           children: [
             Row(
               children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.actionRed.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  child: const SymbolIcon(
+                    Symbols.hub_outlined,
+                    color: AppColors.actionRed,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    context.t('social.accounts.dialog.title'),
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AppColors.deepOcean,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.t('social.accounts.dialog.title'),
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              color: AppColors.deepOcean,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        context.t('social.accounts.dialog.subtitle'),
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF198754).withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  child: Center(
+                    child: Text(
+                      context.t('social.accounts.status.ready'),
+                      style: const TextStyle(
+                        color: Color(0xFF198754),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
                     ),
                   ),
                 ),
+                const SizedBox(width: 6),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   onPressed: () => Navigator.pop(context),
+                  mouseCursor: SystemMouseCursors.click,
                   icon: const Icon(
-                    Icons.close,
+                    Symbols.close,
                     size: 18,
                     color: AppColors.deepOcean,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              context.t('social.accounts.dialog.subtitle'),
-              style: const TextStyle(
-                color: AppColors.inkSoft,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ),
             const SizedBox(height: 18),
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 border: Border.all(color: AppColors.line),
                 borderRadius: BorderRadius.circular(AppRadius.value),
               ),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(10),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final itemWidth = (constraints.maxWidth - 12) / 2;
+                  final itemWidth = constraints.maxWidth < 560
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - 10) / 2;
                   return Wrap(
-                    spacing: 12,
-                    runSpacing: 10,
+                    spacing: 10,
+                    runSpacing: 8,
                     children: [
                       for (final info in socialPlatforms)
                         SizedBox(
                           width: itemWidth,
                           child: _SocialLoginButton(
                             info: info,
-                            selected: _selected.contains(info.platform),
-                            onPressed: () => _toggle(info.platform),
+                            enabled: _bundlePortalSupportedTypes.contains(
+                              info.platform.bundleSocialType,
+                            ),
+                            connecting: _connectingPlatform == info.platform,
+                            busy: _connectingPlatform != null,
+                            onPressed: () => _connect(info.platform),
                           ),
                         ),
                     ],
@@ -1029,15 +1094,23 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _connectingPlatform == null
+                      ? () => Navigator.pop(context)
+                      : null,
+                  style:
+                      TextButton.styleFrom(
+                        foregroundColor: AppColors.deepOcean,
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ).copyWith(
+                        mouseCursor: const WidgetStatePropertyAll(
+                          SystemMouseCursors.click,
+                        ),
+                      ),
                   child: Text(context.t('social.publish.cancel')),
-                ),
-                const SizedBox(width: 10),
-                _PrimaryActionButton(
-                  label: context.t('social.accounts.connectSelected'),
-                  onPressed: _selected.isEmpty
-                      ? null
-                      : () => Navigator.pop(context, _selected),
                 ),
               ],
             ),
@@ -1051,25 +1124,31 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
 class _SocialLoginButton extends StatelessWidget {
   const _SocialLoginButton({
     required this.info,
-    required this.selected,
+    required this.enabled,
+    required this.connecting,
+    required this.busy,
     required this.onPressed,
   });
 
   final SocialPlatformInfo info;
-  final bool selected;
+  final bool enabled;
+  final bool connecting;
+  final bool busy;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final platform = _platformDisplayName(info);
+    final active = enabled && !busy;
     return SizedBox(
-      height: 46,
+      height: 52,
       child: TextButton(
-        onPressed: onPressed,
+        onPressed: active ? onPressed : null,
         style:
             TextButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppColors.deepOcean,
+              disabledForegroundColor: AppColors.support,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: RoundedRectangleBorder(
@@ -1081,39 +1160,80 @@ class _SocialLoginButton extends StatelessWidget {
                 letterSpacing: 0,
               ),
             ).copyWith(
-              side: WidgetStatePropertyAll(
-                BorderSide(
-                  color: selected
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (!enabled) return AppColors.surface;
+                if (connecting) return info.color.withValues(alpha: 0.06);
+                if (states.contains(WidgetState.hovered)) {
+                  return info.color.withValues(alpha: 0.04);
+                }
+                return Colors.white;
+              }),
+              side: WidgetStateProperty.resolveWith(
+                (states) => BorderSide(
+                  color: !enabled
+                      ? AppColors.softLine
+                      : states.contains(WidgetState.hovered) || connecting
                       ? info.color
-                      : info.color.withValues(alpha: 0.24),
+                      : AppColors.line,
                 ),
               ),
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
+              mouseCursor: WidgetStatePropertyAll(
+                active ? SystemMouseCursors.click : SystemMouseCursors.basic,
               ),
             ),
         child: Row(
           children: [
-            SocialBrandLogo(info: info, size: 28),
-            const SizedBox(width: 10),
+            Opacity(
+              opacity: enabled ? 1 : 0.42,
+              child: SocialBrandLogo(info: info, size: 30),
+            ),
+            const SizedBox(width: 11),
             Expanded(
-              child: Text(
-                context.t(
-                  'social.accounts.dialog.loginWith',
-                  values: {'platform': platform},
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.t(
+                      'social.accounts.dialog.loginWith',
+                      values: {'platform': platform},
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    enabled
+                        ? context.t('social.settings.mode.bundle')
+                        : context.t('social.accounts.dialog.unsupported'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: enabled ? AppColors.iconMuted : AppColors.support,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 8),
-            Icon(
-              selected
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: selected ? info.color : AppColors.iconMuted,
-              size: 18,
-            ),
+            if (connecting)
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: info.color,
+                ),
+              )
+            else
+              Icon(
+                enabled ? Symbols.open_in_new_rounded : Symbols.block_outlined,
+                color: enabled ? info.color : AppColors.support,
+                size: 18,
+              ),
           ],
         ),
       ),
@@ -1202,7 +1322,7 @@ class _SecondaryActionButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.refresh, size: 17, color: AppColors.deepOcean),
+            const Icon(Symbols.refresh, size: 17, color: AppColors.deepOcean),
             const SizedBox(width: 7),
             Text(label),
           ],
@@ -1353,7 +1473,7 @@ class _SocialAccountsFooter extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(Symbols.chevron_left),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -1373,7 +1493,7 @@ class _SocialAccountsFooter extends StatelessWidget {
               ),
               IconButton(
                 onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(Symbols.chevron_right),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,

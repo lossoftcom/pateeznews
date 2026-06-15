@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Bluesky post preview.
 class BlueskyPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class BlueskyPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -57,6 +60,7 @@ class BlueskyPreview extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    ?accountAction,
                     const SizedBox(width: 4),
                     Text(
                       '@${profileName.toLowerCase().replaceAll(' ', '')}.bsky.social',
@@ -100,13 +104,13 @@ class BlueskyPreview extends StatelessWidget {
                         aspectRatio: 16 / 9,
                         child: Container(
                           color: const Color(0xFFF5F5F5),
-                          child: AdminCachedImage(
+                          child: SocialMediaPreview(
                             url: imageUrl,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                             memCacheWidth: 1080,
                             errorWidget: const Center(
                               child: Icon(
-                                Icons.image_outlined,
+                                Symbols.image_outlined,
                                 size: 40,
                                 color: Color(0xFFCCCCCC),
                               ),
@@ -137,7 +141,7 @@ class BlueskyPreview extends StatelessWidget {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Icon(
-                              Icons.link,
+                              Symbols.link,
                               size: 20,
                               color: Color(0xFF0085FF),
                             ),
@@ -181,16 +185,16 @@ class BlueskyPreview extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: const [
                       _BsAction(
-                        icon: Icons.chat_bubble_outline_rounded,
+                        icon: Symbols.chat_bubble_outline_rounded,
                         count: '3',
                       ),
-                      _BsAction(icon: Icons.repeat_rounded, count: '7'),
+                      _BsAction(icon: Symbols.repeat_rounded, count: '7'),
                       _BsAction(
-                        icon: Icons.favorite_border_rounded,
+                        icon: Symbols.favorite_border_rounded,
                         count: '24',
                       ),
                       Icon(
-                        Icons.more_horiz,
+                        Symbols.more_horiz,
                         size: 18,
                         color: Color(0xFF687684),
                       ),

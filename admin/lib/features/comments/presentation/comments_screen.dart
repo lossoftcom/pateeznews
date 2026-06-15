@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/data/admin_memory_cache.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
+import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -70,6 +71,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
   var _postFilter = _all;
   var _userFilter = _all;
   var _sortState = const TableSortState(key: 'date', ascending: false);
+  var _searching = false;
+  var _searchSeq = 0;
 
   @override
   void initState() {
@@ -146,10 +149,17 @@ class _CommentsScreenState extends State<CommentsScreen> {
   }
 
   /// Arka plan yenileme: listeyi spinner'a düşürmeden sessizce günceller.
-  Future<void> _refreshCommentsSilently() async {
+  ///
+  /// [isSearch] true olduğunda (kullanıcı yazarken) "Aranıyor…" göstergesi için
+  /// bayrak set edilir; sıra (seq) koruması ile yalnızca en güncel yanıt uygulanır.
+  Future<void> _refreshCommentsSilently({bool isSearch = false}) async {
+    final seq = ++_searchSeq;
+    if (isSearch && mounted && !_searching) {
+      setState(() => _searching = true);
+    }
     try {
       final result = await _fetchComments();
-      if (!mounted) return;
+      if (!mounted || seq != _searchSeq) return;
       _commentsPageCache.set(_commentsPageKey(), result);
       setState(() {
         _comments = result.comments;
@@ -158,10 +168,38 @@ class _CommentsScreenState extends State<CommentsScreen> {
           (id) => !_comments.any((comment) => comment.id == id),
         );
         _errorText = null;
+        _searching = false;
       });
     } catch (_) {
       // Sessiz yenileme; mevcut veri ekranda kalır.
+      if (mounted && seq == _searchSeq && _searching) {
+        setState(() => _searching = false);
+      }
     }
+  }
+
+  /// Anlık (0ms) istemci filtresi — Haberler ile aynı: yüklü yorumlar arasında
+  /// sunucuyla aynı Türkçe normalizasyonla eşleşenleri hemen gösterir.
+  /// Sunucu yanıtı gelince [_comments] otoriter sonuçla tazelenir.
+  List<AdminComment> _visibleComments() {
+    final query = _searchQuery.trim();
+    if (query.isEmpty) return _comments;
+    return _comments
+        .where((comment) => searchMatchesAll(_commentHaystack(comment), query))
+        .toList(growable: false);
+  }
+
+  String _commentHaystack(AdminComment comment) {
+    return [
+      comment.id,
+      comment.content,
+      comment.displayUser,
+      comment.userName,
+      comment.guestName,
+      comment.guestEmail,
+      comment.postTitle,
+      comment.status,
+    ].join(' ');
   }
 
   Future<void> _loadComments() async {
@@ -238,15 +276,18 @@ class _CommentsScreenState extends State<CommentsScreen> {
   }
 
   void _changeSearch(String value) {
-    setState(() => _searchQuery = value);
+    // Anlık his: yazar yazmaz görünür yorumlar istemci tarafında filtrelenir
+    // (_visibleComments) ve highlight uygulanır — sunucu yanıtı beklenmez.
+    setState(() {
+      _searchQuery = value;
+      _page = 1;
+      _selectedCommentIds.clear();
+    });
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      setState(() {
-        _page = 1;
-        _selectedCommentIds.clear();
-      });
-      unawaited(_loadComments());
+      // Spinner'sız (sessiz) sunucu sorgusu otoriter sonuçla tamamlar.
+      unawaited(_refreshCommentsSilently(isSearch: true));
     });
   }
 
@@ -291,6 +332,18 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
   Future<void> _rejectComment(AdminComment comment) async {
     await _runMutation(() => widget.repository.rejectComment(comment.id));
+  }
+
+  Future<void> _approveSelected() async {
+    final ids = _selectedCommentIds.toList(growable: false);
+    if (ids.isEmpty) return;
+    await _runMutation(() => widget.repository.approveComments(ids));
+  }
+
+  Future<void> _rejectSelected() async {
+    final ids = _selectedCommentIds.toList(growable: false);
+    if (ids.isEmpty) return;
+    await _runMutation(() => widget.repository.rejectComments(ids));
   }
 
   Future<void> _togglePinned(AdminComment comment) async {
@@ -414,18 +467,19 @@ class _CommentsScreenState extends State<CommentsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const _CommentsTitle(),
-            const SizedBox(height: 22),
-            UsersSummaryGrid(metrics: _metricCards),
+            const SizedBox(height: 16),
+            UsersSummaryGrid(metrics: _metricCards, compact: true),
             if (_errorText != null) ...[
               const SizedBox(height: 16),
               _CommentsErrorBanner(message: _errorText!),
             ],
-            SizedBox(height: mobile ? 14 : 24),
+            SizedBox(height: mobile ? 12 : 16),
             Expanded(
               child: CommentsTableCard(
-                comments: _comments,
+                comments: _visibleComments(),
                 filterOptions: _filterOptions,
                 loading: _loading,
+                searching: _searching && _searchQuery.trim().isNotEmpty,
                 page: _page,
                 pageSize: _pageSize,
                 totalCount: _totalCount,
@@ -454,6 +508,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 onDeleteComment: (comment) =>
                     unawaited(_deleteComment(comment)),
                 onDeleteSelected: () => unawaited(_deleteSelected()),
+                onApproveSelected: () => unawaited(_approveSelected()),
+                onRejectSelected: () => unawaited(_rejectSelected()),
               ),
             ),
           ],

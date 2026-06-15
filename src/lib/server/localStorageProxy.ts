@@ -40,6 +40,20 @@ export async function resolveLocalStorageVideoThumb(body: unknown) {
   return data;
 }
 
+export async function renameLocalStorageFile(body: unknown) {
+  const response = await fetch(localStorageUrl('/api/local-storage/rename'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    throw new Error(data?.error || text || 'Local storage rename failed');
+  }
+  return data;
+}
+
 export async function deleteLocalStorageFile(body: unknown) {
   const response = await fetch(localStorageUrl('/api/local-storage/delete'), {
     method: 'DELETE',

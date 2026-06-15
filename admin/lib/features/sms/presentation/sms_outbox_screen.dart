@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -114,11 +115,10 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
   }
 
   void _showSmsError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -2069,7 +2069,7 @@ class _SmsSendHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.sms_outlined, size: 21, color: AppColors.iconMuted),
+        const Icon(Symbols.sms_outlined, size: 21, color: AppColors.iconMuted),
         const SizedBox(width: 12),
         Expanded(
           child: Text(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -263,9 +264,13 @@ class _FontSettingsScreenState extends State<FontSettingsScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
+    AdminToast.show(
       context,
-    ).showSnackBar(SnackBar(content: Text(context.t(message))));
+      message: context.t(message),
+      tone: message.contains('Error') || message.contains('error')
+          ? AdminToastTone.error
+          : AdminToastTone.success,
+    );
   }
 
   void _changePageSize(int? value) {
@@ -2481,7 +2486,7 @@ class _FontFooter extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(Symbols.chevron_left),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -2501,7 +2506,7 @@ class _FontFooter extends StatelessWidget {
               ),
               IconButton(
                 onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(Symbols.chevron_right),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -2640,8 +2645,10 @@ class _AddFontDialogState extends State<_AddFontDialog> {
     if (_submitting) return;
     final name = _nameController.text.trim();
     if (name.isEmpty || !_files.containsKey(400)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.t('fontSettings.dialog.required'))),
+      AdminToast.show(
+        context,
+        message: context.t('fontSettings.dialog.required'),
+        tone: AdminToastTone.error,
       );
       return;
     }
@@ -2661,10 +2668,10 @@ class _AddFontDialogState extends State<_AddFontDialog> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${context.t('fontSettings.addError')}: $error'),
-        ),
+      AdminToast.show(
+        context,
+        message: '${context.t('fontSettings.addError')}: $error',
+        tone: AdminToastTone.error,
       );
     }
   }
@@ -2803,8 +2810,10 @@ class _EditFontDialogState extends State<_EditFontDialog> {
     if (_submitting) return;
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.t('fontSettings.dialog.editRequired'))),
+      AdminToast.show(
+        context,
+        message: context.t('fontSettings.dialog.editRequired'),
+        tone: AdminToastTone.error,
       );
       return;
     }
@@ -2824,10 +2833,10 @@ class _EditFontDialogState extends State<_EditFontDialog> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${context.t('fontSettings.editError')}: $error'),
-        ),
+      AdminToast.show(
+        context,
+        message: '${context.t('fontSettings.editError')}: $error',
+        tone: AdminToastTone.error,
       );
     }
   }

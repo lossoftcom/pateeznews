@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 enum AdminMailProviderMode { smtp, api, sendmail, oauth }
 
@@ -67,7 +68,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Amazon SES (SMTP)',
     mode: AdminMailProviderMode.smtp,
     easySetup: false,
-    icon: Icons.cloud_queue_outlined,
+    icon: Symbols.cloud_queue_outlined,
     color: Color(0xFF2F80ED),
     badgeKey: 'mail.settings.badge.highVolume',
     smtpHost: 'email-smtp.us-east-1.amazonaws.com',
@@ -77,7 +78,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Amazon SES (API)',
     mode: AdminMailProviderMode.api,
     easySetup: false,
-    icon: Icons.api_outlined,
+    icon: Symbols.api_outlined,
     color: Color(0xFF2F80ED),
     badgeKey: 'mail.settings.badge.recommended',
   ),
@@ -86,7 +87,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'SendGrid (SMTP)',
     mode: AdminMailProviderMode.smtp,
     easySetup: false,
-    icon: Icons.send_outlined,
+    icon: Symbols.send_outlined,
     color: Color(0xFF1769AA),
     smtpHost: 'smtp.sendgrid.net',
   ),
@@ -95,7 +96,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'SendGrid (API)',
     mode: AdminMailProviderMode.api,
     easySetup: false,
-    icon: Icons.api_outlined,
+    icon: Symbols.api_outlined,
     color: Color(0xFF1769AA),
   ),
   AdminMailProviderPreset(
@@ -103,7 +104,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Mailgun (API)',
     mode: AdminMailProviderMode.api,
     easySetup: false,
-    icon: Icons.hub_outlined,
+    icon: Symbols.hub_outlined,
     color: Color(0xFFF39C12),
   ),
   AdminMailProviderPreset(
@@ -111,7 +112,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Mailgun (SMTP)',
     mode: AdminMailProviderMode.smtp,
     easySetup: false,
-    icon: Icons.outgoing_mail,
+    icon: Symbols.outgoing_mail,
     color: Color(0xFFF39C12),
     smtpHost: 'smtp.mailgun.org',
   ),
@@ -120,7 +121,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Elastic Email (API)',
     mode: AdminMailProviderMode.api,
     easySetup: false,
-    icon: Icons.bolt_outlined,
+    icon: Symbols.bolt_outlined,
     color: Color(0xFF8E44AD),
   ),
   AdminMailProviderPreset(
@@ -128,7 +129,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Elastic Email (SMTP)',
     mode: AdminMailProviderMode.smtp,
     easySetup: false,
-    icon: Icons.bolt_outlined,
+    icon: Symbols.bolt_outlined,
     color: Color(0xFF8E44AD),
     smtpHost: 'smtp.elasticemail.com',
     smtpPort: 2525,
@@ -138,7 +139,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'SparkPost (API)',
     mode: AdminMailProviderMode.api,
     easySetup: false,
-    icon: Icons.local_fire_department_outlined,
+    icon: Symbols.local_fire_department_outlined,
     color: Color(0xFFE67E22),
   ),
   AdminMailProviderPreset(
@@ -146,7 +147,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'SparkPost (SMTP)',
     mode: AdminMailProviderMode.smtp,
     easySetup: false,
-    icon: Icons.local_fire_department_outlined,
+    icon: Symbols.local_fire_department_outlined,
     color: Color(0xFFE67E22),
     smtpHost: 'smtp.sparkpostmail.com',
   ),
@@ -155,7 +156,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Özel SMTP',
     mode: AdminMailProviderMode.smtp,
     easySetup: false,
-    icon: Icons.settings_input_component_outlined,
+    icon: Symbols.settings_input_component_outlined,
     color: AppColors.deepOcean,
   ),
   AdminMailProviderPreset(
@@ -163,7 +164,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Sendmail',
     mode: AdminMailProviderMode.sendmail,
     easySetup: false,
-    icon: Icons.terminal_outlined,
+    icon: Symbols.terminal_outlined,
     color: AppColors.deepOcean,
   ),
   AdminMailProviderPreset(
@@ -171,7 +172,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Gmail (OAuth)',
     mode: AdminMailProviderMode.oauth,
     easySetup: false,
-    icon: Icons.lock_outline,
+    icon: Symbols.lock_outline,
     color: Color(0xFFEA4335),
     smtpHost: 'smtp.gmail.com',
     imapHost: 'imap.gmail.com',
@@ -182,7 +183,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Purelymail',
     mode: AdminMailProviderMode.smtp,
     easySetup: true,
-    icon: Icons.mark_email_read_outlined,
+    icon: Symbols.mark_email_read_outlined,
     color: Color(0xFFF39C12),
     badgeKey: 'mail.settings.badge.smtpRequired',
     smtpHost: 'smtp.purelymail.com',
@@ -196,7 +197,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Postmark',
     mode: AdminMailProviderMode.api,
     easySetup: true,
-    icon: Icons.inventory_2_outlined,
+    icon: Symbols.inventory_2_outlined,
     color: Color(0xFF2F80ED),
     badgeKey: 'mail.settings.badge.delivery',
   ),
@@ -205,7 +206,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Resend',
     mode: AdminMailProviderMode.api,
     easySetup: true,
-    icon: Icons.redo_outlined,
+    icon: Symbols.redo_outlined,
     color: AppColors.deepOcean,
   ),
   AdminMailProviderPreset(
@@ -213,7 +214,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Mailtrap',
     mode: AdminMailProviderMode.api,
     easySetup: true,
-    icon: Icons.bug_report_outlined,
+    icon: Symbols.bug_report_outlined,
     color: Color(0xFF16A085),
   ),
   AdminMailProviderPreset(
@@ -221,7 +222,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'Brevo',
     mode: AdminMailProviderMode.api,
     easySetup: true,
-    icon: Icons.campaign_outlined,
+    icon: Symbols.campaign_outlined,
     color: Color(0xFF2F80ED),
   ),
   AdminMailProviderPreset(
@@ -229,7 +230,7 @@ const adminMailProviderPresets = <AdminMailProviderPreset>[
     name: 'MailerSend',
     mode: AdminMailProviderMode.api,
     easySetup: true,
-    icon: Icons.near_me_outlined,
+    icon: Symbols.near_me_outlined,
     color: Color(0xFF198754),
   ),
 ];

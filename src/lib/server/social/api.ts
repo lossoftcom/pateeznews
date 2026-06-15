@@ -29,7 +29,7 @@ export async function requireSocialAccess(request: Request, body?: Record<string
      JOIN public.roles r ON r.name = p.role
      JOIN public.role_permissions rp ON rp.role_id = r.id
      WHERE p.id = $1
-       AND rp.permission_key IN ('manage_social', 'manage_content', 'posts_access', 'news_access')
+       AND rp.permission_key IN ('social_access', 'manage_social')
      LIMIT 1`,
     [session.user.id]
   );

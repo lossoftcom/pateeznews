@@ -10,6 +10,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _vsBlockStrongLine = Color(0xFFDDE5E8);
 const _vsBlockSoftLine = Color(0xFFE8EEF1);
@@ -159,7 +160,7 @@ class ArticleVsBlockCard extends StatelessWidget {
                           ),
                         ),
                         child: const Icon(
-                          Icons.flash_on_outlined,
+                          Symbols.flash_on_outlined,
                           color: _vsBlockAccent,
                           size: 18,
                         ),
@@ -566,7 +567,7 @@ class _EmptyVsImagePicker extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add, color: _vsBlockUploadInk, size: 36),
+              const Icon(Symbols.add, color: _vsBlockUploadInk, size: 36),
               const SizedBox(height: 8),
               Text(
                 context.t(labelKey),
@@ -630,13 +631,13 @@ class _SelectedVsImage extends StatelessWidget {
           child: Row(
             children: [
               _ImageActionButton(
-                icon: Icons.edit_outlined,
+                icon: Symbols.edit_outlined,
                 color: AppColors.deepOcean,
                 onTap: onPickImage,
               ),
               const SizedBox(width: 8),
               _ImageActionButton(
-                icon: Icons.delete_outline,
+                icon: Symbols.delete_outline,
                 color: AppColors.actionRed,
                 onTap: onClear,
               ),
@@ -666,7 +667,7 @@ class _VsVotesInput extends StatelessWidget {
         children: [
           const SizedBox(width: 10),
           Icon(
-            Icons.group_outlined,
+            Symbols.group_outlined,
             size: 13,
             color: _vsBlockMutedText.withValues(alpha: 0.62),
           ),
@@ -780,7 +781,7 @@ class _VsExtraSettingsPanel extends StatelessWidget {
                         children: [
                           const _VsFieldLabel(
                             'newsAdd.vsSource',
-                            icon: Icons.settings_outlined,
+                            icon: Symbols.settings_outlined,
                           ),
                           _VsTextInputBox(
                             controller: sourceController,
@@ -820,8 +821,8 @@ class _VsExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _vsBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -1066,19 +1067,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -1270,7 +1271,7 @@ class _UrlUploadButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+              const Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
               const SizedBox(width: 6),
               Text(
                 context.t('newsAdd.vsUrlOrUpload'),

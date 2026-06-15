@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -100,15 +101,18 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
   }
 
   void _showSavedMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.t('securitySettings.saveSuccess'))),
+    AdminToast.show(
+      context,
+      message: context.t('securitySettings.saveSuccess'),
+      tone: AdminToastTone.success,
     );
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(
+    String message, {
+    AdminToastTone tone = AdminToastTone.info,
+  }) {
+    AdminToast.show(context, message: message, tone: tone);
   }
 
   int? _readInt(
@@ -137,7 +141,10 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     if (maxAttempts == null ||
         lockoutMinutes == null ||
         passwordMinLength == null) {
-      _showMessage('Güvenlik sayısal değerleri geçerli aralıkta olmalı.');
+      _showMessage(
+        'Güvenlik sayısal değerleri geçerli aralıkta olmalı.',
+        tone: AdminToastTone.error,
+      );
       return;
     }
 
@@ -167,7 +174,10 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _savingGeneral = false);
-      _showMessage('Güvenlik ayarları kaydedilemedi: $error');
+      _showMessage(
+        'Güvenlik ayarları kaydedilemedi: $error',
+        tone: AdminToastTone.error,
+      );
     }
   }
 

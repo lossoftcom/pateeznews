@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -31,8 +32,10 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
   }
 
   void _showSavedMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.t('googleNews.saveSuccess'))),
+    AdminToast.show(
+      context,
+      message: context.t('googleNews.saveSuccess'),
+      tone: AdminToastTone.success,
     );
   }
 

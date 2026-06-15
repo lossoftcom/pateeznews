@@ -81,9 +81,10 @@ export function createPortalLink(options: {
   apiKey: string;
   apiBaseUrl?: string;
   teamId: string;
-  redirectUrl: string;
+  redirectUrl?: string;
   socialAccountTypes: string[];
 }) {
+  const redirectUrl = String(options.redirectUrl || '').trim();
   return bundleRequest<{ url: string }>({
     apiKey: options.apiKey,
     apiBaseUrl: options.apiBaseUrl,
@@ -91,8 +92,8 @@ export function createPortalLink(options: {
     path: '/social-account/create-portal-link',
     body: {
       teamId: options.teamId,
-      redirectUrl: options.redirectUrl,
       socialAccountTypes: options.socialAccountTypes,
+      ...(redirectUrl ? { redirectUrl } : {}),
       language: 'tr',
       forceBrowserOAuth: true,
       withBusinessScope: true,

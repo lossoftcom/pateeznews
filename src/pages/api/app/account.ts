@@ -46,6 +46,21 @@ async function requireAdmin(userId: string) {
   return role === 'admin' || role === 'super_admin';
 }
 
+async function requireAdminPermission(userId: string, permissionKey: string) {
+  if (await requireAdmin(userId)) return true;
+  const result = await dbQuery(
+    `SELECT 1
+     FROM public.profiles p
+     JOIN public.roles r ON r.name = p.role
+     JOIN public.role_permissions rp ON rp.role_id = r.id
+     WHERE p.id = $1::uuid
+       AND rp.permission_key = $2
+     LIMIT 1`,
+    [userId, permissionKey]
+  );
+  return Boolean(result.rows[0]);
+}
+
 function cleanText(value: unknown) {
   return String(value || '').trim();
 }
@@ -272,7 +287,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-update-password') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
       const targetUserId = String(body.userId || '');
       const newPassword = String(body.newPassword || '');
       const passwordError = validatePasswordWithSecuritySettings(newPassword, securitySettings);
@@ -282,7 +297,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-create-user') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
       const payload = userPayload(body, true, securitySettings);
       if ('error' in payload) return json({ error: { message: payload.error } }, 400);
 
@@ -335,7 +350,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-update-user') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
       const targetUserId = String(body.userId || '');
       if (!targetUserId) return json({ error: { message: 'User missing' } }, 400);
       const payload = userPayload(body, false, securitySettings);
@@ -382,7 +397,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-delete-user') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
       const targetUserId = String(body.userId || '');
       if (!targetUserId) return json({ error: { message: 'User missing' } }, 400);
       await withTransaction(async (client) => {
@@ -393,7 +408,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-delete-users') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
       const userIds = Array.isArray(body.userIds)
         ? body.userIds.map((value: unknown) => String(value || '').trim()).filter(Boolean)
         : [];
@@ -408,7 +423,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-create-role') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_roles'))) return json({ error: { message: 'Forbidden' } }, 403);
       const payload = rolePayload(body);
       if ('error' in payload) return json({ error: { message: payload.error } }, 400);
 
@@ -427,7 +442,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-update-role') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_roles'))) return json({ error: { message: 'Forbidden' } }, 403);
       const roleId = cleanText(body.roleId);
       if (!roleId) return json({ error: { message: 'Role missing' } }, 400);
       const payload = rolePayload(body);
@@ -466,7 +481,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-delete-role') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_roles'))) return json({ error: { message: 'Forbidden' } }, 403);
       const roleId = cleanText(body.roleId);
       if (!roleId) return json({ error: { message: 'Role missing' } }, 400);
 
@@ -495,7 +510,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (action === 'admin-set-role-permissions') {
-      if (!(await requireAdmin(userId))) return json({ error: { message: 'Forbidden' } }, 403);
+      if (!(await requireAdminPermission(userId, 'manage_roles'))) return json({ error: { message: 'Forbidden' } }, 403);
       const roleId = cleanText(body.roleId);
       if (!roleId) return json({ error: { message: 'Role missing' } }, 400);
       const permissionKeys = rolePermissionKeys(body);

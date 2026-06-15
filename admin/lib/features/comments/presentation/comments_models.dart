@@ -53,6 +53,9 @@ class AdminComment {
     required this.userAvatar,
     required this.guestName,
     required this.guestEmail,
+    this.userFullName = '',
+    this.userEmail = '',
+    this.userUsername = '',
   });
 
   final String id;
@@ -72,11 +75,37 @@ class AdminComment {
   final String userAvatar;
   final String guestName;
   final String guestEmail;
+  final String userFullName;
+  final String userEmail;
+  final String userUsername;
 
   bool get hasReports => reportsCount > 0;
 
+  bool get isRegisteredUser => userId.trim().isNotEmpty;
+
+  String get profileDisplayName {
+    final fullName = userFullName.trim();
+    if (fullName.isNotEmpty) return fullName;
+    final name = userName.trim();
+    if (name.isNotEmpty) return name;
+    final username = userUsername.trim();
+    if (username.isNotEmpty) return username;
+    return '';
+  }
+
+  String get profileEmail => userEmail.trim();
+
+  String get profileHandle {
+    final username = userUsername.trim();
+    if (username.isEmpty) return '';
+    return username.startsWith('@') ? username : '@$username';
+  }
+
+  String get profileSlug =>
+      userUsername.trim().replaceFirst(RegExp(r'^@+'), '');
+
   String get displayUser {
-    final profileName = userName.trim();
+    final profileName = profileDisplayName;
     if (profileName.isNotEmpty) return profileName;
     final guest = guestName.trim();
     if (guest.isNotEmpty) return guest;

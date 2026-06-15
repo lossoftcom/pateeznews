@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
+import 'package:pateeznews_admin/shared/widgets/highlighted_text.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/comments_models.dart';
@@ -26,7 +27,11 @@ abstract class AdminCommentsRepository {
 
   Future<void> approveComment(String commentId);
 
+  Future<void> approveComments(List<String> commentIds);
+
   Future<void> rejectComment(String commentId);
+
+  Future<void> rejectComments(List<String> commentIds);
 
   Future<void> togglePinned({required String commentId, required bool pinned});
 
@@ -122,25 +127,16 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
     required String sortKey,
     required bool sortAscending,
   }) async {
-    final filters = <Map<String, Object?>>[];
-    final term = _safeSearchTerm(search);
-    if (term.isNotEmpty) {
-      final pattern = '%$term%';
-      filters.add({
-        'type': 'or',
-        'value':
-            'content.ilike.$pattern,post_title.ilike.$pattern,user_name.ilike.$pattern',
-      });
-    }
+    final baseFilters = <Map<String, Object?>>[];
     if (status == _reported) {
-      filters.add({
+      baseFilters.add({
         'type': 'comparison',
         'op': 'gt',
         'column': 'reports_count',
         'value': 0,
       });
     } else if (status != _all) {
-      filters.add({
+      baseFilters.add({
         'type': 'comparison',
         'op': 'eq',
         'column': 'status',
@@ -148,7 +144,7 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       });
     }
     if (postId != _all) {
-      filters.add({
+      baseFilters.add({
         'type': 'comparison',
         'op': 'eq',
         'column': 'post_id',
@@ -159,7 +155,7 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       final guestEmail = userId.startsWith(_guestFilterPrefix)
           ? userId.substring(_guestFilterPrefix.length)
           : '';
-      filters.add({
+      baseFilters.add({
         'type': 'comparison',
         'op': 'eq',
         'column': guestEmail.isNotEmpty ? 'guest_email' : 'user_id',
@@ -167,6 +163,64 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       });
     }
 
+    final term = _safeSearchTerm(search);
+    if (term.isEmpty) {
+      return _fetchCommentsPage(
+        filters: baseFilters,
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    }
+
+    // Haberler ile AYNI teknoloji: normalize (Türkçe-duyarsız) + trigram'lı
+    // arama sütunları (content_search/meta_search). Şema/sürüm henüz güncel
+    // değilse eski ham ILIKE filtresine düşeriz — hiçbir şey bozulmaz.
+    try {
+      return await _fetchCommentsPage(
+        filters: [_normalizedSearchFilter(term), ...baseFilters],
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    } catch (_) {
+      return _fetchCommentsPage(
+        filters: [_legacySearchFilter(term), ...baseFilters],
+        page: page,
+        pageSize: pageSize,
+        sortKey: sortKey,
+        sortAscending: sortAscending,
+      );
+    }
+  }
+
+  Map<String, Object?> _normalizedSearchFilter(String term) {
+    final pattern =
+        '%${normalizeSearchText(term).replaceAll(',', ' ').trim()}%';
+    return {
+      'type': 'or',
+      'value': 'content_search.ilike.$pattern,meta_search.ilike.$pattern',
+    };
+  }
+
+  Map<String, Object?> _legacySearchFilter(String term) {
+    final pattern = '%$term%';
+    return {
+      'type': 'or',
+      'value':
+          'content.ilike.$pattern,post_title.ilike.$pattern,user_name.ilike.$pattern',
+    };
+  }
+
+  Future<AdminCommentsPageResult> _fetchCommentsPage({
+    required List<Map<String, Object?>> filters,
+    required int page,
+    required int pageSize,
+    required String sortKey,
+    required bool sortAscending,
+  }) async {
     final safePage = page < 1 ? 1 : page;
     final from = (safePage - 1) * pageSize;
     final to = from + pageSize - 1;
@@ -184,13 +238,63 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
 
     final data = result['data'];
     final rows = data is List ? data.whereType<Map>().toList() : const <Map>[];
+    final profilesById = await _safeFetchCommentProfiles(rows);
     return AdminCommentsPageResult(
       comments: [
         for (var index = 0; index < rows.length; index++)
-          _commentFromJson(rows[index], from + index + 1),
+          _commentFromJson(
+            rows[index],
+            from + index + 1,
+            profilesById[rows[index]['user_id']?.toString().trim() ?? ''],
+          ),
       ],
       totalCount: _asInt(result['count']),
     );
+  }
+
+  Future<Map<String, Map<String, Object?>>> _safeFetchCommentProfiles(
+    List<Map<dynamic, dynamic>> rows,
+  ) async {
+    try {
+      return await _fetchCommentProfiles(rows);
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  Future<Map<String, Map<String, Object?>>> _fetchCommentProfiles(
+    List<Map<dynamic, dynamic>> rows,
+  ) async {
+    final userIds = rows
+        .map((row) => row['user_id']?.toString().trim() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    if (userIds.isEmpty) return const {};
+
+    final result = await _postJson('/api/admin/query', {
+      'table': 'profiles',
+      'method': 'select',
+      'select': 'id,username,full_name,email,avatar_url',
+      'filters': [
+        {
+          'type': 'comparison',
+          'op': 'in',
+          'column': 'id',
+          'value': userIds.toList(),
+        },
+      ],
+    });
+    _throwIfApiError(result, fallbackMessage: 'Yorum yazarları alınamadı');
+
+    final data = result['data'];
+    if (data is! List) return const {};
+    final profiles = <String, Map<String, Object?>>{};
+    for (final row in data.whereType<Map>()) {
+      final item = _asStringKeyMap(row);
+      final id = item['id']?.toString().trim() ?? '';
+      if (id.isNotEmpty) profiles[id] = item;
+    }
+    return profiles;
   }
 
   @override
@@ -199,8 +303,18 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
   }
 
   @override
+  Future<void> approveComments(List<String> commentIds) {
+    return _updateCommentsStatus(commentIds, 'approved');
+  }
+
+  @override
   Future<void> rejectComment(String commentId) {
     return _updateCommentStatus(commentId, 'rejected');
+  }
+
+  @override
+  Future<void> rejectComments(List<String> commentIds) {
+    return _updateCommentsStatus(commentIds, 'rejected');
   }
 
   @override
@@ -269,6 +383,23 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       'method': 'update',
       'values': {'status': status},
       'filters': [_idFilter(commentId)],
+    });
+    _throwIfApiError(result, fallbackMessage: 'Yorum işlemi tamamlanamadı');
+  }
+
+  Future<void> _updateCommentsStatus(
+    List<String> commentIds,
+    String status,
+  ) async {
+    final ids = commentIds.map(int.tryParse).whereType<int>().toList();
+    if (ids.isEmpty) return;
+    final result = await _postJson('/api/admin/query', {
+      'table': 'comments',
+      'method': 'update',
+      'values': {'status': status},
+      'filters': [
+        {'type': 'comparison', 'op': 'in', 'column': 'id', 'value': ids},
+      ],
     });
     _throwIfApiError(result, fallbackMessage: 'Yorum işlemi tamamlanamadı');
   }
@@ -406,8 +537,13 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
     return '';
   }
 
-  AdminComment _commentFromJson(Map<dynamic, dynamic> json, int rowNumber) {
+  AdminComment _commentFromJson(
+    Map<dynamic, dynamic> json,
+    int rowNumber,
+    Map<String, Object?>? profile,
+  ) {
     final item = _asStringKeyMap(json);
+    final profileItem = profile ?? const <String, Object?>{};
     return AdminComment(
       id: item['id']?.toString() ?? '',
       rowNumber: rowNumber,
@@ -423,9 +559,15 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       isPinned: item['is_pinned'] == true,
       postTitle: item['post_title']?.toString() ?? '',
       userName: item['user_name']?.toString() ?? '',
-      userAvatar: item['user_avatar']?.toString() ?? '',
+      userAvatar:
+          profileItem['avatar_url']?.toString() ??
+          item['user_avatar']?.toString() ??
+          '',
       guestName: item['guest_name']?.toString() ?? '',
       guestEmail: item['guest_email']?.toString() ?? '',
+      userFullName: profileItem['full_name']?.toString() ?? '',
+      userEmail: profileItem['email']?.toString() ?? '',
+      userUsername: profileItem['username']?.toString() ?? '',
     );
   }
 

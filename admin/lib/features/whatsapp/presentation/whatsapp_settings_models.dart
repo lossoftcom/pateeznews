@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 enum AdminWhatsappProviderMode { smtp, api, sendmail, oauth }
 
@@ -67,7 +68,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Meta Cloud API',
     mode: AdminWhatsappProviderMode.api,
     easySetup: false,
-    icon: Icons.cloud_queue_outlined,
+    icon: Symbols.cloud_queue_outlined,
     color: Color(0xFF198754),
     badgeKey: 'whatsapp.settings.badge.recommended',
     apiBaseUrl: 'https://graph.facebook.com/v25.0/{phone_number_id}/messages',
@@ -77,7 +78,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Twilio WhatsApp',
     mode: AdminWhatsappProviderMode.api,
     easySetup: false,
-    icon: Icons.api_outlined,
+    icon: Symbols.api_outlined,
     color: Color(0xFFEA4335),
     apiBaseUrl:
         'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json',
@@ -87,7 +88,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: '360dialog',
     mode: AdminWhatsappProviderMode.api,
     easySetup: false,
-    icon: Icons.hub_outlined,
+    icon: Symbols.hub_outlined,
     color: Color(0xFF2F80ED),
     badgeKey: 'whatsapp.settings.badge.highVolume',
     apiBaseUrl: 'https://waba-v2.360dialog.io/messages',
@@ -97,7 +98,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Gupshup',
     mode: AdminWhatsappProviderMode.api,
     easySetup: false,
-    icon: Icons.bolt_outlined,
+    icon: Symbols.bolt_outlined,
     color: Color(0xFFF39C12),
     apiBaseUrl: 'https://api.gupshup.io/wa/api/v1/msg',
   ),
@@ -106,7 +107,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Bird WhatsApp',
     mode: AdminWhatsappProviderMode.api,
     easySetup: false,
-    icon: Icons.forum_outlined,
+    icon: Symbols.forum_outlined,
     color: Color(0xFF1769AA),
   ),
   AdminWhatsappProviderPreset(
@@ -114,7 +115,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Vonage WhatsApp',
     mode: AdminWhatsappProviderMode.api,
     easySetup: false,
-    icon: Icons.near_me_outlined,
+    icon: Symbols.near_me_outlined,
     color: Color(0xFF8E44AD),
   ),
   AdminWhatsappProviderPreset(
@@ -122,7 +123,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'WATI',
     mode: AdminWhatsappProviderMode.api,
     easySetup: true,
-    icon: Icons.chat_bubble_outline,
+    icon: Symbols.chat_bubble_outline,
     color: Color(0xFF198754),
     badgeKey: 'whatsapp.settings.badge.delivery',
   ),
@@ -131,7 +132,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'AiSensy',
     mode: AdminWhatsappProviderMode.api,
     easySetup: true,
-    icon: Icons.smart_toy_outlined,
+    icon: Symbols.smart_toy_outlined,
     color: Color(0xFF2F80ED),
   ),
   AdminWhatsappProviderPreset(
@@ -139,7 +140,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Respond.io',
     mode: AdminWhatsappProviderMode.api,
     easySetup: true,
-    icon: Icons.support_agent_outlined,
+    icon: Symbols.support_agent_outlined,
     color: Color(0xFF16A085),
   ),
   AdminWhatsappProviderPreset(
@@ -147,7 +148,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Brevo WhatsApp',
     mode: AdminWhatsappProviderMode.api,
     easySetup: true,
-    icon: Icons.campaign_outlined,
+    icon: Symbols.campaign_outlined,
     color: Color(0xFF2F80ED),
   ),
   AdminWhatsappProviderPreset(
@@ -155,7 +156,7 @@ const adminWhatsappProviderPresets = <AdminWhatsappProviderPreset>[
     name: 'Özel WhatsApp API',
     mode: AdminWhatsappProviderMode.api,
     easySetup: true,
-    icon: Icons.settings_input_component_outlined,
+    icon: Symbols.settings_input_component_outlined,
     color: AppColors.deepOcean,
   ),
 ];

@@ -3,19 +3,31 @@ import 'package:flutter/material.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
-/// Media picker widget that supports multiple images.
+import 'social_media_preview.dart';
+
+const _socialMediaStrongLine = Color(0xFFDDE5E8);
+const _socialMediaUploadInk = Color(0xFF6D7B83);
+
+/// Media picker widget that supports multiple images and videos.
 class SocialMediaPicker extends StatelessWidget {
   const SocialMediaPicker({
     super.key,
     required this.mediaUrls,
-    required this.onPickMedia,
+    required this.onPickImage,
+    required this.onPickImageUrl,
+    required this.onPickVideo,
+    required this.onPickVideoUrl,
     required this.onClearMedia,
     required this.onRemoveMedia,
   });
 
   final List<String> mediaUrls;
-  final VoidCallback onPickMedia;
+  final VoidCallback onPickImage;
+  final VoidCallback onPickImageUrl;
+  final VoidCallback onPickVideo;
+  final VoidCallback onPickVideoUrl;
   final VoidCallback onClearMedia;
   final ValueChanged<int> onRemoveMedia;
 
@@ -70,7 +82,7 @@ class SocialMediaPicker extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.delete_outline_rounded,
+                          Symbols.delete_outline_rounded,
                           size: 14,
                           color: AppColors.actionRed,
                         ),
@@ -106,57 +118,34 @@ class SocialMediaPicker extends StatelessWidget {
                   onRemove: () => onRemoveMedia(idx),
                 );
               }),
-              // Add more button
-              _AddMediaButton(onTap: onPickMedia),
+              _CompactMediaActionTile(
+                icon: Symbols.add_photo_alternate_outlined,
+                label: context.t('social.publish.imageSelect'),
+                onTap: onPickImage,
+              ),
+              _CompactMediaActionTile(
+                icon: Symbols.public,
+                label: context.t('social.publish.imageUrl'),
+                onTap: onPickImageUrl,
+              ),
+              _CompactMediaActionTile(
+                icon: Symbols.video_library_outlined,
+                label: context.t('social.publish.videoSelect'),
+                onTap: onPickVideo,
+              ),
+              _CompactMediaActionTile(
+                icon: Symbols.link_rounded,
+                label: context.t('social.publish.videoUrl'),
+                onTap: onPickVideoUrl,
+              ),
             ],
           )
         else
-          // Empty state — add first image
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: onPickMedia,
-              child: Container(
-                width: double.infinity,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.value * 2),
-                  border: Border.all(
-                    color: AppColors.line,
-                    style: BorderStyle.solid,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.add_photo_alternate_outlined,
-                      size: 28,
-                      color: AppColors.iconMuted.withValues(alpha: 0.6),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      context.t('social.publish.addMedia'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.support.withValues(alpha: 0.8),
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      context.t('social.publish.newsAutoFill'),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.support.withValues(alpha: 0.5),
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          _EmptyMediaPicker(
+            onPickImage: onPickImage,
+            onPickImageUrl: onPickImageUrl,
+            onPickVideo: onPickVideo,
+            onPickVideoUrl: onPickVideoUrl,
           ),
       ],
     );
@@ -183,6 +172,7 @@ class _MediaThumbState extends State<_MediaThumb> {
 
   @override
   Widget build(BuildContext context) {
+    final isVideo = isSocialVideoUrl(widget.url);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -194,16 +184,31 @@ class _MediaThumbState extends State<_MediaThumb> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.value * 1.5),
               border: Border.all(color: AppColors.line),
-              image: DecorationImage(
-                image: NetworkImage(widget.url),
-                fit: BoxFit.cover,
-                onError: (_, _) {},
-              ),
               color: AppColors.surface,
             ),
+            clipBehavior: Clip.antiAlias,
             child: widget.url.isEmpty
-                ? const Icon(Icons.image_rounded, color: AppColors.iconMuted)
-                : null,
+                ? const Center(
+                    child: Icon(
+                      Symbols.image_rounded,
+                      color: AppColors.iconMuted,
+                    ),
+                  )
+                : isVideo
+                ? SocialVideoThumb(url: widget.url)
+                : SocialMediaPreview(
+                    url: widget.url,
+                    width: 90,
+                    height: 90,
+                    fit: BoxFit.contain,
+                    memCacheWidth: 180,
+                    errorWidget: const Center(
+                      child: Icon(
+                        Symbols.image_rounded,
+                        color: AppColors.iconMuted,
+                      ),
+                    ),
+                  ),
           ),
           // Overlay on hover
           if (_hovering)
@@ -224,7 +229,7 @@ class _MediaThumbState extends State<_MediaThumb> {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.close_rounded,
+                        Symbols.close_rounded,
                         size: 16,
                         color: AppColors.actionRed,
                       ),
@@ -261,8 +266,91 @@ class _MediaThumbState extends State<_MediaThumb> {
   }
 }
 
-class _AddMediaButton extends StatelessWidget {
-  const _AddMediaButton({required this.onTap});
+class _EmptyMediaPicker extends StatelessWidget {
+  const _EmptyMediaPicker({
+    required this.onPickImage,
+    required this.onPickImageUrl,
+    required this.onPickVideo,
+    required this.onPickVideoUrl,
+  });
+
+  final VoidCallback onPickImage;
+  final VoidCallback onPickImageUrl;
+  final VoidCallback onPickVideo;
+  final VoidCallback onPickVideoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SocialMediaDashedRect(
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 142),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(AppRadius.value),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.deepOcean.withValues(alpha: 0.06),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Symbols.perm_media_outlined,
+                color: _socialMediaUploadInk,
+                size: 21,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _InlineMediaActionButton(
+                  icon: Symbols.add_photo_alternate_outlined,
+                  label: context.t('social.publish.imageSelect'),
+                  onTap: onPickImage,
+                ),
+                _InlineMediaActionButton(
+                  icon: Symbols.public,
+                  label: context.t('social.publish.imageUrl'),
+                  onTap: onPickImageUrl,
+                ),
+                _InlineMediaActionButton(
+                  icon: Symbols.video_library_outlined,
+                  label: context.t('social.publish.videoSelect'),
+                  onTap: onPickVideo,
+                ),
+                _InlineMediaActionButton(
+                  icon: Symbols.link_rounded,
+                  label: context.t('social.publish.videoUrl'),
+                  onTap: onPickVideoUrl,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactMediaActionTile extends StatelessWidget {
+  const _CompactMediaActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -274,25 +362,27 @@ class _AddMediaButton extends StatelessWidget {
         child: Container(
           width: 90,
           height: 90,
+          padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(AppRadius.value * 1.5),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: _socialMediaStrongLine),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.add_rounded,
-                size: 22,
-                color: AppColors.iconMuted.withValues(alpha: 0.6),
-              ),
-              const SizedBox(height: 2),
+              Icon(icon, size: 19, color: AppColors.deepOcean),
+              const SizedBox(height: 7),
               Text(
-                context.t('social.publish.addMedia'),
-                style: TextStyle(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
                   fontSize: 10,
-                  color: AppColors.support.withValues(alpha: 0.6),
+                  height: 1.15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.deepOcean,
                   letterSpacing: 0,
                 ),
               ),
@@ -302,4 +392,98 @@ class _AddMediaButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _InlineMediaActionButton extends StatelessWidget {
+  const _InlineMediaActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: _socialMediaStrongLine),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: AppColors.deepOcean),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.deepOcean,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialMediaDashedRect extends StatelessWidget {
+  const _SocialMediaDashedRect({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _SocialMediaDashedBorderPainter(),
+      child: child,
+    );
+  }
+}
+
+class _SocialMediaDashedBorderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _socialMediaStrongLine
+      ..strokeWidth = 1.25
+      ..style = PaintingStyle.stroke;
+
+    final rect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(AppRadius.value),
+    );
+    final path = Path()..addRRect(rect);
+    final dashed = Path();
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + 7;
+        dashed.addPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          Offset.zero,
+        );
+        distance = next + 4;
+      }
+    }
+    canvas.drawPath(dashed, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SocialMediaDashedBorderPainter oldDelegate) =>
+      false;
 }

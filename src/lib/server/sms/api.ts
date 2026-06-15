@@ -30,7 +30,7 @@ export async function requireSmsAccess(request: Request, body?: Record<string, a
      FROM public.profiles p
      JOIN public.roles r ON r.name = p.role
      JOIN public.role_permissions rp ON rp.role_id = r.id
-     WHERE p.id = $1 AND rp.permission_key IN ('manage_sms', 'manage_mail')
+     WHERE p.id = $1 AND rp.permission_key IN ('sms_access', 'manage_sms')
      LIMIT 1`,
     [session.user.id]
   );

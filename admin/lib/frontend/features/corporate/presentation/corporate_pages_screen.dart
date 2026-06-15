@@ -128,6 +128,9 @@ class _CorporateIntro extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scope = rootLabel.trim().isEmpty ? 'Pateez.com' : rootLabel.trim();
+    final groupLabel = selected.pageGroup.trim().isEmpty
+        ? 'Kurumsal'
+        : selected.pageGroup.trim();
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -153,7 +156,7 @@ class _CorporateIntro extends StatelessWidget {
                 ),
                 const SizedBox(width: 7),
                 Text(
-                  'KURUMSAL',
+                  groupLabel.toUpperCase(),
                   style: AppTypography.eyebrow.copyWith(
                     color: AppColors.support,
                     fontSize: 11,

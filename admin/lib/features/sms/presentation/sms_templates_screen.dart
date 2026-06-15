@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -75,11 +76,10 @@ class _SmsTemplatesScreenState extends State<SmsTemplatesScreen> {
   }
 
   void _showSmsError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -929,7 +929,7 @@ class _SmsTemplateMobileCard extends StatelessWidget {
                   ),
                   AdminMobileMenuAction(
                     icon: template.ready
-                        ? Icons.remove_circle_outline
+                        ? Symbols.remove_circle_outline
                         : Symbols.check,
                     label: context.t(
                       template.ready
@@ -1649,7 +1649,7 @@ class _TemplateMenuCard extends StatelessWidget {
             ),
             _TemplateMenuItem(
               icon: template.ready
-                  ? Icons.remove_circle_outline
+                  ? Symbols.remove_circle_outline
                   : Symbols.check,
               label: template.ready
                   ? 'sms.template.action.markNotReady'
@@ -2324,7 +2324,7 @@ class _SmsTemplateEditorViewState extends State<SmsTemplateEditorView> {
                         ),
                       ),
                       child: const Icon(
-                        Icons.description_rounded,
+                        Symbols.description_rounded,
                         size: 18,
                         color: Color(0xFF25D366),
                       ),
@@ -2385,7 +2385,7 @@ class _SmsTemplateEditorViewState extends State<SmsTemplateEditorView> {
                     const SizedBox(width: 10),
                     FilledButton.icon(
                       onPressed: _save,
-                      icon: const Icon(Icons.save_rounded, size: 16),
+                      icon: const Icon(Symbols.save_rounded, size: 16),
                       label: Text(
                         widget.template == null
                             ? context.t('sms.template.editor.save')
@@ -2528,11 +2528,11 @@ extension _SmsMediaTypeData on _SmsMediaType {
 
   IconData get icon {
     return switch (this) {
-      _SmsMediaType.none => Icons.chat_bubble_outline,
-      _SmsMediaType.image => Icons.image_outlined,
-      _SmsMediaType.video => Icons.play_circle_outline,
-      _SmsMediaType.audio => Icons.graphic_eq_outlined,
-      _SmsMediaType.document => Icons.picture_as_pdf_outlined,
+      _SmsMediaType.none => Symbols.chat_bubble_outline,
+      _SmsMediaType.image => Symbols.image_outlined,
+      _SmsMediaType.video => Symbols.play_circle_outline,
+      _SmsMediaType.audio => Symbols.graphic_eq_outlined,
+      _SmsMediaType.document => Symbols.picture_as_pdf_outlined,
     };
   }
 }
@@ -4443,7 +4443,7 @@ class _TemplateVariablePanelState extends State<_TemplateVariablePanel> {
                 Row(
                   children: [
                     const Icon(
-                      Icons.data_object_outlined,
+                      Symbols.data_object_outlined,
                       size: 18,
                       color: AppColors.deepOcean,
                     ),
@@ -4544,7 +4544,7 @@ class _PanelSearchField extends StatelessWidget {
             letterSpacing: 0,
           ),
           prefixIcon: const Icon(
-            Icons.search,
+            Symbols.search,
             size: 17,
             color: AppColors.iconMuted,
           ),
@@ -4601,7 +4601,7 @@ class _VariableGroupHeader extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),
                 child: const Icon(
-                  Icons.group_outlined,
+                  Symbols.group_outlined,
                   size: 17,
                   color: Color(0xFF2F80ED),
                 ),

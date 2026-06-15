@@ -7,6 +7,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -44,6 +45,7 @@ class _RolesPermissionsScreenState extends State<RolesPermissionsScreen> {
   var _totalCount = 0;
   var _searchQuery = '';
   var _sortState = const TableSortState(key: 'order', ascending: true);
+  var _searchSeq = 0;
 
   @override
   void initState() {
@@ -100,16 +102,56 @@ class _RolesPermissionsScreenState extends State<RolesPermissionsScreen> {
     unawaited(_loadRoles());
   }
 
-  void _changeSearch(String value) {
-    setState(() => _searchQuery = value);
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
+  /// Anlık (0ms) istemci filtresi — Haberler ile aynı Türkçe-duyarsız eşleşme.
+  List<ManagedRole> _visibleRoles() {
+    final query = _searchQuery.trim();
+    if (query.isEmpty) return _roles;
+    return _roles
+        .where((role) => searchMatchesAll(_roleHaystack(role), query))
+        .toList(growable: false);
+  }
+
+  String _roleHaystack(ManagedRole role) {
+    return '${role.id} ${role.name} ${role.label} '
+        '${role.description} ${role.slug}';
+  }
+
+  Future<void> _refreshRolesSilently() async {
+    final seq = ++_searchSeq;
+    try {
+      final result = await widget.repository.fetchRolesPermissions(
+        search: _searchQuery,
+        page: _page,
+        pageSize: _pageSize,
+        sortKey: _sortState.key,
+        sortAscending: _sortState.ascending,
+      );
+      if (!mounted || seq != _searchSeq) return;
       setState(() {
-        _page = 1;
-        _selectedRoleIds.clear();
+        _roles = result.roles;
+        _permissions = result.permissions;
+        _totalCount = result.totalCount;
+        _selectedRoleIds.removeWhere(
+          (id) => !_roles.any((role) => role.id == id && !role.systemLocked),
+        );
+        _errorText = null;
       });
-      unawaited(_loadRoles());
+    } catch (_) {
+      // Sessiz yenileme; mevcut veri ekranda kalır.
+    }
+  }
+
+  void _changeSearch(String value) {
+    // Anlık his: yazar yazmaz görünür satırlar istemci tarafında filtrelenir.
+    setState(() {
+      _searchQuery = value;
+      _page = 1;
+      _selectedRoleIds.clear();
+    });
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      unawaited(_refreshRolesSilently());
     });
   }
 
@@ -296,8 +338,9 @@ class _RolesPermissionsScreenState extends State<RolesPermissionsScreen> {
               const SizedBox(height: 18),
               Expanded(
                 child: RolesPermissionsTable(
-                  roles: _roles,
+                  roles: _visibleRoles(),
                   loading: _loading,
+                  searchQuery: _searchQuery,
                   selectedRoleIds: _selectedRoleIds,
                   sortState: _sortState,
                   onToggleRole: _toggleRole,
@@ -427,11 +470,6 @@ class _RolesPermissionsToolbar extends StatelessWidget {
           runSpacing: 10,
           alignment: compact ? WrapAlignment.start : WrapAlignment.end,
           children: [
-            const _ToolbarButton(
-              icon: Symbols.article,
-              label: 'Listeyi Yazdır',
-              variant: _ToolbarButtonVariant.outlined,
-            ),
             _ToolbarButton(
               textIcon: '+',
               label: 'Rol Ekle',
@@ -585,6 +623,7 @@ class _RolesSearchField extends StatefulWidget {
 
 class _RolesSearchFieldState extends State<_RolesSearchField> {
   late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -606,6 +645,7 @@ class _RolesSearchFieldState extends State<_RolesSearchField> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -620,6 +660,7 @@ class _RolesSearchFieldState extends State<_RolesSearchField> {
       ),
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         mouseCursor: SystemMouseCursors.text,
         cursorColor: AppColors.support,
         textAlignVertical: TextAlignVertical.center,
@@ -645,6 +686,29 @@ class _RolesSearchFieldState extends State<_RolesSearchField> {
             minWidth: 39,
             minHeight: RolesPermissionsScreen.toolbarHeight,
           ),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return IconButton(
+                mouseCursor: SystemMouseCursors.click,
+                onPressed: () {
+                  _controller.clear();
+                  widget.onChanged('');
+                  _focusNode.requestFocus();
+                },
+                icon: const SymbolIcon(
+                  Symbols.close,
+                  color: AppColors.iconMuted,
+                  size: 16,
+                ),
+              );
+            },
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 38,
+            minHeight: RolesPermissionsScreen.toolbarHeight,
+          ),
           filled: true,
           fillColor: Colors.white,
           isDense: true,
@@ -665,14 +729,12 @@ class _ToolbarButton extends StatelessWidget {
   const _ToolbarButton({
     required this.label,
     required this.variant,
-    this.icon,
     this.textIcon,
     this.onPressed,
   });
 
   final String label;
   final _ToolbarButtonVariant variant;
-  final IconData? icon;
   final String? textIcon;
   final VoidCallback? onPressed;
 
@@ -733,18 +795,15 @@ class _ToolbarButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null)
-              SymbolIcon(icon!, color: _foreground, size: 16)
-            else
-              Text(
-                textIcon ?? '',
-                style: TextStyle(
-                  color: _foreground,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  height: 1,
-                ),
+            Text(
+              textIcon ?? '',
+              style: TextStyle(
+                color: _foreground,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                height: 1,
               ),
+            ),
             const SizedBox(width: 8),
             Text(context.t(label)),
           ],

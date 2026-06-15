@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Google Business Profile post preview.
 class GoogleBusinessPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class GoogleBusinessPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -77,10 +80,11 @@ class GoogleBusinessPreview extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           const Icon(
-                            Icons.verified,
+                            Symbols.verified,
                             size: 16,
                             color: Color(0xFF1A73E8),
                           ),
+                          ?accountAction,
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -100,8 +104,8 @@ class GoogleBusinessPreview extends StatelessWidget {
                             5,
                             (i) => Icon(
                               i < 5
-                                  ? Icons.star_rounded
-                                  : Icons.star_border_rounded,
+                                  ? Symbols.star_rounded
+                                  : Symbols.star_border_rounded,
                               size: 14,
                               color: const Color(0xFFFBBC04),
                             ),
@@ -140,7 +144,7 @@ class GoogleBusinessPreview extends StatelessWidget {
                 const Row(
                   children: [
                     Icon(
-                      Icons.update_rounded,
+                      Symbols.update_rounded,
                       size: 16,
                       color: Color(0xFF1A73E8),
                     ),
@@ -187,13 +191,13 @@ class GoogleBusinessPreview extends StatelessWidget {
               aspectRatio: 16 / 9,
               child: Container(
                 color: const Color(0xFFF1F3F4),
-                child: AdminCachedImage(
+                child: SocialMediaPreview(
                   url: imageUrl,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   memCacheWidth: 1080,
                   errorWidget: const Center(
                     child: Icon(
-                      Icons.image_outlined,
+                      Symbols.image_outlined,
                       size: 48,
                       color: Color(0xFFDADCE0),
                     ),

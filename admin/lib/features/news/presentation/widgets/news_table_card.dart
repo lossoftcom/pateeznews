@@ -13,6 +13,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/admin_image_url.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
+import '../../../../shared/widgets/highlighted_text.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../news_models.dart';
@@ -42,12 +43,29 @@ class _NewsVideoDetailColumns {
   final double views;
 }
 
+/// Aktif arama sorgusunu satır hücrelerine (başlık/kategori/yazar/ID) taşır;
+/// böylece highlight için her hücreye tek tek parametre geçmeye gerek kalmaz.
+class _NewsSearchScope extends InheritedWidget {
+  const _NewsSearchScope({required this.query, required super.child});
+
+  final String query;
+
+  static String of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_NewsSearchScope>()?.query ??
+      '';
+
+  @override
+  bool updateShouldNotify(_NewsSearchScope oldWidget) =>
+      oldWidget.query != query;
+}
+
 class NewsTableCard extends StatelessWidget {
   const NewsTableCard({
     super.key,
     required this.posts,
     required this.filterOptions,
     required this.loading,
+    this.searching = false,
     required this.page,
     required this.pageSize,
     required this.totalCount,
@@ -60,6 +78,7 @@ class NewsTableCard extends StatelessWidget {
     required this.selectedPostIds,
     required this.sortState,
     required this.trashMode,
+    required this.videoOnly,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onLanguageChanged,
@@ -78,6 +97,7 @@ class NewsTableCard extends StatelessWidget {
     required this.onDeletePost,
     required this.onDeleteSelected,
     required this.onToggleTrashMode,
+    required this.onToggleVideoOnly,
   });
 
   final List<AdminNewsPost> posts;
@@ -95,6 +115,8 @@ class NewsTableCard extends StatelessWidget {
   final Set<String> selectedPostIds;
   final TableSortState sortState;
   final bool trashMode;
+  final bool videoOnly;
+  final bool searching;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onLanguageChanged;
@@ -113,106 +135,125 @@ class NewsTableCard extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onDeletePost;
   final VoidCallback onDeleteSelected;
   final VoidCallback onToggleTrashMode;
+  final VoidCallback onToggleVideoOnly;
 
   static const double toolbarHeight = 38;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final mobile = constraints.maxWidth < 800;
+    return _NewsSearchScope(
+      query: searchQuery,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final mobile = constraints.maxWidth < 800;
 
-        if (mobile) {
-          return _NewsMobileView(
-            posts: posts,
-            filterOptions: filterOptions,
-            loading: loading,
-            page: page,
-            pageSize: pageSize,
-            totalCount: totalCount,
-            searchQuery: searchQuery,
-            languageFilter: languageFilter,
-            categoryFilter: categoryFilter,
-            typeFilter: typeFilter,
-            statusFilter: statusFilter,
-            publisherFilter: publisherFilter,
-            selectedPostIds: selectedPostIds,
-            trashMode: trashMode,
-            onPageSizeChanged: onPageSizeChanged,
-            onSearchChanged: onSearchChanged,
-            onLanguageChanged: onLanguageChanged,
-            onCategoryChanged: onCategoryChanged,
-            onTypeChanged: onTypeChanged,
-            onStatusChanged: onStatusChanged,
-            onPublisherChanged: onPublisherChanged,
-            onPageChanged: onPageChanged,
-            onTogglePost: onTogglePost,
-            onAddPost: onAddPost,
-            onEditPost: onEditPost,
-            onToggleStatus: onToggleStatus,
-            onTogglePinned: onTogglePinned,
-            onDeletePost: onDeletePost,
-            onDeleteSelected: onDeleteSelected,
-            onToggleTrashMode: onToggleTrashMode,
-          );
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _NewsFilters(
+          if (mobile) {
+            return _NewsMobileView(
+              posts: posts,
               filterOptions: filterOptions,
+              loading: loading,
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              searchQuery: searchQuery,
               languageFilter: languageFilter,
               categoryFilter: categoryFilter,
               typeFilter: typeFilter,
               statusFilter: statusFilter,
               publisherFilter: publisherFilter,
+              selectedPostIds: selectedPostIds,
+              trashMode: trashMode,
+              videoOnly: videoOnly,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
               onLanguageChanged: onLanguageChanged,
               onCategoryChanged: onCategoryChanged,
               onTypeChanged: onTypeChanged,
               onStatusChanged: onStatusChanged,
               onPublisherChanged: onPublisherChanged,
-            ),
-            const SizedBox(height: 28),
-            _NewsToolbar(
-              pageSize: pageSize,
-              searchQuery: searchQuery,
-              selectedCount: selectedPostIds.length,
-              trashMode: trashMode,
-              onPageSizeChanged: onPageSizeChanged,
-              onSearchChanged: onSearchChanged,
+              onPageChanged: onPageChanged,
+              onTogglePost: onTogglePost,
               onAddPost: onAddPost,
+              onEditPost: onEditPost,
+              onToggleStatus: onToggleStatus,
+              onTogglePinned: onTogglePinned,
+              onDeletePost: onDeletePost,
               onDeleteSelected: onDeleteSelected,
               onToggleTrashMode: onToggleTrashMode,
-            ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: _NewsDataTable(
-                posts: posts,
-                loading: loading,
-                selectedPostIds: selectedPostIds,
-                sortState: sortState,
-                trashMode: trashMode,
-                onTogglePost: onTogglePost,
-                onToggleAllPosts: onToggleAllPosts,
-                onSort: onSort,
-                onEditPost: onEditPost,
-                onToggleStatus: onToggleStatus,
-                onTogglePinned: onTogglePinned,
-                onDeletePost: onDeletePost,
+              onToggleVideoOnly: onToggleVideoOnly,
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _NewsFilters(
+                filterOptions: filterOptions,
+                languageFilter: languageFilter,
+                categoryFilter: categoryFilter,
+                typeFilter: typeFilter,
+                statusFilter: statusFilter,
+                publisherFilter: publisherFilter,
+                onLanguageChanged: onLanguageChanged,
+                onCategoryChanged: onCategoryChanged,
+                onTypeChanged: onTypeChanged,
+                onStatusChanged: onStatusChanged,
+                onPublisherChanged: onPublisherChanged,
               ),
-            ),
-            const SizedBox(height: 16),
-            _NewsFooter(
-              page: page,
-              pageSize: pageSize,
-              totalCount: totalCount,
-              loading: loading,
-              onPageChanged: onPageChanged,
-            ),
-          ],
-        );
-      },
+              const SizedBox(height: 28),
+              _NewsToolbar(
+                pageSize: pageSize,
+                searchQuery: searchQuery,
+                selectedCount: selectedPostIds.length,
+                trashMode: trashMode,
+                videoOnly: videoOnly,
+                onPageSizeChanged: onPageSizeChanged,
+                onSearchChanged: onSearchChanged,
+                onAddPost: onAddPost,
+                onDeleteSelected: onDeleteSelected,
+                onToggleTrashMode: onToggleTrashMode,
+                onToggleVideoOnly: onToggleVideoOnly,
+              ),
+              const SizedBox(height: 18),
+              Expanded(
+                child: videoOnly
+                    ? _NewsVideoLibrary(
+                        posts: posts,
+                        loading: loading,
+                        searching: false,
+                        searchQuery: searchQuery,
+                        onEditPost: onEditPost,
+                      )
+                    : _NewsDataTable(
+                        posts: posts,
+                        loading: loading,
+                        searching: searching,
+                        selectedPostIds: selectedPostIds,
+                        sortState: sortState,
+                        trashMode: trashMode,
+                        onTogglePost: onTogglePost,
+                        onToggleAllPosts: onToggleAllPosts,
+                        onSort: onSort,
+                        onEditPost: onEditPost,
+                        onToggleStatus: onToggleStatus,
+                        onTogglePinned: onTogglePinned,
+                        onDeletePost: onDeletePost,
+                      ),
+              ),
+              if (!videoOnly) ...[
+                const SizedBox(height: 16),
+                _NewsFooter(
+                  page: page,
+                  pageSize: pageSize,
+                  totalCount: totalCount,
+                  loading: loading,
+                  onPageChanged: onPageChanged,
+                ),
+              ],
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -423,32 +464,35 @@ class _NewsToolbar extends StatelessWidget {
     required this.searchQuery,
     required this.selectedCount,
     required this.trashMode,
+    required this.videoOnly,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onAddPost,
     required this.onDeleteSelected,
     required this.onToggleTrashMode,
+    required this.onToggleVideoOnly,
   });
 
   final int pageSize;
   final String searchQuery;
   final int selectedCount;
   final bool trashMode;
+  final bool videoOnly;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onAddPost;
   final VoidCallback onDeleteSelected;
   final VoidCallback onToggleTrashMode;
+  final VoidCallback onToggleVideoOnly;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
-        final pageSizeSelect = _PageSizeSelect(
-          value: pageSize,
-          onChanged: onPageSizeChanged,
-        );
+        final pageSizeSelect = videoOnly
+            ? const SizedBox.shrink()
+            : _PageSizeSelect(value: pageSize, onChanged: onPageSizeChanged);
         final search = ConstrainedBox(
           constraints: BoxConstraints(
             minWidth: compact ? double.infinity : 260,
@@ -463,6 +507,10 @@ class _NewsToolbar extends StatelessWidget {
         final trashButton = _TrashToggleButton(
           active: trashMode,
           onPressed: onToggleTrashMode,
+        );
+        final videoButton = _VideoToggleButton(
+          active: videoOnly,
+          onPressed: onToggleVideoOnly,
         );
         final deleteButton = selectedCount == 0 || trashMode
             ? null
@@ -486,7 +534,7 @@ class _NewsToolbar extends StatelessWidget {
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: [trashButton, addButton],
+                children: [trashButton, videoButton, addButton],
               ),
             ],
           );
@@ -503,6 +551,8 @@ class _NewsToolbar extends StatelessWidget {
             search,
             const SizedBox(width: 14),
             trashButton,
+            const SizedBox(width: 10),
+            videoButton,
             const SizedBox(width: 10),
             addButton,
           ],
@@ -561,6 +611,66 @@ class _TrashToggleButton extends StatelessWidget {
               ),
               const SizedBox(width: 7),
               Text(context.t(active ? 'news.activePosts' : 'news.trash')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoToggleButton extends StatelessWidget {
+  const _VideoToggleButton({required this.active, required this.onPressed});
+
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = active ? Colors.white : AppColors.deepOcean;
+    return SizedBox(
+      height: NewsTableCard.toolbarHeight,
+      child: Tooltip(
+        message: context.t('news.videos.filter'),
+        child: TextButton(
+          onPressed: onPressed,
+          style:
+              TextButton.styleFrom(
+                backgroundColor: active ? AppColors.deepOcean : Colors.white,
+                foregroundColor: foreground,
+                side: BorderSide(
+                  color: active
+                      ? AppColors.deepOcean
+                      : AppColors.line.withValues(alpha: 0.82),
+                ),
+                minimumSize: const Size(0, NewsTableCard.toolbarHeight),
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ).copyWith(
+                mouseCursor: const WidgetStatePropertyAll(
+                  SystemMouseCursors.click,
+                ),
+              ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SymbolIcon(
+                active
+                    ? Symbols.play_circle_rounded
+                    : Symbols.play_circle_outline_rounded,
+                color: foreground,
+                size: 17,
+              ),
+              const SizedBox(width: 7),
+              Text(context.t('news.videos.filter')),
             ],
           ),
         ),
@@ -630,6 +740,7 @@ class _NewsSearchField extends StatefulWidget {
 
 class _NewsSearchFieldState extends State<_NewsSearchField> {
   late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -651,6 +762,7 @@ class _NewsSearchFieldState extends State<_NewsSearchField> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -665,6 +777,7 @@ class _NewsSearchFieldState extends State<_NewsSearchField> {
       ),
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         mouseCursor: SystemMouseCursors.text,
         cursorColor: AppColors.support,
         textAlignVertical: TextAlignVertical.center,
@@ -690,6 +803,23 @@ class _NewsSearchFieldState extends State<_NewsSearchField> {
             minWidth: 39,
             minHeight: NewsTableCard.toolbarHeight,
           ),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return _SearchClearButton(
+                onTap: () {
+                  _controller.clear();
+                  widget.onChanged('');
+                  _focusNode.requestFocus();
+                },
+              );
+            },
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 38,
+            minHeight: NewsTableCard.toolbarHeight,
+          ),
           filled: true,
           fillColor: Colors.white,
           isDense: true,
@@ -699,6 +829,54 @@ class _NewsSearchFieldState extends State<_NewsSearchField> {
           focusedBorder: InputBorder.none,
         ),
         onChanged: widget.onChanged,
+      ),
+    );
+  }
+}
+
+class _SearchClearButton extends StatefulWidget {
+  const _SearchClearButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_SearchClearButton> createState() => _SearchClearButtonState();
+}
+
+class _SearchClearButtonState extends State<_SearchClearButton> {
+  var _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: context.t('news.search.clear'),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, right: 8),
+            child: Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _hovering
+                    ? AppColors.line.withValues(alpha: 0.55)
+                    : AppColors.surface,
+                shape: BoxShape.circle,
+              ),
+              child: SymbolIcon(
+                Symbols.close,
+                color: _hovering ? AppColors.deepOcean : AppColors.iconMuted,
+                size: 13,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -806,6 +984,7 @@ class _NewsDataTable extends StatefulWidget {
   const _NewsDataTable({
     required this.posts,
     required this.loading,
+    this.searching = false,
     required this.selectedPostIds,
     required this.sortState,
     required this.trashMode,
@@ -820,6 +999,7 @@ class _NewsDataTable extends StatefulWidget {
 
   final List<AdminNewsPost> posts;
   final bool loading;
+  final bool searching;
   final Set<String> selectedPostIds;
   final TableSortState sortState;
   final bool trashMode;
@@ -919,7 +1099,9 @@ class _NewsDataTableState extends State<_NewsDataTable> {
                     onSort: widget.onSort,
                   ),
                   Expanded(
-                    child: widget.loading && widget.posts.isEmpty
+                    child:
+                        (widget.loading || widget.searching) &&
+                            widget.posts.isEmpty
                         ? const _NewsLoading()
                         : widget.posts.isEmpty
                         ? const _NewsEmpty()
@@ -1206,8 +1388,9 @@ class _NewsRow extends StatelessWidget {
                 width: _NewsDataTable._idWidth,
                 child: _RowSelectTapTarget(
                   onTap: onToggle,
-                  child: Text(
+                  child: HighlightedText(
                     post.id,
+                    query: _NewsSearchScope.of(context),
                     style: const TextStyle(
                       color: AppColors.deepOcean,
                       fontWeight: FontWeight.w500,
@@ -1930,6 +2113,822 @@ class _VideoThumbFallback extends StatelessWidget {
   }
 }
 
+/// Bir videonun (URL'ye göre tekil) hangi haberlerde kullanıldığını toplayan kayıt.
+class _VideoUsage {
+  _VideoUsage(this.video);
+
+  final AdminNewsVideo video;
+  final List<AdminNewsPost> posts = <AdminNewsPost>[];
+  int totalViews = 0;
+}
+
+String _youtubeIdFromUrl(String url) {
+  final raw = url.trim();
+  if (raw.isEmpty) return '';
+  if (RegExp(r'^[_\-a-zA-Z0-9]{11}$').hasMatch(raw)) return raw;
+  final uri = Uri.tryParse(raw.contains('://') ? raw : 'https://$raw');
+  if (uri == null) return '';
+  final host = uri.host.toLowerCase();
+  if (!host.contains('youtube.com') &&
+      !host.contains('youtu.be') &&
+      !host.contains('youtube-nocookie.com')) {
+    return '';
+  }
+  String clean(String value) =>
+      RegExp(r'[_\-a-zA-Z0-9]{11}').firstMatch(value)?.group(0) ?? '';
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (host.contains('youtu.be')) {
+    return segments.isEmpty ? '' : clean(segments.first);
+  }
+  final query = uri.queryParameters['v'];
+  if (query != null && query.isNotEmpty) return clean(query);
+  for (var i = 0; i < segments.length - 1; i++) {
+    final segment = segments[i].toLowerCase();
+    if (segment == 'shorts' || segment == 'embed' || segment == 'live') {
+      return clean(segments[i + 1]);
+    }
+  }
+  return '';
+}
+
+/// Sunucudaki canonicalVideoKey ile aynı mantık: aynı video farklı haberlerde
+/// olsa da tek satırda toplanır (YouTube ID'si bilinçli).
+String _videoCanonicalKey(String url) {
+  final raw = url.trim();
+  if (raw.isEmpty) return '';
+  final youtube = _youtubeIdFromUrl(raw);
+  if (youtube.isNotEmpty) return 'youtube:$youtube';
+  final uri = Uri.tryParse(raw.contains('://') ? raw : 'https://$raw');
+  if (uri == null || uri.host.isEmpty) return 'raw:${raw.toLowerCase()}';
+  final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
+  var path = uri.path;
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  return 'url:$host$path';
+}
+
+/// "Videolar" modunda gösterilen Video Kütüphanesi: tüm videolar düz tablo
+/// halinde (haber satırı YOK), her videonun altında kullanıldığı haber(ler) +
+/// Haberi düzenle / Habere git butonları.
+class _NewsVideoLibrary extends StatelessWidget {
+  const _NewsVideoLibrary({
+    required this.posts,
+    required this.loading,
+    required this.searching,
+    required this.searchQuery,
+    required this.onEditPost,
+  });
+
+  final List<AdminNewsPost> posts;
+  final bool loading;
+  final bool searching;
+  final String searchQuery;
+  final ValueChanged<AdminNewsPost> onEditPost;
+
+  List<_VideoUsage> _aggregate() {
+    final byKey = <String, _VideoUsage>{};
+    final order = <String>[];
+    for (final post in posts) {
+      for (final video in post.videos) {
+        final key = _videoCanonicalKey(video.url);
+        if (key.isEmpty) continue;
+        final usage = byKey.putIfAbsent(key, () {
+          order.add(key);
+          return _VideoUsage(video);
+        });
+        if (!usage.posts.any((p) => p.id == post.id)) {
+          usage.posts.add(post);
+        }
+        usage.totalViews += video.viewsCount;
+      }
+    }
+    return [for (final key in order) byKey[key]!];
+  }
+
+  bool _matches(_VideoUsage usage, String query) {
+    final haystack = StringBuffer()
+      ..write(usage.video.title)
+      ..write(' ')
+      ..write(usage.video.url)
+      ..write(' ')
+      ..write(usage.video.platformLabel);
+    for (final post in usage.posts) {
+      haystack
+        ..write(' ')
+        ..write(post.title)
+        ..write(' ')
+        ..write(post.id)
+        ..write(' ')
+        ..write(post.category);
+    }
+    return searchMatchesAll(haystack.toString(), query);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = searchQuery.trim();
+    final all = _aggregate();
+    final videos = query.isEmpty
+        ? all
+        : all.where((usage) => _matches(usage, query)).toList(growable: false);
+
+    if (videos.isEmpty) {
+      if ((loading || searching)) return const _NewsLoading();
+      return _NewsVideoLibraryEmpty(filtered: query.isNotEmpty);
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFFFFF), Color(0xFFF9FCFC)],
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: const Color(0xFFD7E8EC)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deepOcean.withValues(alpha: 0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(width: 4, color: AppColors.actionRed),
+              ),
+            ),
+            Column(
+              children: [
+                _NewsVideoExpansionHeader(count: videos.length),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 720;
+                    final columns = _NewsVideoDetailColumns.forWidth(
+                      constraints.maxWidth,
+                    );
+                    return Column(
+                      children: [
+                        if (wide) _VideoLibraryColumnsHeader(columns: columns),
+                        for (var index = 0; index < videos.length; index++)
+                          _NewsVideoLibraryRow(
+                            usage: videos[index],
+                            columns: columns,
+                            wide: wide,
+                            last: index == videos.length - 1,
+                            query: searchQuery,
+                            onEditPost: onEditPost,
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoLibraryColumnsHeader extends StatelessWidget {
+  const _VideoLibraryColumnsHeader({required this.columns});
+
+  final _NewsVideoDetailColumns columns;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.only(left: 18, right: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF6F7),
+        border: Border(
+          top: BorderSide(
+            color: const Color(0xFFDCECEF).withValues(alpha: 0.9),
+          ),
+          bottom: BorderSide(
+            color: const Color(0xFFDCECEF).withValues(alpha: 0.9),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _VideoHeaderText(context.t('news.videos.video'))),
+          SizedBox(
+            width: columns.platform,
+            child: _VideoHeaderText(
+              context.t('news.videos.platform'),
+              centered: true,
+            ),
+          ),
+          SizedBox(
+            width: columns.date,
+            child: _VideoHeaderText(
+              context.t('news.videos.addedDate'),
+              centered: true,
+            ),
+          ),
+          SizedBox(
+            width: columns.size,
+            child: _VideoHeaderText(
+              context.t('news.videos.size'),
+              centered: true,
+            ),
+          ),
+          SizedBox(
+            width: columns.views,
+            child: _VideoHeaderText(
+              context.t('news.videos.views'),
+              centered: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsVideoLibraryRow extends StatefulWidget {
+  const _NewsVideoLibraryRow({
+    required this.usage,
+    required this.columns,
+    required this.wide,
+    required this.last,
+    required this.query,
+    required this.onEditPost,
+  });
+
+  final _VideoUsage usage;
+  final _NewsVideoDetailColumns columns;
+  final bool wide;
+  final bool last;
+  final String query;
+  final ValueChanged<AdminNewsPost> onEditPost;
+
+  @override
+  State<_NewsVideoLibraryRow> createState() => _NewsVideoLibraryRowState();
+}
+
+class _NewsVideoLibraryRowState extends State<_NewsVideoLibraryRow> {
+  var _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final video = widget.usage.video;
+    final sizeLabel = video.sizeLabel.trim().isEmpty ? '-' : video.sizeLabel;
+    return Container(
+      decoration: BoxDecoration(
+        border: widget.last
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: const Color(0xFFE8F0F2).withValues(alpha: 0.92),
+                ),
+              ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Tooltip(
+            message: context.t('news.videos.play'),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setState(() => _hovering = true),
+              onExit: (_) => setState(() => _hovering = false),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _openNewsVideoPreview(context, video),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.fromLTRB(14, 13, 14, 11),
+                  color: _hovering
+                      ? const Color(0xFFFFF8F6)
+                      : Colors.white.withValues(alpha: 0),
+                  child: widget.wide
+                      ? _wideRow(context, sizeLabel)
+                      : _narrowRow(context, sizeLabel),
+                ),
+              ),
+            ),
+          ),
+          _UsedInPostsBlock(
+            posts: widget.usage.posts,
+            query: widget.query,
+            wide: widget.wide,
+            onEditPost: widget.onEditPost,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _titleAndUrl(BuildContext context) {
+    final video = widget.usage.video;
+    final title = video.title.trim().isEmpty
+        ? context.t('news.videos.video')
+        : video.displayTitle;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              fit: FlexFit.loose,
+              child: HighlightedText(
+                title,
+                query: widget.query,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _hovering ? AppColors.actionRed : AppColors.deepOcean,
+                  fontSize: 12.8,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            _VideoPlayChip(active: _hovering),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _compactVideoUrl(video.displayUrl),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.support,
+            fontSize: 10.8,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _wideRow(BuildContext context, String sizeLabel) {
+    return Row(
+      children: [
+        _VideoThumb(video: widget.usage.video, active: _hovering),
+        const SizedBox(width: 14),
+        Expanded(child: _titleAndUrl(context)),
+        SizedBox(
+          width: widget.columns.platform,
+          child: _VideoPlatformCell(
+            label: widget.usage.video.displayPlatform,
+            maxWidth: widget.columns.platform - 18,
+          ),
+        ),
+        SizedBox(
+          width: widget.columns.date,
+          child: _VideoPublishedDateCell(
+            dateTime: widget.usage.video.publishedAt,
+          ),
+        ),
+        SizedBox(
+          width: widget.columns.size,
+          child: Center(
+            child: Text(
+              sizeLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.inkSoft,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        SizedBox(
+          width: widget.columns.views,
+          child: _NumberCell(value: widget.usage.totalViews),
+        ),
+      ],
+    );
+  }
+
+  Widget _narrowRow(BuildContext context, String sizeLabel) {
+    final video = widget.usage.video;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _VideoThumb(video: video, active: _hovering),
+            const SizedBox(width: 12),
+            Expanded(child: _titleAndUrl(context)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _VideoMetaChip(
+              icon: Symbols.play_circle_rounded,
+              label: video.displayPlatform,
+            ),
+            if (video.publishedAt != null)
+              _VideoMetaChip(
+                icon: Symbols.calendar_event_line,
+                label: formatAdminFullDate(context, video.publishedAt),
+              ),
+            _VideoMetaChip(icon: Symbols.memory_rounded, label: sizeLabel),
+            _VideoMetaChip(
+              icon: Symbols.visibility,
+              label: '${widget.usage.totalViews}',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _VideoMetaChip extends StatelessWidget {
+  const _VideoMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F8F9),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: const Color(0xFFDCECEF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SymbolIcon(icon, color: AppColors.support, size: 13),
+          const SizedBox(width: 5),
+          Text(
+            label.trim().isEmpty ? '-' : label,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsedInPostsBlock extends StatelessWidget {
+  const _UsedInPostsBlock({
+    required this.posts,
+    required this.query,
+    required this.wide,
+    required this.onEditPost,
+  });
+
+  final List<AdminNewsPost> posts;
+  final String query;
+  final bool wide;
+  final ValueChanged<AdminNewsPost> onEditPost;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F9FA),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: const Color(0xFFE2EEF1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SymbolIcon(
+                Symbols.newspaper,
+                color: AppColors.support,
+                size: 14,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                context.t('news.videos.usedIn'),
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                decoration: BoxDecoration(
+                  color: AppColors.deepOcean.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: Text(
+                  '${posts.length}',
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (var index = 0; index < posts.length; index++) ...[
+            if (index > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: const Color(0xFFE2EEF1).withValues(alpha: 0.85),
+                ),
+              ),
+            _UsedInPostLine(
+              post: posts[index],
+              query: query,
+              wide: wide,
+              onEditPost: onEditPost,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UsedInPostLine extends StatelessWidget {
+  const _UsedInPostLine({
+    required this.post,
+    required this.query,
+    required this.wide,
+    required this.onEditPost,
+  });
+
+  final AdminNewsPost post;
+  final String query;
+  final bool wide;
+  final ValueChanged<AdminNewsPost> onEditPost;
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = post.thumbnailUrl.trim();
+    final info = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 40,
+          height: 30,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: const Color(0xFFDDE8EB)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: thumb.isEmpty
+              ? const SymbolIcon(
+                  Symbols.newspaper,
+                  color: AppColors.iconMuted,
+                  size: 15,
+                )
+              : AdminCachedImage(
+                  url: adminImageUrl(thumb, width: 120),
+                  fit: BoxFit.cover,
+                  memCacheWidth: 120,
+                  errorWidget: const SymbolIcon(
+                    Symbols.newspaper,
+                    color: AppColors.iconMuted,
+                    size: 15,
+                  ),
+                ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              HighlightedText(
+                post.displayTitle,
+                query: query,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.deepOcean,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Row(
+                children: [
+                  HighlightedText(
+                    '#${post.id}',
+                    query: query,
+                    style: const TextStyle(
+                      color: AppColors.support,
+                      fontSize: 10.8,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (post.displayCategory.trim().isNotEmpty &&
+                      post.displayCategory != '-') ...[
+                    const Text(
+                      '  ·  ',
+                      style: TextStyle(
+                        color: AppColors.support,
+                        fontSize: 10.8,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Flexible(
+                      child: HighlightedText(
+                        post.displayCategory,
+                        query: query,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.support,
+                          fontSize: 10.8,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final buttons = [
+      _LibraryActionButton(
+        icon: Symbols.edit_square,
+        label: context.t('news.videos.editPost'),
+        onTap: () => onEditPost(post),
+      ),
+      _LibraryActionButton(
+        icon: Symbols.open_in_new,
+        label: context.t('news.videos.goToPost'),
+        filled: true,
+        onTap: () => unawaited(openNewsLink(_postUrl(post))),
+      ),
+    ];
+
+    if (wide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: info),
+          const SizedBox(width: 12),
+          buttons[0],
+          const SizedBox(width: 8),
+          buttons[1],
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        info,
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: buttons[0]),
+            const SizedBox(width: 8),
+            Expanded(child: buttons[1]),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _LibraryActionButton extends StatelessWidget {
+  const _LibraryActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = filled ? Colors.white : AppColors.deepOcean;
+    return SizedBox(
+      height: 30,
+      child: TextButton(
+        onPressed: onTap,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: filled ? AppColors.deepOcean : Colors.white,
+              foregroundColor: foreground,
+              side: BorderSide(
+                color: filled
+                    ? AppColors.deepOcean
+                    : AppColors.line.withValues(alpha: 0.82),
+              ),
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 11),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SymbolIcon(icon, color: foreground, size: 14),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsVideoLibraryEmpty extends StatelessWidget {
+  const _NewsVideoLibraryEmpty({required this.filtered});
+
+  final bool filtered;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SymbolIcon(
+            Symbols.play_circle_outline_rounded,
+            color: AppColors.iconMuted,
+            size: 34,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            context.t('news.videos.empty'),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.inkSoft,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 String _compactVideoUrl(String value) {
   final raw = value.trim();
   if (raw.isEmpty) return '-';
@@ -2097,7 +3096,7 @@ class _NewsVideoPreviewHeader extends StatelessWidget {
             child: IconButton(
               mouseCursor: SystemMouseCursors.click,
               onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close_rounded),
+              icon: const Icon(Symbols.close_rounded),
               color: Colors.white,
               iconSize: 20,
               splashRadius: 18,
@@ -2256,14 +3255,14 @@ class _NewsDirectModalPlayerState extends State<_NewsDirectModalPlayer> {
     final controller = _controller;
     if (_failed) {
       return _NewsVideoStatusSurface(
-        icon: Icons.error_outline_rounded,
+        icon: Symbols.error_outline_rounded,
         title: context.t('news.videos.playbackError'),
         subtitle: _compactVideoUrl(widget.url),
       );
     }
     if (controller == null || !controller.value.isInitialized) {
       return _NewsVideoStatusSurface(
-        icon: Icons.hourglass_top_rounded,
+        icon: Symbols.hourglass_top_rounded,
         title: context.t('news.videos.loading'),
         subtitle: _compactVideoUrl(widget.url),
       );
@@ -2330,7 +3329,9 @@ class _NewsDirectVideoControls extends StatelessWidget {
               value.isPlaying ? controller.pause() : controller.play();
             },
             icon: Icon(
-              value.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              value.isPlaying
+                  ? Symbols.pause_rounded
+                  : Symbols.play_arrow_rounded,
               color: Colors.white,
             ),
           ),
@@ -2360,8 +3361,8 @@ class _NewsDirectVideoControls extends StatelessWidget {
             onPressed: () => controller.setVolume(value.volume > 0 ? 0 : 1),
             icon: Icon(
               value.volume > 0
-                  ? Icons.volume_up_rounded
-                  : Icons.volume_off_rounded,
+                  ? Symbols.volume_up_rounded
+                  : Symbols.volume_off_rounded,
               color: Colors.white,
             ),
           ),
@@ -2665,8 +3666,9 @@ class _PostTitleLinkState extends State<_PostTitleLink> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => unawaited(openNewsLink(_postUrl(widget.post))),
-        child: Text(
+        child: HighlightedText(
           widget.post.displayTitle,
+          query: _NewsSearchScope.of(context),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -2739,8 +3741,9 @@ class _CategoryCell extends StatelessWidget {
         for (var index = 0; index < normalizedPath.length; index++) ...[
           if (index > 0) const SizedBox(height: 3),
           if (index == 0)
-            Text(
+            HighlightedText(
               normalizedPath[index],
+              query: _NewsSearchScope.of(context),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -2765,8 +3768,9 @@ class _CategoryCell extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Flexible(
-                  child: Text(
+                  child: HighlightedText(
                     normalizedPath[index],
+                    query: _NewsSearchScope.of(context),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
@@ -2905,8 +3909,9 @@ class _AuthorCell extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        HighlightedText(
           post.displayPublisher,
+          query: _NewsSearchScope.of(context),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -2917,8 +3922,9 @@ class _AuthorCell extends StatelessWidget {
         ),
         if (username.isNotEmpty) ...[
           const SizedBox(height: 2),
-          Text(
+          HighlightedText(
             username,
+            query: _NewsSearchScope.of(context),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -2930,8 +3936,9 @@ class _AuthorCell extends StatelessWidget {
         ],
         if (email.isNotEmpty) ...[
           const SizedBox(height: 1),
-          Text(
+          HighlightedText(
             email,
+            query: _NewsSearchScope.of(context),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -3318,7 +4325,7 @@ class _NewsFooter extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(Symbols.chevron_left),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -3338,7 +4345,7 @@ class _NewsFooter extends StatelessWidget {
               ),
               IconButton(
                 onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(Symbols.chevron_right),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
                   height: 32,
@@ -3485,6 +4492,7 @@ class _NewsMobileView extends StatelessWidget {
     required this.publisherFilter,
     required this.selectedPostIds,
     required this.trashMode,
+    required this.videoOnly,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onLanguageChanged,
@@ -3501,6 +4509,7 @@ class _NewsMobileView extends StatelessWidget {
     required this.onDeletePost,
     required this.onDeleteSelected,
     required this.onToggleTrashMode,
+    required this.onToggleVideoOnly,
   });
 
   final List<AdminNewsPost> posts;
@@ -3517,6 +4526,7 @@ class _NewsMobileView extends StatelessWidget {
   final String publisherFilter;
   final Set<String> selectedPostIds;
   final bool trashMode;
+  final bool videoOnly;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onLanguageChanged;
@@ -3533,6 +4543,7 @@ class _NewsMobileView extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onDeletePost;
   final VoidCallback onDeleteSelected;
   final VoidCallback onToggleTrashMode;
+  final VoidCallback onToggleVideoOnly;
 
   int get _activeFilterCount {
     var count = 0;
@@ -3704,7 +4715,7 @@ class _NewsMobileView extends StatelessWidget {
                   final compact = constraints.maxWidth < 520;
                   final buttonWidth = compact
                       ? constraints.maxWidth
-                      : (constraints.maxWidth - 20) / 3;
+                      : (constraints.maxWidth - 30) / 4;
                   return Wrap(
                     spacing: 10,
                     runSpacing: 10,
@@ -3733,6 +4744,20 @@ class _NewsMobileView extends StatelessWidget {
                       SizedBox(
                         width: buttonWidth,
                         child: AdminMobilePrimaryButton(
+                          icon: videoOnly
+                              ? Symbols.play_circle_rounded
+                              : Symbols.play_circle_outline_rounded,
+                          label: context.t('news.videos.filter'),
+                          backgroundColor: videoOnly
+                              ? AppColors.deepOcean
+                              : AppColors.support,
+                          fullWidth: true,
+                          onPressed: onToggleVideoOnly,
+                        ),
+                      ),
+                      SizedBox(
+                        width: buttonWidth,
+                        child: AdminMobilePrimaryButton(
                           icon: Symbols.add,
                           label: context.t('Add Post'),
                           fullWidth: true,
@@ -3745,33 +4770,43 @@ class _NewsMobileView extends StatelessWidget {
               ),
         const SizedBox(height: 14),
         Expanded(
-          child: AdminMobileListView(
+          child: videoOnly
+              ? _NewsVideoLibrary(
+                  posts: posts,
+                  loading: loading,
+                  searching: false,
+                  searchQuery: searchQuery,
+                  onEditPost: onEditPost,
+                )
+              : AdminMobileListView(
+                  loading: loading,
+                  itemCount: posts.length,
+                  emptyLabel: context.t('No posts found'),
+                  itemBuilder: (context, index) {
+                    final post = posts[index];
+                    return _NewsMobileCard(
+                      post: post,
+                      selected: selectedPostIds.contains(post.id),
+                      onToggle: () => onTogglePost(post.id),
+                      trashMode: trashMode,
+                      onEditPost: onEditPost,
+                      onToggleStatus: onToggleStatus,
+                      onTogglePinned: onTogglePinned,
+                      onDeletePost: onDeletePost,
+                    );
+                  },
+                ),
+        ),
+        if (!videoOnly) ...[
+          const SizedBox(height: 12),
+          AdminMobilePager(
+            page: page,
+            lastPage: lastPage,
+            rangeText: rangeText,
             loading: loading,
-            itemCount: posts.length,
-            emptyLabel: context.t('No posts found'),
-            itemBuilder: (context, index) {
-              final post = posts[index];
-              return _NewsMobileCard(
-                post: post,
-                selected: selectedPostIds.contains(post.id),
-                onToggle: () => onTogglePost(post.id),
-                trashMode: trashMode,
-                onEditPost: onEditPost,
-                onToggleStatus: onToggleStatus,
-                onTogglePinned: onTogglePinned,
-                onDeletePost: onDeletePost,
-              );
-            },
+            onPageChanged: onPageChanged,
           ),
-        ),
-        const SizedBox(height: 12),
-        AdminMobilePager(
-          page: page,
-          lastPage: lastPage,
-          rangeText: rangeText,
-          loading: loading,
-          onPageChanged: onPageChanged,
-        ),
+        ],
       ],
     );
   }
@@ -3820,7 +4855,9 @@ class _NewsMobileCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               AdminMobileThumb(
-                imageUrl: thumb.isEmpty ? null : adminImageUrl(thumb, width: 180),
+                imageUrl: thumb.isEmpty
+                    ? null
+                    : adminImageUrl(thumb, width: 180),
                 fallbackIcon: Symbols.newspaper,
                 fit: BoxFit.cover,
               ),
@@ -3847,8 +4884,9 @@ class _NewsMobileCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    HighlightedText(
                       '#${post.id} · ${post.displayCategory}',
+                      query: _NewsSearchScope.of(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

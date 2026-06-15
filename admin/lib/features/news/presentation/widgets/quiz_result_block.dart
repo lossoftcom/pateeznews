@@ -10,6 +10,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _quizResultBlockStrongLine = Color(0xFFDDE5E8);
 const _quizResultBlockSoftLine = Color(0xFFE8EEF1);
@@ -110,7 +111,7 @@ class QuizResultBlockCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.flash_on,
+                          Symbols.flash_on,
                           color: AppColors.actionRed,
                           size: 18,
                         ),
@@ -388,19 +389,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -571,13 +572,13 @@ class _DashedImageBox extends StatelessWidget {
                     child: Row(
                       children: [
                         _ImageActionButton(
-                          icon: Icons.edit_outlined,
+                          icon: Symbols.edit_outlined,
                           color: AppColors.deepOcean,
                           onTap: onPickImage,
                         ),
                         const SizedBox(width: 8),
                         _ImageActionButton(
-                          icon: Icons.delete_outline,
+                          icon: Symbols.delete_outline,
                           color: AppColors.actionRed,
                           onTap: onClear,
                         ),
@@ -609,7 +610,11 @@ class _EmptyImagePicker extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add, color: _quizResultBlockUploadInk, size: 32),
+              const Icon(
+                Symbols.add,
+                color: _quizResultBlockUploadInk,
+                size: 32,
+              ),
               const SizedBox(height: 8),
               Text(
                 context.t('newsAdd.imageSelect'),
@@ -652,7 +657,7 @@ class _UrlUploadButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+              const Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
               const SizedBox(width: 6),
               Text(
                 context.t('newsAdd.addUrl'),

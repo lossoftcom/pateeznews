@@ -616,7 +616,9 @@ class _StoriesMobileCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               AdminMobileThumb(
-                imageUrl: media.isEmpty ? null : adminImageUrl(media, width: 180),
+                imageUrl: media.isEmpty
+                    ? null
+                    : adminImageUrl(media, width: 180),
                 fallbackIcon: Symbols.photo_camera,
               ),
               const SizedBox(width: 12),
@@ -1567,8 +1569,8 @@ class _StoryThumbnail extends StatelessWidget {
               ),
               child: Icon(
                 mediaType == 'video'
-                    ? Icons.videocam_outlined
-                    : Icons.image_outlined,
+                    ? Symbols.videocam_outlined
+                    : Symbols.image_outlined,
                 size: 12,
                 color: AppColors.deepOcean,
               ),
@@ -2698,7 +2700,6 @@ class _DialogRadioOption extends StatelessWidget {
     );
   }
 }
-
 
 DateTime? _parseInputDate(String value) {
   final raw = value.trim();

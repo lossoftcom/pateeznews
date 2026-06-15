@@ -1,17 +1,18 @@
 import type { APIRoute } from 'astro';
 import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import { LOCAL_UPLOAD_ROOT } from '@/lib/server/localUploadStorage';
-import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
-import { buildAltTextFallback, cleanAiScalarText, extractJsonStringField, htmlToPlainText, isBoilerplateAiText } from '@/lib/mediaSeoText';
+import { geminiFastModelAttempts, geminiThinkingConfigForModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
+import { buildAltTextFallback, cleanAiScalarText, extractJsonStringField, htmlToPlainText, isBoilerplateAiText, isTechnicalMediaText } from '@/lib/mediaSeoText';
+import { fetchMediaSeoSystemPrompt } from '@/lib/server/mediaSeoPrompt';
 
 const STORAGE_FILE_MARKER = '/api/storage/file/';
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 const MAX_CONTEXT_LENGTH = 6000;
-const MAX_AI_IMAGE_DIMENSION = 1600;
+const AI_REQUEST_TIMEOUT_MS = 24_000;
+const MAX_AI_IMAGE_BYTES = 4_000_000;
 
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
@@ -98,6 +99,26 @@ const extractAltText = (text: string) => {
     return scalar ? sanitizeAltText(scalar) : '';
 };
 
+const shouldRetryTextOnly = (result: { ok: boolean; status?: number; message?: unknown }) => {
+    if (result.ok || result.status !== 400) return false;
+    const message = String(result.message || '').toLowerCase();
+    return (
+        message.includes('inline') ||
+        message.includes('image') ||
+        message.includes('mime') ||
+        message.includes('data') ||
+        message.includes('invalid')
+    );
+};
+
+const usableAltText = (value: string) => {
+    const text = sanitizeAltText(value);
+    if (!text) return false;
+    if (isBoilerplateAiText(text)) return false;
+    if (isTechnicalMediaText(text)) return false;
+    return true;
+};
+
 const fetchAiSettings = async (languageCode: string) => {
     const result = await dbQuery<{ google_ai_api_key: string | null; google_ai_model: string | null }>(
         `SELECT google_ai_api_key, google_ai_model
@@ -120,26 +141,22 @@ const fetchAiSettings = async (languageCode: string) => {
     return fallback.rows[0] || null;
 };
 
+const imageMimeTypeForPath = (filePath: string) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+    if (ext === '.png') return 'image/png';
+    if (ext === '.webp') return 'image/webp';
+    return '';
+};
+
 const prepareInlineImage = async (filePath: string) => {
-    const input = fs.readFileSync(filePath);
-    const image = sharp(input, { animated: false });
-    const buffer = await image
-        .rotate()
-        .resize({
-            width: MAX_AI_IMAGE_DIMENSION,
-            height: MAX_AI_IMAGE_DIMENSION,
-            fit: 'inside',
-            withoutEnlargement: true,
-            kernel: 'lanczos3'
-        })
-        .jpeg({
-            quality: 84,
-            mozjpeg: true
-        })
-        .toBuffer();
+    const stat = fs.statSync(filePath);
+    const mimeType = imageMimeTypeForPath(filePath);
+    if (!mimeType || stat.size <= 0 || stat.size > MAX_AI_IMAGE_BYTES) return null;
+    const buffer = fs.readFileSync(filePath);
 
     return {
-        mimeType: 'image/jpeg',
+        mimeType,
         data: buffer.toString('base64')
     };
 };
@@ -151,11 +168,9 @@ const buildPrompt = (input: {
     mediaKind: string;
     hasImage: boolean;
 }) => `
-Sen Google Images, Yandex Images, Google News, Discover ve yapay zeka tarayıcıları için haber görseli alt text uzmanısın.
+	Kapak görseli için tek bir profesyonel Türkçe alt text üret.
 
-Görev: Kapak görseli için tek bir profesyonel Türkçe alt text üret.
-
-Kurallar:
+	Kurallar:
 - Çıktı SADECE JSON olsun: {"altText":"..."}
 - JSON öncesine veya sonrasına açıklama, "Here is the JSON requested", markdown, kod bloğu, yorum, not veya giriş cümlesi yazma.
 - 90-160 karakter arası, doğal ve tek cümlelik Türkçe yaz.
@@ -180,10 +195,11 @@ const generateAltText = async (input: {
     model: string;
     context: string;
     currentName: string;
-    currentAlt: string;
-    mediaKind: string;
-    inlineImage: { mimeType: string; data: string } | null;
-}) => {
+	    currentAlt: string;
+	    mediaKind: string;
+	    inlineImage: { mimeType: string; data: string } | null;
+	    systemPrompt: string;
+	}) => {
     const prompt = buildPrompt({
         context: input.context,
         currentName: input.currentName,
@@ -192,9 +208,9 @@ const generateAltText = async (input: {
         hasImage: Boolean(input.inlineImage)
     });
 
-    const makePayload = (inlineImage: typeof input.inlineImage) => {
-        const parts: Array<any> = [{ text: prompt }];
-        if (inlineImage) {
+	    const makePayload = (modelId: string, inlineImage: typeof input.inlineImage) => {
+	        const parts: Array<any> = [{ text: prompt }];
+	        if (inlineImage) {
             parts.push({
                 inlineData: {
                     mimeType: inlineImage.mimeType,
@@ -203,17 +219,23 @@ const generateAltText = async (input: {
             });
         }
 
-        return {
-            contents: [{ parts }],
-            generationConfig: {
-                temperature: 0.15,
-                topK: 24,
-                topP: 0.85,
-                maxOutputTokens: 180,
-                responseMimeType: 'application/json',
-            },
-        };
-    };
+	        const generationConfig: Record<string, unknown> = {
+	            temperature: 0.15,
+	            topK: 24,
+	            topP: 0.85,
+	            maxOutputTokens: 180,
+	            responseMimeType: 'application/json',
+	        };
+	        const thinkingConfig = geminiThinkingConfigForModel(modelId);
+	        if (thinkingConfig) generationConfig.thinkingConfig = thinkingConfig;
+	        return {
+	            system_instruction: {
+	                parts: [{ text: input.systemPrompt.trim() || 'Medya SEO uzmanısın.' }],
+	            },
+	            contents: [{ role: 'user', parts }],
+	            generationConfig,
+	        };
+	    };
 
     const call = async (apiVersion: 'v1beta' | 'v1', payload: ReturnType<typeof makePayload>, modelId: string) => {
         const response = await fetch(
@@ -221,7 +243,8 @@ const generateAltText = async (input: {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)
             }
         );
         const data = await response.json().catch(() => ({}));
@@ -232,10 +255,7 @@ const generateAltText = async (input: {
         return { ok: true as const, data, modelId };
     };
 
-    const primaryModel = normalizeGeminiModelName(input.model) || 'gemini-2.5-flash';
-    const fallbackModel = getOneLowerGeminiModel(primaryModel);
-    const modelQueue = [primaryModel];
-    if (fallbackModel && fallbackModel !== primaryModel) modelQueue.push(fallbackModel);
+    const modelQueue = geminiFastModelAttempts(input.model || 'gemini-2.5-flash');
     const fallbackAltText = buildAltTextFallback({
         context: input.context,
         currentName: input.currentName,
@@ -245,25 +265,42 @@ const generateAltText = async (input: {
     let result: Awaited<ReturnType<typeof call>> | null = null;
     for (let index = 0; index < modelQueue.length; index++) {
         const modelId = modelQueue[index];
-        const payload = makePayload(input.inlineImage);
-        result = await call('v1beta', payload, modelId);
-        if (!result.ok && result.status === 404) result = await call('v1', payload, modelId);
-        if (!result.ok && input.inlineImage) {
-            const textOnlyPayload = makePayload(null);
-            result = await call('v1beta', textOnlyPayload, modelId);
-            if (!result.ok && result.status === 404) result = await call('v1', textOnlyPayload, modelId);
+        try {
+	            const payload = makePayload(modelId, input.inlineImage);
+	            result = await call('v1beta', payload, modelId);
+	            if (!result.ok && result.status === 404) result = await call('v1', payload, modelId);
+	            if (!result.ok && input.inlineImage && shouldRetryTextOnly(result)) {
+	                const textOnlyPayload = makePayload(modelId, null);
+	                result = await call('v1beta', textOnlyPayload, modelId);
+	                if (!result.ok && result.status === 404) result = await call('v1', textOnlyPayload, modelId);
+            }
+        } catch (error: any) {
+            result = {
+                ok: false as const,
+                status: error?.name === 'TimeoutError' ? 408 : 0,
+                message: error?.message || 'Gemini request failed',
+                modelId,
+            };
         }
-        if (result.ok) break;
+        if (result.ok) {
+            const aiText = result.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const altText = extractAltText(aiText);
+            if (usableAltText(altText)) return altText;
+            result = {
+                ok: false as const,
+                status: 422,
+                message: 'Gemini returned unusable alt text',
+                modelId,
+            };
+        }
 
-        const canTryFallback = index === 0 && modelQueue.length > 1 && isGeminiFallbackWorthTrying(result.status, result.message);
-        if (canTryFallback) continue;
+        const canTryFallback = index < modelQueue.length - 1 && isGeminiFallbackWorthTrying(result.status, result.message);
+        if (canTryFallback || result.status === 422) continue;
         break;
     }
-    if (!result?.ok) return fallbackAltText;
-
-    const aiText = result.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const altText = extractAltText(aiText);
-    return altText && !isBoilerplateAiText(altText) ? altText : fallbackAltText;
+    return usableAltText(fallbackAltText)
+        ? fallbackAltText
+        : 'Haber içeriğiyle ilişkili erişilebilir kapak görseli.';
 };
 
 export const POST: APIRoute = async ({ request }) => {
@@ -294,19 +331,21 @@ export const POST: APIRoute = async ({ request }) => {
 
         const context = String(body?.context || '').slice(0, MAX_CONTEXT_LENGTH);
         const currentAlt = String(body?.currentAlt || '').slice(0, 500);
-        const mediaKind = String(body?.mediaKind || 'haber kapak görseli').slice(0, 120);
-        const currentName = candidateId ? path.basename(candidateId) : filenameFromSrc(src);
-        const model = normalizeGeminiModelName(settings.google_ai_model) || 'gemini-2.5-flash';
+	        const mediaKind = String(body?.mediaKind || 'haber kapak görseli').slice(0, 120);
+	        const currentName = candidateId ? path.basename(candidateId) : filenameFromSrc(src);
+	        const model = normalizeGeminiModelName(settings.google_ai_model) || 'gemini-2.5-flash';
+	        const systemPrompt = await fetchMediaSeoSystemPrompt(languageCode);
 
-        const altText = await generateAltText({
+	        const altText = await generateAltText({
             apiKey: settings.google_ai_api_key,
             model,
             context,
-            currentName,
-            currentAlt,
-            mediaKind,
-            inlineImage
-        });
+	            currentName,
+	            currentAlt,
+	            mediaKind,
+	            inlineImage,
+	            systemPrompt
+	        });
 
         return json({
             success: true,
@@ -314,7 +353,7 @@ export const POST: APIRoute = async ({ request }) => {
             usedVision: Boolean(inlineImage)
         });
     } catch (error: any) {
-        console.error('SEO Alt Text Error:', error);
+        if ((error?.status || 500) >= 500) console.error('SEO Alt Text Error:', error);
         return json({ error: error.message || 'SEO alt text failed' }, error?.status || 500);
     }
 };

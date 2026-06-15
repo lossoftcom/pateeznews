@@ -290,70 +290,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _canOpen(_DashboardPage page) {
     return switch (page) {
-      _DashboardPage.home => _hasAny(['view_overview', 'dashboard_access']),
-      _DashboardPage.newsAdd ||
-      _DashboardPage.news ||
-      _DashboardPage.stories ||
-      _DashboardPage.pages => _hasAny([
-        'manage_content',
+      _DashboardPage.home => _hasAny(['dashboard_access', 'view_overview']),
+      _DashboardPage.newsAdd || _DashboardPage.news => _hasAny([
         'posts_access',
+        'manage_content',
         'news_access',
       ]),
+      _DashboardPage.stories => _hasAny(['stories_access', 'manage_stories']),
+      _DashboardPage.pages => _hasAny(['pages_access', 'manage_pages']),
       _DashboardPage.comments => _hasAny(['comments_manage']),
       _DashboardPage.subscribers => _hasAny([
-        'manage_content',
-        'mail_access',
-        'posts_access',
-        'news_access',
+        'subscribers_access',
+        'manage_subscribers',
       ]),
       _DashboardPage.mailInbox ||
       _DashboardPage.bulkMail ||
       _DashboardPage.mailTemplates ||
       _DashboardPage.contactLists ||
-      _DashboardPage.mailSettings => _hasAny([
-        'manage_content',
-        'mail_access',
-        'posts_access',
-        'news_access',
-      ]),
+      _DashboardPage.mailSettings => _hasAny(['mail_access', 'manage_mail']),
       _DashboardPage.navigation => _hasAny([
-        'manage_content',
-        'posts_access',
-        'news_access',
+        'navigation_access',
+        'manage_navigation',
       ]),
       _DashboardPage.smsBulk ||
       _DashboardPage.smsOutbox ||
       _DashboardPage.smsTemplates ||
       _DashboardPage.smsContacts ||
-      _DashboardPage.smsSettings => _hasAny([
-        'manage_sms',
-        'manage_content',
-        'posts_access',
-        'news_access',
-      ]),
+      _DashboardPage.smsSettings => _hasAny(['sms_access', 'manage_sms']),
       _DashboardPage.whatsappMessaging ||
       _DashboardPage.whatsappBulk ||
       _DashboardPage.whatsappTemplates ||
       _DashboardPage.whatsappContacts ||
       _DashboardPage.whatsappSettings => _hasAny([
+        'whatsapp_access',
         'manage_whatsapp',
-        'manage_content',
-        'posts_access',
-        'news_access',
       ]),
       _DashboardPage.socialPublish ||
       _DashboardPage.socialAccounts ||
       _DashboardPage.socialSettings => _hasAny([
+        'social_access',
         'manage_social',
-        'manage_content',
-        'posts_access',
-        'news_access',
       ]),
       _DashboardPage.users => _hasAny(['manage_users', 'users_access']),
       _DashboardPage.accountSettings => true,
       _DashboardPage.rolesPermissions => _hasAny([
-        'view_roles',
         'roles_access',
+        'manage_roles',
+        'view_roles',
       ]),
       _DashboardPage.storageSettings ||
       _DashboardPage.googleNews ||
@@ -399,6 +382,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openNews() {
+    if (!_canOpen(_DashboardPage.news)) return;
     setState(() {
       _editingNewsPostId = null;
       _selectedPage = _DashboardPage.news;
@@ -406,6 +390,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openNewsAdd() {
+    if (!_canOpen(_DashboardPage.newsAdd)) return;
     setState(() {
       _editingNewsPostId = null;
       _selectedPage = _DashboardPage.newsAdd;

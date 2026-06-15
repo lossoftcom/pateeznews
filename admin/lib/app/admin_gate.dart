@@ -24,7 +24,9 @@ import '../features/settings/data/admin_storage_settings_repository.dart';
 import '../features/sms/data/admin_sms_repository.dart';
 import '../features/social/data/admin_social_repository.dart';
 import '../features/stories/data/admin_stories_repository.dart';
+import '../shared/branding/admin_branding.dart';
 import '../shared/data/media_service.dart';
+import '../shared/widgets/admin_brand_mark.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/settings/data/admin_languages_repository.dart';
@@ -167,11 +169,17 @@ class _AdminGateState extends State<AdminGate> {
   }
 
   Future<void> _restoreSession() async {
+    // Marka (logo + site adı) splash sırasında yüklensin → login/dashboard
+    // açılınca doğru logo "şak diye" hazır gelsin (boş/yanlış marka görünmez).
+    final brandingReady = AdminBrandingStore.bootstrap(
+      languageCode: widget.languageCode,
+    );
     try {
       final authState = await widget.authRepository.restoreSession();
       final contentSettingsSnapshot = authState?.session == null
           ? null
           : await _preloadContentSettings(widget.languageCode);
+      await brandingReady;
       if (!mounted) return;
       setState(() {
         _session = authState?.session;
@@ -180,7 +188,9 @@ class _AdminGateState extends State<AdminGate> {
         _checkingSession = false;
       });
       _scheduleSessionExpiry(authState?.session);
+      if (authState?.session != null) unawaited(_refreshBranding());
     } catch (_) {
+      await brandingReady;
       if (!mounted) return;
       setState(() {
         _session = null;
@@ -225,6 +235,27 @@ class _AdminGateState extends State<AdminGate> {
     );
   }
 
+  /// Oturum açıkken gerçek admin ayarlarından markayı kesin günceller + kalıcı
+  /// yazar (sonraki açılışta giriş ekranı doğru logoyu anında gösterir).
+  Future<void> _refreshBranding() async {
+    try {
+      final settings = await widget.generalSettingsRepository.fetchSettings(
+        widget.languageCode,
+      );
+      await AdminBrandingStore.update(
+        AdminBrandingData(
+          siteName: settings.siteName,
+          logoUrl: widget.generalSettingsRepository.publicUrl(settings.logoUrl),
+          faviconUrl: widget.generalSettingsRepository.publicUrl(
+            settings.faviconUrl,
+          ),
+        ),
+      );
+    } catch (_) {
+      // sessiz — splash'ta yüklenen marka ekranda kalır
+    }
+  }
+
   Future<void> _login(String email, String password) async {
     final authState = await widget.authRepository.signInWithPassword(
       email: email,
@@ -240,6 +271,7 @@ class _AdminGateState extends State<AdminGate> {
       _contentSettingsSnapshot = contentSettingsSnapshot;
     });
     _scheduleSessionExpiry(authState.session);
+    unawaited(_refreshBranding());
   }
 
   Future<void> _logout() async {
@@ -283,15 +315,38 @@ class _AdminGateState extends State<AdminGate> {
   @override
   Widget build(BuildContext context) {
     if (_checkingSession) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.deepOcean,
-            ),
+          child: ValueListenableBuilder<AdminBrandingData>(
+            valueListenable: adminBranding,
+            builder: (context, branding, _) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AdminBrandMark(branding: branding, size: 64),
+                  if (branding.hasSiteName) ...[
+                    const SizedBox(height: 18),
+                    Text(
+                      branding.siteName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.deepOcean,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 22),
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.deepOcean,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       );

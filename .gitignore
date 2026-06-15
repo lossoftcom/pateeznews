@@ -22,3 +22,6 @@ migration/*.sql
 !migration/2026-05-30-runtime-schema-baseline.sql
 !migration/2026-05-30-performance-indexes.sql
 !migration/2026-05-31-admin-api-rls-role-hardening.sql
+!migration/2026-06-13-admin-news-search.sql
+!migration/2026-06-14-pages-group.sql
+!migration/2026-06-14-social-bundle-settings.sql

@@ -30,20 +30,66 @@ class AdminSocialConnectedAccount {
     required this.channelId,
     required this.channelName,
     required this.status,
+    this.bundleSocialAccountId = '',
+    this.avatarUrl = '',
+    this.teamId = '',
+    this.twitterSubType = '',
+    this.rawJson = const <String, Object?>{},
     this.connectedAt,
   });
 
   final int id;
   final int socialAccountId;
+  final String bundleSocialAccountId;
   final SocialPlatform platform;
   final String platformType;
   final String accountName;
   final String displayName;
   final String username;
+  final String avatarUrl;
   final String channelId;
   final String channelName;
   final String status;
+  final String teamId;
+  final String twitterSubType;
+  final Map<String, Object?> rawJson;
   final DateTime? connectedAt;
+
+  String get resolvedDisplayName {
+    final direct = displayName.trim();
+    if (direct.isNotEmpty) return direct;
+    final channel = channelName.trim();
+    if (channel.isNotEmpty) return channel;
+    final user = username.trim();
+    if (user.isNotEmpty) return user.replaceFirst(RegExp(r'^@'), '');
+    return accountName.trim().isEmpty ? 'Pateeznews' : accountName.trim();
+  }
+
+  String get resolvedUsername {
+    final user = username.trim();
+    if (user.isNotEmpty) return user.replaceFirst(RegExp(r'^@'), '');
+    final channel = channelName.trim();
+    if (channel.isNotEmpty) return channel.replaceFirst(RegExp(r'^@'), '');
+    return resolvedDisplayName.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+  }
+
+  bool get isTwitterPremium {
+    final subtype = twitterSubType.trim().toLowerCase();
+    return subtype == 'premium' || subtype == 'premium_plus';
+  }
+
+  int get effectiveTwitterCharLimit => isTwitterPremium ? 25000 : 280;
+
+  String get twitterTierLabel {
+    final subtype = twitterSubType.trim().toLowerCase();
+    return switch (subtype) {
+      'premium_plus' => 'Premium+',
+      'premium' => 'Premium',
+      'basic' => 'Basic',
+      'none' => 'Free',
+      _ => '',
+    };
+  }
 }
 
 class AdminSocialPublishResult {
@@ -235,6 +281,11 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
     required SocialPublishData data,
     DateTime? scheduledAt,
   }) async {
+    final selectedAccountIds = <String, String>{
+      for (final entry in data.selectedConnectedAccountIds.entries)
+        if (data.selectedPlatforms.contains(entry.key))
+          entry.key.bundleSocialType: entry.value.toString(),
+    };
     final body = {
       'social_account_id': socialAccountId,
       'title': data.campaignName.trim().isEmpty
@@ -251,6 +302,8 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
       'social_account_types': data.selectedPlatforms
           .map((platform) => platform.bundleSocialType)
           .toList(growable: false),
+      if (selectedAccountIds.isNotEmpty)
+        'selected_connected_account_ids': selectedAccountIds,
     };
     final result = await _requestJson(
       'POST',
@@ -424,9 +477,11 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
   AdminSocialConnectedAccount _connectedAccountFromJson(
     Map<dynamic, dynamic> json,
   ) {
+    final rawJson = _decodeMap(json['raw_json']);
     return AdminSocialConnectedAccount(
       id: _asInt(json['id']),
       socialAccountId: _asInt(json['social_account_id']),
+      bundleSocialAccountId: _decodeText(json['bundle_social_account_id']),
       platform: socialPlatformFromBundleType(
         _decodeText(json['platform_type']),
       ),
@@ -434,14 +489,48 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
       accountName: _decodeText(json['account_name']),
       displayName: _decodeText(json['display_name']),
       username: _decodeText(json['username']),
+      avatarUrl: _decodeText(json['avatar_url']),
       channelId: _decodeText(json['channel_id']),
       channelName: _decodeText(json['channel_name']),
       status: _decodeText(json['status']),
+      teamId: _decodeText(json['team_id']),
+      twitterSubType: _firstText([
+        json['twitter_sub_type'],
+        json['twitterSubType'],
+        rawJson['twitterSubType'],
+        rawJson['twitter_sub_type'],
+      ]),
+      rawJson: rawJson,
       connectedAt: _parseDate(json['connected_at']),
     );
   }
 
   String _decodeText(Object? value) => value?.toString() ?? '';
+
+  String _firstText(Iterable<Object?> values) {
+    for (final value in values) {
+      final text = _decodeText(value).trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  Map<String, Object?> _decodeMap(Object? value) {
+    if (value is Map) {
+      return value.map((key, value) => MapEntry(key.toString(), value));
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map) {
+          return decoded.map((key, value) => MapEntry(key.toString(), value));
+        }
+      } on FormatException {
+        return const <String, Object?>{};
+      }
+    }
+    return const <String, Object?>{};
+  }
 
   int _asInt(Object? value, {int fallback = 0}) {
     if (value is int) return value;

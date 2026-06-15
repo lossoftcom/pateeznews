@@ -13,11 +13,14 @@ interface AccessRule {
 
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const CONTENT: AccessRule = { select: 'posts_access', mutate: 'manage_content' };
+const STORIES: AccessRule = { select: 'stories_access', mutate: 'manage_stories' };
+const PAGES: AccessRule = { select: 'pages_access', mutate: 'manage_pages' };
+const SUBSCRIBERS: AccessRule = { select: 'subscribers_access', mutate: 'manage_subscribers' };
 const COMMENTS: AccessRule = { select: 'comments_manage', mutate: 'comments_manage' };
 const NAVIGATION: AccessRule = { select: 'navigation_access', mutate: 'manage_navigation' };
 const SETTINGS: AccessRule = { select: 'view_settings', mutate: 'settings_access' };
 const USERS: AccessRule = { select: 'users_access', mutate: 'manage_users' };
-const ROLES: AccessRule = { select: 'roles_access', mutate: 'manage_users' };
+const ROLES: AccessRule = { select: 'roles_access', mutate: 'manage_roles' };
 const LANGUAGES: AccessRule = { select: 'view_languages', mutate: 'view_languages' };
 
 const TABLE_RULES: Record<string, AccessRule> = {
@@ -29,8 +32,8 @@ const TABLE_RULES: Record<string, AccessRule> = {
   languages: LANGUAGES,
   navigation_items: NAVIGATION,
   navigation_menus: NAVIGATION,
-  newsletter_subscribers: CONTENT,
-  pages: CONTENT,
+  newsletter_subscribers: SUBSCRIBERS,
+  pages: PAGES,
   permissions: ROLES,
   posts: CONTENT,
   profiles: USERS,
@@ -38,7 +41,7 @@ const TABLE_RULES: Record<string, AccessRule> = {
   roles: ROLES,
   site_fonts: SETTINGS,
   site_settings: SETTINGS,
-  stories: CONTENT,
+  stories: STORIES,
 };
 
 const RPC_RULES: Record<string, string> = {
@@ -51,7 +54,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'id', 'post_id', 'user_id', 'guest_name', 'guest_email', 'parent_id',
       'content', 'status', 'is_pinned', 'likes_count', 'created_at',
       'updated_at', 'post_title', 'user_name', 'user_avatar',
-      'replies_count', 'reports_count',
+      'replies_count', 'reports_count', 'content_search', 'meta_search',
     ],
     ai_ready_formats: [
       'id', 'title', 'prompt', 'language_code', 'is_active', 'created_at',
@@ -75,14 +78,15 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
     navigation_menus: ['id', 'code', 'name', 'description', 'created_at'],
     newsletter_subscribers: [
       'id', 'email', 'full_name', 'phone', 'ip_address', 'city', 'status',
-      'language_code', 'source', 'created_at', 'updated_at',
+      'language_code', 'source', 'created_at', 'updated_at', 'admin_search_text',
     ],
     pages: [
       'id', 'title', 'slug', 'language_code', 'category_id', 'category',
-      'page_type', 'status', 'location', 'parent_page_id', 'show_title',
-      'show_breadcrumb', 'show_sidebar', 'registered_only', 'menu_order',
-      'content_delta', 'content_plain', 'meta_title', 'meta_keywords',
-      'meta_description', 'canonical_url', 'created_at', 'updated_at',
+      'page_group', 'page_type', 'status', 'location', 'parent_page_id',
+      'show_title', 'show_breadcrumb', 'show_sidebar', 'registered_only',
+      'menu_order', 'content_delta', 'content_plain', 'meta_title',
+      'meta_keywords', 'meta_description', 'canonical_url', 'created_at',
+      'updated_at', 'admin_search_text',
     ],
     permissions: ['id', 'key', 'label', 'group_name', 'description', 'created_at'],
     posts: [

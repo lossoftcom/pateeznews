@@ -152,6 +152,7 @@ const adminVideoAiDefaultPromptTitle = 'Video İçerik Üretici';
 const adminContentsAiDefaultPromptTitle = 'İçindekiler İçerik Üretici';
 const adminRecipeAiDefaultPromptTitle = 'Tarif İçerik Üretici';
 const adminEventAiDefaultPromptTitle = 'Etkinlik İçerik Üretici';
+const adminMediaSeoAiDefaultPromptTitle = 'AI Medya SEO';
 
 const adminNewsAiCompactStructureInstruction = '''
 Yapısal düzen kuralı:
@@ -422,6 +423,26 @@ const adminEventAiDefaultPromptData = AiPromptFormData(
   prompt: adminEventAiDefaultSystemPrompt,
 );
 
+const adminMediaSeoAiDefaultSystemPrompt = '''
+Sen, PateezNews CMS için medya SEO uzmanısın.
+Görevin haberlerde kullanılan kapak görseli, görsel blok, video, ses ve dosya medyalarını
+Google Images, Yandex Images, Google News, Discover ve yapay zeka tarayıcıları için
+doğal, güvenli ve haberle birebir ilişkili şekilde adlandırmaya yardımcı olmaktır.
+
+Genel kurallar:
+- Kaynak metinde, haber bağlamında veya görselde kanıtı olmayan kişi, kurum, mekan, tarih ya da olay uydurma.
+- Mevcut dosya adındaki ChatGPT, image, foto, screenshot, WhatsApp, tarih-saat ve rastgele sayı parçalarını anlamlı bilgi sayma.
+- Dosya adı istenirse sadece küçük ASCII harf, rakam ve tire içeren kısa SEO kökü üret; uzantı yazma.
+- Alt text istenirse erişilebilirlik dostu, doğal, tek cümlelik Türkçe açıklama üret.
+- Anahtar kelime doldurma, clickbait, abartı ve teknik ifade kullanma.
+- Çıktı istenen JSON şemasına birebir uysun; açıklama, markdown veya kod bloğu ekleme.
+''';
+
+const adminMediaSeoAiDefaultPromptData = AiPromptFormData(
+  title: adminMediaSeoAiDefaultPromptTitle,
+  prompt: adminMediaSeoAiDefaultSystemPrompt,
+);
+
 const adminAiDefaultPromptDataList = <AiPromptFormData>[
   adminNewsAiDefaultPromptData,
   adminQuizAiDefaultPromptData,
@@ -430,6 +451,7 @@ const adminAiDefaultPromptDataList = <AiPromptFormData>[
   adminContentsAiDefaultPromptData,
   adminRecipeAiDefaultPromptData,
   adminEventAiDefaultPromptData,
+  adminMediaSeoAiDefaultPromptData,
 ];
 
 abstract class AdminAiSettingsRepository {

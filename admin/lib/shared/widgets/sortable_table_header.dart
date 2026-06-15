@@ -26,12 +26,14 @@ class SortableTableHeader extends StatelessWidget {
     required this.sortKey,
     required this.sortState,
     required this.onSort,
+    this.mainAxisAlignment = MainAxisAlignment.start,
   });
 
   final String label;
   final String sortKey;
   final TableSortState sortState;
   final ValueChanged<String> onSort;
+  final MainAxisAlignment mainAxisAlignment;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +50,7 @@ class SortableTableHeader extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: () => onSort(sortKey),
         child: Row(
+          mainAxisAlignment: mainAxisAlignment,
           children: [
             Flexible(
               fit: FlexFit.loose,

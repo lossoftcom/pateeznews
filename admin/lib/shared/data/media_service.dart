@@ -48,6 +48,8 @@ class MediaSeoReplacement {
     required this.newId,
     required this.oldSrc,
     required this.newSrc,
+    this.oldPublicSrc = '',
+    this.newPublicSrc = '',
   });
 
   factory MediaSeoReplacement.fromJson(Map<String, dynamic> json) {
@@ -56,6 +58,8 @@ class MediaSeoReplacement {
       newId: (json['newId'] ?? '').toString(),
       oldSrc: (json['oldSrc'] ?? '').toString(),
       newSrc: (json['newSrc'] ?? '').toString(),
+      oldPublicSrc: (json['oldPublicSrc'] ?? '').toString(),
+      newPublicSrc: (json['newPublicSrc'] ?? '').toString(),
     );
   }
 
@@ -63,6 +67,8 @@ class MediaSeoReplacement {
   final String newId;
   final String oldSrc;
   final String newSrc;
+  final String oldPublicSrc;
+  final String newPublicSrc;
 }
 
 class MediaSeoRenameResult {
@@ -71,7 +77,18 @@ class MediaSeoRenameResult {
     required this.filename,
     required this.src,
     required this.replacements,
+    this.error = '',
   });
+
+  factory MediaSeoRenameResult.failure(String error) {
+    return MediaSeoRenameResult(
+      success: false,
+      filename: '',
+      src: '',
+      replacements: const [],
+      error: error,
+    );
+  }
 
   factory MediaSeoRenameResult.fromJson(Map<String, dynamic> json) {
     return MediaSeoRenameResult(
@@ -82,6 +99,7 @@ class MediaSeoRenameResult {
         for (final row in (json['replacements'] as List? ?? const []))
           if (row is Map<String, dynamic>) MediaSeoReplacement.fromJson(row),
       ],
+      error: (json['error'] ?? '').toString(),
     );
   }
 
@@ -89,6 +107,7 @@ class MediaSeoRenameResult {
   final String filename;
   final String src;
   final List<MediaSeoReplacement> replacements;
+  final String error;
 }
 
 class MediaSeoAltTextResult {
@@ -240,7 +259,7 @@ class MediaService {
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _timeout = Duration(seconds: 15);
-  static const _aiTimeout = Duration(seconds: 45);
+  static const _aiTimeout = Duration(seconds: 120);
   static const _uploadTimeout = Duration(seconds: 120);
   static final _uploadSettingsCache = <String, MediaUploadSettings>{};
 
@@ -654,7 +673,9 @@ class MediaService {
       }),
       timeout: _aiTimeout,
     );
-    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return MediaSeoRenameResult.failure(_responseError(response));
+    }
 
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) return null;
@@ -788,6 +809,25 @@ class MediaService {
       if (closeClient) client.close();
     }
   }
+}
+
+String _responseError(http.Response response) {
+  final body = response.body.trim();
+  if (body.isEmpty) return 'HTTP ${response.statusCode}';
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is Map) {
+      final error = decoded['error'];
+      if (error is String && error.trim().isNotEmpty) return error.trim();
+      if (error is Map && error['message'] != null) {
+        final message = error['message'].toString().trim();
+        if (message.isNotEmpty) return message;
+      }
+    }
+  } catch (_) {
+    // Plain text response.
+  }
+  return body.length > 180 ? '${body.substring(0, 177)}...' : body;
 }
 
 String _remoteImageFileName(Uri uri, String contentType) {

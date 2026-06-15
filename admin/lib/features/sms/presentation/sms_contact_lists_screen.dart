@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -72,11 +73,10 @@ class _SmsContactListsScreenState extends State<SmsContactListsScreen> {
   }
 
   void _showSmsError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -778,7 +778,9 @@ class _SmsContactListsMobileCard extends StatelessWidget {
                     onTap: onEdit,
                   ),
                   AdminMobileMenuAction(
-                    icon: list.syncEnabled ? Icons.sync_disabled : Icons.sync,
+                    icon: list.syncEnabled
+                        ? Symbols.sync_disabled
+                        : Symbols.sync,
                     label: context.t(
                       list.syncEnabled
                           ? 'sms.contacts.action.syncDisable'
@@ -1318,9 +1320,11 @@ class _SmsContactListDialogState extends State<_SmsContactListDialog> {
       });
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      AdminToast.show(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+        message: error.toString(),
+        tone: AdminToastTone.error,
+      );
     }
   }
 
@@ -1572,7 +1576,7 @@ class _DialogTopForm extends StatelessWidget {
       label: context.t('sms.contacts.dialog.listName'),
       hint: context.t('sms.contacts.dialog.listNameHint'),
       controller: nameController,
-      icon: Icons.badge_outlined,
+      icon: Symbols.badge_outlined,
       required: true,
       hasError: nameHasError,
       errorText: context.t('sms.contacts.dialog.nameRequired'),
@@ -1898,7 +1902,7 @@ class _ImportInfoPanel extends StatelessWidget {
           Row(
             children: [
               const Icon(
-                Icons.lightbulb_outline,
+                Symbols.lightbulb_outline,
                 color: AppColors.deepOcean,
                 size: 18,
               ),
@@ -2121,7 +2125,7 @@ class _ImportSteps extends StatelessWidget {
           if (index != stepLabels.length - 1) ...[
             const SizedBox(width: 8),
             Icon(
-              Icons.chevron_right,
+              Symbols.chevron_right,
               color: contactListSourceColor(source),
               size: 18,
             ),
@@ -2543,7 +2547,7 @@ class _SmsContactListMenuCard extends StatelessWidget {
               onTap: onEdit,
             ),
             _MenuItem(
-              icon: list.syncEnabled ? Icons.sync_disabled : Icons.sync,
+              icon: list.syncEnabled ? Symbols.sync_disabled : Symbols.sync,
               label: list.syncEnabled
                   ? 'sms.contacts.action.syncDisable'
                   : 'sms.contacts.action.syncEnable',

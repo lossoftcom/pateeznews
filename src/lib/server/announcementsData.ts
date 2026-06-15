@@ -2724,6 +2724,21 @@ export async function deleteAnnouncement(id: string) {
   return { id: String(result.rows[0].id || id) };
 }
 
+export async function deleteAnnouncements(ids: string[]) {
+  const cleanIds = ids
+    .map((id) => String(id || '').trim())
+    .filter((id) => id.length > 0);
+  if (!cleanIds.length) return { count: 0, ids: [] as string[] };
+  const result = await dbQuery(
+    `DELETE FROM public.announcements WHERE id = ANY($1::uuid[]) RETURNING id`,
+    [cleanIds],
+  );
+  return {
+    count: Number(result.rowCount || 0),
+    ids: result.rows.map((row) => String(row.id || '')),
+  };
+}
+
 export async function getAnnouncementPayload({ category = '', district = '', limit = 80 } = {}) {
   const sourceCount = await dbQuery(`SELECT count(*)::int AS count FROM public.announcement_sources WHERE is_active IS TRUE`).catch(() => ({ rows: [{ count: 0 }] } as any));
   const todayStart = localDateStartIso();

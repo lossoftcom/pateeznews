@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -75,11 +76,10 @@ class _WhatsappSettingsScreenState extends State<WhatsappSettingsScreen> {
   }
 
   void _showWhatsappError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -547,7 +547,7 @@ class _WhatsappSettingsMetricGrid extends StatelessWidget {
       _MetricData(
         label: 'whatsapp.settings.metric.totalAccounts',
         value: '$totalAccounts',
-        icon: Icons.dns_outlined,
+        icon: Symbols.dns_outlined,
         color: AppColors.deepOcean,
       ),
       _MetricData(
@@ -559,19 +559,19 @@ class _WhatsappSettingsMetricGrid extends StatelessWidget {
       _MetricData(
         label: 'whatsapp.settings.metric.tracking',
         value: '$trackingCount',
-        icon: Icons.ads_click_outlined,
+        icon: Symbols.ads_click_outlined,
         color: const Color(0xFF2F80ED),
       ),
       _MetricData(
         label: 'whatsapp.settings.metric.hygiene',
         value: '$hygieneReady',
-        icon: Icons.fact_check_outlined,
+        icon: Symbols.fact_check_outlined,
         color: const Color(0xFF16A085),
       ),
       _MetricData(
         label: 'whatsapp.settings.metric.suppression',
         value: '$suppressionCount',
-        icon: Icons.block_outlined,
+        icon: Symbols.block_outlined,
         color: AppColors.actionRed,
       ),
     ];
@@ -792,12 +792,12 @@ class _WhatsappSettingsToolbar extends StatelessWidget {
               ),
             ),
             _SecondaryActionButton(
-              icon: Icons.refresh,
+              icon: Symbols.refresh,
               label: context.t('whatsapp.settings.refresh'),
               onPressed: onRefresh,
             ),
             _SecondaryActionButton(
-              icon: Icons.settings_outlined,
+              icon: Symbols.settings_outlined,
               label: context.t('whatsapp.settings.settingsButton'),
               onPressed: onSettings,
             ),
@@ -1737,7 +1737,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             _ConnectionSectionTitle(
-                              icon: Icons.badge_outlined,
+                              icon: Symbols.badge_outlined,
                               title: context.t(
                                 'whatsapp.settings.connection.identity',
                               ),
@@ -1753,7 +1753,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                   'whatsapp.settings.hint.accountName',
                                 ),
                                 controller: _accountName,
-                                icon: Icons.dns_outlined,
+                                icon: Symbols.dns_outlined,
                                 requiredInput: true,
                                 hasError: _accountError,
                                 errorText: context.t(
@@ -1773,7 +1773,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                   'whatsapp.settings.hint.senderName',
                                 ),
                                 controller: _senderName,
-                                icon: Icons.person_outline,
+                                icon: Symbols.person_outline,
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -1787,7 +1787,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                   'whatsapp.settings.hint.senderEmail',
                                 ),
                                 controller: _senderEmail,
-                                icon: Icons.alternate_email,
+                                icon: Symbols.alternate_email,
                                 requiredInput: true,
                                 hasError: _senderEmailError,
                                 errorText: context.t(
@@ -1807,7 +1807,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                   'whatsapp.settings.hint.domain',
                                 ),
                                 controller: _domain,
-                                icon: Icons.language_outlined,
+                                icon: Symbols.language_outlined,
                                 requiredInput: true,
                                 hasError: _domainError,
                                 errorText: context.t(
@@ -1824,8 +1824,8 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                             _ConnectionSectionTitle(
                               icon:
                                   _preset.mode == AdminWhatsappProviderMode.api
-                                  ? Icons.api_outlined
-                                  : Icons.outgoing_mail,
+                                  ? Symbols.api_outlined
+                                  : Symbols.outgoing_mail,
                               title: context.t(
                                 _preset.mode == AdminWhatsappProviderMode.api
                                     ? 'whatsapp.settings.connection.api'
@@ -1844,7 +1844,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                     'whatsapp.settings.hint.apiBaseUrl',
                                   ),
                                   controller: _apiBaseUrl,
-                                  icon: Icons.link_outlined,
+                                  icon: Symbols.link_outlined,
                                 ),
                                 second: _UnderlinedInput(
                                   label: context.t(
@@ -1854,7 +1854,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                     'whatsapp.settings.hint.apiKey',
                                   ),
                                   controller: _apiKey,
-                                  icon: Icons.key_outlined,
+                                  icon: Symbols.key_outlined,
                                 ),
                               )
                             else ...[
@@ -1868,7 +1868,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                     'whatsapp.settings.hint.smtpHost',
                                   ),
                                   controller: _smtpHost,
-                                  icon: Icons.dns_outlined,
+                                  icon: Symbols.dns_outlined,
                                 ),
                                 second: _ResponsivePair(
                                   compact: false,
@@ -1880,7 +1880,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                     ),
                                     hint: '587',
                                     controller: _smtpPort,
-                                    icon: Icons.numbers_outlined,
+                                    icon: Symbols.numbers_outlined,
                                     keyboardType: TextInputType.number,
                                   ),
                                   second: _SecuritySelect(
@@ -1903,7 +1903,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                     'whatsapp.settings.hint.smtpUser',
                                   ),
                                   controller: _smtpUser,
-                                  icon: Icons.person_outline,
+                                  icon: Symbols.person_outline,
                                 ),
                                 second: _UnderlinedInput(
                                   label: context.t(
@@ -1913,7 +1913,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                     'whatsapp.settings.hint.smtpPassword',
                                   ),
                                   controller: _smtpPassword,
-                                  icon: Icons.lock_outline,
+                                  icon: Symbols.lock_outline,
                                   obscure: true,
                                 ),
                               ),
@@ -1929,13 +1929,13 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                   'whatsapp.settings.hint.apiSecret',
                                 ),
                                 controller: _apiSecret,
-                                icon: Icons.lock_outline,
+                                icon: Symbols.lock_outline,
                                 obscure: true,
                               ),
                             ],
                             const SizedBox(height: 24),
                             _ConnectionSectionTitle(
-                              icon: Icons.speed_outlined,
+                              icon: Symbols.speed_outlined,
                               title: context.t(
                                 'whatsapp.settings.connection.limits',
                               ),
@@ -1949,7 +1949,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                 ),
                                 hint: '5000',
                                 controller: _dailyLimit,
-                                icon: Icons.today_outlined,
+                                icon: Symbols.today_outlined,
                                 keyboardType: TextInputType.number,
                               ),
                               second: _UnderlinedInput(
@@ -1958,7 +1958,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                 ),
                                 hint: '150000',
                                 controller: _monthlyLimit,
-                                icon: Icons.calendar_month_outlined,
+                                icon: Symbols.calendar_month_outlined,
                                 keyboardType: TextInputType.number,
                               ),
                               third: _UnderlinedInput(
@@ -1967,7 +1967,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                 ),
                                 hint: '700',
                                 controller: _hourlyLimit,
-                                icon: Icons.schedule_outlined,
+                                icon: Symbols.schedule_outlined,
                                 keyboardType: TextInputType.number,
                               ),
                             ),
@@ -1984,7 +1984,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                                   'whatsapp.settings.hint.trackingDomain',
                                 ),
                                 controller: _trackingDomain,
-                                icon: Icons.ads_click_outlined,
+                                icon: Symbols.ads_click_outlined,
                               ),
                               second: _StatusRadioGroup(
                                 active: _active,
@@ -2616,14 +2616,14 @@ class _WhatsappSettingsMenuCard extends StatelessWidget {
               onTap: onEdit,
             ),
             _WhatsappSettingsMenuItem(
-              icon: Icons.verified_outlined,
+              icon: Symbols.verified_outlined,
               label: 'whatsapp.settings.action.dnsCheck',
               onTap: onDnsCheck,
             ),
             _WhatsappSettingsMenuItem(
               icon: account.active
-                  ? Icons.toggle_off_outlined
-                  : Icons.toggle_on,
+                  ? Symbols.toggle_off_outlined
+                  : Symbols.toggle_on,
               label: account.active
                   ? 'whatsapp.settings.action.deactivate'
                   : 'whatsapp.settings.action.activate',
@@ -2706,7 +2706,7 @@ class _DnsChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            ready ? Icons.check_circle : Icons.pending_outlined,
+            ready ? Symbols.check_circle : Symbols.pending_outlined,
             color: color,
             size: 12,
           ),

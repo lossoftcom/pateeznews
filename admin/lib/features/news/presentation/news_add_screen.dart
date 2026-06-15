@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
@@ -3123,11 +3124,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   void _showEditorMessage(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? AppColors.actionRed : AppColors.deepOcean,
-      ),
+    AdminToast.show(
+      context,
+      message: message,
+      tone: isError ? AdminToastTone.error : AdminToastTone.success,
     );
   }
 
@@ -4623,6 +4623,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           );
           if (!mounted) break;
           if (result == null || !result.success) {
+            final error = result?.error.trim() ?? '';
             failedCount++;
             rows.add(
               _AiMediaSeoRow(
@@ -4631,6 +4632,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
                 newName: '-',
                 status: _AiMediaSeoRowStatus.failed,
                 messageKey: 'newsAdd.aiMediaSeoModal.failed',
+                detail: error,
               ),
             );
             continue;
@@ -4661,7 +4663,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
               messageKey: 'newsAdd.aiMediaSeoModal.renamed',
             ),
           );
-        } catch (_) {
+        } catch (error) {
           failedCount++;
           rows.add(
             _AiMediaSeoRow(
@@ -4670,6 +4672,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
               newName: '-',
               status: _AiMediaSeoRowStatus.failed,
               messageKey: 'newsAdd.aiMediaSeoModal.failed',
+              detail: '$error',
             ),
           );
         }
@@ -4907,7 +4910,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   bool _isLocalStorageSeoMedia(String source) {
     final clean = source.trim().split(RegExp(r'[?#]')).first;
-    return clean.contains('/api/storage/file/');
+    return clean.contains('/api/storage/file/') ||
+        clean.contains('/local-upload/');
   }
 
   String _mediaFileName(String source) {
@@ -5042,15 +5046,24 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (raw == null || raw.isEmpty) return source;
     var next = source!;
     for (final replacement in replacements) {
-      if (replacement.oldSrc.isEmpty || replacement.newSrc.isEmpty) continue;
-      if (next == replacement.oldSrc) {
-        next = replacement.newSrc;
-      } else if (next.contains(replacement.oldSrc)) {
-        next = next.replaceAll(replacement.oldSrc, replacement.newSrc);
-      }
-      final oldEncoded = Uri.encodeFull(replacement.oldSrc);
-      if (oldEncoded != replacement.oldSrc && next.contains(oldEncoded)) {
-        next = next.replaceAll(oldEncoded, Uri.encodeFull(replacement.newSrc));
+      final pairs = [
+        (oldValue: replacement.oldSrc, newValue: replacement.newSrc),
+        (
+          oldValue: replacement.oldPublicSrc,
+          newValue: replacement.newPublicSrc,
+        ),
+      ];
+      for (final pair in pairs) {
+        if (pair.oldValue.isEmpty || pair.newValue.isEmpty) continue;
+        if (next == pair.oldValue) {
+          next = pair.newValue;
+        } else if (next.contains(pair.oldValue)) {
+          next = next.replaceAll(pair.oldValue, pair.newValue);
+        }
+        final oldEncoded = Uri.encodeFull(pair.oldValue);
+        if (oldEncoded != pair.oldValue && next.contains(oldEncoded)) {
+          next = next.replaceAll(oldEncoded, Uri.encodeFull(pair.newValue));
+        }
       }
     }
     return next;
@@ -6853,7 +6866,7 @@ class _NewsAddStatusCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _PillButton(
-            icon: Icons.refresh,
+            icon: Symbols.refresh,
             label: 'newsAdd.retry',
             onTap: onRetry,
             background: AppColors.deepOcean,
@@ -7330,7 +7343,7 @@ class _HeaderActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _PillButton(
-          icon: Icons.cleaning_services_outlined,
+          icon: Symbols.cleaning_services_outlined,
           label: 'newsAdd.clear',
           onTap: onClear,
           background: Colors.white,
@@ -7339,7 +7352,7 @@ class _HeaderActions extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         _PillButton(
-          icon: Icons.list_alt_outlined,
+          icon: Symbols.list_alt_outlined,
           label: 'newsAdd.newsList',
           onTap: onNewsTap,
           background: AppColors.deepOcean,
@@ -7404,37 +7417,37 @@ class _FormatTabsStrip extends StatelessWidget {
   static const _tabs = <_TabInfo>[
     _TabInfo(
       NewsAddFormatTab.article,
-      Icons.description_outlined,
+      Symbols.description_outlined,
       'newsAdd.tab.article',
     ),
     _TabInfo(
       NewsAddFormatTab.quiz,
-      Icons.fact_check_outlined,
+      Symbols.fact_check_outlined,
       'newsAdd.tab.quiz',
     ),
     _TabInfo(
       NewsAddFormatTab.poll,
-      Icons.bar_chart_outlined,
+      Symbols.bar_chart_outlined,
       'newsAdd.tab.poll',
     ),
     _TabInfo(
       NewsAddFormatTab.video,
-      Icons.play_circle_outline,
+      Symbols.play_circle_outline,
       'newsAdd.tab.video',
     ),
     _TabInfo(
       NewsAddFormatTab.contents,
-      Icons.format_list_numbered,
+      Symbols.format_list_numbered,
       'newsAdd.tab.contents',
     ),
     _TabInfo(
       NewsAddFormatTab.recipe,
-      Icons.restaurant_outlined,
+      Symbols.restaurant_outlined,
       'newsAdd.tab.recipe',
     ),
     _TabInfo(
       NewsAddFormatTab.event,
-      Icons.calendar_today_outlined,
+      Symbols.calendar_today_outlined,
       'newsAdd.tab.event',
     ),
   ];
@@ -7867,7 +7880,7 @@ class _MansetImageDialogHeader extends StatelessWidget {
               ),
             ),
             child: const Icon(
-              Icons.slideshow_outlined,
+              Symbols.slideshow_outlined,
               size: 17,
               color: AppColors.actionRed,
             ),
@@ -7906,7 +7919,11 @@ class _MansetImageDialogHeader extends StatelessWidget {
               onTap: onClose,
               child: const Padding(
                 padding: EdgeInsets.all(6),
-                child: Icon(Icons.close, size: 20, color: AppColors.iconMuted),
+                child: Icon(
+                  Symbols.close,
+                  size: 20,
+                  color: AppColors.iconMuted,
+                ),
               ),
             ),
           ),
@@ -7931,7 +7948,11 @@ class _MansetImageNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 17, color: AppColors.deepOcean),
+          const Icon(
+            Symbols.info_outline,
+            size: 17,
+            color: AppColors.deepOcean,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -8058,13 +8079,13 @@ class _MansetImagePreview extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _CoverImageActionButton(
-                                icon: Icons.edit_outlined,
+                                icon: Symbols.edit_outlined,
                                 color: AppColors.deepOcean,
                                 onTap: onPickImage,
                               ),
                               const SizedBox(width: 8),
                               _CoverImageActionButton(
-                                icon: Icons.delete_outline_rounded,
+                                icon: Symbols.delete_outline_rounded,
                                 color: AppColors.actionRed,
                                 onTap: onClear,
                               ),
@@ -8123,7 +8144,9 @@ class _MansetImageSizeBadge extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            hasImage ? Icons.check_circle_outline : Icons.crop_square_outlined,
+            hasImage
+                ? Symbols.check_circle_outline
+                : Symbols.crop_square_outlined,
             size: 15,
             color: hasImage ? const Color(0xFF047857) : AppColors.inkSoft,
           ),
@@ -8171,17 +8194,17 @@ class _MansetImageRules extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _MansetImageRuleRow(
-            icon: Icons.crop_square_outlined,
+            icon: Symbols.crop_square_outlined,
             textKey: 'newsAdd.mansetImageRuleSquare',
           ),
           const SizedBox(height: 10),
           _MansetImageRuleRow(
-            icon: Icons.toggle_on_outlined,
+            icon: Symbols.toggle_on_outlined,
             textKey: 'newsAdd.mansetImageRuleRequired',
           ),
           const SizedBox(height: 10),
           _MansetImageRuleRow(
-            icon: Icons.image_outlined,
+            icon: Symbols.image_outlined,
             textKey: 'newsAdd.mansetImageRuleSeparate',
           ),
         ],
@@ -8253,7 +8276,7 @@ class _MansetImageDialogFooter extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           _PillButton(
-            icon: Icons.close,
+            icon: Symbols.close,
             label: 'common.cancel',
             onTap: onCancel,
             background: Colors.white,
@@ -8263,7 +8286,7 @@ class _MansetImageDialogFooter extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           _PillButton(
-            icon: Icons.check_circle_outline,
+            icon: Symbols.check_circle_outline,
             label: 'common.save',
             onTap: onSave,
             background: AppColors.deepOcean,
@@ -8359,7 +8382,7 @@ class _ContentInfoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _SectionHeader(
-                  icon: Icons.description_outlined,
+                  icon: Symbols.description_outlined,
                   title: 'newsAdd.contentInfo',
                   trailing: _HeaderToggles(
                     mansetSlider: mansetSlider,
@@ -8451,7 +8474,7 @@ class _FormBody extends StatelessWidget {
         ),
         const SizedBox(height: 28),
         _SectionHeader(
-          icon: Icons.settings_outlined,
+          icon: Symbols.settings_outlined,
           iconColor: AppColors.warmHorizon,
           title: 'newsAdd.seoAi',
           trailing: _GoogleAiReadyBadge(),
@@ -8630,7 +8653,7 @@ class _AiMediaSeoButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
-                Icons.drive_file_rename_outline,
+                Symbols.drive_file_rename_outline,
                 size: 14,
                 color: _newsAddMediaSeoGreen,
               ),
@@ -8677,7 +8700,7 @@ class _AiButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.auto_awesome, size: 14, color: AppColors.deepOcean),
+              Icon(Symbols.auto_awesome, size: 14, color: AppColors.deepOcean),
               const SizedBox(width: 6),
               Text(
                 context.t('newsAdd.ai'),
@@ -8717,6 +8740,7 @@ class _AiMediaSeoRow {
     required this.newName,
     required this.status,
     required this.messageKey,
+    this.detail = '',
   });
 
   final String label;
@@ -8724,6 +8748,7 @@ class _AiMediaSeoRow {
   final String newName;
   final _AiMediaSeoRowStatus status;
   final String messageKey;
+  final String detail;
 }
 
 class _AiMediaSeoReport {
@@ -8855,7 +8880,7 @@ class _AiMediaSeoDialogState extends State<_AiMediaSeoDialog> {
                             if (_errorKey != null) ...[
                               const SizedBox(height: 12),
                               _AiMediaSeoNotice(
-                                icon: Icons.error_outline,
+                                icon: Symbols.error_outline,
                                 color: AppColors.actionRed,
                                 text: context.t(_errorKey!),
                               ),
@@ -8910,7 +8935,7 @@ class _AiMediaSeoHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.value),
             ),
             child: const Icon(
-              Icons.drive_file_rename_outline,
+              Symbols.drive_file_rename_outline,
               size: 18,
               color: _newsAddMediaSeoGreen,
             ),
@@ -8939,7 +8964,7 @@ class _AiMediaSeoHeader extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(6),
                 child: Icon(
-                  Icons.close,
+                  Symbols.close,
                   size: 20,
                   color: onClose == null
                       ? AppColors.iconMuted.withValues(alpha: 0.45)
@@ -8994,7 +9019,7 @@ class _AiMediaSeoSummaryCard extends StatelessWidget {
               ),
             ),
             child: const Icon(
-              Icons.perm_media_outlined,
+              Symbols.perm_media_outlined,
               size: 19,
               color: _newsAddMediaSeoGreen,
             ),
@@ -9058,14 +9083,14 @@ class _AiMediaSeoOptions extends StatelessWidget {
         final compact = constraints.maxWidth < 620;
         final children = [
           _AiMediaSeoOptionCard(
-            icon: Icons.edit_note_outlined,
+            icon: Symbols.edit_note_outlined,
             title: 'newsAdd.aiMediaSeoModal.updateNames',
             description: 'newsAdd.aiMediaSeoModal.updateNamesHint',
             value: updateNames,
             onChanged: onUpdateNamesChanged,
           ),
           _AiMediaSeoOptionCard(
-            icon: Icons.closed_caption_outlined,
+            icon: Symbols.closed_caption_outlined,
             title: 'newsAdd.aiMediaSeoModal.updateCoverAlt',
             description: coverAltEnabled
                 ? 'newsAdd.aiMediaSeoModal.updateCoverAltHint'
@@ -9202,7 +9227,7 @@ class _AiMediaSeoReportView extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  Icons.summarize_outlined,
+                  Symbols.summarize_outlined,
                   size: 18,
                   color: AppColors.deepOcean,
                 ),
@@ -9238,7 +9263,7 @@ class _AiMediaSeoReportView extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: _AiMediaSeoNotice(
-                icon: Icons.closed_caption_outlined,
+                icon: Symbols.closed_caption_outlined,
                 color: _newsAddMediaSeoGreen,
                 text: context.t('newsAdd.aiMediaSeoModal.coverAltUpdated'),
               ),
@@ -9327,7 +9352,7 @@ class _AiMediaSeoReportRow extends StatelessWidget {
                   children: [
                     _AiMediaSeoFileChip(text: row.oldName),
                     const Icon(
-                      Icons.arrow_forward,
+                      Symbols.arrow_forward,
                       size: 13,
                       color: AppColors.iconMuted,
                     ),
@@ -9337,6 +9362,20 @@ class _AiMediaSeoReportRow extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (row.detail.trim().isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    row.detail.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.actionRed,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -9504,7 +9543,7 @@ class _AiMediaSeoFooter extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 520;
           final closeButton = _PillButton(
-            icon: Icons.close,
+            icon: Symbols.close,
             label: 'newsAdd.aiModal.close',
             onTap: onClose,
             background: Colors.white,
@@ -9513,7 +9552,7 @@ class _AiMediaSeoFooter extends StatelessWidget {
             height: 38,
           );
           final runButton = _PillButton(
-            icon: running ? Icons.hourglass_empty : Icons.auto_awesome,
+            icon: running ? Symbols.hourglass_empty : Symbols.auto_awesome,
             label: running
                 ? 'newsAdd.aiMediaSeoModal.running'
                 : 'newsAdd.aiMediaSeoModal.run',
@@ -9723,32 +9762,40 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   }
 
   List<_AddBtn> get _aiItemOptions => const [
-    _AddBtn('newsAdd.add.text', Icons.text_fields, Color(0xFF2C3E50)),
-    _AddBtn('newsAdd.add.image', Icons.image_outlined, Color(0xFF1F8B3D)),
+    _AddBtn('newsAdd.add.text', Symbols.text_fields, Color(0xFF2C3E50)),
+    _AddBtn('newsAdd.add.image', Symbols.image_outlined, Color(0xFF1F8B3D)),
     _AddBtn(
       'newsAdd.add.slider',
-      Icons.collections_outlined,
+      Symbols.collections_outlined,
       Color(0xFF2E7D32),
     ),
-    _AddBtn('newsAdd.add.video', Icons.play_circle_outline, Color(0xFFC0392B)),
-    _AddBtn('newsAdd.add.audio', Icons.headphones_outlined, Color(0xFF8E44AD)),
+    _AddBtn(
+      'newsAdd.add.video',
+      Symbols.play_circle_outline,
+      Color(0xFFC0392B),
+    ),
+    _AddBtn(
+      'newsAdd.add.audio',
+      Symbols.headphones_outlined,
+      Color(0xFF8E44AD),
+    ),
     _AddBtn(
       'newsAdd.add.file',
-      Icons.insert_drive_file_outlined,
+      Symbols.insert_drive_file_outlined,
       Color(0xFF7F8C8D),
     ),
-    _AddBtn('newsAdd.add.social', Icons.share_outlined, Color(0xFF2980B9)),
-    _AddBtn('newsAdd.add.flip', Icons.sync, Color(0xFFD35400)),
+    _AddBtn('newsAdd.add.social', Symbols.share_outlined, Color(0xFF2980B9)),
+    _AddBtn('newsAdd.add.flip', Symbols.sync, Color(0xFFD35400)),
     _AddBtn(
       'newsAdd.add.beforeAfter',
-      Icons.compare_outlined,
+      Symbols.compare_outlined,
       Color(0xFF1F6FA8),
     ),
-    _AddBtn('newsAdd.add.poll', Icons.bar_chart_outlined, Color(0xFF5B3FB0)),
-    _AddBtn('newsAdd.add.vs', Icons.flash_on_outlined, Color(0xFFE91E63)),
-    _AddBtn('newsAdd.add.review', Icons.star_outline, Color(0xFF16A085)),
-    _AddBtn('newsAdd.add.quote', Icons.format_quote, Color(0xFF34495E)),
-    _AddBtn('newsAdd.add.iframe', Icons.public, Color(0xFF3F51B5)),
+    _AddBtn('newsAdd.add.poll', Symbols.bar_chart_outlined, Color(0xFF5B3FB0)),
+    _AddBtn('newsAdd.add.vs', Symbols.flash_on_outlined, Color(0xFFE91E63)),
+    _AddBtn('newsAdd.add.review', Symbols.star_outline, Color(0xFF16A085)),
+    _AddBtn('newsAdd.add.quote', Symbols.format_quote, Color(0xFF34495E)),
+    _AddBtn('newsAdd.add.iframe', Symbols.public, Color(0xFF3F51B5)),
   ];
 
   @override
@@ -10250,7 +10297,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     final tone = _AiGeneratorSelect(
       label: 'newsAdd.aiModal.tone',
       value: _tone,
-      leadingIcon: Icons.record_voice_over_outlined,
+      leadingIcon: Symbols.record_voice_over_outlined,
       items: [
         DropdownMenuItem(
           value: 'neutral',
@@ -10282,7 +10329,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     final contentType = _AiGeneratorSelect(
       label: 'newsAdd.aiModal.contentType',
       value: _contentType,
-      leadingIcon: Icons.article_outlined,
+      leadingIcon: Symbols.article_outlined,
       items: [
         DropdownMenuItem(
           value: 'article',
@@ -10307,7 +10354,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     final outputTarget = _AiGeneratorSelect(
       label: 'newsAdd.aiModal.outputTarget',
       value: _outputTarget,
-      leadingIcon: Icons.auto_fix_high_outlined,
+      leadingIcon: Symbols.auto_fix_high_outlined,
       items: [
         DropdownMenuItem(
           value: 'all',
@@ -10389,7 +10436,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
               : () => unawaited(_handleReadSourceUrl()),
         ),
         SizedBox(height: dense ? 12 : 14),
-        const _FieldLabel('newsAdd.aiModal.topic', icon: Icons.auto_awesome),
+        const _FieldLabel('newsAdd.aiModal.topic', icon: Symbols.auto_awesome),
         if (_usesEventAiFormat)
           LayoutBuilder(
             builder: (context, constraints) {
@@ -10472,7 +10519,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       children: [
         const _FieldLabel(
           'newsAdd.aiModal.sourceNotes',
-          icon: Icons.fact_check_outlined,
+          icon: Symbols.fact_check_outlined,
         ),
         _TextInputBox(
           controller: _notesController,
@@ -10521,7 +10568,7 @@ class _AiModalHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.value),
             ),
             child: const Icon(
-              Icons.auto_awesome,
+              Symbols.auto_awesome,
               size: 18,
               color: AppColors.actionRed,
             ),
@@ -10550,7 +10597,7 @@ class _AiModalHeader extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.all(6),
                 child: Icon(
-                  Icons.close,
+                  Symbols.close,
                   size: 20,
                   color: onClose == null
                       ? AppColors.iconMuted.withValues(alpha: 0.45)
@@ -10622,14 +10669,14 @@ class _AiSourceUrlField extends StatelessWidget {
       children: [
         const _FieldLabel(
           'newsAdd.aiModal.sourceUrl',
-          icon: Icons.link_outlined,
+          icon: Symbols.link_outlined,
         ),
         LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 520;
             final input = _buildInput(context);
             final button = _PillButton(
-              icon: reading ? Icons.hourglass_empty : Icons.travel_explore,
+              icon: reading ? Symbols.hourglass_empty : Symbols.travel_explore,
               label: reading
                   ? 'newsAdd.aiModal.sourceUrlReading'
                   : 'newsAdd.aiModal.sourceUrlRead',
@@ -10871,7 +10918,7 @@ class _SourceImagePreviewText extends StatelessWidget {
         Row(
           children: [
             const Icon(
-              Icons.image_search_outlined,
+              Symbols.image_search_outlined,
               size: 15,
               color: AppColors.deepOcean,
             ),
@@ -10952,7 +10999,7 @@ class _SourceImagePreviewAction extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.value),
       ),
       child: Icon(
-        selected ? Icons.check : Icons.grid_view,
+        selected ? Symbols.check : Symbols.grid_view,
         color: Colors.white,
         size: compact ? 15 : 16,
       ),
@@ -10998,7 +11045,7 @@ class _EventAiImagePicker extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),
                 child: const Icon(
-                  Icons.photo_library_outlined,
+                  Symbols.photo_library_outlined,
                   size: 16,
                   color: AppColors.actionRed,
                 ),
@@ -11156,7 +11203,7 @@ class _EventAiImageButton extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  Icons.add_photo_alternate_outlined,
+                  Symbols.add_photo_alternate_outlined,
                   size: 15,
                   color: Colors.white,
                 ),
@@ -11206,7 +11253,7 @@ class _EventAiAddImageThumb extends StatelessWidget {
             border: Border.all(color: _newsAddStrongLine),
           ),
           child: Icon(
-            Icons.add,
+            Symbols.add,
             size: 22,
             color: enabled ? AppColors.deepOcean : AppColors.iconMuted,
           ),
@@ -11265,7 +11312,11 @@ class _EventAiImageThumb extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: Colors.white, width: 2),
                   ),
-                  child: const Icon(Icons.close, size: 11, color: Colors.white),
+                  child: const Icon(
+                    Symbols.close,
+                    size: 11,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -11418,7 +11469,11 @@ class _SourceImagesDialogHeader extends StatelessWidget {
               onTap: onClose,
               child: const Padding(
                 padding: EdgeInsets.all(6),
-                child: Icon(Icons.close, size: 20, color: AppColors.iconMuted),
+                child: Icon(
+                  Symbols.close,
+                  size: 20,
+                  color: AppColors.iconMuted,
+                ),
               ),
             ),
           ),
@@ -11446,7 +11501,7 @@ class _SourceImagesDialogFooter extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           _PillButton(
-            icon: Icons.close,
+            icon: Symbols.close,
             label: 'newsAdd.aiModal.close',
             onTap: onClose,
             background: Colors.white,
@@ -11456,7 +11511,7 @@ class _SourceImagesDialogFooter extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           _PillButton(
-            icon: Icons.check_circle_outline,
+            icon: Symbols.check_circle_outline,
             label: 'newsAdd.aiModal.sourceImageUse',
             onTap: onUse,
             background: AppColors.deepOcean,
@@ -11530,7 +11585,7 @@ class _SourceImageTile extends StatelessWidget {
                             ),
                           ),
                           child: const Icon(
-                            Icons.check,
+                            Symbols.check,
                             color: Colors.white,
                             size: 15,
                           ),
@@ -11575,7 +11630,7 @@ class _SourceImageFallback extends StatelessWidget {
       color: AppColors.surface,
       alignment: Alignment.center,
       child: const Icon(
-        Icons.broken_image_outlined,
+        Symbols.broken_image_outlined,
         size: 24,
         color: AppColors.iconMuted,
       ),
@@ -11760,7 +11815,7 @@ class _AiModalItemPlanner extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),
                 child: const Icon(
-                  Icons.add_box_outlined,
+                  Symbols.add_box_outlined,
                   color: AppColors.deepOcean,
                   size: 16,
                 ),
@@ -12002,12 +12057,12 @@ class _AiItemChoiceChip extends StatelessWidget {
                         color: item.color.withValues(alpha: 0.28),
                       ),
                     ),
-                    child: Icon(Icons.remove, color: item.color, size: 12),
+                    child: Icon(Symbols.remove, color: item.color, size: 12),
                   ),
                 ),
               ] else ...[
                 const SizedBox(width: 6),
-                Icon(Icons.add, color: item.color, size: 14),
+                Icon(Symbols.add, color: item.color, size: 14),
               ],
             ],
           ),
@@ -12043,7 +12098,7 @@ class _AiModalFooter extends StatelessWidget {
           final compact = constraints.maxWidth < 560;
           final actions = [
             _PillButton(
-              icon: Icons.close,
+              icon: Symbols.close,
               label: 'newsAdd.aiModal.close',
               onTap: onClose,
               background: Colors.white,
@@ -12052,7 +12107,7 @@ class _AiModalFooter extends StatelessWidget {
               height: 38,
             ),
             _PillButton(
-              icon: generating ? Icons.hourglass_empty : Icons.auto_awesome,
+              icon: generating ? Symbols.hourglass_empty : Symbols.auto_awesome,
               label: generating
                   ? (revisionMode
                         ? 'newsAdd.aiModal.fixing'
@@ -12177,7 +12232,11 @@ class _AiGenerationError extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 16, color: AppColors.actionRed),
+          const Icon(
+            Symbols.error_outline,
+            size: 16,
+            color: AppColors.actionRed,
+          ),
           const SizedBox(width: 9),
           Expanded(
             child: Text(
@@ -12321,7 +12380,7 @@ class _KeywordsInput extends StatelessWidget {
                             behavior: HitTestBehavior.opaque,
                             onTap: () => onRemove(tag),
                             child: const Icon(
-                              Icons.close,
+                              Symbols.close,
                               size: 12,
                               color: Colors.white,
                             ),
@@ -12410,7 +12469,7 @@ class _FaqSection extends StatelessWidget {
           Row(
             children: [
               const Icon(
-                Icons.format_list_bulleted,
+                Symbols.format_list_bulleted,
                 size: 16,
                 color: AppColors.inkSoft,
               ),
@@ -12427,7 +12486,7 @@ class _FaqSection extends StatelessWidget {
                 ),
               ),
               _PillButton(
-                icon: Icons.add,
+                icon: Symbols.add,
                 label: 'newsAdd.addQuestion',
                 onTap: onAdd,
                 background: AppColors.deepOcean.withValues(alpha: 0.06),
@@ -12495,7 +12554,7 @@ class _FaqRow extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: onRemove,
                   child: const Icon(
-                    Icons.close,
+                    Symbols.close,
                     color: AppColors.support,
                     size: 16,
                   ),
@@ -12555,21 +12614,21 @@ class _SortControls extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _SortChip(
-              icon: Icons.north,
+              icon: Symbols.north,
               label: 'newsAdd.sortAsc',
               selected: active == _Sort.asc,
               onTap: () => onChanged(_Sort.asc),
             ),
             const SizedBox(width: 6),
             _SortChip(
-              icon: Icons.south,
+              icon: Symbols.south,
               label: 'newsAdd.sortDesc',
               selected: active == _Sort.desc,
               onTap: () => onChanged(_Sort.desc),
             ),
             const SizedBox(width: 6),
             _SortChip(
-              icon: Icons.visibility_off_outlined,
+              icon: Symbols.visibility_off_outlined,
               label: 'newsAdd.sortHide',
               selected: active == _Sort.hide,
               onTap: () => onChanged(_Sort.hide),
@@ -12677,60 +12736,64 @@ class _AddItemButtonsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <_AddBtn>[
-      const _AddBtn('newsAdd.add.text', Icons.text_fields, Color(0xFF2C3E50)),
+      const _AddBtn('newsAdd.add.text', Symbols.text_fields, Color(0xFF2C3E50)),
       const _AddBtn(
         'newsAdd.add.image',
-        Icons.image_outlined,
+        Symbols.image_outlined,
         Color(0xFF1F8B3D),
       ),
       const _AddBtn(
         'newsAdd.add.slider',
-        Icons.collections_outlined,
+        Symbols.collections_outlined,
         Color(0xFF2E7D32),
       ),
       const _AddBtn(
         'newsAdd.add.video',
-        Icons.play_circle_outline,
+        Symbols.play_circle_outline,
         Color(0xFFC0392B),
       ),
       const _AddBtn(
         'newsAdd.add.audio',
-        Icons.headphones_outlined,
+        Symbols.headphones_outlined,
         Color(0xFF8E44AD),
       ),
       const _AddBtn(
         'newsAdd.add.file',
-        Icons.insert_drive_file_outlined,
+        Symbols.insert_drive_file_outlined,
         Color(0xFF7F8C8D),
       ),
       const _AddBtn(
         'newsAdd.add.social',
-        Icons.share_outlined,
+        Symbols.share_outlined,
         Color(0xFF2980B9),
       ),
-      const _AddBtn('newsAdd.add.flip', Icons.sync, Color(0xFFD35400)),
+      const _AddBtn('newsAdd.add.flip', Symbols.sync, Color(0xFFD35400)),
       const _AddBtn(
         'newsAdd.add.beforeAfter',
-        Icons.compare_outlined,
+        Symbols.compare_outlined,
         Color(0xFF1F6FA8),
       ),
       const _AddBtn(
         'newsAdd.add.poll',
-        Icons.bar_chart_outlined,
+        Symbols.bar_chart_outlined,
         Color(0xFF5B3FB0),
       ),
       const _AddBtn(
         'newsAdd.add.vs',
-        Icons.flash_on_outlined,
+        Symbols.flash_on_outlined,
         Color(0xFFE91E63),
       ),
       const _AddBtn(
         'newsAdd.add.review',
-        Icons.star_outline,
+        Symbols.star_outline,
         Color(0xFF16A085),
       ),
-      const _AddBtn('newsAdd.add.quote', Icons.format_quote, Color(0xFF34495E)),
-      const _AddBtn('newsAdd.add.iframe', Icons.public, Color(0xFF3F51B5)),
+      const _AddBtn(
+        'newsAdd.add.quote',
+        Symbols.format_quote,
+        Color(0xFF34495E),
+      ),
+      const _AddBtn('newsAdd.add.iframe', Symbols.public, Color(0xFF3F51B5)),
     ];
 
     return Padding(
@@ -12845,17 +12908,17 @@ class _QuizSubTabsCard extends StatelessWidget {
     final entries = <_QuizTab>[
       const _QuizTab(
         NewsAddQuizSubTab.personality,
-        Icons.person_outline,
+        Symbols.person_outline,
         'newsAdd.quiz.tab.personality',
       ),
       const _QuizTab(
         NewsAddQuizSubTab.trivia,
-        Icons.fact_check_outlined,
+        Symbols.fact_check_outlined,
         'newsAdd.quiz.tab.trivia',
       ),
       const _QuizTab(
         NewsAddQuizSubTab.checklist,
-        Icons.checklist_outlined,
+        Symbols.checklist_outlined,
         'newsAdd.quiz.tab.checklist',
       ),
     ];
@@ -13034,13 +13097,13 @@ class _ImageDropAreaState extends State<_ImageDropArea> {
                         child: Row(
                           children: [
                             _QuizImageActionBtn(
-                              icon: Icons.edit_outlined,
+                              icon: Symbols.edit_outlined,
                               color: AppColors.deepOcean,
                               onTap: _pickImage,
                             ),
                             const SizedBox(width: 8),
                             _QuizImageActionBtn(
-                              icon: Icons.delete_outline,
+                              icon: Symbols.delete_outline,
                               color: AppColors.actionRed,
                               onTap: _clearImage,
                             ),
@@ -13076,7 +13139,7 @@ class _QuizImageEmptyPicker extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.add, color: _newsAddUploadInk, size: 32),
+              const Icon(Symbols.add, color: _newsAddUploadInk, size: 32),
               const SizedBox(height: 8),
               Text(
                 context.t('newsAdd.imageSelect'),
@@ -13106,7 +13169,7 @@ class _QuizImageEmptyPicker extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.public,
+                          Symbols.public,
                           size: 13,
                           color: AppColors.deepOcean,
                         ),
@@ -13184,7 +13247,7 @@ class _UploadStub extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.add, color: _newsAddUploadInk, size: 32),
+        const Icon(Symbols.add, color: _newsAddUploadInk, size: 32),
         const SizedBox(height: 8),
         Text(
           context.t('newsAdd.imageSelect'),
@@ -13212,7 +13275,7 @@ class _UploadStub extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+                  Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
                   const SizedBox(width: 6),
                   Text(
                     context.t('newsAdd.addUrl'),
@@ -13408,7 +13471,7 @@ class _AddResultButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.add_rounded,
+                    Symbols.add_rounded,
                     color: AppColors.actionRed,
                     size: 16,
                   ),
@@ -13458,7 +13521,7 @@ class _AddQuizQuestionButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.add_rounded,
+                    Symbols.add_rounded,
                     color: AppColors.actionRed,
                     size: 16,
                   ),
@@ -13509,21 +13572,21 @@ class _QuizSortToolbar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _SortChip(
-              icon: Icons.north,
+              icon: Symbols.north,
               label: 'newsAdd.sortAsc',
               selected: active == NewsAddQuizSort.asc,
               onTap: () => onChanged(NewsAddQuizSort.asc),
             ),
             const SizedBox(width: 6),
             _SortChip(
-              icon: Icons.south,
+              icon: Symbols.south,
               label: 'newsAdd.sortDesc',
               selected: active == NewsAddQuizSort.desc,
               onTap: () => onChanged(NewsAddQuizSort.desc),
             ),
             const SizedBox(width: 6),
             _SortChip(
-              icon: Icons.visibility_off_outlined,
+              icon: Symbols.visibility_off_outlined,
               label: 'newsAdd.sortHide',
               selected: active == NewsAddQuizSort.hide,
               onTap: () => onChanged(NewsAddQuizSort.hide),
@@ -13795,13 +13858,13 @@ class _CoverCardState extends State<_CoverCard> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     _CoverImageActionButton(
-                                      icon: Icons.edit_outlined,
+                                      icon: Symbols.edit_outlined,
                                       color: AppColors.deepOcean,
                                       onTap: _openImageEditor,
                                     ),
                                     const SizedBox(width: 8),
                                     _CoverImageActionButton(
-                                      icon: Icons.delete_outline_rounded,
+                                      icon: Symbols.delete_outline_rounded,
                                       color: AppColors.actionRed,
                                       onTap: _clearCoverImage,
                                     ),
@@ -13935,17 +13998,17 @@ class _CategorySettingsCard extends StatelessWidget {
                   ),
                 ),
                 const Icon(
-                  Icons.settings_outlined,
+                  Symbols.settings_outlined,
                   size: 14,
                   color: AppColors.iconMuted,
                 ),
               ],
             ),
           ),
-          const _FieldLabel('newsAdd.language', icon: Icons.language),
+          const _FieldLabel('newsAdd.language', icon: Symbols.language),
           _DropdownField(
             value: languageCode,
-            leadingIcon: Icons.language,
+            leadingIcon: Symbols.language,
             items: [
               for (final language in languages)
                 DropdownMenuItem(
@@ -13958,11 +14021,11 @@ class _CategorySettingsCard extends StatelessWidget {
           const SizedBox(height: 16),
           const _FieldLabel(
             'newsAdd.mainCategory',
-            icon: Icons.category_outlined,
+            icon: Symbols.category_outlined,
           ),
           _DropdownField(
             value: mainCategory,
-            leadingIcon: Icons.category_outlined,
+            leadingIcon: Symbols.category_outlined,
             items: [
               for (final category in mainCategories)
                 DropdownMenuItem(
@@ -13975,11 +14038,11 @@ class _CategorySettingsCard extends StatelessWidget {
           const SizedBox(height: 16),
           const _FieldLabel(
             'newsAdd.subCategory',
-            icon: Icons.list_alt_outlined,
+            icon: Symbols.list_alt_outlined,
           ),
           _DropdownField(
             value: subCategory ?? '',
-            leadingIcon: Icons.list_alt_outlined,
+            leadingIcon: Symbols.list_alt_outlined,
             items: [
               DropdownMenuItem(
                 value: '',
@@ -13997,11 +14060,11 @@ class _CategorySettingsCard extends StatelessWidget {
             const SizedBox(height: 16),
             const _FieldLabel(
               'newsAdd.thirdCategory',
-              icon: Icons.list_alt_outlined,
+              icon: Symbols.list_alt_outlined,
             ),
             _DropdownField(
               value: thirdCategory ?? '',
-              leadingIcon: Icons.list_alt_outlined,
+              leadingIcon: Symbols.list_alt_outlined,
               items: [
                 DropdownMenuItem(
                   value: '',
@@ -14108,7 +14171,7 @@ class _PublishCard extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  Icons.verified_user_outlined,
+                  Symbols.verified_user_outlined,
                   size: 16,
                   color: factCheck
                       ? const Color(0xFF1F8B3D)
@@ -14172,7 +14235,7 @@ class _PublishCard extends StatelessWidget {
                   ),
                 ),
                 const Icon(
-                  Icons.calendar_today_outlined,
+                  Symbols.calendar_today_outlined,
                   size: 14,
                   color: AppColors.iconMuted,
                 ),

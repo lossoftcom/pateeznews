@@ -8,9 +8,25 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/admin_image_url.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
+import '../../../../shared/widgets/highlighted_text.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 import '../users_models.dart';
+
+/// Aktif arama sorgusunu satır hücrelerine taşır (highlight için).
+class _UsersSearchScope extends InheritedWidget {
+  const _UsersSearchScope({required this.query, required super.child});
+
+  final String query;
+
+  static String of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_UsersSearchScope>()?.query ??
+      '';
+
+  @override
+  bool updateShouldNotify(_UsersSearchScope oldWidget) =>
+      oldWidget.query != query;
+}
 
 class UsersTableCard extends StatelessWidget {
   const UsersTableCard({
@@ -42,6 +58,7 @@ class UsersTableCard extends StatelessWidget {
     required this.onDeleteUser,
     required this.onDeleteSelected,
     required this.onSort,
+    this.searching = false,
   });
 
   final List<ManagedUser> users;
@@ -71,12 +88,15 @@ class UsersTableCard extends StatelessWidget {
   final ValueChanged<ManagedUser> onDeleteUser;
   final VoidCallback onDeleteSelected;
   final ValueChanged<String> onSort;
+  final bool searching;
 
   static const double toolbarHeight = 38;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
+    return _UsersSearchScope(
+      query: searchQuery,
+      child: LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < AdminMobile.breakpoint) {
           return _UsersMobileView(
@@ -134,6 +154,7 @@ class UsersTableCard extends StatelessWidget {
                 users: users,
                 roles: roles,
                 loading: loading,
+                searching: searching,
                 selectedUserIds: selectedUserIds,
                 sortState: sortState,
                 onToggleUser: onToggleUser,
@@ -156,6 +177,7 @@ class UsersTableCard extends StatelessWidget {
           ],
         );
       },
+      ),
     );
   }
 }
@@ -451,15 +473,18 @@ class _UsersMobileCard extends StatelessWidget {
               const SizedBox(width: 12),
               AdminMobileAvatar(
                 label: user.displayName,
-                imageUrl: avatar.isEmpty ? null : adminImageUrl(avatar, width: 96),
+                imageUrl: avatar.isEmpty
+                    ? null
+                    : adminImageUrl(avatar, width: 96),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    HighlightedText(
                       user.displayName,
+                      query: _UsersSearchScope.of(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -470,8 +495,9 @@ class _UsersMobileCard extends StatelessWidget {
                     ),
                     if (user.displayUsername.trim().isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
+                      HighlightedText(
                         user.displayUsername,
+                        query: _UsersSearchScope.of(context),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -483,8 +509,9 @@ class _UsersMobileCard extends StatelessWidget {
                     ],
                     if (user.email.trim().isNotEmpty) ...[
                       const SizedBox(height: 1),
-                      Text(
+                      HighlightedText(
                         user.email,
+                        query: _UsersSearchScope.of(context),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -887,6 +914,7 @@ class _UserSearchField extends StatefulWidget {
 
 class _UserSearchFieldState extends State<_UserSearchField> {
   late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -908,6 +936,7 @@ class _UserSearchFieldState extends State<_UserSearchField> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -922,6 +951,7 @@ class _UserSearchFieldState extends State<_UserSearchField> {
       ),
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         mouseCursor: SystemMouseCursors.text,
         cursorColor: AppColors.support,
         textAlignVertical: TextAlignVertical.center,
@@ -945,6 +975,29 @@ class _UserSearchFieldState extends State<_UserSearchField> {
           ),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 39,
+            minHeight: UsersTableCard.toolbarHeight,
+          ),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return IconButton(
+                mouseCursor: SystemMouseCursors.click,
+                onPressed: () {
+                  _controller.clear();
+                  widget.onChanged('');
+                  _focusNode.requestFocus();
+                },
+                icon: const SymbolIcon(
+                  Symbols.close,
+                  color: AppColors.iconMuted,
+                  size: 16,
+                ),
+              );
+            },
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 38,
             minHeight: UsersTableCard.toolbarHeight,
           ),
           filled: true,
@@ -1065,6 +1118,7 @@ class _UsersDataTable extends StatelessWidget {
     required this.users,
     required this.roles,
     required this.loading,
+    this.searching = false,
     required this.selectedUserIds,
     required this.sortState,
     required this.onToggleUser,
@@ -1079,6 +1133,7 @@ class _UsersDataTable extends StatelessWidget {
   final List<ManagedUser> users;
   final List<AdminUserRole> roles;
   final bool loading;
+  final bool searching;
   final Set<String> selectedUserIds;
   final TableSortState sortState;
   final ValueChanged<String> onToggleUser;
@@ -1132,7 +1187,7 @@ class _UsersDataTable extends StatelessWidget {
                     onSort: onSort,
                   ),
                   Expanded(
-                    child: loading
+                    child: (loading || searching) && users.isEmpty
                         ? const _UsersLoading()
                         : users.isEmpty
                         ? const _UsersEmpty()
@@ -1280,6 +1335,7 @@ class _UsersHeader extends StatelessWidget {
               sortKey: 'reward',
               sortState: sortState,
               onSort: onSort,
+              mainAxisAlignment: MainAxisAlignment.center,
             ),
           ),
           SizedBox(
@@ -1487,8 +1543,9 @@ class _UserIdentity extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              HighlightedText(
                 user.displayName,
+                query: _UsersSearchScope.of(context),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -1497,8 +1554,9 @@ class _UserIdentity extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 1),
-              Text(
+              HighlightedText(
                 user.displayUsername,
+                query: _UsersSearchScope.of(context),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -1508,8 +1566,9 @@ class _UserIdentity extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 1),
-              Text(
+              HighlightedText(
                 user.email,
+                query: _UsersSearchScope.of(context),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -1621,10 +1680,13 @@ class _RewardCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SymbolIcon(
-      enabled ? Symbols.verified : Symbols.visibility_off,
-      color: AppColors.iconMuted,
-      size: 20,
+    return Align(
+      alignment: Alignment.center,
+      child: SymbolIcon(
+        enabled ? Symbols.verified : Symbols.visibility_off,
+        color: AppColors.iconMuted,
+        size: 20,
+      ),
     );
   }
 }
@@ -2144,4 +2206,3 @@ class _PageButton extends StatelessWidget {
     );
   }
 }
-

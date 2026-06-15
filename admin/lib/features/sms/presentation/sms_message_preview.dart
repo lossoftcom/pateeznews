@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 class SmsSegmentStats {
   const SmsSegmentStats({
@@ -176,7 +177,7 @@ class SmsVariableChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                verified ? Icons.check_circle : Icons.dynamic_feed,
+                verified ? Symbols.check_circle : Symbols.dynamic_feed,
                 size: 13,
                 color: color,
               ),

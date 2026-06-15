@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 import 'package:video_player/video_player.dart';
@@ -12,6 +13,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../data/media_service.dart';
 import 'admin_cached_image.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _mlBorder = Color(0xFFDDE5E8);
 const _mlSoftBorder = Color(0xFFE8EEF1);
@@ -307,9 +309,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   }
 
   void _showUploadMessage(String message) {
-    ScaffoldMessenger.maybeOf(
-      context,
-    )?.showSnackBar(SnackBar(content: Text(message)));
+    AdminToast.show(context, message: message, tone: AdminToastTone.error);
   }
 
   Future<void> _deleteFile(MediaItem file) async {
@@ -763,7 +763,7 @@ class _Header extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: _HoverIconButton(
-              icon: Icons.close_rounded,
+              icon: Symbols.close_rounded,
               onTap: onClose,
               hoverColor: AppColors.actionRed.withValues(alpha: 0.08),
               hoverIconColor: AppColors.actionRed,
@@ -803,7 +803,7 @@ class _SearchField extends StatelessWidget {
           prefixIcon: const Padding(
             padding: EdgeInsets.only(left: 14, right: 8),
             child: Icon(
-              Icons.search_rounded,
+              Symbols.search_rounded,
               size: 18,
               color: AppColors.placeholder,
             ),
@@ -942,7 +942,7 @@ class _UploadSidebar extends StatelessWidget {
                                 ),
                               )
                             : Icon(
-                                Icons.cloud_upload_outlined,
+                                Symbols.cloud_upload_outlined,
                                 size: 26,
                                 color: _mlMuted.withValues(alpha: 0.55),
                               ),
@@ -1123,7 +1123,7 @@ class _BrowseButtonState extends State<_BrowseButton> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.add_rounded, color: Colors.white, size: 16),
+                const Icon(Symbols.add_rounded, color: Colors.white, size: 16),
                 const SizedBox(width: 6),
                 Text(
                   context.t('media.browse'),
@@ -1275,13 +1275,13 @@ class _ImageCardState extends State<_ImageCard> {
       items: [
         _menuItem(
           value: 'edit',
-          icon: Icons.edit_outlined,
+          icon: Symbols.edit_outlined,
           label: context.t('media.edit'),
           color: AppColors.deepOcean,
         ),
         _menuItem(
           value: 'delete',
-          icon: Icons.delete_outline_rounded,
+          icon: Symbols.delete_outline_rounded,
           label: context.t('media.delete'),
           color: AppColors.actionRed,
         ),
@@ -1427,7 +1427,7 @@ class _ImageCardState extends State<_ImageCard> {
                                   ],
                                 ),
                                 child: const Icon(
-                                  Icons.check_rounded,
+                                  Symbols.check_rounded,
                                   color: Colors.white,
                                   size: 18,
                                 ),
@@ -1439,7 +1439,7 @@ class _ImageCardState extends State<_ImageCard> {
                             left: 5,
                             bottom: 5,
                             child: _ImageActionButton(
-                              icon: Icons.open_in_full_rounded,
+                              icon: Symbols.open_in_full_rounded,
                               tooltip: context.t('media.preview'),
                               size: 24,
                               iconSize: 13,
@@ -1451,7 +1451,7 @@ class _ImageCardState extends State<_ImageCard> {
                             right: 5,
                             bottom: 5,
                             child: _ImageActionButton(
-                              icon: Icons.edit_outlined,
+                              icon: Symbols.edit_outlined,
                               onTap: widget.onEdit,
                             ),
                           ),
@@ -1516,7 +1516,7 @@ class _CardContent extends StatelessWidget {
         color: const Color(0xFFFFF7ED),
         child: Center(
           child: Icon(
-            Icons.graphic_eq_rounded,
+            Symbols.graphic_eq_rounded,
             size: 32,
             color: AppColors.warmHorizon.withValues(alpha: 0.5),
           ),
@@ -1528,7 +1528,7 @@ class _CardContent extends StatelessWidget {
         color: AppColors.surface,
         child: Center(
           child: Icon(
-            Icons.description_outlined,
+            Symbols.description_outlined,
             size: 32,
             color: _mlMuted.withValues(alpha: 0.4),
           ),
@@ -1543,7 +1543,7 @@ class _CardContent extends StatelessWidget {
       errorWidget: ColoredBox(
         color: AppColors.surface,
         child: Icon(
-          Icons.broken_image_outlined,
+          Symbols.broken_image_outlined,
           size: 26,
           color: AppColors.placeholder.withValues(alpha: 0.45),
         ),
@@ -1589,7 +1589,7 @@ class _VideoCardContent extends StatelessWidget {
           ),
           Center(
             child: Icon(
-              Icons.play_circle_fill_rounded,
+              Symbols.play_circle_fill_rounded,
               size: 36,
               color: Colors.white.withValues(alpha: 0.88),
             ),
@@ -1615,7 +1615,7 @@ class _VideoFallback extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.videocam_outlined,
+              Symbols.videocam_outlined,
               size: 34,
               color: Colors.white.withValues(alpha: 0.28),
             ),
@@ -1700,7 +1700,7 @@ class _MenuDotButtonState extends State<_MenuDotButton> {
             ],
           ),
           child: Icon(
-            Icons.more_vert_rounded,
+            Symbols.more_vert_rounded,
             size: 15,
             color: _hover ? Colors.white : AppColors.deepOcean,
           ),
@@ -1809,10 +1809,10 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = switch (type) {
-      'video' => Icons.movie_outlined,
-      'audio' => Icons.mic_none_rounded,
-      'file' => Icons.description_outlined,
-      _ => Icons.image_outlined,
+      'video' => Symbols.movie_outlined,
+      'audio' => Symbols.mic_none_rounded,
+      'file' => Symbols.description_outlined,
+      _ => Symbols.image_outlined,
     };
     return Container(
       color: Colors.white,
@@ -1880,7 +1880,7 @@ class _Footer extends StatelessWidget {
               _PrimaryButton(
                 enabled: hasSelection,
                 color: AppColors.actionRed,
-                icon: Icons.delete_outline_rounded,
+                icon: Symbols.delete_outline_rounded,
                 label: context.t('media.delete'),
                 onTap: onDeleteSelected,
               ),
@@ -1888,7 +1888,7 @@ class _Footer extends StatelessWidget {
               _OutlinedActionButton(
                 enabled: hasSelection,
                 color: AppColors.actionRed,
-                icon: Icons.delete_sweep_outlined,
+                icon: Symbols.delete_sweep_outlined,
                 label: '${context.t('media.deleteSelected')} ($selectedCount)',
                 onTap: onDeleteSelected,
               ),
@@ -1896,7 +1896,7 @@ class _Footer extends StatelessWidget {
               _PrimaryButton(
                 enabled: hasSelection,
                 color: AppColors.warmHorizon,
-                icon: Icons.check_circle_outline_rounded,
+                icon: Symbols.check_circle_outline_rounded,
                 label: _useLabel(context, type),
                 onTap: onUse,
               ),
@@ -2169,7 +2169,7 @@ class _ImagePreviewModal extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const Icon(
-                      Icons.open_in_full_rounded,
+                      Symbols.open_in_full_rounded,
                       size: 15,
                       color: AppColors.deepOcean,
                     ),
@@ -2189,7 +2189,7 @@ class _ImagePreviewModal extends StatelessWidget {
                     ),
                   ),
                   _HoverIconButton(
-                    icon: Icons.close_rounded,
+                    icon: Symbols.close_rounded,
                     onTap: () => Navigator.of(context).pop(),
                     size: 30,
                   ),
@@ -2211,7 +2211,7 @@ class _ImagePreviewModal extends StatelessWidget {
                           filterQuality: FilterQuality.medium,
                           useOldImageOnUrlChange: true,
                           errorWidget: Icon(
-                            Icons.broken_image_outlined,
+                            Symbols.broken_image_outlined,
                             size: 42,
                             color: AppColors.placeholder.withValues(
                               alpha: 0.45,
@@ -2270,7 +2270,7 @@ class _AudioPreviewModal extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const Icon(
-                      Icons.mic_none_rounded,
+                      Symbols.mic_none_rounded,
                       size: 16,
                       color: AppColors.warmHorizon,
                     ),
@@ -2290,7 +2290,7 @@ class _AudioPreviewModal extends StatelessWidget {
                     ),
                   ),
                   _HoverIconButton(
-                    icon: Icons.close_rounded,
+                    icon: Symbols.close_rounded,
                     onTap: () => Navigator.of(context).pop(),
                     size: 30,
                   ),
@@ -2505,8 +2505,8 @@ class _MediaAudioPlayerState extends State<_MediaAudioPlayer> {
                 const SizedBox(width: 8),
                 _MediaAudioIconButton(
                   icon: volume <= 0
-                      ? Icons.volume_off_rounded
-                      : Icons.volume_up_rounded,
+                      ? Symbols.volume_off_rounded
+                      : Symbols.volume_up_rounded,
                   enabled: initialized,
                   onTap: _toggleMute,
                 ),
@@ -2552,7 +2552,7 @@ class _MediaAudioPlayButton extends StatelessWidget {
             ],
           ),
           child: Icon(
-            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            playing ? Symbols.pause_rounded : Symbols.play_arrow_rounded,
             color: Colors.white,
             size: 26,
           ),
@@ -2670,7 +2670,7 @@ class _ImageEditModalState extends State<_ImageEditModal> {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const Icon(
-                      Icons.edit_outlined,
+                      Symbols.edit_outlined,
                       size: 15,
                       color: AppColors.actionRed,
                     ),
@@ -2688,7 +2688,7 @@ class _ImageEditModalState extends State<_ImageEditModal> {
                     ),
                   ),
                   _HoverIconButton(
-                    icon: Icons.close_rounded,
+                    icon: Symbols.close_rounded,
                     onTap: _close,
                     size: 30,
                   ),
@@ -2719,7 +2719,7 @@ class _ImageEditModalState extends State<_ImageEditModal> {
                   const SizedBox(width: 10),
                   _PrimaryButton(
                     enabled: true,
-                    icon: Icons.check_rounded,
+                    icon: Symbols.check_rounded,
                     label: context.t('media.saveChanges'),
                     onTap: _close,
                   ),
@@ -3024,7 +3024,7 @@ class _UrlImageDialogState extends State<_UrlImageDialog> {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const Icon(
-                      Icons.link_rounded,
+                      Symbols.link_rounded,
                       size: 16,
                       color: AppColors.actionRed,
                     ),
@@ -3042,7 +3042,7 @@ class _UrlImageDialogState extends State<_UrlImageDialog> {
                     ),
                   ),
                   _HoverIconButton(
-                    icon: Icons.close_rounded,
+                    icon: Symbols.close_rounded,
                     onTap: () => _close(),
                     size: 30,
                   ),
@@ -3079,7 +3079,7 @@ class _UrlImageDialogState extends State<_UrlImageDialog> {
                   const SizedBox(width: 10),
                   _PrimaryButton(
                     enabled: _canUse,
-                    icon: Icons.check_rounded,
+                    icon: Symbols.check_rounded,
                     label: context.t('media.use'),
                     onTap: () => _close(_ctrl.text.trim()),
                   ),
@@ -3154,7 +3154,7 @@ class _UrlVideoDialogState extends State<_UrlVideoDialog> {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const Icon(
-                      Icons.play_circle_outline_rounded,
+                      Symbols.play_circle_outline_rounded,
                       size: 16,
                       color: AppColors.actionRed,
                     ),
@@ -3172,7 +3172,7 @@ class _UrlVideoDialogState extends State<_UrlVideoDialog> {
                     ),
                   ),
                   _HoverIconButton(
-                    icon: Icons.close_rounded,
+                    icon: Symbols.close_rounded,
                     onTap: () => _close(),
                     size: 30,
                   ),
@@ -3205,7 +3205,7 @@ class _UrlVideoDialogState extends State<_UrlVideoDialog> {
                   const SizedBox(width: 10),
                   _PrimaryButton(
                     enabled: _canUse,
-                    icon: Icons.check_rounded,
+                    icon: Symbols.check_rounded,
                     label: context.t('media.use'),
                     onTap: () => _close(_normalizedUrl),
                   ),
@@ -3280,7 +3280,7 @@ class _UrlAudioDialogState extends State<_UrlAudioDialog> {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const Icon(
-                      Icons.music_note_rounded,
+                      Symbols.music_note_rounded,
                       size: 16,
                       color: AppColors.warmHorizon,
                     ),
@@ -3298,7 +3298,7 @@ class _UrlAudioDialogState extends State<_UrlAudioDialog> {
                     ),
                   ),
                   _HoverIconButton(
-                    icon: Icons.close_rounded,
+                    icon: Symbols.close_rounded,
                     onTap: () => _close(),
                     size: 30,
                   ),
@@ -3331,7 +3331,7 @@ class _UrlAudioDialogState extends State<_UrlAudioDialog> {
                   const SizedBox(width: 10),
                   _PrimaryButton(
                     enabled: _canUse,
-                    icon: Icons.check_rounded,
+                    icon: Symbols.check_rounded,
                     label: context.t('media.use'),
                     onTap: () => _close(_normalizedUrl),
                   ),
@@ -3406,7 +3406,7 @@ class _UrlFileDialogState extends State<_UrlFileDialog> {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                     child: const Icon(
-                      Icons.insert_drive_file_outlined,
+                      Symbols.insert_drive_file_outlined,
                       size: 16,
                       color: AppColors.support,
                     ),
@@ -3424,7 +3424,7 @@ class _UrlFileDialogState extends State<_UrlFileDialog> {
                     ),
                   ),
                   _HoverIconButton(
-                    icon: Icons.close_rounded,
+                    icon: Symbols.close_rounded,
                     onTap: () => _close(),
                     size: 30,
                   ),
@@ -3457,7 +3457,7 @@ class _UrlFileDialogState extends State<_UrlFileDialog> {
                   const SizedBox(width: 10),
                   _PrimaryButton(
                     enabled: _canUse,
-                    icon: Icons.check_rounded,
+                    icon: Symbols.check_rounded,
                     label: context.t('media.use'),
                     onTap: () => _close(_normalizedUrl),
                   ),
@@ -3512,7 +3512,7 @@ class _UrlVideoPreviewBox extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.play_arrow_rounded,
+                      Symbols.play_arrow_rounded,
                       color: Colors.white,
                       size: 28,
                     ),
@@ -3567,7 +3567,7 @@ class _UrlAudioPreviewBox extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.play_arrow_rounded,
+                      Symbols.play_arrow_rounded,
                       color: Colors.white,
                       size: 28,
                     ),
@@ -3589,7 +3589,7 @@ class _UrlAudioPreviewBox extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.music_note_rounded,
+                          Symbols.music_note_rounded,
                           color: Colors.white,
                           size: 14,
                         ),
@@ -3627,7 +3627,7 @@ class _AudioPreviewEmpty extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.music_note_outlined,
+            Symbols.music_note_outlined,
             size: 32,
             color: AppColors.placeholder.withValues(alpha: 0.4),
           ),
@@ -3659,7 +3659,7 @@ class _AudioUrlLabelPreview extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.music_note_rounded,
+            Symbols.music_note_rounded,
             size: 34,
             color: AppColors.deepOcean.withValues(alpha: 0.48),
           ),
@@ -3715,7 +3715,7 @@ class _FilePreviewEmpty extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.insert_drive_file_outlined,
+            Symbols.insert_drive_file_outlined,
             size: 32,
             color: AppColors.placeholder.withValues(alpha: 0.4),
           ),
@@ -3821,7 +3821,7 @@ class _VideoPreviewEmpty extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.video_library_outlined,
+            Symbols.video_library_outlined,
             size: 32,
             color: AppColors.placeholder.withValues(alpha: 0.4),
           ),
@@ -3927,7 +3927,7 @@ class _DirectVideoPreviewState extends State<_DirectVideoPreview> {
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.play_arrow_rounded,
+                Symbols.play_arrow_rounded,
                 color: Colors.white,
                 size: 28,
               ),
@@ -3942,7 +3942,7 @@ class _DirectVideoPreviewState extends State<_DirectVideoPreview> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.play_circle_outline_rounded,
+            Symbols.play_circle_outline_rounded,
             size: 34,
             color: AppColors.deepOcean.withValues(alpha: 0.48),
           ),
@@ -4058,21 +4058,21 @@ String _safeFileDialogDecode(String value) {
 IconData _fileDialogIcon(String extension) {
   switch (extension.toLowerCase()) {
     case 'pdf':
-      return Icons.description_outlined;
+      return Symbols.description_outlined;
     case 'doc':
     case 'docx':
-      return Icons.text_snippet_outlined;
+      return Symbols.text_snippet_outlined;
     case 'xls':
     case 'xlsx':
-      return Icons.table_chart_outlined;
+      return Symbols.table_chart_outlined;
     case 'ppt':
     case 'pptx':
-      return Icons.slideshow_outlined;
+      return Symbols.slideshow_outlined;
     case 'txt':
     case 'md':
-      return Icons.article_outlined;
+      return Symbols.article_outlined;
     default:
-      return Icons.insert_drive_file_outlined;
+      return Symbols.insert_drive_file_outlined;
   }
 }
 
@@ -4186,7 +4186,7 @@ class _PreviewEmpty extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.image_outlined,
+            Symbols.image_outlined,
             size: 32,
             color: AppColors.placeholder.withValues(alpha: 0.4),
           ),
@@ -4217,7 +4217,7 @@ class _PreviewError extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.broken_image_outlined,
+            Symbols.broken_image_outlined,
             size: 28,
             color: AppColors.actionRed.withValues(alpha: 0.55),
           ),

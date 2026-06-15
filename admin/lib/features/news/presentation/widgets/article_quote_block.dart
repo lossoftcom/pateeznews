@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _quoteBlockStrongLine = Color(0xFFDDE5E8);
 const _quoteBlockSoftLine = Color(0xFFE8EEF1);
@@ -77,7 +78,7 @@ class ArticleQuoteBlockCard extends StatelessWidget {
             right: 18,
             child: IgnorePointer(
               child: Icon(
-                Icons.format_quote,
+                Symbols.format_quote,
                 size: 110,
                 color: AppColors.deepOcean.withValues(alpha: 0.025),
               ),
@@ -171,7 +172,7 @@ class _QuoteHeader extends StatelessWidget {
             ),
           ),
           child: const Icon(
-            Icons.format_quote,
+            Symbols.format_quote,
             color: AppColors.deepOcean,
             size: 20,
           ),
@@ -231,7 +232,7 @@ class _QuoteEditorPanel extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.auto_awesome,
+                    Symbols.auto_awesome,
                     size: 13,
                     color: _quoteBlockMutedText.withValues(alpha: 0.58),
                   ),
@@ -326,8 +327,8 @@ class _QuoteExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _quoteBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -627,19 +628,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,

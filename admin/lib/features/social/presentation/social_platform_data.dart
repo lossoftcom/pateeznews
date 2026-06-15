@@ -54,6 +54,7 @@ enum SocialPostType { feed, story, reels, thread, shortVideo }
 class SocialPublishData {
   const SocialPublishData({
     this.selectedPlatforms = const {},
+    this.selectedConnectedAccountIds = const {},
     this.postType = SocialPostType.feed,
     this.caption = '',
     this.hashtags = const [],
@@ -70,6 +71,7 @@ class SocialPublishData {
   });
 
   final Set<SocialPlatform> selectedPlatforms;
+  final Map<SocialPlatform, int> selectedConnectedAccountIds;
   final SocialPostType postType;
   final String caption;
   final List<String> hashtags;
@@ -110,6 +112,7 @@ class SocialPublishData {
 
   SocialPublishData copyWith({
     Set<SocialPlatform>? selectedPlatforms,
+    Map<SocialPlatform, int>? selectedConnectedAccountIds,
     SocialPostType? postType,
     String? caption,
     List<String>? hashtags,
@@ -126,6 +129,8 @@ class SocialPublishData {
   }) {
     return SocialPublishData(
       selectedPlatforms: selectedPlatforms ?? this.selectedPlatforms,
+      selectedConnectedAccountIds:
+          selectedConnectedAccountIds ?? this.selectedConnectedAccountIds,
       postType: postType ?? this.postType,
       caption: caption ?? this.caption,
       hashtags: hashtags ?? this.hashtags,
@@ -303,7 +308,7 @@ SocialPlatformInfo platformInfoFor(SocialPlatform p) =>
 String postTypeKey(SocialPostType t) => switch (t) {
   SocialPostType.feed => 'social.publish.formatFeed',
   SocialPostType.story => 'social.publish.formatStory',
-  SocialPostType.reels => 'social.publish.formatShortVideo',
+  SocialPostType.reels => 'social.publish.formatReels',
   SocialPostType.thread => 'social.publish.formatThread',
   SocialPostType.shortVideo => 'social.publish.formatShortVideo',
 };

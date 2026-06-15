@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -90,7 +91,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     final profile = _buildProfileFromForm();
     if (profile.fullName.trim().isEmpty || profile.username.trim().isEmpty) {
       setState(() => _selectedTab = _AccountSettingsTab.profile);
-      _showMessage(context.t('This field is required'));
+      _showMessage(
+        context.t('This field is required'),
+        tone: AdminToastTone.error,
+      );
       return;
     }
     if (!(_formKey.currentState?.validate() ?? true)) return;
@@ -107,14 +111,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         _profile = saved;
         _saving = false;
       });
-      _showMessage(context.t('Profile saved successfully'));
+      _showMessage(
+        context.t('Profile saved successfully'),
+        tone: AdminToastTone.success,
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
       final message = error.toString().contains('Username is already taken')
           ? context.t('Username is already taken')
           : error.toString();
-      _showMessage(message);
+      _showMessage(message, tone: AdminToastTone.error);
     }
   }
 
@@ -144,18 +151,24 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         _profile = _buildProfileFromForm();
         _uploadingKind = null;
       });
-      _showMessage(context.t('Profile image uploaded'));
+      _showMessage(
+        context.t('Profile image uploaded'),
+        tone: AdminToastTone.success,
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _uploadingKind = null);
-      _showMessage(error.toString());
+      _showMessage(error.toString(), tone: AdminToastTone.error);
     }
   }
 
   Future<void> _updatePassword() async {
     if (!(_passwordFormKey.currentState?.validate() ?? false)) return;
     if (_newPasswordController.text != _confirmPasswordController.text) {
-      _showMessage(context.t('Passwords do not match'));
+      _showMessage(
+        context.t('Passwords do not match'),
+        tone: AdminToastTone.error,
+      );
       return;
     }
 
@@ -171,21 +184,30 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _newPasswordController.clear();
       _confirmPasswordController.clear();
       setState(() => _updatingPassword = false);
-      _showMessage(context.t('Password updated successfully'));
+      _showMessage(
+        context.t('Password updated successfully'),
+        tone: AdminToastTone.success,
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _updatingPassword = false);
-      _showMessage(error.toString());
+      _showMessage(error.toString(), tone: AdminToastTone.error);
     }
   }
 
   Future<void> _deleteAccount() async {
     if (!_deleteConfirmed) {
-      _showMessage(context.t('Please check the confirmation box'));
+      _showMessage(
+        context.t('Please check the confirmation box'),
+        tone: AdminToastTone.error,
+      );
       return;
     }
     if (_deletePasswordController.text.trim().isEmpty) {
-      _showMessage(context.t('Enter your password to confirm'));
+      _showMessage(
+        context.t('Enter your password to confirm'),
+        tone: AdminToastTone.error,
+      );
       return;
     }
 
@@ -200,7 +222,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _deletingAccount = false);
-      _showMessage(error.toString());
+      _showMessage(error.toString(), tone: AdminToastTone.error);
     }
   }
 
@@ -230,10 +252,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     );
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+  void _showMessage(
+    String message, {
+    AdminToastTone tone = AdminToastTone.info,
+  }) {
+    AdminToast.show(context, message: message, tone: tone);
   }
 
   @override
@@ -779,8 +802,9 @@ class _ProfileHero extends StatelessWidget {
                           url: coverUrl,
                           fit: BoxFit.cover,
                           memCacheWidth: 1080,
-                          errorWidget:
-                              const ColoredBox(color: AppColors.surface),
+                          errorWidget: const ColoredBox(
+                            color: AppColors.surface,
+                          ),
                         ),
                 ),
               ),
@@ -821,8 +845,7 @@ class _ProfileHero extends StatelessWidget {
                                 url: avatarUrl,
                                 fit: BoxFit.cover,
                                 memCacheWidth: 200,
-                                errorWidget:
-                                    _ProfileInitials(profile: profile),
+                                errorWidget: _ProfileInitials(profile: profile),
                               ),
                       ),
                     ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Mastodon toot preview.
 class MastodonPreview extends StatelessWidget {
@@ -11,8 +12,10 @@ class MastodonPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
+  final Widget? accountAction;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -57,6 +60,7 @@ class MastodonPreview extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    ?accountAction,
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
@@ -95,13 +99,13 @@ class MastodonPreview extends StatelessWidget {
                         aspectRatio: 16 / 9,
                         child: Container(
                           color: const Color(0xFFF5F5F5),
-                          child: AdminCachedImage(
+                          child: SocialMediaPreview(
                             url: imageUrl,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                             memCacheWidth: 1080,
                             errorWidget: const Center(
                               child: Icon(
-                                Icons.image_outlined,
+                                Symbols.image_outlined,
                                 size: 40,
                                 color: Color(0xFFCCCCCC),
                               ),
@@ -117,27 +121,27 @@ class MastodonPreview extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: const [
                       Icon(
-                        Icons.reply_rounded,
+                        Symbols.reply_rounded,
                         size: 20,
                         color: Color(0xFF9BAEC8),
                       ),
                       Icon(
-                        Icons.repeat_rounded,
+                        Symbols.repeat_rounded,
                         size: 20,
                         color: Color(0xFF9BAEC8),
                       ),
                       Icon(
-                        Icons.star_border_rounded,
+                        Symbols.star_border_rounded,
                         size: 20,
                         color: Color(0xFF9BAEC8),
                       ),
                       Icon(
-                        Icons.bookmark_border_rounded,
+                        Symbols.bookmark_border_rounded,
                         size: 20,
                         color: Color(0xFF9BAEC8),
                       ),
                       Icon(
-                        Icons.more_horiz,
+                        Symbols.more_horiz,
                         size: 20,
                         color: Color(0xFF9BAEC8),
                       ),

@@ -11,6 +11,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _flipBlockStrongLine = Color(0xFFDDE5E8);
 const _flipBlockSoftLine = Color(0xFFE8EEF1);
@@ -224,7 +225,7 @@ class _ArticleFlipcardBlockCardState extends State<ArticleFlipcardBlockCard> {
                           ),
                         ),
                         child: const Icon(
-                          Icons.sync_rounded,
+                          Symbols.sync_rounded,
                           color: _flipBlockBackAccent,
                           size: 18,
                         ),
@@ -581,7 +582,7 @@ class _EmptyFlipImagePicker extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.add, color: _flipBlockUploadInk, size: 42),
+              const Icon(Symbols.add, color: _flipBlockUploadInk, size: 42),
               const SizedBox(height: 8),
               Text(
                 context.t(labelKey),
@@ -629,7 +630,7 @@ class _SelectedFlipImage extends StatelessWidget {
             useOldImageOnUrlChange: true,
             errorWidget: const Center(
               child: Icon(
-                Icons.broken_image_outlined,
+                Symbols.broken_image_outlined,
                 color: AppColors.iconMuted,
                 size: 34,
               ),
@@ -642,13 +643,13 @@ class _SelectedFlipImage extends StatelessWidget {
           child: Row(
             children: [
               _ImageActionButton(
-                icon: Icons.edit_outlined,
+                icon: Symbols.edit_outlined,
                 color: AppColors.deepOcean,
                 onTap: onPickImage,
               ),
               const SizedBox(width: 8),
               _ImageActionButton(
-                icon: Icons.delete_outline,
+                icon: Symbols.delete_outline,
                 color: AppColors.actionRed,
                 onTap: onClear,
               ),
@@ -701,7 +702,7 @@ class _LivePreviewSection extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.auto_awesome,
+                  Symbols.auto_awesome,
                   color: Colors.white,
                   size: 13,
                 ),
@@ -864,7 +865,7 @@ class _FlipPreviewFace extends StatelessWidget {
                 border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: const Icon(
-                Icons.sync_rounded,
+                Symbols.sync_rounded,
                 color: Colors.white,
                 size: 16,
               ),
@@ -937,7 +938,7 @@ class _FlipPreviewFace extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
-                        Icons.sync_rounded,
+                        Symbols.sync_rounded,
                         size: 13,
                         color: AppColors.deepOcean,
                       ),
@@ -1039,8 +1040,8 @@ class _FlipExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _flipBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -1179,19 +1180,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -1299,7 +1300,7 @@ class _FlipConnector extends StatelessWidget {
           ],
         ),
         child: Icon(
-          compact ? Icons.swap_vert : Icons.swap_horiz,
+          compact ? Symbols.swap_vert : Symbols.swap_horiz,
           color: AppColors.iconMuted,
           size: 18,
         ),
@@ -1336,7 +1337,7 @@ class _UrlUploadButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+              const Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
               const SizedBox(width: 7),
               Text(
                 context.t('newsAdd.flipcardUrlOrUpload'),

@@ -9,6 +9,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _eventBlockStrongLine = Color(0xFFDDE5E8);
 const _eventBlockSoftLine = Color(0xFFE8EEF1);
@@ -173,7 +174,7 @@ class ArticleEventSettingsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _EventSectionHeader(
-            icon: Icons.calendar_today_outlined,
+            icon: Symbols.calendar_today_outlined,
             title: 'newsAdd.event.blockTitle',
           ),
           const SizedBox(height: 20),
@@ -366,7 +367,7 @@ class _EventScheduleListCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _EventListHeader(
-            icon: Icons.event_note_outlined,
+            icon: Symbols.event_note_outlined,
             title: 'newsAdd.event.schedule',
             addLabel: 'newsAdd.event.addSchedule',
             onAdd: onAdd,
@@ -480,7 +481,7 @@ class _EventScheduleEntryCard extends StatelessWidget {
                         Expanded(child: rowFields[0]),
                         const SizedBox(width: 8),
                         _EventTinyIconButton(
-                          icon: Icons.delete_outline,
+                          icon: Symbols.delete_outline,
                           active: canDelete,
                           onTap: onRemove,
                         ),
@@ -510,7 +511,7 @@ class _EventScheduleEntryCard extends StatelessWidget {
                     Expanded(child: rowFields[3]),
                     const SizedBox(width: 8),
                     _EventTinyIconButton(
-                      icon: Icons.delete_outline,
+                      icon: Symbols.delete_outline,
                       active: canDelete,
                       onTap: onRemove,
                     ),
@@ -585,7 +586,7 @@ class _EventHighlightsListCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _EventListHeader(
-            icon: Icons.info_outline,
+            icon: Symbols.info_outline,
             title: 'newsAdd.event.highlights',
             addLabel: 'newsAdd.event.addHighlight',
             onAdd: onAdd,
@@ -661,7 +662,7 @@ class _EventHighlightRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _EventTinyIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: canDelete,
             onTap: onRemove,
           ),
@@ -698,7 +699,7 @@ class _EventSpeakersListCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _EventListHeader(
-            icon: Icons.groups_outlined,
+            icon: Symbols.groups_outlined,
             title: 'newsAdd.event.speakers',
             addLabel: 'newsAdd.event.addSpeaker',
             onAdd: onAdd,
@@ -789,7 +790,7 @@ class _EventSpeakerCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.person_outline,
+                          Symbols.person_outline,
                           color: AppColors.actionRed,
                           size: 18,
                         ),
@@ -1128,7 +1129,7 @@ class _EventRegistrationControl extends StatelessWidget {
                   : 'none',
               isExpanded: true,
               icon: const Icon(
-                Icons.keyboard_arrow_down,
+                Symbols.keyboard_arrow_down,
                 size: 18,
                 color: _eventBlockMutedText,
               ),
@@ -1223,7 +1224,7 @@ class _EventDateInputBox extends StatelessWidget {
       controller: controller,
       hintTextKey: hintTextKey,
       bold: true,
-      suffixIcon: Icons.calendar_today_outlined,
+      suffixIcon: Symbols.calendar_today_outlined,
     );
   }
 }
@@ -1397,13 +1398,13 @@ class _EventDashedImageBox extends StatelessWidget {
                     child: Row(
                       children: [
                         _EventImageActionButton(
-                          icon: Icons.edit_outlined,
+                          icon: Symbols.edit_outlined,
                           color: AppColors.deepOcean,
                           onTap: onPickImage,
                         ),
                         const SizedBox(width: 8),
                         _EventImageActionButton(
-                          icon: Icons.delete_outline,
+                          icon: Symbols.delete_outline,
                           color: AppColors.actionRed,
                           onTap: onClear,
                         ),
@@ -1438,7 +1439,7 @@ class _EventEmptyImagePicker extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add, color: _eventBlockUploadInk, size: 32),
+              const Icon(Symbols.add, color: _eventBlockUploadInk, size: 32),
               const SizedBox(height: 8),
               Text(
                 context.t('newsAdd.imageSelect'),
@@ -1481,7 +1482,7 @@ class _EventUrlUploadButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+              const Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
               const SizedBox(width: 7),
               Text(
                 context.t('newsAdd.addUrl'),
@@ -1692,19 +1693,19 @@ class _EventActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _EventRailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _EventRailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _EventRailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: canDelete,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -1823,7 +1824,9 @@ class _EventCollapseButton extends StatelessWidget {
           width: 34,
           height: 34,
           child: Icon(
-            collapsed ? Icons.keyboard_arrow_left : Icons.keyboard_arrow_down,
+            collapsed
+                ? Symbols.keyboard_arrow_left
+                : Symbols.keyboard_arrow_down,
             size: 22,
             color: _eventBlockMutedText,
           ),

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
+import 'package:pateeznews_admin/shared/widgets/highlighted_text.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/users_models.dart';
@@ -116,15 +117,14 @@ class SupabaseAdminRolesRepository implements AdminRolesRepository {
       memberCounts,
     );
 
-    final term = search.trim().toLowerCase();
-    final filtered = term.isEmpty
+    final filtered = search.trim().isEmpty
         ? allRoles
         : allRoles
               .where(
-                (role) =>
-                    role.name.toLowerCase().contains(term) ||
-                    role.label.toLowerCase().contains(term) ||
-                    role.description.toLowerCase().contains(term),
+                (role) => searchMatchesAll(
+                  '${role.name} ${role.label} ${role.description} ${role.slug}',
+                  search,
+                ),
               )
               .toList(growable: false);
 

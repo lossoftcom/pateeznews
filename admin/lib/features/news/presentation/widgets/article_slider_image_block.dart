@@ -9,6 +9,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _sliderImageBlockStrongLine = Color(0xFFDDE5E8);
 const _sliderImageBlockSoftLine = Color(0xFFE8EEF1);
@@ -114,7 +115,7 @@ class ArticleSliderImageBlockCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.value),
                         ),
                         child: const Icon(
-                          Icons.collections_outlined,
+                          Symbols.collections_outlined,
                           color: AppColors.deepOcean,
                           size: 18,
                         ),
@@ -320,19 +321,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,
@@ -484,7 +485,7 @@ class _EmptySliderPicker extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(
-                Icons.add,
+                Symbols.add,
                 color: _sliderImageBlockUploadInk,
                 size: 32,
               ),
@@ -528,7 +529,7 @@ class _AddSliderImageTile extends StatelessWidget {
             height: 126,
             child: Center(
               child: Icon(
-                Icons.add,
+                Symbols.add,
                 size: 28,
                 color: _sliderImageBlockUploadInk.withValues(alpha: 0.82),
               ),
@@ -589,7 +590,7 @@ class _SliderImageThumbState extends State<_SliderImageThumb> {
                 memCacheWidth: 360,
                 useOldImageOnUrlChange: true,
                 errorWidget: Icon(
-                  Icons.broken_image_outlined,
+                  Symbols.broken_image_outlined,
                   size: 26,
                   color: AppColors.placeholder.withValues(alpha: 0.45),
                 ),
@@ -608,13 +609,13 @@ class _SliderImageThumbState extends State<_SliderImageThumb> {
                 child: Row(
                   children: [
                     _ImageActionButton(
-                      icon: Icons.edit_outlined,
+                      icon: Symbols.edit_outlined,
                       color: AppColors.deepOcean,
                       onTap: widget.onReplace,
                     ),
                     const SizedBox(width: 6),
                     _ImageActionButton(
-                      icon: Icons.delete_outline,
+                      icon: Symbols.delete_outline,
                       color: AppColors.actionRed,
                       onTap: widget.onRemove,
                     ),
@@ -746,8 +747,8 @@ class _ExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _sliderImageBlockMutedText.withValues(alpha: 0.72),
                     ),

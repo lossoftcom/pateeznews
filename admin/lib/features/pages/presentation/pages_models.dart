@@ -85,6 +85,7 @@ class AdminPage {
     required this.metaDescription,
     required this.canonicalUrl,
     required this.createdAt,
+    this.pageGroup = 'Kurumsal',
     this.parentCategory,
   });
 
@@ -92,6 +93,7 @@ class AdminPage {
   final int rowNumber;
   final String title;
   final String slug;
+  final String pageGroup;
   final String category;
   final String categoryId;
   final String type;
@@ -125,6 +127,11 @@ class AdminPage {
     return value.isEmpty ? '-' : value;
   }
 
+  String get displayGroup {
+    final value = pageGroup.trim();
+    return value.isEmpty ? '-' : value;
+  }
+
   String get displayType {
     final value = type.trim();
     return value.isEmpty ? 'custom' : value;
@@ -147,6 +154,7 @@ class AdminPageFormData {
   const AdminPageFormData({
     required this.title,
     required this.slug,
+    required this.pageGroup,
     required this.languageCode,
     required this.categoryId,
     required this.category,
@@ -169,6 +177,7 @@ class AdminPageFormData {
 
   final String title;
   final String slug;
+  final String pageGroup;
   final String languageCode;
   final String categoryId;
   final String category;

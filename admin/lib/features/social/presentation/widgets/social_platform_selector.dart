@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../social_platform_data.dart';
 import 'social_brand_logo.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Horizontal chip-based platform selector.
 class SocialPlatformSelector extends StatelessWidget {
@@ -173,7 +174,11 @@ class _PlatformChipState extends State<_PlatformChip>
                 ),
                 if (active) ...[
                   const SizedBox(width: 6),
-                  Icon(Icons.check_circle_rounded, size: 14, color: brandColor),
+                  Icon(
+                    Symbols.check_circle_rounded,
+                    size: 14,
+                    color: brandColor,
+                  ),
                 ],
               ],
             ),

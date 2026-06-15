@@ -9,6 +9,7 @@ import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
 import '../../../../shared/widgets/media_library_dialog.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _reviewBlockStrongLine = Color(0xFFDDE5E8);
 const _reviewBlockSoftLine = Color(0xFFE8EEF1);
@@ -190,7 +191,7 @@ class ArticleReviewBlockCard extends StatelessWidget {
                           ),
                         ),
                         child: const Icon(
-                          Icons.star_outline,
+                          Symbols.star_outline,
                           color: _reviewBlockAccent,
                           size: 19,
                         ),
@@ -282,7 +283,7 @@ class ArticleReviewBlockCard extends StatelessWidget {
                         hintKey: 'newsAdd.reviewProsHint',
                         entries: pros,
                         accent: _reviewBlockAccent,
-                        icon: Icons.check,
+                        icon: Symbols.check,
                         onAdd: onProsAdd,
                         onRemove: onProsRemove,
                       );
@@ -291,7 +292,7 @@ class ArticleReviewBlockCard extends StatelessWidget {
                         hintKey: 'newsAdd.reviewConsHint',
                         entries: cons,
                         accent: AppColors.actionRed,
-                        icon: Icons.close,
+                        icon: Symbols.close,
                         onAdd: onConsAdd,
                         onRemove: onConsRemove,
                       );
@@ -473,7 +474,7 @@ class _ReviewScoreBadge extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.star, color: Colors.white, size: 13),
+                    const Icon(Symbols.star, color: Colors.white, size: 13),
                     const SizedBox(width: 8),
                     Text(
                       '$clampedScore',
@@ -598,7 +599,7 @@ class _EmptyReviewImagePicker extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add, color: _reviewBlockUploadInk, size: 36),
+              const Icon(Symbols.add, color: _reviewBlockUploadInk, size: 36),
               const SizedBox(height: 8),
               Text(
                 context.t('newsAdd.reviewPickImage'),
@@ -662,13 +663,13 @@ class _SelectedReviewImage extends StatelessWidget {
           child: Row(
             children: [
               _ImageActionButton(
-                icon: Icons.edit_outlined,
+                icon: Symbols.edit_outlined,
                 color: AppColors.deepOcean,
                 onTap: onPickImage,
               ),
               const SizedBox(width: 8),
               _ImageActionButton(
-                icon: Icons.delete_outline,
+                icon: Symbols.delete_outline,
                 color: AppColors.actionRed,
                 onTap: onClear,
               ),
@@ -693,7 +694,7 @@ class _ReviewVerdictPanel extends StatelessWidget {
         Row(
           children: [
             const Icon(
-              Icons.description_outlined,
+              Symbols.description_outlined,
               size: 13,
               color: AppColors.deepOcean,
             ),
@@ -772,7 +773,11 @@ class _ReviewListCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _TinyIconButton(icon: Icons.add, color: accent, onTap: onAdd),
+                  _TinyIconButton(
+                    icon: Symbols.add,
+                    color: accent,
+                    onTap: onAdd,
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -821,7 +826,7 @@ class _ReviewListInputRow extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         _TinyIconButton(
-          icon: Icons.close,
+          icon: Symbols.close,
           color: AppColors.actionRed,
           onTap: onRemove,
         ),
@@ -851,7 +856,7 @@ class _ReviewScoreSection extends StatelessWidget {
         Row(
           children: [
             const Icon(
-              Icons.bar_chart_outlined,
+              Symbols.bar_chart_outlined,
               size: 16,
               color: _reviewBlockAccent,
             ),
@@ -982,7 +987,7 @@ class _CriterionCard extends StatelessWidget {
                 ),
               ),
               _TinyIconButton(
-                icon: Icons.close,
+                icon: Symbols.close,
                 color: AppColors.actionRed,
                 onTap: onRemove,
               ),
@@ -1119,8 +1124,8 @@ class _ReviewExtraSettingsPanel extends StatelessWidget {
                     const SizedBox(width: 4),
                     Icon(
                       expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 16,
                       color: _reviewBlockMutedText.withValues(alpha: 0.72),
                     ),
@@ -1322,7 +1327,7 @@ class _CriterionAddButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.add, size: 15, color: _reviewBlockAccent),
+              const Icon(Symbols.add, size: 15, color: _reviewBlockAccent),
               const SizedBox(width: 8),
               Text(
                 context.t('newsAdd.reviewAddCriterion'),
@@ -1391,7 +1396,7 @@ class _UrlUploadButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.public, size: 13, color: AppColors.deepOcean),
+              const Icon(Symbols.public, size: 13, color: AppColors.deepOcean),
               const SizedBox(width: 6),
               Text(
                 context.t('newsAdd.reviewUrlOrUpload'),
@@ -1574,19 +1579,19 @@ class _BlockActionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_up,
+            icon: Symbols.keyboard_arrow_up,
             active: canMoveUp,
             onTap: onMoveUp,
           ),
           const SizedBox(height: 8),
           _RailIconButton(
-            icon: Icons.keyboard_arrow_down,
+            icon: Symbols.keyboard_arrow_down,
             active: canMoveDown,
             onTap: onMoveDown,
           ),
           const Spacer(),
           _RailIconButton(
-            icon: Icons.delete_outline,
+            icon: Symbols.delete_outline,
             active: true,
             activeColor: AppColors.actionRed,
             onTap: onDelete,

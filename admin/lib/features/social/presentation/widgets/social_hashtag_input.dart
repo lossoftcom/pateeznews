@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Hashtag input with chip display and add button.
 class SocialHashtagInput extends StatefulWidget {
@@ -181,7 +182,7 @@ class _SocialHashtagInputState extends State<SocialHashtagInput> {
                         child: GestureDetector(
                           onTap: () => _removeTag(tag),
                           child: const Icon(
-                            Icons.close_rounded,
+                            Symbols.close_rounded,
                             size: 14,
                             color: AppColors.iconMuted,
                           ),

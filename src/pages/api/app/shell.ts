@@ -47,6 +47,7 @@ const pagePayload = (row: any) => ({
   slug: text(row.slug),
   categoryId: text(row.category_id),
   category: text(row.category),
+  pageGroup: text(row.page_group),
   pageType: text(row.page_type),
   menuOrder: Number.isFinite(Number(row.menu_order))
     ? Number(row.menu_order)
@@ -64,6 +65,7 @@ async function getShellPages(languageCode: string) {
         slug,
         category_id,
         category,
+        page_group,
         page_type,
         menu_order,
         content_plain,
@@ -72,7 +74,7 @@ async function getShellPages(languageCode: string) {
      FROM public.pages
      WHERE language_code = $1
        AND status = 'active'
-     ORDER BY menu_order ASC, title ASC`,
+     ORDER BY page_group ASC, menu_order ASC, title ASC`,
     [languageCode]
   );
   return result.rows || [];

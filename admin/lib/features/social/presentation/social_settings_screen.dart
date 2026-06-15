@@ -1,8 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -220,11 +221,10 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
 
   void _showError(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AdminToast.show(
+      context,
+      message: error.toString(),
+      tone: AdminToastTone.error,
     );
   }
 
@@ -580,13 +580,13 @@ class _SocialSettingsMetricGrid extends StatelessWidget {
       _MetricData(
         label: 'social.settings.metric.totalAccounts',
         value: '$totalAccounts',
-        icon: Icons.dns_outlined,
+        icon: Symbols.dns_outlined,
         color: AppColors.deepOcean,
       ),
       _MetricData(
         label: 'social.settings.metric.bundleReady',
         value: '$bundleReady',
-        icon: Icons.hub_outlined,
+        icon: Symbols.hub_outlined,
         color: const Color(0xFF198754),
       ),
       _MetricData(
@@ -598,13 +598,13 @@ class _SocialSettingsMetricGrid extends StatelessWidget {
       _MetricData(
         label: 'social.settings.metric.webhooks',
         value: '$webhookReady',
-        icon: Icons.webhook_outlined,
+        icon: Symbols.webhook_outlined,
         color: const Color(0xFF16A085),
       ),
       _MetricData(
         label: 'social.settings.metric.approval',
         value: '$approvalRequired',
-        icon: Icons.verified_user_outlined,
+        icon: Symbols.verified_user_outlined,
         color: AppColors.actionRed,
       ),
     ];
@@ -820,12 +820,12 @@ class _SocialSettingsToolbar extends StatelessWidget {
               ),
             ),
             _SecondaryActionButton(
-              icon: Icons.refresh,
+              icon: Symbols.refresh,
               label: context.t('social.settings.refresh'),
               onPressed: onRefresh,
             ),
             _SecondaryActionButton(
-              icon: Icons.settings_outlined,
+              icon: Symbols.settings_outlined,
               label: context.t('social.settings.settingsButton'),
               onPressed: onSettings,
             ),
@@ -1421,7 +1421,7 @@ class _ProviderLogo extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.value),
       ),
       child: Icon(
-        preset.fallbackIcon ?? Icons.hub_outlined,
+        preset.fallbackIcon ?? Symbols.hub_outlined,
         color: preset.color,
         size: iconSize,
       ),
@@ -1745,7 +1745,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _ConnectionSectionTitle(
-                        icon: Icons.badge_outlined,
+                        icon: Symbols.badge_outlined,
                         title: context.t('social.settings.connection.identity'),
                       ),
                       const SizedBox(height: 12),
@@ -1754,14 +1754,14 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           controller: _accountNameController,
                           label: context.t('social.settings.field.accountName'),
                           hint: context.t('social.settings.hint.accountName'),
-                          icon: Icons.dns_outlined,
+                          icon: Symbols.dns_outlined,
                           required: true,
                         ),
                         right: _UnderlinedInput(
                           controller: _workspaceController,
                           label: context.t('social.settings.field.workspace'),
                           hint: context.t('social.settings.hint.workspace'),
-                          icon: Icons.group_work_outlined,
+                          icon: Symbols.group_work_outlined,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1770,20 +1770,20 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           controller: _platformsController,
                           label: context.t('social.settings.field.platforms'),
                           hint: context.t('social.settings.hint.platforms'),
-                          icon: Icons.share_outlined,
+                          icon: Symbols.share_outlined,
                           required: true,
                         ),
                         right: _UnderlinedInput(
                           controller: _teamIdController,
                           label: context.t('social.settings.field.teamId'),
                           hint: context.t('social.settings.hint.teamId'),
-                          icon: Icons.alternate_email,
+                          icon: Symbols.alternate_email,
                           required: true,
                         ),
                       ),
                       const SizedBox(height: 24),
                       _ConnectionSectionTitle(
-                        icon: Icons.api_outlined,
+                        icon: Symbols.api_outlined,
                         title: context.t('social.settings.connection.api'),
                       ),
                       const SizedBox(height: 12),
@@ -1792,7 +1792,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           controller: _apiBaseUrlController,
                           label: context.t('social.settings.field.apiBaseUrl'),
                           hint: context.t('social.settings.hint.apiBaseUrl'),
-                          icon: Icons.link_outlined,
+                          icon: Symbols.link_outlined,
                           required: true,
                         ),
                         right: _UnderlinedInput(
@@ -1803,7 +1803,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           hint: _preset.id == 'bundle_social'
                               ? 'x-api-key'
                               : context.t('social.settings.hint.clientId'),
-                          icon: Icons.key_outlined,
+                          icon: Symbols.key_outlined,
                           required: true,
                         ),
                       ),
@@ -1813,13 +1813,13 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           controller: _clientSecretController,
                           label: context.t('social.settings.field.secret'),
                           hint: context.t('social.settings.hint.secret'),
-                          icon: Icons.lock_outline,
+                          icon: Symbols.lock_outline,
                         ),
                         right: _UnderlinedInput(
                           controller: _redirectUrlController,
                           label: context.t('social.settings.field.redirectUrl'),
                           hint: context.t('social.settings.hint.redirectUrl'),
-                          icon: Icons.login_outlined,
+                          icon: Symbols.login_outlined,
                           required: true,
                         ),
                       ),
@@ -1828,11 +1828,11 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                         controller: _scopesController,
                         label: context.t('social.settings.field.scopes'),
                         hint: context.t('social.settings.hint.scopes'),
-                        icon: Icons.fact_check_outlined,
+                        icon: Symbols.fact_check_outlined,
                       ),
                       const SizedBox(height: 24),
                       _ConnectionSectionTitle(
-                        icon: Icons.speed_outlined,
+                        icon: Symbols.speed_outlined,
                         title: context.t('social.settings.connection.limits'),
                       ),
                       const SizedBox(height: 12),
@@ -1841,7 +1841,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           controller: _dailyLimitController,
                           label: context.t('social.settings.field.dailyLimit'),
                           hint: '10000',
-                          icon: Icons.today_outlined,
+                          icon: Symbols.today_outlined,
                           keyboardType: TextInputType.number,
                         ),
                         second: _UnderlinedInput(
@@ -1850,14 +1850,14 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                             'social.settings.field.monthlyLimit',
                           ),
                           hint: '100000',
-                          icon: Icons.calendar_month_outlined,
+                          icon: Symbols.calendar_month_outlined,
                           keyboardType: TextInputType.number,
                         ),
                         third: _UnderlinedInput(
                           controller: _hourlyLimitController,
                           label: context.t('social.settings.field.hourlyLimit'),
                           hint: '700',
-                          icon: Icons.schedule_outlined,
+                          icon: Symbols.schedule_outlined,
                           keyboardType: TextInputType.number,
                         ),
                       ),
@@ -1867,7 +1867,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
                           controller: _webhookUrlController,
                           label: context.t('social.settings.field.webhookUrl'),
                           hint: context.t('social.settings.hint.webhookUrl'),
-                          icon: Icons.webhook_outlined,
+                          icon: Symbols.webhook_outlined,
                         ),
                         right: _StatusRadioGroup(
                           active: _active,
@@ -2431,14 +2431,14 @@ class _SocialSettingsMenuCard extends StatelessWidget {
               onTap: onEdit,
             ),
             _SocialSettingsMenuItem(
-              icon: Icons.verified_outlined,
+              icon: Symbols.verified_outlined,
               label: 'social.settings.action.connectionCheck',
               onTap: onConnectionCheck,
             ),
             _SocialSettingsMenuItem(
               icon: account.active
-                  ? Icons.toggle_off_outlined
-                  : Icons.toggle_on,
+                  ? Symbols.toggle_off_outlined
+                  : Symbols.toggle_on,
               label: account.active
                   ? 'social.settings.action.deactivate'
                   : 'social.settings.action.activate',
@@ -2520,7 +2520,7 @@ class _ConnectionChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            ready ? Icons.check_circle : Icons.error_outline,
+            ready ? Symbols.check_circle : Symbols.error_outline,
             size: 12,
             color: color,
           ),

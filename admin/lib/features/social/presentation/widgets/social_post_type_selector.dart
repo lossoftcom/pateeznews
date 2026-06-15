@@ -4,6 +4,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../social_platform_data.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Segmented control for selecting post type (Feed, Story, Reels, etc.).
 class SocialPostTypeSelector extends StatelessWidget {
@@ -19,11 +20,11 @@ class SocialPostTypeSelector extends StatelessWidget {
   final ValueChanged<SocialPostType> onChanged;
 
   IconData _iconFor(SocialPostType t) => switch (t) {
-    SocialPostType.feed => Icons.dynamic_feed_rounded,
-    SocialPostType.story => Icons.amp_stories_rounded,
-    SocialPostType.reels => Icons.movie_creation_rounded,
-    SocialPostType.thread => Icons.forum_rounded,
-    SocialPostType.shortVideo => Icons.slow_motion_video_rounded,
+    SocialPostType.feed => Symbols.dynamic_feed_rounded,
+    SocialPostType.story => Symbols.amp_stories_rounded,
+    SocialPostType.reels => Symbols.movie_creation_rounded,
+    SocialPostType.thread => Symbols.forum_rounded,
+    SocialPostType.shortVideo => Symbols.slow_motion_video_rounded,
   };
 
   @override

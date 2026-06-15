@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../shared/widgets/admin_cached_image.dart';
+import '../widgets/social_media_preview.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 /// Instagram feed post preview with authentic layout.
 class InstagramPreview extends StatelessWidget {
@@ -11,6 +12,9 @@ class InstagramPreview extends StatelessWidget {
     required this.linkUrl,
     required this.linkTitle,
     this.profileName = 'Pateeznews',
+    this.profileUsername = 'pateeznews',
+    this.avatarUrl = '',
+    this.accountAction,
   });
 
   final String caption;
@@ -18,9 +22,22 @@ class InstagramPreview extends StatelessWidget {
   final String linkUrl;
   final String linkTitle;
   final String profileName;
+  final String profileUsername;
+  final String avatarUrl;
+
+  /// Avatar başlığında ismin yanında gösterilecek "hesap değiştir" oku (opsiyonel).
+  final Widget? accountAction;
 
   @override
   Widget build(BuildContext context) {
+    final cleanUsername = profileUsername.trim().replaceFirst(
+      RegExp(r'^@'),
+      '',
+    );
+    final username = cleanUsername.isEmpty
+        ? profileName.toLowerCase().replaceAll(' ', '')
+        : cleanUsername;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -65,6 +82,9 @@ class InstagramPreview extends StatelessWidget {
                     child: CircleAvatar(
                       radius: 13,
                       backgroundColor: const Color(0xFFE1306C),
+                      foregroundImage: avatarUrl.trim().isNotEmpty
+                          ? NetworkImage(avatarUrl.trim())
+                          : null,
                       child: Text(
                         profileName.isNotEmpty ? profileName[0] : 'P',
                         style: const TextStyle(
@@ -78,23 +98,27 @@ class InstagramPreview extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        profileName.toLowerCase().replaceAll(' ', ''),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF262626),
-                          letterSpacing: 0,
+                      Flexible(
+                        child: Text(
+                          username,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF262626),
+                            letterSpacing: 0,
+                          ),
                         ),
                       ),
+                      ?accountAction,
                     ],
                   ),
                 ),
                 const Icon(
-                  Icons.more_horiz,
+                  Symbols.more_horiz,
                   size: 20,
                   color: Color(0xFF262626),
                 ),
@@ -103,19 +127,20 @@ class InstagramPreview extends StatelessWidget {
           ),
 
           // Image
-          AspectRatio(
-            aspectRatio: 1,
-            child: Container(
-              color: const Color(0xFFFAFAFA),
-              child: imageUrl.isNotEmpty
-                  ? AdminCachedImage(
-                      url: imageUrl,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 1080,
-                      errorWidget: _imagePlaceholder(),
-                    )
-                  : _imagePlaceholder(),
-            ),
+          Container(
+            color: const Color(0xFFFAFAFA),
+            child: imageUrl.isNotEmpty
+                ? SocialMediaPreview(
+                    url: imageUrl,
+                    width: double.infinity,
+                    fit: BoxFit.fitWidth,
+                    memCacheWidth: 1080,
+                    errorWidget: SizedBox(
+                      height: 320,
+                      child: _imagePlaceholder(),
+                    ),
+                  )
+                : AspectRatio(aspectRatio: 1, child: _imagePlaceholder()),
           ),
 
           // Actions
@@ -124,25 +149,25 @@ class InstagramPreview extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  Icons.favorite_border_rounded,
+                  Symbols.favorite_border_rounded,
                   size: 24,
                   color: Color(0xFF262626),
                 ),
                 const SizedBox(width: 14),
                 const Icon(
-                  Icons.chat_bubble_outline_rounded,
+                  Symbols.chat_bubble_outline_rounded,
                   size: 22,
                   color: Color(0xFF262626),
                 ),
                 const SizedBox(width: 14),
                 const Icon(
-                  Icons.send_outlined,
+                  Symbols.send_outlined,
                   size: 22,
                   color: Color(0xFF262626),
                 ),
                 const Spacer(),
                 const Icon(
-                  Icons.bookmark_border_rounded,
+                  Symbols.bookmark_border_rounded,
                   size: 24,
                   color: Color(0xFF262626),
                 ),
@@ -180,7 +205,7 @@ class InstagramPreview extends StatelessWidget {
                   ),
                   children: [
                     TextSpan(
-                      text: '${profileName.toLowerCase().replaceAll(' ', '')} ',
+                      text: '$username ',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     TextSpan(text: caption),
@@ -211,7 +236,7 @@ class InstagramPreview extends StatelessWidget {
       color: const Color(0xFFF0F0F0),
       child: const Center(
         child: Icon(
-          Icons.camera_alt_outlined,
+          Symbols.camera_alt_outlined,
           size: 48,
           color: Color(0xFFBDBDBD),
         ),

@@ -979,7 +979,7 @@ class _SidebarState extends State<Sidebar> {
                     ),
                   if (widget.whatsappVisible)
                     SidebarExpandableItem(
-                      icon: Icons.chat_bubble_outline,
+                      icon: Symbols.chat_bubble_outline,
                       label: context.t('nav.whatsapp'),
                       selected: whatsappSelected,
                       compact: compact,
@@ -1057,7 +1057,7 @@ class _SidebarState extends State<Sidebar> {
                     ),
                   if (widget.smsVisible)
                     SidebarExpandableItem(
-                      icon: Icons.sms_outlined,
+                      icon: Symbols.sms_outlined,
                       label: context.t('nav.sms'),
                       selected: smsSelected,
                       compact: compact,
