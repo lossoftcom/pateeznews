@@ -4601,9 +4601,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sosyal medya paylaşımı'), findsOneWidget);
-    expect(find.text('Sosyal hesaplar'), findsOneWidget);
+    expect(find.text('Canli Instagram'), findsOneWidget);
     expect(find.text('Gönderi metni'), findsOneWidget);
-    expect(find.text('Facebook'), findsWidgets);
+    expect(find.text('X'), findsWidgets);
   });
 
   testWidgets('Sosyal medya ayarları menüsü ayar ekranını açar', (
@@ -4673,9 +4673,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sosyal medya hesabı bağla'), findsOneWidget);
-    expect(find.text('Instagram ile giriş yap'), findsOneWidget);
-    expect(find.text('Google Business Profile ile giriş yap'), findsOneWidget);
-    expect(find.text('Slack ile giriş yap'), findsOneWidget);
+    expect(find.text('Instagram hesabı bağla'), findsOneWidget);
+    expect(find.text('Google Business Profile hesabı bağla'), findsOneWidget);
+    expect(find.text('Slack hesabı bağla'), findsOneWidget);
   });
 
   testWidgets('Kullanıcı ekleme düzenleme silme modalları çalışır', (
@@ -5504,9 +5504,10 @@ void main() {
     expect(find.text('İçindekiler İçerik Üretici'), findsOneWidget);
     expect(find.text('Tarif İçerik Üretici'), findsOneWidget);
     expect(find.text('Etkinlik İçerik Üretici'), findsOneWidget);
+    expect(find.text('AI Medya SEO'), findsOneWidget);
     expect(find.text('Haber Hazırla 1'), findsOneWidget);
-    expect(find.byTooltip('Promtu düzenle'), findsNWidgets(7));
-    expect(find.byTooltip('Promtu sil'), findsNWidgets(7));
+    expect(find.byTooltip('Promtu düzenle'), findsNWidgets(8));
+    expect(find.byTooltip('Promtu sil'), findsNWidgets(8));
 
     await tester.ensureVisible(find.text('Haber Hazırla 1'));
     await tester.pumpAndSettle();
