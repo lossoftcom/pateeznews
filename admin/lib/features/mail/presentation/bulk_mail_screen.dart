@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -45,6 +47,7 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
   var _pageSize = 25;
   var _sortState = const TableSortState(key: 'date', ascending: false);
   var _loading = true;
+  Future<void>? _loadBulkMailFuture;
 
   @override
   void initState() {
@@ -58,28 +61,77 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
     super.dispose();
   }
 
-  Future<void> _loadBulkMail() async {
-    setState(() => _loading = true);
-    try {
-      final results = await Future.wait([
-        widget.repository.fetchCampaigns(widget.session),
-        widget.repository.fetchTemplates(widget.session),
-        widget.repository.fetchAccounts(widget.session),
-        widget.repository.fetchContactLists(widget.session),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _campaigns = results[0] as List<AdminBulkMailCampaign>;
-        _templates = results[1] as List<AdminMailTemplate>;
-        _accounts = results[2] as List<AdminMailAccount>;
-        _lists = results[3] as List<AdminContactList>;
-        _loading = false;
+  Future<void> _loadBulkMail() {
+    final activeLoad = _loadBulkMailFuture;
+    if (activeLoad != null) return activeLoad;
+
+    final nextLoad = _performLoadBulkMail();
+    _loadBulkMailFuture = nextLoad;
+    unawaited(
+      nextLoad.whenComplete(() {
+        if (identical(_loadBulkMailFuture, nextLoad)) {
+          _loadBulkMailFuture = null;
+        }
+      }),
+    );
+    return nextLoad;
+  }
+
+  Future<void> _performLoadBulkMail() async {
+    if (mounted) setState(() => _loading = true);
+    final errors = <String>[];
+    final campaignsLoad = _loadMailResource<List<AdminBulkMailCampaign>>(
+      'Toplu mail',
+      () => widget.repository.fetchCampaigns(widget.session),
+      errors,
+    );
+    final templatesLoad = _loadMailResource<List<AdminMailTemplate>>(
+      'Sablon',
+      () => widget.repository.fetchTemplates(widget.session),
+      errors,
+    );
+    final accountsLoad = _loadMailResource<List<AdminMailAccount>>(
+      'Mail hesabi',
+      () => widget.repository.fetchAccounts(widget.session),
+      errors,
+    );
+    final listsLoad = _loadMailResource<List<AdminContactList>>(
+      'Kisi listesi',
+      () => widget.repository.fetchContactLists(widget.session),
+      errors,
+    );
+
+    final campaigns = await campaignsLoad;
+    final templates = await templatesLoad;
+    final accounts = await accountsLoad;
+    final lists = await listsLoad;
+
+    if (!mounted) return;
+    setState(() {
+      if (campaigns != null) {
+        _campaigns = campaigns;
         _resetListState();
-      });
+      }
+      if (templates != null) _templates = templates;
+      if (accounts != null) _accounts = accounts;
+      if (lists != null) _lists = lists;
+      _loading = false;
+    });
+    if (errors.isNotEmpty) {
+      _showMailError(AdminMailException(errors.join('\n')));
+    }
+  }
+
+  Future<T?> _loadMailResource<T>(
+    String label,
+    Future<T> Function() request,
+    List<String> errors,
+  ) async {
+    try {
+      return await request();
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      _showMailError(error);
+      errors.add('$label: $error');
+      return null;
     }
   }
 
@@ -207,6 +259,17 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
     unawaited(_loadBulkMail());
   }
 
+  List<String> get _missingCreateResources {
+    final missing = <String>[];
+    final hasReadyTemplate = _templates.any(
+      (template) => template.active && template.ready,
+    );
+    if (!hasReadyTemplate) missing.add('aktif hazir sablon');
+    if (_accounts.isEmpty) missing.add('gonderen mail hesabi');
+    if (_lists.isEmpty) missing.add('kisi listesi');
+    return missing;
+  }
+
   void _updateCampaign(
     AdminBulkMailCampaign campaign,
     AdminBulkMailCampaign updated,
@@ -320,6 +383,18 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
   }
 
   Future<void> _showCreateDialog({AdminBulkMailCampaign? campaign}) async {
+    await _loadBulkMail();
+    if (!mounted) return;
+    final missingResources = _missingCreateResources;
+    if (missingResources.isNotEmpty) {
+      _showMailError(
+        AdminMailException(
+          'Toplu mail olusturmak icin ${missingResources.join(', ')} yuklenemedi.',
+        ),
+      );
+      return;
+    }
+
     final created = await showDialog<AdminBulkMailCampaign>(
       context: context,
       barrierDismissible: true,
@@ -2682,14 +2757,9 @@ class _BulkMailCreateDialog extends StatefulWidget {
 }
 
 class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
-  static const _categories = [
-    'mail.campaign.category.campaign',
-    'mail.campaign.category.newsletter',
-    'mail.campaign.category.corporate',
-  ];
-  static const _emptyTemplateOption = 'mail.campaign.templatePlaceholder';
-  static const _emptyAccountOption = 'mail.settings.empty';
-  static const _emptyListOption = 'mail.contacts.empty';
+  static const _emptyTemplateOption = '';
+  static const _emptyAccountOption = '';
+  static const _emptyListOption = '';
 
   late final TextEditingController _nameController;
   late final TextEditingController _subjectController;
@@ -2699,46 +2769,118 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   late String _account;
   late String _recipientList;
 
-  List<String> get _templateOptions => [
-    _emptyTemplateOption,
-    ...widget.templates.map((item) => item.nameKey),
+  List<AdminMailTemplate> get _usableTemplates => widget.templates
+      .where((template) => template.active && template.ready)
+      .toList(growable: false);
+
+  List<AdminMailTemplateCategory> get _availableCategories {
+    final categories = <AdminMailTemplateCategory>[];
+    for (final template in _usableTemplates) {
+      if (!categories.contains(template.category)) {
+        categories.add(template.category);
+      }
+    }
+    return categories.isEmpty
+        ? AdminMailTemplateCategory.values
+        : categories.toList(growable: false);
+  }
+
+  AdminMailTemplateCategory get _selectedCategoryValue {
+    final category = _categoryFromValue(_category);
+    return category != null && _availableCategories.contains(category)
+        ? category
+        : _availableCategories.first;
+  }
+
+  List<AdminMailTemplate> get _templatesForCategory {
+    final category = _selectedCategoryValue;
+    return _usableTemplates
+        .where((template) => template.category == category)
+        .toList(growable: false);
+  }
+
+  List<_SelectOption> get _categoryOptions => _availableCategories
+      .map(
+        (category) =>
+            _SelectOption(value: category.value, label: category.labelKey),
+      )
+      .toList(growable: false);
+
+  List<_SelectOption> get _templateOptions => [
+    const _SelectOption(
+      value: _emptyTemplateOption,
+      label: 'mail.campaign.templatePlaceholder',
+    ),
+    ..._templatesForCategory.map(
+      (template) =>
+          _SelectOption(value: template.id.toString(), label: template.nameKey),
+    ),
   ];
 
-  List<String> get _accountOptions => widget.accounts.isEmpty
-      ? [_emptyAccountOption]
-      : widget.accounts.map((item) => item.accountName).toList(growable: false);
+  List<_SelectOption> get _accountOptions => widget.accounts.isEmpty
+      ? const [
+          _SelectOption(
+            value: _emptyAccountOption,
+            label: 'mail.settings.empty',
+          ),
+        ]
+      : widget.accounts
+            .map(
+              (account) => _SelectOption(
+                value: account.id.toString(),
+                label: account.accountName,
+              ),
+            )
+            .toList(growable: false);
 
-  List<String> get _listOptions => widget.lists.isEmpty
-      ? [_emptyListOption]
-      : widget.lists.map((item) => item.name).toList(growable: false);
+  List<_SelectOption> get _listOptions => widget.lists.isEmpty
+      ? const [
+          _SelectOption(value: _emptyListOption, label: 'mail.contacts.empty'),
+        ]
+      : widget.lists
+            .map(
+              (list) => _SelectOption(
+                value: list.id.toString(),
+                label: '${list.name} (${list.contactCount})',
+              ),
+            )
+            .toList(growable: false);
 
   @override
   void initState() {
     super.initState();
     final campaign = widget.campaign;
+    final initialTemplate = _initialTemplate(campaign);
+    final preferredCategory =
+        initialTemplate?.category ??
+        _categoryFromLabel(campaign?.templateCategory) ??
+        _availableCategories.first;
+    final initialCategory = _availableCategories.contains(preferredCategory)
+        ? preferredCategory
+        : _availableCategories.first;
+    final firstTemplate = initialTemplate ?? _firstTemplateFor(initialCategory);
+    final initialAccount = _initialAccount(campaign);
+    final initialList = _initialList(campaign);
+
     _nameController = TextEditingController(text: campaign?.name ?? '');
-    _subjectController = TextEditingController(text: campaign?.subject ?? '');
-    _previewController = TextEditingController(text: campaign?.preview ?? '');
-    _category = _keyForTranslatedValue(
-      campaign?.templateCategory,
-      _categories,
-      _categories.first,
+    _subjectController = TextEditingController(
+      text: campaign?.subject ?? firstTemplate?.subject ?? '',
     );
-    _template = _keyForTranslatedValue(
-      campaign?.templateName,
-      _templateOptions,
-      _templateOptions.first,
+    _previewController = TextEditingController(
+      text: campaign?.preview ?? firstTemplate?.previewText ?? '',
     );
-    _account = _keyForTranslatedValue(
-      campaign?.senderAccount,
-      _accountOptions,
-      _accountOptions.first,
-    );
-    _recipientList = _keyForTranslatedValue(
-      campaign?.recipientList,
-      _listOptions,
-      _listOptions.first,
-    );
+    _category = initialCategory.value;
+    _template = firstTemplate?.id.toString() ?? _emptyTemplateOption;
+    _account =
+        initialAccount?.id.toString() ??
+        (widget.accounts.isNotEmpty
+            ? widget.accounts.first.id.toString()
+            : _emptyAccountOption);
+    _recipientList =
+        initialList?.id.toString() ??
+        (widget.lists.isNotEmpty
+            ? widget.lists.first.id.toString()
+            : _emptyListOption);
     _nameController.addListener(_refresh);
     _subjectController.addListener(_refresh);
     _previewController.addListener(_refresh);
@@ -2758,54 +2900,13 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     super.dispose();
   }
 
-  String _keyForTranslatedValue(
-    String? value,
-    List<String> candidates,
-    String fallback,
-  ) {
-    if (value == null || value.trim().isEmpty) return fallback;
-    final normalized = value.toLowerCase();
-    if (normalized.contains('kurumsal')) {
-      return candidates.contains('mail.campaign.category.corporate')
-          ? 'mail.campaign.category.corporate'
-          : fallback;
-    }
-    if (normalized.contains('bulten') || normalized.contains('newsletter')) {
-      return candidates.contains('mail.campaign.category.newsletter')
-          ? 'mail.campaign.category.newsletter'
-          : candidates.contains('mail.campaign.template.weeklyNewsletter')
-          ? 'mail.campaign.template.weeklyNewsletter'
-          : fallback;
-    }
-    if (normalized.contains('reklam') || normalized.contains('ad')) {
-      return candidates.contains('mail.campaign.template.adProposal')
-          ? 'mail.campaign.template.adProposal'
-          : candidates.contains('mail.campaign.account.ads')
-          ? 'mail.campaign.account.ads'
-          : candidates.contains('mail.campaign.list.advertisers')
-          ? 'mail.campaign.list.advertisers'
-          : fallback;
-    }
-    if (normalized.contains('iletisim') || normalized.contains('contact')) {
-      return candidates.contains('mail.campaign.account.contact')
-          ? 'mail.campaign.account.contact'
-          : fallback;
-    }
-    if (normalized.contains('gunluk') || normalized.contains('daily')) {
-      return candidates.contains('mail.campaign.list.dailyNewsletter')
-          ? 'mail.campaign.list.dailyNewsletter'
-          : fallback;
-    }
-    return candidates.contains(value) ? value : fallback;
-  }
-
   void _refresh() {
     if (mounted) setState(() {});
   }
 
   bool get _canSave =>
-      widget.accounts.isNotEmpty &&
-      widget.lists.isNotEmpty &&
+      _selectedAccount() != null &&
+      (_selectedList()?.contactCount ?? 0) > 0 &&
       _selectedTemplate() != null &&
       _nameController.text.trim().isNotEmpty &&
       _subjectController.text.trim().isNotEmpty &&
@@ -2831,7 +2932,9 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
       preview: _previewController.text.trim(),
       contentHtml: selectedTemplate?.body ?? '',
       templateName: selectedTemplate?.nameKey ?? '',
-      templateCategory: context.t(_category),
+      templateCategory: selectedTemplate == null
+          ? context.t(_selectedCategoryValue.labelKey)
+          : context.t(selectedTemplate.category.labelKey),
       senderAccount: selectedAccount.accountName,
       senderEmail: selectedAccount.senderEmail,
       recipientList: selectedList.name,
@@ -2849,42 +2952,139 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   }
 
   AdminMailTemplate? _selectedTemplate() {
-    for (final template in widget.templates) {
-      if (template.nameKey == _template) return template;
-    }
-    return null;
+    return _templateById(_template);
   }
 
   void _selectTemplate(String value) {
-    AdminMailTemplate? selected;
-    for (final template in widget.templates) {
-      if (template.nameKey == value) {
-        selected = template;
-        break;
-      }
-    }
+    final selected = _templateById(value);
     setState(() {
       _template = value;
       if (selected == null) {
         _subjectController.clear();
         _previewController.clear();
       } else {
+        _category = selected.category.value;
         _subjectController.text = selected.subject;
         _previewController.text = selected.previewText;
       }
     });
   }
 
+  void _selectCategory(String value) {
+    final category = _categoryFromValue(value) ?? _availableCategories.first;
+    final template = _firstTemplateFor(category);
+    setState(() {
+      _category = category.value;
+      _template = template?.id.toString() ?? _emptyTemplateOption;
+      if (template == null) {
+        _subjectController.clear();
+        _previewController.clear();
+      } else {
+        _subjectController.text = template.subject;
+        _previewController.text = template.previewText;
+      }
+    });
+  }
+
   AdminMailAccount? _selectedAccount() {
     for (final account in widget.accounts) {
-      if (account.accountName == _account) return account;
+      if (account.id.toString() == _account) return account;
     }
     return null;
   }
 
   AdminContactList? _selectedList() {
     for (final list in widget.lists) {
-      if (list.name == _recipientList) return list;
+      if (list.id.toString() == _recipientList) return list;
+    }
+    return null;
+  }
+
+  AdminMailTemplate? _templateById(String value) {
+    final id = int.tryParse(value);
+    if (id == null) return null;
+    for (final template in _usableTemplates) {
+      if (template.id == id) return template;
+    }
+    return null;
+  }
+
+  AdminMailTemplate? _firstTemplateFor(AdminMailTemplateCategory category) {
+    for (final template in _usableTemplates) {
+      if (template.category == category) return template;
+    }
+    return null;
+  }
+
+  AdminMailTemplate? _initialTemplate(AdminBulkMailCampaign? campaign) {
+    if (campaign == null) return _usableTemplates.firstOrNull;
+    final id = int.tryParse(campaign.templateId);
+    if (id != null) {
+      for (final template in _usableTemplates) {
+        if (template.id == id) return template;
+      }
+    }
+    for (final template in _usableTemplates) {
+      if (template.nameKey == campaign.templateName) return template;
+    }
+    return _usableTemplates.firstOrNull;
+  }
+
+  AdminMailAccount? _initialAccount(AdminBulkMailCampaign? campaign) {
+    if (campaign == null) return null;
+    final id = int.tryParse(campaign.accountId);
+    if (id != null) {
+      for (final account in widget.accounts) {
+        if (account.id == id) return account;
+      }
+    }
+    for (final account in widget.accounts) {
+      if (account.accountName == campaign.senderAccount) return account;
+    }
+    return null;
+  }
+
+  AdminContactList? _initialList(AdminBulkMailCampaign? campaign) {
+    if (campaign == null) return null;
+    final id = int.tryParse(campaign.contactListId);
+    if (id != null) {
+      for (final list in widget.lists) {
+        if (list.id == id) return list;
+      }
+    }
+    for (final list in widget.lists) {
+      if (list.name == campaign.recipientList) return list;
+    }
+    return null;
+  }
+
+  AdminMailTemplateCategory? _categoryFromValue(String value) {
+    for (final category in AdminMailTemplateCategory.values) {
+      if (category.value == value) return category;
+    }
+    return null;
+  }
+
+  AdminMailTemplateCategory? _categoryFromLabel(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) return null;
+    for (final category in AdminMailTemplateCategory.values) {
+      if (category.value == normalized) return category;
+    }
+    if (normalized.contains('bilgi') || normalized.contains('info')) {
+      return AdminMailTemplateCategory.info;
+    }
+    if (normalized.contains('davet') || normalized.contains('invitation')) {
+      return AdminMailTemplateCategory.invitation;
+    }
+    if (normalized.contains('sipari') || normalized.contains('order')) {
+      return AdminMailTemplateCategory.order;
+    }
+    if (normalized.contains('teklif') || normalized.contains('quote')) {
+      return AdminMailTemplateCategory.quote;
+    }
+    if (normalized.contains('kampanya') || normalized.contains('campaign')) {
+      return AdminMailTemplateCategory.campaign;
     }
     return null;
   }
@@ -2947,7 +3147,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             _CreatePanel(
-                              categories: _categories,
+                              categories: _categoryOptions,
                               templates: _templateOptions,
                               accounts: _accountOptions,
                               lists: _listOptions,
@@ -2958,8 +3158,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                               nameController: _nameController,
                               subjectController: _subjectController,
                               previewController: _previewController,
-                              onCategoryChanged: (value) =>
-                                  setState(() => _category = value),
+                              onCategoryChanged: _selectCategory,
                               onTemplateChanged: _selectTemplate,
                               onAccountChanged: (value) =>
                                   setState(() => _account = value),
@@ -2970,8 +3169,6 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                             SizedBox(
                               height: 520,
                               child: _LivePreview(
-                                subject: _subjectController.text.trim(),
-                                preview: _previewController.text.trim(),
                                 template: _selectedTemplate(),
                               ),
                             ),
@@ -2986,7 +3183,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                         SizedBox(
                           width: 322,
                           child: _CreatePanel(
-                            categories: _categories,
+                            categories: _categoryOptions,
                             templates: _templateOptions,
                             accounts: _accountOptions,
                             lists: _listOptions,
@@ -2997,8 +3194,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                             nameController: _nameController,
                             subjectController: _subjectController,
                             previewController: _previewController,
-                            onCategoryChanged: (value) =>
-                                setState(() => _category = value),
+                            onCategoryChanged: _selectCategory,
                             onTemplateChanged: _selectTemplate,
                             onAccountChanged: (value) =>
                                 setState(() => _account = value),
@@ -3010,11 +3206,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.all(12),
-                            child: _LivePreview(
-                              subject: _subjectController.text.trim(),
-                              preview: _previewController.text.trim(),
-                              template: _selectedTemplate(),
-                            ),
+                            child: _LivePreview(template: _selectedTemplate()),
                           ),
                         ),
                       ],
@@ -3099,6 +3291,13 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   }
 }
 
+class _SelectOption {
+  const _SelectOption({required this.value, required this.label});
+
+  final String value;
+  final String label;
+}
+
 class _CreatePanel extends StatelessWidget {
   const _CreatePanel({
     required this.categories,
@@ -3118,10 +3317,10 @@ class _CreatePanel extends StatelessWidget {
     required this.onRecipientListChanged,
   });
 
-  final List<String> categories;
-  final List<String> templates;
-  final List<String> accounts;
-  final List<String> lists;
+  final List<_SelectOption> categories;
+  final List<_SelectOption> templates;
+  final List<_SelectOption> accounts;
+  final List<_SelectOption> lists;
   final String category;
   final String template;
   final String account;
@@ -3278,7 +3477,7 @@ class _CreateSelectField extends StatelessWidget {
 
   final String label;
   final String value;
-  final List<String> options;
+  final List<_SelectOption> options;
   final ValueChanged<String> onChanged;
 
   @override
@@ -3311,9 +3510,9 @@ class _CreateSelectField extends StatelessWidget {
               items: options
                   .map(
                     (option) => DropdownMenuItem<String>(
-                      value: option,
+                      value: option.value,
                       child: Text(
-                        context.t(option),
+                        context.t(option.label),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -3409,7 +3608,7 @@ class _CreateSelectCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final List<String> options;
+  final List<_SelectOption> options;
   final ValueChanged<String> onChanged;
 
   @override
@@ -3466,7 +3665,7 @@ class _CreateSelectCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          context.t(option),
+                          context.t(option.label),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -3483,8 +3682,8 @@ class _CreateSelectCard extends StatelessWidget {
                 items: options
                     .map(
                       (option) => DropdownMenuItem<String>(
-                        value: option,
-                        child: Text(context.t(option)),
+                        value: option.value,
+                        child: Text(context.t(option.label)),
                       ),
                     )
                     .toList(),
@@ -3532,14 +3731,8 @@ class _CreateLabel extends StatelessWidget {
 }
 
 class _LivePreview extends StatelessWidget {
-  const _LivePreview({
-    required this.subject,
-    required this.preview,
-    required this.template,
-  });
+  const _LivePreview({required this.template});
 
-  final String subject;
-  final String preview;
   final AdminMailTemplate? template;
 
   @override
@@ -3621,15 +3814,8 @@ class _LivePreview extends StatelessWidget {
             ),
             child: SingleChildScrollView(
               child: template == null
-                  ? const SizedBox.shrink()
-                  : ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 360),
-                      child: _EmailPreviewCard(
-                        subject: subject,
-                        preview: preview,
-                        template: template!,
-                      ),
-                    ),
+                  ? const _PreviewEmptyState()
+                  : _EmailHtmlPreview(template: template!),
             ),
           ),
         ),
@@ -3638,243 +3824,79 @@ class _LivePreview extends StatelessWidget {
   }
 }
 
-class _EmailPreviewCard extends StatelessWidget {
-  const _EmailPreviewCard({
-    required this.subject,
-    required this.preview,
-    required this.template,
-  });
-
-  final String subject;
-  final String preview;
-  final AdminMailTemplate template;
+class _PreviewEmptyState extends StatelessWidget {
+  const _PreviewEmptyState();
 
   @override
   Widget build(BuildContext context) {
-    final headline = subject;
-    final body = preview;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.value),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.deepOcean.withValues(alpha: 0.08),
-            blurRadius: 28,
-            offset: const Offset(0, 16),
+    return SizedBox(
+      height: 320,
+      child: Center(
+        child: Text(
+          context.t('mail.campaign.templatePlaceholder'),
+          style: const TextStyle(
+            color: AppColors.support,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-            decoration: const BoxDecoration(color: AppColors.deepOcean),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: const Text(
-                    'Pateez News',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  headline,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '{{alici_adi}}',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.actionRed,
-                      borderRadius: BorderRadius.circular(AppRadius.value),
-                    ),
-                    child: Text(
-                      context.t(template.category.labelKey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  template.nameKey,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.deepOcean,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                    border: Border.all(color: AppColors.line),
-                  ),
-                  child: Text(
-                    body,
-                    style: const TextStyle(
-                      color: AppColors.inkSoft,
-                      fontSize: 13,
-                      height: 1.5,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: const [
-                    _PreviewToken('{{haber_basligi}}'),
-                    _PreviewToken('{{kategori}}'),
-                    _PreviewToken('{{tarih}}'),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Center(
-                  child: Container(
-                    height: 34,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.deepOcean,
-                      borderRadius: BorderRadius.circular(AppRadius.value),
-                    ),
-                    child: Text(
-                      context.t('mail.campaign.previewButton'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              border: Border(top: BorderSide(color: AppColors.softLine)),
-            ),
-            child: Column(
-              children: [
-                const Text(
-                  'Pateez News',
-                  style: TextStyle(
-                    color: AppColors.deepOcean,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  context.t('mail.campaign.previewFooter'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.support,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _PreviewToken extends StatelessWidget {
-  const _PreviewToken(this.label);
+class _EmailHtmlPreview extends StatelessWidget {
+  const _EmailHtmlPreview({required this.template});
 
-  final String label;
+  final AdminMailTemplate template;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.support.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.deepOcean,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0,
+    final html = _previewDocument(template.body);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      child: Container(
+        width: 640,
+        height: 760,
+        color: Colors.white,
+        child: InAppWebView(
+          key: ValueKey(
+            '${template.id}-${template.updatedAt.toIso8601String()}',
+          ),
+          initialData: InAppWebViewInitialData(
+            data: html,
+            baseUrl: WebUri('about:blank'),
+          ),
+          initialSettings: InAppWebViewSettings(
+            javaScriptEnabled: false,
+            isInspectable: kDebugMode,
+            transparentBackground: false,
+            mediaPlaybackRequiresUserGesture: true,
+            allowsInlineMediaPlayback: false,
+          ),
         ),
       ),
     );
+  }
+
+  String _previewDocument(String value) {
+    final html = value.trim();
+    if (html.toLowerCase().contains('<html')) return html;
+    return '''
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin: 0; padding: 0; background: #F2F4F7; }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
+  </style>
+</head>
+<body>$html</body>
+</html>
+''';
   }
 }
 

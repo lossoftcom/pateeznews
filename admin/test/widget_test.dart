@@ -1422,6 +1422,8 @@ class _FakeAdminStoriesRepository implements AdminStoriesRepository {
   List<String>? deletedStoryIds;
   StoryFormData? upsertedStory;
   String? upsertedStoryId;
+  AdminStoryContent? savedStoryContent;
+  String? savedStoryContentId;
 
   @override
   Future<void> deleteStory(String storyId) async {
@@ -1486,6 +1488,34 @@ class _FakeAdminStoriesRepository implements AdminStoriesRepository {
           _copyStory(rows[index], rowNumber: from + index + 1),
       ],
       totalCount: total,
+    );
+  }
+
+  @override
+  Future<AdminStoryContent> fetchStoryContent(String storyId) async {
+    final story = _stories.firstWhere(
+      (item) => item.id == storyId,
+      orElse: () => _stories.first,
+    );
+    return AdminStoryContent(
+      storyData: const <String, dynamic>{},
+      title: story.title,
+      markup: '',
+    );
+  }
+
+  @override
+  Future<void> saveStoryContent({
+    required String storyId,
+    required String title,
+    required Map<String, dynamic> storyData,
+    required String markup,
+  }) async {
+    savedStoryContentId = storyId;
+    savedStoryContent = AdminStoryContent(
+      storyData: storyData,
+      title: title,
+      markup: markup,
     );
   }
 

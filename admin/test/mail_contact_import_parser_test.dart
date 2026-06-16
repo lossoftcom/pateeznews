@@ -38,4 +38,39 @@ void main() {
     expect(contacts.single.lastName, 'Name');
     expect(contacts.single.phone, '+905559998877');
   });
+
+  test('maps reordered Turkish headers', () {
+    final bytes = Uint8List.fromList(
+      utf8.encode(
+        'Telefon;Soyad\u0131;E-posta;\u0130sim\r\n'
+        '+90 555 111 22 33;Y\u0131lmaz;ada@example.com;Ada Nur\r\n',
+      ),
+    );
+
+    final contacts = AdminContactImportParser.parseCsv(bytes);
+
+    expect(contacts, hasLength(1));
+    expect(contacts.single.email, 'ada@example.com');
+    expect(contacts.single.firstName, 'Ada Nur');
+    expect(contacts.single.lastName, 'Y\u0131lmaz');
+    expect(contacts.single.phone, '+90 555 111 22 33');
+  });
+
+  test('exports sample CSV and XLSX that can be imported again', () {
+    final csvContacts = AdminContactImportParser.parseCsv(
+      AdminContactImportParser.sampleCsvBytes(),
+    );
+    final xlsxContacts = AdminContactImportParser.parseXlsx(
+      AdminContactImportParser.sampleXlsxBytes(),
+    );
+
+    expect(csvContacts.map((contact) => contact.email), [
+      'nasip@example.com',
+      'okur@example.com',
+    ]);
+    expect(xlsxContacts.map((contact) => contact.email), [
+      'nasip@example.com',
+      'okur@example.com',
+    ]);
+  });
 }

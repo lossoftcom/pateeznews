@@ -6,6 +6,22 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8791", "--directory", "admin/assets/posta_builder"],
       "port": 8791
+    },
+    {
+      "name": "web-stories",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "admin/web_stories_editor/node_modules/vite/bin/vite.js",
+        "preview",
+        "--outDir",
+        "admin/assets/web_stories",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8792",
+        "--strictPort"
+      ],
+      "port": 8792
     }
   ]
 }

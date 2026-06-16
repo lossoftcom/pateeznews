@@ -73,16 +73,22 @@ export const POST: APIRoute = async ({ request }) => {
     const listId = await ensureList(body, access.session!.user.id);
     let contacts: ImportContact[] = [];
 
-    if (source === 'newsletter') {
+    if (source === 'newsletter' && (Array.isArray(body.contacts) || String(body.contacts || '').trim())) {
+      contacts = normalizeContacts(body.contacts);
+    } else if (source === 'newsletter') {
       const subscribers = await dbQuery(
-        `SELECT email
+        `SELECT email, full_name, phone
          FROM public.newsletter_subscribers
          WHERE status = 'active'
          ORDER BY created_at DESC
          LIMIT 5000`
       );
       contacts = subscribers.rows
-        .map((row: any) => ({ email: normalizeEmail(row.email) }))
+        .map((row: any) => ({
+          email: normalizeEmail(row.email),
+          ...splitName(String(row.full_name || '')),
+          phone: String(row.phone || '').trim(),
+        }))
         .filter((contact: ImportContact) => isEmail(contact.email));
     } else {
       contacts = normalizeContacts(body.contacts || body.text || body.csv || '');

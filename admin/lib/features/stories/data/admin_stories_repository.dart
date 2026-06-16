@@ -28,6 +28,17 @@ abstract class AdminStoriesRepository {
   Future<void> deleteStory(String storyId);
 
   Future<void> deleteStories(List<String> storyIds);
+
+  /// Loads the re-openable editor state for a single story.
+  Future<AdminStoryContent> fetchStoryContent(String storyId);
+
+  /// Persists the Web Stories editor output for an existing story.
+  Future<void> saveStoryContent({
+    required String storyId,
+    required String title,
+    required Map<String, dynamic> storyData,
+    required String markup,
+  });
 }
 
 class SupabaseAdminStoriesRepository implements AdminStoriesRepository {
@@ -146,6 +157,72 @@ class SupabaseAdminStoriesRepository implements AdminStoriesRepository {
       ],
     });
     _throwIfApiError(result, fallbackMessage: 'Seçili hikayeler silinemedi');
+  }
+
+  @override
+  Future<AdminStoryContent> fetchStoryContent(String storyId) async {
+    final result = await _postJson('/api/admin/query', {
+      'table': 'stories',
+      'method': 'select',
+      'select': 'id,title,story_data,story_markup',
+      'filters': [_idFilter(storyId)],
+      'range': {'from': 0, 'to': 0},
+    });
+    _throwIfApiError(result, fallbackMessage: 'Hikaye içeriği alınamadı');
+
+    final data = result['data'];
+    final rows = data is List ? data.whereType<Map>().toList() : const <Map>[];
+    if (rows.isEmpty) {
+      throw const AdminStoriesException('Hikaye bulunamadı');
+    }
+    final row = rows.first;
+    return AdminStoryContent(
+      storyData: _decodeJsonMap(row['story_data']),
+      title: _decodeText(row['title']),
+      markup: row['story_markup']?.toString() ?? '',
+    );
+  }
+
+  @override
+  Future<void> saveStoryContent({
+    required String storyId,
+    required String title,
+    required Map<String, dynamic> storyData,
+    required String markup,
+  }) async {
+    final values = <String, Object?>{
+      'story_data': storyData,
+      'story_markup': markup,
+    };
+    // Only overwrite the title when the editor actually has one, so an empty
+    // editor title never wipes the title set from the quick-add form.
+    if (title.trim().isNotEmpty) {
+      values['title'] = title.trim();
+    }
+    final result = await _postJson('/api/admin/query', {
+      'table': 'stories',
+      'method': 'update',
+      'values': values,
+      'filters': [_idFilter(storyId)],
+    });
+    _throwIfApiError(result, fallbackMessage: 'Hikaye kaydedilemedi');
+  }
+
+  Map<String, dynamic> _decodeJsonMap(Object? value) {
+    if (value is Map) {
+      return value.map((key, dynamic v) => MapEntry(key.toString(), v));
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map) {
+          return decoded.map((key, dynamic v) => MapEntry(key.toString(), v));
+        }
+      } catch (_) {
+        /* fall through to empty */
+      }
+    }
+    return <String, dynamic>{};
   }
 
   List<Map<String, Object?>> _storyOrders(String sortKey, bool ascending) {

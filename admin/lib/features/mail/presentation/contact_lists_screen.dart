@@ -16,6 +16,8 @@ import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../../subscribers/data/admin_subscribers_repository.dart';
+import '../../subscribers/presentation/subscribers_models.dart';
 import '../data/admin_mail_repository.dart';
 import 'contact_import_parser.dart';
 import 'contact_list_contacts_dialog.dart';
@@ -26,10 +28,12 @@ class ContactListsScreen extends StatefulWidget {
     super.key,
     required this.session,
     this.repository = const SupabaseAdminMailRepository(),
+    this.subscribersRepository = const SupabaseAdminSubscribersRepository(),
   });
 
   final AdminSession session;
   final AdminMailRepository repository;
+  final AdminSubscribersRepository subscribersRepository;
 
   @override
   State<ContactListsScreen> createState() => _ContactListsScreenState();
@@ -288,7 +292,10 @@ class _ContactListsScreenState extends State<ContactListsScreen> {
           child: SizedBox(
             width: width,
             height: height,
-            child: _ContactListDialog(list: list),
+            child: _ContactListDialog(
+              list: list,
+              subscribersRepository: widget.subscribersRepository,
+            ),
           ),
         );
       },
@@ -1280,9 +1287,13 @@ class _ContactListTableRow extends StatelessWidget {
 }
 
 class _ContactListDialog extends StatefulWidget {
-  const _ContactListDialog({required this.list});
+  const _ContactListDialog({
+    required this.list,
+    required this.subscribersRepository,
+  });
 
   final AdminContactList? list;
+  final AdminSubscribersRepository subscribersRepository;
 
   @override
   State<_ContactListDialog> createState() => _ContactListDialogState();
@@ -1342,6 +1353,10 @@ class _ContactListDialogState extends State<_ContactListDialog> {
   }
 
   Future<void> _chooseFile() async {
+    if (_source == AdminContactImportSource.subscribers) {
+      await _chooseSubscribers();
+      return;
+    }
     try {
       final file = await openFile(
         acceptedTypeGroups: [
@@ -1374,6 +1389,79 @@ class _ContactListDialogState extends State<_ContactListDialog> {
         tone: AdminToastTone.error,
       );
     }
+  }
+
+  Future<void> _downloadSample(AdminContactImportSource source) async {
+    if (source == AdminContactImportSource.subscribers) return;
+    final csvSource = source == AdminContactImportSource.csv;
+    final fileName = csvSource
+        ? 'pateez-kisi-listesi-ornegi.csv'
+        : 'pateez-kisi-listesi-ornegi.xlsx';
+    final bytes = csvSource
+        ? AdminContactImportParser.sampleCsvBytes()
+        : AdminContactImportParser.sampleXlsxBytes();
+    final mimeType = csvSource
+        ? 'text/csv'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    try {
+      final location = await getSaveLocation(
+        suggestedName: fileName,
+        acceptedTypeGroups: [
+          XTypeGroup(
+            label: csvSource ? 'CSV' : 'Excel',
+            extensions: [csvSource ? 'csv' : 'xlsx'],
+            mimeTypes: [mimeType],
+          ),
+        ],
+      );
+      if (location == null) return;
+      await XFile.fromData(
+        bytes,
+        mimeType: mimeType,
+        name: fileName,
+      ).saveTo(location.path);
+      if (!mounted) return;
+      AdminToast.show(
+        context,
+        message: context.t('mail.contacts.dialog.sampleDownloaded'),
+        tone: AdminToastTone.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      AdminToast.show(
+        context,
+        message: error.toString(),
+        tone: AdminToastTone.error,
+      );
+    }
+  }
+
+  Future<void> _chooseSubscribers() async {
+    final size = MediaQuery.sizeOf(context);
+    final rows = await showDialog<List<AdminContactImportRow>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: SizedBox(
+          width: (size.width - 48).clamp(640.0, 980.0).toDouble(),
+          height: (size.height - 48).clamp(560.0, 760.0).toDouble(),
+          child: _SubscriberPickerDialog(
+            repository: widget.subscribersRepository,
+          ),
+        ),
+      ),
+    );
+    if (rows == null || !mounted) return;
+    setState(() {
+      _importRows = rows;
+      _readyCount = rows.length;
+      _selectedFileName = context.t(
+        'mail.contacts.dialog.subscribersSelectedCount',
+        values: {'count': rows.length},
+      );
+    });
   }
 
   void _submit({required bool importContacts}) {
@@ -1487,6 +1575,7 @@ class _ContactListDialogState extends State<_ContactListDialog> {
                                     selectedFileName: _selectedFileName,
                                     readyCount: _readyCount,
                                     onChooseFile: _chooseFile,
+                                    onDownloadSample: _downloadSample,
                                   ),
                                   const SizedBox(height: 14),
                                   _ImportInfoPanel(
@@ -1515,6 +1604,7 @@ class _ContactListDialogState extends State<_ContactListDialog> {
                                         selectedFileName: _selectedFileName,
                                         readyCount: _readyCount,
                                         onChooseFile: _chooseFile,
+                                        onDownloadSample: _downloadSample,
                                       ),
                                     ),
                                     const SizedBox(width: 14),
@@ -1741,16 +1831,19 @@ class _ImportFilePanel extends StatelessWidget {
     required this.selectedFileName,
     required this.readyCount,
     required this.onChooseFile,
+    required this.onDownloadSample,
   });
 
   final AdminContactImportSource source;
   final String? selectedFileName;
   final int readyCount;
   final VoidCallback onChooseFile;
+  final ValueChanged<AdminContactImportSource> onDownloadSample;
 
   @override
   Widget build(BuildContext context) {
     final sourceShort = context.t(source.shortLabelKey);
+    final subscribers = source == AdminContactImportSource.subscribers;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1782,11 +1875,14 @@ class _ImportFilePanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'mail.contacts.dialog.csvTitle'
-                            : 'mail.contacts.dialog.excelTitle',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'mail.contacts.dialog.csvTitle',
+                        AdminContactImportSource.excel =>
+                          'mail.contacts.dialog.excelTitle',
+                        AdminContactImportSource.subscribers =>
+                          'mail.contacts.dialog.subscribersTitle',
+                      }),
                       style: const TextStyle(
                         color: AppColors.deepOcean,
                         fontSize: 18,
@@ -1796,11 +1892,14 @@ class _ImportFilePanel extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'mail.contacts.dialog.csvSubtitle'
-                            : 'mail.contacts.dialog.excelSubtitle',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'mail.contacts.dialog.csvSubtitle',
+                        AdminContactImportSource.excel =>
+                          'mail.contacts.dialog.excelSubtitle',
+                        AdminContactImportSource.subscribers =>
+                          'mail.contacts.dialog.subscribersSubtitle',
+                      }),
                       style: const TextStyle(
                         color: AppColors.inkSoft,
                         fontSize: 13,
@@ -1816,7 +1915,29 @@ class _ImportFilePanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _ImportSteps(source: source),
-          const SizedBox(height: 96),
+          const SizedBox(height: 18),
+          if (!subscribers)
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                _SoftActionButton(
+                  icon: Symbols.download,
+                  label: context.t('mail.contacts.dialog.downloadCsvSample'),
+                  selected: source == AdminContactImportSource.csv,
+                  onPressed: () =>
+                      onDownloadSample(AdminContactImportSource.csv),
+                ),
+                _SoftActionButton(
+                  icon: Symbols.download,
+                  label: context.t('mail.contacts.dialog.downloadExcelSample'),
+                  selected: source == AdminContactImportSource.excel,
+                  onPressed: () =>
+                      onDownloadSample(AdminContactImportSource.excel),
+                ),
+              ],
+            ),
+          SizedBox(height: subscribers ? 82 : 58),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1833,8 +1954,8 @@ class _ImportFilePanel extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.value),
                   ),
-                  child: const SymbolIcon(
-                    Symbols.upload,
+                  child: SymbolIcon(
+                    subscribers ? Symbols.groups_outlined : Symbols.upload,
                     color: AppColors.deepOcean,
                     size: 22,
                   ),
@@ -1845,11 +1966,14 @@ class _ImportFilePanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        context.t(
-                          source == AdminContactImportSource.csv
-                              ? 'mail.contacts.dialog.csvUploadTitle'
-                              : 'mail.contacts.dialog.excelUploadTitle',
-                        ),
+                        context.t(switch (source) {
+                          AdminContactImportSource.csv =>
+                            'mail.contacts.dialog.csvUploadTitle',
+                          AdminContactImportSource.excel =>
+                            'mail.contacts.dialog.excelUploadTitle',
+                          AdminContactImportSource.subscribers =>
+                            'mail.contacts.dialog.subscribersSelectTitle',
+                        }),
                         style: const TextStyle(
                           color: AppColors.deepOcean,
                           fontWeight: FontWeight.w700,
@@ -1859,11 +1983,14 @@ class _ImportFilePanel extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         selectedFileName ??
-                            context.t(
-                              source == AdminContactImportSource.csv
-                                  ? 'mail.contacts.dialog.csvUploadSubtitle'
-                                  : 'mail.contacts.dialog.excelUploadSubtitle',
-                            ),
+                            context.t(switch (source) {
+                              AdminContactImportSource.csv =>
+                                'mail.contacts.dialog.csvUploadSubtitle',
+                              AdminContactImportSource.excel =>
+                                'mail.contacts.dialog.excelUploadSubtitle',
+                              AdminContactImportSource.subscribers =>
+                                'mail.contacts.dialog.subscribersSelectSubtitle',
+                            }),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -1878,8 +2005,14 @@ class _ImportFilePanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 _DarkButton(
-                  icon: Symbols.folder_open,
-                  label: context.t('mail.contacts.dialog.chooseFile'),
+                  icon: subscribers
+                      ? Symbols.group_outlined
+                      : Symbols.folder_open,
+                  label: context.t(
+                    subscribers
+                        ? 'mail.contacts.dialog.chooseSubscribers'
+                        : 'mail.contacts.dialog.chooseFile',
+                  ),
                   onPressed: onChooseFile,
                 ),
               ],
@@ -1918,6 +2051,7 @@ class _ImportInfoPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subscribers = source == AdminContactImportSource.subscribers;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1949,10 +2083,23 @@ class _ImportInfoPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          _RuleText(label: context.t('mail.contacts.dialog.ruleHeader')),
-          _RuleText(label: context.t('mail.contacts.dialog.ruleEmail')),
-          _RuleText(label: context.t('mail.contacts.dialog.ruleDuplicate')),
-          _RuleText(label: context.t('mail.contacts.dialog.ruleUtf')),
+          if (subscribers) ...[
+            _RuleText(
+              label: context.t('mail.contacts.dialog.ruleSubscribersActive'),
+            ),
+            _RuleText(
+              label: context.t('mail.contacts.dialog.ruleSubscribersSelect'),
+            ),
+            _RuleText(label: context.t('mail.contacts.dialog.ruleDuplicate')),
+            _RuleText(
+              label: context.t('mail.contacts.dialog.ruleSubscribersCopy'),
+            ),
+          ] else ...[
+            _RuleText(label: context.t('mail.contacts.dialog.ruleHeader')),
+            _RuleText(label: context.t('mail.contacts.dialog.ruleEmail')),
+            _RuleText(label: context.t('mail.contacts.dialog.ruleDuplicate')),
+            _RuleText(label: context.t('mail.contacts.dialog.ruleUtf')),
+          ],
           const SizedBox(height: 24),
           const Divider(color: AppColors.line),
           const SizedBox(height: 8),
@@ -2023,11 +2170,14 @@ class _SourceOption extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'mail.contacts.dialog.csvFile'
-                            : 'mail.contacts.dialog.excelFile',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'mail.contacts.dialog.csvFile',
+                        AdminContactImportSource.excel =>
+                          'mail.contacts.dialog.excelFile',
+                        AdminContactImportSource.subscribers =>
+                          'mail.contacts.dialog.subscribersFile',
+                      }),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -2038,11 +2188,14 @@ class _SourceOption extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'mail.contacts.dialog.csvFileSubtitle'
-                            : 'mail.contacts.dialog.excelFileSubtitle',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'mail.contacts.dialog.csvFileSubtitle',
+                        AdminContactImportSource.excel =>
+                          'mail.contacts.dialog.excelFileSubtitle',
+                        AdminContactImportSource.subscribers =>
+                          'mail.contacts.dialog.subscribersFileSubtitle',
+                      }),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -2091,7 +2244,11 @@ class _ImportSteps extends StatelessWidget {
   Widget build(BuildContext context) {
     final stepLabels = [
       context.t('mail.contacts.dialog.source'),
-      context.t('mail.contacts.dialog.file'),
+      context.t(
+        source == AdminContactImportSource.subscribers
+            ? 'mail.contacts.dialog.subscribersStep'
+            : 'mail.contacts.dialog.file',
+      ),
       context.t('mail.contacts.dialog.saveStep'),
     ];
     return Row(
@@ -2396,6 +2553,501 @@ class _ExampleTable extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SubscriberPickerDialog extends StatefulWidget {
+  const _SubscriberPickerDialog({required this.repository});
+
+  final AdminSubscribersRepository repository;
+
+  @override
+  State<_SubscriberPickerDialog> createState() =>
+      _SubscriberPickerDialogState();
+}
+
+class _SubscriberPickerDialogState extends State<_SubscriberPickerDialog> {
+  static const _subscriberFetchPageSize = 500;
+
+  final _searchController = TextEditingController();
+  final _selectedIds = <String>{};
+  var _subscribers = const <AdminSubscriber>[];
+  var _query = '';
+  var _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSubscribers());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSubscribers() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final subscribers = <AdminSubscriber>[];
+      var page = 1;
+      while (mounted) {
+        final result = await widget.repository.fetchSubscribers(
+          search: '',
+          page: page,
+          pageSize: _subscriberFetchPageSize,
+          sortKey: 'date',
+          sortAscending: false,
+        );
+        subscribers.addAll(result.subscribers);
+        if (result.subscribers.length < _subscriberFetchPageSize ||
+            subscribers.length >= result.totalCount) {
+          break;
+        }
+        page += 1;
+      }
+      if (!mounted) return;
+      setState(() {
+        _subscribers = subscribers;
+        _selectedIds
+          ..clear()
+          ..addAll(
+            subscribers
+                .where((subscriber) => subscriber.active)
+                .map((subscriber) => subscriber.id),
+          );
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.toString();
+      });
+    }
+  }
+
+  List<AdminSubscriber> get _visibleSubscribers {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return _subscribers;
+    return _subscribers
+        .where((subscriber) {
+          final haystack = [
+            subscriber.fullName,
+            subscriber.email,
+            subscriber.phone,
+            subscriber.city,
+            subscriber.source,
+          ].join(' ').toLowerCase();
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
+  }
+
+  Set<String> get _activeVisibleIds => _visibleSubscribers
+      .where((subscriber) => subscriber.active)
+      .map((subscriber) => subscriber.id)
+      .toSet();
+
+  void _changeSearch(String value) {
+    setState(() => _query = value);
+  }
+
+  void _toggleSubscriber(AdminSubscriber subscriber) {
+    if (!subscriber.active) return;
+    setState(() {
+      if (_selectedIds.contains(subscriber.id)) {
+        _selectedIds.remove(subscriber.id);
+      } else {
+        _selectedIds.add(subscriber.id);
+      }
+    });
+  }
+
+  void _toggleAllVisible() {
+    final ids = _activeVisibleIds;
+    if (ids.isEmpty) return;
+    setState(() {
+      if (_selectedIds.containsAll(ids)) {
+        _selectedIds.removeAll(ids);
+      } else {
+        _selectedIds.addAll(ids);
+      }
+    });
+  }
+
+  void _submit() {
+    final rows = _subscribers
+        .where(
+          (subscriber) =>
+              subscriber.active && _selectedIds.contains(subscriber.id),
+        )
+        .map(_rowFromSubscriber)
+        .toList(growable: false);
+    Navigator.of(context).pop(rows);
+  }
+
+  AdminContactImportRow _rowFromSubscriber(AdminSubscriber subscriber) {
+    final parts = subscriber.fullName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    return AdminContactImportRow(
+      email: subscriber.email.trim().toLowerCase(),
+      firstName: parts.isEmpty ? '' : parts.first,
+      lastName: parts.length < 2 ? '' : parts.skip(1).join(' '),
+      phone: subscriber.phone.trim(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visibleSubscribers;
+    final activeVisibleIds = _activeVisibleIds;
+    final allVisibleSelected =
+        activeVisibleIds.isNotEmpty &&
+        _selectedIds.containsAll(activeVisibleIds);
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 22, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  child: const SymbolIcon(
+                    Symbols.groups_outlined,
+                    color: Color(0xFF2563EB),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.t('mail.contacts.subscribersPicker.title'),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.deepOcean,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        context.t('mail.contacts.subscribersPicker.subtitle'),
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 21,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _SearchField(
+                    controller: _searchController,
+                    query: _query,
+                    hint: context.t('mail.contacts.subscribersPicker.search'),
+                    onChanged: _changeSearch,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _SecondaryActionButton(
+                  icon: allVisibleSelected ? Symbols.close : Symbols.check,
+                  label: context.t(
+                    allVisibleSelected
+                        ? 'mail.contacts.subscribersPicker.clearVisible'
+                        : 'mail.contacts.subscribersPicker.selectAll',
+                  ),
+                  onPressed: _toggleAllVisible,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                    ? _SubscriberPickerError(
+                        message: _error!,
+                        onRetry: _loadSubscribers,
+                      )
+                    : visible.isEmpty
+                    ? Center(
+                        child: Text(
+                          context.t('mail.contacts.subscribersPicker.empty'),
+                          style: const TextStyle(
+                            color: AppColors.support,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: visible.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AppColors.line),
+                        itemBuilder: (context, index) {
+                          final subscriber = visible[index];
+                          return _SubscriberPickerRow(
+                            subscriber: subscriber,
+                            selected: _selectedIds.contains(subscriber.id),
+                            onTap: () => _toggleSubscriber(subscriber),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t(
+                      'mail.contacts.subscribersPicker.selectedCount',
+                      values: {'count': _selectedIds.length},
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                _TextOnlyButton(
+                  label: context.t('common.cancel'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                const SizedBox(width: 10),
+                _PrimaryActionButton(
+                  icon: Symbols.check,
+                  label: context.t('mail.contacts.subscribersPicker.confirm'),
+                  backgroundColor: AppColors.deepOcean,
+                  onPressed: _selectedIds.isEmpty ? null : _submit,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubscriberPickerRow extends StatelessWidget {
+  const _SubscriberPickerRow({
+    required this.subscriber,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AdminSubscriber subscriber;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = subscriber.active;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: Container(
+          color: selected
+              ? AppColors.deepOcean.withValues(alpha: 0.04)
+              : Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              _SelectionBox(selected: selected, enabled: enabled),
+              const SizedBox(width: 14),
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: Text(
+                  subscriber.initials,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 4,
+                child: Text(
+                  subscriber.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: enabled ? AppColors.deepOcean : AppColors.support,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 5,
+                child: Text(
+                  subscriber.email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (subscriber.phone.trim().isNotEmpty)
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    subscriber.phone,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.inkSoft,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                )
+              else
+                const Spacer(flex: 3),
+              const SizedBox(width: 12),
+              _StatusBadge(
+                label: context.t(
+                  enabled
+                      ? 'mail.contacts.status.active'
+                      : 'mail.contacts.status.passive',
+                ),
+                color: enabled ? const Color(0xFF198754) : AppColors.support,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectionBox extends StatelessWidget {
+  const _SelectionBox({required this.selected, required this.enabled});
+
+  final bool selected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.deepOcean : Colors.white,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(
+          color: selected
+              ? AppColors.deepOcean
+              : enabled
+              ? AppColors.line
+              : AppColors.softLine,
+        ),
+      ),
+      child: selected
+          ? const SymbolIcon(Symbols.check, color: Colors.white, size: 14)
+          : null,
+    );
+  }
+}
+
+class _SubscriberPickerError extends StatelessWidget {
+  const _SubscriberPickerError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.actionRed,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SecondaryActionButton(
+              icon: Symbols.refresh,
+              label: context.t('common.retry'),
+              onPressed: onRetry,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2807,6 +3459,56 @@ class _SearchField extends StatelessWidget {
   }
 }
 
+class _SoftActionButton extends StatelessWidget {
+  const _SoftActionButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          backgroundColor: selected
+              ? AppColors.deepOcean.withValues(alpha: 0.08)
+              : AppColors.surface,
+          foregroundColor: AppColors.deepOcean,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            side: BorderSide(
+              color: selected ? AppColors.deepOcean : AppColors.line,
+            ),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(icon, color: AppColors.deepOcean, size: 16),
+            const SizedBox(width: 7),
+            Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PrimaryActionButton extends StatelessWidget {
   const _PrimaryActionButton({
     required this.icon,
@@ -2817,7 +3519,7 @@ class _PrimaryActionButton extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Color backgroundColor;
 
   @override
@@ -2828,8 +3530,12 @@ class _PrimaryActionButton extends StatelessWidget {
         onPressed: onPressed,
         style:
             TextButton.styleFrom(
-              backgroundColor: backgroundColor,
-              foregroundColor: Colors.white,
+              backgroundColor: onPressed == null
+                  ? AppColors.softLine
+                  : backgroundColor,
+              foregroundColor: onPressed == null
+                  ? AppColors.support
+                  : Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: RoundedRectangleBorder(

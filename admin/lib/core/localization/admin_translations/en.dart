@@ -297,6 +297,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "stories.actions.deactivate": "Unpublish",
   "stories.actions.tooltip": "Story actions",
   "stories.actions.viewMedia": "View media",
+  "stories.actions.editInEditor": "Edit in editor",
   "stories.addButton": "Add Story",
   "stories.column.action": "Action",
   "stories.column.expires": "Expires",
@@ -311,6 +312,12 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "stories.dialog.addTitle": "Add Story",
   "stories.dialog.editTitle": "Edit Story",
   "stories.dialog.subtitle": "Define story information.",
+  "stories.editor.title": "Web Stories Editor",
+  "stories.editor.subtitle":
+      "Design the story in the Google Web Stories editor.",
+  "stories.editor.saved": "Story saved",
+  "stories.editor.saving": "Saving…",
+  "stories.editor.loadError": "Could not open the story editor",
   "stories.empty": "No stories found",
   "stories.field.expiresAt": "Expires At",
   "stories.field.mediaType": "Media Type",
@@ -520,6 +527,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "common.action": "Action",
   "common.all": "All",
   "common.cancel": "Cancel",
+  "common.retry": "Retry",
   "common.close": "Close",
   "common.clicking": "Clicks",
   "common.copied": "Copied",
@@ -1043,6 +1051,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "mail.contacts.deleteTitle": "Delete contact list?",
   "mail.contacts.dialog.beforeStart": "Before you start",
   "mail.contacts.dialog.chooseFile": "Choose File",
+  "mail.contacts.dialog.chooseSubscribers": "Choose Subscribers",
   "mail.contacts.dialog.csvFile": "1. CSV File",
   "mail.contacts.dialog.csvFileSubtitle": ".csv or .txt",
   "mail.contacts.dialog.csvSubtitle":
@@ -1062,6 +1071,8 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "mail.contacts.dialog.excelUploadSubtitle":
       "Choose your Excel file. Supported format: .xlsx",
   "mail.contacts.dialog.excelUploadTitle": "Upload Excel file",
+  "mail.contacts.dialog.downloadCsvSample": "Download CSV sample",
+  "mail.contacts.dialog.downloadExcelSample": "Download Excel sample",
   "mail.contacts.dialog.file": "File",
   "mail.contacts.dialog.fileReady": "{count} contacts ready",
   "mail.contacts.dialog.listName": "List Name",
@@ -1077,8 +1088,15 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "mail.contacts.dialog.ruleEmail": "The email column is required.",
   "mail.contacts.dialog.ruleHeader":
       "If the first row is a header, fields are detected automatically.",
+  "mail.contacts.dialog.ruleSubscribersActive":
+      "Only active subscribers are imported.",
+  "mail.contacts.dialog.ruleSubscribersCopy":
+      "Subscriber details are copied into the contact list.",
+  "mail.contacts.dialog.ruleSubscribersSelect":
+      "Select subscribers one by one or in bulk.",
   "mail.contacts.dialog.ruleUtf":
       "UTF-8 is recommended for special characters.",
+  "mail.contacts.dialog.sampleDownloaded": "Sample file downloaded",
   "mail.contacts.dialog.saveAndImport": "Save",
   "mail.contacts.dialog.saveStep": "Save",
   "mail.contacts.dialog.selectedSource": "Selected: {source}",
@@ -1087,6 +1105,17 @@ const Map<String, String> adminEnTranslations = <String, String>{
       "Choose where the contacts will come from.",
   "mail.contacts.dialog.sourceTitle": "Import Source",
   "mail.contacts.dialog.status": "Status",
+  "mail.contacts.dialog.subscribersFile": "3. Add from Subscribers",
+  "mail.contacts.dialog.subscribersFileSubtitle": "Live subscriber module",
+  "mail.contacts.dialog.subscribersSelectSubtitle":
+      "Choose active people from the subscriber list.",
+  "mail.contacts.dialog.subscribersSelectTitle": "Subscriber selection",
+  "mail.contacts.dialog.subscribersSelectedCount":
+      "{count} subscribers selected",
+  "mail.contacts.dialog.subscribersStep": "Subscribers",
+  "mail.contacts.dialog.subscribersSubtitle":
+      "Add live records from the Subscribers module to this contact list.",
+  "mail.contacts.dialog.subscribersTitle": "Add from subscribers",
   "mail.contacts.empty": "No contact list found",
   "mail.contacts.example.email": "Email",
   "mail.contacts.example.firstName": "First name",
@@ -1113,6 +1142,18 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "mail.contacts.source.csvShort": "CSV",
   "mail.contacts.source.excel": "Excel File",
   "mail.contacts.source.excelShort": "Excel",
+  "mail.contacts.source.subscribers": "Subscribers",
+  "mail.contacts.source.subscribersShort": "Subscribers",
+  "mail.contacts.subscribersPicker.clearVisible": "Clear visible",
+  "mail.contacts.subscribersPicker.confirm": "Add Selected",
+  "mail.contacts.subscribersPicker.empty": "No subscriber found",
+  "mail.contacts.subscribersPicker.search": "Search subscribers...",
+  "mail.contacts.subscribersPicker.selectAll": "Select All",
+  "mail.contacts.subscribersPicker.selectedCount":
+      "{count} subscribers selected",
+  "mail.contacts.subscribersPicker.subtitle":
+      "Select active subscribers and add them to this contact list.",
+  "mail.contacts.subscribersPicker.title": "Add Contacts from Subscribers",
   "mail.contacts.status.active": "Active",
   "mail.contacts.status.passive": "Passive",
   "mail.contacts.sync.closed": "Closed",

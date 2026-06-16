@@ -1,0 +1,22 @@
+{
+  "name": "pateeznews-web-stories-editor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Vendored Google Web Stories (story-editor) bundle embedded in the Flutter admin.",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@googleforcreators/element-library": "0.1.202410011217",
+    "@googleforcreators/elements": "0.1.202410011217",
+    "@googleforcreators/story-editor": "0.1.202410011217",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "vite": "5.4.11"
+  }
+}

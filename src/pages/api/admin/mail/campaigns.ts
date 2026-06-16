@@ -195,6 +195,7 @@ export const POST: APIRoute = async ({ request }) => {
     const payload = campaignPayload(body);
     payload.kampanya_adi = String(payload.kampanya_adi || '').trim();
     payload.konu = String(payload.konu || '').trim();
+    payload.durum = String(payload.durum || 'draft').trim();
     payload.alici_sayisi = Number(payload.alici_sayisi || await contactCount(payload.kisi_listesi_id)) || 0;
     payload.kullanici = access.session!.user.id;
     payload.guncelleme_tarihi = new Date().toISOString();

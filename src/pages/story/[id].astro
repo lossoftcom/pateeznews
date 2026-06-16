@@ -1,0 +1,49 @@
+---
+import { dbQuery } from '@/lib/server/supabaseDb';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+const notFound = () =>
+  new Response('Story not found', {
+    status: 404,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+
+const renderStory = async (): Promise<Response> => {
+  const storyId = String(id || '').trim();
+  if (!storyId) return notFound();
+
+  try {
+    const result = await dbQuery<{
+      story_markup: string | null;
+      is_active: boolean | null;
+      expires_at: string | null;
+    }>(
+      'SELECT story_markup, is_active, expires_at FROM public.stories WHERE id = $1 LIMIT 1',
+      [storyId],
+    );
+    const row = result.rows?.[0];
+    if (!row || row.is_active === false) return notFound();
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
+      return notFound();
+    }
+    const markup = String(row.story_markup || '').trim();
+    if (!markup) return notFound();
+
+    return new Response(markup, {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'public, max-age=300',
+      },
+    });
+  } catch (_) {
+    // Invalid UUID or database error -> treat as missing story.
+    return notFound();
+  }
+};
+
+return await renderStory();
+---

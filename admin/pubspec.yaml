@@ -57,6 +57,7 @@ dependencies:
   emoji_picker_flutter: ^4.4.0
   image_picker: ^1.2.2
   csv: ^8.0.0
+  archive: ^3.6.1
   spreadsheet_decoder: ^2.3.0
 
 dev_dependencies:
@@ -88,8 +89,8 @@ flutter:
   config:
     enable-swift-package-manager: true
 
-  # Admin icons use only the local RemixIcon font.
-  uses-material-design: false
+  # Admin uses the local RemixIcon font plus package-provided Material icons.
+  uses-material-design: true
   fonts:
     - family: PateezSans
       fonts:
@@ -179,6 +180,8 @@ flutter:
     - assets/images/social/
     - assets/posta_builder/
     - assets/posta_builder/vendor/
+    - assets/web_stories/
+    - assets/web_stories/assets/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

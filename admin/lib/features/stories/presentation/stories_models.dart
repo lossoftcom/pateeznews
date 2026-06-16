@@ -88,3 +88,18 @@ class AdminStoriesPageResult {
   final List<AdminStory> stories;
   final int totalCount;
 }
+
+/// Re-openable editor payload for a single story, used by the Web Stories editor.
+class AdminStoryContent {
+  const AdminStoryContent({
+    required this.storyData,
+    required this.title,
+    required this.markup,
+  });
+
+  /// Saved editor state (the `story_data` jsonb column); empty map for a story
+  /// that has never been opened in the editor.
+  final Map<String, dynamic> storyData;
+  final String title;
+  final String markup;
+}

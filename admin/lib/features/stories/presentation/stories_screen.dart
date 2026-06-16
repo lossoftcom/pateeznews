@@ -16,6 +16,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../../news/presentation/widgets/news_link_opener.dart';
 import '../data/admin_stories_repository.dart';
+import 'editor/web_stories_editor.dart';
 import 'stories_models.dart';
 
 class StoriesScreen extends StatefulWidget {
@@ -35,6 +36,11 @@ class StoriesScreen extends StatefulWidget {
 class _StoriesScreenState extends State<StoriesScreen> {
   final Set<String> _selectedStoryIds = {};
   Timer? _searchDebounce;
+
+  // When non-null the screen swaps the list for the full-page Web Stories editor.
+  AdminStory? _editorStory;
+  Map<String, dynamic>? _editorInitialStory;
+  bool _editorSaved = false;
 
   var _stories = const <AdminStory>[];
   var _loading = true;
@@ -172,6 +178,45 @@ class _StoriesScreenState extends State<StoriesScreen> {
     );
   }
 
+  Future<void> _openStoryEditor(AdminStory story) async {
+    AdminStoryContent content;
+    try {
+      content = await widget.repository.fetchStoryContent(story.id);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorText = error.toString());
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _editorStory = story;
+      _editorInitialStory = content.storyData;
+      _editorSaved = false;
+    });
+  }
+
+  Future<void> _persistStoryEditorSave(WebStorySaveResult result) async {
+    final story = _editorStory;
+    if (story == null) return;
+    await widget.repository.saveStoryContent(
+      storyId: story.id,
+      title: result.title,
+      storyData: result.storyData,
+      markup: result.markup,
+    );
+    _editorSaved = true;
+  }
+
+  void _closeStoryEditor() {
+    final didSave = _editorSaved;
+    setState(() {
+      _editorStory = null;
+      _editorInitialStory = null;
+      _editorSaved = false;
+    });
+    if (didSave) unawaited(_loadStories());
+  }
+
   Future<void> _toggleStatus(AdminStory story) async {
     await _runMutation(() => widget.repository.toggleStatus(story));
   }
@@ -235,6 +280,16 @@ class _StoriesScreenState extends State<StoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final editorStory = _editorStory;
+    final editorInitial = _editorInitialStory;
+    if (editorStory != null && editorInitial != null) {
+      return _StoryEditorView(
+        story: editorStory,
+        initialStory: editorInitial,
+        onSave: _persistStoryEditorSave,
+        onBack: _closeStoryEditor,
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
@@ -269,6 +324,7 @@ class _StoriesScreenState extends State<StoriesScreen> {
                 onSort: _changeSort,
                 onAddStory: () => unawaited(_showStoryDialog()),
                 onEditStory: (story) => unawaited(_showStoryDialog(story)),
+                onEditInEditor: (story) => unawaited(_openStoryEditor(story)),
                 onToggleStatus: (story) => unawaited(_toggleStatus(story)),
                 onOpenMedia: _openMedia,
                 onDeleteStory: (story) => unawaited(_deleteStory(story)),
@@ -364,6 +420,7 @@ class _StoriesTableCard extends StatelessWidget {
     required this.onSort,
     required this.onAddStory,
     required this.onEditStory,
+    required this.onEditInEditor,
     required this.onToggleStatus,
     required this.onOpenMedia,
     required this.onDeleteStory,
@@ -386,6 +443,7 @@ class _StoriesTableCard extends StatelessWidget {
   final ValueChanged<String> onSort;
   final VoidCallback onAddStory;
   final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onEditInEditor;
   final ValueChanged<AdminStory> onToggleStatus;
   final ValueChanged<AdminStory> onOpenMedia;
   final ValueChanged<AdminStory> onDeleteStory;
@@ -411,6 +469,7 @@ class _StoriesTableCard extends StatelessWidget {
             onToggleStory: onToggleStory,
             onAddStory: onAddStory,
             onEditStory: onEditStory,
+            onEditInEditor: onEditInEditor,
             onToggleStatus: onToggleStatus,
             onOpenMedia: onOpenMedia,
             onDeleteStory: onDeleteStory,
@@ -440,6 +499,7 @@ class _StoriesTableCard extends StatelessWidget {
                 onToggleAllStories: onToggleAllStories,
                 onSort: onSort,
                 onEditStory: onEditStory,
+                onEditInEditor: onEditInEditor,
                 onToggleStatus: onToggleStatus,
                 onOpenMedia: onOpenMedia,
                 onDeleteStory: onDeleteStory,
@@ -474,6 +534,7 @@ class _StoriesMobileView extends StatelessWidget {
     required this.onToggleStory,
     required this.onAddStory,
     required this.onEditStory,
+    required this.onEditInEditor,
     required this.onToggleStatus,
     required this.onOpenMedia,
     required this.onDeleteStory,
@@ -492,6 +553,7 @@ class _StoriesMobileView extends StatelessWidget {
   final ValueChanged<String> onToggleStory;
   final VoidCallback onAddStory;
   final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onEditInEditor;
   final ValueChanged<AdminStory> onToggleStatus;
   final ValueChanged<AdminStory> onOpenMedia;
   final ValueChanged<AdminStory> onDeleteStory;
@@ -555,6 +617,7 @@ class _StoriesMobileView extends StatelessWidget {
                 selected: selectedStoryIds.contains(story.id),
                 onToggle: () => onToggleStory(story.id),
                 onEditStory: onEditStory,
+                onEditInEditor: onEditInEditor,
                 onToggleStatus: onToggleStatus,
                 onOpenMedia: onOpenMedia,
                 onDeleteStory: onDeleteStory,
@@ -581,6 +644,7 @@ class _StoriesMobileCard extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onEditStory,
+    required this.onEditInEditor,
     required this.onToggleStatus,
     required this.onOpenMedia,
     required this.onDeleteStory,
@@ -590,6 +654,7 @@ class _StoriesMobileCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onEditInEditor;
   final ValueChanged<AdminStory> onToggleStatus;
   final ValueChanged<AdminStory> onOpenMedia;
   final ValueChanged<AdminStory> onDeleteStory;
@@ -667,6 +732,11 @@ class _StoriesMobileCard extends StatelessWidget {
                     icon: Symbols.edit_square,
                     label: context.t('Edit'),
                     onTap: () => onEditStory(story),
+                  ),
+                  AdminMobileMenuAction(
+                    icon: Symbols.amp_stories_rounded,
+                    label: context.t('stories.actions.editInEditor'),
+                    onTap: () => onEditInEditor(story),
                   ),
                   AdminMobileMenuAction(
                     icon: story.isActive
@@ -1048,6 +1118,7 @@ class _StoriesDataTable extends StatelessWidget {
     required this.onToggleAllStories,
     required this.onSort,
     required this.onEditStory,
+    required this.onEditInEditor,
     required this.onToggleStatus,
     required this.onOpenMedia,
     required this.onDeleteStory,
@@ -1061,6 +1132,7 @@ class _StoriesDataTable extends StatelessWidget {
   final VoidCallback onToggleAllStories;
   final ValueChanged<String> onSort;
   final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onEditInEditor;
   final ValueChanged<AdminStory> onToggleStatus;
   final ValueChanged<AdminStory> onOpenMedia;
   final ValueChanged<AdminStory> onDeleteStory;
@@ -1135,6 +1207,7 @@ class _StoriesDataTable extends StatelessWidget {
                                     ),
                                     onToggle: () => onToggleStory(story.id),
                                     onEditStory: onEditStory,
+                                    onEditInEditor: onEditInEditor,
                                     onToggleStatus: onToggleStatus,
                                     onOpenMedia: onOpenMedia,
                                     onDeleteStory: onDeleteStory,
@@ -1311,6 +1384,7 @@ class _StoriesRow extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onEditStory,
+    required this.onEditInEditor,
     required this.onToggleStatus,
     required this.onOpenMedia,
     required this.onDeleteStory,
@@ -1321,6 +1395,7 @@ class _StoriesRow extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onEditInEditor;
   final ValueChanged<AdminStory> onToggleStatus;
   final ValueChanged<AdminStory> onOpenMedia;
   final ValueChanged<AdminStory> onDeleteStory;
@@ -1382,6 +1457,7 @@ class _StoriesRow extends StatelessWidget {
               child: _StoriesRowMenu(
                 story: story,
                 onEditStory: onEditStory,
+                onEditInEditor: onEditInEditor,
                 onToggleStatus: onToggleStatus,
                 onOpenMedia: onOpenMedia,
                 onDeleteStory: onDeleteStory,
@@ -1779,6 +1855,7 @@ class _StoriesRowMenu extends StatefulWidget {
   const _StoriesRowMenu({
     required this.story,
     required this.onEditStory,
+    required this.onEditInEditor,
     required this.onToggleStatus,
     required this.onOpenMedia,
     required this.onDeleteStory,
@@ -1786,6 +1863,7 @@ class _StoriesRowMenu extends StatefulWidget {
 
   final AdminStory story;
   final ValueChanged<AdminStory> onEditStory;
+  final ValueChanged<AdminStory> onEditInEditor;
   final ValueChanged<AdminStory> onToggleStatus;
   final ValueChanged<AdminStory> onOpenMedia;
   final ValueChanged<AdminStory> onDeleteStory;
@@ -1828,6 +1906,8 @@ class _StoriesRowMenuState extends State<_StoriesRowMenu> {
                 story: widget.story,
                 onEdit: () =>
                     _runAndClose(() => widget.onEditStory(widget.story)),
+                onEditInEditor: () =>
+                    _runAndClose(() => widget.onEditInEditor(widget.story)),
                 onToggleStatus: () =>
                     _runAndClose(() => widget.onToggleStatus(widget.story)),
                 onOpenMedia: () =>
@@ -1896,6 +1976,7 @@ class _StoriesMenuCard extends StatelessWidget {
   const _StoriesMenuCard({
     required this.story,
     required this.onEdit,
+    required this.onEditInEditor,
     required this.onToggleStatus,
     required this.onOpenMedia,
     required this.onDelete,
@@ -1903,6 +1984,7 @@ class _StoriesMenuCard extends StatelessWidget {
 
   final AdminStory story;
   final VoidCallback onEdit;
+  final VoidCallback onEditInEditor;
   final VoidCallback onToggleStatus;
   final VoidCallback onOpenMedia;
   final VoidCallback onDelete;
@@ -1933,6 +2015,11 @@ class _StoriesMenuCard extends StatelessWidget {
               icon: Symbols.edit_square,
               label: 'Edit',
               onTap: onEdit,
+            ),
+            _StoriesMenuItem(
+              icon: Symbols.amp_stories_rounded,
+              label: 'stories.actions.editInEditor',
+              onTap: onEditInEditor,
             ),
             _StoriesMenuItem(
               icon: story.isActive ? Symbols.visibility_off : Symbols.check,
@@ -2696,6 +2783,270 @@ class _DialogRadioOption extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StoryEditorView extends StatefulWidget {
+  const _StoryEditorView({
+    required this.story,
+    required this.initialStory,
+    required this.onSave,
+    required this.onBack,
+  });
+
+  final AdminStory story;
+  final Map<String, dynamic> initialStory;
+  final Future<void> Function(WebStorySaveResult) onSave;
+  final VoidCallback onBack;
+
+  @override
+  State<_StoryEditorView> createState() => _StoryEditorViewState();
+}
+
+class _StoryEditorViewState extends State<_StoryEditorView> {
+  final _editorController = WebStoriesEditorController();
+  String? _statusText;
+  bool _statusIsError = false;
+  bool _saving = false;
+
+  Future<void> _handleSave(WebStorySaveResult result) async {
+    setState(() {
+      _saving = true;
+      _statusText = context.t('stories.editor.saving');
+      _statusIsError = false;
+    });
+    try {
+      await widget.onSave(result);
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _statusText = context.t('stories.editor.saved');
+        _statusIsError = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _statusText = error.toString();
+        _statusIsError = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(context),
+            Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
+            Expanded(
+              child: WebStoriesEditor(
+                initialStory: widget.initialStory,
+                controller: _editorController,
+                onSave: (result) => unawaited(_handleSave(result)),
+              ),
+            ),
+          ],
+        );
+        if (constraints.hasBoundedHeight) {
+          return body;
+        }
+        // Parent is scrollable (compact layout): pin to the viewport height so
+        // the editor still gets a finite area to fill.
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.86,
+          child: body,
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 24, 16),
+      child: Row(
+        children: [
+          _EditorBackButton(onTap: widget.onBack),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.t('stories.editor.title'),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.story.displayTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.inkSoft,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_statusText != null) ...[
+            _EditorStatusChip(
+              text: _statusText!,
+              isError: _statusIsError,
+              busy: _saving,
+            ),
+            const SizedBox(width: 12),
+          ],
+          SizedBox(
+            height: 38,
+            child: TextButton(
+              onPressed: _saving ? null : () => _editorController.requestSave(),
+              style:
+                  TextButton.styleFrom(
+                    backgroundColor: AppColors.deepOcean,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppColors.deepOcean.withValues(
+                      alpha: 0.5,
+                    ),
+                    disabledForegroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                    ),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ).copyWith(
+                    mouseCursor: const WidgetStatePropertyAll(
+                      SystemMouseCursors.click,
+                    ),
+                  ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SymbolIcon(Symbols.check, color: Colors.white, size: 16),
+                  const SizedBox(width: 7),
+                  Text(context.t('common.save')),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditorBackButton extends StatelessWidget {
+  const _EditorBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.only(left: 10, right: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SymbolIcon(
+                Symbols.arrow_back,
+                color: AppColors.deepOcean,
+                size: 18,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                context.t('Stories'),
+                style: const TextStyle(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditorStatusChip extends StatelessWidget {
+  const _EditorStatusChip({
+    required this.text,
+    required this.isError,
+    required this.busy,
+  });
+
+  final String text;
+  final bool isError;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isError ? AppColors.actionRed : const Color(0xFF198754);
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (busy)
+            const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 1.6),
+            )
+          else
+            SymbolIcon(
+              isError ? Symbols.warning : Symbols.check,
+              size: 14,
+              color: color,
+            ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

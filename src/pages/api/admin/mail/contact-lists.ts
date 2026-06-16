@@ -27,10 +27,145 @@ async function refreshListCount(listId: string) {
   await dbQuery('SELECT id FROM public.mail_contact_lists WHERE id = $1::bigint LIMIT 1', [listId]);
 }
 
+async function syncNewsletterContactList(userId: string) {
+  const table = await dbQuery(
+    `SELECT 1
+     FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'newsletter_subscribers'
+     LIMIT 1`
+  );
+  if (!table.rows[0]) return;
+
+  const active = await dbQuery<{ count: string }>(
+    `SELECT COUNT(*)::bigint AS count
+     FROM public.newsletter_subscribers
+     WHERE status = 'active'
+       AND email IS NOT NULL
+       AND trim(email) <> ''`
+  );
+
+  let list = await dbQuery<{ id: string }>(
+    `SELECT id::text AS id
+     FROM public.mail_contact_lists
+     WHERE otomatik_sync IS TRUE
+       AND COALESCE(NULLIF(sync_filtresi_json, ''), '{}')::jsonb ->> 'source' = 'newsletter'
+     ORDER BY id
+     LIMIT 1`
+  );
+
+  if (!list.rows[0] && Number(active.rows[0]?.count || 0) > 0) {
+    list = await dbQuery<{ id: string }>(
+      `INSERT INTO public.mail_contact_lists (
+         liste_adi, aciklama, kaynak, otomatik_sync, sync_filtresi_json,
+         aktif_mi, kullanici, guncelleme_tarihi
+       )
+       VALUES (
+         'Bülten Aboneleri',
+         'Newsletter abonelerinden otomatik eşitlenen mail listesi',
+         'newsletter',
+         true,
+         '{"source":"newsletter"}',
+         true,
+         $1,
+         now()
+       )
+       RETURNING id::text AS id`,
+      [userId]
+    );
+  }
+
+  const listId = list.rows[0]?.id;
+  if (!listId) return;
+
+  await dbQuery(
+    `WITH source_contacts AS (
+       SELECT DISTINCT ON (lower(trim(email)))
+         lower(trim(email)) AS email,
+         trim(COALESCE(full_name, '')) AS full_name,
+         trim(COALESCE(phone, '')) AS phone
+       FROM public.newsletter_subscribers
+       WHERE status = 'active'
+         AND email IS NOT NULL
+         AND trim(email) <> ''
+       ORDER BY lower(trim(email)), updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+     )
+     UPDATE public.mail_contacts c
+     SET ad = COALESCE(NULLIF(source_contacts.full_name, ''), c.ad),
+         telefon = COALESCE(NULLIF(source_contacts.phone, ''), c.telefon),
+         aktif_mi = true,
+         dogrulama_durumu = 'valid'
+     FROM source_contacts
+     WHERE lower(c.eposta) = source_contacts.email`
+  );
+
+  await dbQuery(
+    `WITH source_contacts AS (
+       SELECT DISTINCT ON (lower(trim(email)))
+         lower(trim(email)) AS email,
+         trim(COALESCE(full_name, '')) AS full_name,
+         trim(COALESCE(phone, '')) AS phone
+       FROM public.newsletter_subscribers
+       WHERE status = 'active'
+         AND email IS NOT NULL
+         AND trim(email) <> ''
+       ORDER BY lower(trim(email)), updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+     )
+     INSERT INTO public.mail_contacts (eposta, ad, soyad, telefon, dogrulama_durumu)
+     SELECT email, NULLIF(full_name, ''), '', NULLIF(phone, ''), 'valid'
+     FROM source_contacts
+     WHERE NOT EXISTS (
+       SELECT 1 FROM public.mail_contacts c WHERE lower(c.eposta) = source_contacts.email
+     )`
+  );
+
+  await dbQuery(
+    `WITH source_contacts AS (
+       SELECT DISTINCT lower(trim(email)) AS email
+       FROM public.newsletter_subscribers
+       WHERE status = 'active'
+         AND email IS NOT NULL
+         AND trim(email) <> ''
+     )
+     INSERT INTO public.mail_contact_list_memberships (list_id, contact_id)
+     SELECT $1::bigint, c.id
+     FROM public.mail_contacts c
+     JOIN source_contacts ON source_contacts.email = lower(c.eposta)
+     ON CONFLICT DO NOTHING`,
+    [listId]
+  );
+
+  await dbQuery(
+    `DELETE FROM public.mail_contact_list_memberships m
+     USING public.mail_contacts c
+     WHERE m.list_id = $1::bigint
+       AND c.id = m.contact_id
+       AND NOT EXISTS (
+         SELECT 1
+         FROM public.newsletter_subscribers n
+         WHERE lower(trim(n.email)) = lower(c.eposta)
+           AND n.status = 'active'
+       )`,
+    [listId]
+  );
+
+  await dbQuery(
+    `UPDATE public.mail_contact_lists
+     SET kaynak = 'newsletter',
+         guncelleme_tarihi = now()
+     WHERE id = $1::bigint`,
+    [listId]
+  );
+}
+
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const access = await requireMailAccess(request);
     if (access.response) return access.response;
+
+    if (url.searchParams.get('sync_newsletter') === 'true') {
+      await syncNewsletterContactList(access.session!.user.id);
+    }
 
     const listId = String(url.searchParams.get('listId') || '').trim();
     if (listId) {

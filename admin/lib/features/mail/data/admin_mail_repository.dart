@@ -279,6 +279,7 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
   Future<List<AdminContactList>> fetchContactLists(AdminSession session) async {
     final result = await _getJson('/api/admin/mail/contact-lists', session, {
       'limit': '100',
+      'sync_newsletter': 'true',
     });
     final rows = result['items'];
     return rows is List
@@ -936,9 +937,11 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
   }
 
   AdminContactImportSource _contactSource(Object? value) {
-    return value?.toString() == 'excel'
-        ? AdminContactImportSource.excel
-        : AdminContactImportSource.csv;
+    return switch (value?.toString().toLowerCase()) {
+      'excel' => AdminContactImportSource.excel,
+      'newsletter' || 'subscribers' => AdminContactImportSource.subscribers,
+      _ => AdminContactImportSource.csv,
+    };
   }
 
   AdminBulkMailStatus _campaignStatus(Object? value) {

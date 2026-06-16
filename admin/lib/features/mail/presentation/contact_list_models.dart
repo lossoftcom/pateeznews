@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
-enum AdminContactImportSource { csv, excel }
+enum AdminContactImportSource { csv, excel, subscribers }
 
 extension AdminContactImportSourceData on AdminContactImportSource {
   String get value {
     return switch (this) {
       AdminContactImportSource.csv => 'csv',
       AdminContactImportSource.excel => 'excel',
+      AdminContactImportSource.subscribers => 'newsletter',
     };
   }
 
@@ -17,6 +18,8 @@ extension AdminContactImportSourceData on AdminContactImportSource {
     return switch (this) {
       AdminContactImportSource.csv => 'mail.contacts.source.csv',
       AdminContactImportSource.excel => 'mail.contacts.source.excel',
+      AdminContactImportSource.subscribers =>
+        'mail.contacts.source.subscribers',
     };
   }
 
@@ -24,6 +27,8 @@ extension AdminContactImportSourceData on AdminContactImportSource {
     return switch (this) {
       AdminContactImportSource.csv => 'mail.contacts.source.csvShort',
       AdminContactImportSource.excel => 'mail.contacts.source.excelShort',
+      AdminContactImportSource.subscribers =>
+        'mail.contacts.source.subscribersShort',
     };
   }
 
@@ -31,6 +36,7 @@ extension AdminContactImportSourceData on AdminContactImportSource {
     return switch (this) {
       AdminContactImportSource.csv => Symbols.table_chart_outlined,
       AdminContactImportSource.excel => Symbols.grid_on_outlined,
+      AdminContactImportSource.subscribers => Symbols.groups_outlined,
     };
   }
 }
@@ -130,5 +136,6 @@ Color contactListSourceColor(AdminContactImportSource source) {
   return switch (source) {
     AdminContactImportSource.csv => AppColors.deepOcean,
     AdminContactImportSource.excel => const Color(0xFF198754),
+    AdminContactImportSource.subscribers => const Color(0xFF2563EB),
   };
 }
