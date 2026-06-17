@@ -114,6 +114,26 @@ function normalizeOptionalUuids(payload: Record<string, any>) {
   return payload;
 }
 
+function normalizeSchedule(payload: Record<string, any>, defaultDraft = false) {
+  const hasStatus = Object.prototype.hasOwnProperty.call(payload, 'durum');
+  const hasSchedule = Object.prototype.hasOwnProperty.call(payload, 'zamanlanmis_baslangic');
+  if (!defaultDraft && !hasStatus && !hasSchedule) return '';
+
+  const scheduled = String(payload.zamanlanmis_baslangic || '').trim();
+  if (hasStatus || defaultDraft) {
+    payload.durum = String(payload.durum || 'draft').trim();
+  }
+  if (scheduled && (!payload.durum || payload.durum === 'draft')) {
+    payload.durum = 'scheduled';
+  }
+  if (payload.durum === 'scheduled' && !scheduled) return 'Schedule date required';
+  if (!scheduled) return '';
+  const scheduledAt = Date.parse(scheduled);
+  if (Number.isNaN(scheduledAt)) return 'Schedule date is invalid';
+  if (scheduledAt <= Date.now()) return 'Schedule date must be in the future';
+  return '';
+}
+
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const access = await requireMailAccess(request);
@@ -195,7 +215,8 @@ export const POST: APIRoute = async ({ request }) => {
     const payload = campaignPayload(body);
     payload.kampanya_adi = String(payload.kampanya_adi || '').trim();
     payload.konu = String(payload.konu || '').trim();
-    payload.durum = String(payload.durum || 'draft').trim();
+    const scheduleError = normalizeSchedule(payload, true);
+    if (scheduleError) return json({ error: { message: scheduleError } }, 400);
     payload.alici_sayisi = Number(payload.alici_sayisi || await contactCount(payload.kisi_listesi_id)) || 0;
     payload.kullanici = access.session!.user.id;
     payload.guncelleme_tarihi = new Date().toISOString();
@@ -287,6 +308,8 @@ export const PATCH: APIRoute = async ({ request }) => {
       }
     } else {
       const update = campaignPayload(body);
+      const scheduleError = normalizeSchedule(update);
+      if (scheduleError) return json({ error: { message: scheduleError } }, 400);
       if (Object.prototype.hasOwnProperty.call(update, 'kisi_listesi_id')) {
         update.alici_sayisi = Number(update.alici_sayisi || await contactCount(update.kisi_listesi_id)) || 0;
       }

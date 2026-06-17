@@ -11,6 +11,11 @@
   "dependencies": {
     "@googleforcreators/element-library": "0.1.202410011217",
     "@googleforcreators/elements": "0.1.202410011217",
+    "@googleforcreators/fonts": "0.1.202410011217",
+    "@googleforcreators/i18n": "0.1.202410011217",
+    "@googleforcreators/media": "0.1.202410011217",
+    "@googleforcreators/migration": "0.1.202410011217",
+    "@googleforcreators/output": "0.1.202410011217",
     "@googleforcreators/story-editor": "0.1.202410011217",
     "react": "18.3.1",
     "react-dom": "18.3.1"

@@ -1,8 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -10,16 +10,51 @@ import '../../../core/localization/admin_date_formatter.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/branding/admin_branding.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_date_time_picker.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_mail_repository.dart';
+import 'builder/posta_mjml_builder.dart';
 import 'bulk_mail_models.dart';
 import 'contact_list_models.dart';
 import 'mail_settings_models.dart';
 import 'mail_template_models.dart';
+
+final Map<String, Future<String>> _mailPreviewLogoDataUriCache =
+    <String, Future<String>>{};
+
+Future<String> _mailPreviewLogoDataUri(String url) {
+  final normalized = url.trim();
+  if (normalized.isEmpty) return Future<String>.value('');
+  return _mailPreviewLogoDataUriCache.putIfAbsent(normalized, () async {
+    try {
+      final response = await http
+          .get(Uri.parse(normalized))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode < 200 || response.statusCode >= 300) return '';
+      final contentType =
+          response.headers['content-type']?.split(';').first.trim() ??
+          _mailPreviewLogoMimeType(normalized);
+      if (!contentType.startsWith('image/')) return '';
+      return 'data:$contentType;base64,${base64Encode(response.bodyBytes)}';
+    } catch (_) {
+      return '';
+    }
+  });
+}
+
+String _mailPreviewLogoMimeType(String url) {
+  final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+  if (path.endsWith('.svg')) return 'image/svg+xml';
+  if (path.endsWith('.webp')) return 'image/webp';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.gif')) return 'image/gif';
+  return 'image/png';
+}
 
 class BulkMailScreen extends StatefulWidget {
   const BulkMailScreen({
@@ -346,11 +381,13 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
   }
 
   Future<void> _scheduleCampaign(AdminBulkMailCampaign campaign) async {
-    await _campaignAction(
-      campaign,
-      'schedule',
-      scheduledAt: DateTime.now().add(const Duration(days: 1)),
+    final scheduledAt = await showAdminDateTimePicker(
+      context,
+      initialValue:
+          campaign.scheduledAt ?? DateTime.now().add(const Duration(days: 1)),
     );
+    if (scheduledAt == null || !mounted) return;
+    await _campaignAction(campaign, 'schedule', scheduledAt: scheduledAt);
   }
 
   Future<void> _cancelCampaign(AdminBulkMailCampaign campaign) async {
@@ -413,6 +450,8 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
             height: height,
             child: _BulkMailCreateDialog(
               campaign: campaign,
+              session: widget.session,
+              repository: widget.repository,
               templates: _templates,
               accounts: _accounts,
               lists: _lists,
@@ -1207,9 +1246,17 @@ class _BulkMailTable extends StatelessWidget {
             ? _minWidth
             : constraints.maxWidth;
         final contentWidth = tableWidth - _horizontalPadding;
-        final campaignWidth =
-            _campaignWidth +
-            (contentWidth - _columnsMinWidth).clamp(0.0, 160.0).toDouble();
+        final extraWidth = (contentWidth - _columnsMinWidth)
+            .clamp(0.0, double.infinity)
+            .toDouble();
+        final campaignWidth = _campaignWidth + extraWidth * 0.36;
+        final recipientWidth = _recipientWidth + extraWidth * 0.06;
+        final metricWidth = _metricWidth + extraWidth * 0.06;
+        final bounceWidth = _bounceWidth + extraWidth * 0.05;
+        final statusWidth = _statusWidth + extraWidth * 0.08;
+        final controlWidth = _controlWidth + extraWidth * 0.08;
+        final dateWidth = _dateWidth + extraWidth * 0.15;
+        final menuWidth = _menuWidth + extraWidth * 0.04;
 
         return Container(
           decoration: BoxDecoration(
@@ -1256,7 +1303,7 @@ class _BulkMailTable extends StatelessWidget {
                           onSort: onSort,
                         ),
                         _HeaderSortable(
-                          width: _recipientWidth,
+                          width: recipientWidth,
                           label: 'common.recipient',
                           sortKey: 'recipient',
                           sortState: sortState,
@@ -1264,7 +1311,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _metricWidth,
+                          width: metricWidth,
                           label: 'common.sent',
                           sortKey: 'sent',
                           sortState: sortState,
@@ -1272,7 +1319,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _metricWidth,
+                          width: metricWidth,
                           label: 'common.opening',
                           sortKey: 'open',
                           sortState: sortState,
@@ -1280,7 +1327,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _metricWidth,
+                          width: metricWidth,
                           label: 'common.clicking',
                           sortKey: 'click',
                           sortState: sortState,
@@ -1288,7 +1335,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _bounceWidth,
+                          width: bounceWidth,
                           label: 'Bounce',
                           sortKey: 'bounce',
                           sortState: sortState,
@@ -1297,25 +1344,25 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _statusWidth,
+                          width: statusWidth,
                           label: 'common.status',
                           sortKey: 'status',
                           sortState: sortState,
                           onSort: onSort,
                         ),
                         SizedBox(
-                          width: _controlWidth,
+                          width: controlWidth,
                           child: _HeaderText('mail.campaign.control'),
                         ),
                         _HeaderSortable(
-                          width: _dateWidth,
+                          width: dateWidth,
                           label: 'mail.campaign.startDate',
                           sortKey: 'date',
                           sortState: sortState,
                           onSort: onSort,
                         ),
                         SizedBox(
-                          width: _menuWidth,
+                          width: menuWidth,
                           child: _HeaderText('common.action', centered: true),
                         ),
                       ],
@@ -1331,6 +1378,13 @@ class _BulkMailTable extends StatelessWidget {
                               return _BulkMailRow(
                                 campaign: campaign,
                                 campaignWidth: campaignWidth,
+                                recipientWidth: recipientWidth,
+                                metricWidth: metricWidth,
+                                bounceWidth: bounceWidth,
+                                statusWidth: statusWidth,
+                                controlWidth: controlWidth,
+                                dateWidth: dateWidth,
+                                menuWidth: menuWidth,
                                 selected: selectedIds.contains(campaign.id),
                                 onToggle: () => onToggleCampaign(campaign.id),
                                 onDetail: onDetail,
@@ -1535,6 +1589,13 @@ class _BulkMailRow extends StatelessWidget {
   const _BulkMailRow({
     required this.campaign,
     required this.campaignWidth,
+    required this.recipientWidth,
+    required this.metricWidth,
+    required this.bounceWidth,
+    required this.statusWidth,
+    required this.controlWidth,
+    required this.dateWidth,
+    required this.menuWidth,
     required this.selected,
     required this.onToggle,
     required this.onDetail,
@@ -1549,6 +1610,13 @@ class _BulkMailRow extends StatelessWidget {
 
   final AdminBulkMailCampaign campaign;
   final double campaignWidth;
+  final double recipientWidth;
+  final double metricWidth;
+  final double bounceWidth;
+  final double statusWidth;
+  final double controlWidth;
+  final double dateWidth;
+  final double menuWidth;
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<AdminBulkMailCampaign> onDetail;
@@ -1588,40 +1656,40 @@ class _BulkMailRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._recipientWidth,
+            width: recipientWidth,
             child: _TextCell(value: '${campaign.recipientCount}'),
           ),
           SizedBox(
-            width: _BulkMailTable._metricWidth,
+            width: metricWidth,
             child: _TextCell(value: '${campaign.sentCount}'),
           ),
           SizedBox(
-            width: _BulkMailTable._metricWidth,
+            width: metricWidth,
             child: _RateCell(
               count: campaign.openCount,
               rate: campaign.openRate,
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._metricWidth,
+            width: metricWidth,
             child: _RateCell(
               count: campaign.clickCount,
               rate: campaign.clickRate,
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._bounceWidth,
+            width: bounceWidth,
             child: _RateCell(
               count: campaign.bounceCount,
               rate: campaign.bounceRate,
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._statusWidth,
+            width: statusWidth,
             child: _CampaignStatusBadge(status: campaign.status),
           ),
           SizedBox(
-            width: _BulkMailTable._controlWidth,
+            width: controlWidth,
             child: _CampaignControlButton(
               campaign: campaign,
               onStart: () => onStart(campaign),
@@ -1630,11 +1698,11 @@ class _BulkMailRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._dateWidth,
+            width: dateWidth,
             child: _CampaignDateCell(campaign: campaign),
           ),
           SizedBox(
-            width: _BulkMailTable._menuWidth,
+            width: menuWidth,
             child: Align(
               alignment: Alignment.center,
               child: _BulkMailRowMenu(
@@ -2742,12 +2810,16 @@ class _DetailItem extends StatelessWidget {
 class _BulkMailCreateDialog extends StatefulWidget {
   const _BulkMailCreateDialog({
     this.campaign,
+    required this.session,
+    required this.repository,
     required this.templates,
     required this.accounts,
     required this.lists,
   });
 
   final AdminBulkMailCampaign? campaign;
+  final AdminSession session;
+  final AdminMailRepository repository;
   final List<AdminMailTemplate> templates;
   final List<AdminMailAccount> accounts;
   final List<AdminContactList> lists;
@@ -2768,10 +2840,16 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   late String _template;
   late String _account;
   late String _recipientList;
+  DateTime? _scheduledAt;
+  final _previewContactByListId = <int, AdminMailContact?>{};
+  var _previewContactRequestId = 0;
+  AdminMailContact? _previewContact;
 
   List<AdminMailTemplate> get _usableTemplates => widget.templates
       .where((template) => template.active && template.ready)
       .toList(growable: false);
+
+  List<AdminContactList> get _usableLists => widget.lists;
 
   List<AdminMailTemplateCategory> get _availableCategories {
     final categories = <AdminMailTemplateCategory>[];
@@ -2833,11 +2911,11 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
             )
             .toList(growable: false);
 
-  List<_SelectOption> get _listOptions => widget.lists.isEmpty
+  List<_SelectOption> get _listOptions => _usableLists.isEmpty
       ? const [
           _SelectOption(value: _emptyListOption, label: 'mail.contacts.empty'),
         ]
-      : widget.lists
+      : _usableLists
             .map(
               (list) => _SelectOption(
                 value: list.id.toString(),
@@ -2878,12 +2956,14 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
             : _emptyAccountOption);
     _recipientList =
         initialList?.id.toString() ??
-        (widget.lists.isNotEmpty
-            ? widget.lists.first.id.toString()
+        (_usableLists.isNotEmpty
+            ? _usableLists.first.id.toString()
             : _emptyListOption);
+    _scheduledAt = campaign?.scheduledAt;
     _nameController.addListener(_refresh);
     _subjectController.addListener(_refresh);
     _previewController.addListener(_refresh);
+    _loadPreviewContactForSelectedList();
   }
 
   @override
@@ -2904,13 +2984,31 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _pickSchedule() async {
+    final picked = await showAdminDateTimePicker(
+      context,
+      initialValue:
+          _scheduledAt ?? DateTime.now().add(const Duration(hours: 1)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _scheduledAt = picked);
+  }
+
+  void _clearSchedule() {
+    setState(() => _scheduledAt = null);
+  }
+
+  bool get _scheduleValid =>
+      _scheduledAt == null || _scheduledAt!.isAfter(DateTime.now());
+
   bool get _canSave =>
       _selectedAccount() != null &&
       (_selectedList()?.contactCount ?? 0) > 0 &&
       _selectedTemplate() != null &&
       _nameController.text.trim().isNotEmpty &&
       _subjectController.text.trim().isNotEmpty &&
-      _previewController.text.trim().isNotEmpty;
+      _previewController.text.trim().isNotEmpty &&
+      _scheduleValid;
 
   void _save() {
     if (!_canSave) return;
@@ -2943,12 +3041,20 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
       openCount: previous?.openCount ?? 0,
       clickCount: previous?.clickCount ?? 0,
       bounceCount: previous?.bounceCount ?? 0,
-      status: previous?.status ?? AdminBulkMailStatus.draft,
+      status: _statusForSchedule(previous),
       createdAt: previous?.createdAt ?? now,
       startedAt: previous?.startedAt,
-      scheduledAt: previous?.scheduledAt,
+      scheduledAt: _scheduledAt,
     );
     Navigator.of(context).pop(campaign);
+  }
+
+  AdminBulkMailStatus _statusForSchedule(AdminBulkMailCampaign? previous) {
+    if (_scheduledAt != null) return AdminBulkMailStatus.scheduled;
+    if (previous?.status == AdminBulkMailStatus.scheduled) {
+      return AdminBulkMailStatus.draft;
+    }
+    return previous?.status ?? AdminBulkMailStatus.draft;
   }
 
   AdminMailTemplate? _selectedTemplate() {
@@ -2986,6 +3092,61 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     });
   }
 
+  void _selectRecipientList(String value) {
+    setState(() {
+      _recipientList = value;
+      _previewContact = null;
+    });
+    _loadPreviewContactForSelectedList();
+  }
+
+  void _loadPreviewContactForSelectedList() {
+    final selectedList = _selectedList();
+    final requestId = ++_previewContactRequestId;
+    if (selectedList == null || selectedList.contactCount <= 0) {
+      _previewContact = null;
+      return;
+    }
+
+    final listId = selectedList.id;
+    if (_previewContactByListId.containsKey(listId)) {
+      final cached = _previewContactByListId[listId];
+      if (mounted) {
+        setState(() => _previewContact = cached);
+      } else {
+        _previewContact = cached;
+      }
+      return;
+    }
+
+    unawaited(_fetchPreviewContact(listId, requestId));
+  }
+
+  Future<void> _fetchPreviewContact(int listId, int requestId) async {
+    try {
+      final contacts = await widget.repository.fetchContacts(
+        widget.session,
+        listId,
+        limit: 1,
+      );
+      final contact = contacts.firstOrNull;
+      _previewContactByListId[listId] = contact;
+      if (!mounted ||
+          requestId != _previewContactRequestId ||
+          _recipientList != '$listId') {
+        return;
+      }
+      setState(() => _previewContact = contact);
+    } catch (_) {
+      if (!mounted ||
+          requestId != _previewContactRequestId ||
+          _recipientList != '$listId') {
+        return;
+      }
+      setState(() => _previewContact = null);
+    }
+  }
+
   AdminMailAccount? _selectedAccount() {
     for (final account in widget.accounts) {
       if (account.id.toString() == _account) return account;
@@ -2994,7 +3155,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   }
 
   AdminContactList? _selectedList() {
-    for (final list in widget.lists) {
+    for (final list in _usableLists) {
       if (list.id.toString() == _recipientList) return list;
     }
     return null;
@@ -3048,11 +3209,11 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     if (campaign == null) return null;
     final id = int.tryParse(campaign.contactListId);
     if (id != null) {
-      for (final list in widget.lists) {
+      for (final list in _usableLists) {
         if (list.id == id) return list;
       }
     }
-    for (final list in widget.lists) {
+    for (final list in _usableLists) {
       if (list.name == campaign.recipientList) return list;
     }
     return null;
@@ -3162,14 +3323,14 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                               onTemplateChanged: _selectTemplate,
                               onAccountChanged: (value) =>
                                   setState(() => _account = value),
-                              onRecipientListChanged: (value) =>
-                                  setState(() => _recipientList = value),
+                              onRecipientListChanged: _selectRecipientList,
                             ),
                             const SizedBox(height: 16),
                             SizedBox(
                               height: 520,
                               child: _LivePreview(
                                 template: _selectedTemplate(),
+                                sampleContact: _previewContact,
                               ),
                             ),
                           ],
@@ -3198,15 +3359,17 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                             onTemplateChanged: _selectTemplate,
                             onAccountChanged: (value) =>
                                 setState(() => _account = value),
-                            onRecipientListChanged: (value) =>
-                                setState(() => _recipientList = value),
+                            onRecipientListChanged: _selectRecipientList,
                           ),
                         ),
                         Container(width: 1, color: AppColors.line),
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.all(12),
-                            child: _LivePreview(template: _selectedTemplate()),
+                            child: _LivePreview(
+                              template: _selectedTemplate(),
+                              sampleContact: _previewContact,
+                            ),
                           ),
                         ),
                       ],
@@ -3236,6 +3399,12 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                   child: Text(context.t('common.cancel')),
                 ),
                 const SizedBox(width: 12),
+                _ScheduleFooterButton(
+                  scheduledAt: _scheduledAt,
+                  onPressed: _pickSchedule,
+                  onClear: _scheduledAt == null ? null : _clearSchedule,
+                ),
+                const SizedBox(width: 10),
                 SizedBox(
                   height: 38,
                   child: TextButton(
@@ -3289,6 +3458,106 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
       ),
     );
   }
+}
+
+class _ScheduleFooterButton extends StatelessWidget {
+  const _ScheduleFooterButton({
+    required this.scheduledAt,
+    required this.onPressed,
+    required this.onClear,
+  });
+
+  final DateTime? scheduledAt;
+  final VoidCallback onPressed;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = scheduledAt != null;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 230),
+      child: SizedBox(
+        height: 38,
+        child: Material(
+          color: selected
+              ? AppColors.warmHorizon.withValues(alpha: 0.1)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            mouseCursor: SystemMouseCursors.click,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: selected
+                      ? AppColors.warmHorizon.withValues(alpha: 0.52)
+                      : AppColors.line,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SymbolIcon(
+                    Symbols.schedule,
+                    color: selected
+                        ? AppColors.warmHorizon
+                        : AppColors.deepOcean,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      selected
+                          ? _formatScheduleFooterLabel(context, scheduledAt!)
+                          : context.t('mail.campaign.action.schedule'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? AppColors.deepOcean
+                            : AppColors.inkSoft,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  if (selected && onClear != null) ...[
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: context.t('common.clear'),
+                      child: InkResponse(
+                        onTap: onClear,
+                        radius: 15,
+                        mouseCursor: SystemMouseCursors.click,
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: SymbolIcon(
+                            Symbols.close,
+                            color: AppColors.support,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _formatScheduleFooterLabel(BuildContext context, DateTime value) {
+  final local = value.toLocal();
+  final month = context.t('date.month.${local.month}');
+  return '${local.day} $month ${formatAdminTime(local)}';
 }
 
 class _SelectOption {
@@ -3731,9 +4000,10 @@ class _CreateLabel extends StatelessWidget {
 }
 
 class _LivePreview extends StatelessWidget {
-  const _LivePreview({required this.template});
+  const _LivePreview({required this.template, required this.sampleContact});
 
   final AdminMailTemplate? template;
+  final AdminMailContact? sampleContact;
 
   @override
   Widget build(BuildContext context) {
@@ -3815,7 +4085,10 @@ class _LivePreview extends StatelessWidget {
             child: SingleChildScrollView(
               child: template == null
                   ? const _PreviewEmptyState()
-                  : _EmailHtmlPreview(template: template!),
+                  : _EmailHtmlPreview(
+                      template: template!,
+                      sampleContact: sampleContact,
+                    ),
             ),
           ),
         ),
@@ -3847,56 +4120,156 @@ class _PreviewEmptyState extends StatelessWidget {
 }
 
 class _EmailHtmlPreview extends StatelessWidget {
-  const _EmailHtmlPreview({required this.template});
+  const _EmailHtmlPreview({
+    required this.template,
+    required this.sampleContact,
+  });
 
   final AdminMailTemplate template;
+  final AdminMailContact? sampleContact;
 
   @override
   Widget build(BuildContext context) {
-    final html = _previewDocument(template.body);
+    return ValueListenableBuilder<AdminBrandingData>(
+      valueListenable: adminBranding,
+      builder: (context, branding, _) {
+        final siteName = branding.siteName.trim().isNotEmpty
+            ? branding.siteName.trim()
+            : context.t('brand.name');
+        final logoUrl = branding.emailLogoUrl.trim().isNotEmpty
+            ? branding.emailLogoUrl.trim()
+            : branding.logoUrl.trim();
+        if (logoUrl.isNotEmpty) {
+          return FutureBuilder<String>(
+            future: _mailPreviewLogoDataUri(logoUrl),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+              return _EmailHtmlPreviewFrame(
+                template: template,
+                sampleContact: sampleContact,
+                siteName: siteName,
+                logoUrl: logoUrl,
+                logoDataUri: snapshot.data ?? '',
+              );
+            },
+          );
+        }
+
+        return _EmailHtmlPreviewFrame(
+          template: template,
+          sampleContact: sampleContact,
+          siteName: siteName,
+          logoUrl: '',
+          logoDataUri: '',
+        );
+      },
+    );
+  }
+}
+
+class _EmailHtmlPreviewFrame extends StatelessWidget {
+  const _EmailHtmlPreviewFrame({
+    required this.template,
+    required this.sampleContact,
+    required this.siteName,
+    required this.logoUrl,
+    required this.logoDataUri,
+  });
+
+  final AdminMailTemplate template;
+  final AdminMailContact? sampleContact;
+  final String siteName;
+  final String logoUrl;
+  final String logoDataUri;
+
+  @override
+  Widget build(BuildContext context) {
+    final html = _applyPreviewValues(
+      template.body,
+      siteName: siteName,
+      logoUrl: logoUrl,
+      contact: sampleContact,
+    );
+    final mjml = _applyPreviewValues(
+      template.contentMjml,
+      siteName: siteName,
+      logoUrl: logoUrl,
+      contact: sampleContact,
+    );
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.value),
       child: Container(
         width: 640,
         height: 760,
         color: Colors.white,
-        child: InAppWebView(
+        child: PostaMjmlPreview(
           key: ValueKey(
-            '${template.id}-${template.updatedAt.toIso8601String()}',
+            '${template.id}-${template.updatedAt.toIso8601String()}-${sampleContact?.id ?? 0}-$siteName-$logoUrl',
           ),
-          initialData: InAppWebViewInitialData(
-            data: html,
-            baseUrl: WebUri('about:blank'),
-          ),
-          initialSettings: InAppWebViewSettings(
-            javaScriptEnabled: false,
-            isInspectable: kDebugMode,
-            transparentBackground: false,
-            mediaPlaybackRequiresUserGesture: true,
-            allowsInlineMediaPlayback: false,
-          ),
+          html: html,
+          mjml: mjml,
+          projectData: template.designJson,
+          previewSiteName: siteName,
+          previewLogoUrl: logoUrl,
+          previewLogoDataUri: logoDataUri,
         ),
       ),
     );
   }
 
-  String _previewDocument(String value) {
-    final html = value.trim();
-    if (html.toLowerCase().contains('<html')) return html;
-    return '''
-<!doctype html>
-<html lang="tr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    html, body { margin: 0; padding: 0; background: #F2F4F7; }
-    body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
-  </style>
-</head>
-<body>$html</body>
-</html>
-''';
+  String _applyPreviewValues(
+    String value, {
+    required String siteName,
+    required String logoUrl,
+    required AdminMailContact? contact,
+  }) {
+    var result = value
+        .replaceAll('__SITE_NAME__', siteName)
+        .replaceAll('{{site_adi}}', siteName)
+        .replaceAll('{{kod_gecerlilik}}', adminMailVerificationCodeValidity);
+    if (logoUrl.isNotEmpty) {
+      result = result
+          .replaceAll('__SITE_LOGO_URL__', logoUrl)
+          .replaceAll('{{site_logo}}', logoUrl);
+    }
+    final contactValues = _contactPreviewValues(contact);
+    for (final entry in contactValues.entries) {
+      result = result.replaceAll(entry.key, entry.value);
+    }
+    return result;
+  }
+
+  Map<String, String> _contactPreviewValues(AdminMailContact? contact) {
+    if (contact == null) return const <String, String>{};
+
+    final email = contact.email.trim();
+    final name = contact.fullName.trim().isNotEmpty
+        ? contact.fullName.trim()
+        : email;
+    final phone = contact.phone.trim();
+    final values = <String, String>{};
+
+    void put(String token, String value) {
+      final clean = value.trim();
+      if (clean.isNotEmpty) values[token] = clean;
+    }
+
+    put('{{uye_adi}}', name);
+    put('{{uye_eposta}}', email);
+    put('{{uye_telefon}}', phone);
+    put('{{abone_adi}}', name);
+    put('{{abone_eposta}}', email);
+    put('{{abone_telefon}}', phone);
+    return values;
   }
 }
 

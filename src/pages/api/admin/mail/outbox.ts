@@ -1,14 +1,38 @@
 import type { APIRoute } from 'astro';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { json } from '@/lib/server/appDb';
-import { numericLimit, numericOffset, requireMailAccess } from '@/lib/server/mail/api';
+import {
+  numericLimit,
+  numericOffset,
+  requireMailAccess,
+} from '@/lib/server/mail/api';
+import { processDirectMailOutbox } from '@/lib/server/mail/campaignProcessor';
 
 export const prerender = false;
+
+function attachmentMetadata(value: unknown) {
+  const items = Array.isArray(value) ? value : [];
+  return items.map((item) => {
+    const source =
+      item && typeof item === 'object' ? (item as Record<string, any>) : {};
+    return {
+      filename: String(source.filename || source.name || 'dosya'),
+      content_type: String(
+        source.content_type || source.contentType || 'application/octet-stream',
+      ),
+      size: Number(source.size || 0),
+      inline: source.inline === true,
+      cid: source.cid ? String(source.cid) : undefined,
+    };
+  });
+}
 
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const access = await requireMailAccess(request);
     if (access.response) return access.response;
+
+    await processDirectMailOutbox({ maxItems: 10 });
 
     const limit = numericLimit(url.searchParams.get('limit'), 25, 100);
     const offset = numericOffset(url.searchParams.get('offset'));
@@ -25,15 +49,21 @@ export const GET: APIRoute = async ({ request, url }) => {
     }
     if (dateFrom) {
       values.push(dateFrom);
-      where.push(`COALESCE(mo.gonderim_tarihi, mo.olusturma_tarihi) >= $${values.length}::date`);
+      where.push(
+        `COALESCE(mo.gonderim_tarihi, mo.olusturma_tarihi) >= $${values.length}::date`,
+      );
     }
     if (dateTo) {
       values.push(dateTo);
-      where.push(`COALESCE(mo.gonderim_tarihi, mo.olusturma_tarihi) < ($${values.length}::date + interval '1 day')`);
+      where.push(
+        `COALESCE(mo.gonderim_tarihi, mo.olusturma_tarihi) < ($${values.length}::date + interval '1 day')`,
+      );
     }
     if (search) {
       values.push(`%${search}%`);
-      where.push(`(mo.konu ILIKE $${values.length} OR mo.alici_eposta ILIKE $${values.length})`);
+      where.push(
+        `(mo.konu ILIKE $${values.length} OR mo.alici_eposta ILIKE $${values.length})`,
+      );
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -61,19 +91,22 @@ export const GET: APIRoute = async ({ request, url }) => {
            mo.tiklanma_tarihi AS clicked_at,
            mo.olusturma_tarihi AS created_at,
            mo.kullanici AS created_by,
-           ma.hesap_adi AS account_name
+           ma.hesap_adi AS account_name,
+           ma.gonderen_eposta AS account_email,
+           ma.gonderen_adi AS sender_name,
+           ma.gonderen_eposta AS sender_email
          FROM public.mail_outbox mo
          LEFT JOIN public.mail_accounts ma ON ma.id = mo.hesap_id
          ${whereSql}
          ORDER BY COALESCE(mo.gonderim_tarihi, mo.olusturma_tarihi) DESC
          LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-        [...values, limit, offset]
+        [...values, limit, offset],
       ),
       dbQuery<{ count: string }>(
         `SELECT COUNT(*)::bigint AS count
          FROM public.mail_outbox mo
          ${whereSql}`,
-        values
+        values,
       ),
       dbQuery(
         `SELECT
@@ -81,12 +114,15 @@ export const GET: APIRoute = async ({ request, url }) => {
           COUNT(*) FILTER (WHERE durum IN ('sent', 'delivered', 'opened', 'clicked'))::bigint AS successful,
           COUNT(*) FILTER (WHERE durum = 'queued')::bigint AS queued,
           COUNT(*) FILTER (WHERE durum = 'failed')::bigint AS failed
-         FROM public.mail_outbox`
+         FROM public.mail_outbox`,
       ),
     ]);
 
     return json({
-      items: items.rows,
+      items: items.rows.map((row: any) => ({
+        ...row,
+        attachments: attachmentMetadata(row.attachments),
+      })),
       total: Number(total.rows[0]?.count || 0),
       limit,
       offset,
@@ -98,6 +134,9 @@ export const GET: APIRoute = async ({ request, url }) => {
       },
     });
   } catch (error: any) {
-    return json({ error: { message: error.message || 'Outbox could not be loaded' } }, 500);
+    return json(
+      { error: { message: error.message || 'Outbox could not be loaded' } },
+      500,
+    );
   }
 };

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:flutter/material.dart';
 import 'package:web/web.dart' as web;
 
 import 'web_stories_editor_types.dart';
+import 'web_stories_media_bridge.dart';
 
 /// Flutter Web host for the vendored Google Web Stories editor.
 ///
@@ -15,11 +17,18 @@ class WebStoriesEditor extends StatefulWidget {
     super.key,
     required this.initialStory,
     required this.onSave,
+    required this.onClose,
     required this.controller,
   });
 
   final Map<String, dynamic> initialStory;
-  final ValueChanged<WebStorySaveResult> onSave;
+
+  /// Persists the saved story and resolves to whether it succeeded; the result
+  /// is acknowledged back to the editor so its own save snackbar is accurate.
+  final Future<bool> Function(WebStorySaveResult) onSave;
+
+  /// Invoked when the editor's close (X) button is pressed.
+  final VoidCallback onClose;
   final WebStoriesEditorController controller;
 
   @override
@@ -30,6 +39,7 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
     implements WebStoriesEditorBridge {
   web.HTMLIFrameElement? _iframe;
   late final web.EventListener _messageListener;
+  final _mediaBridge = WebStoriesMediaBridge();
   bool _ready = false;
   bool _loadSent = false;
 
@@ -37,7 +47,7 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
   void initState() {
     super.initState();
     _messageListener = ((web.Event event) {
-      _handleMessage(event);
+      unawaited(_handleMessage(event));
     }).toJS;
     web.window.addEventListener('message', _messageListener);
     widget.controller.attach(this);
@@ -52,13 +62,14 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
 
   @override
   void requestSave() {
+    _postToEditor(<String, dynamic>{'type': 'SAVE_REQUEST'});
+  }
+
+  void _postToEditor(Map<String, dynamic> body) {
     final contentWindow = _iframe?.contentWindow;
     if (contentWindow == null) return;
     contentWindow.postMessage(
-      <String, dynamic>{
-        'source': 'PATEEZ_WS_HOST',
-        'type': 'SAVE_REQUEST',
-      }.jsify(),
+      <String, dynamic>{'source': 'PATEEZ_WS_HOST', ...body}.jsify(),
       '*'.toJS,
     );
   }
@@ -77,22 +88,29 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
         'width:100%;height:100%;border:0;display:block;background:#1b1b1f;';
   }
 
-  void _handleMessage(web.Event event) {
+  Future<void> _handleMessage(web.Event event) async {
     final messageEvent = event as web.MessageEvent;
     final data = messageEvent.data.dartify();
     if (data is! Map) return;
     if (data['source'] != 'PATEEZ_WS_EDITOR') return;
 
-    final type = data['type']?.toString();
+    final map = data.map((key, dynamic value) => MapEntry(key.toString(), value));
+    final type = map['type']?.toString();
     if (type == 'READY') {
       if (mounted) setState(() => _ready = true);
       _sendLoad();
       return;
     }
+    if (type == 'CLOSE') {
+      widget.onClose();
+      return;
+    }
     if (type == 'SAVE') {
-      final payload = data['payload'];
+      final requestId = map['requestId']?.toString();
+      final payload = map['payload'];
+      var ok = false;
       if (payload is Map) {
-        widget.onSave(
+        ok = await widget.onSave(
           WebStorySaveResult(
             title: payload['title']?.toString() ?? '',
             markup: payload['markup']?.toString() ?? '',
@@ -100,6 +118,19 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
           ),
         );
       }
+      if (requestId != null) {
+        _postToEditor(<String, dynamic>{
+          'type': 'SAVE_RESULT',
+          'requestId': requestId,
+          'ok': ok,
+        });
+      }
+      return;
+    }
+    if (type != null && type.startsWith('MEDIA_')) {
+      final result = await _mediaBridge.handle(map);
+      if (result != null) _postToEditor(result);
+      return;
     }
   }
 

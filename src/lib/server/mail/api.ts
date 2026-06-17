@@ -3,6 +3,7 @@ import { dbQuery } from '@/lib/server/supabaseDb';
 import { ensureMailSchema } from './schema';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const MAIL_VERIFICATION_CODE_VALIDITY_LABEL = '2,5 dakika';
 
 export async function readJsonBody(request: Request) {
   try {
@@ -68,6 +69,29 @@ export function parseEmailList(value: unknown) {
     : String(value || '').split(/[\n,;]+/g);
 
   return Array.from(new Set(items.map(normalizeEmail).filter(isEmail)));
+}
+
+function escapeHtmlVariableValue(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+export function renderMailSystemVariables(value: unknown, html = false) {
+  const replacements: Record<string, string> = {
+    kod_gecerlilik: MAIL_VERIFICATION_CODE_VALIDITY_LABEL,
+  };
+  return Object.entries(replacements).reduce(
+    (rendered, [key, raw]) =>
+      rendered.replaceAll(
+        `{{${key}}}`,
+        html ? escapeHtmlVariableValue(raw) : raw,
+      ),
+    String(value || ''),
+  );
 }
 
 export function compactUpdate<T extends Record<string, any>>(input: T, allowed: string[]) {

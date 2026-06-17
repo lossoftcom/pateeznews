@@ -119,6 +119,7 @@ class AdminMailTemplate {
 }
 
 const mailTemplateFilterAll = 'all';
+const adminMailVerificationCodeValidity = '2,5 dakika';
 
 const adminMailTemplateMemberVariables = <AdminMailTemplateVariable>[
   AdminMailTemplateVariable(

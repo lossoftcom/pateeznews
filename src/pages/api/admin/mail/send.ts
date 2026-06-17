@@ -1,10 +1,20 @@
 import type { APIRoute } from 'astro';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { json } from '@/lib/server/appDb';
-import { isEmail, parseEmailList, readJsonBody, requireMailAccess } from '@/lib/server/mail/api';
+import {
+  isEmail,
+  parseEmailList,
+  readJsonBody,
+  renderMailSystemVariables,
+  requireMailAccess,
+} from '@/lib/server/mail/api';
 import { sendMailWithAccount, spamScore } from '@/lib/server/mail/providers';
 
 export const prerender = false;
+
+const MAX_ATTACHMENT_COUNT = 10;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_TOTAL_BYTES = 18 * 1024 * 1024;
 
 function plainTextFromHtml(html: string) {
   return String(html || '')
@@ -49,6 +59,49 @@ async function findAccount(accountId?: string) {
   return result.rows[0] || null;
 }
 
+function normalizeAttachments(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  if (value.length > MAX_ATTACHMENT_COUNT) {
+    throw new Error('En fazla 10 ek gönderilebilir');
+  }
+
+  let totalSize = 0;
+  return value.map((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error('Ek dosya bilgisi geçersiz');
+    }
+    const source = item as Record<string, any>;
+    const filename = String(source.filename || source.name || `ek-${index + 1}`).trim();
+    const contentType = String(source.content_type || source.contentType || 'application/octet-stream').trim();
+    const rawContent = String(source.content || source.content_base64 || source.contentBase64 || '').trim();
+    const content = rawContent.includes(',') ? rawContent.split(',').pop() || '' : rawContent;
+    const declaredSize = Number(source.size || 0);
+    const estimatedSize = content ? Math.ceil((content.length * 3) / 4) : 0;
+    const size = declaredSize > 0 ? declaredSize : estimatedSize;
+
+    if (!filename) throw new Error('Ek dosya adı zorunludur');
+    if (!content) throw new Error(`${filename} içeriği okunamadı`);
+    if (size > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`${filename} 10 MB tek dosya sınırını aşıyor`);
+    }
+    totalSize += size;
+    if (totalSize > MAX_ATTACHMENT_TOTAL_BYTES) {
+      throw new Error('Ek dosyaların toplam boyutu 18 MB sınırını aşıyor');
+    }
+
+    return {
+      filename,
+      contentType,
+      size,
+      content,
+      encoding: 'base64',
+      inline: source.inline === true,
+      cid: String(source.cid || '').trim() || undefined,
+      contentDisposition: source.inline === true ? 'inline' : 'attachment',
+    };
+  });
+}
+
 export const POST: APIRoute = async ({ request }) => {
   const body = await readJsonBody(request);
   try {
@@ -58,19 +111,28 @@ export const POST: APIRoute = async ({ request }) => {
     const account = await findAccount(String(body.account_id || '').trim() || undefined);
     if (!account) return json({ error: { message: 'No active mail account found' } }, 400);
 
-    const subject = String(body.subject || '').trim();
-    const contentHtml = String(body.content_html || body.html || '').trim();
-    const contentText = String(body.content_text || body.text || plainTextFromHtml(contentHtml)).trim();
+    const subject = renderMailSystemVariables(body.subject).trim();
+    const contentHtml = renderMailSystemVariables(
+      body.content_html || body.html,
+      true,
+    ).trim();
+    const contentText = renderMailSystemVariables(
+      body.content_text || body.text || plainTextFromHtml(contentHtml),
+    ).trim();
     const recipients = parseEmailList(body.recipients || body.to);
-    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+    const attachments = normalizeAttachments(body.attachments);
     const templateId = String(body.template_id || '').trim() || null;
     const campaignId = String(body.campaign_id || '').trim() || null;
     const scheduledAt = String(body.scheduled_at || '').trim() || null;
     const saveAsDraft = body.draft === true;
+    const scheduledTime = scheduledAt ? Date.parse(scheduledAt) : 0;
 
     if (!subject) return json({ error: { message: 'Subject is required' } }, 400);
     if (!contentHtml && !contentText) return json({ error: { message: 'Content is required' } }, 400);
     if (!recipients.length) return json({ error: { message: 'At least one valid recipient is required' } }, 400);
+    if (scheduledAt && (Number.isNaN(scheduledTime) || scheduledTime <= Date.now())) {
+      return json({ error: { message: 'Schedule date must be in the future' } }, 400);
+    }
 
     const blocked = await dbQuery<{ email: string }>(
       `SELECT eposta AS email
@@ -108,7 +170,7 @@ export const POST: APIRoute = async ({ request }) => {
           contentText,
           JSON.stringify(attachments),
           templateId || null,
-	          saveAsDraft ? 'draft' : 'queued',
+	          saveAsDraft ? 'draft' : scheduledAt ? 'scheduled' : 'sending',
 	          scheduledAt,
           access.session!.user.id,
         ]

@@ -1314,12 +1314,28 @@ class _ContactListDialogResult {
 class _ContactListDialogState extends State<_ContactListDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _importSearchController;
   late AdminContactImportSource _source;
   late bool _active;
   String? _selectedFileName;
   List<AdminContactImportRow>? _importRows;
   var _readyCount = 0;
   var _nameHasError = false;
+  var _importSearchQuery = '';
+
+  List<AdminContactImportRow> get _filteredImportRows {
+    final rows = _importRows ?? const <AdminContactImportRow>[];
+    final query = _importSearchQuery.trim().toLowerCase();
+    if (query.isEmpty) return rows;
+    return rows
+        .where((row) {
+          final haystack =
+              '${row.email} ${row.firstName} ${row.lastName} ${row.phone}'
+                  .toLowerCase();
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
+  }
 
   @override
   void initState() {
@@ -1329,6 +1345,7 @@ class _ContactListDialogState extends State<_ContactListDialog> {
     _descriptionController = TextEditingController(
       text: list?.description ?? '',
     );
+    _importSearchController = TextEditingController();
     _source = list?.source ?? AdminContactImportSource.csv;
     _active = list?.active ?? true;
     _readyCount = list?.contactCount ?? 0;
@@ -1338,7 +1355,13 @@ class _ContactListDialogState extends State<_ContactListDialog> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _importSearchController.dispose();
     super.dispose();
+  }
+
+  void _resetImportSearch() {
+    _importSearchController.clear();
+    _importSearchQuery = '';
   }
 
   void _selectSource(AdminContactImportSource source) {
@@ -1349,6 +1372,7 @@ class _ContactListDialogState extends State<_ContactListDialog> {
       _readyCount = widget.list?.source == source
           ? widget.list?.contactCount ?? 0
           : 0;
+      _resetImportSearch();
     });
   }
 
@@ -1380,6 +1404,7 @@ class _ContactListDialogState extends State<_ContactListDialog> {
         _selectedFileName = file.name;
         _importRows = rows;
         _readyCount = rows.length;
+        _resetImportSearch();
       });
     } catch (error) {
       if (!mounted) return;
@@ -1461,7 +1486,12 @@ class _ContactListDialogState extends State<_ContactListDialog> {
         'mail.contacts.dialog.subscribersSelectedCount',
         values: {'count': rows.length},
       );
+      _resetImportSearch();
     });
+  }
+
+  void _onImportSearchChanged(String value) {
+    setState(() => _importSearchQuery = value);
   }
 
   void _submit({required bool importContacts}) {
@@ -1574,6 +1604,10 @@ class _ContactListDialogState extends State<_ContactListDialog> {
                                     source: _source,
                                     selectedFileName: _selectedFileName,
                                     readyCount: _readyCount,
+                                    rows: _filteredImportRows,
+                                    previewRowsLoaded: _importRows != null,
+                                    searchController: _importSearchController,
+                                    onSearchChanged: _onImportSearchChanged,
                                     onChooseFile: _chooseFile,
                                     onDownloadSample: _downloadSample,
                                   ),
@@ -1603,6 +1637,11 @@ class _ContactListDialogState extends State<_ContactListDialog> {
                                         source: _source,
                                         selectedFileName: _selectedFileName,
                                         readyCount: _readyCount,
+                                        rows: _filteredImportRows,
+                                        previewRowsLoaded: _importRows != null,
+                                        searchController:
+                                            _importSearchController,
+                                        onSearchChanged: _onImportSearchChanged,
                                         onChooseFile: _chooseFile,
                                         onDownloadSample: _downloadSample,
                                       ),
@@ -1830,6 +1869,10 @@ class _ImportFilePanel extends StatelessWidget {
     required this.source,
     required this.selectedFileName,
     required this.readyCount,
+    required this.rows,
+    required this.previewRowsLoaded,
+    required this.searchController,
+    required this.onSearchChanged,
     required this.onChooseFile,
     required this.onDownloadSample,
   });
@@ -1837,6 +1880,10 @@ class _ImportFilePanel extends StatelessWidget {
   final AdminContactImportSource source;
   final String? selectedFileName;
   final int readyCount;
+  final List<AdminContactImportRow> rows;
+  final bool previewRowsLoaded;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
   final VoidCallback onChooseFile;
   final ValueChanged<AdminContactImportSource> onDownloadSample;
 
@@ -2020,18 +2067,32 @@ class _ImportFilePanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           if (readyCount > 0)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _StatusBadge(
-                label: context.t(
-                  'mail.contacts.dialog.fileReady',
-                  values: {'count': readyCount},
+            Row(
+              children: [
+                _StatusBadge(
+                  label: context.t(
+                    'mail.contacts.dialog.fileReady',
+                    values: {'count': readyCount},
+                  ),
+                  color: const Color(0xFF198754),
                 ),
-                color: const Color(0xFF198754),
-              ),
+                if (previewRowsLoaded) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ImportSearchField(
+                      controller: searchController,
+                      onChanged: onSearchChanged,
+                    ),
+                  ),
+                ],
+              ],
             ),
           const SizedBox(height: 10),
-          const _ExampleTable(),
+          _ExampleTable(
+            rows: rows,
+            readyCount: readyCount,
+            previewRowsLoaded: previewRowsLoaded,
+          ),
         ],
       ),
     );
@@ -2507,8 +2568,122 @@ class _RadioChoice extends StatelessWidget {
   }
 }
 
-class _ExampleTable extends StatelessWidget {
-  const _ExampleTable();
+class _ImportSearchField extends StatelessWidget {
+  const _ImportSearchField({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 30,
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, value, _) {
+          final hasText = value.text.trim().isNotEmpty;
+          return TextField(
+            controller: controller,
+            onChanged: onChanged,
+            mouseCursor: SystemMouseCursors.text,
+            cursorColor: AppColors.support,
+            textAlignVertical: TextAlignVertical.center,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0,
+            ),
+            decoration: InputDecoration(
+              hintText: context.t('mail.contacts.searchPlaceholder'),
+              hintStyle: const TextStyle(
+                color: AppColors.placeholder,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0,
+              ),
+              filled: true,
+              fillColor: Colors.white,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+              prefixIcon: const Padding(
+                padding: EdgeInsets.only(left: 9, right: 7),
+                child: SymbolIcon(
+                  Symbols.search,
+                  color: AppColors.iconMuted,
+                  size: 16,
+                ),
+              ),
+              prefixIconConstraints: const BoxConstraints(minWidth: 32),
+              suffixIcon: hasText
+                  ? IconButton(
+                      tooltip: context.t('common.close'),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        controller.clear();
+                        onChanged('');
+                      },
+                      icon: const SymbolIcon(
+                        Symbols.close,
+                        color: AppColors.iconMuted,
+                        size: 15,
+                      ),
+                    )
+                  : null,
+              suffixIconConstraints: const BoxConstraints(
+                minWidth: 30,
+                minHeight: 30,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                borderSide: const BorderSide(color: AppColors.line),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                borderSide: const BorderSide(color: AppColors.line),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                borderSide: const BorderSide(color: AppColors.deepOcean),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ExampleTable extends StatefulWidget {
+  const _ExampleTable({
+    required this.rows,
+    required this.readyCount,
+    required this.previewRowsLoaded,
+  });
+
+  final List<AdminContactImportRow> rows;
+  final int readyCount;
+  final bool previewRowsLoaded;
+
+  @override
+  State<_ExampleTable> createState() => _ExampleTableState();
+}
+
+class _ExampleTableState extends State<_ExampleTable> {
+  static const _rowHeight = 36.0;
+  static const _bodyHeight = 152.0;
+
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2518,6 +2693,7 @@ class _ExampleTable extends StatelessWidget {
       context.t('mail.contacts.example.lastName'),
       context.t('mail.contacts.example.phone'),
     ];
+    final showPreviewRows = widget.previewRowsLoaded && widget.readyCount > 0;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -2552,7 +2728,89 @@ class _ExampleTable extends StatelessWidget {
               ],
             ),
           ),
+          if (showPreviewRows)
+            SizedBox(
+              height: _bodyHeight,
+              child: widget.rows.isEmpty
+                  ? Center(
+                      child: Text(
+                        context.t('mail.contacts.people.empty'),
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    )
+                  : Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility:
+                          widget.rows.length * _rowHeight > _bodyHeight,
+                      child: ListView.separated(
+                        controller: _scrollController,
+                        padding: EdgeInsets.zero,
+                        itemCount: widget.rows.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AppColors.line),
+                        itemBuilder: (context, index) =>
+                            _ExampleTableRow(row: widget.rows[index]),
+                      ),
+                    ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _ExampleTableRow extends StatelessWidget {
+  const _ExampleTableRow({required this.row});
+
+  final AdminContactImportRow row;
+
+  String _value(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? '-' : trimmed;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _ExampleTableState._rowHeight,
+      child: Row(
+        children: [
+          _ExampleTableCell(text: _value(row.email)),
+          _ExampleTableCell(text: _value(row.firstName)),
+          _ExampleTableCell(text: _value(row.lastName)),
+          _ExampleTableCell(text: _value(row.phone)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExampleTableCell extends StatelessWidget {
+  const _ExampleTableCell({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0,
+          ),
+        ),
       ),
     );
   }

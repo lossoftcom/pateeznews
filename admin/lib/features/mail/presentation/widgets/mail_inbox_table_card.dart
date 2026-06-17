@@ -19,6 +19,8 @@ const mailQuickStarred = 'starred';
 const mailQuickAttachments = 'attachments';
 const mailQuickInvoice = 'invoice';
 const mailQuickSent = 'sent';
+const mailQuickDraft = 'draft';
+const mailQuickScheduled = 'scheduled';
 const mailQuickSpam = 'spam';
 const mailQuickTrash = 'trash';
 const mailDateAll = 'all';
@@ -310,7 +312,13 @@ class MailFolderPanel extends StatelessWidget {
             )
             .length,
       mailQuickSent =>
-        messages.where((message) => message.folder == mailFolderSent).length,
+        messages.where((message) => message.isOutboxSource).length,
+      mailQuickDraft =>
+        messages.where((message) => message.folder == mailFolderDraft).length,
+      mailQuickScheduled =>
+        messages
+            .where((message) => message.folder == mailFolderScheduled)
+            .length,
       mailQuickSpam =>
         messages.where((message) => message.folder == mailFolderSpam).length,
       mailQuickTrash =>
@@ -324,6 +332,8 @@ class MailFolderPanel extends StatelessWidget {
       mailQuickUnread ||
       mailQuickStarred ||
       mailQuickSent ||
+      mailQuickDraft ||
+      mailQuickScheduled ||
       mailQuickSpam ||
       mailQuickTrash => _countFor(value),
       _ => 0,
@@ -374,6 +384,18 @@ class MailFolderPanel extends StatelessWidget {
         label: 'mail.outbox.title',
         icon: Symbols.schedule_send,
         color: const Color(0xFF3B82F6),
+      ),
+      _MailFolderItemData(
+        value: mailQuickDraft,
+        label: 'mail.folder.draft',
+        icon: Symbols.draft,
+        color: AppColors.support,
+      ),
+      _MailFolderItemData(
+        value: mailQuickScheduled,
+        label: 'mail.folder.scheduled',
+        icon: Symbols.schedule,
+        color: AppColors.warmHorizon,
       ),
       _MailFolderItemData(
         value: mailQuickSpam,
@@ -736,6 +758,18 @@ class _MailFilters extends StatelessWidget {
               DropdownMenuItem(
                 value: mailFolderSent,
                 child: Text(context.t('mail.folder.sent')),
+              ),
+              DropdownMenuItem(
+                value: mailFolderOutbox,
+                child: Text(context.t('mail.outbox.title')),
+              ),
+              DropdownMenuItem(
+                value: mailFolderDraft,
+                child: Text(context.t('mail.folder.draft')),
+              ),
+              DropdownMenuItem(
+                value: mailFolderScheduled,
+                child: Text(context.t('mail.folder.scheduled')),
               ),
               DropdownMenuItem(
                 value: mailFolderSpam,
@@ -1272,10 +1306,11 @@ class _MailDataTable extends StatelessWidget {
 
   static const double _selectWidth = 42;
   static const double _idWidth = 58;
-  static const double _senderWidth = 160;
-  static const double _subjectMinWidth = 240;
+  static const double _senderWidth = 190;
+  static const double _subjectMinWidth = 300;
+  static const double _subjectMaxWidth = 460;
   static const double _attachmentWidth = 60;
-  static const double _accountWidth = 120;
+  static const double _accountWidth = 156;
   static const double _dateWidth = 140;
   static const double _statusWidth = 82;
   static const double _menuWidth = 76;
@@ -1312,9 +1347,13 @@ class _MailDataTable extends StatelessWidget {
             _dateWidth +
             _statusWidth +
             _menuWidth;
-        final subjectWidth = (tableWidth - fixedWidth) < _subjectMinWidth
-            ? _subjectMinWidth
-            : tableWidth - fixedWidth;
+        final availableSubjectWidth = tableWidth - fixedWidth;
+        final subjectWidth = availableSubjectWidth
+            .clamp(_subjectMinWidth, _subjectMaxWidth)
+            .toDouble();
+        final spacerWidth = (availableSubjectWidth - subjectWidth)
+            .clamp(0, double.infinity)
+            .toDouble();
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1335,6 +1374,7 @@ class _MailDataTable extends StatelessWidget {
                     selectedCount: selectedMessageIds.length,
                     totalCount: messages.length,
                     subjectWidth: subjectWidth,
+                    spacerWidth: spacerWidth,
                     sortState: sortState,
                     onToggleAllMessages: onToggleAllMessages,
                     onSort: onSort,
@@ -1349,6 +1389,7 @@ class _MailDataTable extends StatelessWidget {
                                   _MailRow(
                                     message: message,
                                     subjectWidth: subjectWidth,
+                                    spacerWidth: spacerWidth,
                                     selected: selectedMessageIds.contains(
                                       message.id,
                                     ),
@@ -1381,6 +1422,7 @@ class _MailHeader extends StatelessWidget {
     required this.selectedCount,
     required this.totalCount,
     required this.subjectWidth,
+    required this.spacerWidth,
     required this.sortState,
     required this.onToggleAllMessages,
     required this.onSort,
@@ -1389,6 +1431,7 @@ class _MailHeader extends StatelessWidget {
   final int selectedCount;
   final int totalCount;
   final double subjectWidth;
+  final double spacerWidth;
   final TableSortState sortState;
   final VoidCallback onToggleAllMessages;
   final ValueChanged<String> onSort;
@@ -1438,6 +1481,7 @@ class _MailHeader extends StatelessWidget {
             sortState: sortState,
             onSort: onSort,
           ),
+          if (spacerWidth > 0) SizedBox(width: spacerWidth),
           const SizedBox(
             width: _MailDataTable._attachmentWidth,
             child: _HeaderText('mail.attachments', centered: true),
@@ -1531,6 +1575,7 @@ class _MailRow extends StatelessWidget {
   const _MailRow({
     required this.message,
     required this.subjectWidth,
+    required this.spacerWidth,
     required this.selected,
     required this.onToggle,
     required this.onOpenMessage,
@@ -1545,6 +1590,7 @@ class _MailRow extends StatelessWidget {
 
   final AdminMailMessage message;
   final double subjectWidth;
+  final double spacerWidth;
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<AdminMailMessage> onOpenMessage;
@@ -1559,7 +1605,7 @@ class _MailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 82),
+      constraints: const BoxConstraints(minHeight: 66),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: selected ? AppColors.surface : Colors.white,
@@ -1578,7 +1624,7 @@ class _MailRow extends StatelessWidget {
             child: _RowSelectTapTarget(
               onTap: onToggle,
               child: Text(
-                message.id.toString(),
+                message.displayId.toString(),
                 style: const TextStyle(
                   color: AppColors.deepOcean,
                   fontWeight: FontWeight.w500,
@@ -1601,6 +1647,7 @@ class _MailRow extends StatelessWidget {
               child: _SubjectCell(message: message),
             ),
           ),
+          if (spacerWidth > 0) SizedBox(width: spacerWidth),
           SizedBox(
             width: _MailDataTable._attachmentWidth,
             child: _AttachmentCell(message: message),
@@ -1790,35 +1837,35 @@ class _SubjectCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final preview = message.preview.trim();
     return Padding(
       padding: const EdgeInsets.only(right: 16),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            message.subject,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppColors.deepOcean,
-              fontSize: 12,
-              fontWeight: message.read ? FontWeight.w600 : FontWeight.w800,
-              letterSpacing: 0,
-            ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: message.subject,
+                style: TextStyle(
+                  color: AppColors.deepOcean,
+                  fontWeight: message.read ? FontWeight.w600 : FontWeight.w800,
+                ),
+              ),
+              if (preview.isNotEmpty)
+                TextSpan(
+                  text: ' - $preview',
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            message.preview,
-            softWrap: true,
-            style: const TextStyle(
-              color: AppColors.inkSoft,
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-              letterSpacing: 0,
-            ),
-          ),
-        ],
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12, height: 1.28, letterSpacing: 0),
+        ),
       ),
     );
   }
@@ -1953,24 +2000,14 @@ class _MailStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sent = message.folder == mailFolderSent;
-    final active = !message.read || sent;
-    final label = sent
-        ? 'mail.status.sent'
-        : message.read
-        ? 'mail.status.read'
-        : 'mail.status.unread';
-    final textColor = active ? const Color(0xFF198754) : AppColors.inkSoft;
-    final dotColor = active ? const Color(0xFF198754) : AppColors.support;
+    final status = _mailStatusVisual(message);
 
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: active
-              ? const Color(0xFFE6F4EA)
-              : AppColors.support.withValues(alpha: 0.1),
+          color: status.background,
           borderRadius: BorderRadius.circular(AppRadius.value),
         ),
         child: Row(
@@ -1980,18 +2017,18 @@ class _MailStatusBadge extends StatelessWidget {
               width: 5,
               height: 5,
               decoration: BoxDecoration(
-                color: dotColor,
+                color: status.color,
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
-                context.t(label),
+                context.t(status.label),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: textColor,
+                  color: status.color,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
@@ -2003,6 +2040,63 @@ class _MailStatusBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MailStatusVisual {
+  const _MailStatusVisual({
+    required this.label,
+    required this.color,
+    required this.background,
+  });
+
+  final String label;
+  final Color color;
+  final Color background;
+}
+
+_MailStatusVisual _mailStatusVisual(AdminMailMessage message) {
+  if (message.isOutboxSource) {
+    return switch (message.status) {
+      'draft' => _MailStatusVisual(
+        label: 'mail.status.draft',
+        color: AppColors.support,
+        background: AppColors.support.withValues(alpha: 0.1),
+      ),
+      'scheduled' => _MailStatusVisual(
+        label: 'mail.status.scheduled',
+        color: AppColors.warmHorizon,
+        background: AppColors.warmHorizon.withValues(alpha: 0.12),
+      ),
+      'queued' || 'sending' => _MailStatusVisual(
+        label: 'mail.status.queued',
+        color: const Color(0xFF3B82F6),
+        background: const Color(0xFFEAF2FF),
+      ),
+      'failed' || 'bounce' => _MailStatusVisual(
+        label: 'mail.status.failed',
+        color: AppColors.actionRed,
+        background: AppColors.actionRed.withValues(alpha: 0.1),
+      ),
+      _ => const _MailStatusVisual(
+        label: 'mail.status.sent',
+        color: Color(0xFF198754),
+        background: Color(0xFFE6F4EA),
+      ),
+    };
+  }
+
+  if (!message.read) {
+    return const _MailStatusVisual(
+      label: 'mail.status.unread',
+      color: Color(0xFF198754),
+      background: Color(0xFFE6F4EA),
+    );
+  }
+  return _MailStatusVisual(
+    label: 'mail.status.read',
+    color: AppColors.inkSoft,
+    background: AppColors.support.withValues(alpha: 0.1),
+  );
 }
 
 class _MailRowMenu extends StatefulWidget {
@@ -2161,6 +2255,7 @@ class _MailMenuCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inTrash = message.folder == mailFolderTrash;
+    final inboxMessage = message.isInboxSource;
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -2186,7 +2281,7 @@ class _MailMenuCard extends StatelessWidget {
               label: 'mail.action.open',
               onTap: onOpen,
             ),
-            if (!inTrash)
+            if (inboxMessage && !inTrash)
               _MailMenuItem(
                 icon: message.read ? Symbols.visibility_off : Symbols.check,
                 label: message.read
@@ -2194,7 +2289,7 @@ class _MailMenuCard extends StatelessWidget {
                     : 'mail.action.markRead',
                 onTap: message.read ? onMarkUnread : onMarkRead,
               ),
-            if (!inTrash)
+            if (inboxMessage && !inTrash)
               _MailMenuItem(
                 icon: Symbols.verified,
                 label: message.starred
@@ -2202,33 +2297,34 @@ class _MailMenuCard extends StatelessWidget {
                     : 'mail.action.star',
                 onTap: onToggleStar,
               ),
-            if (!inTrash && message.folder != mailFolderArchive)
+            if (inboxMessage && !inTrash && message.folder != mailFolderArchive)
               _MailMenuItem(
                 icon: Symbols.folder_open,
                 label: 'mail.action.archive',
                 onTap: onArchive,
               ),
-            if (message.folder == mailFolderSpam ||
-                message.folder == mailFolderTrash)
+            if (inboxMessage &&
+                (message.folder == mailFolderSpam ||
+                    message.folder == mailFolderTrash))
               _MailMenuItem(
                 icon: Symbols.alternate_email,
                 label: 'mail.action.moveInbox',
                 onTap: onRestoreInbox,
               ),
-            if (!inTrash && message.folder != mailFolderSpam)
+            if (inboxMessage && !inTrash && message.folder != mailFolderSpam)
               _MailMenuItem(
                 icon: Symbols.visibility_off,
                 label: 'mail.action.moveSpam',
                 onTap: onMoveSpam,
               ),
-            if (!inTrash)
+            if (inboxMessage && !inTrash)
               _MailMenuItem(
                 icon: Symbols.delete,
                 label: 'mail.action.moveTrash',
                 onTap: onMoveTrash,
                 danger: true,
               ),
-            if (inTrash)
+            if (inboxMessage && inTrash)
               _MailMenuItem(
                 icon: Symbols.delete,
                 label: 'Delete',
@@ -2576,6 +2672,18 @@ class _MailInboxMobileView extends StatelessWidget {
                   child: Text(context.t('mail.folder.sent')),
                 ),
                 DropdownMenuItem(
+                  value: mailFolderOutbox,
+                  child: Text(context.t('mail.outbox.title')),
+                ),
+                DropdownMenuItem(
+                  value: mailFolderDraft,
+                  child: Text(context.t('mail.folder.draft')),
+                ),
+                DropdownMenuItem(
+                  value: mailFolderScheduled,
+                  child: Text(context.t('mail.folder.scheduled')),
+                ),
+                DropdownMenuItem(
                   value: mailFolderSpam,
                   child: Text(context.t('mail.folder.spam')),
                 ),
@@ -2794,14 +2902,8 @@ class _MailInboxMobileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inTrash = message.folder == mailFolderTrash;
-    final sent = message.folder == mailFolderSent;
-    final active = !message.read || sent;
-    final statusLabel = sent
-        ? 'mail.status.sent'
-        : message.read
-        ? 'mail.status.read'
-        : 'mail.status.unread';
-    final statusColor = active ? const Color(0xFF198754) : AppColors.support;
+    final inboxMessage = message.isInboxSource;
+    final status = _mailStatusVisual(message);
     final hasAttachment = message.hasAttachments || message.hasImages;
 
     return AdminMobileCard(
@@ -2874,7 +2976,7 @@ class _MailInboxMobileCard extends StatelessWidget {
                     label: context.t('mail.action.open'),
                     onTap: () => onOpenMessage(message),
                   ),
-                  if (!inTrash)
+                  if (inboxMessage && !inTrash)
                     AdminMobileMenuAction(
                       icon: message.read
                           ? Symbols.visibility_off
@@ -2886,7 +2988,7 @@ class _MailInboxMobileCard extends StatelessWidget {
                       ),
                       onTap: () => onMarkRead(message, !message.read),
                     ),
-                  if (!inTrash)
+                  if (inboxMessage && !inTrash)
                     AdminMobileMenuAction(
                       icon: Symbols.verified,
                       label: context.t(
@@ -2896,33 +2998,38 @@ class _MailInboxMobileCard extends StatelessWidget {
                       ),
                       onTap: () => onToggleStar(message),
                     ),
-                  if (!inTrash && message.folder != mailFolderArchive)
+                  if (inboxMessage &&
+                      !inTrash &&
+                      message.folder != mailFolderArchive)
                     AdminMobileMenuAction(
                       icon: Symbols.folder_open,
                       label: context.t('mail.action.archive'),
                       onTap: () => onArchive(message),
                     ),
-                  if (message.folder == mailFolderSpam ||
-                      message.folder == mailFolderTrash)
+                  if (inboxMessage &&
+                      (message.folder == mailFolderSpam ||
+                          message.folder == mailFolderTrash))
                     AdminMobileMenuAction(
                       icon: Symbols.alternate_email,
                       label: context.t('mail.action.moveInbox'),
                       onTap: () => onRestoreInbox(message),
                     ),
-                  if (!inTrash && message.folder != mailFolderSpam)
+                  if (inboxMessage &&
+                      !inTrash &&
+                      message.folder != mailFolderSpam)
                     AdminMobileMenuAction(
                       icon: Symbols.visibility_off,
                       label: context.t('mail.action.moveSpam'),
                       onTap: () => onMoveSpam(message),
                     ),
-                  if (!inTrash)
+                  if (inboxMessage && !inTrash)
                     AdminMobileMenuAction(
                       icon: Symbols.delete,
                       label: context.t('mail.action.moveTrash'),
                       danger: true,
                       onTap: () => onMoveTrash(message),
                     ),
-                  if (inTrash)
+                  if (inboxMessage && inTrash)
                     AdminMobileMenuAction(
                       icon: Symbols.delete,
                       label: context.t('Delete'),
@@ -2975,8 +3082,8 @@ class _MailInboxMobileCard extends StatelessWidget {
           Row(
             children: [
               AdminMobileStatusPill(
-                label: context.t(statusLabel),
-                color: statusColor,
+                label: context.t(status.label),
+                color: status.color,
               ),
               const Spacer(),
               if (message.account.trim().isNotEmpty) ...[

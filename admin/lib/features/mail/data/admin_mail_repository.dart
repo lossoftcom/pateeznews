@@ -27,6 +27,7 @@ class AdminMailComposePayload {
     required this.recipients,
     required this.subject,
     required this.content,
+    this.attachments = const <AdminMailComposeAttachmentPayload>[],
     this.templateId,
     this.scheduledAt,
     this.draft = false,
@@ -36,9 +37,40 @@ class AdminMailComposePayload {
   final String recipients;
   final String subject;
   final String content;
+  final List<AdminMailComposeAttachmentPayload> attachments;
   final int? templateId;
   final DateTime? scheduledAt;
   final bool draft;
+}
+
+class AdminMailComposeAttachmentPayload {
+  const AdminMailComposeAttachmentPayload({
+    required this.filename,
+    required this.contentType,
+    required this.size,
+    required this.contentBase64,
+    this.inline = false,
+    this.cid,
+  });
+
+  final String filename;
+  final String contentType;
+  final int size;
+  final String contentBase64;
+  final bool inline;
+  final String? cid;
+
+  Map<String, Object?> toJson() {
+    return {
+      'filename': filename,
+      'content_type': contentType,
+      'size': size,
+      'content': contentBase64,
+      'encoding': 'base64',
+      'inline': inline,
+      if (cid != null && cid!.trim().isNotEmpty) 'cid': cid,
+    };
+  }
 }
 
 abstract class AdminMailRepository {
@@ -98,8 +130,9 @@ abstract class AdminMailRepository {
 
   Future<List<AdminMailContact>> fetchContacts(
     AdminSession session,
-    int listId,
-  );
+    int listId, {
+    int limit = 500,
+  });
 
   Future<AdminMailContact> saveContact(
     AdminSession session, {
@@ -279,7 +312,6 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
   Future<List<AdminContactList>> fetchContactLists(AdminSession session) async {
     final result = await _getJson('/api/admin/mail/contact-lists', session, {
       'limit': '100',
-      'sync_newsletter': 'true',
     });
     final rows = result['items'];
     return rows is List
@@ -352,11 +384,13 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
   @override
   Future<List<AdminMailContact>> fetchContacts(
     AdminSession session,
-    int listId,
-  ) async {
+    int listId, {
+    int limit = 500,
+  }) async {
+    final safeLimit = limit.clamp(1, 500);
     final result = await _getJson('/api/admin/mail/contacts', session, {
       'list_id': '$listId',
-      'limit': '500',
+      'limit': '$safeLimit',
     });
     final rows = result['items'];
     return rows is List
@@ -480,13 +514,19 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
 
   @override
   Future<List<AdminMailMessage>> fetchInbox(AdminSession session) async {
-    final result = await _getJson('/api/admin/mail/inbox', session, {
-      'limit': '100',
-    });
-    final rows = result['items'];
-    return rows is List
-        ? rows.whereType<Map>().map(_messageFromJson).toList(growable: false)
-        : const <AdminMailMessage>[];
+    final results = await Future.wait([
+      _getJson('/api/admin/mail/inbox', session, {'limit': '100', 'sync': '1'}),
+      _getJson('/api/admin/mail/outbox', session, {'limit': '100'}),
+    ]);
+    final inboxRows = results[0]['items'];
+    final outboxRows = results[1]['items'];
+    final messages = <AdminMailMessage>[
+      if (inboxRows is List)
+        ...inboxRows.whereType<Map>().map(_messageFromJson),
+      if (outboxRows is List)
+        ...outboxRows.whereType<Map>().map(_outboxMessageFromJson),
+    ]..sort((left, right) => right.sentAt.compareTo(left.sentAt));
+    return messages;
   }
 
   @override
@@ -527,6 +567,10 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       'subject': payload.subject,
       'content_html': payload.content,
       'content_text': _plainText(payload.content),
+      if (payload.attachments.isNotEmpty)
+        'attachments': payload.attachments
+            .map((attachment) => attachment.toJson())
+            .toList(growable: false),
       if (payload.scheduledAt != null)
         'scheduled_at': payload.scheduledAt!.toUtc().toIso8601String(),
       if (payload.draft) 'draft': true,
@@ -599,8 +643,7 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       'contact_list_id': _nullableIntString(campaign.contactListId),
       'recipient_count': campaign.recipientCount,
       'status': campaign.status.value,
-      if (campaign.scheduledAt != null)
-        'scheduled_start_at': campaign.scheduledAt!.toUtc().toIso8601String(),
+      'scheduled_start_at': campaign.scheduledAt?.toUtc().toIso8601String(),
     };
   }
 
@@ -715,21 +758,24 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
   }
 
   AdminMailMessage _messageFromJson(Map<dynamic, dynamic> json) {
-    final attachments = _asList(json['attachments']);
-    final images = _asList(json['images']);
+    final attachments = _attachmentsFromJson(json['attachments']);
+    final images = _attachmentsFromJson(json['images']);
     final contentText = _decodeText(json['content_text']);
     final contentHtml = _decodeText(json['content_html']);
+    final id = _asInt(json['id']);
+    final folder = _mailFolderFromDb(json['folder']);
+    final accountEmail = _decodeText(json['account_email']);
+    final accountName = _decodeText(json['account_name']);
     return AdminMailMessage(
-      id: _asInt(json['id']),
+      id: id,
+      displayId: id,
       senderName: _decodeText(json['sender_name']),
       senderEmail: _decodeText(json['sender_email']),
       recipientEmail: _decodeText(json['recipient_email']),
       subject: _decodeText(json['subject']),
       preview: contentText.isNotEmpty ? contentText : _plainText(contentHtml),
-      account: _decodeText(json['account_name']),
-      folder: _decodeText(json['folder']).isEmpty
-          ? mailFolderInbox
-          : _decodeText(json['folder']),
+      account: accountEmail.isNotEmpty ? accountEmail : accountName,
+      folder: folder,
       labels: _asList(
         json['labels'],
       ).map((item) => item.toString()).toList(growable: false),
@@ -738,7 +784,85 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       starred: _asBool(json['is_starred']),
       hasAttachments: attachments.isNotEmpty,
       hasImages: images.isNotEmpty,
+      contentHtml: contentHtml,
+      attachments: attachments,
+      images: images,
+      status: _decodeText(json['status']).isEmpty
+          ? (_asBool(json['is_read']) ? 'read' : 'unread')
+          : _decodeText(json['status']),
+      source: mailMessageSourceInbox,
     );
+  }
+
+  AdminMailMessage _outboxMessageFromJson(Map<dynamic, dynamic> json) {
+    final attachments = _attachmentsFromJson(json['attachments']);
+    final contentText = _decodeText(json['content_text']);
+    final contentHtml = _decodeText(json['content_html']);
+    final status = _decodeText(json['status']).isEmpty
+        ? 'queued'
+        : _decodeText(json['status']);
+    final id = _asInt(json['id']);
+    final folder = switch (status) {
+      'draft' => mailFolderDraft,
+      'scheduled' => mailFolderScheduled,
+      'queued' || 'sending' => mailFolderOutbox,
+      _ => mailFolderSent,
+    };
+    final senderName = _decodeText(json['sender_name']);
+    final senderEmail = _decodeText(json['sender_email']);
+    final accountEmail = _decodeText(json['account_email']);
+    final accountName = _decodeText(json['account_name']);
+    final displaySender = senderName.isNotEmpty
+        ? senderName
+        : accountName.isNotEmpty
+        ? accountName
+        : 'Pateez';
+    return AdminMailMessage(
+      id: -id,
+      displayId: id,
+      senderName: displaySender,
+      senderEmail: senderEmail,
+      recipientEmail: _decodeText(json['recipient_email']),
+      subject: _decodeText(json['subject']),
+      preview: contentText.isNotEmpty ? contentText : _plainText(contentHtml),
+      account: accountEmail.isNotEmpty
+          ? accountEmail
+          : senderEmail.isNotEmpty
+          ? senderEmail
+          : accountName,
+      folder: folder,
+      labels: const <String>[],
+      sentAt:
+          _parseDate(json['scheduled_at']) ??
+          _parseDate(json['sent_at']) ??
+          _parseDate(json['created_at']) ??
+          DateTime.now(),
+      read: true,
+      starred: false,
+      hasAttachments: attachments.isNotEmpty,
+      hasImages: attachments.any((attachment) => attachment.isImage),
+      contentHtml: contentHtml,
+      attachments: attachments,
+      images: attachments
+          .where((attachment) => attachment.isImage)
+          .toList(growable: false),
+      status: status,
+      source: mailMessageSourceOutbox,
+      scheduledAt: _parseDate(json['scheduled_at']),
+    );
+  }
+
+  String _mailFolderFromDb(Object? value) {
+    final folder = _decodeText(value);
+    return switch (folder) {
+      '' || 'gelen' => mailFolderInbox,
+      'arsiv' => mailFolderArchive,
+      'giden' => mailFolderSent,
+      'taslak' => mailFolderDraft,
+      'zamanlanan' => mailFolderScheduled,
+      'cop' || 'çöp' => mailFolderTrash,
+      _ => folder,
+    };
   }
 
   Future<Map<String, dynamic>> _getJson(
@@ -878,6 +1002,29 @@ class SupabaseAdminMailRepository implements AdminMailRepository {
       } catch (_) {}
     }
     return const [];
+  }
+
+  List<AdminMailAttachment> _attachmentsFromJson(Object? value) {
+    return _asList(value)
+        .whereType<Map>()
+        .map((item) {
+          final filename = _decodeText(item['filename']).trim().isNotEmpty
+              ? _decodeText(item['filename']).trim()
+              : _decodeText(item['name']).trim();
+          final contentType =
+              _decodeText(item['content_type']).trim().isNotEmpty
+              ? _decodeText(item['content_type']).trim()
+              : _decodeText(item['contentType']).trim();
+          return AdminMailAttachment(
+            filename: filename.isEmpty ? 'dosya' : filename,
+            contentType: contentType.isEmpty
+                ? 'application/octet-stream'
+                : contentType,
+            size: _asInt(item['size']),
+            inline: _asBool(item['inline']),
+          );
+        })
+        .toList(growable: false);
   }
 
   AdminMailProviderMode _providerMode(Object? value) {

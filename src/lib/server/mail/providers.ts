@@ -160,7 +160,15 @@ export async function sendMailWithAccount(account: any, input: {
   subject: string;
   html?: string;
   text?: string;
-  attachments?: Array<{ filename?: string; content?: string; path?: string; contentType?: string }>;
+  attachments?: Array<{
+    filename?: string;
+    content?: string;
+    path?: string;
+    contentType?: string;
+    encoding?: string;
+    cid?: string;
+    contentDisposition?: string;
+  }>;
 }) {
   const mode = String(account?.sending_mode || 'smtp');
 
@@ -179,6 +187,18 @@ export async function sendMailWithAccount(account: any, input: {
     };
 
     const transporter = nodemailer.createTransport(transportOptions);
+    const attachments = (input.attachments || []).map((attachment) => ({
+      filename: attachment.filename,
+      content: attachment.content,
+      path: attachment.path,
+      contentType: attachment.contentType,
+      encoding: attachment.encoding,
+      cid: attachment.cid,
+      contentDisposition: attachment.contentDisposition as
+        | 'attachment'
+        | 'inline'
+        | undefined,
+    }));
     const result = await transporter.sendMail({
       from: account.sender_name ? `"${account.sender_name}" <${account.sender_email}>` : account.sender_email,
       replyTo: account.default_reply_to || undefined,
@@ -186,7 +206,7 @@ export async function sendMailWithAccount(account: any, input: {
       subject: input.subject,
       html: input.html || undefined,
       text: input.text || undefined,
-      attachments: input.attachments || undefined,
+      attachments: attachments.length ? attachments : undefined,
     });
 
     return { ok: true, messageId: result.messageId || `smtp-${Date.now()}`, provider: providerLabel(account.service_type) };

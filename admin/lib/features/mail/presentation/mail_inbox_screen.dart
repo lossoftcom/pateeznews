@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
@@ -8,15 +11,25 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/widgets/admin_date_time_picker.dart';
+import '../../../shared/widgets/admin_rich_text_editor.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../../news/presentation/widgets/article_text_block.dart'
+    show ArticleRichTextEditor;
 import '../data/admin_mail_repository.dart';
+import 'contact_list_models.dart';
 import 'mail_settings_models.dart';
 import 'mail_template_models.dart';
 import 'mail_inbox_models.dart';
+import 'widgets/mail_html_view.dart';
 import 'widgets/mail_inbox_table_card.dart';
+
+const _mailMaxAttachmentCount = 10;
+const _mailMaxAttachmentBytes = 10 * 1024 * 1024;
+const _mailMaxAttachmentTotalBytes = 18 * 1024 * 1024;
 
 class MailInboxScreen extends StatefulWidget {
   const MailInboxScreen({
@@ -145,7 +158,9 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
       mailQuickInvoice => message.labels.any(
         (label) => label.toLowerCase() == 'fatura',
       ),
-      mailQuickSent => message.folder == mailFolderSent,
+      mailQuickSent => message.isOutboxSource,
+      mailQuickDraft => message.folder == mailFolderDraft,
+      mailQuickScheduled => message.folder == mailFolderScheduled,
       mailQuickSpam => message.folder == mailFolderSpam,
       mailQuickTrash => message.folder == mailFolderTrash,
       _ => true,
@@ -272,6 +287,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   }
 
   Future<void> _markRead(AdminMailMessage message, bool read) async {
+    if (!message.isInboxSource) return;
     try {
       await widget.repository.updateInboxMessages(widget.session, [
         message.id,
@@ -283,6 +299,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   }
 
   Future<void> _toggleStar(AdminMailMessage message) async {
+    if (!message.isInboxSource) return;
     try {
       await widget.repository.updateInboxMessages(widget.session, [
         message.id,
@@ -296,6 +313,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   }
 
   Future<void> _moveMessage(AdminMailMessage message, String folder) async {
+    if (!message.isInboxSource) return;
     try {
       await widget.repository.updateInboxMessages(widget.session, [
         message.id,
@@ -309,6 +327,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   }
 
   Future<void> _deleteMessage(AdminMailMessage message) async {
+    if (!message.isInboxSource) return;
     final confirmed = await showAppConfirmationDialog(
       context,
       title: context.t('mail.deleteTitle'),
@@ -360,15 +379,58 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   }
 
   void _openMessage(AdminMailMessage message) {
-    unawaited(_markRead(message, true));
+    if (message.isInboxSource) unawaited(_markRead(message, true));
     showDialog<void>(
       context: context,
-      builder: (context) =>
-          _MailPreviewDialog(message: message.copyWith(read: true)),
+      builder: (context) => _MailPreviewDialog(
+        message: message.isInboxSource ? message.copyWith(read: true) : message,
+        thread: _threadFor(message),
+        onReply: message.isInboxSource && message.senderEmail.trim().isNotEmpty
+            ? () {
+                Navigator.of(context).pop();
+                _showComposeDrawer(
+                  initial: _MailComposeInitialData.reply(message),
+                );
+              }
+            : null,
+      ),
     );
   }
 
-  void _showComposeDrawer() {
+  List<AdminMailMessage> _threadFor(AdminMailMessage message) {
+    final subject = _normalizedThreadSubject(message.subject);
+    if (subject.isEmpty) return <AdminMailMessage>[message];
+    final parties = {
+      message.senderEmail.trim().toLowerCase(),
+      message.recipientEmail.trim().toLowerCase(),
+    }..remove('');
+    final thread = _messages.where((candidate) {
+      if (_normalizedThreadSubject(candidate.subject) != subject) return false;
+      if (candidate.id == message.id) return true;
+      final candidateParties = {
+        candidate.senderEmail.trim().toLowerCase(),
+        candidate.recipientEmail.trim().toLowerCase(),
+      }..remove('');
+      return candidateParties.any(parties.contains);
+    }).toList()..sort((left, right) => left.sentAt.compareTo(right.sentAt));
+    return thread.isEmpty ? <AdminMailMessage>[message] : thread;
+  }
+
+  String _normalizedThreadSubject(String subject) {
+    var value = subject.trim().toLowerCase();
+    var changed = true;
+    while (changed) {
+      final next = value.replaceFirst(
+        RegExp(r'^(re|fw|fwd)\s*:\s*', caseSensitive: false),
+        '',
+      );
+      changed = next != value;
+      value = next.trim();
+    }
+    return value;
+  }
+
+  void _showComposeDrawer({_MailComposeInitialData? initial}) {
     showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -407,6 +469,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
                   repository: widget.repository,
                   accounts: _accounts,
                   templates: _templates,
+                  initial: initial,
                   onSaved: _loadInbox,
                   onError: _showMailError,
                 ),
@@ -545,9 +608,15 @@ class _MailTitle extends StatelessWidget {
 }
 
 class _MailPreviewDialog extends StatelessWidget {
-  const _MailPreviewDialog({required this.message});
+  const _MailPreviewDialog({
+    required this.message,
+    required this.thread,
+    this.onReply,
+  });
 
   final AdminMailMessage message;
+  final List<AdminMailMessage> thread;
+  final VoidCallback? onReply;
 
   @override
   Widget build(BuildContext context) {
@@ -555,8 +624,8 @@ class _MailPreviewDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.all(28),
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 760,
-        constraints: const BoxConstraints(maxHeight: 680),
+        width: 920,
+        constraints: const BoxConstraints(maxHeight: 760),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.value),
@@ -602,23 +671,29 @@ class _MailPreviewDialog extends StatelessWidget {
                     const SizedBox(height: 20),
                     _MailDetailGrid(message: message),
                     const SizedBox(height: 22),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.value),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Text(
-                        message.preview,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    if (thread.length > 1) ...[
+                      Text(
+                        context.t('mail.detail.conversation'),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: AppColors.deepOcean,
-                          height: 1.55,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: 0,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      for (final item in thread) ...[
+                        _MailConversationItem(
+                          message: item,
+                          active: item.id == message.id,
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                    ] else
+                      _MailConversationItem(message: message, active: true),
+                    if (message.attachments.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _MailAttachmentSummary(attachments: message.attachments),
+                    ],
                   ],
                 ),
               ),
@@ -631,6 +706,14 @@ class _MailPreviewDialog extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (onReply != null) ...[
+                    _ComposeFooterButton(
+                      label: 'mail.action.reply',
+                      icon: Symbols.reply_rounded,
+                      onPressed: onReply,
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style:
@@ -652,6 +735,197 @@ class _MailPreviewDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MailConversationItem extends StatelessWidget {
+  const _MailConversationItem({required this.message, required this.active});
+
+  final AdminMailMessage message;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final sender = message.isOutboxSource
+        ? context.t('mail.status.sent')
+        : message.senderName;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: active ? AppColors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: active ? AppColors.line : AppColors.softLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  sender,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${formatAdminFullDate(context, message.sentAt)} ${formatAdminTime(message.sentAt)}',
+                style: const TextStyle(
+                  color: AppColors.support,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (active)
+            MailHtmlView(
+              key: ValueKey('${message.id}-${message.contentHtml.hashCode}'),
+              html: message.contentHtml,
+              fallbackText: message.preview,
+              height: 520,
+            )
+          else
+            Text(
+              message.preview,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.deepOcean,
+                height: 1.45,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MailAttachmentSummary extends StatelessWidget {
+  const _MailAttachmentSummary({required this.attachments});
+
+  final List<AdminMailAttachment> attachments;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final attachment in attachments)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: AppColors.deepOcean.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: AppColors.softLine),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SymbolIcon(
+                  attachment.isImage ? Symbols.image_outlined : Symbols.draft,
+                  size: 16,
+                  color: AppColors.deepOcean,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  '${attachment.filename} · ${_formatAttachmentSize(attachment.size)}',
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MailComposeInitialData {
+  const _MailComposeInitialData({this.recipients = '', this.subject = ''});
+
+  factory _MailComposeInitialData.reply(AdminMailMessage message) {
+    final subject = message.subject.trim();
+    return _MailComposeInitialData(
+      recipients: message.senderEmail,
+      subject: subject.toLowerCase().startsWith('re:')
+          ? subject
+          : 'Re: $subject',
+    );
+  }
+
+  final String recipients;
+  final String subject;
+}
+
+class _MailComposeAttachment {
+  const _MailComposeAttachment({
+    required this.filename,
+    required this.contentType,
+    required this.size,
+    required this.contentBase64,
+  });
+
+  final String filename;
+  final String contentType;
+  final int size;
+  final String contentBase64;
+
+  bool get isImage => contentType.toLowerCase().startsWith('image/');
+
+  AdminMailComposeAttachmentPayload toPayload() {
+    return AdminMailComposeAttachmentPayload(
+      filename: filename,
+      contentType: contentType,
+      size: size,
+      contentBase64: contentBase64,
+    );
+  }
+}
+
+String _formatAttachmentSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  final kb = bytes / 1024;
+  if (kb < 1024) return '${kb.toStringAsFixed(kb >= 100 ? 0 : 1)} KB';
+  final mb = kb / 1024;
+  return '${mb.toStringAsFixed(mb >= 10 ? 0 : 1)} MB';
+}
+
+String _guessMimeType(String filename) {
+  final name = filename.toLowerCase();
+  if (name.endsWith('.png')) return 'image/png';
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+  if (name.endsWith('.gif')) return 'image/gif';
+  if (name.endsWith('.webp')) return 'image/webp';
+  if (name.endsWith('.svg')) return 'image/svg+xml';
+  if (name.endsWith('.pdf')) return 'application/pdf';
+  if (name.endsWith('.txt')) return 'text/plain';
+  if (name.endsWith('.csv')) return 'text/csv';
+  if (name.endsWith('.doc')) return 'application/msword';
+  if (name.endsWith('.docx')) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+  if (name.endsWith('.xls')) return 'application/vnd.ms-excel';
+  if (name.endsWith('.xlsx')) {
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  }
+  if (name.endsWith('.zip')) return 'application/zip';
+  return 'application/octet-stream';
 }
 
 class _MailDetailHeader extends StatelessWidget {
@@ -787,6 +1061,7 @@ class _MailComposeDrawer extends StatefulWidget {
     required this.repository,
     required this.accounts,
     required this.templates,
+    this.initial,
     required this.onSaved,
     required this.onError,
   });
@@ -795,6 +1070,7 @@ class _MailComposeDrawer extends StatefulWidget {
   final AdminMailRepository repository;
   final List<AdminMailAccount> accounts;
   final List<AdminMailTemplate> templates;
+  final _MailComposeInitialData? initial;
   final Future<void> Function() onSaved;
   final ValueChanged<Object> onError;
 
@@ -805,34 +1081,42 @@ class _MailComposeDrawer extends StatefulWidget {
 class _MailComposeDrawerState extends State<_MailComposeDrawer> {
   late final TextEditingController _recipientsController;
   late final TextEditingController _subjectController;
-  late final TextEditingController _contentController;
+  late quill.QuillController _editorController;
   String? _accountValue;
   String? _templateValue;
+  final _attachments = <_MailComposeAttachment>[];
   var _saving = false;
+  var _editorRevision = 0;
 
   @override
   void initState() {
     super.initState();
-    _recipientsController = TextEditingController();
-    _subjectController = TextEditingController();
-    _contentController = TextEditingController();
+    final initial = widget.initial;
+    _recipientsController = TextEditingController(
+      text: initial?.recipients ?? '',
+    );
+    _subjectController = TextEditingController(text: initial?.subject ?? '');
+    _editorController = quill.QuillController(
+      document: adminQuillDocumentFromJson(adminEmptyQuillDeltaJson),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
     _accountValue = widget.accounts.firstOrNull?.id.toString();
-    _templateValue = widget.templates.firstOrNull?.id.toString();
+    _templateValue = null;
   }
 
   @override
   void dispose() {
     _recipientsController.dispose();
     _subjectController.dispose();
-    _contentController.dispose();
+    _editorController.dispose();
     super.dispose();
   }
 
-  Future<void> _submit({bool draft = false, bool schedule = false}) async {
+  Future<void> _submit({bool draft = false, DateTime? scheduledAt}) async {
     if (_saving) return;
     final recipients = _recipientsController.text.trim();
     final subject = _subjectController.text.trim();
-    final content = _contentController.text.trim();
+    final content = adminQuillHtml(_editorController).trim();
     if (recipients.isEmpty || subject.isEmpty || content.isEmpty) {
       widget.onError(
         const AdminMailException('Alıcı, konu ve içerik zorunludur'),
@@ -849,10 +1133,11 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
           recipients: recipients,
           subject: subject,
           content: content,
+          attachments: _attachments
+              .map((attachment) => attachment.toPayload())
+              .toList(growable: false),
           draft: draft,
-          scheduledAt: schedule
-              ? DateTime.now().add(const Duration(days: 1))
-              : null,
+          scheduledAt: scheduledAt,
         ),
       );
       await widget.onSaved();
@@ -862,6 +1147,114 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _selectTemplate(String? value) {
+    final oldController = _editorController;
+    final id = int.tryParse(value ?? '');
+    final template = id == null
+        ? null
+        : widget.templates.firstWhere(
+            (item) => item.id == id,
+            orElse: () => widget.templates.first,
+          );
+    final nextController = quill.QuillController(
+      document: template == null
+          ? adminQuillDocumentFromJson(adminEmptyQuillDeltaJson)
+          : adminQuillDocumentFromStoredHtml(template.body),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    setState(() {
+      _templateValue = value;
+      if (template != null) {
+        _subjectController.text = template.subject;
+      }
+      _editorController = nextController;
+      _editorRevision++;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      oldController.dispose();
+    });
+  }
+
+  Future<void> _schedule() async {
+    final scheduledAt = await showAdminDateTimePicker(
+      context,
+      initialValue: DateTime.now().add(const Duration(hours: 1)),
+    );
+    if (scheduledAt == null || !mounted) return;
+    await _submit(scheduledAt: scheduledAt);
+  }
+
+  Future<void> _pickAttachments({required bool imagesOnly}) async {
+    try {
+      final files = await openFiles(
+        acceptedTypeGroups: imagesOnly
+            ? const [
+                XTypeGroup(label: 'Görseller', mimeTypes: ['image/*']),
+              ]
+            : const [XTypeGroup(label: 'Dosyalar')],
+      );
+      if (files.isEmpty) return;
+      for (final file in files) {
+        if (_attachments.length >= _mailMaxAttachmentCount) {
+          throw const AdminMailException('En fazla 10 ek eklenebilir');
+        }
+        final size = await file.length();
+        if (size > _mailMaxAttachmentBytes) {
+          throw AdminMailException(
+            '${file.name} tek dosya sınırını aşıyor (${_formatAttachmentSize(_mailMaxAttachmentBytes)})',
+          );
+        }
+        final total =
+            _attachments.fold<int>(
+              0,
+              (sum, attachment) => sum + attachment.size,
+            ) +
+            size;
+        if (total > _mailMaxAttachmentTotalBytes) {
+          throw AdminMailException(
+            'Toplam ek sınırı aşılıyor (${_formatAttachmentSize(_mailMaxAttachmentTotalBytes)})',
+          );
+        }
+        final bytes = await file.readAsBytes();
+        final contentType = file.mimeType ?? _guessMimeType(file.name);
+        setState(() {
+          _attachments.add(
+            _MailComposeAttachment(
+              filename: file.name,
+              contentType: contentType,
+              size: bytes.length,
+              contentBase64: base64Encode(bytes),
+            ),
+          );
+        });
+      }
+    } catch (error) {
+      if (mounted) widget.onError(error);
+    }
+  }
+
+  void _removeAttachment(_MailComposeAttachment attachment) {
+    setState(() => _attachments.remove(attachment));
+  }
+
+  Future<void> _pickContacts() async {
+    final selected = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => _MailContactPickerDialog(
+        session: widget.session,
+        repository: widget.repository,
+      ),
+    );
+    if (selected == null || selected.isEmpty) return;
+    final current = _recipientsController.text
+        .split(RegExp(r'[,;\s]+'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    current.addAll(selected);
+    _recipientsController.text = current.join(', ');
   }
 
   @override
@@ -901,11 +1294,18 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
                             selectedTemplate: _templateValue,
                             recipientsController: _recipientsController,
                             subjectController: _subjectController,
-                            contentController: _contentController,
+                            editorController: _editorController,
+                            editorKey: ValueKey(_editorRevision),
+                            attachments: _attachments,
                             onAccountChanged: (value) =>
                                 setState(() => _accountValue = value),
-                            onTemplateChanged: (value) =>
-                                setState(() => _templateValue = value),
+                            onTemplateChanged: _selectTemplate,
+                            onAddFiles: () =>
+                                unawaited(_pickAttachments(imagesOnly: false)),
+                            onAddImages: () =>
+                                unawaited(_pickAttachments(imagesOnly: true)),
+                            onRemoveAttachment: _removeAttachment,
+                            onPickContacts: () => unawaited(_pickContacts()),
                           ),
                         )
                       : _MailComposeForm(
@@ -916,11 +1316,18 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
                           selectedTemplate: _templateValue,
                           recipientsController: _recipientsController,
                           subjectController: _subjectController,
-                          contentController: _contentController,
+                          editorController: _editorController,
+                          editorKey: ValueKey(_editorRevision),
+                          attachments: _attachments,
                           onAccountChanged: (value) =>
                               setState(() => _accountValue = value),
-                          onTemplateChanged: (value) =>
-                              setState(() => _templateValue = value),
+                          onTemplateChanged: _selectTemplate,
+                          onAddFiles: () =>
+                              unawaited(_pickAttachments(imagesOnly: false)),
+                          onAddImages: () =>
+                              unawaited(_pickAttachments(imagesOnly: true)),
+                          onRemoveAttachment: _removeAttachment,
+                          onPickContacts: () => unawaited(_pickContacts()),
                         ),
                 ),
               ),
@@ -929,7 +1336,7 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
                 mobile: mobile,
                 saving: _saving,
                 onDraft: () => unawaited(_submit(draft: true)),
-                onSchedule: () => unawaited(_submit(schedule: true)),
+                onSchedule: () => unawaited(_schedule()),
                 onSend: () => unawaited(_submit()),
               ),
             ],
@@ -1009,9 +1416,15 @@ class _MailComposeForm extends StatelessWidget {
     required this.selectedTemplate,
     required this.recipientsController,
     required this.subjectController,
-    required this.contentController,
+    required this.editorController,
+    required this.editorKey,
+    required this.attachments,
     required this.onAccountChanged,
     required this.onTemplateChanged,
+    required this.onAddFiles,
+    required this.onAddImages,
+    required this.onRemoveAttachment,
+    required this.onPickContacts,
   });
 
   final bool mobile;
@@ -1021,9 +1434,15 @@ class _MailComposeForm extends StatelessWidget {
   final String? selectedTemplate;
   final TextEditingController recipientsController;
   final TextEditingController subjectController;
-  final TextEditingController contentController;
+  final quill.QuillController editorController;
+  final Key editorKey;
+  final List<_MailComposeAttachment> attachments;
   final ValueChanged<String?> onAccountChanged;
   final ValueChanged<String?> onTemplateChanged;
+  final VoidCallback onAddFiles;
+  final VoidCallback onAddImages;
+  final ValueChanged<_MailComposeAttachment> onRemoveAttachment;
+  final VoidCallback onPickContacts;
 
   @override
   Widget build(BuildContext context) {
@@ -1052,7 +1471,7 @@ class _MailComposeForm extends StatelessWidget {
       hint: 'mail.compose.recipientsHint',
       controller: recipientsController,
       action: TextButton.icon(
-        onPressed: () {},
+        onPressed: onPickContacts,
         style:
             TextButton.styleFrom(
               padding: EdgeInsets.zero,
@@ -1124,11 +1543,21 @@ class _MailComposeForm extends StatelessWidget {
         children: [
           ...formFields,
           SizedBox(
-            height: 350,
-            child: _MailRichEditorPreview(controller: contentController),
+            height: 430,
+            child: ArticleRichTextEditor(
+              key: editorKey,
+              controller: editorController,
+              placeholder: 'mail.compose.contentHint',
+              minHeight: 360,
+            ),
           ),
           const SizedBox(height: 14),
-          const _MailAttachmentPicker(),
+          _MailAttachmentPicker(
+            attachments: attachments,
+            onAddFiles: onAddFiles,
+            onAddImages: onAddImages,
+            onRemoveAttachment: onRemoveAttachment,
+          ),
         ],
       );
     }
@@ -1137,9 +1566,23 @@ class _MailComposeForm extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ...formFields,
-        Expanded(child: _MailRichEditorPreview(controller: contentController)),
+        Expanded(
+          child: SingleChildScrollView(
+            child: ArticleRichTextEditor(
+              key: editorKey,
+              controller: editorController,
+              placeholder: 'mail.compose.contentHint',
+              minHeight: 430,
+            ),
+          ),
+        ),
         const SizedBox(height: 14),
-        const _MailAttachmentPicker(),
+        _MailAttachmentPicker(
+          attachments: attachments,
+          onAddFiles: onAddFiles,
+          onAddImages: onAddImages,
+          onRemoveAttachment: onRemoveAttachment,
+        ),
       ],
     );
   }
@@ -1309,47 +1752,99 @@ InputDecoration _composeInputDecoration(BuildContext context, {String? hint}) {
   );
 }
 
-class _MailRichEditorPreview extends StatelessWidget {
-  const _MailRichEditorPreview({required this.controller});
+class _MailAttachmentPicker extends StatelessWidget {
+  const _MailAttachmentPicker({
+    required this.attachments,
+    required this.onAddFiles,
+    required this.onAddImages,
+    required this.onRemoveAttachment,
+  });
 
-  final TextEditingController controller;
+  final List<_MailComposeAttachment> attachments;
+  final VoidCallback onAddFiles;
+  final VoidCallback onAddImages;
+  final ValueChanged<_MailComposeAttachment> onRemoveAttachment;
 
   @override
   Widget build(BuildContext context) {
+    final totalSize = attachments.fold<int>(
+      0,
+      (sum, attachment) => sum + attachment.size,
+    );
     return Container(
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.value),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.82)),
+        border: Border.all(color: AppColors.softLine),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _MailEditorToolbar(),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              expands: true,
-              maxLines: null,
-              minLines: null,
-              cursorColor: AppColors.support,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.deepOcean,
-                fontWeight: FontWeight.w500,
-                height: 1.5,
-                letterSpacing: 0,
-              ),
-              decoration: InputDecoration(
-                hintText: context.t('mail.compose.contentHint'),
-                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.placeholder,
-                  fontWeight: FontWeight.w400,
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                context.t('mail.compose.attachments'),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.deepOcean,
                   letterSpacing: 0,
                 ),
-                contentPadding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
               ),
+              _AttachmentActionButton(
+                icon: Symbols.upload,
+                label: 'mail.compose.addAttachment',
+                onPressed: onAddFiles,
+              ),
+              _AttachmentActionButton(
+                icon: Symbols.image_outlined,
+                label: 'mail.compose.addImage',
+                onPressed: onAddImages,
+              ),
+              Text(
+                '${_formatAttachmentSize(totalSize)} / ${_formatAttachmentSize(_mailMaxAttachmentTotalBytes)}',
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+          if (attachments.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final attachment in attachments)
+                  _AttachmentChip(
+                    attachment: attachment,
+                    onRemove: () => onRemoveAttachment(attachment),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            context.t(
+              'mail.compose.attachmentLimits',
+              values: {
+                'file': _formatAttachmentSize(_mailMaxAttachmentBytes),
+                'total': _formatAttachmentSize(_mailMaxAttachmentTotalBytes),
+              },
+            ),
+            style: const TextStyle(
+              color: AppColors.support,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+              letterSpacing: 0,
             ),
           ),
         ],
@@ -1358,93 +1853,99 @@ class _MailRichEditorPreview extends StatelessWidget {
   }
 }
 
-class _MailEditorToolbar extends StatelessWidget {
-  const _MailEditorToolbar();
+class _AttachmentActionButton extends StatelessWidget {
+  const _AttachmentActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(
-          bottom: BorderSide(color: AppColors.line.withValues(alpha: 0.82)),
-        ),
-      ),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          const _EditorSelectChip(label: 'Inter', width: 128),
-          const _EditorSelectChip(label: '13', width: 74),
-          const _ToolbarDivider(),
-          _EditorTextTool(label: 'T', tooltip: 'mail.compose.heading'),
-          _EditorTextTool(label: 'Tt', tooltip: 'mail.compose.fontSize'),
-          const _ToolbarDivider(),
-          _EditorTextTool(label: 'B', tooltip: 'mail.compose.bold'),
-          _EditorTextTool(label: 'I', tooltip: 'mail.compose.italic'),
-          _EditorTextTool(label: 'U', tooltip: 'mail.compose.underline'),
-          _EditorTextTool(label: 'S', tooltip: 'mail.compose.strike'),
-          const _ToolbarDivider(),
-          _EditorIconTool(
-            icon: Symbols.format_list_numbered,
-            tooltip: 'mail.compose.list',
-          ),
-          _EditorIconTool(
-            icon: Symbols.short_text,
-            tooltip: 'mail.compose.align',
-          ),
-          _EditorIconTool(icon: Symbols.code, tooltip: 'mail.compose.code'),
-          _EditorIconTool(icon: Symbols.undo, tooltip: 'mail.compose.undo'),
-          _EditorIconTool(icon: Symbols.redo, tooltip: 'mail.compose.redo'),
-          const _ToolbarDivider(),
-          _EditorIconTool(
-            icon: Symbols.open_in_new,
-            tooltip: 'mail.compose.link',
-          ),
-          _EditorIconTool(icon: Symbols.photo_camera, tooltip: 'mail.image'),
-        ],
+    return SizedBox(
+      height: 34,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.deepOcean,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                side: BorderSide(color: AppColors.line.withValues(alpha: 0.82)),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        icon: SymbolIcon(icon, size: 17),
+        label: Text(context.t(label)),
       ),
     );
   }
 }
 
-class _EditorSelectChip extends StatelessWidget {
-  const _EditorSelectChip({required this.label, required this.width});
+class _AttachmentChip extends StatelessWidget {
+  const _AttachmentChip({required this.attachment, required this.onRemove});
 
-  final String label;
-  final double width;
+  final _MailComposeAttachment attachment;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: width,
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.fromLTRB(9, 6, 4, 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.value),
         border: Border.all(color: AppColors.line.withValues(alpha: 0.82)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
+          SymbolIcon(
+            attachment.isImage ? Symbols.image_outlined : Symbols.draft,
+            size: 16,
+            color: AppColors.deepOcean,
+          ),
+          const SizedBox(width: 7),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
             child: Text(
-              label,
+              '${attachment.filename} · ${_formatAttachmentSize(attachment.size)}',
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.deepOcean,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0,
               ),
             ),
           ),
-          const SymbolIcon(
-            Symbols.keyboard_arrow_down,
-            color: AppColors.iconMuted,
-            size: 17,
+          IconButton(
+            onPressed: onRemove,
+            tooltip: context.t('mail.compose.removeAttachment'),
+            icon: const SymbolIcon(
+              Symbols.close,
+              size: 15,
+              color: AppColors.support,
+            ),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
         ],
       ),
@@ -1452,140 +1953,351 @@ class _EditorSelectChip extends StatelessWidget {
   }
 }
 
-class _EditorTextTool extends StatelessWidget {
-  const _EditorTextTool({required this.label, required this.tooltip});
+class _MailContactPickerDialog extends StatefulWidget {
+  const _MailContactPickerDialog({
+    required this.session,
+    required this.repository,
+  });
 
-  final String label;
-  final String tooltip;
+  final AdminSession session;
+  final AdminMailRepository repository;
 
   @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: context.t(tooltip),
-      child: _EditorToolSurface(
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.deepOcean,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-      ),
-    );
-  }
+  State<_MailContactPickerDialog> createState() =>
+      _MailContactPickerDialogState();
 }
 
-class _EditorIconTool extends StatelessWidget {
-  const _EditorIconTool({required this.icon, required this.tooltip});
+class _MailContactPickerDialogState extends State<_MailContactPickerDialog> {
+  final _searchController = TextEditingController();
+  var _lists = <AdminContactList>[];
+  var _contacts = <AdminMailContact>[];
+  final _selected = <String>{};
+  int? _selectedListId;
+  var _loading = true;
 
-  final IconData icon;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: context.t(tooltip),
-      child: _EditorToolSurface(
-        child: SymbolIcon(icon, color: AppColors.deepOcean, size: 18),
-      ),
-    );
+  List<AdminMailContact> get _filteredContacts {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _contacts;
+    return _contacts
+        .where((contact) {
+          return [
+            contact.email,
+            contact.firstName,
+            contact.lastName,
+          ].join(' ').toLowerCase().contains(query);
+        })
+        .toList(growable: false);
   }
-}
 
-class _EditorToolSurface extends StatelessWidget {
-  const _EditorToolSurface({required this.child});
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_refresh);
+    unawaited(_loadLists());
+  }
 
-  final Widget child;
+  @override
+  void dispose() {
+    _searchController
+      ..removeListener(_refresh)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadLists() async {
+    try {
+      final lists = await widget.repository.fetchContactLists(widget.session);
+      if (!mounted) return;
+      setState(() {
+        _lists = lists;
+        _selectedListId = lists.firstOrNull?.id;
+      });
+      if (_selectedListId != null) {
+        await _loadContacts(_selectedListId!);
+      } else if (mounted) {
+        setState(() => _loading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadContacts(int listId) async {
+    setState(() {
+      _loading = true;
+      _selectedListId = listId;
+    });
+    try {
+      final contacts = await widget.repository.fetchContacts(
+        widget.session,
+        listId,
+        limit: 500,
+      );
+      if (!mounted) return;
+      setState(() {
+        _contacts = contacts.where((contact) => contact.active).toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _contacts = const <AdminMailContact>[];
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _toggle(String email) {
+    setState(() {
+      if (_selected.contains(email)) {
+        _selected.remove(email);
+      } else {
+        _selected.add(email);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
+    return Dialog(
+      insetPadding: const EdgeInsets.all(28),
+      backgroundColor: Colors.transparent,
       child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
+        width: 720,
+        constraints: const BoxConstraints(maxHeight: 620),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.value),
-          border: Border.all(color: AppColors.line.withValues(alpha: 0.62)),
         ),
-        child: child,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 14, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.t('mail.compose.contactPickerTitle'),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.deepOcean,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const SymbolIcon(
+                      Symbols.close,
+                      color: AppColors.deepOcean,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(height: 1, color: AppColors.softLine),
+            Expanded(
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 230,
+                    child: ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        for (final list in _lists)
+                          _ContactListButton(
+                            list: list,
+                            selected: list.id == _selectedListId,
+                            onTap: () => unawaited(_loadContacts(list.id)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(width: 1, color: AppColors.softLine),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: _composeInputDecoration(
+                              context,
+                              hint: 'mail.inbox.searchPlaceholder',
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: _loading
+                              ? const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.deepOcean,
+                                  ),
+                                )
+                              : ListView(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    0,
+                                    12,
+                                    12,
+                                  ),
+                                  children: [
+                                    for (final contact in _filteredContacts)
+                                      CheckboxListTile(
+                                        value: _selected.contains(
+                                          contact.email,
+                                        ),
+                                        onChanged: (_) =>
+                                            _toggle(contact.email),
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
+                                        contentPadding: EdgeInsets.zero,
+                                        activeColor: AppColors.deepOcean,
+                                        title: Text(
+                                          [contact.firstName, contact.lastName]
+                                                  .where(
+                                                    (item) =>
+                                                        item.trim().isNotEmpty,
+                                                  )
+                                                  .join(' ')
+                                                  .trim()
+                                                  .isEmpty
+                                              ? contact.email
+                                              : [
+                                                  contact.firstName,
+                                                  contact.lastName,
+                                                ].join(' '),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Text(contact.email),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: AppColors.softLine)),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    context.t(
+                      'mail.compose.selectedContacts',
+                      values: {'count': _selected.length},
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.inkSoft,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(context.t('common.cancel')),
+                  ),
+                  const SizedBox(width: 10),
+                  _ComposeFooterButton(
+                    label: 'mail.compose.addSelectedContacts',
+                    icon: Symbols.add,
+                    primary: true,
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () => Navigator.of(
+                            context,
+                          ).pop(_selected.toList(growable: false)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ToolbarDivider extends StatelessWidget {
-  const _ToolbarDivider();
+class _ContactListButton extends StatelessWidget {
+  const _ContactListButton({
+    required this.list,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AdminContactList list;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 28,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      color: AppColors.line.withValues(alpha: 0.82),
-    );
-  }
-}
-
-class _MailAttachmentPicker extends StatelessWidget {
-  const _MailAttachmentPicker();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          context.t('mail.compose.attachments'),
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: AppColors.deepOcean,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(width: 14),
-        SizedBox(
-          height: 34,
-          child: TextButton(
-            onPressed: () {},
-            style:
-                TextButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.deepOcean,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                    side: BorderSide(
-                      color: AppColors.line.withValues(alpha: 0.82),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected ? AppColors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          mouseCursor: SystemMouseCursors.click,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(
+                color: selected ? AppColors.line : AppColors.softLine,
+              ),
+            ),
+            child: Row(
+              children: [
+                const SymbolIcon(
+                  Symbols.groups_outlined,
+                  size: 18,
+                  color: AppColors.deepOcean,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    list.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
                     ),
                   ),
-                  textStyle: const TextStyle(
-                    fontSize: 13,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  list.contactCount.toString(),
+                  style: const TextStyle(
+                    color: AppColors.support,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
                   ),
-                ).copyWith(
-                  mouseCursor: const WidgetStatePropertyAll(
-                    SystemMouseCursors.click,
-                  ),
                 ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SymbolIcon(Symbols.upload, size: 17),
-                const SizedBox(width: 8),
-                Text(context.t('mail.compose.addAttachment')),
               ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

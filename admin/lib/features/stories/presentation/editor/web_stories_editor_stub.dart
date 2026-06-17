@@ -10,11 +10,13 @@ class WebStoriesEditor extends StatelessWidget {
     super.key,
     required this.initialStory,
     required this.onSave,
+    required this.onClose,
     required this.controller,
   });
 
   final Map<String, dynamic> initialStory;
-  final ValueChanged<WebStorySaveResult> onSave;
+  final Future<bool> Function(WebStorySaveResult) onSave;
+  final VoidCallback onClose;
   final WebStoriesEditorController controller;
 
   @override

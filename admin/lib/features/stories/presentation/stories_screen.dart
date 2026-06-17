@@ -37,11 +37,6 @@ class _StoriesScreenState extends State<StoriesScreen> {
   final Set<String> _selectedStoryIds = {};
   Timer? _searchDebounce;
 
-  // When non-null the screen swaps the list for the full-page Web Stories editor.
-  AdminStory? _editorStory;
-  Map<String, dynamic>? _editorInitialStory;
-  bool _editorSaved = false;
-
   var _stories = const <AdminStory>[];
   var _loading = true;
   String? _errorText;
@@ -188,33 +183,48 @@ class _StoriesScreenState extends State<StoriesScreen> {
       return;
     }
     if (!mounted) return;
-    setState(() {
-      _editorStory = story;
-      _editorInitialStory = content.storyData;
-      _editorSaved = false;
-    });
-  }
-
-  Future<void> _persistStoryEditorSave(WebStorySaveResult result) async {
-    final story = _editorStory;
-    if (story == null) return;
-    await widget.repository.saveStoryContent(
-      storyId: story.id,
-      title: result.title,
-      storyData: result.storyData,
-      markup: result.markup,
+    // Seed the editor's title from the stories list when the saved story has no
+    // title yet, so a newly created story opens with its list name instead of
+    // "Başlıksız Hikaye".
+    final initialStory = Map<String, dynamic>.from(content.storyData);
+    final existingTitle = initialStory['title'];
+    final existingTitleRaw = existingTitle is Map
+        ? (existingTitle['raw']?.toString() ?? '')
+        : (existingTitle?.toString() ?? '');
+    if (existingTitleRaw.trim().isEmpty) {
+      initialStory['title'] = {'raw': story.displayTitle};
+    }
+    // Open the editor as an opaque full-screen route on the root navigator so it
+    // covers the admin sidebar and top bar — only the editor is visible.
+    await Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        builder: (_) => _StoryEditorPage(
+          initialStory: initialStory,
+          onSave: (result) => _persistStoryEditorSave(story, result),
+        ),
+      ),
     );
-    _editorSaved = true;
+    if (!mounted) return;
+    // The story may have been edited/saved; refresh the list on return.
+    unawaited(_loadStories());
   }
 
-  void _closeStoryEditor() {
-    final didSave = _editorSaved;
-    setState(() {
-      _editorStory = null;
-      _editorInitialStory = null;
-      _editorSaved = false;
-    });
-    if (didSave) unawaited(_loadStories());
+  Future<bool> _persistStoryEditorSave(
+    AdminStory story,
+    WebStorySaveResult result,
+  ) async {
+    try {
+      await widget.repository.saveStoryContent(
+        storyId: story.id,
+        title: result.title,
+        storyData: result.storyData,
+        markup: result.markup,
+      );
+      return true;
+    } catch (error) {
+      if (mounted) setState(() => _errorText = error.toString());
+      return false;
+    }
   }
 
   Future<void> _toggleStatus(AdminStory story) async {
@@ -280,16 +290,6 @@ class _StoriesScreenState extends State<StoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final editorStory = _editorStory;
-    final editorInitial = _editorInitialStory;
-    if (editorStory != null && editorInitial != null) {
-      return _StoryEditorView(
-        story: editorStory,
-        initialStory: editorInitial,
-        onSave: _persistStoryEditorSave,
-        onBack: _closeStoryEditor,
-      );
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
@@ -2788,265 +2788,35 @@ class _DialogRadioOption extends StatelessWidget {
   }
 }
 
-class _StoryEditorView extends StatefulWidget {
-  const _StoryEditorView({
-    required this.story,
-    required this.initialStory,
-    required this.onSave,
-    required this.onBack,
-  });
+class _StoryEditorPage extends StatefulWidget {
+  const _StoryEditorPage({required this.initialStory, required this.onSave});
 
-  final AdminStory story;
   final Map<String, dynamic> initialStory;
-  final Future<void> Function(WebStorySaveResult) onSave;
-  final VoidCallback onBack;
+  final Future<bool> Function(WebStorySaveResult) onSave;
 
   @override
-  State<_StoryEditorView> createState() => _StoryEditorViewState();
+  State<_StoryEditorPage> createState() => _StoryEditorPageState();
 }
 
-class _StoryEditorViewState extends State<_StoryEditorView> {
+class _StoryEditorPageState extends State<_StoryEditorPage> {
   final _editorController = WebStoriesEditorController();
-  String? _statusText;
-  bool _statusIsError = false;
-  bool _saving = false;
 
-  Future<void> _handleSave(WebStorySaveResult result) async {
-    setState(() {
-      _saving = true;
-      _statusText = context.t('stories.editor.saving');
-      _statusIsError = false;
-    });
-    try {
-      await widget.onSave(result);
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _statusText = context.t('stories.editor.saved');
-        _statusIsError = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _statusText = error.toString();
-        _statusIsError = true;
-      });
-    }
+  void _close() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final body = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(context),
-            Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
-            Expanded(
-              child: WebStoriesEditor(
-                initialStory: widget.initialStory,
-                controller: _editorController,
-                onSave: (result) => unawaited(_handleSave(result)),
-              ),
-            ),
-          ],
-        );
-        if (constraints.hasBoundedHeight) {
-          return body;
-        }
-        // Parent is scrollable (compact layout): pin to the viewport height so
-        // the editor still gets a finite area to fill.
-        return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.86,
-          child: body,
-        );
-      },
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 24, 16),
-      child: Row(
-        children: [
-          _EditorBackButton(onTap: widget.onBack),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  context.t('stories.editor.title'),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: AppColors.deepOcean,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.story.displayTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.inkSoft,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_statusText != null) ...[
-            _EditorStatusChip(
-              text: _statusText!,
-              isError: _statusIsError,
-              busy: _saving,
-            ),
-            const SizedBox(width: 12),
-          ],
-          SizedBox(
-            height: 38,
-            child: TextButton(
-              onPressed: _saving ? null : () => _editorController.requestSave(),
-              style:
-                  TextButton.styleFrom(
-                    backgroundColor: AppColors.deepOcean,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppColors.deepOcean.withValues(
-                      alpha: 0.5,
-                    ),
-                    disabledForegroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.value),
-                    ),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ).copyWith(
-                    mouseCursor: const WidgetStatePropertyAll(
-                      SystemMouseCursors.click,
-                    ),
-                  ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SymbolIcon(Symbols.check, color: Colors.white, size: 16),
-                  const SizedBox(width: 7),
-                  Text(context.t('common.save')),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EditorBackButton extends StatelessWidget {
-  const _EditorBackButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: 38,
-          padding: const EdgeInsets.only(left: 10, right: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SymbolIcon(
-                Symbols.arrow_back,
-                color: AppColors.deepOcean,
-                size: 18,
-              ),
-              const SizedBox(width: 7),
-              Text(
-                context.t('Stories'),
-                style: const TextStyle(
-                  color: AppColors.deepOcean,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  letterSpacing: 0,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EditorStatusChip extends StatelessWidget {
-  const _EditorStatusChip({
-    required this.text,
-    required this.isError,
-    required this.busy,
-  });
-
-  final String text;
-  final bool isError;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isError ? AppColors.actionRed : const Color(0xFF198754);
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 280),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppRadius.value),
-        border: Border.all(color: color.withValues(alpha: 0.24)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (busy)
-            const SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(strokeWidth: 1.6),
-            )
-          else
-            SymbolIcon(
-              isError ? Symbols.warning : Symbols.check,
-              size: 14,
-              color: color,
-            ),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
-        ],
+    // Full-bleed editor: the embedded editor renders its own header (title,
+    // Kaydet, and the close X), so the host adds no app bar of its own.
+    return Scaffold(
+      backgroundColor: const Color(0xFF1B1B1F),
+      body: WebStoriesEditor(
+        initialStory: widget.initialStory,
+        controller: _editorController,
+        onSave: widget.onSave,
+        onClose: _close,
       ),
     );
   }

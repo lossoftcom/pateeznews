@@ -2866,7 +2866,8 @@ class _TemplatePreviewFrame extends StatelessWidget {
   }) {
     var result = value
         .replaceAll('__SITE_NAME__', siteName)
-        .replaceAll('{{site_adi}}', siteName);
+        .replaceAll('{{site_adi}}', siteName)
+        .replaceAll('{{kod_gecerlilik}}', adminMailVerificationCodeValidity);
     if (logoUrl.isNotEmpty) {
       result = result
           .replaceAll('__SITE_LOGO_URL__', logoUrl)

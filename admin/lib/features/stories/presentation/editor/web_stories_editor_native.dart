@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'web_stories_editor_types.dart';
+import 'web_stories_media_bridge.dart';
 
 /// The vendored editor uses ES module scripts which Chromium/WebView2 refuses to
 /// load over `file://`, so on native platforms we serve the bundle over a local
@@ -19,11 +21,18 @@ class WebStoriesEditor extends StatefulWidget {
     super.key,
     required this.initialStory,
     required this.onSave,
+    required this.onClose,
     required this.controller,
   });
 
   final Map<String, dynamic> initialStory;
-  final ValueChanged<WebStorySaveResult> onSave;
+
+  /// Persists the saved story and resolves to whether it succeeded; the result
+  /// is acknowledged back to the editor so its own save snackbar is accurate.
+  final Future<bool> Function(WebStorySaveResult) onSave;
+
+  /// Invoked when the editor's close (X) button is pressed.
+  final VoidCallback onClose;
   final WebStoriesEditorController controller;
 
   @override
@@ -33,6 +42,7 @@ class WebStoriesEditor extends StatefulWidget {
 class _WebStoriesEditorState extends State<WebStoriesEditor>
     implements WebStoriesEditorBridge {
   InAppWebViewController? _controller;
+  final _mediaBridge = WebStoriesMediaBridge();
   bool _serverReady = false;
   bool _ready = false;
   bool _loadSent = false;
@@ -93,7 +103,7 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
     }
   }
 
-  void _handleEditorMessage(dynamic raw) {
+  Future<void> _handleEditorMessage(dynamic raw) async {
     final map = _messageToMap(raw);
     if (map == null || map['source'] != 'PATEEZ_WS_EDITOR') return;
 
@@ -103,10 +113,16 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
       unawaited(_sendLoad());
       return;
     }
+    if (type == 'CLOSE') {
+      widget.onClose();
+      return;
+    }
     if (type == 'SAVE') {
+      final requestId = map['requestId']?.toString();
       final payload = map['payload'];
+      var ok = false;
       if (payload is Map) {
-        widget.onSave(
+        ok = await widget.onSave(
           WebStorySaveResult(
             title: payload['title']?.toString() ?? '',
             markup: payload['markup']?.toString() ?? '',
@@ -114,6 +130,19 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
           ),
         );
       }
+      if (requestId != null) {
+        await _postHostMessage({
+          'type': 'SAVE_RESULT',
+          'requestId': requestId,
+          'ok': ok,
+        });
+      }
+      return;
+    }
+    if (type != null && type.startsWith('MEDIA_')) {
+      final result = await _mediaBridge.handle(map);
+      if (result != null) await _postHostMessage(result);
+      return;
     }
   }
 
@@ -165,6 +194,12 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
               'http://localhost:$_localhostPort/assets/web_stories/index.html',
             ),
           ),
+          // Eagerly claim pointer events so the embedded editor (full-screen
+          // route) reliably receives clicks/drags instead of losing them to the
+          // surrounding Flutter gesture arena.
+          gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+            Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+          },
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
             isInspectable: kDebugMode,
@@ -179,7 +214,7 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
               handlerName: 'PateezWebStories',
               callback: (args) {
                 if (args.isNotEmpty) {
-                  _handleEditorMessage(args.first);
+                  unawaited(_handleEditorMessage(args.first));
                 }
                 return null;
               },
@@ -187,6 +222,10 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
           },
           onReceivedError: (controller, request, error) {
             if (!mounted) return;
+            // Only surface main-frame navigation failures. Subresource errors
+            // (e.g. a blocked cross-origin media thumbnail) must not replace the
+            // whole editor with an error screen.
+            if (request.isForMainFrame != true) return;
             setState(() => _error = error.description);
           },
         ),
