@@ -727,26 +727,25 @@ class _BulkMailMetricGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 840) {
-          return Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (final item in items)
-                SizedBox(
-                  width: constraints.maxWidth < 540
-                      ? constraints.maxWidth
-                      : (constraints.maxWidth - 12) / 2,
-                  child: _MetricBox(data: item),
-                ),
-            ],
-          );
-        }
+        final width = constraints.maxWidth;
+        final density = width < 560
+            ? _MetricDensity.tight
+            : width < 840
+            ? _MetricDensity.compact
+            : _MetricDensity.regular;
+        final gap = switch (density) {
+          _MetricDensity.tight => 6.0,
+          _MetricDensity.compact => 8.0,
+          _MetricDensity.regular => 12.0,
+        };
+
         return Row(
           children: [
             for (var index = 0; index < items.length; index++) ...[
-              Expanded(child: _MetricBox(data: items[index])),
-              if (index != items.length - 1) const SizedBox(width: 12),
+              Expanded(
+                child: _MetricBox(data: items[index], density: density),
+              ),
+              if (index != items.length - 1) SizedBox(width: gap),
             ],
           ],
         );
@@ -769,65 +768,148 @@ class _MetricData {
   final Color color;
 }
 
+enum _MetricDensity { regular, compact, tight }
+
 class _MetricBox extends StatelessWidget {
-  const _MetricBox({required this.data});
+  const _MetricBox({required this.data, required this.density});
 
   final _MetricData data;
+  final _MetricDensity density;
 
   @override
   Widget build(BuildContext context) {
+    final isTight = density == _MetricDensity.tight;
+    final isCompact = density == _MetricDensity.compact;
+    final label = context.t(data.label);
+    final minHeight = isTight
+        ? 68.0
+        : isCompact
+        ? 72.0
+        : 78.0;
+    final horizontalPadding = isTight
+        ? 8.0
+        : isCompact
+        ? 10.0
+        : 14.0;
+    final verticalPadding = isTight
+        ? 8.0
+        : isCompact
+        ? 10.0
+        : 12.0;
+    final iconBoxSize = isTight
+        ? 26.0
+        : isCompact
+        ? 30.0
+        : 34.0;
+    final iconSize = isTight
+        ? 16.0
+        : isCompact
+        ? 17.0
+        : 19.0;
+    final gap = isTight
+        ? 6.0
+        : isCompact
+        ? 8.0
+        : 12.0;
+    final labelStyle = TextStyle(
+      color: AppColors.inkSoft,
+      fontSize: isTight
+          ? 10
+          : isCompact
+          ? 11
+          : 12,
+      height: 1,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0,
+    );
+    final valueStyle = TextStyle(
+      color: AppColors.deepOcean,
+      fontSize: isTight
+          ? 18
+          : isCompact
+          ? 19
+          : 21,
+      height: 1,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    );
+
     return Container(
-      height: 78,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      constraints: BoxConstraints(minHeight: minHeight),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.value),
         border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: data.color.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(AppRadius.value),
-            ),
-            child: Center(
-              child: SymbolIcon(data.icon, color: data.color, size: 19),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.t(data.label),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.inkSoft,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showLabel = constraints.maxWidth >= 96;
+          final showIcon = constraints.maxWidth >= 68;
+
+          Widget icon() {
+            return Container(
+              width: iconBoxSize,
+              height: iconBoxSize,
+              decoration: BoxDecoration(
+                color: data.color.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              child: Center(
+                child: SymbolIcon(data.icon, color: data.color, size: iconSize),
+              ),
+            );
+          }
+
+          if (!showLabel) {
+            return Tooltip(
+              message: label,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (showIcon) ...[icon(), SizedBox(width: gap)],
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(data.value, style: valueStyle),
+                    ),
                   ),
+                ],
+              ),
+            );
+          }
+
+          return Row(
+            children: [
+              if (showIcon) ...[icon(), SizedBox(width: gap)],
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: labelStyle,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      data.value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: valueStyle,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  data.value,
-                  style: const TextStyle(
-                    color: AppColors.deepOcean,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

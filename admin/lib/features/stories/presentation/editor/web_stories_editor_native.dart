@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:pateeznews_admin/shared/widgets/media_library_dialog.dart';
 
 import 'web_stories_editor_types.dart';
 import 'web_stories_media_bridge.dart';
@@ -42,7 +43,7 @@ class WebStoriesEditor extends StatefulWidget {
 class _WebStoriesEditorState extends State<WebStoriesEditor>
     implements WebStoriesEditorBridge {
   InAppWebViewController? _controller;
-  final _mediaBridge = WebStoriesMediaBridge();
+  late final WebStoriesMediaBridge _mediaBridge;
   bool _serverReady = false;
   bool _ready = false;
   bool _loadSent = false;
@@ -58,6 +59,7 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
   @override
   void initState() {
     super.initState();
+    _mediaBridge = WebStoriesMediaBridge(pickMedia: _pickMedia);
     widget.controller.attach(this);
     if (_isSupportedPlatform) {
       unawaited(_ensureServer());
@@ -73,6 +75,11 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
   @override
   void requestSave() {
     unawaited(_postHostMessage({'type': 'SAVE_REQUEST'}));
+  }
+
+  Future<String?> _pickMedia(String mediaType) {
+    if (!mounted) return Future<String?>.value();
+    return showMediaLibraryDialog(context, type: mediaType);
   }
 
   Future<void> _postHostMessage(Map<String, dynamic> body) async {
@@ -154,12 +161,16 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
 
   Map<String, dynamic>? _messageToMap(dynamic message) {
     if (message is Map) {
-      return message.map((key, dynamic value) => MapEntry(key.toString(), value));
+      return message.map(
+        (key, dynamic value) => MapEntry(key.toString(), value),
+      );
     }
     if (message is String && message.trim().isNotEmpty) {
       final decoded = jsonDecode(message);
       if (decoded is Map) {
-        return decoded.map((key, dynamic value) => MapEntry(key.toString(), value));
+        return decoded.map(
+          (key, dynamic value) => MapEntry(key.toString(), value),
+        );
       }
     }
     return null;

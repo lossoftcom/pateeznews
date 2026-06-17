@@ -12,12 +12,12 @@ class MailHtmlView extends StatelessWidget {
 
   final String html;
   final String fallbackText;
-  final double height;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: BoxConstraints(minHeight: 160, maxHeight: height),
+      constraints: BoxConstraints(minHeight: 160, maxHeight: height ?? 360),
       child: SingleChildScrollView(
         child: SelectableText(
           fallbackText.trim().isEmpty ? html : fallbackText,

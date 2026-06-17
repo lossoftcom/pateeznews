@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/media_library_dialog.dart';
 import 'package:web/web.dart' as web;
 
 import 'web_stories_editor_types.dart';
@@ -39,7 +40,7 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
     implements WebStoriesEditorBridge {
   web.HTMLIFrameElement? _iframe;
   late final web.EventListener _messageListener;
-  final _mediaBridge = WebStoriesMediaBridge();
+  late final WebStoriesMediaBridge _mediaBridge;
   bool _ready = false;
   bool _loadSent = false;
 
@@ -49,6 +50,7 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
     _messageListener = ((web.Event event) {
       unawaited(_handleMessage(event));
     }).toJS;
+    _mediaBridge = WebStoriesMediaBridge(pickMedia: _pickMedia);
     web.window.addEventListener('message', _messageListener);
     widget.controller.attach(this);
   }
@@ -63,6 +65,11 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
   @override
   void requestSave() {
     _postToEditor(<String, dynamic>{'type': 'SAVE_REQUEST'});
+  }
+
+  Future<String?> _pickMedia(String mediaType) {
+    if (!mounted) return Future<String?>.value();
+    return showMediaLibraryDialog(context, type: mediaType);
   }
 
   void _postToEditor(Map<String, dynamic> body) {
@@ -94,7 +101,9 @@ class _WebStoriesEditorState extends State<WebStoriesEditor>
     if (data is! Map) return;
     if (data['source'] != 'PATEEZ_WS_EDITOR') return;
 
-    final map = data.map((key, dynamic value) => MapEntry(key.toString(), value));
+    final map = data.map(
+      (key, dynamic value) => MapEntry(key.toString(), value),
+    );
     final type = map['type']?.toString();
     if (type == 'READY') {
       if (mounted) setState(() => _ready = true);

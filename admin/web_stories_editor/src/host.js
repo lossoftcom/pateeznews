@@ -21,7 +21,7 @@ export function isNativeHost() {
 
 // Fire-and-forget message to the host.
 export function postToHost(type, extra) {
-  const message = { source: EDITOR_SOURCE, type, ...(extra || {}) };
+  const message = { source: EDITOR_SOURCE, ...(extra || {}), type };
   try {
     if (isNativeHost()) {
       window.flutter_inappwebview.callHandler(NATIVE_HANDLER, message);

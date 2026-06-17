@@ -20,23 +20,29 @@ class UsersSummaryGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final columns = width >= 1120
-            ? 4
-            : width >= 720
-            ? 2
-            : 1;
-        const gap = 16.0;
-        final itemWidth = (width - (gap * (columns - 1))) / columns;
+        final density = width < 620
+            ? _SummaryDensity.tight
+            : width < 1120
+            ? _SummaryDensity.compact
+            : _SummaryDensity.regular;
+        final gap = switch (density) {
+          _SummaryDensity.tight => 6.0,
+          _SummaryDensity.compact => 10.0,
+          _SummaryDensity.regular => 16.0,
+        };
 
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
+        return Row(
           children: [
-            for (final metric in metrics)
-              SizedBox(
-                width: itemWidth,
-                child: _MetricCard(metric: metric, compact: compact),
+            for (var index = 0; index < metrics.length; index++) ...[
+              Expanded(
+                child: _MetricCard(
+                  metric: metrics[index],
+                  compact: compact,
+                  density: density,
+                ),
               ),
+              if (index != metrics.length - 1) SizedBox(width: gap),
+            ],
           ],
         );
       },
@@ -44,20 +50,71 @@ class UsersSummaryGrid extends StatelessWidget {
   }
 }
 
+enum _SummaryDensity { regular, compact, tight }
+
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.metric, required this.compact});
+  const _MetricCard({
+    required this.metric,
+    required this.compact,
+    required this.density,
+  });
 
   final UserMetric metric;
   final bool compact;
+  final _SummaryDensity density;
 
   @override
   Widget build(BuildContext context) {
     final centered = metric.centerContent;
+    final isTight = density == _SummaryDensity.tight;
+    final isCompact = compact || density == _SummaryDensity.compact;
+    final minHeight = isTight
+        ? 92.0
+        : isCompact
+        ? 104.0
+        : 146.0;
+    final horizontalPadding = isTight
+        ? 10.0
+        : isCompact
+        ? 16.0
+        : 24.0;
+    final verticalPadding = isTight
+        ? 12.0
+        : isCompact
+        ? 14.0
+        : 24.0;
+    final iconSize = isTight
+        ? 28.0
+        : isCompact
+        ? 34.0
+        : 42.0;
+    final iconGap = isTight ? 8.0 : 12.0;
+    final titleSize = isTight
+        ? 11.0
+        : isCompact
+        ? 12.0
+        : null;
+    final valueSize = isTight
+        ? 20.0
+        : isCompact
+        ? 24.0
+        : null;
+    final changeSize = isTight
+        ? 10.0
+        : isCompact
+        ? 11.0
+        : null;
+    final descriptionSize = isTight
+        ? 10.0
+        : isCompact
+        ? 11.0
+        : null;
+
     return Container(
-      constraints: BoxConstraints(minHeight: compact ? 110 : 146),
+      constraints: BoxConstraints(minHeight: minHeight),
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 20 : 24,
-        vertical: compact ? 16 : 24,
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -84,74 +141,93 @@ class _MetricCard extends StatelessWidget {
               children: [
                 Text(
                   metric.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   textAlign: centered ? TextAlign.center : TextAlign.start,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.deepOcean,
-                    fontSize: compact ? 13 : null,
+                    fontSize: titleSize,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
+                    height: 1,
                   ),
                 ),
-                SizedBox(height: compact ? 8 : 12),
+                SizedBox(height: isTight ? 7 : 8),
                 Row(
                   mainAxisAlignment: centered
                       ? MainAxisAlignment.center
                       : MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      metric.value,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            color: AppColors.deepOcean,
-                            fontSize: compact ? 26 : null,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0,
-                            height: 1,
-                          ),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          metric.value,
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: AppColors.deepOcean,
+                                fontSize: valueSize,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0,
+                                height: 1,
+                              ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 7),
+                    SizedBox(width: isTight ? 4 : 7),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 3),
                       child: Text(
                         metric.change,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.warmHorizon,
-                          fontSize: compact ? 11.5 : null,
+                          fontSize: changeSize,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
+                          height: 1,
                         ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: compact ? 14 : 24),
+                SizedBox(height: isTight ? 10 : 14),
                 Text(
                   metric.description,
+                  maxLines: isTight ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.deepOcean,
-                    fontSize: compact ? 11.5 : null,
+                    fontSize: descriptionSize,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0,
+                    height: 1.1,
                   ),
                 ),
               ],
             ),
           ),
-          Container(
-            width: compact ? 36 : 42,
-            height: compact ? 36 : 42,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.value),
+          if (!isTight) ...[
+            SizedBox(width: iconGap),
+            Container(
+              width: iconSize,
+              height: iconSize,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              child: SymbolIcon(
+                metric.icon,
+                color: metric.iconColor,
+                size: isCompact ? 18 : 20,
+              ),
             ),
-            child: SymbolIcon(
-              metric.icon,
-              color: metric.iconColor,
-              size: compact ? 18 : 20,
-            ),
-          ),
+          ],
         ],
       ),
     );

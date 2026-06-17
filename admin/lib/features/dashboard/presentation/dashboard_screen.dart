@@ -25,6 +25,8 @@ import 'package:pateeznews_admin/features/navigation/presentation/navigation_scr
 import 'package:pateeznews_admin/features/news/data/admin_news_repository.dart';
 import 'package:pateeznews_admin/features/news/presentation/news_add_screen.dart';
 import 'package:pateeznews_admin/features/news/presentation/news_screen.dart';
+import 'package:pateeznews_admin/features/notifications/data/admin_notifications_repository.dart';
+import 'package:pateeznews_admin/features/notifications/presentation/notifications_screen.dart';
 import 'package:pateeznews_admin/features/pages/data/admin_pages_repository.dart';
 import 'package:pateeznews_admin/features/pages/presentation/pages_screen.dart';
 import 'package:pateeznews_admin/features/settings/presentation/ai_settings_screen.dart';
@@ -100,6 +102,7 @@ class DashboardScreen extends StatefulWidget {
     this.accountSettingsRepository =
         const SupabaseAdminAccountSettingsRepository(),
     this.subscribersRepository = const SupabaseAdminSubscribersRepository(),
+    this.notificationsRepository = const SupabaseAdminNotificationsRepository(),
     this.mailRepository = const SupabaseAdminMailRepository(),
     this.smsRepository = const SupabaseAdminSmsRepository(),
     this.whatsappRepository = const SupabaseAdminWhatsappRepository(),
@@ -128,6 +131,7 @@ class DashboardScreen extends StatefulWidget {
   final AdminStorageSettingsRepository storageSettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
   final AdminSubscribersRepository subscribersRepository;
+  final AdminNotificationsRepository notificationsRepository;
   final AdminMailRepository mailRepository;
   final AdminSmsRepository smsRepository;
   final AdminWhatsappRepository whatsappRepository;
@@ -303,6 +307,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'subscribers_access',
         'manage_subscribers',
       ]),
+      _DashboardPage.notificationCampaigns ||
+      _DashboardPage.notificationTemplates ||
+      _DashboardPage.notificationDevices ||
+      _DashboardPage.notificationSettings => _hasAny([
+        'notifications_access',
+        'manage_notifications',
+      ]),
       _DashboardPage.mailInbox ||
       _DashboardPage.bulkMail ||
       _DashboardPage.mailTemplates ||
@@ -427,6 +438,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openSubscribers() {
     _openPage(_DashboardPage.subscribers);
+  }
+
+  void _openNotificationCampaigns() {
+    _openPage(_DashboardPage.notificationCampaigns);
+  }
+
+  void _openNotificationTemplates() {
+    _openPage(_DashboardPage.notificationTemplates);
+  }
+
+  void _openNotificationDevices() {
+    _openPage(_DashboardPage.notificationDevices);
+  }
+
+  void _openNotificationSettings() {
+    _openPage(_DashboardPage.notificationSettings);
   }
 
   void _openMailInbox() {
@@ -589,6 +616,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final pagesSelected = _selectedPage == _DashboardPage.pages;
     final commentsSelected = _selectedPage == _DashboardPage.comments;
     final subscribersSelected = _selectedPage == _DashboardPage.subscribers;
+    final notificationCampaignsSelected =
+        _selectedPage == _DashboardPage.notificationCampaigns;
+    final notificationTemplatesSelected =
+        _selectedPage == _DashboardPage.notificationTemplates;
+    final notificationDevicesSelected =
+        _selectedPage == _DashboardPage.notificationDevices;
+    final notificationSettingsSelected =
+        _selectedPage == _DashboardPage.notificationSettings;
     final mailInboxSelected = _selectedPage == _DashboardPage.mailInbox;
     final bulkMailSelected = _selectedPage == _DashboardPage.bulkMail;
     final mailTemplatesSelected = _selectedPage == _DashboardPage.mailTemplates;
@@ -645,6 +680,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final pagesVisible = _canOpen(_DashboardPage.pages);
         final commentsVisible = _canOpen(_DashboardPage.comments);
         final subscribersVisible = _canOpen(_DashboardPage.subscribers);
+        final notificationsVisible =
+            _canOpen(_DashboardPage.notificationCampaigns) ||
+            _canOpen(_DashboardPage.notificationTemplates) ||
+            _canOpen(_DashboardPage.notificationDevices) ||
+            _canOpen(_DashboardPage.notificationSettings);
         final mailInboxVisible = _canOpen(_DashboardPage.mailInbox);
         final bulkMailVisible = _canOpen(_DashboardPage.bulkMail);
         final mailTemplatesVisible = _canOpen(_DashboardPage.mailTemplates);
@@ -706,6 +746,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   pagesVisible: pagesVisible,
                   commentsVisible: commentsVisible,
                   subscribersVisible: subscribersVisible,
+                  notificationsVisible: notificationsVisible,
                   mailInboxVisible: mailInboxVisible,
                   bulkMailVisible: bulkMailVisible,
                   mailTemplatesVisible: mailTemplatesVisible,
@@ -739,6 +780,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !pagesSelected &&
                       !commentsSelected &&
                       !subscribersSelected &&
+                      !notificationCampaignsSelected &&
+                      !notificationTemplatesSelected &&
+                      !notificationDevicesSelected &&
+                      !notificationSettingsSelected &&
                       !mailInboxSelected &&
                       !bulkMailSelected &&
                       !mailTemplatesSelected &&
@@ -775,6 +820,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   pagesSelected: pagesSelected,
                   commentsSelected: commentsSelected,
                   subscribersSelected: subscribersSelected,
+                  notificationCampaignsSelected: notificationCampaignsSelected,
+                  notificationTemplatesSelected: notificationTemplatesSelected,
+                  notificationDevicesSelected: notificationDevicesSelected,
+                  notificationSettingsSelected: notificationSettingsSelected,
                   mailInboxSelected: mailInboxSelected,
                   bulkMailSelected: bulkMailSelected,
                   mailTemplatesSelected: mailTemplatesSelected,
@@ -817,6 +866,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onPagesSelected: _openPages,
                   onCommentsSelected: _openComments,
                   onSubscribersSelected: _openSubscribers,
+                  onNotificationCampaignsSelected: _openNotificationCampaigns,
+                  onNotificationTemplatesSelected: _openNotificationTemplates,
+                  onNotificationDevicesSelected: _openNotificationDevices,
+                  onNotificationSettingsSelected: _openNotificationSettings,
                   onMailInboxSelected: _openMailInbox,
                   onBulkMailSelected: _openBulkMail,
                   onMailTemplatesSelected: _openMailTemplates,
@@ -866,6 +919,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     pagesVisible: pagesVisible,
                     commentsVisible: commentsVisible,
                     subscribersVisible: subscribersVisible,
+                    notificationsVisible: notificationsVisible,
                     mailInboxVisible: mailInboxVisible,
                     bulkMailVisible: bulkMailVisible,
                     mailTemplatesVisible: mailTemplatesVisible,
@@ -899,6 +953,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !pagesSelected &&
                         !commentsSelected &&
                         !subscribersSelected &&
+                        !notificationCampaignsSelected &&
+                        !notificationTemplatesSelected &&
+                        !notificationDevicesSelected &&
+                        !notificationSettingsSelected &&
                         !mailInboxSelected &&
                         !bulkMailSelected &&
                         !mailTemplatesSelected &&
@@ -935,6 +993,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     pagesSelected: pagesSelected,
                     commentsSelected: commentsSelected,
                     subscribersSelected: subscribersSelected,
+                    notificationCampaignsSelected:
+                        notificationCampaignsSelected,
+                    notificationTemplatesSelected:
+                        notificationTemplatesSelected,
+                    notificationDevicesSelected: notificationDevicesSelected,
+                    notificationSettingsSelected: notificationSettingsSelected,
                     mailInboxSelected: mailInboxSelected,
                     bulkMailSelected: bulkMailSelected,
                     mailTemplatesSelected: mailTemplatesSelected,
@@ -978,6 +1042,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onPagesSelected: _openPages,
                     onCommentsSelected: _openComments,
                     onSubscribersSelected: _openSubscribers,
+                    onNotificationCampaignsSelected: _openNotificationCampaigns,
+                    onNotificationTemplatesSelected: _openNotificationTemplates,
+                    onNotificationDevicesSelected: _openNotificationDevices,
+                    onNotificationSettingsSelected: _openNotificationSettings,
                     onMailInboxSelected: _openMailInbox,
                     onBulkMailSelected: _openBulkMail,
                     onMailTemplatesSelected: _openMailTemplates,
@@ -1062,6 +1130,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 _DashboardPage.subscribers => SubscribersScreen(
                                   repository: widget.subscribersRepository,
                                 ),
+                                _DashboardPage.notificationCampaigns =>
+                                  NotificationCampaignsScreen(
+                                    session: widget.session,
+                                    repository: widget.notificationsRepository,
+                                  ),
+                                _DashboardPage.notificationTemplates =>
+                                  NotificationTemplatesScreen(
+                                    session: widget.session,
+                                    repository: widget.notificationsRepository,
+                                  ),
+                                _DashboardPage.notificationDevices =>
+                                  NotificationDevicesScreen(
+                                    session: widget.session,
+                                    repository: widget.notificationsRepository,
+                                  ),
+                                _DashboardPage.notificationSettings =>
+                                  NotificationSettingsScreen(
+                                    session: widget.session,
+                                    repository: widget.notificationsRepository,
+                                  ),
                                 _DashboardPage.mailInbox => MailInboxScreen(
                                   session: widget.session,
                                   repository: widget.mailRepository,
@@ -1314,6 +1402,10 @@ enum _DashboardPage {
   pages,
   comments,
   subscribers,
+  notificationCampaigns,
+  notificationTemplates,
+  notificationDevices,
+  notificationSettings,
   mailInbox,
   bulkMail,
   mailTemplates,

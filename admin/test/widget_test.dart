@@ -5153,6 +5153,8 @@ void main() {
 
     await tester.tap(find.text('Ayarlar'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Genel Ayarlar'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Genel Ayarlar'));
     await tester.pumpAndSettle();
 
@@ -5912,6 +5914,7 @@ void main() {
     await tester.tap(find.text('Modüller'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Namaz Vakitleri Ayarları'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Namaz Vakitleri Ayarları'));
     await tester.pumpAndSettle();
 

@@ -5,7 +5,11 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
-    show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
+    show
+        adminEmptyQuillDeltaJson,
+        adminQuillDocumentFromJson,
+        adminQuillEmbedBuilders,
+        adminQuillUnknownEmbedBuilder;
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _articleBlockStrongLine = Color(0xFFDDE5E8);
@@ -548,6 +552,8 @@ class ArticleRichTextEditor extends StatelessWidget {
                   config: quill.QuillEditorConfig(
                     placeholder: context.t(placeholder),
                     padding: EdgeInsets.zero,
+                    embedBuilders: adminQuillEmbedBuilders,
+                    unknownEmbedBuilder: adminQuillUnknownEmbedBuilder,
                   ),
                 ),
               ),

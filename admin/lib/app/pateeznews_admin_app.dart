@@ -13,6 +13,7 @@ import '../features/auth/data/supabase_auth_client.dart';
 import '../features/comments/data/admin_comments_repository.dart';
 import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
+import '../features/notifications/data/admin_notifications_repository.dart';
 import '../features/pages/data/admin_pages_repository.dart';
 import '../features/settings/data/admin_ai_settings_repository.dart';
 import '../features/settings/data/admin_content_settings_repository.dart';
@@ -51,6 +52,7 @@ class PateeznewsAdminApp extends StatefulWidget {
     this.storageSettingsRepository,
     this.accountSettingsRepository,
     this.subscribersRepository,
+    this.notificationsRepository,
     this.smsRepository,
     this.socialRepository,
     this.languageController,
@@ -75,6 +77,7 @@ class PateeznewsAdminApp extends StatefulWidget {
   final AdminStorageSettingsRepository? storageSettingsRepository;
   final AdminAccountSettingsRepository? accountSettingsRepository;
   final AdminSubscribersRepository? subscribersRepository;
+  final AdminNotificationsRepository? notificationsRepository;
   final AdminSmsRepository? smsRepository;
   final AdminSocialRepository? socialRepository;
   final AdminLanguageController? languageController;
@@ -174,6 +177,9 @@ class _PateeznewsAdminAppState extends State<PateeznewsAdminApp> {
               subscribersRepository:
                   widget.subscribersRepository ??
                   const SupabaseAdminSubscribersRepository(),
+              notificationsRepository:
+                  widget.notificationsRepository ??
+                  const SupabaseAdminNotificationsRepository(),
               smsRepository:
                   widget.smsRepository ?? const SupabaseAdminSmsRepository(),
               socialRepository:

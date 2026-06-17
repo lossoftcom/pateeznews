@@ -7,6 +7,22 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  resolve: {
+    alias: [
+      {
+        find: './panes/media/local/mediaPane.js',
+        replacement: fileURLToPath(
+          new URL('./src/CustomMediaPane.jsx', import.meta.url)
+        ),
+      },
+      {
+        find: 'module',
+        replacement: fileURLToPath(
+          new URL('./src/shims/node-module.js', import.meta.url)
+        ),
+      },
+    ],
+  },
   define: {
     // Some @googleforcreators packages read process.env.* at runtime.
     'process.env.NODE_ENV': JSON.stringify('production'),
@@ -16,5 +32,17 @@ export default defineConfig({
     emptyOutDir: true,
     chunkSizeWarningLimit: 8000,
     sourcemap: false,
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (
+          warning.code === 'INVALID_ANNOTATION' &&
+          warning.id &&
+          warning.id.includes('@daybrush/utils')
+        ) {
+          return;
+        }
+        warn(warning);
+      },
+    },
   },
 });

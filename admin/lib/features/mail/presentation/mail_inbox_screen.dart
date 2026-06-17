@@ -380,20 +380,69 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
 
   void _openMessage(AdminMailMessage message) {
     if (message.isInboxSource) unawaited(_markRead(message, true));
-    showDialog<void>(
+    showGeneralDialog<void>(
       context: context,
-      builder: (context) => _MailPreviewDialog(
-        message: message.isInboxSource ? message.copyWith(read: true) : message,
-        thread: _threadFor(message),
-        onReply: message.isInboxSource && message.senderEmail.trim().isNotEmpty
-            ? () {
-                Navigator.of(context).pop();
-                _showComposeDrawer(
-                  initial: _MailComposeInitialData.reply(message),
-                );
-              }
-            : null,
-      ),
+      barrierDismissible: true,
+      barrierLabel: context.t('common.cancel'),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final mobile = screenWidth < 700;
+        final drawerWidth = mobile
+            ? screenWidth
+            : screenWidth <= 1120
+            ? (screenWidth - 24).clamp(680.0, 860.0).toDouble()
+            : 860.0;
+
+        return SafeArea(
+          child: Align(
+            alignment: mobile ? Alignment.center : Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: drawerWidth,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      spreadRadius: 2,
+                      blurRadius: 14,
+                    ),
+                  ],
+                ),
+                child: _MailPreviewDrawer(
+                  message: message.isInboxSource
+                      ? message.copyWith(read: true)
+                      : message,
+                  thread: _threadFor(message),
+                  onReply:
+                      message.isInboxSource &&
+                          message.senderEmail.trim().isNotEmpty
+                      ? () {
+                          Navigator.of(context).pop();
+                          _showComposeDrawer(
+                            initial: _MailComposeInitialData.reply(message),
+                          );
+                        }
+                      : null,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
     );
   }
 
@@ -607,8 +656,8 @@ class _MailTitle extends StatelessWidget {
   }
 }
 
-class _MailPreviewDialog extends StatelessWidget {
-  const _MailPreviewDialog({
+class _MailPreviewDrawer extends StatelessWidget {
+  const _MailPreviewDrawer({
     required this.message,
     required this.thread,
     this.onReply,
@@ -620,136 +669,219 @@ class _MailPreviewDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(28),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 920,
-        constraints: const BoxConstraints(maxHeight: 760),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 20, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.t('mail.detailTitle'),
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: AppColors.deepOcean,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0,
-                          ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    mouseCursor: SystemMouseCursors.click,
-                    icon: const SymbolIcon(
-                      Symbols.close,
-                      color: AppColors.deepOcean,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 700;
+        return Padding(
+          padding: EdgeInsets.all(mobile ? 14 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(0, mobile ? 2 : 8, 0, 10),
+                child: Row(
                   children: [
-                    _MailDetailHeader(message: message),
-                    const SizedBox(height: 20),
-                    _MailDetailGrid(message: message),
-                    const SizedBox(height: 22),
-                    if (thread.length > 1) ...[
-                      Text(
-                        context.t('mail.detail.conversation'),
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.deepOcean,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
+                    const SymbolIcon(
+                      Symbols.draft,
+                      color: AppColors.deepOcean,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        context.t('mail.detailTitle'),
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              color: AppColors.deepOcean,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
                       ),
-                      const SizedBox(height: 10),
-                      for (final item in thread) ...[
-                        _MailConversationItem(
-                          message: item,
-                          active: item.id == message.id,
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                    ] else
-                      _MailConversationItem(message: message, active: true),
-                    if (message.attachments.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _MailAttachmentSummary(attachments: message.attachments),
-                    ],
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      mouseCursor: SystemMouseCursors.click,
+                      tooltip: context.t('common.cancel'),
+                      icon: const SymbolIcon(
+                        Symbols.close,
+                        color: AppColors.deepOcean,
+                        size: 22,
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.softLine)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (onReply != null) ...[
-                    _ComposeFooterButton(
-                      label: 'mail.action.reply',
-                      icon: Symbols.reply_rounded,
-                      onPressed: onReply,
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style:
-                        TextButton.styleFrom(
-                          foregroundColor: AppColors.deepOcean,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ).copyWith(
-                          mouseCursor: const WidgetStatePropertyAll(
-                            SystemMouseCursors.click,
-                          ),
-                        ),
-                    child: Text(context.t('common.cancel')),
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.fromLTRB(
+                    mobile ? 14 : 20,
+                    mobile ? 14 : 18,
+                    mobile ? 14 : 20,
+                    mobile ? 14 : 16,
                   ),
-                ],
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                    border: Border.all(
+                      color: AppColors.line.withValues(alpha: 0.82),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _MailDetailHeader(message: message),
+                      SizedBox(height: mobile ? 14 : 16),
+                      _MailDetailGrid(message: message),
+                      SizedBox(height: mobile ? 14 : 16),
+                      Expanded(
+                        child: thread.length > 1
+                            ? _MailThreadPreview(
+                                message: message,
+                                thread: thread,
+                              )
+                            : _MailConversationItem(
+                                message: message,
+                                active: true,
+                                expandHtml: true,
+                              ),
+                      ),
+                      if (message.attachments.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _MailAttachmentSummary(
+                          attachments: message.attachments,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
+              const SizedBox(height: 16),
+              _MailPreviewActions(mobile: mobile, onReply: onReply),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MailPreviewActions extends StatelessWidget {
+  const _MailPreviewActions({required this.mobile, this.onReply});
+
+  final bool mobile;
+  final VoidCallback? onReply;
+
+  @override
+  Widget build(BuildContext context) {
+    final close = TextButton(
+      onPressed: () => Navigator.of(context).pop(),
+      style:
+          TextButton.styleFrom(
+            foregroundColor: AppColors.deepOcean,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ).copyWith(
+            mouseCursor: const WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+      child: Text(context.t('common.cancel')),
+    );
+
+    if (mobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (onReply != null) ...[
+            _ComposeFooterButton(
+              label: 'mail.action.reply',
+              icon: Symbols.reply_rounded,
+              onPressed: onReply,
             ),
+            const SizedBox(height: 10),
           ],
+          close,
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (onReply != null) ...[
+          _ComposeFooterButton(
+            label: 'mail.action.reply',
+            icon: Symbols.reply_rounded,
+            onPressed: onReply,
+          ),
+          const SizedBox(width: 12),
+        ],
+        close,
+      ],
+    );
+  }
+}
+
+class _MailThreadPreview extends StatelessWidget {
+  const _MailThreadPreview({required this.message, required this.thread});
+
+  final AdminMailMessage message;
+  final List<AdminMailMessage> thread;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.t('mail.detail.conversation'),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
         ),
-      ),
+        const SizedBox(height: 10),
+        for (final item in thread)
+          if (item.id == message.id)
+            Expanded(
+              child: _MailConversationItem(
+                message: item,
+                active: true,
+                expandHtml: true,
+              ),
+            )
+          else ...[
+            _MailConversationItem(message: item, active: false),
+            const SizedBox(height: 10),
+          ],
+      ],
     );
   }
 }
 
 class _MailConversationItem extends StatelessWidget {
-  const _MailConversationItem({required this.message, required this.active});
+  const _MailConversationItem({
+    required this.message,
+    required this.active,
+    this.expandHtml = false,
+  });
 
   final AdminMailMessage message;
   final bool active;
+  final bool expandHtml;
 
   @override
   Widget build(BuildContext context) {
     final sender = message.isOutboxSource
         ? context.t('mail.status.sent')
         : message.senderName;
+    final mailBody = MailHtmlView(
+      key: ValueKey('${message.id}-${message.contentHtml.hashCode}'),
+      html: message.contentHtml,
+      fallbackText: message.preview,
+      height: expandHtml ? null : 360,
+    );
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: active ? AppColors.surface : Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.value),
@@ -786,13 +918,10 @@ class _MailConversationItem extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          if (active)
-            MailHtmlView(
-              key: ValueKey('${message.id}-${message.contentHtml.hashCode}'),
-              html: message.contentHtml,
-              fallbackText: message.preview,
-              height: 520,
-            )
+          if (active && expandHtml)
+            Expanded(child: mailBody)
+          else if (active)
+            mailBody
           else
             Text(
               message.preview,
@@ -1086,7 +1215,6 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
   String? _templateValue;
   final _attachments = <_MailComposeAttachment>[];
   var _saving = false;
-  var _editorRevision = 0;
 
   @override
   void initState() {
@@ -1116,7 +1244,8 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
     if (_saving) return;
     final recipients = _recipientsController.text.trim();
     final subject = _subjectController.text.trim();
-    final content = adminQuillHtml(_editorController).trim();
+    final selectedTemplate = _selectedTemplate();
+    final content = _composeContentHtml(selectedTemplate).trim();
     if (recipients.isEmpty || subject.isEmpty || content.isEmpty) {
       widget.onError(
         const AdminMailException('Alıcı, konu ve içerik zorunludur'),
@@ -1129,7 +1258,7 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
         widget.session,
         AdminMailComposePayload(
           accountId: int.tryParse(_accountValue ?? ''),
-          templateId: int.tryParse(_templateValue ?? ''),
+          templateId: selectedTemplate?.id,
           recipients: recipients,
           subject: subject,
           content: content,
@@ -1149,31 +1278,36 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
     }
   }
 
+  AdminMailTemplate? _selectedTemplate() {
+    final id = int.tryParse(_templateValue ?? '');
+    if (id == null) return null;
+    for (final template in widget.templates) {
+      if (template.id == id) return template;
+    }
+    return null;
+  }
+
+  String _composeContentHtml(AdminMailTemplate? selectedTemplate) {
+    if (selectedTemplate != null) return selectedTemplate.body;
+    return adminQuillHtml(_editorController);
+  }
+
   void _selectTemplate(String? value) {
-    final oldController = _editorController;
     final id = int.tryParse(value ?? '');
-    final template = id == null
-        ? null
-        : widget.templates.firstWhere(
-            (item) => item.id == id,
-            orElse: () => widget.templates.first,
-          );
-    final nextController = quill.QuillController(
-      document: template == null
-          ? adminQuillDocumentFromJson(adminEmptyQuillDeltaJson)
-          : adminQuillDocumentFromStoredHtml(template.body),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
+    AdminMailTemplate? template;
+    if (id != null) {
+      for (final item in widget.templates) {
+        if (item.id == id) {
+          template = item;
+          break;
+        }
+      }
+    }
     setState(() {
-      _templateValue = value;
+      _templateValue = template?.id.toString();
       if (template != null) {
         _subjectController.text = template.subject;
       }
-      _editorController = nextController;
-      _editorRevision++;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      oldController.dispose();
     });
   }
 
@@ -1262,6 +1396,7 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < 700;
+        final selectedTemplate = _selectedTemplate();
         return Padding(
           padding: EdgeInsets.all(mobile ? 14 : 16),
           child: Column(
@@ -1292,10 +1427,11 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
                             templates: widget.templates,
                             selectedAccount: _accountValue,
                             selectedTemplate: _templateValue,
+                            selectedTemplateModel: selectedTemplate,
                             recipientsController: _recipientsController,
                             subjectController: _subjectController,
                             editorController: _editorController,
-                            editorKey: ValueKey(_editorRevision),
+                            editorKey: const ValueKey('mail-compose-content'),
                             attachments: _attachments,
                             onAccountChanged: (value) =>
                                 setState(() => _accountValue = value),
@@ -1314,10 +1450,11 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
                           templates: widget.templates,
                           selectedAccount: _accountValue,
                           selectedTemplate: _templateValue,
+                          selectedTemplateModel: selectedTemplate,
                           recipientsController: _recipientsController,
                           subjectController: _subjectController,
                           editorController: _editorController,
-                          editorKey: ValueKey(_editorRevision),
+                          editorKey: const ValueKey('mail-compose-content'),
                           attachments: _attachments,
                           onAccountChanged: (value) =>
                               setState(() => _accountValue = value),
@@ -1414,6 +1551,7 @@ class _MailComposeForm extends StatelessWidget {
     required this.templates,
     required this.selectedAccount,
     required this.selectedTemplate,
+    required this.selectedTemplateModel,
     required this.recipientsController,
     required this.subjectController,
     required this.editorController,
@@ -1432,6 +1570,7 @@ class _MailComposeForm extends StatelessWidget {
   final List<AdminMailTemplate> templates;
   final String? selectedAccount;
   final String? selectedTemplate;
+  final AdminMailTemplate? selectedTemplateModel;
   final TextEditingController recipientsController;
   final TextEditingController subjectController;
   final quill.QuillController editorController;
@@ -1544,10 +1683,10 @@ class _MailComposeForm extends StatelessWidget {
           ...formFields,
           SizedBox(
             height: 430,
-            child: ArticleRichTextEditor(
+            child: _MailComposeContentArea(
               key: editorKey,
-              controller: editorController,
-              placeholder: 'mail.compose.contentHint',
+              selectedTemplate: selectedTemplateModel,
+              editorController: editorController,
               minHeight: 360,
             ),
           ),
@@ -1568,10 +1707,10 @@ class _MailComposeForm extends StatelessWidget {
         ...formFields,
         Expanded(
           child: SingleChildScrollView(
-            child: ArticleRichTextEditor(
+            child: _MailComposeContentArea(
               key: editorKey,
-              controller: editorController,
-              placeholder: 'mail.compose.contentHint',
+              selectedTemplate: selectedTemplateModel,
+              editorController: editorController,
               minHeight: 430,
             ),
           ),
@@ -1584,6 +1723,42 @@ class _MailComposeForm extends StatelessWidget {
           onRemoveAttachment: onRemoveAttachment,
         ),
       ],
+    );
+  }
+}
+
+class _MailComposeContentArea extends StatelessWidget {
+  const _MailComposeContentArea({
+    super.key,
+    required this.selectedTemplate,
+    required this.editorController,
+    required this.minHeight,
+  });
+
+  final AdminMailTemplate? selectedTemplate;
+  final quill.QuillController editorController;
+  final double minHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final template = selectedTemplate;
+    if (template == null) {
+      return ArticleRichTextEditor(
+        controller: editorController,
+        placeholder: 'mail.compose.contentHint',
+        minHeight: minHeight,
+      );
+    }
+
+    return MailHtmlView(
+      key: ValueKey(
+        'compose-template-${template.id}-${template.updatedAt.toIso8601String()}',
+      ),
+      html: template.body,
+      fallbackText: template.previewText.isNotEmpty
+          ? template.previewText
+          : template.subject,
+      height: minHeight,
     );
   }
 }

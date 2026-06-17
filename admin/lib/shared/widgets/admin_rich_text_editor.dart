@@ -69,6 +69,15 @@ String adminQuillHtml(quill.QuillController controller) {
   for (final rawOp in ops) {
     final insert = rawOp['insert'];
     final attributes = _asStringObjectMap(rawOp['attributes']);
+    if (insert is Map) {
+      final image = insert['image']?.toString().trim();
+      if (image != null && image.isNotEmpty) {
+        current.write(
+          '<img src="${_escapeAttr(image)}" alt="" style="max-width:100%;height:auto;">',
+        );
+      }
+      continue;
+    }
     if (insert is! String) continue;
     final parts = insert.split('\n');
     for (var index = 0; index < parts.length; index++) {
@@ -186,6 +195,106 @@ String _escapeHtml(String value) {
 
 String _escapeAttr(String value) {
   return _escapeHtml(value).replaceAll('"', '&quot;');
+}
+
+const adminQuillEmbedBuilders = <quill.EmbedBuilder>[
+  _AdminQuillImageEmbedBuilder(),
+];
+
+const adminQuillUnknownEmbedBuilder = _AdminQuillUnknownEmbedBuilder();
+
+class _AdminQuillImageEmbedBuilder extends quill.EmbedBuilder {
+  const _AdminQuillImageEmbedBuilder();
+
+  @override
+  String get key => 'image';
+
+  @override
+  String toPlainText(quill.Embed node) => '[image]';
+
+  @override
+  Widget build(BuildContext context, quill.EmbedContext embedContext) {
+    final source = embedContext.node.value.data?.toString().trim() ?? '';
+    if (source.isEmpty) return const SizedBox.shrink();
+
+    Widget image;
+    if (source.startsWith('data:image/')) {
+      try {
+        image = Image.memory(
+          UriData.parse(source).contentAsBytes(),
+          fit: BoxFit.contain,
+        );
+      } catch (_) {
+        image = _AdminQuillEmbedFallback(label: source);
+      }
+    } else {
+      image = Image.network(
+        source,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => _AdminQuillEmbedFallback(label: source),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Align(
+        alignment: Alignment.center,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 220),
+          child: image,
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminQuillUnknownEmbedBuilder extends quill.EmbedBuilder {
+  const _AdminQuillUnknownEmbedBuilder();
+
+  @override
+  String get key => 'unknown';
+
+  @override
+  String toPlainText(quill.Embed node) => '[${node.value.type}]';
+
+  @override
+  Widget build(BuildContext context, quill.EmbedContext embedContext) {
+    return _AdminQuillEmbedFallback(
+      label:
+          embedContext.node.value.data?.toString() ??
+          embedContext.node.value.type,
+    );
+  }
+}
+
+class _AdminQuillEmbedFallback extends StatelessWidget {
+  const _AdminQuillEmbedFallback({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: Text(
+        label,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.support,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
 }
 
 class _QuillHtmlLine {
@@ -310,6 +419,8 @@ class _AdminRichTextEditorState extends State<AdminRichTextEditor> {
                 config: quill.QuillEditorConfig(
                   placeholder: context.t(widget.placeholder),
                   padding: EdgeInsets.zero,
+                  embedBuilders: adminQuillEmbedBuilders,
+                  unknownEmbedBuilder: adminQuillUnknownEmbedBuilder,
                 ),
               ),
             ),
@@ -325,6 +436,8 @@ class _AdminRichTextEditorState extends State<AdminRichTextEditor> {
                   controller: _previewController,
                   config: const quill.QuillEditorConfig(
                     padding: EdgeInsets.zero,
+                    embedBuilders: adminQuillEmbedBuilders,
+                    unknownEmbedBuilder: adminQuillUnknownEmbedBuilder,
                   ),
                 ),
               ),

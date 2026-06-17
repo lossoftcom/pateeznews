@@ -14,6 +14,7 @@ import '../features/auth/data/supabase_auth_client.dart';
 import '../features/comments/data/admin_comments_repository.dart';
 import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
+import '../features/notifications/data/admin_notifications_repository.dart';
 import '../features/pages/data/admin_pages_repository.dart';
 import '../features/settings/data/admin_ai_settings_repository.dart';
 import '../features/settings/data/admin_content_settings_repository.dart';
@@ -57,6 +58,7 @@ class AdminGate extends StatefulWidget {
     required this.storageSettingsRepository,
     required this.accountSettingsRepository,
     required this.subscribersRepository,
+    required this.notificationsRepository,
     required this.smsRepository,
     required this.socialRepository,
     this.onOpenFrontend,
@@ -81,6 +83,7 @@ class AdminGate extends StatefulWidget {
   final AdminStorageSettingsRepository storageSettingsRepository;
   final AdminAccountSettingsRepository accountSettingsRepository;
   final AdminSubscribersRepository subscribersRepository;
+  final AdminNotificationsRepository notificationsRepository;
   final AdminSmsRepository smsRepository;
   final AdminSocialRepository socialRepository;
   final VoidCallback? onOpenFrontend;
@@ -349,6 +352,7 @@ class _AdminGateState extends State<AdminGate> {
             storageSettingsRepository: widget.storageSettingsRepository,
             accountSettingsRepository: widget.accountSettingsRepository,
             subscribersRepository: widget.subscribersRepository,
+            notificationsRepository: widget.notificationsRepository,
             smsRepository: widget.smsRepository,
             socialRepository: widget.socialRepository,
             onOpenFrontend: widget.onOpenFrontend,

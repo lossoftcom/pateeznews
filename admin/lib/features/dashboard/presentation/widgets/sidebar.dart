@@ -20,6 +20,7 @@ class AdminDrawer extends StatelessWidget {
     required this.pagesVisible,
     required this.commentsVisible,
     required this.subscribersVisible,
+    required this.notificationsVisible,
     required this.mailInboxVisible,
     required this.bulkMailVisible,
     required this.mailTemplatesVisible,
@@ -52,6 +53,10 @@ class AdminDrawer extends StatelessWidget {
     required this.pagesSelected,
     required this.commentsSelected,
     required this.subscribersSelected,
+    required this.notificationCampaignsSelected,
+    required this.notificationTemplatesSelected,
+    required this.notificationDevicesSelected,
+    required this.notificationSettingsSelected,
     required this.mailInboxSelected,
     required this.bulkMailSelected,
     required this.mailTemplatesSelected,
@@ -94,6 +99,10 @@ class AdminDrawer extends StatelessWidget {
     required this.onPagesSelected,
     required this.onCommentsSelected,
     required this.onSubscribersSelected,
+    required this.onNotificationCampaignsSelected,
+    required this.onNotificationTemplatesSelected,
+    required this.onNotificationDevicesSelected,
+    required this.onNotificationSettingsSelected,
     required this.onMailInboxSelected,
     required this.onBulkMailSelected,
     required this.onMailTemplatesSelected,
@@ -138,6 +147,7 @@ class AdminDrawer extends StatelessWidget {
   final bool pagesVisible;
   final bool commentsVisible;
   final bool subscribersVisible;
+  final bool notificationsVisible;
   final bool mailInboxVisible;
   final bool bulkMailVisible;
   final bool mailTemplatesVisible;
@@ -170,6 +180,10 @@ class AdminDrawer extends StatelessWidget {
   final bool pagesSelected;
   final bool commentsSelected;
   final bool subscribersSelected;
+  final bool notificationCampaignsSelected;
+  final bool notificationTemplatesSelected;
+  final bool notificationDevicesSelected;
+  final bool notificationSettingsSelected;
   final bool mailInboxSelected;
   final bool bulkMailSelected;
   final bool mailTemplatesSelected;
@@ -212,6 +226,10 @@ class AdminDrawer extends StatelessWidget {
   final VoidCallback onPagesSelected;
   final VoidCallback onCommentsSelected;
   final VoidCallback onSubscribersSelected;
+  final VoidCallback onNotificationCampaignsSelected;
+  final VoidCallback onNotificationTemplatesSelected;
+  final VoidCallback onNotificationDevicesSelected;
+  final VoidCallback onNotificationSettingsSelected;
   final VoidCallback onMailInboxSelected;
   final VoidCallback onBulkMailSelected;
   final VoidCallback onMailTemplatesSelected;
@@ -268,6 +286,7 @@ class AdminDrawer extends StatelessWidget {
           pagesVisible: pagesVisible,
           commentsVisible: commentsVisible,
           subscribersVisible: subscribersVisible,
+          notificationsVisible: notificationsVisible,
           mailInboxVisible: mailInboxVisible,
           bulkMailVisible: bulkMailVisible,
           mailTemplatesVisible: mailTemplatesVisible,
@@ -300,6 +319,10 @@ class AdminDrawer extends StatelessWidget {
           pagesSelected: pagesSelected,
           commentsSelected: commentsSelected,
           subscribersSelected: subscribersSelected,
+          notificationCampaignsSelected: notificationCampaignsSelected,
+          notificationTemplatesSelected: notificationTemplatesSelected,
+          notificationDevicesSelected: notificationDevicesSelected,
+          notificationSettingsSelected: notificationSettingsSelected,
           mailInboxSelected: mailInboxSelected,
           bulkMailSelected: bulkMailSelected,
           mailTemplatesSelected: mailTemplatesSelected,
@@ -342,6 +365,10 @@ class AdminDrawer extends StatelessWidget {
           onPagesSelected: onPagesSelected,
           onCommentsSelected: onCommentsSelected,
           onSubscribersSelected: onSubscribersSelected,
+          onNotificationCampaignsSelected: onNotificationCampaignsSelected,
+          onNotificationTemplatesSelected: onNotificationTemplatesSelected,
+          onNotificationDevicesSelected: onNotificationDevicesSelected,
+          onNotificationSettingsSelected: onNotificationSettingsSelected,
           onMailInboxSelected: onMailInboxSelected,
           onBulkMailSelected: onBulkMailSelected,
           onMailTemplatesSelected: onMailTemplatesSelected,
@@ -393,6 +420,7 @@ class Sidebar extends StatefulWidget {
     required this.pagesVisible,
     required this.commentsVisible,
     required this.subscribersVisible,
+    required this.notificationsVisible,
     required this.mailInboxVisible,
     required this.bulkMailVisible,
     required this.mailTemplatesVisible,
@@ -425,6 +453,10 @@ class Sidebar extends StatefulWidget {
     required this.pagesSelected,
     required this.commentsSelected,
     required this.subscribersSelected,
+    required this.notificationCampaignsSelected,
+    required this.notificationTemplatesSelected,
+    required this.notificationDevicesSelected,
+    required this.notificationSettingsSelected,
     required this.mailInboxSelected,
     required this.bulkMailSelected,
     required this.mailTemplatesSelected,
@@ -467,6 +499,10 @@ class Sidebar extends StatefulWidget {
     required this.onPagesSelected,
     required this.onCommentsSelected,
     required this.onSubscribersSelected,
+    required this.onNotificationCampaignsSelected,
+    required this.onNotificationTemplatesSelected,
+    required this.onNotificationDevicesSelected,
+    required this.onNotificationSettingsSelected,
     required this.onMailInboxSelected,
     required this.onBulkMailSelected,
     required this.onMailTemplatesSelected,
@@ -512,6 +548,7 @@ class Sidebar extends StatefulWidget {
   final bool pagesVisible;
   final bool commentsVisible;
   final bool subscribersVisible;
+  final bool notificationsVisible;
   final bool mailInboxVisible;
   final bool bulkMailVisible;
   final bool mailTemplatesVisible;
@@ -544,6 +581,10 @@ class Sidebar extends StatefulWidget {
   final bool pagesSelected;
   final bool commentsSelected;
   final bool subscribersSelected;
+  final bool notificationCampaignsSelected;
+  final bool notificationTemplatesSelected;
+  final bool notificationDevicesSelected;
+  final bool notificationSettingsSelected;
   final bool mailInboxSelected;
   final bool bulkMailSelected;
   final bool mailTemplatesSelected;
@@ -586,6 +627,10 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onPagesSelected;
   final VoidCallback onCommentsSelected;
   final VoidCallback onSubscribersSelected;
+  final VoidCallback onNotificationCampaignsSelected;
+  final VoidCallback onNotificationTemplatesSelected;
+  final VoidCallback onNotificationDevicesSelected;
+  final VoidCallback onNotificationSettingsSelected;
   final VoidCallback onMailInboxSelected;
   final VoidCallback onBulkMailSelected;
   final VoidCallback onMailTemplatesSelected;
@@ -633,6 +678,7 @@ class _SidebarState extends State<Sidebar> {
   static const _sidebarAnimationDuration = Duration(milliseconds: 180);
 
   static const _mailGroup = 'mail';
+  static const _notificationsGroup = 'notifications';
   static const _smsGroup = 'sms';
   static const _whatsappGroup = 'whatsapp';
   static const _socialGroup = 'social';
@@ -674,6 +720,12 @@ class _SidebarState extends State<Sidebar> {
   String? get _selectedExpandable => _selectedExpandableFor(widget);
 
   String? _selectedExpandableFor(Sidebar data) {
+    if (data.notificationCampaignsSelected ||
+        data.notificationTemplatesSelected ||
+        data.notificationDevicesSelected ||
+        data.notificationSettingsSelected) {
+      return _notificationsGroup;
+    }
     if (data.mailInboxSelected ||
         data.bulkMailSelected ||
         data.mailTemplatesSelected ||
@@ -801,6 +853,11 @@ class _SidebarState extends State<Sidebar> {
         widget.mailTemplatesSelected ||
         widget.contactListsSelected ||
         widget.mailSettingsSelected;
+    final notificationsSelected =
+        widget.notificationCampaignsSelected ||
+        widget.notificationTemplatesSelected ||
+        widget.notificationDevicesSelected ||
+        widget.notificationSettingsSelected;
     final smsSelected =
         widget.smsOutboxSelected ||
         widget.smsBulkSelected ||
@@ -924,6 +981,49 @@ class _SidebarState extends State<Sidebar> {
                       compact: compact,
                       onTap: () =>
                           _select(context, widget.onSubscribersSelected),
+                    ),
+                  if (widget.notificationsVisible)
+                    SidebarExpandableItem(
+                      icon: Symbols.notifications,
+                      label: context.t('nav.notifications'),
+                      selected: notificationsSelected,
+                      compact: compact,
+                      expanded: _openExpandable == _notificationsGroup,
+                      onTap: () => _handleExpandableTap(_notificationsGroup),
+                      children: [
+                        SidebarSubItem(
+                          label: context.t('nav.notifications.campaigns'),
+                          selected: widget.notificationCampaignsSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onNotificationCampaignsSelected,
+                          ),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.notifications.templates'),
+                          selected: widget.notificationTemplatesSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onNotificationTemplatesSelected,
+                          ),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.notifications.devices'),
+                          selected: widget.notificationDevicesSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onNotificationDevicesSelected,
+                          ),
+                        ),
+                        SidebarSubItem(
+                          label: context.t('nav.notifications.settings'),
+                          selected: widget.notificationSettingsSelected,
+                          onTap: () => _select(
+                            context,
+                            widget.onNotificationSettingsSelected,
+                          ),
+                        ),
+                      ],
                     ),
                   if (widget.mailInboxVisible ||
                       widget.bulkMailVisible ||

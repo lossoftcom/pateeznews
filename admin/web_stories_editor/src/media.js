@@ -1,14 +1,13 @@
 // Media apiCallbacks for the embedded editor, backed by the Flutter admin's
-// storage API (/api/storage/list, /api/storage/upload, ...) reached through the
-// host bridge. The host returns plain {id, src, type} records; the editor needs
-// fully-shaped resources with pixel dimensions, so we probe those in the browser
-// (the storage list endpoint does not provide them).
+// storage API through the host bridge.
 import { createResource } from '@googleforcreators/media';
 
 import { hostRequest } from './host.js';
 
 const DEFAULT_IMAGE = { width: 1080, height: 1920 };
 const DEFAULT_VIDEO = { width: 1080, height: 1920, length: 0 };
+const DEFAULT_AUDIO = { length: 0 };
+const DEFAULT_MEDIA_TYPES = ['image', 'video', 'audio'];
 
 const EXT_MIME = {
   jpg: 'image/jpeg',
@@ -22,6 +21,14 @@ const EXT_MIME = {
   webm: 'video/webm',
   mov: 'video/quicktime',
   m4v: 'video/mp4',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  opus: 'audio/opus',
 };
 
 function guessMimeType(item) {
@@ -29,11 +36,14 @@ function guessMimeType(item) {
   const src = String(item.src || '');
   const ext = src.split('?')[0].split('.').pop().toLowerCase();
   if (EXT_MIME[ext]) return EXT_MIME[ext];
-  return item.type === 'video' ? 'video/mp4' : 'image/jpeg';
+  if (item.type === 'video') return 'video/mp4';
+  if (item.type === 'audio') return 'audio/mpeg';
+  return 'image/jpeg';
 }
 
 function resourceType(item, mimeType) {
   if (item.type === 'video' || mimeType.startsWith('video/')) return 'video';
+  if (item.type === 'audio' || mimeType.startsWith('audio/')) return 'audio';
   return 'image';
 }
 
@@ -82,6 +92,24 @@ function probeVideo(src) {
   });
 }
 
+function probeAudio(src) {
+  return new Promise((resolve) => {
+    const audio = document.createElement('audio');
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      resolve(value);
+    };
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () =>
+      finish({ length: Math.round(audio.duration || 0) });
+    audio.onerror = () => finish(DEFAULT_AUDIO);
+    setTimeout(() => finish(DEFAULT_AUDIO), 8000);
+    audio.src = src;
+  });
+}
+
 function formatDuration(seconds) {
   const s = Math.max(0, Math.round(seconds || 0));
   const mm = Math.floor(s / 60);
@@ -89,10 +117,11 @@ function formatDuration(seconds) {
   return `${mm}:${ss}`;
 }
 
-async function toResource(item) {
+async function toResource(item, { probe = true } = {}) {
   const mimeType = guessMimeType(item);
   const type = resourceType(item, mimeType);
   const src = String(item.src || '');
+  if (!src) return null;
   const base = {
     id: String(item.id || src),
     src,
@@ -103,7 +132,7 @@ async function toResource(item) {
     isOptimized: true,
   };
   if (type === 'video') {
-    const dims = await probeVideo(src);
+    const dims = probe ? await probeVideo(src) : DEFAULT_VIDEO;
     return createResource({
       ...base,
       width: dims.width,
@@ -114,46 +143,54 @@ async function toResource(item) {
       isMuted: false,
     });
   }
-  const dims = await probeImage(src);
+  if (type === 'audio') {
+    const meta = probe ? await probeAudio(src) : DEFAULT_AUDIO;
+    return createResource({
+      ...base,
+      length: meta.length,
+      lengthFormatted: formatDuration(meta.length),
+    });
+  }
+  const dims = probe ? await probeImage(src) : DEFAULT_IMAGE;
   return createResource({ ...base, width: dims.width, height: dims.height });
 }
 
-// Bounded-concurrency map so a large library does not open hundreds of parallel
-// probes at once.
-async function mapLimit(items, limit, fn) {
-  const out = new Array(items.length);
-  let i = 0;
-  const workers = new Array(Math.min(limit, items.length || 1))
-    .fill(null)
-    .map(async () => {
-      while (i < items.length) {
-        const index = i++;
-        out[index] = await fn(items[index], index);
-      }
-    });
-  await Promise.all(workers);
-  return out;
+function matchesSearch(item, searchTerm) {
+  const term = String(searchTerm || '').trim().toLowerCase();
+  if (!term) return true;
+  return String(item.value || item.alt || item.src || '')
+    .toLowerCase()
+    .includes(term);
+}
+
+async function listMedia(mediaType) {
+  const reply = await hostRequest('MEDIA_LIST', { mediaType });
+  return Array.isArray(reply && reply.items) ? reply.items : [];
 }
 
 // getMedia({ mediaType, searchTerm, pagingNum }) -> { data, headers }
-export async function getMedia({ mediaType, searchTerm, pagingNum } = {}) {
-  // The storage list endpoint returns everything in one shot, so we only answer
-  // the first page and report a single page back to the editor.
+export async function getMedia({ mediaType = '', searchTerm = '', pagingNum } = {}) {
   if (pagingNum && pagingNum > 1) {
     return { data: [], headers: { totalItems: 0, totalPages: 1 } };
   }
-  const reply = await hostRequest('MEDIA_LIST', { mediaType: mediaType || '' });
-  let items = Array.isArray(reply && reply.items) ? reply.items : [];
-  const term = String(searchTerm || '').trim().toLowerCase();
-  if (term) {
-    items = items.filter((it) =>
-      String(it.value || it.alt || it.src || '')
-        .toLowerCase()
-        .includes(term)
-    );
-  }
-  const data = (await mapLimit(items, 6, toResource)).filter(Boolean);
+  const types = mediaType ? [mediaType] : DEFAULT_MEDIA_TYPES;
+  const items = (await Promise.all(types.map(listMedia)))
+    .flat()
+    .filter((item) => matchesSearch(item, searchTerm));
+  const data = (await Promise.all(
+    items.map((item) => toResource(item, { probe: false }))
+  )).filter(Boolean);
   return { data, headers: { totalItems: data.length, totalPages: 1 } };
+}
+
+export async function pickMediaResource(mediaType) {
+  const reply = await hostRequest(
+    'MEDIA_PICK',
+    { mediaType },
+    { timeout: 120000 }
+  );
+  if (!reply || !reply.ok || !reply.item) return null;
+  return toResource(reply.item, { probe: false });
 }
 
 function readFileAsBase64(file) {
@@ -176,17 +213,23 @@ export async function uploadMedia(args = {}) {
     throw new Error('No file to upload');
   }
   const mimeType = file.type || 'application/octet-stream';
-  const type = mimeType.startsWith('video/') ? 'video' : 'image';
+  const mediaType = mimeType.startsWith('video/')
+    ? 'video'
+    : mimeType.startsWith('audio/')
+      ? 'audio'
+      : 'image';
   const dataBase64 = await readFileAsBase64(file);
   const reply = await hostRequest(
     'MEDIA_UPLOAD',
-    { fileName: file.name, mimeType, type, dataBase64 },
+    { fileName: file.name, mimeType, mediaType, dataBase64 },
     { timeout: 120000 }
   );
   if (!reply || !reply.ok || !reply.item) {
     throw new Error((reply && reply.error) || 'Upload failed');
   }
-  return toResource(reply.item);
+  const resource = await toResource(reply.item, { probe: false });
+  if (!resource) throw new Error('Upload failed');
+  return resource;
 }
 
 // updateMedia(id, data) -> resolves so alt-text/metadata edits never error. The
