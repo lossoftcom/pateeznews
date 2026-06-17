@@ -11,7 +11,7 @@ class SlackPreview extends StatelessWidget {
     required this.imageUrl,
     required this.linkUrl,
     required this.linkTitle,
-    this.profileName = 'Pateeznews',
+    this.profileName = 'Pateez',
     this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
@@ -160,7 +160,7 @@ class SlackPreview extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            linkTitle.isNotEmpty ? linkTitle : 'Pateeznews',
+                            linkTitle.isNotEmpty ? linkTitle : 'Pateez',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,

@@ -175,7 +175,7 @@ class HomeRepository {
       summary: _plainText(json['summary']),
       imageUrl: _str(json['imageUrl']),
       publishedAt: _parseDate(json['publishedAt']),
-      source: _str(json['source'], fallback: 'Pateeznews'),
+      source: _str(json['source'], fallback: 'Pateez'),
       slug: _str(json['slug']),
       imageAspectRatio: _positiveDouble(json['imageAspectRatio']),
       article: _mapFeaturedArticle(json),
@@ -189,7 +189,7 @@ class HomeRepository {
   }
 
   static NewsArticle _mapArticle(Map<dynamic, dynamic> json) {
-    final source = _str(json['source'], fallback: 'Pateeznews');
+    final source = _str(json['source'], fallback: 'Pateez');
     final videoUrl = _str(json['videoUrl']);
     return NewsArticle(
       id: _str(json['id']),

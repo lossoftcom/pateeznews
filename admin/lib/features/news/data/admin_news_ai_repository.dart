@@ -737,7 +737,7 @@ String _toneInstruction(String tone) {
     'professional' =>
       'Profesyonel: ciddi, düzenli, editör standardında, abartısız.',
     'entertaining' =>
-      'Eğlenceli: Onedio/BuzzFeed/Webtekno tarzı viral akıştan ilham alan ama kopya olmayan özgün PateezNews dili. Başlık, spot ve item başlıklarında ölçülü mizah ve emoji kullanılabilir; haberin anlamı, alıntılar ve gerçekler değişmez.',
+      'Eğlenceli: Onedio/BuzzFeed/Webtekno tarzı viral akıştan ilham alan ama kopya olmayan özgün Pateez dili. Başlık, spot ve item başlıklarında ölçülü mizah ve emoji kullanılabilir; haberin anlamı, alıntılar ve gerçekler değişmez.',
     'local' =>
       'Yerel Haber Dili: İç Anadolu insanına yakın, sade, sıcak ve net.',
     'critical' =>
@@ -1313,7 +1313,7 @@ String _quizToneStyleInstruction(AdminNewsAiDraftRequest request) {
   if (request.preserveSource) {
     return '- Eğlenceli ton seçiliyse kaynak soru, cevap ve açıklama metnine dokunma; yalnız kısa başlık/sonuç etiketi gibi alanlarda ölçülü emoji veya ikon ekleyebilirsin. Hassas/adli/ölüm/afet/sağlık/siyaset riskli içerikte emoji kullanma.';
   }
-  return '- Eğlenceli ton seçiliyse başlık, spot, soru ve sonuç açıklamalarında daha canlı, sosyal medya ritmi olan, ölçülü emoji kullanabilen özgün PateezNews dili kur. Hassas/adli/ölüm/afet/sağlık/siyaset riskli içerikte emoji kullanma.';
+  return '- Eğlenceli ton seçiliyse başlık, spot, soru ve sonuç açıklamalarında daha canlı, sosyal medya ritmi olan, ölçülü emoji kullanabilen özgün Pateez dili kur. Hassas/adli/ölüm/afet/sağlık/siyaset riskli içerikte emoji kullanma.';
 }
 
 String _pollSourceTextInstruction(AdminNewsAiDraftRequest request) {

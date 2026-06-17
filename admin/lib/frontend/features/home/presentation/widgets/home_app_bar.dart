@@ -152,9 +152,7 @@ class _BrandMark extends StatelessWidget {
       DefaultBrandAssets.logo,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
-      semanticLabel: settings.siteName.isEmpty
-          ? 'Pateeznews'
-          : settings.siteName,
+      semanticLabel: settings.siteName.isEmpty ? 'Pateez' : settings.siteName,
       errorBuilder: (_, _, _) => _Wordmark(siteName: settings.siteName),
     );
     if (logoUrl.isEmpty) {
@@ -166,7 +164,7 @@ class _BrandMark extends StatelessWidget {
       width: 132,
       child: Semantics(
         image: true,
-        label: settings.siteName.isEmpty ? 'Pateeznews' : settings.siteName,
+        label: settings.siteName.isEmpty ? 'Pateez' : settings.siteName,
         child: CachedNetworkImage(
           imageUrl: logoUrl,
           fit: BoxFit.contain,

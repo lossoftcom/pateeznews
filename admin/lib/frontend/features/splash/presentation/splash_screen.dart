@@ -7,7 +7,7 @@ import 'widgets/pateez_logo_intro.dart';
 ///
 /// Arka planda font ayarları, kabuk verisi (logo/menü) ve oturum durumu
 /// yüklenirken bu ekran görünür ve [PateezLogoIntro] ile markanın resmi açılış
-/// animasyonunu oynatır. Yükleme bitince [PateeznewsApp] bu ekrandan asıl
+/// animasyonunu oynatır. Yükleme bitince [PateezApp] bu ekrandan asıl
 /// kabuğa çapraz geçiş (cross-fade) yapar.
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key, this.logoUrl = '', this.siteName = ''});
@@ -22,7 +22,7 @@ class SplashScreen extends StatelessWidget {
       alignment: Alignment.center,
       child: PateezLogoIntro(
         logoUrl: logoUrl,
-        semanticLabel: siteName.isEmpty ? 'Pateeznews' : siteName,
+        semanticLabel: siteName.isEmpty ? 'Pateez' : siteName,
       ),
     );
   }

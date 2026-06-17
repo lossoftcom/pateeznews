@@ -1119,7 +1119,7 @@ class HomeMockData {
           'Yerli geliştirilen yeni nesil dil modeli, Türkçe içerik üretiminde bağımsızlık vaat ediyor.',
       imageUrl: 'https://picsum.photos/seed/pateez-ai/1200/720',
       publishedAt: _now.subtract(const Duration(hours: 2)),
-      source: 'Pateeznews',
+      source: 'Pateez',
       isBreaking: true,
     ),
     FeaturedNews(
@@ -1130,7 +1130,7 @@ class HomeMockData {
           'Lider takım deplasmandan üç puanla dönerek farkı korumayı başardı.',
       imageUrl: 'https://picsum.photos/seed/pateez-sport/1200/720',
       publishedAt: _now.subtract(const Duration(hours: 4)),
-      source: 'Pateeznews Spor',
+      source: 'Pateez Spor',
       isLive: true,
     ),
     FeaturedNews(

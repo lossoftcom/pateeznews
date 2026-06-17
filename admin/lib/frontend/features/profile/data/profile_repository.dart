@@ -526,7 +526,7 @@ String _firstNonEmpty(List<Object?> values) {
     final text = _str(value);
     if (text.isNotEmpty) return text;
   }
-  return 'Pateeznews';
+  return 'Pateez';
 }
 
 String _handle(String username) {

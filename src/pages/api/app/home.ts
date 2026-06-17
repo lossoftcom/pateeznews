@@ -1642,7 +1642,7 @@ const mapFeaturedItem = (
       { width: 1440, quality: 86 },
     ),
     publishedAt: toIsoDate(item.timestamp),
-    source: String(item.source || "Pateeznews"),
+    source: String(item.source || "Pateez"),
     slug: String(item.slug || ""),
     imageAspectRatio: imageAspectRatio(optimizedImage),
     article: mapFeedItem(
@@ -1845,7 +1845,7 @@ const mapFeedItem = (
     tags: normalizeKeywords(item.keywords),
     faqData: normalizeFaqData(item.faqData),
     publishedAt: toIsoDate(item.timestamp),
-    source: String(item.source || item.author || "Pateeznews"),
+    source: String(item.source || item.author || "Pateez"),
     sourceAvatar: resolveImageUrl(String(raw.sourceAvatar || ""), origin, {
       width: 180,
       quality: 86,

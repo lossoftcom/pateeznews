@@ -371,7 +371,7 @@ class _SideMenuBrand extends StatelessWidget {
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
       semanticLabel: settings.siteName.isEmpty
-          ? 'Pateeznews'
+          ? 'Pateez'
           : settings.siteName,
       errorBuilder: (_, _, _) => _SideMenuWordmark(siteName: settings.siteName),
     );
@@ -388,7 +388,7 @@ class _SideMenuBrand extends StatelessWidget {
         height: 32,
         child: Semantics(
           image: true,
-          label: settings.siteName.isEmpty ? 'Pateeznews' : settings.siteName,
+          label: settings.siteName.isEmpty ? 'Pateez' : settings.siteName,
           child: CachedNetworkImage(
             imageUrl: logoUrl,
             fit: BoxFit.contain,

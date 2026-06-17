@@ -45,6 +45,7 @@ class WhatsappMessage {
 class WhatsappChat {
   final int id;
   final String name;
+  final String phone;
   final String lastMessage;
   final DateTime time;
   final int unreadCount;
@@ -52,10 +53,14 @@ class WhatsappChat {
   final String? avatarUrl;
   final List<WhatsappMessage> messages;
   final List<String> aiReplies;
+  final DateTime? lastInboundAt;
+  final DateTime? customerServiceExpiresAt;
+  final bool canSendFreeform;
 
   const WhatsappChat({
     required this.id,
     required this.name,
+    this.phone = '',
     required this.lastMessage,
     required this.time,
     required this.unreadCount,
@@ -63,11 +68,17 @@ class WhatsappChat {
     this.avatarUrl,
     required this.messages,
     required this.aiReplies,
+    this.lastInboundAt,
+    this.customerServiceExpiresAt,
+    this.canSendFreeform = true,
   });
+
+  bool get requiresTemplate => !canSendFreeform;
 
   WhatsappChat copyWith({
     int? id,
     String? name,
+    String? phone,
     String? lastMessage,
     DateTime? time,
     int? unreadCount,
@@ -75,10 +86,14 @@ class WhatsappChat {
     String? avatarUrl,
     List<WhatsappMessage>? messages,
     List<String>? aiReplies,
+    DateTime? lastInboundAt,
+    DateTime? customerServiceExpiresAt,
+    bool? canSendFreeform,
   }) {
     return WhatsappChat(
       id: id ?? this.id,
       name: name ?? this.name,
+      phone: phone ?? this.phone,
       lastMessage: lastMessage ?? this.lastMessage,
       time: time ?? this.time,
       unreadCount: unreadCount ?? this.unreadCount,
@@ -86,6 +101,10 @@ class WhatsappChat {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       messages: messages ?? this.messages,
       aiReplies: aiReplies ?? this.aiReplies,
+      lastInboundAt: lastInboundAt ?? this.lastInboundAt,
+      customerServiceExpiresAt:
+          customerServiceExpiresAt ?? this.customerServiceExpiresAt,
+      canSendFreeform: canSendFreeform ?? this.canSendFreeform,
     );
   }
 }

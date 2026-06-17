@@ -21,11 +21,13 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.0.1" apply false
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
+    id("com.google.gms.google-services") version "4.4.4" apply false
 }
 
 val builtInKotlinPluginBuildFiles =
     mapOf(
         "file_selector_android" to "flutter_plugin_build_shims/file_selector_android.gradle.kts",
+        "flutter_inappwebview_android" to "flutter_plugin_build_shims/flutter_inappwebview_android.gradle",
         "pro_image_editor" to "flutter_plugin_build_shims/pro_image_editor.gradle",
         "quill_native_bridge_android" to "flutter_plugin_build_shims/quill_native_bridge_android.gradle",
         "shared_preferences_android" to "flutter_plugin_build_shims/shared_preferences_android.gradle.kts",

@@ -160,7 +160,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
     final name = account?.resolvedDisplayName.trim();
     final username = account?.resolvedUsername.trim();
     return _PreviewProfile(
-      name: name == null || name.isEmpty ? 'Pateeznews' : name,
+      name: name == null || name.isEmpty ? 'Pateez' : name,
       username: username == null || username.isEmpty ? 'pateeznews' : username,
       avatarUrl: account?.avatarUrl.trim() ?? '',
       verified:

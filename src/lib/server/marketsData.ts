@@ -567,7 +567,7 @@ const fetchBitcoinTry = async () => {
     }
     const response = await fetchWithTimeout(
       'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=try&include_24hr_change=true',
-      { headers: { Accept: 'application/json', 'User-Agent': 'PateezNews/1.0' } }
+      { headers: { Accept: 'application/json', 'User-Agent': 'Pateez/1.0' } }
     );
     if (!response.ok) return null;
     const decoded: any = await response.json();

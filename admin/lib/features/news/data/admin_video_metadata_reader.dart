@@ -41,7 +41,7 @@ class AdminVideoMetadataReader {
       'Accept':
           'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'User-Agent':
-          'PateezNewsAdmin/1.0 (+https://pateeznews.com) AppleWebKit/605.1.15',
+          'PateezAdmin/1.0 (+https://pateeznews.com) AppleWebKit/605.1.15',
     };
     try {
       final request = httpClient?.get(uri, headers: headers);

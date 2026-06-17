@@ -11,7 +11,7 @@ class RedditPreview extends StatelessWidget {
     required this.imageUrl,
     required this.linkUrl,
     required this.linkTitle,
-    this.profileName = 'Pateeznews',
+    this.profileName = 'Pateez',
     this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
@@ -24,7 +24,7 @@ class RedditPreview extends StatelessWidget {
               ? (caption.length > 80
                     ? '${caption.substring(0, 80)}...'
                     : caption)
-              : 'Pateeznews Haber');
+              : 'Pateez Haber');
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,

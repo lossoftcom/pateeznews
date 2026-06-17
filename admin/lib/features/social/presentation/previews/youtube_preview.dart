@@ -11,7 +11,7 @@ class YoutubePreview extends StatelessWidget {
     required this.imageUrl,
     required this.linkUrl,
     required this.linkTitle,
-    this.profileName = 'Pateeznews',
+    this.profileName = 'Pateez',
     this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
@@ -20,7 +20,7 @@ class YoutubePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = linkTitle.isNotEmpty
         ? linkTitle
-        : (caption.isNotEmpty ? caption : 'Pateeznews Haber');
+        : (caption.isNotEmpty ? caption : 'Pateez Haber');
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,

@@ -1,7 +1,13 @@
-import type { APIRoute } from 'astro';
-import { json } from '@/lib/server/appDb';
-import { dbQuery } from '@/lib/server/supabaseDb';
-import { numericLimit, numericOffset, readJsonBody, requireWhatsappAccess, sqlSetClause } from '@/lib/server/whatsapp/api';
+import type { APIRoute } from "astro";
+import { json } from "@/lib/server/appDb";
+import { dbQuery } from "@/lib/server/supabaseDb";
+import {
+  numericLimit,
+  numericOffset,
+  readJsonBody,
+  requireWhatsappAccess,
+  sqlSetClause,
+} from "@/lib/server/whatsapp/api";
 
 export const prerender = false;
 
@@ -35,29 +41,33 @@ const CAMPAIGN_SELECT = `
 `;
 
 const FIELD_MAP: Record<string, string> = {
-  account_id: 'hesap_id',
-  campaign_name: 'kampanya_adi',
-  subject: 'konu',
-  preview_text: 'onizleme_metni',
-  content_text: 'icerik_text',
-  template_id: 'sablon_id',
-  contact_list_id: 'kisi_listesi_id',
-  recipient_count: 'alici_sayisi',
-  scheduled_start_at: 'zamanlanmis_baslangic',
-  status: 'durum',
+  account_id: "hesap_id",
+  campaign_name: "kampanya_adi",
+  subject: "konu",
+  preview_text: "onizleme_metni",
+  content_text: "icerik_text",
+  template_id: "sablon_id",
+  contact_list_id: "kisi_listesi_id",
+  recipient_count: "alici_sayisi",
+  scheduled_start_at: "zamanlanmis_baslangic",
+  status: "durum",
 };
 
 function campaignPayload(body: Record<string, any>) {
   const payload: Record<string, any> = {};
   for (const [clientKey, dbKey] of Object.entries(FIELD_MAP)) {
-    if (Object.prototype.hasOwnProperty.call(body, clientKey)) payload[dbKey] = body[clientKey];
+    if (Object.prototype.hasOwnProperty.call(body, clientKey))
+      payload[dbKey] = body[clientKey];
   }
   return normalizeOptionalIds(payload);
 }
 
 function normalizeOptionalIds(payload: Record<string, any>) {
-  for (const key of ['hesap_id', 'sablon_id', 'kisi_listesi_id']) {
-    if (Object.prototype.hasOwnProperty.call(payload, key) && !String(payload[key] || '').trim()) {
+  for (const key of ["hesap_id", "sablon_id", "kisi_listesi_id"]) {
+    if (
+      Object.prototype.hasOwnProperty.call(payload, key) &&
+      !String(payload[key] || "").trim()
+    ) {
       payload[key] = null;
     }
   }
@@ -74,9 +84,80 @@ async function contactCount(listId?: string | null) {
        AND c.aktif_mi IS TRUE
        AND c.unsubscribe_tarihi IS NULL
        AND COALESCE(c.dogrulama_durumu, 'unknown') <> 'invalid'`,
-    [listId]
+    [listId],
   );
   return Number(result.rows[0]?.count || 0);
+}
+
+async function campaignSendError(id: string) {
+  const result = await dbQuery(
+    `SELECT
+       wc.hesap_id,
+       wc.sablon_id,
+       wc.kisi_listesi_id,
+       wc.icerik_text,
+       wa.aktif_mi AS account_active,
+       COALESCE(wa.gunluk_limit, 0) AS daily_limit,
+       COALESCE(wa.bugun_gonderilen, 0) AS sent_today,
+       wt.hazir_mi AS template_ready,
+       wt.aktif_mi AS template_active,
+       wcl.aktif_mi AS list_active
+     FROM public.whatsapp_campaigns wc
+     LEFT JOIN public.whatsapp_accounts wa ON wa.id = wc.hesap_id
+     LEFT JOIN public.whatsapp_templates wt ON wt.id = wc.sablon_id
+     LEFT JOIN public.whatsapp_contact_lists wcl ON wcl.id = wc.kisi_listesi_id
+     WHERE wc.id = $1::bigint
+     LIMIT 1`,
+    [id],
+  );
+  const campaign = result.rows[0];
+  if (!campaign) return "Campaign not found";
+  if (!campaign.hesap_id || !campaign.account_active)
+    return "An active WhatsApp sender account is required";
+  if (
+    !campaign.sablon_id ||
+    !campaign.template_active ||
+    !campaign.template_ready
+  ) {
+    return "A ready and active Meta-approved WhatsApp template is required";
+  }
+  if (!String(campaign.icerik_text || "").trim())
+    return "Campaign content is required";
+  if (!campaign.kisi_listesi_id || !campaign.list_active)
+    return "An active contact list is required";
+  const recipients = await contactCount(campaign.kisi_listesi_id);
+  if (recipients <= 0)
+    return "The contact list has no sendable WhatsApp contacts";
+  const dailyLimit = Number(campaign.daily_limit || 0);
+  const sentToday = Number(campaign.sent_today || 0);
+  if (dailyLimit > 0 && sentToday + recipients > dailyLimit) {
+    return "This campaign would exceed the sender account daily WhatsApp limit";
+  }
+  return "";
+}
+
+function normalizeSchedule(payload: Record<string, any>, defaultDraft = false) {
+  const hasStatus = Object.prototype.hasOwnProperty.call(payload, "durum");
+  const hasSchedule = Object.prototype.hasOwnProperty.call(
+    payload,
+    "zamanlanmis_baslangic",
+  );
+  if (!defaultDraft && !hasStatus && !hasSchedule) return "";
+
+  const scheduled = String(payload.zamanlanmis_baslangic || "").trim();
+  if (hasStatus || defaultDraft) {
+    payload.durum = String(payload.durum || "draft").trim();
+  }
+  if (scheduled && (!payload.durum || payload.durum === "draft")) {
+    payload.durum = "scheduled";
+  }
+  if (payload.durum === "scheduled" && !scheduled)
+    return "Schedule date required";
+  if (!scheduled) return "";
+  const scheduledAt = Date.parse(scheduled);
+  if (Number.isNaN(scheduledAt)) return "Schedule date is invalid";
+  if (scheduledAt <= Date.now()) return "Schedule date must be in the future";
+  return "";
 }
 
 async function selectedCampaign(id: string) {
@@ -87,7 +168,7 @@ async function selectedCampaign(id: string) {
      LEFT JOIN public.whatsapp_contact_lists wcl ON wcl.id = wc.kisi_listesi_id
      LEFT JOIN public.whatsapp_templates wt ON wt.id = wc.sablon_id
      WHERE wc.id = $1::bigint`,
-    [id]
+    [id],
   );
   return result.rows[0];
 }
@@ -97,21 +178,23 @@ export const GET: APIRoute = async ({ request, url }) => {
     const access = await requireWhatsappAccess(request);
     if (access.response) return access.response;
 
-    const limit = numericLimit(url.searchParams.get('limit'), 25, 100);
-    const offset = numericOffset(url.searchParams.get('offset'));
-    const search = String(url.searchParams.get('search') || '').trim();
-    const status = String(url.searchParams.get('status') || '').trim();
+    const limit = numericLimit(url.searchParams.get("limit"), 25, 100);
+    const offset = numericOffset(url.searchParams.get("offset"));
+    const search = String(url.searchParams.get("search") || "").trim();
+    const status = String(url.searchParams.get("status") || "").trim();
     const values: any[] = [];
     const where: string[] = [];
-    if (status && status !== 'all') {
+    if (status && status !== "all") {
       values.push(status);
       where.push(`wc.durum = $${values.length}`);
     }
     if (search) {
       values.push(`%${search}%`);
-      where.push(`(wc.kampanya_adi ILIKE $${values.length} OR wc.konu ILIKE $${values.length} OR wc.onizleme_metni ILIKE $${values.length})`);
+      where.push(
+        `(wc.kampanya_adi ILIKE $${values.length} OR wc.konu ILIKE $${values.length} OR wc.onizleme_metni ILIKE $${values.length})`,
+      );
     }
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     const [items, total, stats] = await Promise.all([
       dbQuery(
@@ -123,16 +206,19 @@ export const GET: APIRoute = async ({ request, url }) => {
          ${whereSql}
          ORDER BY wc.olusturma_tarihi DESC
          LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-        [...values, limit, offset]
+        [...values, limit, offset],
       ),
-      dbQuery<{ count: string }>(`SELECT COUNT(*)::bigint AS count FROM public.whatsapp_campaigns wc ${whereSql}`, values),
+      dbQuery<{ count: string }>(
+        `SELECT COUNT(*)::bigint AS count FROM public.whatsapp_campaigns wc ${whereSql}`,
+        values,
+      ),
       dbQuery(
         `SELECT
           COUNT(*)::bigint AS total,
           COUNT(*) FILTER (WHERE durum = 'sending')::bigint AS sending,
           COUNT(*) FILTER (WHERE durum = 'scheduled')::bigint AS scheduled,
           COUNT(*) FILTER (WHERE durum = 'completed')::bigint AS completed
-         FROM public.whatsapp_campaigns`
+         FROM public.whatsapp_campaigns`,
       ),
     ]);
 
@@ -149,7 +235,14 @@ export const GET: APIRoute = async ({ request, url }) => {
       },
     });
   } catch (error: any) {
-    return json({ error: { message: error.message || 'WhatsApp campaigns could not be loaded' } }, 500);
+    return json(
+      {
+        error: {
+          message: error.message || "WhatsApp campaigns could not be loaded",
+        },
+      },
+      500,
+    );
   }
 };
 
@@ -160,29 +253,63 @@ export const POST: APIRoute = async ({ request }) => {
     if (access.response) return access.response;
 
     const payload = campaignPayload(body);
-    payload.kampanya_adi = String(payload.kampanya_adi || '').trim();
-    payload.konu = String(payload.konu || '').trim();
-    payload.onizleme_metni = String(payload.onizleme_metni || '').trim();
-    payload.icerik_text = String(payload.icerik_text || payload.onizleme_metni || '').trim();
-    payload.alici_sayisi = Number(payload.alici_sayisi || await contactCount(payload.kisi_listesi_id)) || 0;
+    payload.kampanya_adi = String(payload.kampanya_adi || "").trim();
+    payload.konu = String(payload.konu || "").trim();
+    payload.onizleme_metni = String(payload.onizleme_metni || "").trim();
+    payload.icerik_text = String(
+      payload.icerik_text || payload.onizleme_metni || "",
+    ).trim();
+    const scheduleError = normalizeSchedule(payload, true);
+    if (scheduleError) return json({ error: { message: scheduleError } }, 400);
+    payload.alici_sayisi =
+      Number(
+        payload.alici_sayisi || (await contactCount(payload.kisi_listesi_id)),
+      ) || 0;
     payload.kullanici = access.session!.user.id;
     payload.guncelleme_tarihi = new Date().toISOString();
 
     if (!payload.kampanya_adi || !payload.konu) {
-      return json({ error: { message: 'Campaign name and subject are required' } }, 400);
+      return json(
+        { error: { message: "Campaign name and subject are required" } },
+        400,
+      );
+    }
+    if (
+      payload.durum &&
+      payload.durum !== "draft" &&
+      (!payload.hesap_id || !payload.sablon_id || !payload.kisi_listesi_id)
+    ) {
+      return json(
+        {
+          error: {
+            message:
+              "Sender account, approved template, and contact list are required",
+          },
+        },
+        400,
+      );
     }
 
     const keys = Object.keys(payload);
     const result = await dbQuery(
-      `INSERT INTO public.whatsapp_campaigns (${keys.join(', ')})
-       VALUES (${keys.map((_, index) => `$${index + 1}`).join(', ')})
+      `INSERT INTO public.whatsapp_campaigns (${keys.join(", ")})
+       VALUES (${keys.map((_, index) => `$${index + 1}`).join(", ")})
        RETURNING id`,
-      keys.map((key) => payload[key])
+      keys.map((key) => payload[key]),
     );
 
-    return json({ campaign: await selectedCampaign(String(result.rows[0]?.id)) });
+    return json({
+      campaign: await selectedCampaign(String(result.rows[0]?.id)),
+    });
   } catch (error: any) {
-    return json({ error: { message: error.message || 'WhatsApp campaign could not be saved' } }, 500);
+    return json(
+      {
+        error: {
+          message: error.message || "WhatsApp campaign could not be saved",
+        },
+      },
+      500,
+    );
   }
 };
 
@@ -192,43 +319,98 @@ export const PATCH: APIRoute = async ({ request }) => {
     const access = await requireWhatsappAccess(request, body);
     if (access.response) return access.response;
 
-    const id = String(body.id || '').trim();
-    if (!id) return json({ error: { message: 'Campaign id required' } }, 400);
+    const id = String(body.id || "").trim();
+    if (!id) return json({ error: { message: "Campaign id required" } }, 400);
 
-    const action = String(body.action || '').trim();
+    const action = String(body.action || "").trim();
     if (action) {
       const actionSql: Record<string, string> = {
-        start: "durum = 'sending', baslangic_tarihi = COALESCE(baslangic_tarihi, now()), zamanlanmis_baslangic = null",
         pause: "durum = 'paused'",
-        resume: "durum = 'sending'",
-        cancel: "durum = 'cancelled', bitis_tarihi = COALESCE(bitis_tarihi, now())",
-        complete: "durum = 'completed', bitis_tarihi = COALESCE(bitis_tarihi, now())",
+        cancel:
+          "durum = 'cancelled', bitis_tarihi = COALESCE(bitis_tarihi, now())",
+        complete:
+          "durum = 'completed', bitis_tarihi = COALESCE(bitis_tarihi, now())",
         remove_schedule: "durum = 'draft', zamanlanmis_baslangic = null",
       };
 
-      if (action === 'schedule') {
-        const scheduled = String(body.scheduled_start_at || '').trim();
-        if (!scheduled) return json({ error: { message: 'Schedule date required' } }, 400);
-        await dbQuery("UPDATE public.whatsapp_campaigns SET durum = 'scheduled', zamanlanmis_baslangic = $1, guncelleme_tarihi = now() WHERE id = $2::bigint", [scheduled, id]);
+      if (action === "schedule") {
+        const scheduled = String(body.scheduled_start_at || "").trim();
+        if (!scheduled)
+          return json({ error: { message: "Schedule date required" } }, 400);
+        const scheduledAt = Date.parse(scheduled);
+        if (Number.isNaN(scheduledAt))
+          return json({ error: { message: "Schedule date is invalid" } }, 400);
+        if (scheduledAt <= Date.now())
+          return json(
+            { error: { message: "Schedule date must be in the future" } },
+            400,
+          );
+        const sendError = await campaignSendError(id);
+        if (sendError) return json({ error: { message: sendError } }, 400);
+        await dbQuery(
+          "UPDATE public.whatsapp_campaigns SET durum = 'scheduled', zamanlanmis_baslangic = $1, guncelleme_tarihi = now() WHERE id = $2::bigint",
+          [scheduled, id],
+        );
+      } else if (action === "start") {
+        const sendError = await campaignSendError(id);
+        if (sendError) return json({ error: { message: sendError } }, 400);
+        await dbQuery(
+          `UPDATE public.whatsapp_campaigns
+           SET durum = 'sending',
+               baslangic_tarihi = COALESCE(baslangic_tarihi, now()),
+               zamanlanmis_baslangic = null,
+               guncelleme_tarihi = now()
+           WHERE id = $1::bigint`,
+          [id],
+        );
+      } else if (action === "resume") {
+        const sendError = await campaignSendError(id);
+        if (sendError) return json({ error: { message: sendError } }, 400);
+        await dbQuery(
+          `UPDATE public.whatsapp_campaigns
+           SET durum = 'sending', guncelleme_tarihi = now()
+           WHERE id = $1::bigint`,
+          [id],
+        );
       } else if (actionSql[action]) {
-        await dbQuery(`UPDATE public.whatsapp_campaigns SET ${actionSql[action]}, guncelleme_tarihi = now() WHERE id = $1::bigint`, [id]);
+        await dbQuery(
+          `UPDATE public.whatsapp_campaigns SET ${actionSql[action]}, guncelleme_tarihi = now() WHERE id = $1::bigint`,
+          [id],
+        );
       } else {
-        return json({ error: { message: 'Unsupported campaign action' } }, 400);
+        return json({ error: { message: "Unsupported campaign action" } }, 400);
       }
     } else {
       const update = campaignPayload(body);
-      if (Object.prototype.hasOwnProperty.call(update, 'kisi_listesi_id')) {
-        update.alici_sayisi = Number(update.alici_sayisi || await contactCount(update.kisi_listesi_id)) || 0;
+      const scheduleError = normalizeSchedule(update);
+      if (scheduleError)
+        return json({ error: { message: scheduleError } }, 400);
+      if (Object.prototype.hasOwnProperty.call(update, "kisi_listesi_id")) {
+        update.alici_sayisi =
+          Number(
+            update.alici_sayisi || (await contactCount(update.kisi_listesi_id)),
+          ) || 0;
       }
       update.guncelleme_tarihi = new Date().toISOString();
       const set = sqlSetClause(update);
-      if (!set.keys.length) return json({ error: { message: 'No changes' } }, 400);
-      await dbQuery(`UPDATE public.whatsapp_campaigns SET ${set.clause} WHERE id = $${set.values.length + 1}::bigint`, [...set.values, id]);
+      if (!set.keys.length)
+        return json({ error: { message: "No changes" } }, 400);
+      await dbQuery(
+        `UPDATE public.whatsapp_campaigns SET ${set.clause} WHERE id = $${set.values.length + 1}::bigint`,
+        [...set.values, id],
+      );
     }
 
     return json({ campaign: await selectedCampaign(id) });
   } catch (error: any) {
-    return json({ error: { message: error.message || 'WhatsApp campaign could not be updated' } }, 500);
+    return json(
+      {
+        error: {
+          message: error.message || "WhatsApp campaign could not be updated",
+        },
+      },
+      500,
+    );
   }
 };
 
@@ -238,11 +420,21 @@ export const DELETE: APIRoute = async ({ request, url }) => {
     const access = await requireWhatsappAccess(request, body);
     if (access.response) return access.response;
 
-    const id = String(body.id || url.searchParams.get('id') || '').trim();
-    if (!id) return json({ error: { message: 'Campaign id required' } }, 400);
-    await dbQuery('DELETE FROM public.whatsapp_campaigns WHERE id = $1::bigint', [id]);
+    const id = String(body.id || url.searchParams.get("id") || "").trim();
+    if (!id) return json({ error: { message: "Campaign id required" } }, 400);
+    await dbQuery(
+      "DELETE FROM public.whatsapp_campaigns WHERE id = $1::bigint",
+      [id],
+    );
     return json({ ok: true });
   } catch (error: any) {
-    return json({ error: { message: error.message || 'WhatsApp campaign could not be deleted' } }, 500);
+    return json(
+      {
+        error: {
+          message: error.message || "WhatsApp campaign could not be deleted",
+        },
+      },
+      500,
+    );
   }
 };

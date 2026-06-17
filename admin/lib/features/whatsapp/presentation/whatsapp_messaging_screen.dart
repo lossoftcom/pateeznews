@@ -9,6 +9,7 @@ import '../../../shared/icons/symbols.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_whatsapp_repository.dart';
 import 'whatsapp_models.dart';
+import 'whatsapp_template_models.dart';
 
 class WhatsappMessagingScreen extends StatefulWidget {
   const WhatsappMessagingScreen({
@@ -27,11 +28,13 @@ class WhatsappMessagingScreen extends StatefulWidget {
 
 class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   var _chats = <WhatsappChat>[];
+  var _templates = <AdminWhatsappTemplate>[];
   int? _selectedChatId;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
   bool _isSendingMessage = false;
+  bool _isSendingTemplate = false;
   bool _showAiHelper = false;
   bool _loading = true;
 
@@ -48,9 +51,14 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     if (query.isEmpty) return _chats;
     return _chats.where((chat) {
       return chat.name.toLowerCase().contains(query) ||
+          chat.phone.toLowerCase().contains(query) ||
           chat.lastMessage.toLowerCase().contains(query);
     }).toList();
   }
+
+  List<AdminWhatsappTemplate> get _readyTemplates => _templates
+      .where((template) => template.active && template.ready)
+      .toList(growable: false);
 
   @override
   void initState() {
@@ -68,10 +76,16 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   Future<void> _loadChats() async {
     setState(() => _loading = true);
     try {
-      final chats = await widget.repository.fetchChats(widget.session);
+      final results = await Future.wait([
+        widget.repository.fetchChats(widget.session),
+        widget.repository.fetchTemplates(widget.session),
+      ]);
+      final chats = results[0] as List<WhatsappChat>;
+      final templates = results[1] as List<AdminWhatsappTemplate>;
       if (!mounted) return;
       setState(() {
         _chats = chats;
+        _templates = templates;
         _selectedChatId = chats.any((chat) => chat.id == _selectedChatId)
             ? _selectedChatId
             : chats.firstOrNull?.id;
@@ -133,6 +147,82 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     _scrollToBottom();
   }
 
+  void _replaceChat(WhatsappChat updated) {
+    setState(() {
+      final exists = _chats.any((chat) => chat.id == updated.id);
+      _chats = [
+        updated,
+        for (final chat in _chats)
+          if (chat.id != updated.id) chat,
+      ];
+      if (!exists) {
+        _searchQuery = '';
+      }
+      _selectedChatId = updated.id;
+      _showAiHelper = false;
+    });
+    _scrollToBottom();
+  }
+
+  Future<void> _openManualChatDialog() async {
+    final request = await showDialog<_ManualWhatsappChatRequest>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) =>
+          _ManualWhatsappChatDialog(templates: _readyTemplates),
+    );
+    if (request == null || !mounted) return;
+
+    try {
+      var chat = await widget.repository.startChat(
+        widget.session,
+        phone: request.phone,
+        name: request.name,
+      );
+      if (request.templateId != null) {
+        chat = await widget.repository.sendTemplate(
+          widget.session,
+          chatId: chat.id,
+          templateId: request.templateId!,
+          languageCode: request.languageCode,
+        );
+      }
+      if (!mounted) return;
+      _replaceChat(chat);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    }
+  }
+
+  Future<void> _sendTemplate(
+    WhatsappChat chat,
+    AdminWhatsappTemplate template,
+  ) async {
+    if (_isSendingTemplate) return;
+    setState(() {
+      _isSendingTemplate = true;
+      _showAiHelper = false;
+    });
+    try {
+      final updated = await widget.repository.sendTemplate(
+        widget.session,
+        chatId: chat.id,
+        templateId: template.id,
+        languageCode: _defaultLanguageForTemplate(template),
+      );
+      if (!mounted) return;
+      _replaceChat(updated);
+    } catch (error) {
+      if (mounted) _showWhatsappError(error);
+    } finally {
+      if (mounted) setState(() => _isSendingTemplate = false);
+    }
+  }
+
+  String _defaultLanguageForTemplate(AdminWhatsappTemplate template) {
+    return template.nameKey.trim() == 'hello_world' ? 'en_US' : 'tr';
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -153,6 +243,14 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     if (chatIndex == -1) return;
 
     final currentChat = _chats[chatIndex];
+    if (!currentChat.canSendFreeform) {
+      AdminToast.show(
+        context,
+        message: context.t('whatsapp.messaging.templateRequiredToast'),
+        tone: AdminToastTone.info,
+      );
+      return;
+    }
     setState(() {
       _messageController.clear();
       _showAiHelper = false;
@@ -259,6 +357,19 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                 ),
               ),
               const Spacer(),
+              Tooltip(
+                message: context.t('whatsapp.messaging.newChat'),
+                child: IconButton(
+                  onPressed: _openManualChatDialog,
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const Icon(
+                    Symbols.add,
+                    color: AppColors.deepOcean,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -458,6 +569,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   }
 
   Widget _buildChatWindow(WhatsappChat chat, {required bool isCompact}) {
+    final canSendFreeform = chat.canSendFreeform;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -509,7 +621,9 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                           width: 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: _isSendingMessage
+                            color: !canSendFreeform
+                                ? AppColors.warmHorizon
+                                : _isSendingMessage
                                 ? Colors.amber
                                 : chat.isOnline
                                 ? const Color(0xFF25D366)
@@ -519,13 +633,17 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          _isSendingMessage
+                          !canSendFreeform
+                              ? context.t('whatsapp.messaging.templateRequired')
+                              : _isSendingMessage
                               ? context.t('whatsapp.typing')
                               : chat.isOnline
                               ? context.t('whatsapp.online')
                               : 'Çevrim dışı',
                           style: TextStyle(
-                            color: _isSendingMessage
+                            color: !canSendFreeform
+                                ? AppColors.warmHorizon
+                                : _isSendingMessage
                                 ? Colors.amber[800]
                                 : chat.isOnline
                                 ? const Color(0xFF25D366)
@@ -584,6 +702,8 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
         // AI replies panel popup overlay (if active)
         if (_showAiHelper) _buildAiHelperPanel(chat),
 
+        if (!canSendFreeform) _buildTemplateGate(chat),
+
         // Bottom Input typing bar
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -599,16 +719,18 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                   Symbols.attach_file,
                   color: AppColors.iconMuted,
                 ),
-                onPressed: () {},
+                onPressed: canSendFreeform ? () {} : null,
               ),
 
               // AI Assist button
               ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _showAiHelper = !_showAiHelper;
-                  });
-                },
+                onPressed: canSendFreeform
+                    ? () {
+                        setState(() {
+                          _showAiHelper = !_showAiHelper;
+                        });
+                      }
+                    : null,
                 icon: const Icon(Symbols.auto_awesome, size: 14),
                 label: Text(context.t('whatsapp.aiWriter')),
                 style: ElevatedButton.styleFrom(
@@ -636,6 +758,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
               Expanded(
                 child: TextField(
                   controller: _messageController,
+                  enabled: canSendFreeform,
                   onSubmitted: (_) => _sendMessage(),
                   style: const TextStyle(
                     fontSize: 13,
@@ -649,7 +772,9 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                     ),
                     fillColor: AppColors.surface,
                     filled: true,
-                    hintText: context.t('whatsapp.placeholder'),
+                    hintText: canSendFreeform
+                        ? context.t('whatsapp.placeholder')
+                        : context.t('whatsapp.messaging.templateRequiredInput'),
                     hintStyle: const TextStyle(
                       color: AppColors.placeholder,
                       fontSize: 13,
@@ -670,7 +795,7 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
               // Send button
               IconButton(
                 icon: const Icon(Symbols.send, color: AppColors.actionRed),
-                onPressed: _sendMessage,
+                onPressed: canSendFreeform ? _sendMessage : null,
               ),
             ],
           ),
@@ -723,6 +848,110 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTemplateGate(WhatsappChat chat) {
+    final templates = _readyTemplates;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFFBEB),
+        border: Border(top: BorderSide(color: AppColors.line)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.warmHorizon.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: const Icon(
+              Symbols.lock,
+              color: AppColors.warmHorizon,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.t('whatsapp.messaging.templateGate'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (templates.isEmpty)
+            Text(
+              context.t('whatsapp.messaging.noReadyTemplate'),
+              style: const TextStyle(
+                color: AppColors.support,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            PopupMenuButton<AdminWhatsappTemplate>(
+              tooltip: context.t('whatsapp.messaging.sendTemplate'),
+              enabled: !_isSendingTemplate,
+              onSelected: (template) => _sendTemplate(chat, template),
+              itemBuilder: (context) => [
+                for (final template in templates)
+                  PopupMenuItem<AdminWhatsappTemplate>(
+                    value: template,
+                    child: Text(
+                      template.nameKey,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              child: Container(
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: _isSendingTemplate
+                      ? AppColors.softLine
+                      : AppColors.deepOcean,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Symbols.verified,
+                      color: _isSendingTemplate
+                          ? AppColors.support
+                          : Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      _isSendingTemplate
+                          ? context.t('whatsapp.messaging.sendingTemplate')
+                          : context.t('whatsapp.messaging.sendTemplate'),
+                      style: TextStyle(
+                        color: _isSendingTemplate
+                            ? AppColors.support
+                            : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -952,5 +1181,434 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     final hours = dt.hour.toString().padLeft(2, '0');
     final minutes = dt.minute.toString().padLeft(2, '0');
     return '$hours:$minutes';
+  }
+}
+
+class _ManualWhatsappChatRequest {
+  const _ManualWhatsappChatRequest({
+    required this.phone,
+    required this.name,
+    required this.languageCode,
+    this.templateId,
+  });
+
+  final String phone;
+  final String name;
+  final String languageCode;
+  final int? templateId;
+}
+
+class _ManualWhatsappChatDialog extends StatefulWidget {
+  const _ManualWhatsappChatDialog({required this.templates});
+
+  final List<AdminWhatsappTemplate> templates;
+
+  @override
+  State<_ManualWhatsappChatDialog> createState() =>
+      _ManualWhatsappChatDialogState();
+}
+
+class _ManualWhatsappChatDialogState extends State<_ManualWhatsappChatDialog> {
+  late final TextEditingController _phoneController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _languageController;
+  int? _templateId;
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController = TextEditingController();
+    _nameController = TextEditingController();
+    _languageController = TextEditingController(text: 'tr');
+    _phoneController.addListener(_refresh);
+    _nameController.addListener(_refresh);
+    if (widget.templates.length == 1) {
+      _templateId = widget.templates.first.id;
+      _languageController.text = _defaultLanguage(widget.templates.first);
+    }
+  }
+
+  @override
+  void dispose() {
+    _phoneController
+      ..removeListener(_refresh)
+      ..dispose();
+    _nameController
+      ..removeListener(_refresh)
+      ..dispose();
+    _languageController.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _canSubmit {
+    final phone = _normalizedPhone(_phoneController.text);
+    return phone.length >= 7;
+  }
+
+  AdminWhatsappTemplate? get _selectedTemplate {
+    for (final template in widget.templates) {
+      if (template.id == _templateId) return template;
+    }
+    return null;
+  }
+
+  void _changeTemplate(int? id) {
+    setState(() {
+      _templateId = id;
+      final template = _selectedTemplate;
+      if (template != null) {
+        _languageController.text = _defaultLanguage(template);
+      }
+    });
+  }
+
+  String _defaultLanguage(AdminWhatsappTemplate template) {
+    return template.nameKey.trim() == 'hello_world' ? 'en_US' : 'tr';
+  }
+
+  String _normalizedPhone(String value) {
+    return value.replaceAll(RegExp(r'[^\d+]'), '').trim();
+  }
+
+  void _submit() {
+    if (!_canSubmit) return;
+    Navigator.of(context).pop(
+      _ManualWhatsappChatRequest(
+        phone: _normalizedPhone(_phoneController.text),
+        name: _nameController.text.trim(),
+        templateId: _templateId,
+        languageCode: _languageController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 20, 14, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        context.t('whatsapp.messaging.newChatTitle'),
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      mouseCursor: SystemMouseCursors.click,
+                      icon: const Icon(
+                        Symbols.close,
+                        color: AppColors.deepOcean,
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 6, 22, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ManualChatField(
+                      label: context.t('whatsapp.messaging.phone'),
+                      hint: context.t('whatsapp.messaging.phoneHint'),
+                      controller: _phoneController,
+                      icon: Symbols.phone_outlined,
+                      requiredField: true,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 14),
+                    _ManualChatField(
+                      label: context.t('whatsapp.messaging.name'),
+                      hint: context.t('whatsapp.messaging.nameHint'),
+                      controller: _nameController,
+                      icon: Symbols.person_outline,
+                      requiredField: false,
+                    ),
+                    const SizedBox(height: 14),
+                    _ManualTemplateSelect(
+                      templates: widget.templates,
+                      value: _templateId,
+                      onChanged: _changeTemplate,
+                    ),
+                    if (_templateId != null) ...[
+                      const SizedBox(height: 14),
+                      _ManualChatField(
+                        label: context.t('whatsapp.messaging.languageCode'),
+                        hint: 'tr',
+                        controller: _languageController,
+                        icon: Symbols.language,
+                        requiredField: true,
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    _ManualComplianceNote(
+                      hasTemplate: _templateId != null,
+                      hasReadyTemplates: widget.templates.isNotEmpty,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 18),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: AppColors.line)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(context.t('common.cancel')),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      height: 38,
+                      child: TextButton.icon(
+                        onPressed: _canSubmit ? _submit : null,
+                        icon: const Icon(Symbols.add, size: 16),
+                        label: Text(context.t('whatsapp.messaging.createChat')),
+                        style: TextButton.styleFrom(
+                          backgroundColor: _canSubmit
+                              ? AppColors.deepOcean
+                              : AppColors.softLine,
+                          foregroundColor: _canSubmit
+                              ? Colors.white
+                              : AppColors.support,
+                          disabledForegroundColor: AppColors.support,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.value,
+                            ),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManualTemplateSelect extends StatelessWidget {
+  const _ManualTemplateSelect({
+    required this.templates,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<AdminWhatsappTemplate> templates;
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.t('whatsapp.messaging.startTemplate'),
+          style: const TextStyle(
+            color: AppColors.inkSoft,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<int?>(
+              value: value,
+              isExpanded: true,
+              icon: const Icon(
+                Symbols.keyboard_arrow_down,
+                color: AppColors.iconMuted,
+                size: 18,
+              ),
+              items: [
+                DropdownMenuItem<int?>(
+                  value: null,
+                  child: Text(
+                    templates.isEmpty
+                        ? context.t('whatsapp.messaging.noReadyTemplate')
+                        : context.t('whatsapp.messaging.templateLater'),
+                  ),
+                ),
+                for (final template in templates)
+                  DropdownMenuItem<int?>(
+                    value: template.id,
+                    child: Text(template.nameKey),
+                  ),
+              ],
+              onChanged: templates.isEmpty ? null : onChanged,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualChatField extends StatelessWidget {
+  const _ManualChatField({
+    required this.label,
+    required this.hint,
+    required this.controller,
+    required this.icon,
+    required this.requiredField,
+    this.keyboardType,
+  });
+
+  final String label;
+  final String hint;
+  final TextEditingController controller;
+  final IconData icon;
+  final bool requiredField;
+  final TextInputType? keyboardType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: label,
+            children: [
+              if (requiredField)
+                const TextSpan(
+                  text: ' *',
+                  style: TextStyle(color: AppColors.actionRed),
+                ),
+            ],
+          ),
+          style: const TextStyle(
+            color: AppColors.inkSoft,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+          decoration: InputDecoration(
+            isDense: true,
+            prefixIcon: Icon(icon, color: AppColors.support, size: 17),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 38,
+            ),
+            hintText: hint,
+            hintStyle: const TextStyle(
+              color: AppColors.placeholder,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            filled: true,
+            fillColor: AppColors.surface,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              borderSide: const BorderSide(color: AppColors.line),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              borderSide: const BorderSide(color: AppColors.deepOcean),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualComplianceNote extends StatelessWidget {
+  const _ManualComplianceNote({
+    required this.hasTemplate,
+    required this.hasReadyTemplates,
+  });
+
+  final bool hasTemplate;
+  final bool hasReadyTemplates;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = !hasReadyTemplates
+        ? 'whatsapp.messaging.manualNoTemplateNote'
+        : hasTemplate
+        ? 'whatsapp.messaging.manualTemplateNote'
+        : 'whatsapp.messaging.manualNoSendNote';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: const Color(0xFFF5D48A)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Symbols.verified, color: AppColors.warmHorizon, size: 17),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              context.t(text),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 12,
+                height: 1.4,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

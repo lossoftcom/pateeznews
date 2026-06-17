@@ -1,4 +1,4 @@
-package com.example.pateeznews_admin
+package com.pateez.app
 
 import io.flutter.embedding.android.FlutterActivity
 

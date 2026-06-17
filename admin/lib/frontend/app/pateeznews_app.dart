@@ -11,6 +11,7 @@ import '../../features/auth/data/admin_auth_models.dart';
 import '../../features/auth/data/admin_session_store.dart';
 import '../core/brand/default_brand_assets.dart';
 import '../core/mock/home_mock_data.dart';
+import '../core/notifications/frontend_push_notification_service.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_typography.dart';
 import '../core/theme/frontend_font_settings.dart';
@@ -71,6 +72,7 @@ class PateeznewsApp extends StatefulWidget {
 }
 
 class _PateeznewsAppState extends State<PateeznewsApp> {
+  final _pushNotifications = FrontendPushNotificationService();
   var _fontSettings = FrontendFontSettings.empty();
   var _shellData = const AppShellData.empty();
   var _dutyPharmacyData = const DutyPharmacyData.empty();
@@ -102,6 +104,12 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     super.initState();
     AppTypography.configure(_fontSettings);
     unawaited(_bootstrap());
+  }
+
+  @override
+  void dispose() {
+    _pushNotifications.dispose();
+    super.dispose();
   }
 
   /// Açılış akışı yalnızca ilk ekran için kritik verileri bekler. Yan widget
@@ -318,6 +326,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     // Home isteği burada TEK kez atılır: anonimse token'sız, girişliyse doğru
     // token ile. Eski akıştaki anonim + girişli çift istek böylece kalkar.
     unawaited(_loadHomeData());
+    unawaited(_syncPushNotifications(authState));
 
     // Giriş varsa profili arka planda tazele (home'u bloklamaz).
     if (authState != null) {
@@ -354,6 +363,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
       setState(() => _authState = authState);
       unawaited(_refreshProfileData(authState));
       unawaited(_loadHomeData());
+      unawaited(_syncPushNotifications(authState));
     }
     return authState;
   }
@@ -390,6 +400,12 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
       _profileData = null;
     });
     unawaited(_loadHomeData());
+  }
+
+  Future<void> _syncPushNotifications(FrontendAuthState? authState) {
+    return _pushNotifications.configure(
+      authToken: authState?.session.accessToken,
+    );
   }
 
   Future<void> _handleProfileUpdated(ProfileSaveResult result) async {
@@ -435,7 +451,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
 
     SystemChrome.setSystemUIOverlayStyle(AppTheme.lightOverlay);
     return MaterialApp(
-      title: 'Pateeznews',
+      title: 'Pateez',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(fontSettings: _fontSettings),
       home: AnimatedSwitcher(

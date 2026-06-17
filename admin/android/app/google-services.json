@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "868646509784",
+    "project_id": "pateez-ac151",
+    "storage_bucket": "pateez-ac151.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:868646509784:android:237da8e7962182363a8bad",
+        "android_client_info": {
+          "package_name": "com.pateez.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAEzF7crxI-Ce04ePaVn3nMpFBu1nbin74"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

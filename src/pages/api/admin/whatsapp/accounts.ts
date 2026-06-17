@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { json } from '@/lib/server/appDb';
 import { dbQuery } from '@/lib/server/supabaseDb';
-import { encryptSecret, hasSecret } from '@/lib/server/mail/secrets';
+import { decryptSecret, encryptSecret, hasSecret } from '@/lib/server/mail/secrets';
 import { readJsonBody, requireWhatsappAccess, sqlSetClause } from '@/lib/server/whatsapp/api';
 
 export const prerender = false;
@@ -90,6 +90,62 @@ function normalizeAccountPayload(body: Record<string, any>, userId?: string) {
   return update;
 }
 
+function metaGraphCheckUrl(account: any) {
+  const apiBaseUrl = String(account?.api_base_url || '').trim();
+  const fromBaseUrl = apiBaseUrl.match(/graph\.facebook\.com\/(v[\d.]+)\/([^/?#]+)\/messages/i);
+  const version = fromBaseUrl?.[1] || 'v25.0';
+  const phoneNumberId = String(account?.phone_number_id || fromBaseUrl?.[2] || '').trim();
+  if (!phoneNumberId) return '';
+  const params = new URLSearchParams({
+    fields: 'id,display_phone_number,verified_name,quality_rating',
+  });
+  return `https://graph.facebook.com/${version}/${phoneNumberId}?${params.toString()}`;
+}
+
+async function checkMetaCloudAccount(account: any) {
+  const token = decryptSecret(account?.api_token_encrypted || account?.api_key_encrypted);
+  const url = metaGraphCheckUrl(account);
+  if (!url || !token) {
+    return {
+      ok: false,
+      status: 'missing_credentials',
+      message: 'Phone number ID, API URL, or token is missing',
+    };
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  const raw = await response.text();
+  let decoded: any = {};
+  try {
+    decoded = raw ? JSON.parse(raw) : {};
+  } catch {
+    decoded = { raw };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: 'error',
+      message:
+        decoded?.error?.message ||
+        decoded?.message ||
+        raw ||
+        `Meta Graph API request failed with ${response.status}`,
+    };
+  }
+
+  return {
+    ok: true,
+    status: 'ok',
+    message: null,
+  };
+}
+
 export const GET: APIRoute = async ({ request }) => {
   try {
     const access = await requireWhatsappAccess(request);
@@ -147,6 +203,15 @@ export const PATCH: APIRoute = async ({ request }) => {
       if (!account) return json({ error: { message: 'Account not found' } }, 404);
       const hasUrl = String(account.api_base_url || '').trim().length > 0;
       const hasToken = hasSecret(account.api_token_encrypted || account.api_key_encrypted);
+      const provider = String(account.service_type || '').trim();
+      const isMeta = provider === 'meta_cloud_api' || String(account.api_base_url || '').includes('graph.facebook.com');
+      const check = isMeta
+        ? await checkMetaCloudAccount(account)
+        : {
+            ok: hasUrl && hasToken,
+            status: hasUrl && hasToken ? 'configured' : 'missing_credentials',
+            message: hasUrl && hasToken ? null : 'API URL or token is missing',
+          };
       await dbQuery(
         `UPDATE public.whatsapp_accounts
          SET token_dogrulandi = $1,
@@ -155,7 +220,7 @@ export const PATCH: APIRoute = async ({ request }) => {
              son_hata_mesaji = $3,
              guncelleme_tarihi = now()
          WHERE id = $4::bigint`,
-        [hasToken, hasUrl && hasToken ? 'configured' : 'missing_credentials', hasUrl && hasToken ? null : 'API URL or token is missing', id]
+        [check.ok, check.status, check.message, id]
       );
       const updated = await dbQuery(`SELECT ${ACCOUNT_COLUMNS} FROM public.whatsapp_accounts WHERE id = $1::bigint LIMIT 1`, [id]);
       return json({ account: accountForClient(updated.rows[0]) });

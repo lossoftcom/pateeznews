@@ -52,6 +52,7 @@ const {
 const defaultFavicon = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📰</text></svg>";
 
 import GlobalNavigation from '@/components/GlobalNavigation';
+import PushNotificationBootstrap from '@/components/PushNotificationBootstrap';
 
 const pathname = Astro.url.pathname;
 const normalizedPathname = pathname.replace(/\/$/, '');
@@ -98,7 +99,7 @@ const hreflangLinks = seoAlternates
 
 const xDefaultHref = hreflangLinks.find((entry) => entry.isDefault)?.href || new URL(pathname, baseForUrls).toString();
 
-const resolvedTitle = title || siteSettings?.site_name || "Pateez News";
+const resolvedTitle = title || siteSettings?.site_name || "Pateez";
 const resolvedDescription = description || siteSettings?.meta_description || "";
 const resolvedKeywords = keywords || siteSettings?.meta_keywords || "";
 const resolvedOgType = ogType || "website";
@@ -214,7 +215,7 @@ const buildLangAwareAssetHref = (pathname: string) => {
 
 const manifestHref = buildLangAwareAssetHref('/manifest.webmanifest');
 const rssHref = buildLangAwareAssetHref('/rss.xml');
-const rssTitle = `${siteSettings?.site_name || 'Pateez News'} RSS`;
+const rssTitle = `${siteSettings?.site_name || 'Pateez'} RSS`;
 
 const defaultFontSizes: Record<string, number> = {
 	'fs-base': 15,
@@ -672,6 +673,7 @@ const fontPreloadHrefs = Array.from(new Set(
 				siteSettings={siteSettings ?? null}
 				navigationItems={navigationItems}
 			/>
+			<PushNotificationBootstrap client:load />
 		</div>
 		<slot />
 		{footerCustomCodes && <Fragment set:html={footerCustomCodes} />}

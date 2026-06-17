@@ -22,7 +22,7 @@ import '../../news_detail/presentation/news_detail_screen.dart';
 
 const Color _tabDark = AppColors.deepOcean;
 const _announcementNewsAuthor = NewsAuthor(
-  name: 'Pateeznews',
+  name: 'Pateez',
   avatarUrl: '',
   isOfficial: true,
 );

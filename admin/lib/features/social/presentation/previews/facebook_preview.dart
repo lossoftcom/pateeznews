@@ -11,7 +11,7 @@ class FacebookPreview extends StatelessWidget {
     required this.imageUrl,
     required this.linkUrl,
     required this.linkTitle,
-    this.profileName = 'Pateeznews',
+    this.profileName = 'Pateez',
     this.profileUsername = 'pateeznews',
     this.avatarUrl = '',
     this.accountAction,

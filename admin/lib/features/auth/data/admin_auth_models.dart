@@ -99,7 +99,7 @@ class AdminProfile {
       final text = value?.trim();
       if (text != null && text.isNotEmpty) return text;
     }
-    return 'Pateeznews admin';
+    return 'Pateez';
   }
 
   String get initials {

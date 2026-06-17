@@ -2,7 +2,7 @@ import { transliterateTurkish } from '../mediaSeoText';
 import { dbQuery } from './supabaseDb';
 
 export const DEFAULT_MEDIA_SEO_SYSTEM_PROMPT = `
-Sen, PateezNews CMS için medya SEO uzmanısın.
+Sen, Pateez CMS için medya SEO uzmanısın.
 Görevin haberlerde kullanılan kapak görseli, görsel blok, video, ses ve dosya medyalarını
 Google Images, Yandex Images, Google News, Discover ve yapay zeka tarayıcıları için
 doğal, güvenli ve haberle birebir ilişkili şekilde adlandırmaya yardımcı olmaktır.

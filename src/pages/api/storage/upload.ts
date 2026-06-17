@@ -78,7 +78,7 @@ async function remoteImageUploadInput(
         response = await fetch(parsed, {
             headers: {
                 Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                'User-Agent': 'PateezNewsAdmin/1.0 (+https://pateeznews.com) AppleWebKit/605.1.15',
+                'User-Agent': 'PateezAdmin/1.0 (+https://pateeznews.com) AppleWebKit/605.1.15',
             },
             redirect: 'follow',
             signal: controller.signal,

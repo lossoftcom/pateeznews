@@ -1,11 +1,11 @@
 {
-    "name": "Pateeznews admin",
-    "short_name": "Pateeznews admin",
+    "name": "Pateez",
+    "short_name": "Pateez",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F8F9FA",
     "theme_color": "#2C3E50",
-    "description": "Pateeznews admin giriş ekranı.",
+    "description": "Pateez yönetim ekranı.",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

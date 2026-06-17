@@ -55,7 +55,7 @@ const CATEGORY_PAGE_SIZE = 12;
 const categoryNewsPage = await dataService.getCategoryNewsPage(lang, resolvedCategory || '', CATEGORY_PAGE_SIZE, 0);
 const newsItems = categoryNewsPage.items;
 
-const title = `${resolvedCategory || slug} | ${siteSettings?.site_name || "Pateez News"}`;
+const title = `${resolvedCategory || slug} | ${siteSettings?.site_name || "Pateez"}`;
 
 const canonicalBase = String(siteSettings?.canonical_url || Astro.url.origin).trim();
 const canonicalUrl = new URL(`/kategori/${encodeURIComponent(String(slug || ''))}`, canonicalBase).toString();

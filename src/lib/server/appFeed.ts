@@ -1693,7 +1693,7 @@ const mapFeedItem = (
     tags: normalizeKeywords(item.keywords),
     faqData: normalizeFaqData(item.faqData),
     publishedAt: toIsoDate(item.timestamp),
-    source: String(item.source || item.author || "Pateeznews"),
+    source: String(item.source || item.author || "Pateez"),
     sourceAvatar: resolveAppImageUrl(String(raw.sourceAvatar || ""), origin, {
       width: 180,
       quality: 86,

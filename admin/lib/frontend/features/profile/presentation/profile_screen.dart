@@ -23,7 +23,7 @@ import 'widgets/profile_info_cards.dart';
 import 'widgets/profile_post_card.dart';
 import 'widgets/profile_stats.dart';
 
-/// Pateeznews kullanıcı profili sayfası.
+/// Pateez kullanıcı profili sayfası.
 ///
 /// Yapı:
 ///   [Kapağın üzerinde yüzen, kaydırmaya duyarlı app bar]
@@ -301,7 +301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final fallbackData = ProfileData(
       id: id,
-      name: profile.name.trim().isEmpty ? 'Pateeznews' : profile.name.trim(),
+      name: profile.name.trim().isEmpty ? 'Pateez' : profile.name.trim(),
       handle: handle.isEmpty ? '' : '@$handle',
       roleLabel: profile.isOfficial ? 'Yayıncı' : 'Üye',
       expertise: profile.isOfficial ? 'Yayıncı' : 'Üye',

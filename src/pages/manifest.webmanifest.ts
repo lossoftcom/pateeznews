@@ -73,7 +73,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (!settings && lang !== defaultLangCode) settings = await fetchSettings(defaultLangCode);
 
   const origin = requestUrl.origin;
-  const siteName = String(settings?.site_name || 'Pateez News').trim() || 'Pateez News';
+  const siteName = String(settings?.site_name || 'Pateez').trim() || 'Pateez';
   const description = String(settings?.meta_description || '').trim();
 
   const iconUrlRaw = settings?.favicon_url || settings?.logo_url || settings?.og_image_url || '';

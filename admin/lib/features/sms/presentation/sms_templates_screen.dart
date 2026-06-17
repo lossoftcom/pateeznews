@@ -2061,7 +2061,7 @@ class _SmsTemplateEditorViewState extends State<SmsTemplateEditorView> {
     _bodyController = TextEditingController(
       text:
           template?.body ??
-          'Merhaba {{uye_adi}}, Pateeznews uzerinden sizin icin secilen haber yayinda.\n\n{{haber_ozeti}}\n\nDetaylari okumak icin butona dokunun.',
+          'Merhaba {{uye_adi}}, Pateez uzerinden sizin icin secilen haber yayinda.\n\n{{haber_ozeti}}\n\nDetaylari okumak icin butona dokunun.',
     );
     _footerController = TextEditingController();
     _pollQuestionController = TextEditingController(
@@ -2575,7 +2575,7 @@ const _composerNewsItems = <_SmsNewsItem>[
   _SmsNewsItem(
     title: 'Haftanin haber ozeti yayinda',
     summary: 'Okurlar icin haftanin en cok okunan haberlerinden kisa ozet.',
-    location: 'Pateeznews',
+    location: 'Pateez',
     tag: 'Bulten',
     mediaType: _SmsMediaType.audio,
     mediaName: 'haftalik-ozet.ogg',

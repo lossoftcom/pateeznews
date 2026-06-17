@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
-enum AdminContactImportSource { csv, excel }
+enum AdminContactImportSource { csv, excel, subscribers }
 
 extension AdminContactImportSourceData on AdminContactImportSource {
   String get value {
     return switch (this) {
       AdminContactImportSource.csv => 'csv',
       AdminContactImportSource.excel => 'excel',
+      AdminContactImportSource.subscribers => 'newsletter',
     };
   }
 
@@ -17,6 +18,8 @@ extension AdminContactImportSourceData on AdminContactImportSource {
     return switch (this) {
       AdminContactImportSource.csv => 'whatsapp.contacts.source.csv',
       AdminContactImportSource.excel => 'whatsapp.contacts.source.excel',
+      AdminContactImportSource.subscribers =>
+        'whatsapp.contacts.source.subscribers',
     };
   }
 
@@ -24,6 +27,8 @@ extension AdminContactImportSourceData on AdminContactImportSource {
     return switch (this) {
       AdminContactImportSource.csv => 'whatsapp.contacts.source.csvShort',
       AdminContactImportSource.excel => 'whatsapp.contacts.source.excelShort',
+      AdminContactImportSource.subscribers =>
+        'whatsapp.contacts.source.subscribersShort',
     };
   }
 
@@ -31,8 +36,57 @@ extension AdminContactImportSourceData on AdminContactImportSource {
     return switch (this) {
       AdminContactImportSource.csv => Symbols.table_chart_outlined,
       AdminContactImportSource.excel => Symbols.grid_on_outlined,
+      AdminContactImportSource.subscribers => Symbols.groups_outlined,
     };
   }
+}
+
+class AdminWhatsappContactImportRow {
+  const AdminWhatsappContactImportRow({
+    required this.phone,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+  });
+
+  final String phone;
+  final String firstName;
+  final String lastName;
+  final String email;
+
+  Map<String, Object?> toJson() {
+    return {
+      'phone': phone.trim(),
+      'first_name': firstName.trim(),
+      'last_name': lastName.trim(),
+      'email': email.trim().toLowerCase(),
+    };
+  }
+}
+
+class AdminWhatsappContact {
+  const AdminWhatsappContact({
+    required this.id,
+    required this.phone,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.active,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String phone;
+  final String firstName;
+  final String lastName;
+  final String email;
+  final bool active;
+  final DateTime createdAt;
+
+  String get fullName => [
+    firstName,
+    lastName,
+  ].where((value) => value.trim().isNotEmpty).join(' ').trim();
 }
 
 class AdminWhatsappContactList {
@@ -82,5 +136,6 @@ Color contactListSourceColor(AdminContactImportSource source) {
   return switch (source) {
     AdminContactImportSource.csv => AppColors.deepOcean,
     AdminContactImportSource.excel => const Color(0xFF198754),
+    AdminContactImportSource.subscribers => const Color(0xFF2563EB),
   };
 }

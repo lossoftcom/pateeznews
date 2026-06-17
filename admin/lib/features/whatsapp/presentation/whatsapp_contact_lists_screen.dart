@@ -16,7 +16,10 @@ import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../../subscribers/data/admin_subscribers_repository.dart';
+import '../../subscribers/presentation/subscribers_models.dart';
 import '../data/admin_whatsapp_repository.dart';
+import 'whatsapp_contact_list_contacts_dialog.dart';
 import 'whatsapp_contact_list_models.dart';
 
 class WhatsappContactListsScreen extends StatefulWidget {
@@ -24,10 +27,12 @@ class WhatsappContactListsScreen extends StatefulWidget {
     super.key,
     required this.session,
     this.repository = const SupabaseAdminWhatsappRepository(),
+    this.subscribersRepository = const SupabaseAdminSubscribersRepository(),
   });
 
   final AdminSession session;
   final AdminWhatsappRepository repository;
+  final AdminSubscribersRepository subscribersRepository;
 
   @override
   State<WhatsappContactListsScreen> createState() =>
@@ -288,7 +293,10 @@ class _WhatsappContactListsScreenState
           child: SizedBox(
             width: width,
             height: height,
-            child: _WhatsappContactListDialog(list: list),
+            child: _WhatsappContactListDialog(
+              list: list,
+              subscribersRepository: widget.subscribersRepository,
+            ),
           ),
         );
       },
@@ -303,13 +311,15 @@ class _WhatsappContactListsScreenState
         list: result.list,
       );
       final importText = result.importText?.trim();
+      final importRows = result.importRows ?? const [];
       if (result.importContacts &&
-          importText != null &&
-          importText.isNotEmpty) {
+          ((importText != null && importText.isNotEmpty) ||
+              importRows.isNotEmpty)) {
         saved = await widget.repository.importContacts(
           widget.session,
           saved,
-          importText,
+          importText ?? '',
+          contacts: importRows,
         );
       }
     } catch (error) {
@@ -329,6 +339,27 @@ class _WhatsappContactListsScreenState
       }
       _resetListState();
     });
+  }
+
+  Future<void> _showContacts(AdminWhatsappContactList list) async {
+    final size = MediaQuery.sizeOf(context);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: SizedBox(
+          width: (size.width - 48).clamp(640.0, 980.0).toDouble(),
+          height: (size.height - 48).clamp(520.0, 760.0).toDouble(),
+          child: WhatsappContactListContactsDialog(
+            session: widget.session,
+            repository: widget.repository,
+            list: list,
+          ),
+        ),
+      ),
+    );
+    if (mounted) await _loadLists();
   }
 
   @override
@@ -365,6 +396,7 @@ class _WhatsappContactListsScreenState
                 onSort: _changeSort,
                 onCreate: () => _showListDialog(),
                 onEdit: (list) => _showListDialog(list: list),
+                onContacts: _showContacts,
                 onToggleSync: _toggleSync,
                 onToggleActive: _toggleActive,
                 onDelete: _deleteList,
@@ -454,6 +486,7 @@ class _WhatsappContactListsTableCard extends StatelessWidget {
     required this.onSort,
     required this.onCreate,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -477,6 +510,7 @@ class _WhatsappContactListsTableCard extends StatelessWidget {
   final ValueChanged<String> onSort;
   final VoidCallback onCreate;
   final ValueChanged<AdminWhatsappContactList> onEdit;
+  final ValueChanged<AdminWhatsappContactList> onContacts;
   final ValueChanged<AdminWhatsappContactList> onToggleSync;
   final ValueChanged<AdminWhatsappContactList> onToggleActive;
   final ValueChanged<AdminWhatsappContactList> onDelete;
@@ -502,6 +536,7 @@ class _WhatsappContactListsTableCard extends StatelessWidget {
             onToggleList: onToggleList,
             onCreate: onCreate,
             onEdit: onEdit,
+            onContacts: onContacts,
             onToggleSync: onToggleSync,
             onToggleActive: onToggleActive,
             onDelete: onDelete,
@@ -562,6 +597,7 @@ class _WhatsappContactListsTableCard extends StatelessWidget {
                                           ),
                                           onToggle: () => onToggleList(list.id),
                                           onEdit: () => onEdit(list),
+                                          onContacts: () => onContacts(list),
                                           onToggleSync: () =>
                                               onToggleSync(list),
                                           onToggleActive: () =>
@@ -607,6 +643,7 @@ class _WhatsappContactListsMobileView extends StatelessWidget {
     required this.onToggleList,
     required this.onCreate,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -624,6 +661,7 @@ class _WhatsappContactListsMobileView extends StatelessWidget {
   final ValueChanged<int> onToggleList;
   final VoidCallback onCreate;
   final ValueChanged<AdminWhatsappContactList> onEdit;
+  final ValueChanged<AdminWhatsappContactList> onContacts;
   final ValueChanged<AdminWhatsappContactList> onToggleSync;
   final ValueChanged<AdminWhatsappContactList> onToggleActive;
   final ValueChanged<AdminWhatsappContactList> onDelete;
@@ -668,6 +706,7 @@ class _WhatsappContactListsMobileView extends StatelessWidget {
                 selected: selectedIds.contains(list.id),
                 onToggle: () => onToggleList(list.id),
                 onEdit: () => onEdit(list),
+                onContacts: () => onContacts(list),
                 onToggleSync: () => onToggleSync(list),
                 onToggleActive: () => onToggleActive(list),
                 onDelete: () => onDelete(list),
@@ -697,6 +736,7 @@ class _WhatsappContactListsMobileCard extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -706,6 +746,7 @@ class _WhatsappContactListsMobileCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -774,6 +815,11 @@ class _WhatsappContactListsMobileCard extends StatelessWidget {
               const SizedBox(width: 6),
               AdminMobileMenuButton(
                 actions: [
+                  AdminMobileMenuAction(
+                    icon: Symbols.group,
+                    label: context.t('whatsapp.contacts.action.people'),
+                    onTap: onContacts,
+                  ),
                   AdminMobileMenuAction(
                     icon: Symbols.edit_square,
                     label: context.t('whatsapp.contacts.action.edit'),
@@ -1074,6 +1120,7 @@ class _WhatsappContactListTableRow extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -1083,6 +1130,7 @@ class _WhatsappContactListTableRow extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -1228,6 +1276,7 @@ class _WhatsappContactListTableRow extends StatelessWidget {
               child: _WhatsappContactListRowMenu(
                 list: list,
                 onEdit: onEdit,
+                onContacts: onContacts,
                 onToggleSync: onToggleSync,
                 onToggleActive: onToggleActive,
                 onDelete: onDelete,
@@ -1241,9 +1290,13 @@ class _WhatsappContactListTableRow extends StatelessWidget {
 }
 
 class _WhatsappContactListDialog extends StatefulWidget {
-  const _WhatsappContactListDialog({required this.list});
+  const _WhatsappContactListDialog({
+    required this.list,
+    required this.subscribersRepository,
+  });
 
   final AdminWhatsappContactList? list;
+  final AdminSubscribersRepository subscribersRepository;
 
   @override
   State<_WhatsappContactListDialog> createState() =>
@@ -1255,11 +1308,13 @@ class _WhatsappContactListDialogResult {
     required this.list,
     required this.importContacts,
     this.importText,
+    this.importRows,
   });
 
   final AdminWhatsappContactList list;
   final bool importContacts;
   final String? importText;
+  final List<AdminWhatsappContactImportRow>? importRows;
 }
 
 class _WhatsappContactListDialogState
@@ -1270,6 +1325,7 @@ class _WhatsappContactListDialogState
   late bool _active;
   String? _selectedFileName;
   String? _importText;
+  List<AdminWhatsappContactImportRow>? _importRows;
   var _readyCount = 0;
   var _nameHasError = false;
 
@@ -1298,6 +1354,7 @@ class _WhatsappContactListDialogState
       _source = source;
       _selectedFileName = null;
       _importText = null;
+      _importRows = null;
       _readyCount = widget.list?.source == source
           ? widget.list?.contactCount ?? 0
           : 0;
@@ -1305,6 +1362,10 @@ class _WhatsappContactListDialogState
   }
 
   Future<void> _chooseFile() async {
+    if (_source == AdminContactImportSource.subscribers) {
+      await _chooseSubscribers();
+      return;
+    }
     try {
       final file = await openFile(
         acceptedTypeGroups: const [
@@ -1320,6 +1381,7 @@ class _WhatsappContactListDialogState
       setState(() {
         _selectedFileName = file.name;
         _importText = text;
+        _importRows = null;
         _readyCount = _countValidContacts(text);
       });
     } catch (error) {
@@ -1330,6 +1392,37 @@ class _WhatsappContactListDialogState
         tone: AdminToastTone.error,
       );
     }
+  }
+
+  Future<void> _chooseSubscribers() async {
+    final result = await showDialog<List<AdminWhatsappContactImportRow>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        final size = MediaQuery.sizeOf(context);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(24),
+          child: SizedBox(
+            width: (size.width - 48).clamp(620.0, 900.0).toDouble(),
+            height: (size.height - 48).clamp(520.0, 720.0).toDouble(),
+            child: _WhatsappSubscriberPickerDialog(
+              repository: widget.subscribersRepository,
+            ),
+          ),
+        );
+      },
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _importText = null;
+      _importRows = result;
+      _readyCount = result.length;
+      _selectedFileName = context.t(
+        'whatsapp.contacts.dialog.subscribersSelectedCount',
+        values: {'count': result.length},
+      );
+    });
   }
 
   int _countValidContacts(String text) {
@@ -1364,8 +1457,11 @@ class _WhatsappContactListDialogState
     Navigator.of(context).pop(
       _WhatsappContactListDialogResult(
         importContacts:
-            importContacts && (_importText?.trim().isNotEmpty ?? false),
+            importContacts &&
+            ((_importText?.trim().isNotEmpty ?? false) ||
+                (_importRows?.isNotEmpty ?? false)),
         importText: _importText,
+        importRows: _importRows,
         list: AdminWhatsappContactList(
           id: existing?.id ?? DateTime.now().millisecondsSinceEpoch,
           name: name,
@@ -1461,6 +1557,12 @@ class _WhatsappContactListDialogState
                                     source: _source,
                                     selectedFileName: _selectedFileName,
                                     readyCount: _readyCount,
+                                    rows: _importRows ?? const [],
+                                    previewRowsLoaded:
+                                        _source ==
+                                            AdminContactImportSource
+                                                .subscribers &&
+                                        _importRows != null,
                                     onChooseFile: _chooseFile,
                                   ),
                                   const SizedBox(height: 14),
@@ -1489,6 +1591,12 @@ class _WhatsappContactListDialogState
                                         source: _source,
                                         selectedFileName: _selectedFileName,
                                         readyCount: _readyCount,
+                                        rows: _importRows ?? const [],
+                                        previewRowsLoaded:
+                                            _source ==
+                                                AdminContactImportSource
+                                                    .subscribers &&
+                                            _importRows != null,
                                         onChooseFile: _chooseFile,
                                       ),
                                     ),
@@ -1715,17 +1823,22 @@ class _ImportFilePanel extends StatelessWidget {
     required this.source,
     required this.selectedFileName,
     required this.readyCount,
+    required this.rows,
+    required this.previewRowsLoaded,
     required this.onChooseFile,
   });
 
   final AdminContactImportSource source;
   final String? selectedFileName;
   final int readyCount;
+  final List<AdminWhatsappContactImportRow> rows;
+  final bool previewRowsLoaded;
   final VoidCallback onChooseFile;
 
   @override
   Widget build(BuildContext context) {
     final sourceShort = context.t(source.shortLabelKey);
+    final subscribers = source == AdminContactImportSource.subscribers;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1757,11 +1870,14 @@ class _ImportFilePanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'whatsapp.contacts.dialog.csvTitle'
-                            : 'whatsapp.contacts.dialog.excelTitle',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'whatsapp.contacts.dialog.csvTitle',
+                        AdminContactImportSource.excel =>
+                          'whatsapp.contacts.dialog.excelTitle',
+                        AdminContactImportSource.subscribers =>
+                          'whatsapp.contacts.dialog.subscribersTitle',
+                      }),
                       style: const TextStyle(
                         color: AppColors.deepOcean,
                         fontSize: 18,
@@ -1771,11 +1887,14 @@ class _ImportFilePanel extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'whatsapp.contacts.dialog.csvSubtitle'
-                            : 'whatsapp.contacts.dialog.excelSubtitle',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'whatsapp.contacts.dialog.csvSubtitle',
+                        AdminContactImportSource.excel =>
+                          'whatsapp.contacts.dialog.excelSubtitle',
+                        AdminContactImportSource.subscribers =>
+                          'whatsapp.contacts.dialog.subscribersSubtitle',
+                      }),
                       style: const TextStyle(
                         color: AppColors.inkSoft,
                         fontSize: 13,
@@ -1791,7 +1910,7 @@ class _ImportFilePanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _ImportSteps(source: source),
-          const SizedBox(height: 96),
+          SizedBox(height: subscribers ? 126 : 96),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1808,8 +1927,8 @@ class _ImportFilePanel extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.value),
                   ),
-                  child: const SymbolIcon(
-                    Symbols.upload,
+                  child: SymbolIcon(
+                    subscribers ? Symbols.groups_outlined : Symbols.upload,
                     color: AppColors.deepOcean,
                     size: 22,
                   ),
@@ -1820,11 +1939,14 @@ class _ImportFilePanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        context.t(
-                          source == AdminContactImportSource.csv
-                              ? 'whatsapp.contacts.dialog.csvUploadTitle'
-                              : 'whatsapp.contacts.dialog.excelUploadTitle',
-                        ),
+                        context.t(switch (source) {
+                          AdminContactImportSource.csv =>
+                            'whatsapp.contacts.dialog.csvUploadTitle',
+                          AdminContactImportSource.excel =>
+                            'whatsapp.contacts.dialog.excelUploadTitle',
+                          AdminContactImportSource.subscribers =>
+                            'whatsapp.contacts.dialog.subscribersSelectTitle',
+                        }),
                         style: const TextStyle(
                           color: AppColors.deepOcean,
                           fontWeight: FontWeight.w700,
@@ -1834,11 +1956,14 @@ class _ImportFilePanel extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         selectedFileName ??
-                            context.t(
-                              source == AdminContactImportSource.csv
-                                  ? 'whatsapp.contacts.dialog.csvUploadSubtitle'
-                                  : 'whatsapp.contacts.dialog.excelUploadSubtitle',
-                            ),
+                            context.t(switch (source) {
+                              AdminContactImportSource.csv =>
+                                'whatsapp.contacts.dialog.csvUploadSubtitle',
+                              AdminContactImportSource.excel =>
+                                'whatsapp.contacts.dialog.excelUploadSubtitle',
+                              AdminContactImportSource.subscribers =>
+                                'whatsapp.contacts.dialog.subscribersSelectSubtitle',
+                            }),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -1853,8 +1978,12 @@ class _ImportFilePanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 _DarkButton(
-                  icon: Symbols.folder_open,
-                  label: context.t('whatsapp.contacts.dialog.chooseFile'),
+                  icon: subscribers ? Symbols.group : Symbols.folder_open,
+                  label: context.t(
+                    subscribers
+                        ? 'whatsapp.contacts.dialog.chooseSubscribers'
+                        : 'whatsapp.contacts.dialog.chooseFile',
+                  ),
                   onPressed: onChooseFile,
                 ),
               ],
@@ -1873,7 +2002,11 @@ class _ImportFilePanel extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 10),
-          const _ExampleTable(),
+          _ExampleTable(
+            rows: rows,
+            readyCount: readyCount,
+            previewRowsLoaded: previewRowsLoaded,
+          ),
         ],
       ),
     );
@@ -1893,6 +2026,7 @@ class _ImportInfoPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subscribers = source == AdminContactImportSource.subscribers;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1924,10 +2058,31 @@ class _ImportInfoPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          _RuleText(label: context.t('whatsapp.contacts.dialog.ruleHeader')),
-          _RuleText(label: context.t('whatsapp.contacts.dialog.ruleEmail')),
-          _RuleText(label: context.t('whatsapp.contacts.dialog.ruleDuplicate')),
-          _RuleText(label: context.t('whatsapp.contacts.dialog.ruleUtf')),
+          if (subscribers) ...[
+            _RuleText(
+              label: context.t(
+                'whatsapp.contacts.dialog.ruleSubscribersActive',
+              ),
+            ),
+            _RuleText(
+              label: context.t(
+                'whatsapp.contacts.dialog.ruleSubscribersSelect',
+              ),
+            ),
+            _RuleText(
+              label: context.t('whatsapp.contacts.dialog.ruleDuplicate'),
+            ),
+            _RuleText(
+              label: context.t('whatsapp.contacts.dialog.ruleSubscribersCopy'),
+            ),
+          ] else ...[
+            _RuleText(label: context.t('whatsapp.contacts.dialog.ruleHeader')),
+            _RuleText(label: context.t('whatsapp.contacts.dialog.ruleEmail')),
+            _RuleText(
+              label: context.t('whatsapp.contacts.dialog.ruleDuplicate'),
+            ),
+            _RuleText(label: context.t('whatsapp.contacts.dialog.ruleUtf')),
+          ],
           const SizedBox(height: 24),
           const Divider(color: AppColors.line),
           const SizedBox(height: 8),
@@ -1998,11 +2153,14 @@ class _SourceOption extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'whatsapp.contacts.dialog.csvFile'
-                            : 'whatsapp.contacts.dialog.excelFile',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'whatsapp.contacts.dialog.csvFile',
+                        AdminContactImportSource.excel =>
+                          'whatsapp.contacts.dialog.excelFile',
+                        AdminContactImportSource.subscribers =>
+                          'whatsapp.contacts.dialog.subscribersFile',
+                      }),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -2013,11 +2171,14 @@ class _SourceOption extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      context.t(
-                        source == AdminContactImportSource.csv
-                            ? 'whatsapp.contacts.dialog.csvFileSubtitle'
-                            : 'whatsapp.contacts.dialog.excelFileSubtitle',
-                      ),
+                      context.t(switch (source) {
+                        AdminContactImportSource.csv =>
+                          'whatsapp.contacts.dialog.csvFileSubtitle',
+                        AdminContactImportSource.excel =>
+                          'whatsapp.contacts.dialog.excelFileSubtitle',
+                        AdminContactImportSource.subscribers =>
+                          'whatsapp.contacts.dialog.subscribersFileSubtitle',
+                      }),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -2066,7 +2227,11 @@ class _ImportSteps extends StatelessWidget {
   Widget build(BuildContext context) {
     final stepLabels = [
       context.t('whatsapp.contacts.dialog.source'),
-      context.t('whatsapp.contacts.dialog.file'),
+      context.t(
+        source == AdminContactImportSource.subscribers
+            ? 'whatsapp.contacts.dialog.subscribersStep'
+            : 'whatsapp.contacts.dialog.file',
+      ),
       context.t('whatsapp.contacts.dialog.saveStep'),
     ];
     return Row(
@@ -2325,18 +2490,48 @@ class _RadioChoice extends StatelessWidget {
   }
 }
 
-class _ExampleTable extends StatelessWidget {
-  const _ExampleTable();
+class _ExampleTable extends StatefulWidget {
+  const _ExampleTable({
+    required this.rows,
+    required this.readyCount,
+    required this.previewRowsLoaded,
+  });
+
+  final List<AdminWhatsappContactImportRow> rows;
+  final int readyCount;
+  final bool previewRowsLoaded;
+
+  @override
+  State<_ExampleTable> createState() => _ExampleTableState();
+}
+
+class _ExampleTableState extends State<_ExampleTable> {
+  static const _rowHeight = 36.0;
+  static const _bodyHeight = 152.0;
+
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final headers = [
-      context.t('whatsapp.contacts.example.email'),
+      context.t('whatsapp.contacts.example.phone'),
       context.t('whatsapp.contacts.example.firstName'),
       context.t('whatsapp.contacts.example.lastName'),
-      context.t('whatsapp.contacts.example.phone'),
+      context.t('whatsapp.contacts.example.email'),
     ];
-    final values = ['jane@example.com', 'Jane', 'Carter', '+1 555 0148'];
+    final showPreviewRows = widget.previewRowsLoaded && widget.readyCount > 0;
+    final sample = const AdminWhatsappContactImportRow(
+      phone: '+1 555 0148',
+      firstName: 'Jane',
+      lastName: 'Carter',
+      email: 'jane@example.com',
+    );
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -2371,27 +2566,434 @@ class _ExampleTable extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(
-            height: 28,
+          if (showPreviewRows)
+            SizedBox(
+              height: _bodyHeight,
+              child: widget.rows.isEmpty
+                  ? Center(
+                      child: Text(
+                        context.t('whatsapp.contacts.people.empty'),
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    )
+                  : Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility:
+                          widget.rows.length * _rowHeight > _bodyHeight,
+                      child: ListView.separated(
+                        controller: _scrollController,
+                        padding: EdgeInsets.zero,
+                        itemCount: widget.rows.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AppColors.line),
+                        itemBuilder: (context, index) =>
+                            _ExampleTableRow(row: widget.rows[index]),
+                      ),
+                    ),
+            )
+          else
+            _ExampleTableRow(row: sample),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExampleTableRow extends StatelessWidget {
+  const _ExampleTableRow({required this.row});
+
+  final AdminWhatsappContactImportRow row;
+
+  String _value(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? '-' : trimmed;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _ExampleTableState._rowHeight,
+      child: Row(
+        children: [
+          _ExampleTableCell(text: _value(row.phone)),
+          _ExampleTableCell(text: _value(row.firstName)),
+          _ExampleTableCell(text: _value(row.lastName)),
+          _ExampleTableCell(text: _value(row.email)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExampleTableCell extends StatelessWidget {
+  const _ExampleTableCell({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WhatsappSubscriberPickerDialog extends StatefulWidget {
+  const _WhatsappSubscriberPickerDialog({required this.repository});
+
+  final AdminSubscribersRepository repository;
+
+  @override
+  State<_WhatsappSubscriberPickerDialog> createState() =>
+      _WhatsappSubscriberPickerDialogState();
+}
+
+class _WhatsappSubscriberPickerDialogState
+    extends State<_WhatsappSubscriberPickerDialog> {
+  static const _subscriberFetchPageSize = 500;
+
+  final _searchController = TextEditingController();
+  final _selectedIds = <String>{};
+  var _subscribers = const <AdminSubscriber>[];
+  var _query = '';
+  var _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSubscribers());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSubscribers() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final subscribers = <AdminSubscriber>[];
+      var page = 1;
+      while (mounted) {
+        final result = await widget.repository.fetchSubscribers(
+          search: '',
+          page: page,
+          pageSize: _subscriberFetchPageSize,
+          sortKey: 'date',
+          sortAscending: false,
+        );
+        subscribers.addAll(result.subscribers);
+        if (result.subscribers.length < _subscriberFetchPageSize ||
+            subscribers.length >= result.totalCount) {
+          break;
+        }
+        page += 1;
+      }
+      if (!mounted) return;
+      setState(() {
+        _subscribers = subscribers;
+        _selectedIds
+          ..clear()
+          ..addAll(
+            subscribers
+                .where((subscriber) => _subscriberSelectable(subscriber))
+                .map((subscriber) => subscriber.id),
+          );
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.toString();
+      });
+    }
+  }
+
+  bool _subscriberSelectable(AdminSubscriber subscriber) {
+    return subscriber.active && subscriber.phone.trim().isNotEmpty;
+  }
+
+  List<AdminSubscriber> get _visibleSubscribers {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return _subscribers;
+    return _subscribers
+        .where((subscriber) {
+          final haystack = [
+            subscriber.fullName,
+            subscriber.email,
+            subscriber.phone,
+            subscriber.city,
+            subscriber.source,
+          ].join(' ').toLowerCase();
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
+  }
+
+  Set<String> get _selectableVisibleIds => _visibleSubscribers
+      .where(_subscriberSelectable)
+      .map((subscriber) => subscriber.id)
+      .toSet();
+
+  int get _selectedReadyCount => _subscribers
+      .where(
+        (subscriber) =>
+            _subscriberSelectable(subscriber) &&
+            _selectedIds.contains(subscriber.id),
+      )
+      .length;
+
+  void _changeSearch(String value) {
+    setState(() => _query = value);
+  }
+
+  void _toggleSubscriber(AdminSubscriber subscriber) {
+    if (!_subscriberSelectable(subscriber)) return;
+    setState(() {
+      if (_selectedIds.contains(subscriber.id)) {
+        _selectedIds.remove(subscriber.id);
+      } else {
+        _selectedIds.add(subscriber.id);
+      }
+    });
+  }
+
+  void _toggleAllVisible() {
+    final ids = _selectableVisibleIds;
+    if (ids.isEmpty) return;
+    setState(() {
+      if (_selectedIds.containsAll(ids)) {
+        _selectedIds.removeAll(ids);
+      } else {
+        _selectedIds.addAll(ids);
+      }
+    });
+  }
+
+  void _submit() {
+    final rows = _subscribers
+        .where(
+          (subscriber) =>
+              _subscriberSelectable(subscriber) &&
+              _selectedIds.contains(subscriber.id),
+        )
+        .map(_rowFromSubscriber)
+        .toList(growable: false);
+    Navigator.of(context).pop(rows);
+  }
+
+  AdminWhatsappContactImportRow _rowFromSubscriber(AdminSubscriber subscriber) {
+    final parts = subscriber.fullName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    return AdminWhatsappContactImportRow(
+      phone: subscriber.phone.trim(),
+      firstName: parts.isEmpty ? '' : parts.first,
+      lastName: parts.length < 2 ? '' : parts.skip(1).join(' '),
+      email: subscriber.email.trim().toLowerCase(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visibleSubscribers;
+    final selectableVisibleIds = _selectableVisibleIds;
+    final allVisibleSelected =
+        selectableVisibleIds.isNotEmpty &&
+        _selectedIds.containsAll(selectableVisibleIds);
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 22, 16, 12),
             child: Row(
               children: [
-                for (final value in values)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                  child: const SymbolIcon(
+                    Symbols.groups_outlined,
+                    color: Color(0xFF2563EB),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.t('whatsapp.contacts.subscribersPicker.title'),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: AppColors.deepOcean,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        context.t(
+                          'whatsapp.contacts.subscribersPicker.subtitle',
+                        ),
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 0,
                         ),
                       ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 21,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _SearchField(
+                    controller: _searchController,
+                    query: _query,
+                    hint: context.t(
+                      'whatsapp.contacts.subscribersPicker.search',
+                    ),
+                    onChanged: _changeSearch,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _SecondaryActionButton(
+                  icon: allVisibleSelected ? Symbols.close : Symbols.check,
+                  label: context.t(
+                    allVisibleSelected
+                        ? 'whatsapp.contacts.subscribersPicker.clearVisible'
+                        : 'whatsapp.contacts.subscribersPicker.selectAll',
+                  ),
+                  onPressed: _toggleAllVisible,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                    ? _SubscriberPickerError(
+                        message: _error!,
+                        onRetry: _loadSubscribers,
+                      )
+                    : visible.isEmpty
+                    ? Center(
+                        child: Text(
+                          context.t(
+                            'whatsapp.contacts.subscribersPicker.empty',
+                          ),
+                          style: const TextStyle(
+                            color: AppColors.support,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: visible.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AppColors.line),
+                        itemBuilder: (context, index) {
+                          final subscriber = visible[index];
+                          return _WhatsappSubscriberPickerRow(
+                            subscriber: subscriber,
+                            selected: _selectedIds.contains(subscriber.id),
+                            selectable: _subscriberSelectable(subscriber),
+                            onTap: () => _toggleSubscriber(subscriber),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t(
+                      'whatsapp.contacts.subscribersPicker.selectedCount',
+                      values: {'count': _selectedReadyCount},
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
                     ),
                   ),
+                ),
+                _TextOnlyButton(
+                  label: context.t('common.cancel'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                const SizedBox(width: 10),
+                _PrimaryActionButton(
+                  icon: Symbols.check,
+                  label: context.t(
+                    'whatsapp.contacts.subscribersPicker.confirm',
+                  ),
+                  backgroundColor: AppColors.deepOcean,
+                  onPressed: _selectedReadyCount == 0 ? null : _submit,
+                ),
               ],
             ),
           ),
@@ -2401,10 +3003,187 @@ class _ExampleTable extends StatelessWidget {
   }
 }
 
+class _WhatsappSubscriberPickerRow extends StatelessWidget {
+  const _WhatsappSubscriberPickerRow({
+    required this.subscriber,
+    required this.selected,
+    required this.selectable,
+    required this.onTap,
+  });
+
+  final AdminSubscriber subscriber;
+  final bool selected;
+  final bool selectable;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: selectable ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: selectable ? onTap : null,
+        child: Container(
+          color: selected
+              ? AppColors.deepOcean.withValues(alpha: 0.04)
+              : Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              _SubscriberSelectionBox(selected: selected, enabled: selectable),
+              const SizedBox(width: 14),
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: Text(
+                  subscriber.initials,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 4,
+                child: Text(
+                  subscriber.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selectable ? AppColors.deepOcean : AppColors.support,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 4,
+                child: Text(
+                  subscriber.phone.trim().isEmpty
+                      ? context.t(
+                          'whatsapp.contacts.subscribersPicker.missingPhone',
+                        )
+                      : subscriber.phone,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selectable ? AppColors.inkSoft : AppColors.support,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 5,
+                child: Text(
+                  subscriber.email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _StatusBadge(
+                label: context.t(
+                  subscriber.active
+                      ? 'whatsapp.contacts.status.active'
+                      : 'whatsapp.contacts.status.passive',
+                ),
+                color: selectable ? const Color(0xFF198754) : AppColors.support,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubscriberSelectionBox extends StatelessWidget {
+  const _SubscriberSelectionBox({
+    required this.selected,
+    required this.enabled,
+  });
+
+  final bool selected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.deepOcean : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(
+          color: !enabled
+              ? AppColors.line
+              : selected
+              ? AppColors.deepOcean
+              : AppColors.support,
+        ),
+      ),
+      child: selected
+          ? const SymbolIcon(Symbols.check, color: Colors.white, size: 15)
+          : null,
+    );
+  }
+}
+
+class _SubscriberPickerError extends StatelessWidget {
+  const _SubscriberPickerError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.actionRed,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SecondaryActionButton(
+              icon: Symbols.refresh,
+              label: context.t('common.refresh'),
+              onPressed: onRetry,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _WhatsappContactListRowMenu extends StatefulWidget {
   const _WhatsappContactListRowMenu({
     required this.list,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -2412,6 +3191,7 @@ class _WhatsappContactListRowMenu extends StatefulWidget {
 
   final AdminWhatsappContactList list;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -2459,6 +3239,7 @@ class _WhatsappContactListRowMenuState
             child: _WhatsappContactListMenuCard(
               list: widget.list,
               onEdit: () => _tap(widget.onEdit),
+              onContacts: () => _tap(widget.onContacts),
               onToggleSync: () => _tap(widget.onToggleSync),
               onToggleActive: () => _tap(widget.onToggleActive),
               onDelete: () => _tap(widget.onDelete),
@@ -2514,6 +3295,7 @@ class _WhatsappContactListMenuCard extends StatelessWidget {
   const _WhatsappContactListMenuCard({
     required this.list,
     required this.onEdit,
+    required this.onContacts,
     required this.onToggleSync,
     required this.onToggleActive,
     required this.onDelete,
@@ -2521,6 +3303,7 @@ class _WhatsappContactListMenuCard extends StatelessWidget {
 
   final AdminWhatsappContactList list;
   final VoidCallback onEdit;
+  final VoidCallback onContacts;
   final VoidCallback onToggleSync;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
@@ -2547,6 +3330,11 @@ class _WhatsappContactListMenuCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _MenuItem(
+              icon: Symbols.group,
+              label: 'whatsapp.contacts.action.people',
+              onTap: onContacts,
+            ),
             _MenuItem(
               icon: Symbols.edit_square,
               label: 'whatsapp.contacts.action.edit',
@@ -2705,10 +3493,13 @@ class _MetricLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
               label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.inkSoft,
                 fontWeight: FontWeight.w600,
@@ -2716,12 +3507,18 @@ class _MetricLine extends StatelessWidget {
               ),
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.deepOcean,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
             ),
           ),
         ],
@@ -2809,7 +3606,7 @@ class _PrimaryActionButton extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Color backgroundColor;
 
   @override

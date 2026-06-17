@@ -11,7 +11,7 @@ class PinterestPreview extends StatelessWidget {
     required this.imageUrl,
     required this.linkUrl,
     required this.linkTitle,
-    this.profileName = 'Pateeznews',
+    this.profileName = 'Pateez',
     this.accountAction,
   });
   final String caption, imageUrl, linkUrl, linkTitle, profileName;
@@ -20,7 +20,7 @@ class PinterestPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = linkTitle.isNotEmpty
         ? linkTitle
-        : (caption.isNotEmpty ? caption : 'Pateeznews');
+        : (caption.isNotEmpty ? caption : 'Pateez');
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),

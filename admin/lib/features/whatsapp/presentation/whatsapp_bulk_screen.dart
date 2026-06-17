@@ -327,6 +327,13 @@ class _WhatsappBulkScreenState extends State<WhatsappBulkScreen> {
         final size = MediaQuery.sizeOf(context);
         final width = (size.width - 48).clamp(740.0, 1180.0).toDouble();
         final height = (size.height - 48).clamp(620.0, 840.0).toDouble();
+        final campaignTemplateId = campaign?.templateId;
+        final sendableTemplates = _templates
+            .where((template) {
+              return template.active && template.ready ||
+                  template.id.toString() == campaignTemplateId;
+            })
+            .toList(growable: false);
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.symmetric(
@@ -338,7 +345,7 @@ class _WhatsappBulkScreenState extends State<WhatsappBulkScreen> {
             height: height,
             child: _BulkMailCreateDialog(
               campaign: campaign,
-              templates: _templates,
+              templates: sendableTemplates,
               accounts: _accounts,
               lists: _lists,
             ),
@@ -2870,6 +2877,8 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   bool get _canSave =>
       widget.accounts.isNotEmpty &&
       widget.lists.isNotEmpty &&
+      widget.templates.isNotEmpty &&
+      _selectedTemplate() != null &&
       _nameController.text.trim().isNotEmpty &&
       _subjectController.text.trim().isNotEmpty &&
       _previewController.text.trim().isNotEmpty;
@@ -3735,7 +3744,7 @@ class _EmailPreviewCard extends StatelessWidget {
                     border: Border.all(color: Colors.white24),
                   ),
                   child: const Text(
-                    'Pateez News',
+                    'Pateez',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 11,
@@ -3875,7 +3884,7 @@ class _EmailPreviewCard extends StatelessWidget {
             child: Column(
               children: [
                 const Text(
-                  'Pateez News',
+                  'Pateez',
                   style: TextStyle(
                     color: AppColors.deepOcean,
                     fontSize: 12,

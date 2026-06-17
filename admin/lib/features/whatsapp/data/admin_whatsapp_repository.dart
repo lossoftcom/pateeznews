@@ -78,8 +78,32 @@ abstract class AdminWhatsappRepository {
   Future<AdminWhatsappContactList> importContacts(
     AdminSession session,
     AdminWhatsappContactList list,
-    String text,
-  );
+    String text, {
+    List<AdminWhatsappContactImportRow> contacts = const [],
+  });
+
+  Future<List<AdminWhatsappContact>> fetchContacts(
+    AdminSession session,
+    int listId, {
+    int limit = 500,
+  });
+
+  Future<AdminWhatsappContact> saveContact(
+    AdminSession session, {
+    required int listId,
+    int? id,
+    required String phone,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required bool active,
+  });
+
+  Future<void> deleteContact(
+    AdminSession session, {
+    required int listId,
+    required int contactId,
+  });
 
   Future<void> deleteContactLists(AdminSession session, Iterable<int> ids);
 
@@ -102,7 +126,20 @@ abstract class AdminWhatsappRepository {
 
   Future<List<WhatsappChat>> fetchChats(AdminSession session);
 
+  Future<WhatsappChat> startChat(
+    AdminSession session, {
+    required String phone,
+    required String name,
+  });
+
   Future<List<WhatsappMessage>> markChatRead(AdminSession session, int chatId);
+
+  Future<WhatsappChat> sendTemplate(
+    AdminSession session, {
+    required int chatId,
+    required int templateId,
+    String languageCode = '',
+  });
 
   Future<WhatsappChat> sendMessage(
     AdminSession session, {
@@ -322,17 +359,82 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
   Future<AdminWhatsappContactList> importContacts(
     AdminSession session,
     AdminWhatsappContactList list,
-    String text,
-  ) async {
-    await _requestJson('POST', '/api/admin/whatsapp/import', session, {
+    String text, {
+    List<AdminWhatsappContactImportRow> contacts = const [],
+  }) async {
+    final body = <String, Object?>{
       'list_id': list.id,
       'list_name': list.name,
       'description': list.description,
       'source': list.source.value,
-      'text': text,
-    });
+      if (contacts.isNotEmpty)
+        'contacts': contacts.map((contact) => contact.toJson()).toList()
+      else
+        'text': text,
+    };
+    await _requestJson('POST', '/api/admin/whatsapp/import', session, body);
     final lists = await fetchContactLists(session);
     return lists.firstWhere((item) => item.id == list.id, orElse: () => list);
+  }
+
+  @override
+  Future<List<AdminWhatsappContact>> fetchContacts(
+    AdminSession session,
+    int listId, {
+    int limit = 500,
+  }) async {
+    final safeLimit = limit.clamp(1, 500);
+    final result = await _getJson('/api/admin/whatsapp/contacts', session, {
+      'list_id': '$listId',
+      'limit': '$safeLimit',
+    });
+    final rows = result['items'];
+    return rows is List
+        ? rows.whereType<Map>().map(_contactFromJson).toList(growable: false)
+        : const <AdminWhatsappContact>[];
+  }
+
+  @override
+  Future<AdminWhatsappContact> saveContact(
+    AdminSession session, {
+    required int listId,
+    int? id,
+    required String phone,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required bool active,
+  }) async {
+    final payload = <String, Object?>{
+      'list_id': listId,
+      'phone': phone.trim(),
+      'first_name': firstName.trim(),
+      'last_name': lastName.trim(),
+      'email': email.trim().toLowerCase(),
+      'is_active': active,
+    };
+    if (id != null) payload['id'] = id;
+    final result = await _requestJson(
+      id == null ? 'POST' : 'PATCH',
+      '/api/admin/whatsapp/contacts',
+      session,
+      payload,
+    );
+    final row = result['contact'];
+    if (row is Map) return _contactFromJson(row);
+    throw const AdminWhatsappException('WhatsApp kiÅŸisi kaydedilemedi');
+  }
+
+  @override
+  Future<void> deleteContact(
+    AdminSession session, {
+    required int listId,
+    required int contactId,
+  }) async {
+    await _requestJson('DELETE', '/api/admin/whatsapp/contacts', session, {
+      'id': contactId,
+      'list_id': listId,
+    });
   }
 
   @override
@@ -426,6 +528,31 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
   }
 
   @override
+  Future<WhatsappChat> startChat(
+    AdminSession session, {
+    required String phone,
+    required String name,
+  }) async {
+    final result = await _requestJson(
+      'POST',
+      '/api/admin/whatsapp/chats',
+      session,
+      {'action': 'ensure', 'phone': phone.trim(), 'name': name.trim()},
+    );
+    final chat = result['chat'];
+    if (chat is! Map) {
+      throw const AdminWhatsappException('WhatsApp sohbeti oluÅŸturulamadÄ±');
+    }
+    final messages = result['messages'] is List
+        ? (result['messages'] as List)
+              .whereType<Map>()
+              .map(_messageFromJson)
+              .toList(growable: false)
+        : const <WhatsappMessage>[];
+    return _chatFromJson({...chat, 'messages': messages});
+  }
+
+  @override
   Future<List<WhatsappMessage>> markChatRead(
     AdminSession session,
     int chatId,
@@ -440,6 +567,34 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
     return rows is List
         ? rows.whereType<Map>().map(_messageFromJson).toList(growable: false)
         : const <WhatsappMessage>[];
+  }
+
+  @override
+  Future<WhatsappChat> sendTemplate(
+    AdminSession session, {
+    required int chatId,
+    required int templateId,
+    String languageCode = '',
+  }) async {
+    final result =
+        await _requestJson('POST', '/api/admin/whatsapp/chats', session, {
+          'action': 'send_template',
+          'chat_id': chatId,
+          'template_id': templateId,
+          if (languageCode.trim().isNotEmpty)
+            'language_code': languageCode.trim(),
+        });
+    final chat = result['chat'];
+    if (chat is! Map) {
+      throw const AdminWhatsappException('WhatsApp ÅŸablonu gÃ¶nderilemedi');
+    }
+    final messages = result['messages'] is List
+        ? (result['messages'] as List)
+              .whereType<Map>()
+              .map(_messageFromJson)
+              .toList(growable: false)
+        : const <WhatsappMessage>[];
+    return _chatFromJson({...chat, 'messages': messages});
   }
 
   @override
@@ -594,6 +749,21 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
     );
   }
 
+  AdminWhatsappContact _contactFromJson(Map<dynamic, dynamic> json) {
+    final verification = _decodeText(json['verification_status']);
+    return AdminWhatsappContact(
+      id: _asInt(json['id']),
+      phone: _decodeText(json['phone']),
+      firstName: _decodeText(json['first_name']),
+      lastName: _decodeText(json['last_name']),
+      email: _decodeText(json['email']),
+      active: json.containsKey('is_active')
+          ? _asBool(json['is_active'], fallback: true)
+          : verification != 'invalid',
+      createdAt: _parseDate(json['created_at']) ?? DateTime.now(),
+    );
+  }
+
   AdminWhatsappBulkCampaign _campaignFromJson(Map<dynamic, dynamic> json) {
     return AdminWhatsappBulkCampaign(
       id: _asInt(json['id']),
@@ -637,6 +807,7 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
     return WhatsappChat(
       id: _asInt(json['id']),
       name: _decodeText(json['name']),
+      phone: _decodeText(json['phone']),
       lastMessage: _decodeText(json['last_message']),
       time: _parseDate(json['last_message_at']) ?? DateTime.now(),
       unreadCount: _asInt(json['unread_count']),
@@ -646,6 +817,9 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
           : _decodeText(json['avatar_url']),
       messages: messages,
       aiReplies: const [],
+      lastInboundAt: _parseDate(json['last_inbound_at']),
+      customerServiceExpiresAt: _parseDate(json['customer_service_expires_at']),
+      canSendFreeform: _asBool(json['can_send_freeform']),
     );
   }
 
@@ -822,6 +996,9 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
 
   AdminContactImportSource _contactSource(Object? value) {
     final raw = value?.toString();
+    if (raw == 'newsletter' || raw == 'subscribers') {
+      return AdminContactImportSource.subscribers;
+    }
     return AdminContactImportSource.values.firstWhere(
       (source) => source.value == raw,
       orElse: () => AdminContactImportSource.csv,

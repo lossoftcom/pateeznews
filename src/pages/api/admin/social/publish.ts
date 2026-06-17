@@ -196,7 +196,7 @@ export const POST: APIRoute = async ({ request }) => {
       body.selected_connected_account_ids || body.selectedConnectedAccountIds
     );
 
-    const title = String(body.title || body.campaign_name || 'Pateeznews social post').trim();
+    const title = String(body.title || body.campaign_name || 'Pateez social post').trim();
     const text = String(body.text || body.caption || '').trim();
     if (!text) return json({ error: { message: 'Social post text is required' } }, 400);
 

@@ -23,7 +23,7 @@ class PateezLogoIntro extends StatefulWidget {
     super.key,
     this.width,
     this.logoUrl = '',
-    this.semanticLabel = 'Pateeznews',
+    this.semanticLabel = 'Pateez',
   });
 
   /// Logonun genişliği. Verilmezse ekran genişliğinin %66'sı (200–320 arası)
@@ -224,7 +224,7 @@ class _DefaultLogo extends StatelessWidget {
       height: height,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
-      semanticLabel: 'Pateeznews',
+      semanticLabel: 'Pateez',
     );
   }
 }

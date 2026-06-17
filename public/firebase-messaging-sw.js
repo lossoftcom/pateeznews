@@ -20,16 +20,27 @@ self.addEventListener('push', (event) => {
     payload.fcmOptions?.link ||
     payload.webpush?.fcm_options?.link ||
     '/';
+  const campaignId = data.campaignId || data.campaign_id || '';
+  const outboxId =
+    data.outboxId ||
+    data.outbox_id ||
+    data.notificationId ||
+    data.notification_id ||
+    '';
+  const deviceTokenId = data.deviceTokenId || data.device_token_id || '';
 
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
+      icon: '/local-upload/logo/tr/pateezlogoicon.png',
+      badge: '/local-upload/logo/tr/pateezlogoicon.png',
       image: image || undefined,
       data: {
         ...data,
         deepLink,
+        campaignId,
+        outboxId,
+        deviceTokenId,
       },
     }),
   );
@@ -48,7 +59,8 @@ self.addEventListener('notificationclick', (event) => {
         body: JSON.stringify({
           event_type: 'click',
           campaign_id: data.campaignId || data.campaign_id || '',
-          outbox_id: data.notificationId || data.notification_id || '',
+          outbox_id: data.outboxId || data.outbox_id || data.notificationId || data.notification_id || '',
+          device_token_id: data.deviceTokenId || data.device_token_id || '',
           metadata: { source: 'service-worker' },
         }),
       }).catch(() => null),

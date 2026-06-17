@@ -333,7 +333,7 @@ const fetchFresh = async ({ reuseInFlight = true } = {}): Promise<DutyPharmacyPa
       signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
       headers: {
         Accept: 'text/html,application/xhtml+xml',
-        'User-Agent': 'PateezNews/1.0 (+https://www.pateez.com)',
+        'User-Agent': 'Pateez/1.0 (+https://www.pateez.com)',
       },
     });
 

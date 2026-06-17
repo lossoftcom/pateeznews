@@ -389,7 +389,7 @@ class _ShellScreenState extends State<ShellScreen>
     _closeAppsSheet();
     final fallbackData = ProfileData(
       id: cleanId,
-      name: author.name.trim().isEmpty ? 'Pateeznews' : author.name.trim(),
+      name: author.name.trim().isEmpty ? 'Pateez' : author.name.trim(),
       handle: cleanHandle.isEmpty ? '' : '@$cleanHandle',
       roleLabel: author.isOfficial ? 'Yayıncı' : 'Üye',
       expertise: author.isOfficial ? 'Yayıncı' : 'Üye',

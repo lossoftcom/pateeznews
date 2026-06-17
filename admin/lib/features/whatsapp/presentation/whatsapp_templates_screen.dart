@@ -2055,7 +2055,7 @@ class _WhatsappTemplateEditorViewState
     _bodyController = TextEditingController(
       text:
           template?.body ??
-          'Merhaba {{uye_adi}}, Pateeznews uzerinden sizin icin secilen haber yayinda.\n\n{{haber_ozeti}}\n\nDetaylari okumak icin butona dokunun.',
+          'Merhaba {{uye_adi}}, Pateez uzerinden sizin icin secilen haber yayinda.\n\n{{haber_ozeti}}\n\nDetaylari okumak icin butona dokunun.',
     );
     _footerController = TextEditingController();
     _buttonDrafts.addAll([
@@ -2181,7 +2181,7 @@ class _WhatsappTemplateEditorViewState
       _headerController.text = news.title;
       _bodyController.text =
           'Merhaba {{uye_adi}}, ${news.location} gundeminden one cikan haber yayinda.\n\n${news.summary}\n\nHaberi okumak icin butona dokunun.';
-      _footerController.text = 'Pateeznews - ${news.tag}';
+      _footerController.text = 'Pateez - ${news.tag}';
       _replaceButtonDrafts([
         _WhatsAppButtonDraft(
           label: 'Haberi oku',
@@ -2625,7 +2625,7 @@ const _composerNewsItems = <_WhatsAppNewsItem>[
   _WhatsAppNewsItem(
     title: 'Haftanin haber ozeti yayinda',
     summary: 'Okurlar icin haftanin en cok okunan haberlerinden kisa ozet.',
-    location: 'Pateeznews',
+    location: 'Pateez',
     tag: 'Bulten',
     mediaType: _WhatsAppMediaType.audio,
     mediaName: 'haftalik-ozet.ogg',

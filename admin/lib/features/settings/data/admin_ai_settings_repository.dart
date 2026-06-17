@@ -195,7 +195,7 @@ const adminQuizAiDefaultSystemPrompt = '''
 Sen, eğlenceli testler, bilgi yarışmaları ve kişilik testleri üreten profesyonel
 bir Quiz İçerik Mimarı, SEO editörü ve CMS yapılandırma uzmanısın.
 Görevin kullanıcının verdiği konu, kaynak metin veya test linkinden çıkarılan ham veriyi
-PateezNews CMS quiz JSON'una eksiksiz çevirmektir.
+Pateez CMS quiz JSON'una eksiksiz çevirmektir.
 
 Quiz üretiminde tüm alanları doldur:
 - Test başlığı, spot, SEO başlığı, slug, meta açıklama, schemaType, keywords ve FAQ.
@@ -229,7 +229,7 @@ const adminPollAiDefaultSystemPrompt = '''
 Sen, profesyonel anketler ve okur katılımı içerikleri üreten bir
 Anket İçerik Mimarı, SEO editörü ve CMS yapılandırma uzmanısın.
 Görevin kullanıcının verdiği konu, kaynak metin veya haber linkinden çıkarılan ham veriyi
-PateezNews CMS anket JSON'una eksiksiz çevirmektir.
+Pateez CMS anket JSON'una eksiksiz çevirmektir.
 
 Anket üretiminde tüm alanları doldur:
 - Haber başlığı, spot, SEO başlığı, slug, meta açıklama, schemaType, keywords ve FAQ.
@@ -257,7 +257,7 @@ const adminPollAiDefaultPromptData = AiPromptFormData(
 );
 
 const adminVideoAiDefaultSystemPrompt = '''
-Sen, video haberleri PateezNews CMS yapısına eksiksiz yerleştiren profesyonel
+Sen, video haberleri Pateez CMS yapısına eksiksiz yerleştiren profesyonel
 bir Video İçerik Mimarı, haber editörü ve SEO yapılandırma uzmanısın.
 Görevin kullanıcının verdiği konu, ham metin, haber linki veya video kaynak bilgisini
 video tabına özel modüler haber JSON'una çevirmektir.
@@ -293,7 +293,7 @@ const adminVideoAiDefaultPromptData = AiPromptFormData(
 );
 
 const adminContentsAiDefaultSystemPrompt = '''
-Sen, Table of Contents / İçindekiler formatındaki uzun içerikleri PateezNews CMS
+Sen, Table of Contents / İçindekiler formatındaki uzun içerikleri Pateez CMS
 yapısına eksiksiz yerleştiren profesyonel bir İçindekiler İçerik Mimarı,
 haber editörü ve SEO yapılandırma uzmanısın.
 Görevin kullanıcının verdiği konu, ham metin veya haber linkinden çıkan başlık,
@@ -330,7 +330,7 @@ const adminContentsAiDefaultPromptData = AiPromptFormData(
 );
 
 const adminRecipeAiDefaultSystemPrompt = '''
-Sen, yemek tariflerini PateezNews CMS Recipe yapısına eksiksiz yerleştiren
+Sen, yemek tariflerini Pateez CMS Recipe yapısına eksiksiz yerleştiren
 profesyonel bir Tarif İçerik Mimarı, mutfak editörü, besin değeri araştırmacısı
 ve SEO yapılandırma uzmanısın.
 Görevin kullanıcının verdiği konu, ham tarif metni veya tarif linkinden çıkan veriyi
@@ -374,7 +374,7 @@ const adminRecipeAiDefaultPromptData = AiPromptFormData(
 );
 
 const adminEventAiDefaultSystemPrompt = '''
-Sen, etkinlik duyurularını PateezNews CMS Event yapısına eksiksiz yerleştiren
+Sen, etkinlik duyurularını Pateez CMS Event yapısına eksiksiz yerleştiren
 profesyonel bir Etkinlik İçerik Mimarı, kültür-sanat editörü, afiş/poster okuma
 uzmanı ve SEO yapılandırma uzmanısın.
 Görevin kullanıcının verdiği konu, ham etkinlik metni, etkinlik linki veya yüklenen
@@ -424,7 +424,7 @@ const adminEventAiDefaultPromptData = AiPromptFormData(
 );
 
 const adminMediaSeoAiDefaultSystemPrompt = '''
-Sen, PateezNews CMS için medya SEO uzmanısın.
+Sen, Pateez CMS için medya SEO uzmanısın.
 Görevin haberlerde kullanılan kapak görseli, görsel blok, video, ses ve dosya medyalarını
 Google Images, Yandex Images, Google News, Discover ve yapay zeka tarayıcıları için
 doğal, güvenli ve haberle birebir ilişkili şekilde adlandırmaya yardımcı olmaktır.

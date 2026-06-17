@@ -1,52 +1,125 @@
-import { decryptSecret } from '@/lib/server/mail/secrets';
+import { decryptSecret } from "@/lib/server/mail/secrets";
 
-export async function sendWhatsappTextWithAccount(account: any, input: { to: string; text: string }) {
-  const provider = String(account?.service_type || account?.servis_tipi || '').trim();
-  const apiBaseUrl = String(account?.api_base_url || '').trim();
-  const token = decryptSecret(account?.api_token_encrypted || account?.api_token || account?.api_anahtari);
-  const apiSecret = decryptSecret(account?.api_secret_encrypted || account?.api_sifresi);
-  const to = String(input.to || '').trim();
-  const text = String(input.text || '').trim();
+export async function sendWhatsappTextWithAccount(
+  account: any,
+  input: { to: string; text: string },
+) {
+  const provider = String(
+    account?.service_type || account?.servis_tipi || "",
+  ).trim();
+  const apiBaseUrl = String(account?.api_base_url || "").trim();
+  const token = decryptSecret(
+    account?.api_token_encrypted || account?.api_token || account?.api_anahtari,
+  );
+  const apiSecret = decryptSecret(
+    account?.api_secret_encrypted || account?.api_sifresi,
+  );
+  const to = String(input.to || "").trim();
+  const text = String(input.text || "").trim();
 
   if (!apiBaseUrl || !token) {
-    throw new Error('Active WhatsApp account API URL or token is missing');
+    throw new Error("Active WhatsApp account API URL or token is missing");
   }
   if (!to || !text) {
-    throw new Error('Recipient phone and message text are required');
+    throw new Error("Recipient phone and message text are required");
   }
 
-  if (provider === 'twilio_whatsapp') {
+  if (provider === "twilio_whatsapp") {
     const body = new URLSearchParams({
       To: `whatsapp:${to}`,
-      From: `whatsapp:${String(account?.phone || account?.telefon || '').trim()}`,
+      From: `whatsapp:${String(account?.phone || account?.telefon || "").trim()}`,
       Body: text,
     });
     const response = await fetch(apiBaseUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        Authorization: `Basic ${Buffer.from(`${token}:${apiSecret}`).toString('base64')}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(`${token}:${apiSecret}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body,
     });
     return responseResult(response);
   }
 
-  const isMeta = provider === 'meta_cloud_api' || apiBaseUrl.includes('graph.facebook.com');
+  const isMeta =
+    provider === "meta_cloud_api" || apiBaseUrl.includes("graph.facebook.com");
   const payload = isMeta
-    ? { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } }
-    : { to, type: 'text', text, message: text };
+    ? { messaging_product: "whatsapp", to, type: "text", text: { body: text } }
+    : { to, type: "text", text, message: text };
 
   const response = await fetch(apiBaseUrl, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify(payload),
   });
   return responseResult(response);
+}
+
+export async function sendWhatsappTemplateWithAccount(
+  account: any,
+  input: { to: string; templateName: string; languageCode?: string },
+) {
+  const provider = String(
+    account?.service_type || account?.servis_tipi || "",
+  ).trim();
+  const apiBaseUrl = String(account?.api_base_url || "").trim();
+  const token = decryptSecret(
+    account?.api_token_encrypted || account?.api_token || account?.api_anahtari,
+  );
+  const to = String(input.to || "").trim();
+  const templateName = String(input.templateName || "").trim();
+  const languageCode = String(
+    input.languageCode || defaultLanguageForTemplate(templateName),
+  ).trim();
+
+  if (!apiBaseUrl || !token) {
+    throw new Error("Active WhatsApp account API URL or token is missing");
+  }
+  if (!to || !templateName) {
+    throw new Error("Recipient phone and approved template name are required");
+  }
+  if (provider === "twilio_whatsapp") {
+    throw new Error(
+      "Twilio template sending requires a provider Content SID mapping",
+    );
+  }
+
+  const isMeta =
+    provider === "meta_cloud_api" || apiBaseUrl.includes("graph.facebook.com");
+  if (!isMeta) {
+    throw new Error(
+      "Template sending is only enabled for Meta Cloud API accounts",
+    );
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+    },
+  };
+
+  const response = await fetch(apiBaseUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  return responseResult(response);
+}
+
+function defaultLanguageForTemplate(templateName: string) {
+  return templateName === "hello_world" ? "en_US" : "tr";
 }
 
 async function responseResult(response: Response) {

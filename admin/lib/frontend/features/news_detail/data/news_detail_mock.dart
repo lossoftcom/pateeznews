@@ -13,7 +13,7 @@ class NewsDetailMock {
     return NewsBody(
       paragraphs: _paragraphsFor(article),
       pullQuote: _pullQuoteFor(article),
-      sourceNote: 'Pateeznews muhabir ağı ve kurumsal açıklamalardan derlendi.',
+      sourceNote: 'Pateez muhabir ağı ve kurumsal açıklamalardan derlendi.',
     );
   }
 
@@ -115,17 +115,17 @@ List<String> _paragraphsFor(NewsArticle a) {
         'daha geniş paydaş grubuyla şekilleneceğini belirtiyor. Bağımsız '
         'gözlemciler ise atılan adımın uzun vadeli sonuçlarını ölçmek için '
         'somut göstergelerin paylaşılmasını bekliyor.',
-    'Pateeznews\'in görüştüğü uzmanlara göre konunun üç temel boyutu var: '
+    'Pateez\'in görüştüğü uzmanlara göre konunun üç temel boyutu var: '
         'planlama, uygulama ve takip. Planlama tarafında yol haritasının net '
         'olması, uygulamada şeffaflık ve takip aşamasında bağımsız raporlama '
         'mekanizmaları kritik öneme sahip.',
     '"$region" özelinde yapılan açıklamada, vatandaşların gelişmeleri '
         'birinci ağızdan takip edebilmesi için resmi kanalların yanı sıra '
-        'bağımsız haber kaynaklarının da önemine dikkat çekildi. Pateeznews, '
+        'bağımsız haber kaynaklarının da önemine dikkat çekildi. Pateez, '
         'konunun seyrini sahadan ve veri masasından takip etmeye devam edecek.',
     'Önümüzdeki günlerde yapılması planlanan sunumlar ve panel '
         'oturumlarıyla birlikte detayların daha da netleşmesi bekleniyor. '
-        'Pateeznews okurları, gündemin tamamına ilişkin güncellemeleri canlı '
+        'Pateez okurları, gündemin tamamına ilişkin güncellemeleri canlı '
         'akışlardan ve bildirimlerden takip edebilir.',
   ];
 }
@@ -160,7 +160,7 @@ String _pullQuoteFor(NewsArticle a) {
       return 'Yerli turizmin gücü, mevsim rekorlarından çok yıl boyu '
           'sürdürülebilir bir hizmet anlayışıyla ölçülür.';
   }
-  return 'Pateeznews, gündemi tek başlık değil, çoklu bakışla anlatır.';
+  return 'Pateez, gündemi tek başlık değil, çoklu bakışla anlatır.';
 }
 
 /// Gerçek dünya hissi için 3 ek yorum.

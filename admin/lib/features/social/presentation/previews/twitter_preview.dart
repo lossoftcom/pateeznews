@@ -11,7 +11,7 @@ class TwitterPreview extends StatelessWidget {
     required this.imageUrl,
     required this.linkUrl,
     required this.linkTitle,
-    this.profileName = 'Pateeznews',
+    this.profileName = 'Pateez',
     this.profileUsername = 'pateeznews',
     this.avatarUrl = '',
     this.verified = false,
@@ -210,7 +210,7 @@ class TwitterPreview extends StatelessWidget {
                                 Text(
                                   linkTitle.isNotEmpty
                                       ? linkTitle
-                                      : 'Pateeznews',
+                                      : 'Pateez',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     color: Color(0xFF0F1419),

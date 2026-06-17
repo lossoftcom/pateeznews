@@ -17,7 +17,7 @@ const MAX_CANDIDATES_PER_SOURCE = 10;
 const MAX_AI_CANDIDATES_PER_RUN = 12;
 const MAX_QUEUE_PER_SOURCE = 5;
 const MAX_PAYLOAD_SCAN_ROWS = 500;
-const USER_AGENT = 'PateezNews-Announcements/1.0 (+https://www.pateez.com)';
+const USER_AGENT = 'Pateez-Announcements/1.0 (+https://www.pateez.com)';
 
 const DISTRICTS = ['MERKEZ', 'ALTUNHİSAR', 'BOR', 'ÇAMARDI', 'ÇİFTLİK', 'ULUKIŞLA'];
 const DISTRICT_LABELS: Record<string, string> = {
@@ -1479,7 +1479,7 @@ const pageTitle = (document: any) => {
 
 const titleWithoutSourceNoise = (title: string, sourceName: string) =>
   normalizeText(title)
-    .replace(/\s*[|-]\s*Pateeznews\s*$/i, '')
+    .replace(/\s*[|-]\s*Pateez\s*$/i, '')
     .replace(new RegExp(`\\s*[|-]\\s*${sourceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i'), '')
     .trim();
 

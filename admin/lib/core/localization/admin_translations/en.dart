@@ -336,7 +336,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "stories.field.title": "Story Title",
   "stories.hint.expiresAt": "2026-05-24 18:30",
   "stories.hint.mediaUrl": "https://...",
-  "stories.hint.sourceName": "Ex: Pateeznews",
+  "stories.hint.sourceName": "Ex: Pateez",
   "stories.hint.title": "Ex: Daily summary",
   "stories.media.image": "Image",
   "stories.media.video": "Video",
@@ -1013,7 +1013,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
       "Mail content and summary text are previewed live here.",
   "mail.campaign.previewButton": "Read News",
   "mail.campaign.previewFooter":
-      "This email was prepared through Pateeznews admin.",
+      "This email was prepared through Pateez admin.",
   "mail.campaign.previewHeadline": "{{news_title}}",
   "mail.campaign.previewHint": "Preview text",
   "mail.campaign.preview_text": "Preview Text",
@@ -1376,8 +1376,8 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "mail.template.previewBadge": "Selected Template",
   "mail.template.previewButton": "Open Detail",
   "mail.template.previewFooter":
-      "This email was prepared through Pateeznews admin.",
-  "mail.template.previewFooterTitle": "Pateeznews",
+      "This email was prepared through Pateez admin.",
+  "mail.template.previewFooterTitle": "Pateez",
   "mail.template.previewPrice": "MEMBER POINT",
   "mail.template.previewText":
       "Personalized mail preview with member information.",
@@ -1481,7 +1481,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
       "WhatsApp content and summary text are previewed live here.",
   "whatsapp.bulk.previewButton": "Read News",
   "whatsapp.bulk.previewFooter":
-      "This WhatsApp message was prepared through Pateeznews admin.",
+      "This WhatsApp message was prepared through Pateez admin.",
   "whatsapp.bulk.previewHeadline": "{{news_title}}",
   "whatsapp.bulk.previewHint": "Preview text",
   "whatsapp.bulk.preview_text": "Preview Text",
@@ -1510,6 +1510,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "whatsapp.contacts.action.deactivate": "Deactivate",
   "whatsapp.contacts.action.delete": "Delete",
   "whatsapp.contacts.action.edit": "Edit",
+  "whatsapp.contacts.action.people": "Contacts",
   "whatsapp.contacts.action.syncDisable": "Disable sync",
   "whatsapp.contacts.action.syncEnable": "Enable sync",
   "whatsapp.contacts.actions": "Contact list actions",
@@ -1528,6 +1529,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "whatsapp.contacts.deleteTitle": "Delete contact list?",
   "whatsapp.contacts.dialog.beforeStart": "Before you start",
   "whatsapp.contacts.dialog.chooseFile": "Choose File",
+  "whatsapp.contacts.dialog.chooseSubscribers": "Choose Subscribers",
   "whatsapp.contacts.dialog.csvFile": "1. CSV File",
   "whatsapp.contacts.dialog.csvFileSubtitle": ".csv or .txt",
   "whatsapp.contacts.dialog.csvSubtitle":
@@ -1562,6 +1564,12 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "whatsapp.contacts.dialog.ruleEmail": "The phone column is required.",
   "whatsapp.contacts.dialog.ruleHeader":
       "If the first row is a header, fields are detected automatically.",
+  "whatsapp.contacts.dialog.ruleSubscribersActive":
+      "Only active subscribers are imported.",
+  "whatsapp.contacts.dialog.ruleSubscribersCopy":
+      "Subscriber details are copied into the contact list.",
+  "whatsapp.contacts.dialog.ruleSubscribersSelect":
+      "Select subscribers one by one or in bulk.",
   "whatsapp.contacts.dialog.ruleUtf":
       "UTF-8 is recommended for special characters.",
   "whatsapp.contacts.dialog.saveAndImport": "Save",
@@ -1572,20 +1580,59 @@ const Map<String, String> adminEnTranslations = <String, String>{
       "Choose where the contacts will come from.",
   "whatsapp.contacts.dialog.sourceTitle": "Import Source",
   "whatsapp.contacts.dialog.status": "Status",
+  "whatsapp.contacts.dialog.subscribersFile": "3. Add from Subscribers",
+  "whatsapp.contacts.dialog.subscribersFileSubtitle": "Live subscriber module",
+  "whatsapp.contacts.dialog.subscribersSelectSubtitle":
+      "Choose active people from the subscriber list.",
+  "whatsapp.contacts.dialog.subscribersSelectTitle": "Subscriber selection",
+  "whatsapp.contacts.dialog.subscribersSelectedCount":
+      "{count} subscribers selected",
+  "whatsapp.contacts.dialog.subscribersStep": "Subscribers",
+  "whatsapp.contacts.dialog.subscribersSubtitle":
+      "Add live records from the Subscribers module to this contact list.",
+  "whatsapp.contacts.dialog.subscribersTitle": "Add from subscribers",
   "whatsapp.contacts.empty": "No contact list found",
   "whatsapp.contacts.example.email": "phone number",
   "whatsapp.contacts.example.firstName": "first_name",
   "whatsapp.contacts.example.lastName": "last_name",
   "whatsapp.contacts.example.phone": "phone",
   "whatsapp.contacts.newList": "New List",
+  "whatsapp.contacts.people.count": "{count} contacts",
+  "whatsapp.contacts.people.deleteMessage":
+      "This contact will be removed from the selected list.",
+  "whatsapp.contacts.people.deleteTitle": "Delete contact?",
+  "whatsapp.contacts.people.email": "Email",
+  "whatsapp.contacts.people.emailInvalid": "Enter a valid email address.",
+  "whatsapp.contacts.people.empty": "No contacts found in this list",
+  "whatsapp.contacts.people.firstName": "First name",
+  "whatsapp.contacts.people.formEdit": "Edit Contact",
+  "whatsapp.contacts.people.formNew": "New Contact",
+  "whatsapp.contacts.people.lastName": "Last name",
+  "whatsapp.contacts.people.new": "New Contact",
+  "whatsapp.contacts.people.phone": "Phone",
+  "whatsapp.contacts.people.phoneInvalid": "Enter a valid phone number.",
+  "whatsapp.contacts.people.search": "Search contacts...",
   "whatsapp.contacts.searchPlaceholder": "Search contact lists...",
   "whatsapp.contacts.selectedDelete": "Delete {count} selected contact lists",
   "whatsapp.contacts.source.csv": "CSV File",
   "whatsapp.contacts.source.csvShort": "CSV",
   "whatsapp.contacts.source.excel": "Excel File",
   "whatsapp.contacts.source.excelShort": "Excel",
+  "whatsapp.contacts.source.subscribers": "Subscribers",
+  "whatsapp.contacts.source.subscribersShort": "Subscribers",
   "whatsapp.contacts.status.active": "Active",
   "whatsapp.contacts.status.passive": "Passive",
+  "whatsapp.contacts.subscribersPicker.clearVisible": "Clear visible",
+  "whatsapp.contacts.subscribersPicker.confirm": "Add Selected",
+  "whatsapp.contacts.subscribersPicker.empty": "No subscriber found",
+  "whatsapp.contacts.subscribersPicker.missingPhone": "No phone",
+  "whatsapp.contacts.subscribersPicker.search": "Search subscribers...",
+  "whatsapp.contacts.subscribersPicker.selectAll": "Select All",
+  "whatsapp.contacts.subscribersPicker.selectedCount":
+      "{count} subscribers selected",
+  "whatsapp.contacts.subscribersPicker.subtitle":
+      "Select active subscribers and add them to this contact list.",
+  "whatsapp.contacts.subscribersPicker.title": "Add Contacts from Subscribers",
   "whatsapp.contacts.sync.closed": "Closed",
   "whatsapp.contacts.sync.open": "Open",
   "whatsapp.contacts.title": "Contact Lists",
@@ -1782,7 +1829,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "whatsapp.template.composer.editorCharacters": "{count} characters",
   "whatsapp.template.composer.editorTitle": "Message editor",
   "whatsapp.template.composer.editorVariables": "{count} variables",
-  "whatsapp.template.composer.footerDefault": "Sent via Pateeznews",
+  "whatsapp.template.composer.footerDefault": "Sent via Pateez",
   "whatsapp.template.composer.footerHint": "Short trust note or source name",
   "whatsapp.template.composer.footerLabel": "Footer",
   "whatsapp.template.composer.format.bold": "Bold",
@@ -1879,8 +1926,8 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "whatsapp.template.previewBadge": "Selected Template",
   "whatsapp.template.previewButton": "Open Detail",
   "whatsapp.template.previewFooter":
-      "This WhatsApp message was prepared through Pateeznews admin.",
-  "whatsapp.template.previewFooterTitle": "Pateeznews",
+      "This WhatsApp message was prepared through Pateez admin.",
+  "whatsapp.template.previewFooterTitle": "Pateez",
   "whatsapp.template.previewPrice": "MEMBER POINT",
   "whatsapp.template.previewText":
       "Personalized WhatsApp preview with member information.",
@@ -2167,7 +2214,32 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "whatsapp.placeholder": "Type a message...",
   "whatsapp.emptyState": "Select a chat",
   "whatsapp.emptyStateSubtitle":
-      "Communicate in real time with your customers and visitors using Pateeznews WhatsApp support. Select a chat from the left to start messaging.",
+      "Communicate in real time with your customers and visitors using Pateez WhatsApp support. Select a chat from the left to start messaging.",
+  "whatsapp.messaging.createChat": "Create chat",
+  "whatsapp.messaging.languageCode": "Language code",
+  "whatsapp.messaging.manualNoSendNote":
+      "You can create the chat without a template; freeform messaging opens when the 24-hour window is available.",
+  "whatsapp.messaging.manualNoTemplateNote":
+      "No ready WhatsApp template is available. Create the chat now and send a template when one is ready.",
+  "whatsapp.messaging.manualTemplateNote":
+      "The selected template will be sent and freeform messaging opens when the chat window allows it.",
+  "whatsapp.messaging.name": "Name",
+  "whatsapp.messaging.nameHint": "Contact name (optional)",
+  "whatsapp.messaging.newChat": "New chat",
+  "whatsapp.messaging.newChatTitle": "New WhatsApp Chat",
+  "whatsapp.messaging.noReadyTemplate": "No ready template",
+  "whatsapp.messaging.phone": "Phone",
+  "whatsapp.messaging.phoneHint": "+1 555 000 00 00",
+  "whatsapp.messaging.sendingTemplate": "Sending template...",
+  "whatsapp.messaging.sendTemplate": "Send template",
+  "whatsapp.messaging.startTemplate": "Start template",
+  "whatsapp.messaging.templateGate":
+      "The freeform message window is closed. Send an approved template to start the conversation.",
+  "whatsapp.messaging.templateLater": "Send template later",
+  "whatsapp.messaging.templateRequired": "Template required",
+  "whatsapp.messaging.templateRequiredInput": "Send an approved template first",
+  "whatsapp.messaging.templateRequiredToast":
+      "Send an approved WhatsApp template before freeform messaging.",
   "social.settings.action.activate": "Activate",
   "social.settings.action.connectionCheck": "Connection Check",
   "social.settings.action.deactivate": "Deactivate",
@@ -2300,7 +2372,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "social.publish.caption": "Post copy",
   "social.publish.captionHint": "Write the main copy used across platforms...",
   "social.publish.connectedAccounts": "Social accounts",
-  "social.publish.defaultCampaign": "Pateeznews bulk post",
+  "social.publish.defaultCampaign": "Pateez bulk post",
   "social.publish.defaultCaption":
       "Select a news story, check each platform preview, and prepare the post.",
   "social.publish.description":
@@ -2340,7 +2412,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "social.publish.preview": "Live preview",
   "social.publish.previewComment": "Comment",
   "social.publish.previewEmpty": "Post copy has not been written yet.",
-  "social.publish.previewHeadline": "Pateeznews story headline",
+  "social.publish.previewHeadline": "Pateez story headline",
   "social.publish.previewLike": "Like",
   "social.publish.previewShare": "Share",
   "social.publish.previewSubtitle": "{platform} view",
@@ -2424,7 +2496,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
       "SMS content and summary text are previewed live here.",
   "sms.bulk.previewButton": "Read News",
   "sms.bulk.previewFooter":
-      "This SMS message was prepared through Pateeznews admin.",
+      "This SMS message was prepared through Pateez admin.",
   "sms.bulk.previewHeadline": "{{news_title}}",
   "sms.bulk.previewHint": "SMS text",
   "sms.bulk.preview_text": "SMS Text",
@@ -2762,7 +2834,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "sms.template.composer.editorCharacters": "{count} characters",
   "sms.template.composer.editorTitle": "Message editor",
   "sms.template.composer.editorVariables": "{count} variables",
-  "sms.template.composer.footerDefault": "Sent via Pateeznews",
+  "sms.template.composer.footerDefault": "Sent via Pateez",
   "sms.template.composer.footerHint": "Short trust note or source name",
   "sms.template.composer.footerLabel": "Footer",
   "sms.template.composer.format.bold": "Bold",
@@ -2858,8 +2930,8 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "sms.template.previewBadge": "Selected Template",
   "sms.template.previewButton": "Open Detail",
   "sms.template.previewFooter":
-      "This SMS message was prepared through Pateeznews admin.",
-  "sms.template.previewFooterTitle": "Pateeznews",
+      "This SMS message was prepared through Pateez admin.",
+  "sms.template.previewFooterTitle": "Pateez",
   "sms.template.previewPrice": "MEMBER POINT",
   "sms.template.previewText":
       "Personalized SMS preview with member information.",

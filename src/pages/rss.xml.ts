@@ -127,7 +127,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (!settings && lang !== defaultLangCode) settings = await fetchSettings(defaultLangCode);
 
   const base = normalizeBase(settings?.canonical_url || requestUrl.origin) || requestUrl.origin;
-  const siteName = String(settings?.site_name || 'Pateez News').trim() || 'Pateez News';
+  const siteName = String(settings?.site_name || 'Pateez').trim() || 'Pateez';
   const channelDescription = String(settings?.meta_description || '').trim();
 
   const selfUrl = applyLangParam(new URL('/rss.xml', requestUrl.origin), lang, shouldUseLangParam, defaultLangCode).toString();

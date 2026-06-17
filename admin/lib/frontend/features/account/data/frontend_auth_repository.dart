@@ -106,7 +106,7 @@ class FrontendProfile {
       final text = value?.trim();
       if (text != null && text.isNotEmpty) return text;
     }
-    return 'Pateeznews';
+    return 'Pateez';
   }
 
   String get handle {
@@ -187,7 +187,7 @@ class FrontendAuthState {
     if (name != null && name.isNotEmpty) return name;
     return session.user.email?.split('@').first.trim().isNotEmpty == true
         ? session.user.email!.split('@').first
-        : 'Pateeznews';
+        : 'Pateez';
   }
 
   String get subtitle {

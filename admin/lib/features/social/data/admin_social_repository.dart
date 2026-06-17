@@ -62,7 +62,7 @@ class AdminSocialConnectedAccount {
     if (channel.isNotEmpty) return channel;
     final user = username.trim();
     if (user.isNotEmpty) return user.replaceFirst(RegExp(r'^@'), '');
-    return accountName.trim().isEmpty ? 'Pateeznews' : accountName.trim();
+    return accountName.trim().isEmpty ? 'Pateez' : accountName.trim();
   }
 
   String get resolvedUsername {
@@ -328,7 +328,7 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
       'social_account_id': socialAccountId,
       'title': data.campaignName.trim().isEmpty
           ? (data.newsTitle.trim().isEmpty
-                ? 'Pateeznews social post'
+                ? 'Pateez social post'
                 : data.newsTitle.trim())
           : data.campaignName.trim(),
       'caption': data.displayCaption,

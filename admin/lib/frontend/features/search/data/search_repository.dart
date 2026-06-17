@@ -40,7 +40,7 @@ class SearchProfile {
     final cleanName = fullName.trim();
     if (cleanName.isNotEmpty) return cleanName;
     final cleanUsername = username.trim();
-    return cleanUsername.isEmpty ? 'Pateeznews' : cleanUsername;
+    return cleanUsername.isEmpty ? 'Pateez' : cleanUsername;
   }
 
   String get handle {
