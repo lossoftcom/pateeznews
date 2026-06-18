@@ -48,6 +48,9 @@ const STATIC_TR: Record<string, string> = {
   "right.weather": "Niğde",
   "right.weather_partly_cloudy": "Parçalı Bulutlu",
   "right.weather_feels_like_26": "Hissedilen: 26°",
+  "right.columnists": "Köşe Yazarları",
+  "right.columnists_badge": "Yazarlar",
+  "right.read_all_columnists": "Tüm köşe yazılarını oku",
 };
 
 export const LanguageProvider: React.FC<{

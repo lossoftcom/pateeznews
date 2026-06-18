@@ -48,14 +48,43 @@ const NORMAL_CATEGORY_LABELS: Record<string, string> = {
   spor: 'Spor',
 };
 
+const WEEKLY_TREND_VALUES = new Set([
+  'weekly_trends',
+  'weekly_likes',
+  'weekly_comments',
+  'weekly_shares',
+  'weekly_reads',
+]);
+
+const normalizeWeeklyTrendValue = (value: string) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_');
+  return WEEKLY_TREND_VALUES.has(normalized) ? normalized : '';
+};
+
+const resolveNavigationItem = (value: string) => {
+  const normalizedSlug = slugify(value);
+  return navigationItems.find((item) =>
+    item.value === value ||
+    item.label === value ||
+    (item.value && slugify(item.value) === normalizedSlug) ||
+    slugify(item.label) === normalizedSlug
+  ) || null;
+};
+
+const activeNavigationItem = slug ? resolveNavigationItem(slug) : null;
+const trendValue = normalizeWeeklyTrendValue(String(activeNavigationItem?.value || slug || ''));
+const isTrendPage = activeNavigationItem?.type === 'trends' || !!trendValue;
+
 const resolvedCategory = (() => {
   if (!slug) return null;
-  const match = navigationItems.find((item) => item.value === slug || slugify(item.label) === slug || slugify(item.value) === slug);
-  return match?.label || NORMAL_CATEGORY_LABELS[slugify(slug)] || slug;
+  if (activeNavigationItem) return activeNavigationItem.label || NORMAL_CATEGORY_LABELS[slugify(slug)] || slug;
+  return NORMAL_CATEGORY_LABELS[slugify(slug)] || slug;
 })();
 
 const CATEGORY_PAGE_SIZE = 12;
-const categoryNewsPage = await dataService.getCategoryNewsPage(lang, resolvedCategory || '', CATEGORY_PAGE_SIZE, 0);
+const categoryNewsPage = isTrendPage
+  ? await dataService.getWeeklyTrendNewsPage(lang, trendValue || 'weekly_trends', CATEGORY_PAGE_SIZE, 0)
+  : await dataService.getCategoryNewsPage(lang, resolvedCategory || '', CATEGORY_PAGE_SIZE, 0);
 const newsItems = categoryNewsPage.items;
 
 const title = `${resolvedCategory || slug} | ${siteSettings?.site_name || "Pateez"}`;

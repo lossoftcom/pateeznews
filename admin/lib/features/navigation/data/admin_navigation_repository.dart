@@ -206,6 +206,15 @@ class SupabaseAdminNavigationRepository implements AdminNavigationRepository {
       {
         'menu_id': menu.id,
         'parent_id': nigde.id,
+        'label': 'Köşe Yazısı',
+        'type': 'category',
+        'value': 'kose-yazisi',
+        'icon': 'forum',
+        'order_index': 10,
+      },
+      {
+        'menu_id': menu.id,
+        'parent_id': nigde.id,
         'label': 'Spor',
         'type': 'category',
         'value': 'spor',

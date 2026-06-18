@@ -213,7 +213,7 @@ export const POST: APIRoute = async ({ request }) => {
       const counted = await withTransaction((client) =>
         recordReadEvent(client, { postId, userId, viewerKey, source })
       );
-      return json({ ok: true, counted, ...(await readState(postId, userId, publisherId)) });
+      return json({ ok: true, counted, ...(await readState(postId, userId, publisherId, userId ? null : viewerKey)) });
     }
 
     if (action === 'video_view') {

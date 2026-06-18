@@ -29,11 +29,12 @@ const lang = resolveLangCode({
 
 const langMeta = seoAlternates.find((entry) => entry.code === lang);
 
-const [initialTranslations, siteSettings, navigationItems, newsItem] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, newsItem, sidebarSnapshot] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
   dataService.getNavigationItems(lang),
-  dataService.getNewsBySlug(slug as string)
+  dataService.getNewsBySlug(slug as string),
+  dataService.getSidebarSnapshot(lang)
 ]);
 
 const initialLang = {
@@ -51,7 +52,19 @@ if (!newsItem) {
 
 const title = newsItem.seoTitle || `${newsItem.title} | ${siteSettings?.site_name || 'Pateez'}`;
 const description = newsItem.seoDescription || newsItem.summary;
-const ogImage = newsItem.thumbnail || newsItem.mediaUrl || siteSettings?.og_image_url || "";
+
+const isLikelyImageUrl = (value: unknown) => {
+  const raw = String(value || '').trim();
+  return /\.(?:avif|webp|png|jpe?g|gif)(?:[?#].*)?$/i.test(raw);
+};
+
+const isLikelyVideoUrl = (value: unknown) => {
+  const raw = String(value || '').trim();
+  return /\.(?:mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(raw) || /(?:youtube\.com|youtu\.be|vimeo\.com)/i.test(raw);
+};
+
+const ogImage = newsItem.thumbnail || newsItem.coverThumbnail || (isLikelyImageUrl(newsItem.mediaUrl) ? newsItem.mediaUrl : siteSettings?.og_image_url || "");
+const ogVideo = isLikelyVideoUrl(newsItem.mediaUrl) ? newsItem.mediaUrl : "";
 
 const canonicalBase = (siteSettings?.canonical_url || Astro.url.origin).trim();
 const canonicalPathSegment = encodeURIComponent(getPostPathSegment(newsItem, siteSettings) || slug || newsItem.id);
@@ -284,6 +297,8 @@ const jsonLdItems = [articleLd, breadcrumbLd, recipeLd, eventLd, videoLd, quizLd
   keywords={newsItem.keywords}
   ogType="article"
   ogImage={ogImage}
+  ogImageAlt={newsItem.thumbnailAlt || newsItem.seoTitle || newsItem.title}
+  ogVideo={ogVideo}
   canonical={canonicalUrl}
   jsonLd={jsonLdItems}
   favicon={siteSettings?.favicon_url}
@@ -303,5 +318,6 @@ const jsonLdItems = [articleLd, breadcrumbLd, recipeLd, eventLd, videoLd, quizLd
     navigationItems={navigationItems}
     newsItem={newsItem as any}
     newsItems={[]}
+    sidebarSnapshot={sidebarSnapshot}
   />
 </Layout>

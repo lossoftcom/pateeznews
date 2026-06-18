@@ -6,7 +6,7 @@ import { useSupabaseSession } from '@/hooks/useSupabaseSession';
 import { supabase } from '@/lib/supabase';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
-import { navigate } from 'astro:transitions/client';
+import { navigateImmediately } from '@/utils/immediateNavigation';
 
 interface GlobalNavigationProps {
     initialLang: any;
@@ -26,13 +26,13 @@ const GlobalNavigation: React.FC<GlobalNavigationProps> = ({
     const [isLoginOpen, setIsLoginOpen] = useState(false);
 
     const handleHomeClick = () => {
-        void navigate('/');
+        void navigateImmediately('/');
     };
 
     const handleLogout = async () => {
         document.cookie = "pateez_active_cat=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
         await supabase.auth.signOut();
-        await navigate('/');
+        await navigateImmediately('/');
     };
 
     return (
@@ -44,8 +44,8 @@ const GlobalNavigation: React.FC<GlobalNavigationProps> = ({
                         navItems={navigationItems}
                         onHomeClick={handleHomeClick}
                         onProfileClick={() => setIsLoginOpen(true)}
-                        onProfileViewClick={() => { void navigate('/profil'); }}
-                        onEditProfileClick={() => { void navigate('/profil-duzenle'); }}
+                        onProfileViewClick={() => { void navigateImmediately('/profil'); }}
+                        onEditProfileClick={() => { void navigateImmediately('/profil-duzenle'); }}
                         onLogout={handleLogout}
                         isLoggedIn={!!user || !!profile}
                         user={profile ? (user ? { ...user, profile } : { profile }) : user}
@@ -57,6 +57,7 @@ const GlobalNavigation: React.FC<GlobalNavigationProps> = ({
                     <Login
                         onSuccess={() => setIsLoginOpen(false)}
                         onClose={() => setIsLoginOpen(false)}
+                        siteSettings={siteSettings}
                     />
                 )}
             </ToastProvider>

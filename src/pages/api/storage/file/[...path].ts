@@ -85,10 +85,13 @@ function localImageVariantRedirect(objectPath: string, staticPath: string, url: 
       options.width,
       options.quality,
     );
-    return redirect(
-      new URL(`${LOCAL_STATIC_PREFIX}${variantPath}`, url.origin),
-      IMAGE_VARIANT_CACHE,
-    );
+    if (exactLocalStaticPath(variantPath)) {
+      return redirect(
+        new URL(`${LOCAL_STATIC_PREFIX}${variantPath}`, url.origin),
+        IMAGE_VARIANT_CACHE,
+      );
+    }
+    return null;
   }
 
   if (!isLocalDevHost(url)) {

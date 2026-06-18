@@ -52,7 +52,6 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   final _allowedExtensionsController = TextEditingController(
     text: contentUploadDefaultExtensions.join(', '),
   );
-  final _featuredDurationController = TextEditingController(text: '10');
   final _featuredLimitController = TextEditingController(text: '15');
   final _autoDeleteDaysController = TextEditingController(text: '30');
 
@@ -138,7 +137,6 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     _maxAudioSizeController.dispose();
     _maxFileSizeController.dispose();
     _allowedExtensionsController.dispose();
-    _featuredDurationController.dispose();
     _featuredLimitController.dispose();
     _autoDeleteDaysController.dispose();
     super.dispose();
@@ -220,7 +218,6 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     _featuredContentSource = _featuredSourceOption(settings.contentSource);
     _featuredSortingLogic = _featuredSortingOption(settings.sortingLogic);
     _featuredShowNewsInfo = settings.showNewsInfo;
-    _featuredDurationController.text = settings.displayDurationDays.toString();
     _featuredLimitController.text = settings.displayLimit.toString();
   }
 
@@ -497,13 +494,9 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
         _loadedLanguageCode ??
         AdminLocalizationScope.maybeOf(context)?.code ??
         'tr';
-    final durationDays = _normalizeFeaturedDurationDays(
-      _featuredDurationController.text,
-    );
     final displayLimit = _normalizeFeaturedLimit(_featuredLimitController.text);
     setState(() {
       _featuredSaving = true;
-      _featuredDurationController.text = durationDays.toString();
       _featuredLimitController.text = displayLimit.toString();
     });
     try {
@@ -513,7 +506,6 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
           languageCode: languageCode,
           contentSource: _featuredSourceValue(_featuredContentSource),
           sortingLogic: _featuredSortingValue(_featuredSortingLogic),
-          displayDurationDays: durationDays,
           displayLimit: displayLimit,
           showNewsInfo: _featuredShowNewsInfo,
         ),
@@ -705,7 +697,6 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                       showNewsInfo: _featuredShowNewsInfo,
                       loading: _featuredLoading,
                       saving: _featuredSaving,
-                      durationController: _featuredDurationController,
                       limitController: _featuredLimitController,
                       onContentSourceChanged: (value) {
                         if (value == null) return;
@@ -753,11 +744,6 @@ int _normalizePageSize(String value) {
 int _normalizeMegabyteLimit(String value, int fallback) {
   final parsed = int.tryParse(value.trim());
   return (parsed ?? fallback).clamp(1, 1024).toInt();
-}
-
-int _normalizeFeaturedDurationDays(String value) {
-  final parsed = int.tryParse(value.trim());
-  return (parsed ?? 10).clamp(1, 365).toInt();
 }
 
 int _normalizeFeaturedLimit(String value) {
@@ -1398,7 +1384,6 @@ class _FeaturedContentCard extends StatelessWidget {
     required this.showNewsInfo,
     required this.loading,
     required this.saving,
-    required this.durationController,
     required this.limitController,
     required this.onContentSourceChanged,
     required this.onSortingLogicChanged,
@@ -1411,7 +1396,6 @@ class _FeaturedContentCard extends StatelessWidget {
   final bool showNewsInfo;
   final bool loading;
   final bool saving;
-  final TextEditingController durationController;
   final TextEditingController limitController;
   final ValueChanged<String?> onContentSourceChanged;
   final ValueChanged<String?> onSortingLogicChanged;
@@ -1457,19 +1441,10 @@ class _FeaturedContentCard extends StatelessWidget {
                   valueLabel: 'contentSettings.value.yes',
                   onChanged: onShowNewsInfoChanged,
                 ),
-                _TwoFieldRow(
-                  children: [
-                    _FullTextField(
-                      label: 'contentSettings.featured.displayDuration',
-                      controller: durationController,
-                      keyboardType: TextInputType.number,
-                    ),
-                    _FullTextField(
-                      label: 'contentSettings.featured.displayLimit',
-                      controller: limitController,
-                      keyboardType: TextInputType.number,
-                    ),
-                  ],
+                _FullTextField(
+                  label: 'contentSettings.featured.displayLimit',
+                  controller: limitController,
+                  keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 20),
                 _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
@@ -2281,6 +2256,7 @@ class _ContentSettingOptions {
   static const postFormatKeys = contentPostFormatKeys;
   static const postFormatLabels = {
     'article': 'newsAdd.tab.article',
+    'opinion': 'newsAdd.tab.opinion',
     'quiz': 'newsAdd.tab.quiz',
     'poll': 'newsAdd.tab.poll',
     'video': 'newsAdd.tab.video',

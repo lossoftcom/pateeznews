@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { type NewsItem, NewsType, type NavigationItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
@@ -7,6 +7,18 @@ import Skeleton from '@/components/ui/Skeleton';
 import { postAction } from '@/services/appActions';
 import { getPostHref, getPostPathSegment } from '@/utils/postUrl';
 import { formatPostDateParts } from '@/utils/helpers';
+import {
+  buildFacebookShareUrl,
+  buildShareHashtags,
+  buildShareText,
+  buildTelegramShareUrl,
+  buildTrackedShareUrl,
+  buildWhatsAppShareUrl,
+  buildXShareUrl,
+  isShareAbortError,
+  openShareWindow,
+  writeToClipboard,
+} from '@/utils/socialShare';
 import RemixIcon from './ui/RemixIcon';
 
 // Kart bileşenleri
@@ -20,7 +32,7 @@ import GalleryCard from './cards/GalleryCard';
 import PollCard from './cards/PollCard';
 import VSCard from './cards/VSCard';
 import ParagraphCard from './cards/ParagraphCard';
-import CommentSection from './CommentSection';
+import InlineCardComments from './InlineCardComments';
 
 interface NewsDetailProps {
   data: NewsItem;
@@ -127,6 +139,76 @@ const titleCaseText = (value: string) => {
   }
   return result;
 };
+
+const normalizeCategoryLabel = (value: unknown) => String(value || '').trim();
+
+const normalizeCategoryKey = (value: unknown) => (
+  normalizeCategoryLabel(value).toLocaleLowerCase('tr-TR')
+);
+
+const uniqueCategoryLabels = (values: unknown[]) => {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  values.forEach((value) => {
+    const label = normalizeCategoryLabel(value);
+    const key = normalizeCategoryKey(label);
+    if (!label || seen.has(key)) return;
+    seen.add(key);
+    labels.push(label);
+  });
+  return labels;
+};
+
+const getStoredCategoryHierarchy = (data: NewsItem) => {
+  const rawTrail = Array.isArray(data.categoryTrail)
+    ? data.categoryTrail
+    : Array.isArray(data.categoryPath)
+      ? data.categoryPath
+      : [];
+  if (rawTrail.length === 0) return [];
+  return uniqueCategoryLabels([...rawTrail, data.category]);
+};
+
+const resolveCategoryNavItem = (category: string, navItems: NavigationItem[]) => {
+  const categoryKey = normalizeCategoryKey(category);
+  if (!categoryKey) return undefined;
+
+  const matches = navItems.filter((item) => (
+    normalizeCategoryKey(item.value) === categoryKey ||
+    normalizeCategoryKey(item.label) === categoryKey
+  ));
+  if (matches.length <= 1) return matches[0];
+
+  const itemById = new Map(navItems.map((item) => [item.id, item]));
+  const isDistrictChild = (item: NavigationItem) => {
+    if (!item.parent_id || item.parent_id === 'root') return false;
+    return itemById.get(item.parent_id)?.type === 'district';
+  };
+
+  return [...matches].sort((a, b) => Number(isDistrictChild(a)) - Number(isDistrictChild(b)))[0];
+};
+
+const buildNavigationCategoryHierarchy = (category: string, navItems: NavigationItem[]) => {
+  const currentItem = resolveCategoryNavItem(category, navItems);
+  if (!currentItem) return uniqueCategoryLabels([category]);
+
+  const itemById = new Map(navItems.map((item) => [item.id, item]));
+  const hierarchy: string[] = [];
+  const seen = new Set<string>();
+  let item: NavigationItem | undefined = currentItem;
+
+  while (item && !seen.has(item.id)) {
+    seen.add(item.id);
+    hierarchy.unshift(item.label);
+    item = item.parent_id && item.parent_id !== 'root'
+      ? itemById.get(item.parent_id)
+      : undefined;
+  }
+
+  return hierarchy.length > 0 ? uniqueCategoryLabels(hierarchy) : uniqueCategoryLabels([category]);
+};
+
+const REACTION_ASSET_BASE = '/admin/assets/assets/images/reactions';
 
 type QuizImageOrientation = 'unknown' | 'portrait' | 'wide';
 type LoadedQuizImageOrientation = Exclude<QuizImageOrientation, 'unknown'>;
@@ -1063,8 +1145,15 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
 };
 
 const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSettings, loading }) => {
+  const articleProgressRef = useRef<HTMLDivElement | null>(null);
+  const articleProgressEndRef = useRef<HTMLDivElement | null>(null);
+  const shareMenuRef = useRef<HTMLDivElement | null>(null);
+  const selectedEmojisRef = useRef<string[]>([]);
+  const reactionCountsRef = useRef<Record<string, number>>({});
   const [scrollProgress, setScrollProgress] = useState(0);
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
+  const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(null);
+  const [showShareMenu, setShowShareMenu] = useState(false);
   const [detailCounts, setDetailCounts] = useState({
     likes: data.likes || 0,
     dislikes: data.dislikes || 0,
@@ -1079,6 +1168,9 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   const showPostAuthor = siteSettings?.content_show_post_author !== false;
   const showPostDate = siteSettings?.content_show_post_date !== false;
   const showPostViewCount = siteSettings?.content_show_post_view_count !== false;
+  const commentsEnabled = siteSettings?.content_comment_system_enabled !== false;
+  const commentApprovalEnabled = siteSettings?.content_comment_approval_enabled !== false;
+  const emojiReactionsEnabled = siteSettings?.content_emoji_reactions_enabled !== false;
   const detailHref = getPostHref(data, siteSettings);
   const postPathSegment = getPostPathSegment(data, siteSettings);
 
@@ -1089,104 +1181,167 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     : '';
 
   const getUtmUrl = (source: string) => {
-    return `${shareUrl}?utm_source=${source}&utm_medium=social&utm_campaign=news_detail&utm_content=${postPathSegment || data.id}`;
+    return buildTrackedShareUrl(shareUrl, {
+      platform: source,
+      campaign: 'news_detail',
+      contentId: postPathSegment || data.id,
+    });
+  };
+
+  const getDetailShareText = () => {
+    return buildShareText({
+      title: data.title,
+      summary: data.summary,
+      category: data.category,
+      siteName: siteSettings?.site_name || 'Haber',
+      keywords: data.keywords || siteSettings?.meta_keywords,
+    });
   };
 
   const shareToTwitter = () => {
     void recordShare('twitter');
     const cleanTitle = stripHtml(data.title);
     const url = getUtmUrl('twitter');
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent('🔥 ' + cleanTitle)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
+    const hashtags = buildShareHashtags({
+      category: data.category,
+      siteName: siteSettings?.site_name,
+      keywords: data.keywords || siteSettings?.meta_keywords,
+    }, 3);
+    openShareWindow(buildXShareUrl({
+      text: cleanTitle,
+      url,
+      hashtags,
+      via: siteSettings?.twitter_username,
+    }));
+    setShowShareMenu(false);
   };
 
   const shareToFacebook = () => {
     void recordShare('facebook');
     const url = getUtmUrl('facebook');
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
+    openShareWindow(buildFacebookShareUrl({
+      url,
+      appId: siteSettings?.fb_app_id,
+      redirectUrl: shareUrl || url,
+    }));
+    setShowShareMenu(false);
   };
 
   const shareToInstagram = async () => {
     void recordShare('instagram');
-    const url = getUtmUrl('instagram');
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast(t('common.link_copied_instagram'), 'info');
-    } catch {
-      showToast(t('common.copy_failed'), 'error');
-    }
-    setTimeout(() => {
-      window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
-    }, 1000);
+    const copied = await copyLink(false, 'instagram');
+    showToast(copied ? t('common.link_copied_instagram') : t('common.copy_failed_alt'), copied ? 'info' : 'error');
+    window.setTimeout(() => openShareWindow('https://www.instagram.com/'), 1000);
+    setShowShareMenu(false);
   };
 
   const shareToWhatsApp = () => {
     void recordShare('whatsapp');
-    const cleanTitle = stripHtml(data.title);
-    const cleanSummary = stripHtml(data.summary).substring(0, 100);
+    const text = getDetailShareText();
     const url = getUtmUrl('whatsapp');
-    const message = cleanSummary
-      ? `📢 ${cleanTitle}\n\n"${cleanSummary}..."\n\n🔗 ${url}`
-      : `📢 ${cleanTitle}\n\n🔗 ${url}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+    openShareWindow(buildWhatsAppShareUrl(`${text}\n\n🔗 ${url}`));
+    setShowShareMenu(false);
   };
 
-  const copyLink = async (track = true) => {
-    if (track) void recordShare('copy_link');
-    const url = getUtmUrl('copy_link');
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast(t('common.link_copied'), 'success');
-    } catch (e) {
-      showToast(t('common.copy_failed'), 'error');
-    }
+  const shareToTelegram = () => {
+    void recordShare('telegram');
+    const text = getDetailShareText();
+    const url = getUtmUrl('telegram');
+    openShareWindow(buildTelegramShareUrl(url, text));
+    setShowShareMenu(false);
+  };
+
+  const shareToTikTok = async () => {
+    void recordShare('tiktok');
+    const copied = await copyLink(false, 'tiktok');
+    showToast(copied ? t('common.link_copied_tiktok') : t('common.copy_failed_alt'), copied ? 'info' : 'error');
+    window.setTimeout(() => openShareWindow('https://www.tiktok.com/'), 1000);
+    setShowShareMenu(false);
+  };
+
+  const copyLink = async (track = true, platform = 'copy_link', showNotification = false) => {
+    if (track) void recordShare(platform);
+    const url = getUtmUrl(platform);
+    const copied = await writeToClipboard(url);
+    if (showNotification) showToast(copied ? t('common.link_copied') : t('common.copy_failed_alt'), copied ? 'success' : 'error');
+    if (showShareMenu) setShowShareMenu(false);
+    return copied;
   };
 
   const handleNativeShare = async () => {
-    void recordShare('native');
+    void recordShare('nsosyal');
     const cleanTitle = stripHtml(data.title);
-    const cleanSummary = stripHtml(data.summary).substring(0, 100);
+    const text = getDetailShareText();
     const url = getUtmUrl('nsosyal');
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: cleanTitle,
-          text: `📢 ${cleanTitle}\n\n"${cleanSummary}..."`,
-          url: url,
+          text,
+          url,
         });
       } catch (e) {
-        copyLink(false);
+        if (!isShareAbortError(e)) {
+          const copied = await copyLink(false, 'nsosyal');
+          showToast(copied ? t('common.link_copied') : t('common.copy_failed_alt'), copied ? 'success' : 'error');
+          if (copied) window.setTimeout(() => openShareWindow('https://nsosyal.com/'), 600);
+        }
       }
     } else {
-      copyLink(false);
+      const copied = await copyLink(false, 'nsosyal');
+      showToast(copied ? t('common.link_copied') : t('common.copy_failed_alt'), copied ? 'success' : 'error');
+      if (copied) window.setTimeout(() => openShareWindow('https://nsosyal.com/'), 600);
     }
+    setShowShareMenu(false);
+  };
+
+  const handleShareMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setShowShareMenu((value) => !value);
   };
 
   // Emoji Reactions Config
   const MAX_REACTIONS = 3;
   const emojis = [
-    { id: 'bravo', emoji: '👏', label: t('reactions.bravo'), count: reactionCounts.bravo || 0 },
-    { id: 'dislike', emoji: '👎', label: t('reactions.dislike'), count: reactionCounts.dislike || 0 },
-    { id: 'love', emoji: '😍', label: t('reactions.love'), count: reactionCounts.love || 0 },
-    { id: 'sad', emoji: '🥺', label: t('reactions.sad'), count: reactionCounts.sad || 0 },
-    { id: 'great', emoji: '🙌', label: t('reactions.great'), count: reactionCounts.great || 0 },
-    { id: 'laugh', emoji: '😂', label: t('reactions.laugh'), count: reactionCounts.laugh || 0 },
-    { id: 'angry', emoji: '😡', label: t('reactions.angry'), count: reactionCounts.angry || 0 },
+    { id: 'love', image: 'reaction_like.webp', label: 'Beğendim', count: reactionCounts.love || 0, accent: '#E35D73' },
+    { id: 'great', image: 'reaction_illuminating.webp', label: 'Aydınlatıcı', count: reactionCounts.great || 0, accent: '#D98A34' },
+    { id: 'bravo', image: 'reaction_thoughtful.webp', label: 'Düşündürdü', count: reactionCounts.bravo || 0, accent: '#66789A' },
+    { id: 'laugh', image: 'reaction_surprised.webp', label: 'Şaşırttı', count: reactionCounts.laugh || 0, accent: '#36AFA2' },
+    { id: 'sad', image: 'reaction_saddened.webp', label: 'Üzdü', count: reactionCounts.sad || 0, accent: '#5B8FC8' },
+    { id: 'angry', image: 'reaction_angering.webp', label: 'Kızdırdı', count: reactionCounts.angry || 0, accent: '#D7634C' },
   ];
+  const totalReactions = emojis.reduce((sum, item) => sum + item.count, 0);
+
+  const syncReactionState = (nextSelected: string[], nextCounts: Record<string, number>) => {
+    selectedEmojisRef.current = nextSelected;
+    reactionCountsRef.current = nextCounts;
+    setSelectedEmojis(nextSelected);
+    setReactionCounts(nextCounts);
+  };
+
+  const showReactionLimitToast = () => {
+    showToast(`En fazla ${MAX_REACTIONS} kullanılabilir`, 'warning');
+  };
 
   const applyPostState = (result: any) => {
     if (result?.counts) {
-      setDetailCounts({
-        likes: result.counts.likes ?? detailCounts.likes,
-        dislikes: result.counts.dislikes ?? detailCounts.dislikes,
-        shares: result.counts.shares ?? detailCounts.shares,
-        saves: result.counts.saves ?? detailCounts.saves,
-        views: result.counts.views ?? detailCounts.views,
-      });
+      setDetailCounts((prev) => ({
+        likes: result.counts.likes ?? prev.likes,
+        dislikes: result.counts.dislikes ?? prev.dislikes,
+        shares: result.counts.shares ?? prev.shares,
+        saves: result.counts.saves ?? prev.saves,
+        views: result.counts.views ?? prev.views,
+      }));
     }
-    if (result?.reactions) setReactionCounts(result.reactions);
+    if (result?.reactions) {
+      reactionCountsRef.current = result.reactions;
+      setReactionCounts(result.reactions);
+    }
     if (result?.userState) {
-      setSelectedEmojis(result.userState.reactions || []);
+      const nextSelected = result.userState.reactions || [];
+      selectedEmojisRef.current = nextSelected;
+      setSelectedEmojis(nextSelected);
       setDetailState({
         liked: !!result.userState.liked,
         disliked: !!result.userState.disliked,
@@ -1204,10 +1359,34 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   };
 
   const toggleEmoji = async (id: string) => {
-    if (!selectedEmojis.includes(id) && selectedEmojis.length >= MAX_REACTIONS) return;
+    const previousSelected = selectedEmojisRef.current;
+    const previousCounts = reactionCountsRef.current;
+    const isSelected = previousSelected.includes(id);
+
+    if (!isSelected && previousSelected.length >= MAX_REACTIONS) {
+      showReactionLimitToast();
+      return;
+    }
+
+    const nextSelected = isSelected
+      ? previousSelected.filter((reactionId) => reactionId !== id)
+      : [...previousSelected, id];
+    const nextCounts = {
+      ...previousCounts,
+      [id]: Math.max(0, (previousCounts[id] || 0) + (isSelected ? -1 : 1)),
+    };
+
+    syncReactionState(nextSelected, nextCounts);
+
     try {
       applyPostState(await postAction('toggle_reaction', { postId: data.id, publisherId: data.publisherId, reaction: id }));
-    } catch {
+    } catch (error: any) {
+      syncReactionState(previousSelected, previousCounts);
+      const message = String(error?.message || '');
+      if (message.toLocaleLowerCase('tr-TR').includes('fazla') || message.includes(String(MAX_REACTIONS))) {
+        showReactionLimitToast();
+        return;
+      }
       showToast(t('auth.login_required_like'), 'info');
     }
   };
@@ -1237,42 +1416,66 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   };
 
   const getBreadcrumbs = () => {
-    const crumbs: { label: string; value: string }[] = [];
-    let currentCategory = data.category;
+    const storedHierarchy = getStoredCategoryHierarchy(data);
+    const hierarchy = storedHierarchy.length > 0
+      ? storedHierarchy
+      : buildNavigationCategoryHierarchy(data.category, navItems);
 
-    const findItem = (val: string) => navItems.find(item => item.value === val || item.label === val);
-
-    let item = findItem(currentCategory);
-    while (item) {
-      crumbs.unshift({ label: item.label, value: item.value });
-      if (item.parent_id && item.parent_id !== 'root') {
-        item = navItems.find(i => i.id === item?.parent_id);
-      } else {
-        item = undefined;
-      }
-    }
-
-    return crumbs;
+    return hierarchy.map((label) => ({ label, value: label }));
   };
 
   const breadcrumbs = getBreadcrumbs();
 
   useEffect(() => {
+    selectedEmojisRef.current = selectedEmojis;
+  }, [selectedEmojis]);
+
+  useEffect(() => {
+    reactionCountsRef.current = reactionCounts;
+  }, [reactionCounts]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target as Node)) {
+        setShowShareMenu(false);
+      }
+    };
+
+    if (showShareMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showShareMenu]);
+
+  useEffect(() => {
     const handleScroll = () => {
-      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = totalHeight > 0
-        ? Math.min(100, Math.max(0, (window.scrollY / totalHeight) * 100))
+      const progressRoot = articleProgressRef.current;
+      const progressEnd = articleProgressEndRef.current;
+      const navHeight = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--public-nav-height')
+      ) || 0;
+      const startY = progressRoot
+        ? Math.max(0, progressRoot.getBoundingClientRect().top + window.scrollY - navHeight)
         : 0;
+      const endY = progressEnd
+        ? Math.max(startY + 1, progressEnd.getBoundingClientRect().top + window.scrollY - window.innerHeight + navHeight)
+        : Math.max(startY + 1, document.documentElement.scrollHeight - window.innerHeight);
+      const progress = Math.min(100, Math.max(0, ((window.scrollY - startY) / (endY - startY)) * 100));
       setScrollProgress(progress);
     };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleScroll);
+    window.addEventListener('load', handleScroll);
     return () => {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
+      window.removeEventListener('load', handleScroll);
     };
-  }, []);
+  }, [data.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1360,9 +1563,24 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   const authorUrl = profileHref(data.publisherHandle);
   const displayAuthorName = titleCaseText(data.author || data.source || '');
   const publishedAt = formatPostDateParts(data.timestamp, currentLang?.code || 'tr');
+  const keywordTags = (data.keywords || '')
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  const visibleKeywordTags = keywordTags.slice(0, 8);
+  const hiddenKeywordCount = Math.max(0, keywordTags.length - visibleKeywordTags.length);
+  const shareMenuItems = [
+    { key: 'whatsapp', label: t('share.whatsapp'), icon: 'ri-whatsapp-fill', iconClass: 'text-[#25D366]', hoverClass: 'hover:bg-[#25D366]/10', onClick: shareToWhatsApp },
+    { key: 'telegram', label: t('share.telegram'), icon: 'ri-telegram-fill', iconClass: 'text-[#229ED9]', hoverClass: 'hover:bg-[#229ED9]/10', onClick: shareToTelegram },
+    { key: 'twitter', label: t('share.x_twitter'), icon: 'ri-twitter-x-fill', iconClass: 'text-[#0F1419]', hoverClass: 'hover:bg-black/5', onClick: shareToTwitter },
+    { key: 'facebook', label: t('share.facebook'), icon: 'ri-facebook-fill', iconClass: 'text-[#1877F2]', hoverClass: 'hover:bg-[#1877F2]/10', onClick: shareToFacebook },
+    { key: 'instagram', label: t('share.instagram'), icon: 'ri-instagram-fill', iconClass: 'text-[#E1306C]', hoverClass: 'hover:bg-[#E1306C]/10', onClick: shareToInstagram },
+    { key: 'tiktok', label: t('share.tiktok'), icon: 'ri-tiktok-fill', iconClass: 'text-[#0F1419]', hoverClass: 'hover:bg-black/5', onClick: shareToTikTok },
+    { key: 'nsosyal', label: t('share.nsosyal'), icon: 'ri-global-line', iconClass: 'text-palette-red', hoverClass: 'hover:bg-palette-red/5', onClick: handleNativeShare },
+  ];
 
   return (
-    <div className="animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
+    <div ref={articleProgressRef} className="animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
 
       {/* Reading Progress Bar */}
       <div className="fixed top-[var(--public-nav-height)] left-0 w-full h-1 z-[997] bg-gray-100/70 backdrop-blur-sm" aria-hidden="true">
@@ -1447,13 +1665,53 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
           </div>
 
           <div className="flex items-center gap-2 mt-4 md:mt-0">
-            <button
-              onClick={handleNativeShare}
-              className="flex items-center gap-2 px-5 py-2.5 bg-palette-maroon text-white rounded-[5px] text-xs font-black transition-all hover:bg-palette-red shadow-md active:scale-95"
-            >
-              <RemixIcon name="ri-share-forward-line" size={14} />
-              <span>{t('common.share')}</span>
-            </button>
+            <div className="relative" ref={shareMenuRef}>
+              <button
+                type="button"
+                onClick={handleShareMenu}
+                aria-expanded={showShareMenu}
+                className="flex items-center gap-2 px-5 py-2.5 bg-palette-maroon text-white rounded-[5px] text-xs font-black transition-all hover:bg-palette-red shadow-md active:scale-95"
+              >
+                <RemixIcon name="ri-share-forward-line" size={14} />
+                <span>{t('common.share')}</span>
+              </button>
+
+              {showShareMenu && (
+                <div
+                  className="absolute right-0 top-full mt-3 w-[220px] bg-white/95 backdrop-blur-xl rounded-[12px] shadow-[0_25px_60px_rgba(24,37,64,0.2)] border border-palette-beige/30 p-1.5 z-[99999] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-300"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="grid grid-cols-1 gap-0.5">
+                    {shareMenuItems.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={item.onClick}
+                        className={`w-full h-[38px] flex items-center gap-3 px-3 rounded-[8px] ${item.hoverClass} transition-all duration-300 group text-left`}
+                      >
+                        <span className={`w-[20px] h-[20px] flex items-center justify-center ${item.iconClass} transition-all group-hover:scale-110`}>
+                          <RemixIcon name={item.icon} size={20} />
+                        </span>
+                        <span className="text-[11px] font-bold text-gray-600 group-hover:text-gray-900 transition-colors">{item.label}</span>
+                      </button>
+                    ))}
+
+                    <div className="h-px bg-palette-beige/10 my-1 mx-2"></div>
+
+                    <button
+                      type="button"
+                      onClick={() => void copyLink(true, 'copy_link', true)}
+                      className="w-full h-[38px] flex items-center gap-3 px-3 rounded-[8px] hover:bg-palette-beige/10 transition-all duration-300 group text-left"
+                    >
+                      <span className="w-[20px] h-[20px] flex items-center justify-center text-palette-tan/60 transition-all group-hover:scale-110 group-hover:text-palette-tan">
+                        <RemixIcon name="ri-link" size={20} />
+                      </span>
+                      <span className="text-[11px] font-bold text-gray-600 group-hover:text-gray-900 transition-colors">{t('share.copy_link')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button onClick={onBack} className="p-2.5 bg-white border border-gray-200 text-gray-400 rounded-[5px] hover:text-palette-red transition-all">
               <RemixIcon name="ri-arrow-left-line" size={20} />
             </button>
@@ -1709,32 +1967,42 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
 
           {/* FAQ Section */}
           {data.faqData && data.faqData.length > 0 && (
-            <div className="mt-10 pt-8 border-t-2 border-palette-beige/50">
-              <div className="flex items-center justify-center gap-3 mb-6">
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-palette-beige/30 rounded-full border border-palette-beige">
-                  <RemixIcon name="ri-questionnaire-line" size={16} className="text-palette-tan" />
-                  <span className="text-[10px] font-bold text-palette-tan uppercase tracking-widest">{t('news.faq_title')}</span>
-                </div>
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
+            <div className="mt-8 border-t border-gray-100 pt-5">
+              <div className="mb-2 text-[10.5px] font-extrabold uppercase leading-none tracking-[0.06em] text-palette-tan/45">
+                FAQ
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-1.5">
                 {data.faqData.map((faq, idx) => (
-                  <div key={idx} className="bg-white rounded-[5px] border border-palette-beige/50 p-4 md:p-5 transition-all duration-300 hover:border-palette-tan/20 hover:shadow-[0_4px_15px_rgba(24,37,64,0.03)] group relative overflow-hidden">
-                    <div className="absolute -right-2 -top-4 text-[70px] font-black text-palette-beige/30 pointer-events-none group-hover:scale-[1.10] group-hover:text-palette-red/5 transition-transform duration-700 select-none">
-                      ?
-                    </div>
-                    <div className="flex flex-col gap-3 relative z-10">
-                      <div className="flex items-start gap-3">
-                        <span className="text-palette-red font-[900] text-[18px] leading-none mt-0.5 select-none opacity-80 group-hover:opacity-100 transition-opacity">Q.</span>
-                        <h4 className="text-base md:text-lg font-[900] text-palette-tan leading-tight tracking-tight pt-[1px]">{faq.q}</h4>
+                  <div
+                    key={idx}
+                    className={`rounded-[7px] border transition-colors duration-200 ${expandedFaqIndex === idx ? 'border-palette-beige bg-gray-50/80' : 'border-palette-beige/40 bg-gray-50/50'}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setExpandedFaqIndex((current) => current === idx ? null : idx)}
+                      aria-expanded={expandedFaqIndex === idx}
+                      className="flex w-full items-start gap-2 px-2.5 py-2 text-left"
+                    >
+                      <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-palette-red/5 text-[10px] font-black leading-none text-palette-red/60">
+                        ?
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-[1.2] text-gray-500/80">
+                        {faq.q}
+                      </span>
+                      <RemixIcon
+                        name="ri-arrow-down-s-line"
+                        size={16}
+                        className={`mt-0.5 shrink-0 text-palette-tan/45 transition-transform duration-200 ${expandedFaqIndex === idx ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {expandedFaqIndex === idx && (
+                      <div className="pb-3 pl-[34px] pr-6">
+                        <p className="text-[11.5px] font-medium leading-[1.45] text-gray-500">
+                          {faq.a}
+                        </p>
                       </div>
-                      <div className="pl-8">
-                        <div className="w-6 h-[2px] bg-palette-red/30 mb-3 group-hover:w-16 group-hover:bg-palette-red/60 transition-all duration-500"></div>
-                        <p className="text-[13px] md:text-[14px] text-gray-600 leading-[1.7] font-medium">{faq.a}</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1742,35 +2010,41 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
           )}
 
           {/* Keywords/Tags */}
-          {data.keywords && (
-            <div className="flex flex-wrap gap-2 mt-12 pb-6 border-b border-gray-50">
-              {data.keywords.split(',').map((tag, idx) => (
+          {visibleKeywordTags.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-gray-100 pb-5 text-[11.2px] leading-[1.2]">
+              <span className="font-medium text-gray-500/75">Etiketler:</span>
+              {visibleKeywordTags.map((tag, idx) => (
                 <button
                   key={idx}
-                  className="px-4 py-2 bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest rounded-[5px] hover:bg-gray-200 transition-all"
+                  type="button"
+                  className="font-medium text-gray-500/80 underline decoration-[#f59e0b]/25 decoration-[1.1px] underline-offset-2 transition-colors hover:text-gray-700/90"
                 >
                   #{tag.trim()}
                 </button>
               ))}
+              {hiddenKeywordCount > 0 && (
+                <span className="text-[10.8px] font-medium text-palette-tan/45">+{hiddenKeywordCount}</span>
+              )}
             </div>
           )}
 
           {/* Emoji Reactions Section */}
-          <div className="mt-10 pt-8 border-t-2 border-palette-beige/50">
-            {/* Header - Küçültülmüş */}
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-palette-beige/30 rounded-full border border-palette-beige">
-                <svg className="w-4 h-4 text-palette-tan" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
-                </svg>
-                <span className="text-[11px] font-bold text-palette-tan uppercase tracking-widest">{t('news.react_title')}</span>
+          <div className="mt-0 py-5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[4px] border border-gray-800/15 bg-gray-800/5 text-gray-800">
+                <RemixIcon name="ri-questionnaire-line" size={15} />
               </div>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[13px] font-black leading-tight text-gray-900">Emojiyle Tepki Ver</h3>
+                <p className="mt-0.5 text-[11.5px] font-semibold leading-tight text-palette-tan/55">Bu haber sana ne hissettirdi?</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-[4px] bg-gray-100 px-2 py-1 text-[11px] font-black text-gray-600">
+                <RemixIcon name="ri-group-line" size={12} />
+                <span>{totalReactions}</span>
+              </div>
             </div>
 
-            {/* Emoji Row - Tek Satır */}
-            <div className="flex items-center justify-center gap-2 md:gap-4 flex-nowrap overflow-visible pt-2 pb-2">
+            <div className="mt-5 flex w-full items-start gap-1">
               {emojis.map((item) => {
                 const isSelected = selectedEmojis.includes(item.id);
                 const isDisabled = !isSelected && selectedEmojis.length >= MAX_REACTIONS;
@@ -1778,57 +2052,73 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => void toggleEmoji(item.id)}
-                    disabled={isDisabled}
-                    className={`group relative flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all duration-300 flex-shrink-0
-                      ${isSelected
-                        ? 'bg-palette-red/5 border-2 border-palette-red shadow-lg shadow-palette-red/20 -translate-y-1'
-                        : 'bg-white border-2 border-transparent hover:border-palette-beige hover:bg-palette-beige/20 hover:-translate-y-1 hover:shadow-lg'
-                      }
-                      ${isDisabled ? 'opacity-40 cursor-not-allowed hover:translate-y-0 hover:shadow-none' : 'cursor-pointer'}
+                    aria-pressed={isSelected}
+                    data-reaction-limited={isDisabled ? 'true' : undefined}
+                    className={`news-detail-reaction-button group relative flex min-w-0 flex-1 flex-col items-center rounded-[8px] px-0 py-0 transition-opacity
+                      ${isDisabled ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'}
                     `}
                   >
-                    {/* Selected Check */}
-                    {isSelected && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-palette-red rounded-full flex items-center justify-center shadow-md">
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    )}
-
-                    <span className={`text-3xl md:text-4xl transition-transform duration-300 select-none ${isSelected ? 'scale-110' : 'group-hover:scale-110'}`}>
-                      {item.emoji}
+                    <div
+                      className="news-detail-reaction-disk relative flex h-[60px] w-[60px] items-center justify-center"
+                      style={{
+                        '--reaction-accent': item.accent,
+                      } as React.CSSProperties}
+                    >
+                      {isSelected && (
+                        <span
+                          className="absolute -right-0.5 -top-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-white text-white shadow-sm"
+                          style={{ background: item.accent }}
+                        >
+                          <RemixIcon name="ri-check-line" size={11} />
+                        </span>
+                      )}
+                      <span
+                        className="absolute inset-1 rounded-full border shadow-[0_3px_8px_rgba(24,37,64,0.08)]"
+                        style={{
+                          borderColor: isSelected ? 'transparent' : `${item.accent}33`,
+                          background: isSelected
+                            ? `radial-gradient(circle at 25% 15%, color-mix(in srgb, ${item.accent} 72%, white), color-mix(in srgb, ${item.accent} 92%, white) 55%, color-mix(in srgb, ${item.accent} 88%, black))`
+                            : `radial-gradient(circle at 25% 15%, color-mix(in srgb, ${item.accent} 10%, white), color-mix(in srgb, ${item.accent} 24%, white) 55%, color-mix(in srgb, ${item.accent} 24%, #f8fafc))`,
+                        }}
+                      />
+                      <img
+                        src={`${REACTION_ASSET_BASE}/${item.image}`}
+                        alt={item.label}
+                        width={46}
+                        height={46}
+                        loading="lazy"
+                        decoding="async"
+                        className="news-detail-reaction-image relative h-[46px] w-[46px] object-contain"
+                      />
+                    </div>
+                    <span className={`mt-2 text-[13.5px] font-extrabold leading-none ${isSelected ? '' : 'text-gray-600'}`} style={{ color: isSelected ? item.accent : undefined }}>
+                      {item.count}
                     </span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors ${isSelected ? 'text-palette-red' : 'text-palette-tan/40 group-hover:text-palette-tan'}`}>
+                    <span className={`mt-1 block h-[14px] max-w-full truncate text-center text-[10.3px] font-semibold leading-none text-palette-tan/55 ${isSelected ? 'font-extrabold' : ''}`} style={{ color: isSelected ? item.accent : undefined }}>
                       {item.label}
-                    </span>
-                    <span className={`text-sm font-black transition-colors ${isSelected ? 'text-palette-red' : 'text-palette-tan'}`}>
-                      {isSelected ? item.count + 1 : item.count}
                     </span>
                   </button>
                 );
               })}
             </div>
-
-            {/* Info Message */}
-            <p className={`text-center text-xs font-medium mt-4 transition-colors ${selectedEmojis.length >= MAX_REACTIONS ? 'text-palette-red' : 'text-palette-tan/40'}`}>
-              {selectedEmojis.length >= MAX_REACTIONS
-                ? t('reactions.max_reactions').replace('{max}', String(MAX_REACTIONS))
-                : t('reactions.remaining').replace('{remaining}', String(MAX_REACTIONS - selectedEmojis.length))
-              }
-            </p>
           </div>
+          <div ref={articleProgressEndRef} aria-hidden="true" />
 
-          {/* Comments Section */}
-          <div className="mt-10 pt-8 border-t border-gray-100">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-1 h-8 bg-palette-red rounded-full"></div>
-              <h3 className="text-xl font-black text-gray-900 tracking-tight">{t('news.share_thoughts')}</h3>
-              <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">{data.comments} {t('card.comments')}</span>
+          {commentsEnabled && (
+            <div className="mt-4">
+              <InlineCardComments
+                postId={data.id}
+                publisherId={data.publisherId}
+                totalCount={data.comments || 0}
+                commentApprovalEnabled={commentApprovalEnabled}
+                emojiEnabled={emojiReactionsEnabled}
+                loadImmediately
+                showGuidance
+              />
             </div>
-            <CommentSection postId={data.id} publisherId={data.publisherId} />
-          </div>
+          )}
 
         </article>
       </div>
@@ -1840,6 +2130,37 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       >
         <RemixIcon name="ri-arrow-right-s-line" size={20} className="-rotate-90" />
       </button>
+
+      <style>{`
+        @keyframes detail-reaction-bounce {
+          0% { transform: scale(1) rotate(0deg); }
+          35% { transform: scale(1.28) rotate(-5.73deg); }
+          70% { transform: scale(1.06) rotate(5.73deg); }
+          100% { transform: scale(1) rotate(0deg); }
+        }
+        @keyframes detail-reaction-ripple {
+          0% {
+            box-shadow: 0 0 0 0 color-mix(in srgb, var(--reaction-accent) 42%, transparent);
+          }
+          100% {
+            box-shadow: 0 0 0 20px color-mix(in srgb, var(--reaction-accent) 0%, transparent);
+          }
+        }
+        .news-detail-reaction-button:not([data-reaction-limited="true"]):hover .news-detail-reaction-disk,
+        .news-detail-reaction-button:not([data-reaction-limited="true"]):focus-visible .news-detail-reaction-disk {
+          animation: detail-reaction-bounce 540ms ease-out;
+        }
+        .news-detail-reaction-button:not([data-reaction-limited="true"]):active .news-detail-reaction-disk {
+          animation: detail-reaction-bounce 540ms ease-out, detail-reaction-ripple 540ms ease-out;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .news-detail-reaction-button:not([data-reaction-limited="true"]):hover .news-detail-reaction-disk,
+          .news-detail-reaction-button:not([data-reaction-limited="true"]):focus-visible .news-detail-reaction-disk,
+          .news-detail-reaction-button:not([data-reaction-limited="true"]):active .news-detail-reaction-disk {
+            animation: none;
+          }
+        }
+      `}</style>
 
     </div>
   );

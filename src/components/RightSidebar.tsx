@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NewsItem, type SiteSettings } from '@/types';
 import Skeleton from '@/components/ui/Skeleton';
-import { navigate } from 'astro:transitions/client';
 import { prefetch } from 'astro:prefetch';
 import { subscribeNewsletter } from '@/services/appActions';
 import { useToast } from '@/context/ToastContext';
 import { getPostHref } from '@/utils/postUrl';
+import { navigateImmediately } from '@/utils/immediateNavigation';
+import { isOpinionColumn } from '@/utils/opinionColumns';
+import { getProfileHref } from '@/utils/profileUrl';
 import RemixIcon from './ui/RemixIcon';
 
 interface RightSidebarProps {
@@ -31,6 +33,26 @@ type TrendingItem = {
    imageWidth?: number;
    imageHeight?: number;
 };
+type ColumnistItem = {
+   id: string;
+   title: string;
+   summary: string;
+   author: string;
+   handle: string;
+   avatar: string;
+   initials: string;
+   dateLabel: string;
+   href: string;
+   profileHref: string;
+};
+type SidebarSocialItem = {
+   key: string;
+   label: string;
+   href: string;
+   icon: string;
+   background: string;
+   shadowColor: string;
+};
 type WeatherMotionKind = 'clear-day' | 'clear-night' | 'cloudy' | 'fog' | 'rain' | 'snow' | 'storm';
 type DutyPharmacy = {
    id: string;
@@ -54,6 +76,21 @@ type DeathNotice = {
 };
 
 const SIDEBAR_TIMEZONE = 'Europe/Istanbul';
+
+const normalizeSidebarSocialUrl = (value: string | null | undefined) => {
+   const raw = String(value || '').trim();
+   if (!raw) return '';
+   const candidate = raw.startsWith('//')
+      ? `https:${raw}`
+      : (/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+
+   try {
+      const parsed = new URL(candidate);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : '';
+   } catch {
+      return '';
+   }
+};
 
 const withSidebarImageVariant = (src: string | null | undefined, width: number, quality = 82) => {
    const raw = String(src || '').trim();
@@ -97,6 +134,24 @@ const toReadableCase = (value: string, lang = 'tr') => {
    const upper = text.toLocaleUpperCase(locale);
    if (text !== upper) return text;
    return lower.replace(/(^|[.!?]\s+)(\p{L})/gu, (match) => match.toLocaleUpperCase(locale));
+};
+
+const sidebarNewsTime = (item: NewsItem) => {
+   const date = new Date(item.timestamp || '');
+   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const initialsForAuthor = (name: string) => {
+   const words = String(name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+   if (!words.length) return 'P';
+   return words
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join('')
+      .toLocaleUpperCase('tr-TR');
 };
 
 const getTrendingImage = (item: NewsItem) => {
@@ -246,6 +301,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    const [newsletterEmail, setNewsletterEmail] = useState('');
    const [newsletterLoading, setNewsletterLoading] = useState(false);
    const hasSidebarData = Boolean(initialSidebarData || liveSidebar || livePharmacyData || liveDeathData);
+   const hasInitialPharmacyData = Boolean(initialSidebarData?.dutyPharmacies);
+   const hasInitialDeathData = Boolean(initialSidebarData?.deathNotices);
 
    useEffect(() => {
       let isMounted = true;
@@ -282,14 +339,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             });
       };
 
-      fetchPharmacies();
+      if (!hasInitialPharmacyData) fetchPharmacies();
       const refreshTimer = window.setInterval(fetchPharmacies, 15 * 60 * 1000);
 
       return () => {
          isMounted = false;
          window.clearInterval(refreshTimer);
       };
-   }, []);
+   }, [hasInitialPharmacyData]);
 
    useEffect(() => {
       let isMounted = true;
@@ -304,14 +361,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             });
       };
 
-      fetchDeathNotices();
+      if (!hasInitialDeathData) fetchDeathNotices();
       const refreshTimer = window.setInterval(fetchDeathNotices, 30 * 60 * 1000);
 
       return () => {
          isMounted = false;
          window.clearInterval(refreshTimer);
       };
-   }, []);
+   }, [hasInitialDeathData]);
 
    const formatMetric = (value: number) => {
       return new Intl.NumberFormat(currentLang.code || 'tr', {
@@ -323,6 +380,148 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
       Math.max(Number(siteSettings?.content_popular_post_limit || 4), 1),
       12
    );
+   const socialFollowLabel = String(currentLang.code || '').toLowerCase().startsWith('en') ? 'Follow' : 'Takip et';
+   const socialLinks = useMemo<SidebarSocialItem[]>(() => {
+      const candidates: Array<Omit<SidebarSocialItem, 'href'> & { url?: string }> = [
+         {
+            key: 'instagram',
+            label: 'Instagram',
+            url: siteSettings?.social_instagram_url,
+            icon: 'ri-instagram-fill',
+            background: 'linear-gradient(135deg, #833AB4 0%, #E1306C 48%, #F77737 100%)',
+            shadowColor: 'rgba(225,48,108,0.28)',
+         },
+         {
+            key: 'facebook',
+            label: 'Facebook',
+            url: siteSettings?.social_facebook_url,
+            icon: 'ri-facebook-fill',
+            background: 'linear-gradient(135deg, #1877F2 0%, #0B5FCC 100%)',
+            shadowColor: 'rgba(24,119,242,0.24)',
+         },
+         {
+            key: 'x',
+            label: 'X',
+            url: siteSettings?.social_x_url,
+            icon: 'ri-twitter-x-fill',
+            background: 'linear-gradient(135deg, #111827 0%, #030712 100%)',
+            shadowColor: 'rgba(17,24,39,0.22)',
+         },
+         {
+            key: 'youtube',
+            label: 'YouTube',
+            url: siteSettings?.social_youtube_url,
+            icon: 'ri-youtube-fill',
+            background: 'linear-gradient(135deg, #FF0033 0%, #C90000 100%)',
+            shadowColor: 'rgba(255,0,51,0.24)',
+         },
+         {
+            key: 'tiktok',
+            label: 'TikTok',
+            url: siteSettings?.social_tiktok_url,
+            icon: 'ri-tiktok-fill',
+            background: 'linear-gradient(135deg, #111827 0%, #000000 64%, #00F2EA 160%)',
+            shadowColor: 'rgba(0,0,0,0.22)',
+         },
+         {
+            key: 'whatsapp',
+            label: 'WhatsApp',
+            url: siteSettings?.social_whatsapp_url,
+            icon: 'ri-whatsapp-fill',
+            background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+            shadowColor: 'rgba(37,211,102,0.24)',
+         },
+         {
+            key: 'telegram',
+            label: 'Telegram',
+            url: siteSettings?.social_telegram_url,
+            icon: 'ri-telegram-fill',
+            background: 'linear-gradient(135deg, #2AABEE 0%, #229ED9 100%)',
+            shadowColor: 'rgba(34,158,217,0.24)',
+         },
+         {
+            key: 'linkedin',
+            label: 'LinkedIn',
+            url: siteSettings?.social_linkedin_url,
+            icon: 'ri-linkedin-fill',
+            background: 'linear-gradient(135deg, #0A66C2 0%, #004182 100%)',
+            shadowColor: 'rgba(10,102,194,0.24)',
+         },
+         {
+            key: 'pinterest',
+            label: 'Pinterest',
+            url: siteSettings?.social_pinterest_url,
+            icon: 'ri-pinterest-fill',
+            background: 'linear-gradient(135deg, #E60023 0%, #B6001C 100%)',
+            shadowColor: 'rgba(230,0,35,0.24)',
+         },
+         {
+            key: 'discord',
+            label: 'Discord',
+            url: siteSettings?.social_discord_url,
+            icon: 'ri-discord-fill',
+            background: 'linear-gradient(135deg, #5865F2 0%, #404EED 100%)',
+            shadowColor: 'rgba(88,101,242,0.24)',
+         },
+      ];
+
+      return candidates.reduce<SidebarSocialItem[]>((items, item) => {
+         const href = normalizeSidebarSocialUrl(item.url);
+         if (!href) return items;
+         items.push({
+            key: item.key,
+            label: item.label,
+            href,
+            icon: item.icon,
+            background: item.background,
+            shadowColor: item.shadowColor,
+         });
+         return items;
+      }, []);
+   }, [
+      siteSettings?.social_discord_url,
+      siteSettings?.social_facebook_url,
+      siteSettings?.social_instagram_url,
+      siteSettings?.social_linkedin_url,
+      siteSettings?.social_pinterest_url,
+      siteSettings?.social_telegram_url,
+      siteSettings?.social_tiktok_url,
+      siteSettings?.social_whatsapp_url,
+      siteSettings?.social_x_url,
+      siteSettings?.social_youtube_url,
+   ]);
+
+   const opinionColumns = useMemo<ColumnistItem[]>(() => {
+      return (newsData || [])
+         .filter((item) => item?.title && isOpinionColumn(item))
+         .sort((a, b) => sidebarNewsTime(b) - sidebarNewsTime(a))
+         .slice(0, 3)
+         .map((item) => {
+            const author = String(item.author || item.source || 'Pateez').trim();
+            const date = new Date(item.timestamp || '');
+            const dateLabel = Number.isNaN(date.getTime())
+               ? ''
+               : new Intl.DateTimeFormat(currentLang.code || 'tr', {
+                  day: '2-digit',
+                  month: 'short',
+                  timeZone: SIDEBAR_TIMEZONE,
+               }).format(date);
+            const handle = String(item.publisherHandle || '').trim();
+
+            return {
+               id: String(item.id || ''),
+               title: String(item.title || ''),
+               summary: String(item.summary || item.seoDescription || ''),
+               author,
+               handle,
+               avatar: String(item.sourceAvatar || ''),
+               initials: initialsForAuthor(author),
+               dateLabel,
+               href: getPostHref(item, siteSettings),
+               profileHref: getProfileHref(handle),
+            };
+         });
+   }, [currentLang.code, newsData, siteSettings]);
 
    const fallbackTrending = useMemo<TrendingItem[]>(() => [
       { id: '01', title: t('right.trending.01.title'), hits: '128K', category: t('right.trending.01.category'), rising: true, href: '' },
@@ -334,6 +533,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    const trending = useMemo<TrendingItem[]>(() => {
       const source = (newsData || [])
          .filter((item) => item?.title)
+         .filter((item) => !isOpinionColumn(item))
          .sort((a, b) => {
             const bScore = (b.views || 0) + (b.likes || 0) + ((b.comments || 0) * 2) + (b.shares || 0);
             const aScore = (a.views || 0) + (a.likes || 0) + ((a.comments || 0) * 2) + (a.shares || 0);
@@ -477,7 +677,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
 
    const openHref = (href?: string) => {
       if (!href) return;
-      void navigate(href);
+      void navigateImmediately(href);
+   };
+
+   const openNestedHref = (event: React.MouseEvent, href?: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openHref(href);
    };
 
    const handleNewsletterSubmit = async (event: React.FormEvent) => {
@@ -644,7 +850,134 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             </div>
          </div>
 
-         {/* 2. Gündem (Trending) */}
+         {/* 2. Sosyal Medya */}
+         {socialLinks.length > 0 && (
+            <div className={`order-first grid gap-2 ${socialLinks.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+               {socialLinks.map((item) => (
+                  <a
+                     key={item.key}
+                     href={item.href}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     aria-label={`${item.label} ${socialFollowLabel}`}
+                     className="group relative flex min-h-[44px] min-w-0 items-center gap-2 overflow-hidden rounded-[5px] px-3 py-2 text-left text-white shadow-[0_10px_24px_-18px_rgba(24,37,64,0.45)] transition-all duration-150 hover:-translate-y-0.5 hover:brightness-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-palette-red/25"
+                     style={{
+                        background: item.background,
+                        boxShadow: `0 10px 24px -18px ${item.shadowColor}`,
+                     }}
+                  >
+                     <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.03)_42%,rgba(0,0,0,0.10)_100%)] opacity-90 transition-opacity group-hover:opacity-100"></span>
+                     <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-[5px] bg-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]">
+                        <RemixIcon name={item.icon} size={16} />
+                     </span>
+                     <span className="relative min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-semibold leading-tight tracking-normal text-white">
+                           {item.label}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[10px] font-medium leading-tight tracking-normal text-white/70">
+                           {socialFollowLabel}
+                        </span>
+                     </span>
+                  </a>
+               ))}
+            </div>
+         )}
+
+         {/* 2. Köşe Yazarları */}
+         {opinionColumns.length > 0 && (
+            <div className="order-first overflow-hidden rounded-[5px] bg-white shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)]">
+               <div className="border-b border-palette-beige/30 bg-white px-5 pb-3 pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                     <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-1.5 w-1.5 rounded-[5px] bg-palette-accent"></div>
+                        <h3 className="text-[13px] font-semibold tracking-[0.02em] text-gray-800">
+                           {t('right.columnists')}
+                        </h3>
+                     </div>
+                     <button
+                        type="button"
+                        onClick={() => openHref('/kategori/kose-yazisi')}
+                        className="shrink-0 text-[10px] font-medium tracking-normal text-palette-tan/55 transition-colors hover:text-palette-red"
+                     >
+                        {t('right.all')}
+                     </button>
+                  </div>
+               </div>
+
+               <div className="space-y-5 px-5 pb-5 pt-4">
+                  {opinionColumns.map((item, idx) => (
+                     <button
+                        key={item.id || idx}
+                        type="button"
+                        onClick={() => openHref(item.href)}
+                        onMouseEnter={() => item.href && prefetch(item.href)}
+                        className="group w-full rounded-[5px] bg-[linear-gradient(135deg,#fffaf2_0%,#ffffff_46%,#f8fafc_100%)] px-1 py-1 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-white"
+                     >
+                        <h4 className="break-words text-[18px] font-[900] leading-[1.16] tracking-normal text-gray-950 transition-colors group-hover:text-palette-red" style={{ fontFamily: 'var(--site-font-title, var(--site-font-primary, inherit))' }}>
+                           {item.title}
+                        </h4>
+                        {item.summary && (
+                           <p className="mt-2 break-words text-[12.5px] font-medium leading-[1.55] text-gray-500">
+                              {item.summary}
+                           </p>
+                        )}
+
+                        <div className="mt-4 flex items-end justify-between gap-3">
+                           <div
+                              onClick={(event) => openNestedHref(event, item.profileHref)}
+                              className="min-w-0 flex-1 cursor-pointer"
+                           >
+                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                                 <span className="break-words text-[12px] font-black leading-tight text-[#2f6f9f]">
+                                    {item.author}
+                                 </span>
+                                 <RemixIcon name="ri-verified-badge-fill" size={13} className="shrink-0 text-palette-red" />
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium leading-tight text-palette-tan/60">
+                                 {item.handle && <span className="break-words">@{item.handle}</span>}
+                                 {item.dateLabel && (
+                                    <>
+                                       <span className="h-1 w-1 rounded-full bg-palette-tan/25"></span>
+                                       <span>{item.dateLabel}</span>
+                                    </>
+                                 )}
+                              </div>
+                           </div>
+
+                           <div
+                              onClick={(event) => openNestedHref(event, item.profileHref)}
+                              className="relative h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-full bg-white p-[2px] shadow-[0_8px_22px_rgba(24,37,64,0.10)]"
+                           >
+                              {item.avatar ? (
+                                 <img
+                                    src={item.avatar}
+                                    alt={item.author}
+                                    loading={idx === 0 ? 'eager' : 'lazy'}
+                                    decoding="async"
+                                    className="h-full w-full rounded-full object-cover"
+                                 />
+                              ) : (
+                                 <span className="flex h-full w-full items-center justify-center rounded-full bg-palette-beige/40 text-[12px] font-black text-palette-tan">
+                                    {item.initials}
+                                 </span>
+                              )}
+                           </div>
+                        </div>
+                     </button>
+                  ))}
+               </div>
+
+               <button
+                  type="button"
+                  onClick={() => openHref('/kategori/kose-yazisi')}
+                  className="w-full border-t border-palette-beige/30 px-4 py-4 text-[11px] font-semibold tracking-normal text-palette-tan/55 transition-all hover:bg-palette-beige/20 hover:text-gray-800"
+               >
+                  {t('right.read_all_columnists')}
+               </button>
+            </div>
+         )}
+
+         {/* 3. Gündem (Trending) */}
          <div className="order-first bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
             <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-palette-beige/30 bg-white">
                <div className="flex items-center gap-3">
@@ -716,7 +1049,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                   <div className="w-1.5 h-1.5 bg-palette-tan/20 rounded-[5px]"></div>
                   <h3 className="font-semibold text-gray-800 tracking-[0.02em] text-[13px]">{t('right.markets')}</h3>
                </div>
-               <button onClick={() => openHref('/kategori/ekonomi')} className="text-[10px] font-medium text-palette-tan/50 hover:text-palette-red uppercase tracking-widest transition-colors">{t('right.all')}</button>
+               <button onClick={() => openHref('/kategori/ekonomi')} className="text-[10px] font-medium tracking-normal text-palette-tan/50 transition-colors hover:text-palette-red">{t('right.all')}</button>
             </div>
             <div className="p-3 space-y-1.5">
                {markets.map((m, i) => (

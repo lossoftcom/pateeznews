@@ -5,13 +5,20 @@ import { getRelativeTime } from '@/utils/helpers';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import RemixIcon from './ui/RemixIcon';
+import type { EmojiClickData } from 'emoji-picker-react';
 
 const GUEST_NAME_KEY = 'pateez_guest_comment_name';
 const GUEST_EMAIL_KEY = 'pateez_guest_comment_email';
 const COLLAPSED_LIMIT = 2;
 const EXPANDED_LIMIT = 20;
 const COMMENT_MAX_LENGTH = 2000;
-const EMOJI_CHOICES = ['😀', '😄', '😂', '😍', '👏', '🙌', '👍', '👎', '🔥', '❤️', '😮', '😢', '😡', '🤔', '🙏', '🎉'];
+const COMMENT_GUIDANCE_TEXT = "Pateez.com'da paylaştığın yorumlar haber tartışmasına katkı sağlar. Farklı görüşlere saygılı kal; hakaret, hedef gösterme ve ayrımcı ifadeler kullanma.";
+
+const EmojiPicker = React.lazy(async () => {
+  const module = await import('emoji-picker-react');
+  const Picker = (module.default as any).default || module.default;
+  return { default: Picker as React.ComponentType<any> };
+});
 
 interface InlineCommentAuthor {
   id: string;
@@ -47,6 +54,8 @@ interface InlineCardCommentsProps {
   publisherId?: string;
   commentApprovalEnabled?: boolean;
   emojiEnabled?: boolean;
+  loadImmediately?: boolean;
+  showGuidance?: boolean;
 }
 
 interface InlineProfileCache {
@@ -79,12 +88,14 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
   totalCount,
   commentApprovalEnabled = true,
   emojiEnabled = true,
+  loadImmediately = false,
+  showGuidance = false,
 }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
   const [comments, setComments] = useState<InlineComment[]>([]);
   const [expanded, setExpanded] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(loadImmediately || totalCount > 0);
   const [submitting, setSubmitting] = useState(false);
   const [busyCommentId, setBusyCommentId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<InlineComment | null>(null);
@@ -124,7 +135,12 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
         setProfile(readProfileCache());
       }
       const sessionPromise = supabase.auth.getSession();
-      void loadComments(COLLAPSED_LIMIT);
+      if (loadImmediately || totalCount > 0) {
+        void loadComments(COLLAPSED_LIMIT);
+      } else {
+        setComments([]);
+        setLoading(false);
+      }
       const { data } = await sessionPromise;
       if (!mounted) return;
       setUser(data.session?.user || null);
@@ -140,7 +156,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [postId, loadComments]);
+  }, [postId, loadComments, loadImmediately, totalCount]);
 
   useEffect(() => {
     const handleOutside = (event: MouseEvent) => {
@@ -192,6 +208,10 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setNewComment((value) => `${value}${emojiData.emoji}`);
   };
 
   const handleToggleExpanded = async () => {
@@ -359,19 +379,19 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
               </button>
               {showEmojiPicker && (
                 <div
-                  className="absolute bottom-full right-0 z-[240] mb-2 grid w-[220px] grid-cols-8 gap-1 rounded-[12px] border border-palette-beige/40 bg-white p-2 shadow-2xl"
+                  className="absolute bottom-full right-0 z-[240] mb-2 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
                   data-inline-emoji-panel
                 >
-                  {EMOJI_CHOICES.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setNewComment((value) => `${value}${emoji}`)}
-                      className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[17px] hover:bg-gray-100 transition-colors"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+                  <React.Suspense fallback={null}>
+                    <EmojiPicker
+                      onEmojiClick={handleEmojiClick}
+                      autoFocusSearch={false}
+                      theme="light"
+                      searchPlaceholder={t('comments.emoji_search_placeholder')}
+                      width={300}
+                      height={400}
+                    />
+                  </React.Suspense>
                 </div>
               )}
             </div>
@@ -386,6 +406,11 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
             {submitting ? 'Gönderiliyor' : 'Gönder'}
           </button>
         </div>
+        {showGuidance && (
+          <p className="mt-3 max-w-[620px] text-[11px] font-medium leading-[1.35] text-palette-tan/45">
+            {COMMENT_GUIDANCE_TEXT}
+          </p>
+        )}
       </div>
     </div>
   );

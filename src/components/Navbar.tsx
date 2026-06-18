@@ -1,11 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { navigate } from 'astro:transitions/client';
 import { prefetch } from 'astro:prefetch';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NavigationItem, type SiteSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
 import { getPostHref } from '@/utils/postUrl';
+import { navigateImmediately, updateUrlImmediately } from '@/utils/immediateNavigation';
 import RemixIcon from './ui/RemixIcon';
 import {
   SPECIAL_CONTENT_FILTERS,
@@ -29,11 +29,11 @@ interface NavbarProps {
 }
 
 const APPLE_NAV_FONT = 'var(--site-font-primary, "PateezAppleText"), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
-const DESKTOP_NAV_ITEM_CLASS = 'relative h-full flex items-center gap-1.5 px-0.5 text-[13px] font-medium tracking-[0.055em] whitespace-nowrap transition-all group text-gray-600 hover:text-palette-red';
+const DESKTOP_NAV_ITEM_BASE_CLASS = 'relative h-full flex items-center gap-1.5 px-0.5 text-[13px] font-medium tracking-[0.055em] whitespace-nowrap transition-all group focus:outline-none focus-visible:text-palette-red';
 const MOBILE_NAV_ITEM_CLASS = 'w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[13px] font-black tracking-widest text-gray-500 hover:bg-palette-beige/10 hover:text-palette-red';
 const DESKTOP_NAV_ICON_SIZE = 17;
 const MOBILE_NAV_ICON_SIZE = '19px';
-const DESKTOP_NAV_ICON_CLASS = 'transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-95';
+const DESKTOP_NAV_ICON_BASE_CLASS = 'transition-all duration-100 group-hover:-translate-y-0.5 group-hover:opacity-95';
 const NAV_ICON_THIN_STYLE: React.CSSProperties = { fontWeight: 300, lineHeight: 1 };
 const SHOW_MOBILE_TOP_NAVIGATION = false;
 const REMIX_ICON_BY_MATERIAL: Record<string, string> = {
@@ -65,6 +65,27 @@ const remixIconFor = (icon?: string) => {
   return REMIX_ICON_BY_MATERIAL[key] || 'ri-arrow-right-s-line';
 };
 
+const desktopNavItemClass = (isActive: boolean) => (
+  `${DESKTOP_NAV_ITEM_BASE_CLASS} ${isActive ? 'text-palette-red' : 'text-gray-600 hover:text-palette-red'}`
+);
+
+const desktopNavIconClass = (isActive: boolean) => (
+  `${DESKTOP_NAV_ICON_BASE_CLASS} ${isActive ? 'opacity-95' : 'opacity-60'}`
+);
+
+const normalizePath = (path: string) => {
+  const cleanPath = path.split('?')[0].replace(/\/+$/, '');
+  return cleanPath || '/';
+};
+
+const readCurrentLocation = () => {
+  if (typeof window === 'undefined') return { pathname: '', search: '' };
+  return {
+    pathname: window.location.pathname || '/',
+    search: window.location.search || '',
+  };
+};
+
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
   onProfileClick,
@@ -85,6 +106,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<{ posts: any[]; profiles: any[] }>({ posts: [], profiles: [] });
+  const [currentLocation, setCurrentLocation] = useState({ pathname: '', search: '' });
   const langMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -138,7 +160,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
   const goHome = () => {
     if (onHomeClick) return onHomeClick();
-    void navigate('/');
+    void navigateImmediately('/');
   };
 
   const navigateHeaderItem = (item: NavigationItem) => {
@@ -149,20 +171,21 @@ const Navbar: React.FC<NavbarProps> = ({
       return;
     }
     if (raw.startsWith('/')) {
-      void navigate(raw);
+      void navigateImmediately(raw);
       return;
     }
-    void navigate(`/kategori/${slugify(raw)}`);
+    void navigateImmediately(`/kategori/${slugify(raw)}`);
   };
 
   const navigateSpecialContent = (config: SpecialContentConfig) => {
     const href = getSpecialContentUrl(config.value);
     if (typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '')) {
-      window.history.pushState({}, '', href);
+      updateUrlImmediately(href);
+      setCurrentLocation(readCurrentLocation());
       window.dispatchEvent(new CustomEvent('pateez:content-filter', { detail: { category: config.value } }));
       return;
     }
-    void navigate(href);
+    void navigateImmediately(href);
   };
 
   const prefetchHeaderItem = (item: NavigationItem) => {
@@ -194,6 +217,22 @@ const Navbar: React.FC<NavbarProps> = ({
   }, [showLangMenu, showUserMenu]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncCurrentLocation = () => setCurrentLocation(readCurrentLocation());
+
+    syncCurrentLocation();
+    window.addEventListener('popstate', syncCurrentLocation);
+    window.addEventListener('pateez:content-filter', syncCurrentLocation as EventListener);
+    document.addEventListener('astro:page-load', syncCurrentLocation);
+
+    return () => {
+      window.removeEventListener('popstate', syncCurrentLocation);
+      window.removeEventListener('pateez:content-filter', syncCurrentLocation as EventListener);
+      document.removeEventListener('astro:page-load', syncCurrentLocation);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isSearchOpen || searchTerm.trim().length < 2) {
       setSearchResults({ posts: [], profiles: [] });
       return;
@@ -223,7 +262,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const openSearchResult = (href: string) => {
     setIsSearchOpen(false);
     setSearchTerm('');
-    void navigate(href);
+    void navigateImmediately(href);
   };
 
   const handleSearchSubmit = (event: React.FormEvent) => {
@@ -239,6 +278,34 @@ const Navbar: React.FC<NavbarProps> = ({
       return;
     }
     if (searchTerm.trim()) openSearchResult(`/kategori/${slugify(searchTerm.trim())}`);
+  };
+
+  const activeQueryCategory = new URLSearchParams(currentLocation.search).get('kategori');
+  const activePath = currentLocation.pathname ? normalizePath(currentLocation.pathname) : '';
+  const activeCategorySlug = activePath.startsWith('/kategori/')
+    ? activePath.split('/').filter(Boolean)[1] || ''
+    : '';
+
+  const isSpecialActive = (config: SpecialContentConfig) => {
+    const queryConfig = getSpecialContentConfig(activeQueryCategory);
+    if (queryConfig?.key === config.key) return true;
+    const pathConfig = getSpecialContentConfig(activeCategorySlug);
+    return pathConfig?.key === config.key;
+  };
+
+  const isHeaderItemActive = (item: NavigationItem, config?: SpecialContentConfig | null) => {
+    if (config) return isSpecialActive(config);
+
+    const raw = (item.value || item.label || '').trim();
+    if (!raw || raw.startsWith('http://') || raw.startsWith('https://')) return false;
+
+    if (raw.startsWith('/')) {
+      const targetPath = normalizePath(raw);
+      if (targetPath === '/') return activePath === '/' && !activeQueryCategory;
+      return activePath === targetPath || activePath.startsWith(`${targetPath}/`);
+    }
+
+    return activeCategorySlug === slugify(raw);
   };
 
   return (
@@ -297,10 +364,11 @@ const Navbar: React.FC<NavbarProps> = ({
               <button
                 onClick={goHome}
                 onMouseEnter={() => prefetch('/')}
-                className={DESKTOP_NAV_ITEM_CLASS}
+                className={desktopNavItemClass(activePath === '/' && !activeQueryCategory)}
+                aria-current={activePath === '/' && !activeQueryCategory ? 'page' : undefined}
                 style={{ fontFamily: APPLE_NAV_FONT }}
               >
-                <RemixIcon name="ri-home-5-line" size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
+                <RemixIcon name="ri-home-5-line" size={DESKTOP_NAV_ICON_SIZE} className={desktopNavIconClass(activePath === '/' && !activeQueryCategory)} style={NAV_ICON_THIN_STYLE} />
                 <span>{t('nav.home')}</span>
               </button>
             )}
@@ -308,49 +376,59 @@ const Navbar: React.FC<NavbarProps> = ({
             {hasExplicitTopNav ? explicitTopNavItems.map((item) => {
               const config = getSpecialContentConfig(item.value, item.label);
               const icon = item.icon || config?.icon || '';
+              const isActive = isHeaderItemActive(item, config);
               return (
                 <button
                   key={item.id}
                   onClick={() => config ? navigateSpecialContent(config) : navigateHeaderItem(item)}
                   onMouseEnter={() => config ? prefetchSpecialContent(config) : prefetchHeaderItem(item)}
-                  className={DESKTOP_NAV_ITEM_CLASS}
+                  className={desktopNavItemClass(isActive)}
+                  aria-current={isActive ? 'page' : undefined}
                   style={{ fontFamily: APPLE_NAV_FONT }}
                 >
                   {icon && (
-                    <RemixIcon name={remixIconFor(icon)} size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
+                    <RemixIcon name={remixIconFor(icon)} size={DESKTOP_NAV_ICON_SIZE} className={desktopNavIconClass(isActive)} style={NAV_ICON_THIN_STYLE} />
                   )}
                   <span>{t(item.label || config?.label || '')}</span>
                 </button>
               );
             }) : (
               <>
-                {specialHeaderItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => navigateSpecialContent(item.config)}
-                    onMouseEnter={() => prefetchSpecialContent(item.config)}
-                    className={DESKTOP_NAV_ITEM_CLASS}
-                    style={{ fontFamily: APPLE_NAV_FONT }}
-                  >
-                    <RemixIcon name={remixIconFor(item.icon)} size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
-                    <span>{t(item.label)}</span>
-                  </button>
-                ))}
+                {specialHeaderItems.map((item) => {
+                  const isActive = isSpecialActive(item.config);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => navigateSpecialContent(item.config)}
+                      onMouseEnter={() => prefetchSpecialContent(item.config)}
+                      className={desktopNavItemClass(isActive)}
+                      aria-current={isActive ? 'page' : undefined}
+                      style={{ fontFamily: APPLE_NAV_FONT }}
+                    >
+                      <RemixIcon name={remixIconFor(item.icon)} size={DESKTOP_NAV_ICON_SIZE} className={desktopNavIconClass(isActive)} style={NAV_ICON_THIN_STYLE} />
+                      <span>{t(item.label)}</span>
+                    </button>
+                  );
+                })}
 
-                {headerItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => navigateHeaderItem(item)}
-                    onMouseEnter={() => prefetchHeaderItem(item)}
-                    className={DESKTOP_NAV_ITEM_CLASS}
-                    style={{ fontFamily: APPLE_NAV_FONT }}
-                  >
-                    {item.icon && (
-                      <RemixIcon name={remixIconFor(item.icon)} size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
-                    )}
-                    <span>{t(item.label)}</span>
-                  </button>
-                ))}
+                {headerItems.map((item) => {
+                  const isActive = isHeaderItemActive(item);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => navigateHeaderItem(item)}
+                      onMouseEnter={() => prefetchHeaderItem(item)}
+                      className={desktopNavItemClass(isActive)}
+                      aria-current={isActive ? 'page' : undefined}
+                      style={{ fontFamily: APPLE_NAV_FONT }}
+                    >
+                      {item.icon && (
+                        <RemixIcon name={remixIconFor(item.icon)} size={DESKTOP_NAV_ICON_SIZE} className={desktopNavIconClass(isActive)} style={NAV_ICON_THIN_STYLE} />
+                      )}
+                      <span>{t(item.label)}</span>
+                    </button>
+                  );
+                })}
               </>
             )}
           </nav>

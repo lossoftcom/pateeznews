@@ -1,0 +1,1173 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - img "Pateez.com" [ref=e7] [cursor=pointer]
+      - navigation [ref=e8]:
+        - button "Ana Sayfa" [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]: 
+          - generic [ref=e11]: Ana Sayfa
+        - button "Anket" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]: 
+          - generic [ref=e14]: Anket
+        - button "Test" [ref=e15] [cursor=pointer]:
+          - generic [ref=e16]: 
+          - generic [ref=e17]: Test
+        - button "Video" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: 
+          - generic [ref=e20]: Video
+        - button "İçindekiler" [ref=e21] [cursor=pointer]:
+          - generic [ref=e22]: 
+          - generic [ref=e23]: İçindekiler
+        - button "Tarif" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: 
+          - generic [ref=e26]: Tarif
+        - button "Etkinlik" [ref=e27] [cursor=pointer]:
+          - generic [ref=e28]: 
+          - generic [ref=e29]: Etkinlik
+      - generic [ref=e30]:
+        - button [ref=e31] [cursor=pointer]:
+          - generic [ref=e32]: 
+        - text:  
+        - button [ref=e34] [cursor=pointer]:
+          - generic [ref=e36]: 
+    - generic [ref=e39]:
+      - generic [ref=e41]: 
+      - textbox "Haber ara..." [ref=e42]
+      - button [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: 
+  - main [ref=e48]:
+    - complementary [ref=e49]:
+      - generic [ref=e50]:
+        - generic [ref=e52]:
+          - button "Niğde" [ref=e53] [cursor=pointer]:
+            - generic [ref=e54]:
+              - generic [ref=e56]: 
+              - generic [ref=e57]: Niğde
+          - button "Nevşehir" [ref=e58] [cursor=pointer]:
+            - generic [ref=e59]:
+              - generic [ref=e61]: 
+              - generic [ref=e62]: Nevşehir
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - heading "İlçeler" [level=3] [ref=e65] [cursor=pointer]:
+              - text: İlçeler
+              - generic [ref=e66]: 
+            - generic [ref=e67]:
+              - button "Altunhisar" [ref=e68] [cursor=pointer]:
+                - generic [ref=e70]: 
+                - generic [ref=e71]: Altunhisar
+              - button "Bor" [ref=e72] [cursor=pointer]:
+                - generic [ref=e74]: 
+                - generic [ref=e75]: Bor
+              - button "Çamardı" [ref=e76] [cursor=pointer]:
+                - generic [ref=e78]: 
+                - generic [ref=e79]: Çamardı
+              - button "Çiftlik" [ref=e80] [cursor=pointer]:
+                - generic [ref=e82]: 
+                - generic [ref=e83]: Çiftlik
+              - button "Ulukışla" [ref=e84] [cursor=pointer]:
+                - generic [ref=e86]: 
+                - generic [ref=e87]: Ulukışla
+          - generic [ref=e88]:
+            - heading "Kategoriler" [level=3] [ref=e89] [cursor=pointer]:
+              - text: Kategoriler
+              - generic [ref=e90]: 
+            - generic [ref=e91]:
+              - button "Köşe Yazısı" [ref=e92] [cursor=pointer]:
+                - generic [ref=e94]: 
+                - generic [ref=e95]: Köşe Yazısı
+              - button "Siyaset" [ref=e96] [cursor=pointer]:
+                - generic [ref=e98]: 
+                - generic [ref=e99]: Siyaset
+              - button "Yaşam" [ref=e100] [cursor=pointer]:
+                - generic [ref=e102]: 
+                - generic [ref=e103]: Yaşam
+          - generic [ref=e104]:
+            - heading "Trendler" [level=3] [ref=e105] [cursor=pointer]:
+              - text: Trendler
+              - generic [ref=e106]: 
+            - generic [ref=e107]:
+              - button "Haftanın Trendleri" [ref=e108] [cursor=pointer]:
+                - generic [ref=e110]: 
+                - generic [ref=e111]: Haftanın Trendleri
+              - button "Haftanın Okunanları" [ref=e112] [cursor=pointer]:
+                - generic [ref=e114]: 
+                - generic [ref=e115]: Haftanın Okunanları
+              - button "Haftanın Paylaşılanları" [ref=e116] [cursor=pointer]:
+                - generic [ref=e118]: 
+                - generic [ref=e119]: Haftanın Paylaşılanları
+              - button "Haftanın Yorumlananları" [ref=e120] [cursor=pointer]:
+                - generic [ref=e122]: 
+                - generic [ref=e123]: Haftanın Yorumlananları
+              - button "Haftanın Beğenilenleri" [ref=e124] [cursor=pointer]:
+                - generic [ref=e126]: 
+                - generic [ref=e127]: Haftanın Beğenilenleri
+        - generic [ref=e128]:
+          - navigation [ref=e129]:
+            - link "Hakkımızda" [ref=e130] [cursor=pointer]:
+              - /url: /kurumsal/hakkimizda
+            - link "Künye" [ref=e131] [cursor=pointer]:
+              - /url: /kurumsal/kunye
+            - link "İletişim" [ref=e132] [cursor=pointer]:
+              - /url: /kurumsal/iletisim
+            - link "Gizlilik" [ref=e133] [cursor=pointer]:
+              - /url: /kurumsal/gizlilik-politikasi
+          - paragraph [ref=e134]: © 2025 · Tüm Hakları Saklıdır.
+    - generic [ref=e137]:
+      - region "Manşet haber sliderı" [ref=e139] [cursor=pointer]:
+        - generic [ref=e140]:
+          - article [ref=e141]:
+            - 'img "Niğde Çamardı Bilgi Yarışması: Çamardı''yı Ne Kadar Tanıyorsun?" [ref=e142]'
+          - article:
+            - img
+          - article:
+            - img
+          - button "Önceki manşet" [ref=e143]:
+            - generic: 
+          - button "Sonraki manşet" [ref=e144]:
+            - generic: 
+          - generic [ref=e145]:
+            - button "Manşet 1" [ref=e146]
+            - button "Manşet 2" [ref=e147]
+            - button "Manşet 3" [ref=e148]
+      - generic [ref=e150]:
+        - heading "Sizin İçin Seçtiklerimiz" [level=2] [ref=e152]
+        - generic [ref=e153]:
+          - button "En Yeni" [ref=e154] [cursor=pointer]:
+            - generic [ref=e155]: 
+            - text: En Yeni
+          - button "Popüler" [ref=e156] [cursor=pointer]:
+            - generic [ref=e157]: 
+            - text: Popüler
+      - generic [ref=e158]:
+        - generic [ref=e159] [cursor=pointer]:
+          - link "Haber deneme" [ref=e160]:
+            - /url: /haber/haber-deneme
+            - generic [ref=e161]: Haber deneme
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e164]
+                - generic:
+                  - generic:
+                    - generic [ref=e167]:
+                      - heading "Pateez Niğde" [level=5] [ref=e168]
+                      - generic [ref=e169]: 
+                    - button "Takip Et" [ref=e170]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Yaşam
+                    - generic: 18 Haziran 2026 Perşembe
+                    - generic: 
+                    - generic: 17:49
+            - generic:
+              - heading "Haber deneme" [level=3]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Haber deneme
+                - generic:
+                  - img "Haber deneme"
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 1 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e171]:
+                    - generic [ref=e172]: 
+                    - generic [ref=e173]: "0"
+                  - button "Beğenme" [ref=e174]:
+                    - generic [ref=e175]: 
+                    - generic [ref=e176]: "0"
+                  - button "Yorumlar" [pressed] [ref=e177]:
+                    - generic [ref=e178]: 
+                    - generic [ref=e179]: "0"
+                  - button "Paylaş" [ref=e180]:
+                    - generic [ref=e181]: 
+                    - generic [ref=e182]: "1"
+                - button "Kaydet" [ref=e183]:
+                  - generic [ref=e184]: 
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - generic [ref=e190]:
+                  - generic [ref=e191]: 
+                  - textbox [ref=e192]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e193]:
+                  - generic [ref=e194]: 
+                  - textbox [ref=e195]:
+                    - /placeholder: E-posta
+              - generic [ref=e196]:
+                - generic [ref=e198]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e200]
+                - button "Emoji Ekle" [ref=e202]:
+                  - generic [ref=e203]: 
+                - button "Gönder" [disabled] [ref=e204]
+        - generic [ref=e205] [cursor=pointer]:
+          - link "Neon Waves Live Concert 2026 Canlı Müzik Deneyimi Sunmaya Hazırlanıyor" [ref=e206]:
+            - /url: /haber/neon-waves-live-concert-2026
+            - generic [ref=e207]: Neon Waves Live Concert 2026 Canlı Müzik Deneyimi Sunmaya Hazırlanıyor
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e210]
+                - generic:
+                  - generic:
+                    - generic [ref=e213]:
+                      - heading "Pateez Niğde" [level=5] [ref=e214]
+                      - generic [ref=e215]: 
+                    - button "Takip Et" [ref=e216]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Etkinlik
+                    - generic: 12 Haziran 2026 Cuma
+                    - generic: 
+                    - generic: 17:47
+            - generic:
+              - heading "Neon Waves Live Concert 2026 Canlı Müzik Deneyimi Sunmaya Hazırlanıyor" [level=3]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Dünya standartlarında sanatçıları ve sürükleyici görselleri bir araya getirecek olan Neon Waves Live Concert 2026, müzikseverlere unutulmaz bir performans gecesi vaat ediyor.
+                - generic:
+                  - img "Neon Waves Live Concert 2026 Canlı Müzik Etkinliği"
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 6 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e217]:
+                    - generic [ref=e218]: 
+                    - generic [ref=e219]: "0"
+                  - button "Beğenme" [ref=e220]:
+                    - generic [ref=e221]: 
+                    - generic [ref=e222]: "0"
+                  - button "Yorumlar" [pressed] [ref=e223]:
+                    - generic [ref=e224]: 
+                    - generic [ref=e225]: "0"
+                  - button "Paylaş" [ref=e226]:
+                    - generic [ref=e227]: 
+                    - generic [ref=e228]: "2"
+                - button "Kaydet" [ref=e229]:
+                  - generic [ref=e230]: 
+            - generic [ref=e234]:
+              - generic [ref=e235]:
+                - generic [ref=e236]:
+                  - generic [ref=e237]: 
+                  - textbox [ref=e238]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e239]:
+                  - generic [ref=e240]: 
+                  - textbox [ref=e241]:
+                    - /placeholder: E-posta
+              - generic [ref=e242]:
+                - generic [ref=e244]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e246]
+                - button "Emoji Ekle" [ref=e248]:
+                  - generic [ref=e249]: 
+                - button "Gönder" [disabled] [ref=e250]
+        - generic [ref=e251] [cursor=pointer]:
+          - 'link "Pofuduk ve Aromatik: Patatesli Graffe Napoletane Tarifi" [ref=e252]':
+            - /url: /haber/limon-portakal-aromali-graffe-napoletane-tarifi
+            - generic [ref=e253]: "Pofuduk ve Aromatik: Patatesli Graffe Napoletane Tarifi"
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e256]
+                - generic:
+                  - generic:
+                    - generic [ref=e259]:
+                      - heading "Pateez Niğde" [level=5] [ref=e260]
+                      - generic [ref=e261]: 
+                    - button "Takip Et" [ref=e262]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Tarif
+                    - generic: 12 Haziran 2026 Cuma
+                    - generic: 
+                    - generic: 17:23
+            - generic:
+              - 'heading "Pofuduk ve Aromatik: Patatesli Graffe Napoletane Tarifi" [level=3]'
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Napoli mutfağının vazgeçilmezi Graffe Napoletane, hamurundaki patates sayesinde kazandığı eşsiz yumuşaklığı limon ve portakal aromalarıyla buluşturuyor.
+                - generic:
+                  - 'img "Graffe Napoletane Tarifi: Patatesli ve Aromatik Napoli Çöreği"'
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 4 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e263]:
+                    - generic [ref=e264]: 
+                    - generic [ref=e265]: "1"
+                  - button "Beğenme" [ref=e266]:
+                    - generic [ref=e267]: 
+                    - generic [ref=e268]: "0"
+                  - button "Yorumlar" [pressed] [ref=e269]:
+                    - generic [ref=e270]: 
+                    - generic [ref=e271]: "0"
+                  - button "Paylaş" [ref=e272]:
+                    - generic [ref=e273]: 
+                    - generic [ref=e274]: "0"
+                - button "Kaydet" [ref=e275]:
+                  - generic [ref=e276]: 
+            - generic [ref=e280]:
+              - generic [ref=e281]:
+                - generic [ref=e282]:
+                  - generic [ref=e283]: 
+                  - textbox [ref=e284]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e285]:
+                  - generic [ref=e286]: 
+                  - textbox [ref=e287]:
+                    - /placeholder: E-posta
+              - generic [ref=e288]:
+                - generic [ref=e290]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e292]
+                - button "Emoji Ekle" [ref=e294]:
+                  - generic [ref=e295]: 
+                - button "Gönder" [disabled] [ref=e296]
+        - generic [ref=e297] [cursor=pointer]:
+          - 'link "Çamardı’nın Yarınına Sen Karar Ver: Dağ mı, Tarım mı, Gençlik mi, Tarih mi? 🏔️🍎" [ref=e298]':
+            - /url: /haber/camardi-toplumsal-anketi-gelecek-oncelikleri
+            - generic [ref=e299]: "Çamardı’nın Yarınına Sen Karar Ver: Dağ mı, Tarım mı, Gençlik mi, Tarih mi? 🏔️🍎"
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e302]
+                - generic:
+                  - generic:
+                    - generic [ref=e305]:
+                      - heading "Pateez Niğde" [level=5] [ref=e306]
+                      - generic [ref=e307]: 
+                    - button "Takip Et" [ref=e308]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Altunhisar
+                      - generic: /
+                      - generic: Anket
+                    - generic: 12 Haziran 2026 Cuma
+                    - generic: 
+                    - generic: 16:07
+            - generic:
+              - 'heading "Çamardı’nın Yarınına Sen Karar Ver: Dağ mı, Tarım mı, Gençlik mi, Tarih mi? 🏔️🍎" [level=3]'
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Çamardı sadece Demirkazık’tan ibaret değil; köyleri, meyve bahçeleri, yeraltı tarihi, gençleri, üreticileri ve dağ turizmiyle yaşayan güçlü bir ilçe. Peki Çamardı’nın geleceğinde en çok ne öne çıkmalı? 6 soruluk bu toplumsal ankette söz sende.
+                - generic [ref=e309]:
+                  - generic [ref=e310]:
+                    - 'img "Çamardı Toplumsal Anketi: Çamardı’nın Geleceğinde Ne Öncelikli Olmalı?" [ref=e311]'
+                    - generic [ref=e313]:
+                      - generic [ref=e314]: 
+                      - generic [ref=e316]: Anket
+                  - generic [ref=e317]:
+                    - heading "Çamardı’nın geleceği konuşulurken masada ilk kimin sesi daha çok duyulmalı?" [level=3] [ref=e318]
+                    - paragraph [ref=e320]: Çamardı için resmi tanıtımda ilçeye bağlı 21 köy ve ilçe merkezinde 5 mahalle bulunduğu belirtiliyor. Aynı kaynakta tarım, meyvecilik ve dağ-yayla turizmi ilçenin öne çıkan başlıkları arasında yer alıyor. Çamardı Belediyesi ayrıca ilçeye yapılacak gençlik merkeziyle ilgili resmi protokol haberini yayımlamıştı.
+                  - generic [ref=e322]:
+                    - button "Köylerde üretim yapan çiftçiler ve aileler" [ref=e323]:
+                      - generic [ref=e329]: Köylerde üretim yapan çiftçiler ve aileler
+                    - button "İlçe merkezindeki mahalle sakinleri" [ref=e330]:
+                      - generic [ref=e336]: İlçe merkezindeki mahalle sakinleri
+                    - button "Gençler, öğrenciler ve sporla ilgilenenler" [ref=e337]:
+                      - generic [ref=e343]: Gençler, öğrenciler ve sporla ilgilenenler
+                    - button "Turizmle uğraşanlar, dağcılar ve rehberler" [ref=e344]:
+                      - generic [ref=e350]: Turizmle uğraşanlar, dağcılar ve rehberler
+                  - generic [ref=e352]:
+                    - generic [ref=e353]: 
+                    - generic [ref=e354]: 0 katılımcı
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 2 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 2 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e355]:
+                    - generic [ref=e356]: 
+                    - generic [ref=e357]: "0"
+                  - button "Beğenme" [ref=e358]:
+                    - generic [ref=e359]: 
+                    - generic [ref=e360]: "0"
+                  - button "Yorumlar" [pressed] [ref=e361]:
+                    - generic [ref=e362]: 
+                    - generic [ref=e363]: "0"
+                  - button "Paylaş" [ref=e364]:
+                    - generic [ref=e365]: 
+                    - generic [ref=e366]: "0"
+                - button "Kaydet" [ref=e367]:
+                  - generic [ref=e368]: 
+            - generic [ref=e372]:
+              - generic [ref=e373]:
+                - generic [ref=e374]:
+                  - generic [ref=e375]: 
+                  - textbox [ref=e376]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e377]:
+                  - generic [ref=e378]: 
+                  - textbox [ref=e379]:
+                    - /placeholder: E-posta
+              - generic [ref=e380]:
+                - generic [ref=e382]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e384]
+                - button "Emoji Ekle" [ref=e386]:
+                  - generic [ref=e387]: 
+                - button "Gönder" [disabled] [ref=e388]
+        - generic [ref=e389] [cursor=pointer]:
+          - 'link "Çamardı’nın Gizli Yüzü: Sen Zirve İnsanı mısın, Yeraltı Hafızası mı? 🏔️⛏️" [ref=e390]':
+            - /url: /haber/camardi-gizli-yuzu-kisilik-testi
+            - generic [ref=e391]: "Çamardı’nın Gizli Yüzü: Sen Zirve İnsanı mısın, Yeraltı Hafızası mı? 🏔️⛏️"
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e394]
+                - generic:
+                  - generic:
+                    - generic [ref=e397]:
+                      - heading "Pateez Niğde" [level=5] [ref=e398]
+                      - generic [ref=e399]: 
+                    - button "Takip Et" [ref=e400]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Çamardı
+                      - generic: /
+                      - generic: Testler
+                    - generic: 12 Haziran 2026 Cuma
+                    - generic: 
+                    - generic: 13:43
+            - generic:
+              - 'heading "Çamardı’nın Gizli Yüzü: Sen Zirve İnsanı mısın, Yeraltı Hafızası mı? 🏔️⛏️" [level=3]'
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Çamardı’yı sadece Demirkazık’tan ibaret sanıyorsan bu test seni şaşırtacak. 4 soruda, Aladağlar’ın yüksek rotalarıyla Celaller’deki Göltepe-Kestel’in binlerce yıllık maden hafızası arasında hangi tarafa daha yakın olduğunu keşfet.
+                - generic [ref=e402]:
+                  - 'img "Çamardı Kişilik Testi: Sen Demirkazık Ruhu musun, Göltepe-Kestel Hafızası mı?" [ref=e403]'
+                  - generic [ref=e404]:
+                    - generic [ref=e405]:
+                      - generic [ref=e406]: 
+                      - generic [ref=e407]: 0 katılımcı
+                    - generic [ref=e408]:
+                      - generic [ref=e409]: 
+                      - generic [ref=e411]: Anket
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 1 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e412]:
+                    - generic [ref=e413]: 
+                    - generic [ref=e414]: "0"
+                  - button "Beğenme" [ref=e415]:
+                    - generic [ref=e416]: 
+                    - generic [ref=e417]: "0"
+                  - button "Yorumlar" [pressed] [ref=e418]:
+                    - generic [ref=e419]: 
+                    - generic [ref=e420]: "0"
+                  - button "Paylaş" [ref=e421]:
+                    - generic [ref=e422]: 
+                    - generic [ref=e423]: "0"
+                - button "Kaydet" [ref=e424]:
+                  - generic [ref=e425]: 
+            - generic [ref=e429]:
+              - generic [ref=e430]:
+                - generic [ref=e431]:
+                  - generic [ref=e432]: 
+                  - textbox [ref=e433]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e434]:
+                  - generic [ref=e435]: 
+                  - textbox [ref=e436]:
+                    - /placeholder: E-posta
+              - generic [ref=e437]:
+                - generic [ref=e439]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e441]
+                - button "Emoji Ekle" [ref=e443]:
+                  - generic [ref=e444]: 
+                - button "Gönder" [disabled] [ref=e445]
+        - generic [ref=e446] [cursor=pointer]:
+          - link "Gümüşler’de Sel Acısı, Gebere’de Yeni Proje, OSB’de Yatırım Hareketi" [ref=e447]:
+            - /url: /haber/nigdede-son-15-gun-gumusler-sel-gebere-osb-gundemi
+            - generic [ref=e448]: Gümüşler’de Sel Acısı, Gebere’de Yeni Proje, OSB’de Yatırım Hareketi
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e451]
+                - generic:
+                  - generic:
+                    - generic [ref=e454]:
+                      - heading "Pateez Niğde" [level=5] [ref=e455]
+                      - generic [ref=e456]: 
+                    - button "Takip Et" [ref=e457]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Yaşam
+                    - generic: 7 Haziran 2026 Pazar
+                    - generic: 
+                    - generic: 16:21
+            - generic:
+              - heading "Gümüşler’de Sel Acısı, Gebere’de Yeni Proje, OSB’de Yatırım Hareketi" [level=3]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Niğde’de son günlerin en ağır gündemi Gümüşler’de yaşanan sel felaketi olurken; Gebere Mesire Alanı projesi, mahalle buluşmaları ve OSB arsa tahsisleri şehir gündemini hareketlendirdi.
+                - generic [ref=e458]:
+                  - iframe [ref=e460]:
+                    - generic [active] [ref=f1e1]:
+                      - generic "YouTube Video Oynatıcısı" [ref=f1e3]
+                      - generic [ref=f1e5]:
+                        - generic:
+                          - generic:
+                            - button "Videoyu oynat" [ref=f1e10] [cursor=pointer]
+                            - button "Oynatıcı kontrollerini gizle" [ref=f1e12] [cursor=pointer]
+                            - generic [ref=f1e14]:
+                              - generic [ref=f1e19]:
+                                - generic [ref=f1e20]:
+                                  - 'link "Niğde''de sel felaketi: 1 ölü, 5 yaralı! | A Haber" [ref=f1e21] [cursor=pointer]':
+                                    - /url: https://www.youtube.com/watch?v=4zcS92pDd0A
+                                  - link "A Haber" [ref=f1e22] [cursor=pointer]:
+                                    - /url: /channel/UCKQhfw-lzz0uKnE1fY1PsAA
+                                    - generic [ref=f1e23]: A Haber
+                                - generic [ref=f1e24]:
+                                  - button [ref=f1e25] [cursor=pointer]
+                                  - generic [ref=f1e27]:
+                                    - generic: A Haber
+                                    - generic: 1,44 Mn abone
+                              - generic [ref=f1e28]:
+                                - button "Paylaş" [ref=f1e31] [cursor=pointer]:
+                                  - generic [ref=f1e35]:
+                                    - img
+                                - link "YouTube'da izleyin" [ref=f1e42] [cursor=pointer]:
+                                  - /url: https://www.youtube.com/watch?v=4zcS92pDd0A
+                                  - generic [ref=f1e45]:
+                                    - text: "İzlemek için:"
+                                    - img [ref=f1e47]:
+                                      - generic [ref=f1e49]:
+                                        - img
+                  - generic:
+                    - generic: 
+                    - generic: 00:00
+                  - generic [ref=e461]:
+                    - button [ref=e462]:
+                      - generic [ref=e463]: 
+                    - generic:
+                      - generic:
+                        - generic: 
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 3 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 7 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e465]:
+                    - generic [ref=e466]: 
+                    - generic [ref=e467]: "1"
+                  - button "Beğenme" [ref=e468]:
+                    - generic [ref=e469]: 
+                    - generic [ref=e470]: "0"
+                  - button "Yorumlar" [pressed] [ref=e471]:
+                    - generic [ref=e472]: 
+                    - generic [ref=e473]: "0"
+                  - button "Paylaş" [ref=e474]:
+                    - generic [ref=e475]: 
+                    - generic [ref=e476]: "2"
+                - button "Kaydet" [ref=e477]:
+                  - generic [ref=e478]: 
+                  - generic [ref=e479]: "1"
+            - generic [ref=e483]:
+              - generic [ref=e484]:
+                - generic [ref=e485]:
+                  - generic [ref=e486]: 
+                  - textbox [ref=e487]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e488]:
+                  - generic [ref=e489]: 
+                  - textbox [ref=e490]:
+                    - /placeholder: E-posta
+              - generic [ref=e491]:
+                - generic [ref=e493]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e495]
+                - button "Emoji Ekle" [ref=e497]:
+                  - generic [ref=e498]: 
+                - button "Gönder" [disabled] [ref=e499]
+        - generic [ref=e500] [cursor=pointer]:
+          - link "Kuantum Bilgisayarlar Bilgi İşlem Dünyasında Devrim Yaratıyor" [ref=e501]:
+            - /url: /haber/kuantum-bilgisayarlar-bilgi-islem-devrimi
+            - generic [ref=e502]: Kuantum Bilgisayarlar Bilgi İşlem Dünyasında Devrim Yaratıyor
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e505]
+                - generic:
+                  - generic:
+                    - generic [ref=e508]:
+                      - heading "Pateez Niğde" [level=5] [ref=e509]
+                      - generic [ref=e510]: 
+                    - button "Takip Et" [ref=e511]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Yaşam
+                    - generic: 7 Haziran 2026 Pazar
+                    - generic: 
+                    - generic: 15:52
+            - generic:
+              - heading "Kuantum Bilgisayarlar Bilgi İşlem Dünyasında Devrim Yaratıyor" [level=3]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Geleneksel bitlerin yerini alan kuantum bitleri (kubitler), karmaşık hesaplamaları eş zamanlı yaparak teknolojide yeni bir çağ başlatıyor.
+                - generic:
+                  - img "Quantum computing revolutionizing information processing"
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 2 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e512]:
+                    - generic [ref=e513]: 
+                    - generic [ref=e514]: "0"
+                  - button "Beğenme" [ref=e515]:
+                    - generic [ref=e516]: 
+                    - generic [ref=e517]: "0"
+                  - button "Yorumlar" [pressed] [ref=e518]:
+                    - generic [ref=e519]: 
+                    - generic [ref=e520]: "0"
+                  - button "Paylaş" [ref=e521]:
+                    - generic [ref=e522]: 
+                    - generic [ref=e523]: "1"
+                - button "Kaydet" [ref=e524]:
+                  - generic [ref=e525]: 
+            - generic [ref=e529]:
+              - generic [ref=e530]:
+                - generic [ref=e531]:
+                  - generic [ref=e532]: 
+                  - textbox [ref=e533]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e534]:
+                  - generic [ref=e535]: 
+                  - textbox [ref=e536]:
+                    - /placeholder: E-posta
+              - generic [ref=e537]:
+                - generic [ref=e539]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e541]
+                - button "Emoji Ekle" [ref=e543]:
+                  - generic [ref=e544]: 
+                - button "Gönder" [disabled] [ref=e545]
+        - generic [ref=e546] [cursor=pointer]:
+          - link "Niğde Belediyesi 3. Tiyatro Festivali Başlıyor" [ref=e547]:
+            - /url: /haber/nigde-belediyesi-3-tiyatro-festivali
+            - generic [ref=e548]: Niğde Belediyesi 3. Tiyatro Festivali Başlıyor
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e551]
+                - generic:
+                  - generic:
+                    - generic [ref=e554]:
+                      - heading "Pateez Niğde" [level=5] [ref=e555]
+                      - generic [ref=e556]: 
+                    - button "Takip Et" [ref=e557]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Yaşam
+                    - generic: 7 Haziran 2026 Pazar
+                    - generic: 
+                    - generic: 15:24
+            - generic:
+              - heading "Niğde Belediyesi 3. Tiyatro Festivali Başlıyor" [level=3]
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - paragraph: dadasd
+                - generic [ref=e558]:
+                  - iframe [ref=e560]:
+                    - generic [active] [ref=f2e1]:
+                      - generic "YouTube Video Oynatıcısı" [ref=f2e3]
+                      - generic [ref=f2e5]:
+                        - generic:
+                          - generic:
+                            - button "Videoyu oynat" [ref=f2e10] [cursor=pointer]:
+                              - generic [ref=f2e13]:
+                                - img
+                            - button "Oynatıcı kontrollerini gizle" [ref=f2e14] [cursor=pointer]
+                            - generic [ref=f2e21]:
+                              - generic [ref=f2e22]:
+                                - link "YURT DIŞINDA SATILAN NUTELLA'LARIN TADI GERÇEKTEN FARKLI MI?🍫 | Yerli VS İthal Nutella Testi" [ref=f2e23] [cursor=pointer]:
+                                  - /url: https://www.youtube.com/shorts/yaxRWcJwjC8
+                                - link "AkademikLink" [ref=f2e24] [cursor=pointer]:
+                                  - /url: /channel/UCFH3gPaFetVFPHOiU5tUj8g
+                                  - generic [ref=f2e25]: AkademikLink
+                              - generic [ref=f2e26]:
+                                - button [ref=f2e27] [cursor=pointer]
+                                - generic [ref=f2e29]:
+                                  - generic: AkademikLink
+                                  - generic: 1,48 Mn abone
+                  - generic:
+                    - generic: 
+                    - generic: 00:00
+                  - generic [ref=e561]:
+                    - button [ref=e562]:
+                      - generic [ref=e563]: 
+                    - generic:
+                      - generic:
+                        - generic: 
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 7 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e565]:
+                    - generic [ref=e566]: 
+                    - generic [ref=e567]: "0"
+                  - button "Beğenme" [ref=e568]:
+                    - generic [ref=e569]: 
+                    - generic [ref=e570]: "0"
+                  - button "Yorumlar" [pressed] [ref=e571]:
+                    - generic [ref=e572]: 
+                    - generic [ref=e573]: "0"
+                  - button "Paylaş" [ref=e574]:
+                    - generic [ref=e575]: 
+                    - generic [ref=e576]: "0"
+                - button "Kaydet" [ref=e577]:
+                  - generic [ref=e578]: 
+            - generic [ref=e582]:
+              - generic [ref=e583]:
+                - generic [ref=e584]:
+                  - generic [ref=e585]: 
+                  - textbox [ref=e586]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e587]:
+                  - generic [ref=e588]: 
+                  - textbox [ref=e589]:
+                    - /placeholder: E-posta
+              - generic [ref=e590]:
+                - generic [ref=e592]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e594]
+                - button "Emoji Ekle" [ref=e596]:
+                  - generic [ref=e597]: 
+                - button "Gönder" [disabled] [ref=e598]
+        - generic [ref=e599] [cursor=pointer]:
+          - 'link "Niğde Siyaset Anketi: Halk Kimi Çalışkan, Kimi Sessiz Buluyor?" [ref=e600]':
+            - /url: /haber/nigde-siyaset-anketi
+            - generic [ref=e601]: "Niğde Siyaset Anketi: Halk Kimi Çalışkan, Kimi Sessiz Buluyor?"
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e604]
+                - generic:
+                  - generic:
+                    - generic [ref=e607]:
+                      - heading "Pateez Niğde" [level=5] [ref=e608]
+                      - generic [ref=e609]: 
+                    - button "Takip Et" [ref=e610]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Anket
+                    - generic: 7 Haziran 2026 Pazar
+                    - generic: 
+                    - generic: 15:22
+            - generic:
+              - 'heading "Niğde Siyaset Anketi: Halk Kimi Çalışkan, Kimi Sessiz Buluyor?" [level=3]'
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Niğde'de siyasetçilerin performansı mercek altında! Halk, kimi çalışkan, kimi sessiz buluyor? İşte Niğdelilerin nabzını tutan anket sonuçları ve yorumlar.
+                - generic [ref=e611]:
+                  - generic [ref=e612]:
+                    - 'img "Niğde Siyaset Anketi: Niğdeliler Hangi Vekil ve Belediye Başkanını Daha Başarılı Buluyor?" [ref=e613]'
+                    - generic [ref=e615]:
+                      - generic [ref=e616]: 
+                      - generic [ref=e618]: Anket
+                  - generic [ref=e619]:
+                    - heading "Niğde siyasetinde bugün en görünür isim sence kim?" [level=3] [ref=e620]
+                    - paragraph [ref=e622]: Şehrin siyasi arenasında en çok dikkat çeken, adı en çok duyulan isim kim?
+                  - generic [ref=e624]:
+                    - button "Emrah Özdemir" [ref=e625]:
+                      - generic [ref=e631]: Emrah Özdemir
+                    - button "Cevahir Uzkurt" [ref=e632]:
+                      - generic [ref=e638]: Cevahir Uzkurt
+                    - button "Ömer Fethi Gürer" [ref=e639]:
+                      - generic [ref=e645]: Ömer Fethi Gürer
+                    - button "Cumali İnce" [ref=e646]:
+                      - generic [ref=e652]: Cumali İnce
+                    - button "Hepsi görünür ama sorun çözmede aynı etki yok" [ref=e653]:
+                      - generic [ref=e659]: Hepsi görünür ama sorun çözmede aynı etki yok
+                    - button "Hiçbiri yeterince görünür değil" [ref=e660]:
+                      - generic [ref=e666]: Hiçbiri yeterince görünür değil
+                  - generic [ref=e668]:
+                    - generic [ref=e669]: 
+                    - generic [ref=e670]: 0 katılımcı
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 2 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 2 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e671]:
+                    - generic [ref=e672]: 
+                    - generic [ref=e673]: "0"
+                  - button "Beğenme" [ref=e674]:
+                    - generic [ref=e675]: 
+                    - generic [ref=e676]: "0"
+                  - button "Yorumlar" [pressed] [ref=e677]:
+                    - generic [ref=e678]: 
+                    - generic [ref=e679]: "0"
+                  - button "Paylaş" [ref=e680]:
+                    - generic [ref=e681]: 
+                    - generic [ref=e682]: "0"
+                - button "Kaydet" [ref=e683]:
+                  - generic [ref=e684]: 
+            - generic [ref=e688]:
+              - generic [ref=e689]:
+                - generic [ref=e690]:
+                  - generic [ref=e691]: 
+                  - textbox [ref=e692]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e693]:
+                  - generic [ref=e694]: 
+                  - textbox [ref=e695]:
+                    - /placeholder: E-posta
+              - generic [ref=e696]:
+                - generic [ref=e698]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e700]
+                - button "Emoji Ekle" [ref=e702]:
+                  - generic [ref=e703]: 
+                - button "Gönder" [disabled] [ref=e704]
+        - generic [ref=e705] [cursor=pointer]:
+          - 'link "Niğde’nin Gizli Lezzeti Mazak Çorbası: Ekşili Bulgur Köftesi Tarifi" [ref=e706]':
+            - /url: /haber/nigde-mazakli-koftesi-mazak-corbasi-tarifi
+            - generic [ref=e707]: "Niğde’nin Gizli Lezzeti Mazak Çorbası: Ekşili Bulgur Köftesi Tarifi"
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e710]
+                - generic:
+                  - generic:
+                    - generic [ref=e713]:
+                      - heading "Pateez Niğde" [level=5] [ref=e714]
+                      - generic [ref=e715]: 
+                    - button "Takip Et" [ref=e716]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Yaşam
+                    - generic: 7 Haziran 2026 Pazar
+                    - generic: 
+                    - generic: 14:43
+            - generic:
+              - 'heading "Niğde’nin Gizli Lezzeti Mazak Çorbası: Ekşili Bulgur Köftesi Tarifi" [level=3]'
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Niğde mutfağının sevilen yöresel lezzetlerinden Mazaklı Köftesi, bulgur, irmik, kıyma ve baharatlarla hazırlanıp soğanlı salçalı suda pişirilen doyurucu bir tariftir.
+                - generic:
+                  - img "Niğde Mazaklı Köftesi Tarifi | Mazak Çorbası Nasıl Yapılır?"
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 2 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e717]:
+                    - generic [ref=e718]: 
+                    - generic [ref=e719]: "0"
+                  - button "Beğenme" [ref=e720]:
+                    - generic [ref=e721]: 
+                    - generic [ref=e722]: "0"
+                  - button "Yorumlar" [pressed] [ref=e723]:
+                    - generic [ref=e724]: 
+                    - generic [ref=e725]: "0"
+                  - button "Paylaş" [ref=e726]:
+                    - generic [ref=e727]: 
+                    - generic [ref=e728]: "0"
+                - button "Kaydet" [ref=e729]:
+                  - generic [ref=e730]: 
+            - generic [ref=e734]:
+              - generic [ref=e735]:
+                - generic [ref=e736]:
+                  - generic [ref=e737]: 
+                  - textbox [ref=e738]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e739]:
+                  - generic [ref=e740]: 
+                  - textbox [ref=e741]:
+                    - /placeholder: E-posta
+              - generic [ref=e742]:
+                - generic [ref=e744]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e746]
+                - button "Emoji Ekle" [ref=e748]:
+                  - generic [ref=e749]: 
+                - button "Gönder" [disabled] [ref=e750]
+        - generic [ref=e751] [cursor=pointer]:
+          - link "Gümüşler'de Selin Ardından Hasar Tespit Çalışmaları Başladı" [ref=e752]:
+            - /url: /haber/gumuslerde-selin-ardindan-hasar-gun-yuzune-cikti
+            - generic [ref=e753]: Gümüşler'de Selin Ardından Hasar Tespit Çalışmaları Başladı
+          - generic:
+            - generic:
+              - generic:
+                - img "Pateez Niğde" [ref=e756]
+                - generic:
+                  - generic:
+                    - generic [ref=e759]:
+                      - heading "Pateez Niğde" [level=5] [ref=e760]
+                      - generic [ref=e761]: 
+                    - button "Takip Et" [ref=e762]
+                  - generic:
+                    - generic:
+                      - generic: Niğde
+                      - generic: /
+                      - generic: Yaşam
+                    - generic: 7 Haziran 2026 Pazar
+                    - generic: 
+                    - generic: 13:07
+            - generic:
+              - heading "Gümüşler'de Selin Ardından Hasar Tespit Çalışmaları Başladı" [level=3]
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Niğde’nin Gümüşler Beldesi’nde etkili olan dolu ve sağanak yağışın ardından suların çekilmesiyle tarım alanları ve yerleşim yerlerindeki hasar gün yüzüne çıktı.
+                - generic [ref=e763]:
+                  - generic:
+                    - generic: 
+                    - generic: 00:00
+                  - generic [ref=e765]:
+                    - button [ref=e766]:
+                      - generic [ref=e767]: 
+                    - generic:
+                      - generic:
+                        - generic: 
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 
+                  - text: 1 dk okuma
+                - generic:
+                  - generic: 
+                  - text: 3 görüntüleme
+              - generic:
+                - generic:
+                  - button "Beğen" [ref=e769]:
+                    - generic [ref=e770]: 
+                    - generic [ref=e771]: "0"
+                  - button "Beğenme" [ref=e772]:
+                    - generic [ref=e773]: 
+                    - generic [ref=e774]: "0"
+                  - button "Yorumlar" [pressed] [ref=e775]:
+                    - generic [ref=e776]: 
+                    - generic [ref=e777]: "0"
+                  - button "Paylaş" [ref=e778]:
+                    - generic [ref=e779]: 
+                    - generic [ref=e780]: "0"
+                - button "Kaydet" [ref=e781]:
+                  - generic [ref=e782]: 
+            - generic [ref=e786]:
+              - generic [ref=e787]:
+                - generic [ref=e788]:
+                  - generic [ref=e789]: 
+                  - textbox [ref=e790]:
+                    - /placeholder: Ad soyad
+                - generic [ref=e791]:
+                  - generic [ref=e792]: 
+                  - textbox [ref=e793]:
+                    - /placeholder: E-posta
+              - generic [ref=e794]:
+                - generic [ref=e796]: 
+                - textbox "Yorumunuzu ekleyin" [ref=e798]
+                - button "Emoji Ekle" [ref=e800]:
+                  - generic [ref=e801]: 
+                - button "Gönder" [disabled] [ref=e802]
+    - text:                       
+  - contentinfo "Pateez.com alt bilgisi" [ref=e804]:
+    - generic [ref=e805]:
+      - generic [ref=e806]:
+        - generic [ref=e807]:
+          - link "Pateez.com" [ref=e808] [cursor=pointer]:
+            - /url: /
+            - img "Pateez.com" [ref=e809]
+          - paragraph [ref=e810]: Pateez.com; Niğde’den başlayarak Konya, Kayseri, Aksaray, Nevşehir, Kırşehir, Sivas ve Karaman’a uzanan geniş bir coğrafyanın dijital hafızasıdır. Sadece son dakika gelişmelerini değil; İç Anadolu’nun tarihini, kültürünü ve insanını merkeze alıyoruz. Şehrinizin siyasi nabzını tutan anketlerimiz, bölgeye has eğlenceli testlerimiz ve özel video içeriklerimizle, haberciliği interaktif bir deneyime dönüştürüyoruz. Toprağımızın hikayesini, en doğru ve tarafsız haliyle okuyucularımıza sunmak için buradayız.
+        - generic [ref=e811]:
+          - heading "Kurumsal" [level=2] [ref=e812]: Kurumsal
+          - list [ref=e814]:
+            - listitem [ref=e815]:
+              - link "Hakkımızda" [ref=e816] [cursor=pointer]:
+                - /url: /kurumsal/hakkimizda
+                - generic [ref=e818]: Hakkımızda
+            - listitem [ref=e819]:
+              - link "Basın Odası" [ref=e820] [cursor=pointer]:
+                - /url: /kurumsal/basin-odasi
+                - generic [ref=e822]: Basın Odası
+            - listitem [ref=e823]:
+              - link "Künye" [ref=e824] [cursor=pointer]:
+                - /url: /kurumsal/kunye
+                - generic [ref=e826]: Künye
+            - listitem [ref=e827]:
+              - link "Reklam" [ref=e828] [cursor=pointer]:
+                - /url: /kurumsal/reklam
+                - generic [ref=e830]: Reklam
+            - listitem [ref=e831]:
+              - link "İnsan Kaynakları" [ref=e832] [cursor=pointer]:
+                - /url: /kurumsal/insan-kaynaklari
+                - generic [ref=e834]: İnsan Kaynakları
+            - listitem [ref=e835]:
+              - link "Sosyal Medya" [ref=e836] [cursor=pointer]:
+                - /url: /kurumsal/sosyal-medya
+                - generic [ref=e838]: Sosyal Medya
+            - listitem [ref=e839]:
+              - link "Mobil Uygulamalar" [ref=e840] [cursor=pointer]:
+                - /url: /kurumsal/mobil-uygulamalar
+                - generic [ref=e842]: Mobil Uygulamalar
+            - listitem [ref=e843]:
+              - link "İletişim" [ref=e844] [cursor=pointer]:
+                - /url: /kurumsal/iletisim
+                - generic [ref=e846]: İletişim
+        - generic [ref=e847]:
+          - heading "Yasal" [level=2] [ref=e848]: Yasal
+          - list [ref=e850]:
+            - listitem [ref=e851]:
+              - link "Yayın İlkeleri" [ref=e852] [cursor=pointer]:
+                - /url: /kurumsal/yayin-ilkeleri
+                - generic [ref=e854]: Yayın İlkeleri
+            - listitem [ref=e855]:
+              - link "Tekzip ve Düzeltme" [ref=e856] [cursor=pointer]:
+                - /url: /kurumsal/tekzip-ve-duzeltme
+                - generic [ref=e858]: Tekzip ve Düzeltme
+            - listitem [ref=e859]:
+              - link "Bilgi Toplumu Hizmetleri" [ref=e860] [cursor=pointer]:
+                - /url: /kurumsal/bilgi-toplumu-hizmetleri
+                - generic [ref=e862]: Bilgi Toplumu Hizmetleri
+            - listitem [ref=e863]:
+              - link "Kişisel Verilerin Korunması" [ref=e864] [cursor=pointer]:
+                - /url: /kurumsal/kisisel-verilerin-korunmasi
+                - generic [ref=e866]: Kişisel Verilerin Korunması
+            - listitem [ref=e867]:
+              - link "Çerez Politikası" [ref=e868] [cursor=pointer]:
+                - /url: /kurumsal/cerez-politikasi
+                - generic [ref=e870]: Çerez Politikası
+            - listitem [ref=e871]:
+              - link "Kullanım Koşulları" [ref=e872] [cursor=pointer]:
+                - /url: /kurumsal/kullanim-kosullari
+                - generic [ref=e874]: Kullanım Koşulları
+            - listitem [ref=e875]:
+              - link "Gizlilik Politikası" [ref=e876] [cursor=pointer]:
+                - /url: /kurumsal/gizlilik-politikasi
+                - generic [ref=e878]: Gizlilik Politikası
+        - generic [ref=e879]:
+          - heading "İletişim" [level=2] [ref=e880]: İletişim
+          - link "info@pateez.com" [ref=e883] [cursor=pointer]:
+            - /url: mailto:info@pateez.com
+            - generic [ref=e885]: 
+            - generic [ref=e886]: info@pateez.com
+          - generic [ref=e887]:
+            - link "Instagram" [ref=e888] [cursor=pointer]:
+              - /url: https://www.instagram.com/pateezcom/
+              - generic [ref=e889]: 
+            - link "X" [ref=e890] [cursor=pointer]:
+              - /url: https://x.com/pateezcom
+              - generic [ref=e891]: 
+            - link "YouTube" [ref=e892] [cursor=pointer]:
+              - /url: https://www.youtube.com/@pateezcomtv
+              - generic [ref=e893]: 
+            - link "Facebook" [ref=e894] [cursor=pointer]:
+              - /url: https://www.facebook.com/pateezcom/
+              - generic [ref=e895]: 
+            - link "TikTok" [ref=e896] [cursor=pointer]:
+              - /url: https://www.tiktok.com/@pateezcom
+              - generic [ref=e897]: 
+            - link "Pinterest" [ref=e898] [cursor=pointer]:
+              - /url: https://tr.pinterest.com/pateezcom/
+              - generic [ref=e899]: 
+          - link "İletişim" [ref=e900] [cursor=pointer]:
+            - /url: /kurumsal/iletisim
+            - generic [ref=e901]: İletişim
+            - generic [ref=e902]: 
+      - generic [ref=e903]:
+        - paragraph [ref=e904]: 2026 Pateez
+        - navigation "Alt bilgi yasal bağlantıları" [ref=e905]:
+          - link "Yayın İlkeleri" [ref=e906] [cursor=pointer]:
+            - /url: /kurumsal/yayin-ilkeleri
+          - link "Tekzip ve Düzeltme" [ref=e907] [cursor=pointer]:
+            - /url: /kurumsal/tekzip-ve-duzeltme
+          - link "Bilgi Toplumu Hizmetleri" [ref=e908] [cursor=pointer]:
+            - /url: /kurumsal/bilgi-toplumu-hizmetleri
+          - link "Kişisel Verilerin Korunması" [ref=e909] [cursor=pointer]:
+            - /url: /kurumsal/kisisel-verilerin-korunmasi
+  - generic [ref=e912]:
+    - button "Menu" [ref=e913]:
+      - img [ref=e915]
+      - generic: Menu
+    - button "Inspect" [ref=e919]:
+      - img [ref=e921]
+      - generic: Inspect
+    - button "Audit" [ref=e923]:
+      - img [ref=e925]
+      - generic: Audit
+    - button "Settings" [ref=e928]:
+      - img [ref=e930]
+      - generic: Settings

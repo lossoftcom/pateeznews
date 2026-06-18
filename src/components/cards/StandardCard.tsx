@@ -15,11 +15,11 @@ const StandardCard: React.FC<StandardCardProps> = ({ data }) => {
           dangerouslySetInnerHTML={{ __html: data.summary }}
         />
       </div>
-      <div className="relative rounded-lg overflow-hidden group flex items-center justify-center">
+      <div className="relative w-full rounded-[4px] overflow-hidden group flex items-center justify-center">
         <img
           src={data.thumbnail}
           alt={data.thumbnailAlt || data.seoTitle || data.title}
-          className="w-auto h-auto max-w-full max-h-[400px] object-contain transition-transform duration-1000 group-hover:scale-[1.02] mx-auto"
+          className="block w-full h-auto object-contain transition-transform duration-1000 group-hover:scale-[1.02]"
         />
       </div>
     </div>

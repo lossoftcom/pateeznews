@@ -1,13 +1,13 @@
 
 import React, { useMemo } from 'react';
+import { prefetch } from 'astro:prefetch';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NavigationItem } from '@/types';
 import Footer from './Footer';
 import Skeleton from '@/components/ui/Skeleton';
 import { slugify } from '@/utils/helpers';
-import { navigate } from 'astro:transitions/client';
+import { navigateImmediately } from '@/utils/immediateNavigation';
 import {
-  SPECIAL_CONTENT_FILTERS,
   getSpecialContentConfig,
   getSpecialContentConfigForItem,
   getSpecialContentRank
@@ -31,21 +31,8 @@ const ICON_COLORS = [
   '#EA4335', '#F39C12', '#2C3E50', '#95A5A6'
 ];
 
-const HIDDEN_SIDEBAR_SPECIAL_KEYS = new Set(['poll', 'quiz', 'video', 'event', 'recipe']);
+const HIDDEN_SIDEBAR_SPECIAL_KEYS = new Set(['poll', 'quiz', 'video', 'event', 'recipe', 'contents']);
 const SIDEBAR_END_SPECIAL_KEYS = new Set(['contents']);
-const NORMAL_SIDEBAR_CATEGORY_FALLBACKS: NavigationItem[] = [
-  {
-    id: 'sidebar-normal-spor',
-    menu_id: 'virtual',
-    parent_id: '',
-    label: 'Spor',
-    type: 'category',
-    value: 'spor',
-    icon: 'sports_soccer',
-    order_index: 7,
-    is_active: true,
-  },
-];
 
 const getSpecialSidebarOrder = (rank: number) => Number.isFinite(rank) ? rank : 9999;
 const SIDEBAR_REMIX_ICON_BY_MATERIAL: Record<string, string> = {
@@ -54,6 +41,11 @@ const SIDEBAR_REMIX_ICON_BY_MATERIAL: Record<string, string> = {
   location_on: 'ri-map-pin-line',
   grid_view: 'ri-layout-grid-line',
   trending_up: 'ri-line-chart-line',
+  auto_stories: 'ri-book-open-line',
+  visibility: 'ri-eye-line',
+  share: 'ri-share-forward-line',
+  forum: 'ri-chat-3-line',
+  favorite: 'ri-thumb-up-line',
   sports_soccer: 'ri-football-line',
   restaurant: 'ri-restaurant-2-line',
   account_balance: 'ri-bank-line',
@@ -98,10 +90,22 @@ const Sidebar: React.FC<SidebarProps> = ({
       return;
     }
     if (!category || category === 'home' || category === 'null') {
-      void navigate('/');
+      void navigateImmediately('/');
       return;
     }
-    void navigate(`/kategori/${slugify(category)}`);
+    void navigateImmediately(`/kategori/${slugify(category)}`);
+  };
+
+  const getCategoryHref = (category: string | null) => {
+    const normalized = String(category || '').trim();
+    if (!normalized || normalized === 'home' || normalized === 'null') return '/';
+    return `/kategori/${slugify(normalized)}`;
+  };
+
+  const prefetchCategory = (category: string | null, hrefOverride?: string) => {
+    const href = hrefOverride || getCategoryHref(category);
+    if (!href) return;
+    void prefetch(href);
   };
 
   // 1. Root items are considered "Ana Kategoriler"
@@ -156,8 +160,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (!specialConfig) return c;
       return {
         ...c,
-        label: specialConfig.label,
-        value: specialConfig.value,
         icon: c.icon || specialConfig.icon,
         order_index: getSpecialSidebarOrder(specialConfig.rank),
       };
@@ -172,41 +174,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     seenCategoryKeys.add(key);
     return true;
   });
-  const existingSpecialKeys = new Set(
-    categoryItems
-      .map((item) => getSpecialContentConfigForItem(item)?.key)
-      .filter(Boolean)
-  );
-  const injectedSidebarCategories: NavigationItem[] = selectedRootId
-    ? SPECIAL_CONTENT_FILTERS
-      .filter((config) => (
-        config.injectInSidebar &&
-        !HIDDEN_SIDEBAR_SPECIAL_KEYS.has(config.key) &&
-        !existingSpecialKeys.has(config.key)
-      ))
-      .map((config) => ({
-        id: `sidebar-special-${config.key}`,
-        menu_id: 'virtual',
-        parent_id: selectedRootId,
-        label: config.label,
-        type: 'category',
-        value: config.value,
-        icon: config.icon,
-        order_index: getSpecialSidebarOrder(config.rank),
-        is_active: true,
-      }))
-    : [];
-  const existingNormalCategoryKeys = new Set(
-    [...categoryItems, ...injectedSidebarCategories]
-      .flatMap((item) => [slugify(item.value || ''), slugify(item.label || '')])
-      .filter(Boolean)
-  );
-  const injectedNormalCategories = selectedRootId
-    ? NORMAL_SIDEBAR_CATEGORY_FALLBACKS
-      .filter((item) => !existingNormalCategoryKeys.has(slugify(item.value || item.label || '')))
-      .map((item) => ({ ...item, parent_id: selectedRootId }))
-    : [];
-  const categoriesSub = [...categoryItems, ...injectedSidebarCategories, ...injectedNormalCategories]
+  const categoriesSub = [...categoryItems]
     .sort((a, b) => {
       const configA = getSpecialContentConfigForItem(a);
       const configB = getSpecialContentConfigForItem(b);
@@ -258,6 +226,9 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => navigateToCategory(item.value || item.label || null)}
+                onMouseEnter={() => prefetchCategory(item.value || item.label || null, onCategoryItemClick ? '/' : undefined)}
+                onFocus={() => prefetchCategory(item.value || item.label || null, onCategoryItemClick ? '/' : undefined)}
+                onPointerDown={() => prefetchCategory(item.value || item.label || null, onCategoryItemClick ? '/' : undefined)}
                 className={`w-full relative flex items-center py-2.5 px-3 rounded-[5px] transition-all group ${isActive ? 'text-palette-red bg-palette-beige/5' : 'text-gray-600 hover:bg-palette-beige/10'}`}
               >
                 <div className="flex items-center gap-3">
@@ -296,6 +267,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={child.id}
                       onClick={() => navigateToCategory(child.value || child.label || null)}
+                      onMouseEnter={() => prefetchCategory(child.value || child.label || null)}
+                      onFocus={() => prefetchCategory(child.value || child.label || null)}
+                      onPointerDown={() => prefetchCategory(child.value || child.label || null)}
                       className={`w-full flex items-center gap-3 py-2 px-3 rounded-[5px] transition-all group ${isActive ? 'text-palette-red bg-palette-beige/5' : 'text-gray-600 hover:bg-palette-beige/10'}`}
                     >
                       <div className={`transition-all duration-150 ${isActive ? 'text-palette-red scale-110' : ''}`}>
@@ -329,6 +303,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={child.id}
                       onClick={() => navigateToCategory(child.value || child.label || null)}
+                      onMouseEnter={() => prefetchCategory(child.value || child.label || null)}
+                      onFocus={() => prefetchCategory(child.value || child.label || null)}
+                      onPointerDown={() => prefetchCategory(child.value || child.label || null)}
                       className={`w-full flex items-center gap-3 py-2 px-3 rounded-[5px] transition-all group ${isActive ? 'text-palette-red' : 'text-gray-600 hover:bg-palette-beige/10'}`}
                     >
                       <div className={`transition-colors ${isActive ? 'text-palette-red' : ''}`}>
@@ -362,6 +339,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={child.id}
                       onClick={() => navigateToCategory(child.value || child.label || null)}
+                      onMouseEnter={() => prefetchCategory(child.value || child.label || null)}
+                      onFocus={() => prefetchCategory(child.value || child.label || null)}
+                      onPointerDown={() => prefetchCategory(child.value || child.label || null)}
                       className={`w-full flex items-center gap-3 py-2 px-3 rounded-[5px] transition-all group ${isActive ? 'text-palette-red' : 'text-gray-600 hover:bg-palette-beige/10'}`}
                     >
                       <div className={`transition-colors ${isActive ? 'text-palette-red' : ''}`}>

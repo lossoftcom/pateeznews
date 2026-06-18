@@ -64,7 +64,6 @@ const ALLOWED_COLUMNS = new Set([
   'content_home_page_size',
   'content_featured_source',
   'content_featured_sorting',
-  'content_featured_duration_days',
   'content_featured_limit',
   'content_featured_show_news_info',
   'content_enabled_post_formats',

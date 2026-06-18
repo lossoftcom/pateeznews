@@ -18,7 +18,6 @@ class HomeContentSettings {
     this.homePageSize = 16,
     this.featuredContentSource = 'manual',
     this.featuredSortingLogic = 'slider_order',
-    this.featuredDurationDays = 10,
     this.featuredLimit = 15,
     this.featuredShowNewsInfo = false,
   });
@@ -32,7 +31,6 @@ class HomeContentSettings {
   final int homePageSize;
   final String featuredContentSource;
   final String featuredSortingLogic;
-  final int featuredDurationDays;
   final int featuredLimit;
   final bool featuredShowNewsInfo;
 
@@ -51,12 +49,6 @@ class HomeContentSettings {
       featuredSortingLogic: _str(
         value['featuredSortingLogic'],
         fallback: 'slider_order',
-      ),
-      featuredDurationDays: _boundedInt(
-        value['featuredDurationDays'],
-        fallback: 10,
-        min: 1,
-        max: 365,
       ),
       featuredLimit: _boundedInt(
         value['featuredLimit'],

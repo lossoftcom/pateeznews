@@ -1,4 +1,5 @@
-const PUBLIC_HTML_CACHE = 'public, max-age=0, s-maxage=60, stale-while-revalidate=300';
+const PUBLIC_HTML_BROWSER_CACHE = 'public, max-age=0, stale-while-revalidate=300';
+const PUBLIC_HTML_CDN_CACHE = 'public, max-age=60, stale-while-revalidate=300';
 const PUBLIC_HTML_VARY = ['Accept-Language', 'Cookie'];
 
 function mergeHeaderList(current: string | null, additions: string[]) {
@@ -13,8 +14,8 @@ function mergeHeaderList(current: string | null, additions: string[]) {
 }
 
 export function setPublicHtmlCache(response: Response) {
-  response.headers.set('Cache-Control', PUBLIC_HTML_CACHE);
-  response.headers.set('CDN-Cache-Control', PUBLIC_HTML_CACHE);
-  response.headers.set('Cloudflare-CDN-Cache-Control', PUBLIC_HTML_CACHE);
+  response.headers.set('Cache-Control', PUBLIC_HTML_BROWSER_CACHE);
+  response.headers.set('CDN-Cache-Control', PUBLIC_HTML_CDN_CACHE);
+  response.headers.set('Cloudflare-CDN-Cache-Control', PUBLIC_HTML_CDN_CACHE);
   response.headers.set('Vary', mergeHeaderList(response.headers.get('Vary'), PUBLIC_HTML_VARY));
 }

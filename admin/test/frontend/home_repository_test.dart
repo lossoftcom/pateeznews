@@ -356,7 +356,6 @@ void main() {
             'homePageSize': 24,
             'featuredContentSource': 'manual',
             'featuredSortingLogic': 'slider_order',
-            'featuredDurationDays': 10,
             'featuredLimit': 15,
           },
         };
@@ -390,7 +389,6 @@ void main() {
     expect(data.settings.homePageSize, 24);
     expect(data.settings.featuredContentSource, 'manual');
     expect(data.settings.featuredSortingLogic, 'slider_order');
-    expect(data.settings.featuredDurationDays, 10);
     expect(data.settings.featuredLimit, 15);
     expect(data.feed, hasLength(1));
     expect(data.feed.single.id, 'news-1');

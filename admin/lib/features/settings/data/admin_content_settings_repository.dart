@@ -260,7 +260,6 @@ class ContentFeaturedSettingsData {
     required this.languageCode,
     required this.contentSource,
     required this.sortingLogic,
-    required this.displayDurationDays,
     required this.displayLimit,
     required this.showNewsInfo,
   });
@@ -270,7 +269,6 @@ class ContentFeaturedSettingsData {
       languageCode: _cleanLanguageCode(languageCode),
       contentSource: 'manual',
       sortingLogic: 'slider_order',
-      displayDurationDays: 10,
       displayLimit: 15,
       showNewsInfo: false,
     );
@@ -294,10 +292,6 @@ class ContentFeaturedSettingsData {
         json['content_featured_sorting'],
         fallback: fallback.sortingLogic,
       ),
-      displayDurationDays: _featuredDurationDays(
-        json['content_featured_duration_days'],
-        fallback: fallback.displayDurationDays,
-      ),
       displayLimit: _featuredLimit(
         json['content_featured_limit'],
         fallback: fallback.displayLimit,
@@ -312,7 +306,6 @@ class ContentFeaturedSettingsData {
   final String languageCode;
   final String contentSource;
   final String sortingLogic;
-  final int displayDurationDays;
   final int displayLimit;
   final bool showNewsInfo;
 
@@ -321,9 +314,6 @@ class ContentFeaturedSettingsData {
       'language_code': _cleanLanguageCode(languageCode),
       'content_featured_source': _featuredSource(contentSource),
       'content_featured_sorting': _featuredSorting(sortingLogic),
-      'content_featured_duration_days': _clampFeaturedDurationDays(
-        displayDurationDays,
-      ),
       'content_featured_limit': _clampFeaturedLimit(displayLimit),
       'content_featured_show_news_info': showNewsInfo,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -334,7 +324,6 @@ class ContentFeaturedSettingsData {
     String? languageCode,
     String? contentSource,
     String? sortingLogic,
-    int? displayDurationDays,
     int? displayLimit,
     bool? showNewsInfo,
   }) {
@@ -342,7 +331,6 @@ class ContentFeaturedSettingsData {
       languageCode: languageCode ?? this.languageCode,
       contentSource: contentSource ?? this.contentSource,
       sortingLogic: sortingLogic ?? this.sortingLogic,
-      displayDurationDays: displayDurationDays ?? this.displayDurationDays,
       displayLimit: displayLimit ?? this.displayLimit,
       showNewsInfo: showNewsInfo ?? this.showNewsInfo,
     );
@@ -1000,9 +988,6 @@ class SupabaseAdminContentSettingsRepository
       languageCode: _cleanLanguageCode(settings.languageCode),
       contentSource: _featuredSource(settings.contentSource),
       sortingLogic: _featuredSorting(settings.sortingLogic),
-      displayDurationDays: _clampFeaturedDurationDays(
-        settings.displayDurationDays,
-      ),
       displayLimit: _clampFeaturedLimit(settings.displayLimit),
       showNewsInfo: settings.showNewsInfo,
     );
@@ -1179,8 +1164,7 @@ const _uploadSettingsSelect =
 
 const _featuredSettingsSelect =
     'language_code,content_featured_source,content_featured_sorting,'
-    'content_featured_duration_days,content_featured_limit,'
-    'content_featured_show_news_info';
+    'content_featured_limit,content_featured_show_news_info';
 
 const _trashCleanupSettingsSelect =
     'language_code,content_trash_auto_delete_enabled,'
@@ -1188,6 +1172,7 @@ const _trashCleanupSettingsSelect =
 
 const contentPostFormatKeys = [
   'article',
+  'opinion',
   'quiz',
   'poll',
   'video',
@@ -1360,17 +1345,6 @@ String _featuredSorting(Object? value, {String fallback = 'slider_order'}) {
   if (normalized == 'publish_date') return 'publish_date';
   if (normalized == 'slider_order') return 'slider_order';
   return fallback;
-}
-
-int _featuredDurationDays(Object? value, {required int fallback}) {
-  if (value is num) return _clampFeaturedDurationDays(value.round());
-  return _clampFeaturedDurationDays(
-    int.tryParse(value?.toString() ?? '') ?? fallback,
-  );
-}
-
-int _clampFeaturedDurationDays(int value) {
-  return value.clamp(1, 365).toInt();
 }
 
 int _featuredLimit(Object? value, {required int fallback}) {

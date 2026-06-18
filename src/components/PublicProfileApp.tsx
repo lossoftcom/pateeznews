@@ -3,7 +3,7 @@ import type { SiteSettings } from '@/types';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import UserProfile from '@/components/UserProfile';
-import { navigate } from 'astro:transitions/client';
+import { navigateImmediately } from '@/utils/immediateNavigation';
 
 interface PublicProfileAppProps {
   initialLang: any;
@@ -11,6 +11,7 @@ interface PublicProfileAppProps {
   siteSettings: SiteSettings | null;
   profileId: string;
   profileName: string;
+  initialProfile?: Record<string, any> | null;
 }
 
 const PublicProfileApp: React.FC<PublicProfileAppProps> = ({
@@ -19,17 +20,18 @@ const PublicProfileApp: React.FC<PublicProfileAppProps> = ({
   siteSettings,
   profileId,
   profileName,
+  initialProfile = null,
 }) => {
   const goHome = useCallback(() => {
-    void navigate('/');
+    void navigateImmediately('/');
   }, []);
 
   const goEditProfile = useCallback(() => {
-    void navigate('/profil-duzenle');
+    void navigateImmediately('/profil-duzenle');
   }, []);
 
   const handleNewsSelect = useCallback((id: string) => {
-    void navigate(`/haber/${encodeURIComponent(id)}`);
+    void navigateImmediately(`/haber/${encodeURIComponent(id)}`);
   }, []);
 
   return (
@@ -46,6 +48,7 @@ const PublicProfileApp: React.FC<PublicProfileAppProps> = ({
                 onEditClick={goEditProfile}
                 siteSettings={siteSettings}
                 showEmail={false}
+                initialProfile={initialProfile}
               />
             </div>
           </section>

@@ -51,7 +51,7 @@ const title = `Profil | ${siteSettings?.site_name || 'Pateez'}`;
   initialLang={initialLang}
 >
   <ProfileApp
-    client:only="react"
+    client:load
     initialLang={initialLang}
     initialTranslations={initialTranslations}
     siteSettings={siteSettings}

@@ -9,6 +9,18 @@ import Skeleton from '@/components/ui/Skeleton';
 import { prefetch } from 'astro:prefetch';
 import { postAction } from '@/services/appActions';
 import { getPostHref } from '@/utils/postUrl';
+import {
+  buildFacebookShareUrl,
+  buildShareHashtags,
+  buildShareText,
+  buildTelegramShareUrl,
+  buildTrackedShareUrl,
+  buildWhatsAppShareUrl,
+  buildXShareUrl,
+  isShareAbortError,
+  openShareWindow,
+  writeToClipboard,
+} from '@/utils/socialShare';
 import RemixIcon from './ui/RemixIcon';
 
 // Kart Bileşenleri
@@ -164,6 +176,74 @@ const getVoteToggleAction = (
   return null;
 };
 
+const normalizeCategoryLabel = (value: unknown) => String(value || '').trim();
+
+const normalizeCategoryKey = (value: unknown) => (
+  normalizeCategoryLabel(value).toLocaleLowerCase('tr-TR')
+);
+
+const uniqueCategoryLabels = (values: unknown[]) => {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  values.forEach((value) => {
+    const label = normalizeCategoryLabel(value);
+    const key = normalizeCategoryKey(label);
+    if (!label || seen.has(key)) return;
+    seen.add(key);
+    labels.push(label);
+  });
+  return labels;
+};
+
+const getStoredCategoryHierarchy = (data: NewsItem) => {
+  const rawTrail = Array.isArray(data.categoryTrail)
+    ? data.categoryTrail
+    : Array.isArray(data.categoryPath)
+      ? data.categoryPath
+      : [];
+  if (rawTrail.length === 0) return [];
+  return uniqueCategoryLabels([...rawTrail, data.category]);
+};
+
+const resolveCategoryNavItem = (category: string, navItems: NavigationItem[]) => {
+  const categoryKey = normalizeCategoryKey(category);
+  if (!categoryKey) return undefined;
+
+  const matches = navItems.filter((item) => (
+    normalizeCategoryKey(item.value) === categoryKey ||
+    normalizeCategoryKey(item.label) === categoryKey
+  ));
+  if (matches.length <= 1) return matches[0];
+
+  const itemById = new Map(navItems.map((item) => [item.id, item]));
+  const isDistrictChild = (item: NavigationItem) => {
+    if (!item.parent_id || item.parent_id === 'root') return false;
+    return itemById.get(item.parent_id)?.type === 'district';
+  };
+
+  return [...matches].sort((a, b) => Number(isDistrictChild(a)) - Number(isDistrictChild(b)))[0];
+};
+
+const buildNavigationCategoryHierarchy = (category: string, navItems: NavigationItem[]) => {
+  const currentItem = resolveCategoryNavItem(category, navItems);
+  if (!currentItem) return uniqueCategoryLabels([category]);
+
+  const itemById = new Map(navItems.map((item) => [item.id, item]));
+  const hierarchy: string[] = [];
+  const seen = new Set<string>();
+  let item: NavigationItem | undefined = currentItem;
+
+  while (item && !seen.has(item.id)) {
+    seen.add(item.id);
+    hierarchy.unshift(item.label);
+    item = item.parent_id && item.parent_id !== 'root'
+      ? itemById.get(item.parent_id)
+      : undefined;
+  }
+
+  return hierarchy.length > 0 ? uniqueCategoryLabels(hierarchy) : uniqueCategoryLabels([category]);
+};
+
 const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, navItems }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
@@ -181,28 +261,11 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   }, [data, siteSettings]);
 
   const categoryHierarchy = useMemo(() => {
-    if (!data.category || !navItems) return [data.category];
-
-    // Find the item that matches the current category label or value
-    const findItem = (label: string) => navItems.find(n => n.label === label || n.value === label);
-
-    let currentItem = findItem(data.category);
-    if (!currentItem) return [data.category];
-
-    const hierarchy = [currentItem.label];
-    let parentId = currentItem.parent_id;
-
-    while (parentId && parentId !== 'root') {
-      const parent = navItems.find(n => n.id === parentId);
-      if (parent) {
-        hierarchy.unshift(parent.label);
-        parentId = parent.parent_id;
-      } else {
-        break;
-      }
-    }
-    return hierarchy;
-  }, [data.category, navItems]);
+    const storedHierarchy = getStoredCategoryHierarchy(data);
+    if (storedHierarchy.length > 0) return storedHierarchy;
+    if (!data.category || !navItems) return uniqueCategoryLabels([data.category]);
+    return buildNavigationCategoryHierarchy(data.category, navItems);
+  }, [data, data.category, data.categoryPath, data.categoryTrail, navItems]);
 
   const [isLiked, setIsLiked] = useState(data.userLiked || false);
   const [isDisliked, setIsDisliked] = useState(data.userDisliked || false);
@@ -216,6 +279,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   const [userId, setUserId] = useState<string | null>(null);
   const [publisherId, setPublisherId] = useState<string | null>(data.publisherId || null);
   const [isFollowing, setIsFollowing] = useState(data.isFollowingPublisher || false);
+  const [isSourceHovering, setIsSourceHovering] = useState(false);
   const voteDraftRef = useRef<VoteSnapshot>({
     liked: data.userLiked || false,
     disliked: data.userDisliked || false,
@@ -594,25 +658,21 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   };
 
   const getUtmUrl = (platform: string) => {
-    const separator = shareUrl.includes('?') ? '&' : '?';
-    return `${shareUrl}${separator}utm_source=${platform}&utm_medium=social&utm_campaign=share_card&utm_content=${data.id}`;
+    return buildTrackedShareUrl(shareUrl, {
+      platform,
+      campaign: 'share_card',
+      contentId: data.id,
+    });
   };
 
   const getAIOptimizedText = () => {
-    // 🚀 2026 Advanced AI SEO Engine: Temizlenmiş Saf Metin İşleme
-    const stripHtml = stripHtmlToText;
-
-    const cleanTitle = stripHtml(data.title);
-    const cleanSummary = data.summary ? stripHtml(data.summary).substring(0, 100) : '';
-    const siteName = siteSettings?.site_name?.replace(/\s+/g, '') || 'Haber';
-    const categoryTag = data.category ? `#${data.category.replace(/\s+/g, '')}` : `#${siteName}`;
-
-    const siteKeywords = siteSettings?.meta_keywords
-      ? siteSettings.meta_keywords.split(',').slice(0, 2).map(k => `#${k.trim().replace(/\s+/g, '')}`).join(' ')
-      : `#${siteName} #Gündem`;
-
-    const summaryPart = cleanSummary ? `\n\n"${cleanSummary}..."` : '';
-    return `📢 ${cleanTitle}${summaryPart}\n\n📌 ${categoryTag} ${siteKeywords}`;
+    return buildShareText({
+      title: data.title,
+      summary: data.summary,
+      category: data.category,
+      siteName: siteSettings?.site_name || 'Haber',
+      keywords: data.keywords || siteSettings?.meta_keywords,
+    });
   };
 
   // Sosyal medya paylaşım fonksiyonları
@@ -621,10 +681,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
     const text = getAIOptimizedText();
     const url = getUtmUrl('whatsapp');
     const finalMessage = `${text}\n\n🔗 Hemen oku: ${url}`;
-
-    // Web ve Mobil uyumlu güvenli WhatsApp linki
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(finalMessage)}`;
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    openShareWindow(buildWhatsAppShareUrl(finalMessage));
     setShowShareMenu(false);
   };
 
@@ -632,7 +689,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
     void recordShare('telegram');
     const text = getAIOptimizedText();
     const url = getUtmUrl('telegram');
-    window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank');
+    openShareWindow(buildTelegramShareUrl(url, text));
     setShowShareMenu(false);
   };
 
@@ -640,44 +697,50 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
     void recordShare('twitter');
     const stripHtml = stripHtmlToText;
     const cleanTitle = stripHtml(data.title);
-    const text = `🔥 ${cleanTitle}`;
     const url = getUtmUrl('twitter');
-    const siteTag = siteSettings?.site_name?.replace(/\s+/g, '') || 'haber';
-    const hashtags = `${data.category?.replace(/\s+/g, '') || 'gündem'},${siteTag}`;
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}&hashtags=${hashtags}`, '_blank', 'noopener,noreferrer');
+    const hashtags = buildShareHashtags({
+      category: data.category,
+      siteName: siteSettings?.site_name,
+      keywords: data.keywords || siteSettings?.meta_keywords,
+    }, 3);
+    openShareWindow(buildXShareUrl({
+      text: cleanTitle,
+      url,
+      hashtags,
+      via: siteSettings?.twitter_username,
+    }));
     setShowShareMenu(false);
   };
 
   const shareToFacebook = () => {
     void recordShare('facebook');
     const url = getUtmUrl('facebook');
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+    openShareWindow(buildFacebookShareUrl({
+      url,
+      appId: siteSettings?.fb_app_id,
+      redirectUrl: shareUrl || url,
+    }));
     setShowShareMenu(false);
   };
 
   const shareToInstagram = async () => {
     void recordShare('instagram');
-    // Instagram direct link sharing is limited to stories for apps, for web we use copy + redirect
-    await copyLink(false, false);
-    showToast(t('common.link_copied_instagram'), 'info');
-    setTimeout(() => {
-      window.open('https://www.instagram.com/', '_blank');
-    }, 1000);
+    const copied = await copyLink(false, false, 'instagram');
+    showToast(copied ? t('common.link_copied_instagram') : t('common.copy_failed_alt'), copied ? 'info' : 'error');
+    window.setTimeout(() => openShareWindow('https://www.instagram.com/'), 1000);
     setShowShareMenu(false);
   };
 
   const shareToTikTok = async () => {
     void recordShare('tiktok');
-    await copyLink(false, false);
-    showToast(t('common.link_copied_tiktok'), 'info');
-    setTimeout(() => {
-      window.open('https://www.tiktok.com/', '_blank');
-    }, 1000);
+    const copied = await copyLink(false, false, 'tiktok');
+    showToast(copied ? t('common.link_copied_tiktok') : t('common.copy_failed_alt'), copied ? 'info' : 'error');
+    window.setTimeout(() => openShareWindow('https://www.tiktok.com/'), 1000);
     setShowShareMenu(false);
   };
 
   const shareToSocial = async () => {
-    void recordShare('native');
+    void recordShare('nsosyal');
     const url = getUtmUrl('nsosyal');
     const text = getAIOptimizedText();
 
@@ -692,24 +755,27 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
           url: url,
         });
       } catch (error) {
-        if ((error as any).name !== 'AbortError') copyLink(true, false);
+        if (!isShareAbortError(error)) {
+          const copied = await copyLink(false, false, 'nsosyal');
+          showToast(copied ? t('common.link_copied_short') : t('common.copy_failed_alt'), copied ? 'success' : 'error');
+          if (copied) window.setTimeout(() => openShareWindow('https://nsosyal.com/'), 600);
+        }
       }
     } else {
-      copyLink(true, false);
+      const copied = await copyLink(false, false, 'nsosyal');
+      showToast(copied ? t('common.link_copied_short') : t('common.copy_failed_alt'), copied ? 'success' : 'error');
+      if (copied) window.setTimeout(() => openShareWindow('https://nsosyal.com/'), 600);
     }
     setShowShareMenu(false);
   };
 
-  const copyLink = async (showNotification = true, track = true) => {
-    if (track) void recordShare('copy_link');
-    const url = getUtmUrl('copy_link');
-    try {
-      await navigator.clipboard.writeText(url);
-      if (showNotification) showToast(t('common.link_copied_short'), 'success');
-    } catch (error) {
-      if (showNotification) showToast(t('common.copy_failed_alt'), 'error');
-    }
+  const copyLink = async (showNotification = true, track = true, platform = 'copy_link') => {
+    if (track) void recordShare(platform);
+    const url = getUtmUrl(platform);
+    const copied = await writeToClipboard(url);
+    if (showNotification) showToast(copied ? t('common.link_copied_short') : t('common.copy_failed_alt'), copied ? 'success' : 'error');
     setShowShareMenu(false);
+    return copied;
   };
 
   const renderContent = () => {
@@ -719,7 +785,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
       case NewsType.FLIP_CARD: return <FlipCard data={data} />;
       case NewsType.EMBED: return <EmbedCard data={data} />;
       case NewsType.AUDIO: return <AudioCard data={data} allowDownload={siteSettings?.content_audio_download_enabled !== false} />;
-      case NewsType.VIDEO: return <VideoCard data={data} />;
+      case NewsType.VIDEO: return <VideoCard data={data} layout="feed" />;
       case NewsType.GALLERY: return <GalleryCard data={data} />;
       case NewsType.POLL: return <PollCard data={data} />;
       case NewsType.QUIZ: return <PollCard data={data} />;
@@ -747,8 +813,16 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   };
 
   const handleSourceAction = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     onSourceClick?.();
+  };
+
+  const sourceHoverHandlers = {
+    onMouseEnter: () => setIsSourceHovering(true),
+    onMouseLeave: () => setIsSourceHovering(false),
+    onFocus: () => setIsSourceHovering(true),
+    onBlur: () => setIsSourceHovering(false),
   };
 
   return (
@@ -773,6 +847,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
             {showPostAuthor && (
               <div
                 onClick={handleSourceAction}
+                {...sourceHoverHandlers}
                 className="w-12 h-12 rounded-full bg-white p-[2px] border border-palette-beige/70 shadow-[0_6px_18px_rgba(24,37,64,0.07)] cursor-pointer group/avatar relative pointer-events-auto"
               >
                 <div className="w-full h-full rounded-full overflow-hidden">
@@ -793,6 +868,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                 <div className="flex items-center gap-2">
                   <div
                     onClick={handleSourceAction}
+                    {...sourceHoverHandlers}
                     className="flex items-center gap-1.5 cursor-pointer group/title pointer-events-auto"
                   >
                     <h5 className="text-[15px] font-[800] text-gray-900 tracking-tight group-hover/title:text-palette-red transition-colors">
@@ -848,7 +924,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
         {/* CONTENT Title */}
         <div className="px-6 pt-2 pb-0.5">
           {data.type !== NewsType.EMBED && (
-            <h3 className="news-title-font text-[38px] font-[800] text-gray-900 tracking-normal leading-tight group-hover/card:text-palette-red transition-colors">
+            <h3 className={`news-title-font text-[38px] font-[800] leading-[1.08] tracking-[-0.025em] text-gray-900 transition-colors ${isSourceHovering ? '' : 'group-hover/card:text-palette-red'}`}>
               {data.title}
             </h3>
           )}

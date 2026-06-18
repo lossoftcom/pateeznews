@@ -60,7 +60,9 @@ const withLocalImageVariant = (
       // Doğrudan statik varyant: tek istek, CDN'den, redirect yok.
       const target = nearestVariantWidth(Math.min(Math.max(width, 64), 3840));
       const variantPath = variantObjectPath(objectPath, target);
-      return new URL(`/local-upload/${variantPath}`, baseUrl).toString();
+      if (exactLocalStaticPath(variantPath)) {
+        return new URL(`/local-upload/${variantPath}`, baseUrl).toString();
+      }
     }
 
     // Diğer durumlar (ör. cdn-cgi yolu gereken haller) eski davranışta kalır.

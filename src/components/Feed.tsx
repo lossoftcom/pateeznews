@@ -7,16 +7,18 @@ import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from './ui/Skeleton';
 import RemixIcon from './ui/RemixIcon';
 import { dataService } from '@/services/dataService';
+import { filterOutOpinionColumns } from '@/utils/opinionColumns';
 
 interface FeedProps {
   newsData: NewsItem[];
   title?: string;
   onNewsSelect?: (id: string) => void;
-  onSourceClick?: (name: string) => void;
+  onSourceClick?: (news: NewsItem) => void;
   siteSettings?: SiteSettings | null;
   navItems?: NavigationItem[];
   selectedCategory?: string;
   loading?: boolean;
+  hideOpinionColumns?: boolean;
 }
 
 const getNewsTime = (news: NewsItem) => {
@@ -39,17 +41,21 @@ const getPopularityScore = (news: NewsItem) => {
   return freshness + views + likes + comments + shares + saves + pinned - dislikes;
 };
 
-const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClick, siteSettings, navItems, selectedCategory, loading }) => {
+const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClick, siteSettings, navItems, selectedCategory, loading, hideOpinionColumns = false }) => {
+  const visibleNewsData = useMemo(
+    () => hideOpinionColumns ? filterOutOpinionColumns(newsData) : newsData,
+    [hideOpinionColumns, newsData]
+  );
   const [activeFilter, setActiveFilter] = useState<'latest' | 'popular'>('latest');
-  const [liveNewsData, setLiveNewsData] = useState<NewsItem[]>(newsData);
+  const [liveNewsData, setLiveNewsData] = useState<NewsItem[]>(visibleNewsData);
   const [filterLoading, setFilterLoading] = useState(false);
   const { t, currentLang } = useLanguage();
 
   const resolvedTitle = title ? t(title) : undefined;
 
   useEffect(() => {
-    setLiveNewsData(newsData);
-  }, [newsData]);
+    setLiveNewsData(visibleNewsData);
+  }, [visibleNewsData]);
 
   const handleFilterChange = useCallback(async (filter: 'latest' | 'popular') => {
     setActiveFilter(filter);
@@ -58,14 +64,14 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
       const category = selectedCategory && selectedCategory !== 'home' ? selectedCategory : null;
       const freshNews = await dataService.getNewsItems(currentLang.code || 'tr', category, 80, { fresh: true });
       if (freshNews.length > 0) {
-        setLiveNewsData(freshNews);
+        setLiveNewsData(hideOpinionColumns ? filterOutOpinionColumns(freshNews) : freshNews);
       }
     } catch (error) {
       console.error('Feed refresh error:', error);
     } finally {
       setFilterLoading(false);
     }
-  }, [currentLang.code, selectedCategory]);
+  }, [currentLang.code, hideOpinionColumns, selectedCategory]);
 
   const mansetItems = useMemo(() => (
     liveNewsData
@@ -173,7 +179,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
               <NewsCard
                 key={news.id}
                 data={news}
-                onSourceClick={() => onSourceClick?.(news.source)}
+                onSourceClick={() => onSourceClick?.(news)}
                 siteSettings={siteSettings}
                 navItems={navItems}
               />

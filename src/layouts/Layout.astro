@@ -19,6 +19,8 @@ interface Props {
 	keywords?: string;
 	ogType?: string;
 	ogImage?: string;
+	ogImageAlt?: string;
+	ogVideo?: string;
 	canonical?: string;
 	jsonLd?: unknown | unknown[];
   lang?: string;
@@ -37,6 +39,8 @@ const {
   keywords = "", 
   ogType = "",
   ogImage = "", 
+  ogImageAlt = "",
+  ogVideo = "",
   canonical = "",
   jsonLd,
   lang = "tr",
@@ -53,6 +57,7 @@ const defaultFavicon = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/
 
 import GlobalNavigation from '@/components/GlobalNavigation';
 import PushNotificationBootstrap from '@/components/PushNotificationBootstrap';
+import PublicFooter from '@/components/PublicFooter';
 
 const pathname = Astro.url.pathname;
 const normalizedPathname = pathname.replace(/\/$/, '');
@@ -63,11 +68,12 @@ const normalizeBase = (value: string) => String(value || '').trim().replace(/\/$
 const canonicalBase = normalizeBase(siteSettings?.canonical_url || '');
 const baseForUrls = canonicalBase || Astro.url.origin;
 
-const [seoAlternates, siteFonts] = await Promise.all([
+const [seoAlternates, siteFonts, footerPages] = await Promise.all([
 	Array.isArray(providedSeoAlternates) && providedSeoAlternates.length
 		? Promise.resolve(providedSeoAlternates)
 		: dataService.getSeoAlternates(),
 	dataService.getSiteFonts(),
+	dataService.getFooterPages(lang),
 ]);
 const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
 const alternateBases = seoAlternates.map((entry) => normalizeBase(entry.canonicalUrl) || baseForUrls);
@@ -127,6 +133,24 @@ const toRequestAssetUrl = (value: string | null | undefined) => {
 };
 
 const resolvedOgImage = toAbsoluteUrl(ogImage || siteSettings?.og_image_url);
+const resolvedOgImageAlt = String(ogImageAlt || resolvedTitle || siteSettings?.site_name || '')
+	.replace(/\s+/g, ' ')
+	.trim();
+const resolvedOgVideo = toAbsoluteUrl(ogVideo);
+const resolvedOgVideoType = (() => {
+	const pathname = (() => {
+		try {
+			return new URL(resolvedOgVideo).pathname.toLocaleLowerCase('en-US');
+		} catch {
+			return resolvedOgVideo.toLocaleLowerCase('en-US');
+		}
+	})();
+	if (pathname.endsWith('.webm')) return 'video/webm';
+	if (pathname.endsWith('.mov')) return 'video/quicktime';
+	if (pathname.endsWith('.m4v')) return 'video/x-m4v';
+	if (pathname.endsWith('.mp4')) return 'video/mp4';
+	return '';
+})();
 const resolvedFavicon = favicon || siteSettings?.favicon_url || defaultFavicon;
 const resolvedFaviconAsset = toRequestAssetUrl(resolvedFavicon);
 const themeColor = '#F8F9FA';
@@ -607,14 +631,20 @@ const fontPreloadHrefs = Array.from(new Set(
 		<meta property="og:url" content={resolvedCanonicalUrl} />
 		<meta property="og:title" content={resolvedTitle} />
 		<meta property="og:description" content={resolvedDescription} />
-		<meta property="og:image" content={resolvedOgImage} />
+		{resolvedOgImage && <meta property="og:image" content={resolvedOgImage} />}
+		{resolvedOgImage && <meta property="og:image:secure_url" content={resolvedOgImage} />}
+		{resolvedOgImage && resolvedOgImageAlt && <meta property="og:image:alt" content={resolvedOgImageAlt} />}
+		{resolvedOgVideo && <meta property="og:video" content={resolvedOgVideo} />}
+		{resolvedOgVideo && <meta property="og:video:secure_url" content={resolvedOgVideo} />}
+		{resolvedOgVideoType && <meta property="og:video:type" content={resolvedOgVideoType} />}
 
 		<!-- Twitter -->
-		<meta property="twitter:card" content="summary_large_image" />
-		<meta property="twitter:url" content={resolvedCanonicalUrl} />
-		<meta property="twitter:title" content={resolvedTitle} />
-		<meta property="twitter:description" content={resolvedDescription} />
-		<meta property="twitter:image" content={resolvedOgImage} />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:url" content={resolvedCanonicalUrl} />
+		<meta name="twitter:title" content={resolvedTitle} />
+		<meta name="twitter:description" content={resolvedDescription} />
+		{resolvedOgImage && <meta name="twitter:image" content={resolvedOgImage} />}
+		{resolvedOgImage && resolvedOgImageAlt && <meta name="twitter:image:alt" content={resolvedOgImageAlt} />}
 
 		<link rel="canonical" href={resolvedCanonicalUrl} />
 		<link rel="alternate" type="application/rss+xml" title={rssTitle} href={rssHref} />
@@ -696,6 +726,7 @@ const fontPreloadHrefs = Array.from(new Set(
 			<PushNotificationBootstrap client:load />
 		</div>
 		<slot />
+		<PublicFooter client:visible siteSettings={siteSettings ?? null} pages={footerPages} />
 		{footerCustomCodes && <Fragment set:html={footerCustomCodes} />}
 	</body>
 </html>

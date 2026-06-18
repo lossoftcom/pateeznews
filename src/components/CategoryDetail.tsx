@@ -41,6 +41,14 @@ const CATEGORY_TYPE_ALIASES: Record<string, string[]> = {
 const CATEGORY_SLIDER_AUTOPLAY_DELAY = 5500;
 const CATEGORY_SLIDER_HEIGHT = 260;
 const CATEGORY_PAGE_SIZE = 12;
+const OPINION_AUTHOR_PREVIEW_LIMIT = 4;
+const WEEKLY_TREND_VALUES = new Set([
+  'weekly_trends',
+  'weekly_likes',
+  'weekly_comments',
+  'weekly_shares',
+  'weekly_reads',
+]);
 
 interface CategorySlide {
   id: string;
@@ -51,6 +59,17 @@ interface CategorySlide {
   width?: number;
   height?: number;
   ratio?: number;
+}
+
+interface OpinionAuthorSummary {
+  key: string;
+  name: string;
+  handle: string;
+  avatar: string;
+  initials: string;
+  postCount: number;
+  totalViews: number;
+  latestPost: NewsItem;
 }
 
 const HTML_ENTITY_MAP: Record<string, string> = {
@@ -165,6 +184,26 @@ const sortNewsNewest = (items: NewsItem[]) => (
 
 const normalizedToken = (value: unknown) => String(value || '').trim().toLocaleLowerCase('tr-TR');
 
+const isOpinionCategoryValue = (value: unknown) => {
+  const slug = slugify(String(value || ''));
+  return slug === 'kose-yazisi' || slug === 'kose-yazilari' || slug === 'opinion' || slug === 'opinion-column';
+};
+
+const getOpinionAuthorName = (news: NewsItem) => (
+  formatTitleLabel(news.author || news.source || 'Pateez') || 'Pateez'
+);
+
+const getOpinionAuthorInitials = (name: string) => {
+  const initials = name
+    .split(/\s+/)
+    .map((part) => part.trim()[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toLocaleUpperCase('tr-TR');
+  return initials || 'P';
+};
+
 const getNewsCategoryLabels = (news: NewsItem) => {
   const rawTrail = (news as any).categoryTrail ?? (news as any).categoryPath;
   const trail = Array.isArray(rawTrail) ? rawTrail : [];
@@ -189,14 +228,25 @@ const safeDecodePathPart = (value: string) => {
   }
 };
 
-const mergeNewsById = (current: NewsItem[], incoming: NewsItem[]) => {
+const normalizeWeeklyTrendValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_');
+  return WEEKLY_TREND_VALUES.has(normalized) ? normalized : 'weekly_trends';
+};
+
+const isWeeklyTrendValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_');
+  return WEEKLY_TREND_VALUES.has(normalized);
+};
+
+const mergeNewsById = (current: NewsItem[], incoming: NewsItem[], preserveOrder = false) => {
   const seen = new Set<string>();
-  return sortNewsNewest([...current, ...incoming].filter((item) => {
+  const merged = [...current, ...incoming].filter((item) => {
     const id = String(item?.id || '');
     if (!id || seen.has(id)) return false;
     seen.add(id);
     return true;
-  }));
+  });
+  return preserveOrder ? merged : sortNewsNewest(merged);
 };
 
 const mapNewsToCategorySlide = (news: NewsItem): CategorySlide | null => {
@@ -220,6 +270,7 @@ interface CategoryDetailProps {
   category: string;
   onBack: () => void;
   onNewsSelect: (id: string) => void;
+  onProfileSelect?: (news: NewsItem) => void;
   siteSettings?: SiteSettings | null;
   newsItems?: NewsItem[];
   navItems?: NavigationItem[];
@@ -234,12 +285,12 @@ interface CategoryDetailProps {
   };
 }
 
-const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNewsSelect, newsItems, navItems, pagination }) => {
+const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNewsSelect, onProfileSelect, newsItems, navItems, pagination }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterLoading, setNewsletterLoading] = useState(false);
-  const [pagedNews, setPagedNews] = useState<NewsItem[]>(() => sortNewsNewest(newsItems || []));
+  const [pagedNews, setPagedNews] = useState<NewsItem[]>(() => newsItems || []);
   const [nextOffset, setNextOffset] = useState(() => pagination?.nextOffset ?? (newsItems?.length || 0));
   const [hasMore, setHasMore] = useState(() => pagination?.hasMore ?? false);
   const [totalCount, setTotalCount] = useState(() => pagination?.total ?? (newsItems?.length || 0));
@@ -248,7 +299,9 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
   const [loadMoreError, setLoadMoreError] = useState('');
   const [activeSubcategory, setActiveSubcategory] = useState<string | null>(() => pagination?.activeSubcategory || null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const authorsPanelRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [showAllOpinionAuthors, setShowAllOpinionAuthors] = useState(false);
   const activeCategoryItem = useMemo(() => {
     const categorySlug = slugify(category);
     return navItems?.find(item =>
@@ -262,9 +315,19 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
   const categoryImageUrl = normalizeCategoryImageUrl(
     (activeCategoryItem as any)?.image_url || (activeCategoryItem as any)?.imageUrl
   );
+  const isTrendCategory = activeCategoryItem?.type === 'trends' || isWeeklyTrendValue(
+    (activeCategoryItem as any)?.value || category
+  );
+  const activeTrendValue = normalizeWeeklyTrendValue((activeCategoryItem as any)?.value || category);
+  const isOpinionCategory = useMemo(() => [
+    category,
+    displayCategory,
+    activeCategoryItem?.label,
+    (activeCategoryItem as any)?.value,
+  ].some(isOpinionCategoryValue), [activeCategoryItem, category, displayCategory]);
 
   useEffect(() => {
-    setPagedNews(sortNewsNewest(newsItems || []));
+    setPagedNews(newsItems || []);
     setNextOffset(pagination?.nextOffset ?? (newsItems?.length || 0));
     setHasMore(pagination?.hasMore ?? false);
     setTotalCount(pagination?.total ?? (newsItems?.length || 0));
@@ -281,11 +344,15 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
     pagination?.totalViews,
   ]);
 
+  useEffect(() => {
+    setShowAllOpinionAuthors(false);
+  }, [category]);
+
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const loadMoreNews = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
-    const requestCategory = (pagination?.category || displayCategory || category || '').trim();
+    const requestCategory = (isTrendCategory ? activeTrendValue : (pagination?.category || displayCategory || category || '')).trim();
     if (!requestCategory) return;
 
     setIsLoadingMore(true);
@@ -300,6 +367,10 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
       url.searchParams.set('category', requestCategory);
       url.searchParams.set('offset', String(nextOffset));
       url.searchParams.set('limit', String(pagination?.limit || CATEGORY_PAGE_SIZE));
+      if (isTrendCategory) {
+        url.searchParams.set('type', 'trends');
+        url.searchParams.set('value', activeTrendValue);
+      }
 
       const response = await fetch(url.toString(), {
         signal: controller.signal,
@@ -311,7 +382,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
       const payload = await response.json();
       const incoming = Array.isArray(payload?.items) ? payload.items as NewsItem[] : [];
 
-      setPagedNews((current) => mergeNewsById(current, incoming));
+      setPagedNews((current) => mergeNewsById(current, incoming, isTrendCategory));
       setNextOffset(Number(payload?.nextOffset ?? (nextOffset + incoming.length)));
       setHasMore(Boolean(payload?.hasMore));
       setTotalCount(Number(payload?.total ?? totalCount));
@@ -326,9 +397,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
     }
   }, [
     category,
+    activeTrendValue,
     currentLang.code,
     displayCategory,
     hasMore,
+    isTrendCategory,
     isLoadingMore,
     nextOffset,
     pagination?.category,
@@ -363,6 +436,10 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
     const typeAliases = CATEGORY_TYPE_ALIASES[categorySlug] || [];
     const sourceNews = pagedNews || [];
 
+    if (isTrendCategory) {
+      return sourceNews;
+    }
+
     return sortNewsNewest(sourceNews.filter(news => {
       const newsCategoryLabels = getNewsCategoryLabels(news);
       const newsCategorySlugs = newsCategoryLabels.map(slugify).filter(Boolean);
@@ -384,7 +461,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
         );
       });
     }));
-  }, [activeCategoryItem, displayCategory, pagedNews]);
+  }, [activeCategoryItem, displayCategory, isTrendCategory, pagedNews]);
 
   const subcategoryOptions = useMemo(() => {
     if (activeCategoryItem?.type !== 'district') return [];
@@ -484,6 +561,63 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
       : totalViews || categoryNews.reduce((total, news) => total + (Number(news.views) || 0), 0),
   }), [activeSubcategory, categoryNews, totalCount, totalViews]);
 
+  const opinionAuthors = useMemo<OpinionAuthorSummary[]>(() => {
+    const authors = new Map<string, OpinionAuthorSummary>();
+
+    categoryNews.forEach((news) => {
+      const name = getOpinionAuthorName(news);
+      const handle = String(news.publisherHandle || '').trim();
+      const key = handle
+        ? `handle:${handle.toLocaleLowerCase('tr-TR')}`
+        : `name:${slugify(name) || news.id}`;
+      const existing = authors.get(key);
+
+      if (!existing) {
+        authors.set(key, {
+          key,
+          name,
+          handle,
+          avatar: String(news.sourceAvatar || '').trim(),
+          initials: getOpinionAuthorInitials(name),
+          postCount: 1,
+          totalViews: Number(news.views) || 0,
+          latestPost: news,
+        });
+        return;
+      }
+
+      existing.postCount += 1;
+      existing.totalViews += Number(news.views) || 0;
+      if (!existing.avatar && news.sourceAvatar) {
+        existing.avatar = String(news.sourceAvatar || '').trim();
+      }
+      if (!existing.handle && handle) {
+        existing.handle = handle;
+      }
+      if (getNewsTime(news) > getNewsTime(existing.latestPost)) {
+        existing.latestPost = news;
+      }
+    });
+
+    return Array.from(authors.values()).sort((a, b) => {
+      const latestDiff = getNewsTime(b.latestPost) - getNewsTime(a.latestPost);
+      if (latestDiff !== 0) return latestDiff;
+      return b.postCount - a.postCount;
+    });
+  }, [categoryNews]);
+
+  const visibleOpinionAuthors = useMemo(() => (
+    showAllOpinionAuthors
+      ? opinionAuthors
+      : opinionAuthors.slice(0, OPINION_AUTHOR_PREVIEW_LIMIT)
+  ), [opinionAuthors, showAllOpinionAuthors]);
+
+  const featuredOpinion = categoryNews[0] || null;
+  const opinionListNews = featuredOpinion
+    ? categoryNews.filter((news) => news.id !== featuredOpinion.id)
+    : categoryNews;
+  const featuredOpinionAuthor = featuredOpinion ? getOpinionAuthorName(featuredOpinion) : '';
+
   const categorySliderItems = useMemo(() => (
     categoryNews
       .map(mapNewsToCategorySlide)
@@ -556,6 +690,21 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
     };
   }, [categorySliderItems, slideImageRatios]);
 
+  const handleShowAllAuthors = useCallback(() => {
+    setShowAllOpinionAuthors((current) => !current);
+    if (typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      authorsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }, []);
+
+  const handleProfileClick = useCallback((event: React.MouseEvent, news: NewsItem) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!news.publisherHandle) return;
+    onProfileSelect?.(news);
+  }, [onProfileSelect]);
+
   const handleNewsletterSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!newsletterEmail.trim()) return;
@@ -570,6 +719,403 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
       setNewsletterLoading(false);
     }
   };
+
+  if (isOpinionCategory) {
+    const metricLang = currentLang.code || 'tr';
+    const featuredImage = featuredOpinion ? getNewsImage(featuredOpinion) : '';
+    const featuredTitle = featuredOpinion ? stripHtml(featuredOpinion.seoTitle || featuredOpinion.title) : '';
+    const featuredDescription = featuredOpinion ? stripHtml(featuredOpinion.summary || featuredOpinion.seoDescription) : '';
+    const featuredPublishedAt = featuredOpinion ? formatPostDateParts(featuredOpinion.timestamp, currentLang.code) : null;
+
+    return (
+      <div className="category-detail-compact opinion-category-detail animate-in overflow-hidden rounded-[5px] border border-gray-200 bg-white shadow-sm mb-10">
+        <style>{`
+          .opinion-category-detail .opinion-hero {
+            background:
+              linear-gradient(135deg, rgba(255, 255, 255, 0.99) 0%, rgba(255, 250, 242, 0.94) 52%, rgba(248, 250, 252, 0.98) 100%);
+          }
+
+          .opinion-category-detail .opinion-quote-mark {
+            font-family: Georgia, 'Times New Roman', serif;
+          }
+
+          .opinion-category-detail .opinion-author-card {
+            background:
+              linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 252, 252, 0.96) 100%);
+          }
+
+          .opinion-category-detail .opinion-author-avatar {
+            box-shadow:
+              0 10px 26px rgba(24, 37, 64, 0.10),
+              0 0 0 1px rgba(255, 255, 255, 0.86) inset;
+          }
+
+          .opinion-category-detail .opinion-featured-title,
+          .opinion-category-detail .opinion-list-title {
+            overflow-wrap: anywhere;
+            text-wrap: balance;
+          }
+
+          .opinion-category-detail .opinion-featured-summary,
+          .opinion-category-detail .opinion-author-latest,
+          .opinion-category-detail .opinion-list-summary {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+
+          .opinion-category-detail .opinion-featured-summary {
+            -webkit-line-clamp: 3;
+          }
+
+          .opinion-category-detail .opinion-author-latest,
+          .opinion-category-detail .opinion-list-summary {
+            -webkit-line-clamp: 2;
+          }
+
+          @media (max-width: 760px) {
+            .opinion-category-detail .opinion-featured-media {
+              aspect-ratio: 16 / 10;
+            }
+          }
+        `}</style>
+
+        <div className="opinion-hero border-b border-gray-100 px-5 py-6 md:px-8 md:py-8">
+          <div className="mb-7 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="group flex h-10 w-10 items-center justify-center rounded-[5px] border border-gray-200 bg-white text-gray-400 shadow-sm transition-all hover:border-palette-red/25 hover:text-palette-red active:scale-95"
+              aria-label="Geri dön"
+            >
+              <ArrowLeft size={19} className="transition-transform group-hover:-translate-x-0.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleShowAllAuthors}
+              aria-expanded={showAllOpinionAuthors}
+              aria-controls="opinion-author-directory"
+              className="inline-flex h-10 items-center gap-2 rounded-[5px] border border-palette-red/15 bg-white px-4 text-[11px] font-black tracking-[0.02em] text-palette-red shadow-sm transition-all hover:-translate-y-0.5 hover:border-palette-red/35 hover:shadow-md active:scale-95"
+            >
+              <RemixIcon name="ri-group-line" size={15} />
+              <span>{showAllOpinionAuthors ? 'Yazarları daralt' : 'Tüm yazarlar'}</span>
+            </button>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
+            <div className="min-w-0">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-[5px] border border-palette-red/10 bg-white/80 px-3 py-1.5 text-[10px] font-black tracking-[0.02em] text-palette-red shadow-sm">
+                <RemixIcon name="ri-quill-pen-line" size={14} />
+                Köşe yazıları
+              </div>
+              <h1 className="news-title-font text-4xl font-[900] leading-[1.05] tracking-normal text-gray-900 md:text-5xl">
+                {displayCategory}
+              </h1>
+              <p className="mt-4 max-w-2xl text-[15px] font-semibold leading-relaxed text-[#8fa0a3]">
+                Yazarların en güncel yorumları, gündem notları ve kişisel bakış açıları tek yerde.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 overflow-hidden rounded-[5px] border border-white/80 bg-white shadow-sm">
+              <div className="px-4 py-4">
+                <span className="block text-xl font-black leading-none text-gray-900">{formatCompactMetric(categoryStats.newsCount)}</span>
+                <span className="mt-1 block text-[10px] font-black tracking-[0.02em] text-gray-400">Yazı</span>
+              </div>
+              <div className="border-x border-gray-100 px-4 py-4">
+                <span className="block text-xl font-black leading-none text-gray-900">{formatCompactMetric(opinionAuthors.length)}</span>
+                <span className="mt-1 block text-[10px] font-black tracking-[0.02em] text-gray-400">Yazar</span>
+              </div>
+              <div className="px-4 py-4">
+                <span className="block text-xl font-black leading-none text-gray-900">{formatCompactMetric(categoryStats.totalViews)}</span>
+                <span className="mt-1 block text-[10px] font-black tracking-[0.02em] text-gray-400">Okunma</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-50/25 px-5 py-6 md:px-8 md:py-8">
+          {featuredOpinion ? (
+            <section className="mb-6 overflow-hidden rounded-[5px] border border-gray-100 bg-white shadow-sm">
+              <button
+                type="button"
+                onClick={() => onNewsSelect(featuredOpinion.id)}
+                className="group grid w-full grid-cols-1 text-left lg:grid-cols-[minmax(260px,42%)_minmax(0,1fr)]"
+              >
+                {featuredImage && (
+                  <div className="opinion-featured-media relative min-h-[260px] overflow-hidden bg-gray-100">
+                    <img
+                      src={featuredImage}
+                      alt={featuredOpinion.thumbnailAlt || featuredTitle}
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]"
+                    />
+                  </div>
+                )}
+                <div className="flex min-w-0 flex-col justify-between p-5 md:p-7">
+                  <div className="min-w-0">
+                    <span className="opinion-quote-mark block text-5xl font-black leading-none text-palette-red/20">“</span>
+                    <h2 className="opinion-featured-title news-title-font mt-1 text-3xl font-[900] leading-[1.12] tracking-normal text-gray-900 transition-colors group-hover:text-palette-red md:text-4xl">
+                      {featuredTitle}
+                    </h2>
+                    {featuredDescription && (
+                      <p className="opinion-featured-summary news-subtitle-font mt-4 text-[15px] font-semibold leading-relaxed text-gray-500">
+                        {featuredDescription}
+                      </p>
+                    )}
+                  </div>
+
+                  <div
+                    onClick={(event) => handleProfileClick(event, featuredOpinion)}
+                    className="mt-6 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4 cursor-pointer"
+                  >
+                    <div className="opinion-author-avatar flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-palette-beige/40 text-[13px] font-black text-palette-tan">
+                      {featuredOpinion.sourceAvatar ? (
+                        <img
+                          src={featuredOpinion.sourceAvatar}
+                          alt={featuredOpinionAuthor}
+                          loading="eager"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span>{getOpinionAuthorInitials(featuredOpinionAuthor)}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[14px] font-black leading-tight text-gray-900">{featuredOpinionAuthor}</span>
+                        <RemixIcon name="ri-verified-badge-fill" size={14} className="text-palette-red" />
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-palette-tan/50">
+                        {featuredOpinion.publisherHandle && <span>@{featuredOpinion.publisherHandle}</span>}
+                        {featuredPublishedAt?.date && (
+                          <time dateTime={featuredPublishedAt.iso || undefined}>{featuredPublishedAt.date}</time>
+                        )}
+                        <span>{formatFullMetric(featuredOpinion.views, metricLang)} okunma</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </section>
+          ) : (
+            <div className="mb-6 rounded-[5px] border border-gray-100 bg-white py-20 text-center shadow-sm">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[5px] bg-gray-50 text-gray-300">
+                <Zap size={34} />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900">{t('category_detail.empty_title')}</h3>
+              <p className="mt-2 px-8 text-sm font-semibold text-gray-400">{t('category_detail.empty_description')}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_270px]">
+            <main className="min-w-0 space-y-6">
+              {opinionAuthors.length > 0 && (
+                <section
+                  id="opinion-author-directory"
+                  ref={authorsPanelRef}
+                  className="scroll-mt-[112px] rounded-[5px] border border-gray-100 bg-white p-4 shadow-sm md:p-5"
+                >
+                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-black tracking-[0.02em] text-palette-red">
+                        {showAllOpinionAuthors ? 'Tüm yazarlar' : 'Yazar vitrini'}
+                      </span>
+                      <h2 className="mt-1 text-2xl font-black leading-tight text-gray-900">Kalemleri takip et</h2>
+                    </div>
+                    <span className="rounded-full bg-gray-50 px-3 py-1 text-[11px] font-black text-gray-400">
+                      {opinionAuthors.length} yazar
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {visibleOpinionAuthors.map((author) => {
+                      const latestTitle = stripHtml(author.latestPost.seoTitle || author.latestPost.title);
+                      const latestDate = formatPostDateParts(author.latestPost.timestamp, currentLang.code);
+
+                      return (
+                        <article
+                          key={author.key}
+                          className="opinion-author-card rounded-[5px] border border-gray-100 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-palette-red/15 hover:shadow-md"
+                        >
+                          <button
+                            type="button"
+                            onClick={(event) => handleProfileClick(event, author.latestPost)}
+                            className="flex w-full gap-3 text-left"
+                          >
+                            <div className="opinion-author-avatar h-14 w-14 shrink-0 overflow-hidden rounded-full bg-palette-beige/40 text-[14px] font-black text-palette-tan">
+                              {author.avatar ? (
+                                <img src={author.avatar} alt={author.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center">{author.initials}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <h3 className="break-words text-[16px] font-black leading-tight text-gray-900">{author.name}</h3>
+                                <RemixIcon name="ri-verified-badge-fill" size={14} className="shrink-0 text-palette-red" />
+                              </div>
+                              {author.handle && (
+                                <span className="mt-1 block break-words text-[11px] font-bold text-palette-tan/55">@{author.handle}</span>
+                              )}
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => onNewsSelect(author.latestPost.id)}
+                            className="group/latest mt-4 block w-full rounded-[5px] border border-gray-100 bg-white px-3 py-3 text-left transition-colors hover:border-palette-red/20"
+                          >
+                            <span className="opinion-author-latest block text-[13px] font-black leading-snug text-gray-800 group-hover/latest:text-palette-red">
+                              {latestTitle}
+                            </span>
+                            <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-palette-tan/50">
+                              {latestDate.date && <time dateTime={latestDate.iso || undefined}>{latestDate.date}</time>}
+                              <span>{formatCompactMetric(author.postCount)} yazı</span>
+                              <span>{formatCompactMetric(author.totalViews)} okunma</span>
+                            </span>
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {opinionListNews.length > 0 && (
+                <section className="rounded-[5px] border border-gray-100 bg-white p-4 shadow-sm md:p-5">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-black tracking-[0.02em] text-palette-red">Son yazılar</span>
+                      <h2 className="mt-1 text-2xl font-black leading-tight text-gray-900">Gündemdeki yorumlar</h2>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {opinionListNews.map((news) => {
+                      const title = stripHtml(news.seoTitle || news.title);
+                      const description = stripHtml(news.summary || news.seoDescription);
+                      const image = getNewsImage(news);
+                      const author = getOpinionAuthorName(news);
+                      const publishedAt = formatPostDateParts(news.timestamp, currentLang.code);
+
+                      return (
+                        <button
+                          key={news.id}
+                          type="button"
+                          onClick={() => onNewsSelect(news.id)}
+                          className={`group grid w-full grid-cols-1 overflow-hidden rounded-[5px] border border-gray-100 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-palette-red/15 hover:shadow-md active:scale-[0.995] ${image ? 'sm:grid-cols-[132px_minmax(0,1fr)]' : ''}`}
+                        >
+                          {image && (
+                            <div className="min-h-[112px] overflow-hidden bg-gray-50">
+                              <img
+                                src={image}
+                                alt={news.thumbnailAlt || title}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+                              />
+                            </div>
+                          )}
+                          <div className="min-w-0 p-4">
+                            <div
+                              onClick={(event) => handleProfileClick(event, news)}
+                              className="flex flex-wrap items-center gap-2 text-[11px] font-black text-palette-red"
+                            >
+                              <span>{author}</span>
+                              <RemixIcon name="ri-verified-badge-fill" size={13} />
+                            </div>
+                            <h3 className="opinion-list-title mt-1 text-[20px] font-black leading-tight text-gray-900 transition-colors group-hover:text-palette-red">
+                              {title}
+                            </h3>
+                            {description && (
+                              <p className="opinion-list-summary mt-2 text-[13px] font-semibold leading-relaxed text-gray-500">
+                                {description}
+                              </p>
+                            )}
+                            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-gray-100 pt-2 text-[10px] font-bold text-palette-tan/50">
+                              {publishedAt.date && <time dateTime={publishedAt.iso || undefined}>{publishedAt.date}</time>}
+                              <span>{formatFullMetric(news.views, metricLang)} okunma</span>
+                              <span>{formatFullMetric(news.comments, metricLang)} yorum</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {(hasMore || isLoadingMore || loadMoreError) && (
+                <div ref={loadMoreRef} className="flex justify-center py-2">
+                  {isLoadingMore ? (
+                    <div className="flex items-center gap-3 rounded-[5px] border border-gray-100 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-widest text-gray-400 shadow-sm">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-palette-accent" />
+                      {t('category_detail.loading_more')}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void loadMoreNews()}
+                      className="rounded-[5px] border border-gray-200 bg-white px-6 py-3 text-[11px] font-black uppercase tracking-widest text-gray-500 shadow-sm transition-all hover:border-palette-red/25 hover:text-palette-red hover:shadow-md active:scale-95"
+                    >
+                      {loadMoreError ? t('category_detail.load_error') : t('category_detail.load_more')}
+                    </button>
+                  )}
+                </div>
+              )}
+            </main>
+
+            <aside className="space-y-4 xl:sticky xl:top-[100px]">
+              <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+                <span className="text-[10px] font-black tracking-[0.02em] text-palette-red">Özet</span>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <span className="text-[12px] font-black text-gray-500">Toplam yazı</span>
+                    <span className="text-lg font-black text-gray-900">{formatCompactMetric(categoryStats.newsCount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <span className="text-[12px] font-black text-gray-500">Yazar sayısı</span>
+                    <span className="text-lg font-black text-gray-900">{formatCompactMetric(opinionAuthors.length)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-black text-gray-500">Okunma</span>
+                    <span className="text-lg font-black text-gray-900">{formatCompactMetric(categoryStats.totalViews)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
+                <h4 className="text-xl font-black text-gray-900 mb-2">{t('category_detail.newsletter_title')}</h4>
+                <p className="text-sm font-semibold leading-relaxed text-gray-500 mb-5">
+                  {t('category_detail.newsletter_description').replace('{category}', displayCategory)}
+                </p>
+                <form onSubmit={handleNewsletterSubmit} className="space-y-3">
+                  <input
+                    type="email"
+                    value={newsletterEmail}
+                    onChange={(event) => setNewsletterEmail(event.target.value)}
+                    placeholder={t('category_detail.email_placeholder')}
+                    className="h-12 w-full rounded-[5px] border border-gray-200 bg-gray-50 px-4 text-sm font-bold transition-all focus:border-palette-accent focus:bg-white focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={newsletterLoading}
+                    className="h-12 w-full rounded-[5px] bg-palette-accent text-[11px] font-black uppercase tracking-widest text-palette-maroon shadow-lg shadow-palette-accent/20 transition-all hover:bg-palette-maroon hover:text-palette-beige disabled:opacity-60"
+                  >
+                    {newsletterLoading ? '...' : t('category_detail.subscribe')}
+                  </button>
+                </form>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="category-detail-compact animate-in bg-white rounded-[4px] border border-gray-200 shadow-sm overflow-hidden mb-10">
@@ -623,44 +1169,82 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           height: 252px;
           isolation: isolate;
           background:
-            linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 249, 245, 0.92) 48%, rgba(235, 233, 222, 0.86) 100%);
-          box-shadow: 0 24px 70px rgba(44, 55, 68, 0.08), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+            radial-gradient(circle at 88% 22%, rgba(243, 156, 18, 0.18), transparent 32%),
+            radial-gradient(circle at 10% 20%, rgba(234, 67, 53, 0.08), transparent 38%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.99) 0%, rgba(252, 251, 247, 0.96) 48%, rgba(237, 235, 226, 0.88) 100%);
+          box-shadow:
+            0 26px 74px rgba(44, 55, 68, 0.09),
+            0 1px 0 rgba(255, 255, 255, 0.94) inset;
         }
 
         .category-detail-compact .category-identity-backdrop {
-          filter: blur(26px) saturate(1.12);
-          transform: scale(1.12);
-          opacity: 0.5;
+          filter: blur(30px) saturate(1.04) contrast(0.96);
+          transform: scale(1.08);
+          opacity: 0.34;
         }
 
         .category-detail-compact .category-identity-layout {
-          grid-template-columns: minmax(220px, 276px) minmax(0, 1fr);
+          grid-template-columns: minmax(220px, 292px) minmax(0, 1fr);
           padding: 16px;
+        }
+
+        .category-detail-compact .category-identity-copy {
+          position: relative;
+          align-self: stretch;
+          display: flex;
+          min-width: 0;
+          flex-direction: column;
+          justify-content: center;
+          padding: 18px 0 18px 18px;
+        }
+
+        .category-detail-compact .category-identity-copy::before {
+          content: "";
+          position: absolute;
+          inset: 20px auto 20px 0;
+          width: 3px;
+          border-radius: 999px;
+          background: linear-gradient(180deg, #EA4335 0%, #F39C12 100%);
+          box-shadow: 0 10px 24px rgba(234, 67, 53, 0.18);
         }
 
         .category-detail-compact .category-identity-title {
           overflow-wrap: anywhere;
+          letter-spacing: -0.025em;
+          text-wrap: balance;
         }
 
         .category-detail-compact .category-identity-image-shell {
           height: 100%;
           min-height: 0;
-          background: transparent;
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.42)),
+            rgba(255, 255, 255, 0.34);
+          border: 1px solid rgba(255, 255, 255, 0.72);
           box-shadow:
-            0 34px 76px rgba(34, 42, 54, 0.18),
-            0 18px 38px rgba(156, 118, 63, 0.16);
+            0 30px 70px rgba(34, 42, 54, 0.15),
+            0 14px 34px rgba(156, 118, 63, 0.12),
+            0 1px 0 rgba(255, 255, 255, 0.78) inset;
+        }
+
+        .category-detail-compact .category-identity-metric {
+          border-color: rgba(255, 255, 255, 0.76);
+          background: rgba(255, 255, 255, 0.82);
+          box-shadow:
+            0 12px 30px rgba(44, 55, 68, 0.08),
+            0 1px 0 rgba(255, 255, 255, 0.82) inset;
         }
 
         .category-detail-compact .category-identity-image-shell::before {
           content: "";
           position: absolute;
-          inset: -18px -26px;
+          inset: -20px -28px;
           background:
-            radial-gradient(circle at 62% 42%, rgba(243, 156, 18, 0.28), transparent 46%),
-            radial-gradient(circle at 34% 70%, rgba(234, 67, 53, 0.18), transparent 44%),
-            linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
-          filter: blur(18px);
-          opacity: 0.9;
+            radial-gradient(circle at 72% 18%, rgba(243, 156, 18, 0.22), transparent 44%),
+            radial-gradient(circle at 28% 78%, rgba(234, 67, 53, 0.14), transparent 46%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0));
+          filter: blur(20px);
+          opacity: 0.82;
           pointer-events: none;
         }
 
@@ -668,17 +1252,17 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           content: "";
           position: absolute;
           inset: 0;
-          border: 1px solid rgba(255, 255, 255, 0.52);
+          border: 1px solid rgba(255, 255, 255, 0.58);
           border-radius: inherit;
           pointer-events: none;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.20);
         }
 
         .category-detail-compact .category-identity-image-shell img {
           position: relative;
           z-index: 1;
-          width: auto;
+          width: 100%;
           height: 100%;
-          max-width: 100%;
           object-fit: contain;
           object-position: center;
         }
@@ -825,7 +1409,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
             />
             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.84)_36%,rgba(255,255,255,0.40)_100%)]" />
             <div className="category-identity-layout relative z-10 grid h-full items-center gap-4 p-4 md:gap-5 md:p-5">
-              <div className="min-w-0">
+              <div className="category-identity-copy">
                 <span className="block text-[11px] font-black tracking-[0.02em] text-palette-red/80">
                   {activeCategoryItem?.type === 'district' ? 'İlçe' : 'Kategori'}
                 </span>
@@ -833,11 +1417,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                   {displayCategory}
                 </h1>
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <div className="flex items-center gap-2 rounded-[4px] border border-white/70 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
+                  <div className="category-identity-metric flex items-center gap-2 rounded-[4px] border px-2.5 py-2 text-gray-900 backdrop-blur">
                     <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.newsCount)}</span>
                     <span className="text-[10px] font-black tracking-[0.02em] text-gray-500">{formatTitleLabel(t('common.news'))}</span>
                   </div>
-                  <div className="flex items-center gap-2 rounded-[4px] border border-white/70 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
+                  <div className="category-identity-metric flex items-center gap-2 rounded-[4px] border px-2.5 py-2 text-gray-900 backdrop-blur">
                     <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.totalViews)}</span>
                     <span className="text-[10px] font-black tracking-[0.02em] text-gray-500">{formatTitleLabel(t('metrics.reads'))}</span>
                   </div>

@@ -4,8 +4,10 @@ import PublicProfileApp from '@/components/PublicProfileApp';
 import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { resolveLangCode } from '@/utils/lang';
-import { createAstroSupabaseClient } from '@/lib/server/supabaseSsr';
 import { setPublicHtmlCache } from '@/lib/server/publicCache';
+import { withTransaction } from '@/lib/server/appDb';
+import { dbQuery } from '@/lib/server/supabaseDb';
+import { loadProfile } from '@/pages/api/app/profile';
 
 export const prerender = false;
 setPublicHtmlCache(Astro.response);
@@ -55,28 +57,26 @@ const initialLang = {
   is_default: langMeta?.isDefault || lang === defaultLangCode,
 };
 
-const selectProfileFields = 'id, username, slug, full_name, avatar_url, about_me, expertise, website, social_links, meta_title, meta_description, meta_keywords, canonical_url, role, created_at, updated_at';
-const supabase = createAstroSupabaseClient(Astro);
+const selectProfileFields = 'id, username, slug, full_name, avatar_url, cover_url, about_me, expertise, website, social_links, email, show_email, meta_title, meta_description, meta_keywords, canonical_url, role, created_at, updated_at';
+const profileResult = await dbQuery(
+  `SELECT ${selectProfileFields}
+     FROM public.profiles
+    WHERE lower(username) = lower($1)
+       OR slug = $1
+    LIMIT 1`,
+  [rawUsername],
+);
 
-let profileRes = await supabase
-  .from('profiles')
-  .select(selectProfileFields)
-  .eq('username', rawUsername)
-  .maybeSingle();
+const routeProfile = profileResult.rows[0] as any;
 
-if (!profileRes.data) {
-  profileRes = await supabase
-    .from('profiles')
-    .select(selectProfileFields)
-    .eq('slug', rawUsername)
-    .maybeSingle();
-}
-
-const profile = profileRes.data as any;
-
-if (!profile) {
+if (!routeProfile) {
   return Astro.redirect('/404');
 }
+
+const fullProfile = await withTransaction((client) => (
+  loadProfile(client, String(routeProfile.id || ''), Astro.url.origin, null)
+));
+const profile = { ...routeProfile, ...(fullProfile || {}) };
 
 const TEXT_ENTITY_MAP: Record<string, string> = {
   amp: '&', apos: "'", Ccedil: 'Ç', ccedil: 'ç', Gbreve: 'Ğ', gbreve: 'ğ', hellip: '...',
@@ -192,11 +192,12 @@ const personLd = {
   initialLang={initialLang}
 >
   <PublicProfileApp
-    client:only="react"
+    client:load
     initialLang={initialLang}
     initialTranslations={initialTranslations}
     siteSettings={siteSettings}
     profileId={String(profile.id || '')}
     profileName={profileName}
+    initialProfile={profile}
   />
 </Layout>

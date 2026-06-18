@@ -22,6 +22,8 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
 
   const isImage = data.isImagePoll;
   const columnClass = isImage ? (data.pollColumns === 3 ? 'grid-cols-3' : 'grid-cols-2') : 'grid-cols-1';
+  const pollOptions = Array.isArray(data.options) ? data.options : [];
+  const hasPollOptions = pollOptions.length > 0;
 
   return (
     <div className="mt-1 space-y-4 overflow-hidden">
@@ -35,7 +37,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
 
       {/* MAIN POLL CONTAINER */}
       <div
-        className="card-interact-area relative bg-gradient-to-br from-palette-beige/10 via-white to-palette-beige/5 rounded-[5px] border border-palette-beige/40 overflow-hidden shadow-sm"
+        className="card-interact-area relative bg-gradient-to-br from-palette-beige/10 via-white to-palette-beige/5 rounded-[4px] border border-palette-beige/40 overflow-hidden shadow-sm"
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -45,7 +47,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
 
         {/* IMAGE SECTION */}
         {data.thumbnail && (
-          <div className="relative w-full overflow-hidden group/image">
+          <div className="relative w-full overflow-hidden rounded-[4px] group/image">
             <img
               src={(data.optimizedThumbnail?.src || data.thumbnail)?.replace('_sm', '_xl')}
               alt={data.thumbnailAlt || data.seoTitle || data.title}
@@ -54,19 +56,20 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent pointer-events-none" />
 
-            {/* Category Badge - Bottom Right — 2026 Micro */}
-            <div className="absolute bottom-3 right-3 z-20 transition-all duration-400 hover:-translate-y-px cursor-default group/badge">
+            {/* Media badges - Bottom Right */}
+            <div className="absolute bottom-3 right-3 z-20 flex items-center gap-2 transition-all duration-400 hover:-translate-y-px cursor-default group/badge">
+              {!hasPollOptions && (
+                <div className="relative flex items-center gap-1.5 overflow-hidden rounded-[3px] bg-black/50 px-2.5 py-[5px] shadow-[0_2px_12px_-2px_rgba(0,0,0,0.3)] backdrop-blur-xl">
+                  <RemixIcon name="ri-group-line" size={13} className="relative z-10 text-white/80" />
+                  <span className="relative z-10 text-[9.5px] font-[600] leading-none tracking-[0.08em] text-white/85">
+                    <AnimatedNumber value={data.totalVotes || 0} suffix="" /> {t('poll.participant_unit')}
+                  </span>
+                </div>
+              )}
               <div className="relative flex items-center gap-1.5 bg-black/50 backdrop-blur-xl px-2.5 py-[5px] rounded-[3px] shadow-[0_2px_12px_-2px_rgba(0,0,0,0.3)] overflow-hidden">
-                {/* Shimmer sweep on hover */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent -translate-x-full group-hover/badge:translate-x-full transition-transform duration-[800ms] ease-out pointer-events-none" />
-                
-                {/* Poll icon */}
                 <RemixIcon name="ri-bar-chart-box-line" size={13} className="text-white/80 relative z-10" />
-                
-                {/* Thin divider */}
                 <div className="w-px h-3 bg-white/15 relative z-10" />
-                
-                {/* Badge text — capitalize only */}
                 <span className="text-[9.5px] font-[600] text-white/85 capitalize tracking-[0.08em] relative z-10 leading-none">
                   {t('poll.badge').charAt(0).toUpperCase() + t('poll.badge').slice(1).toLowerCase()}
                 </span>
@@ -94,9 +97,10 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
         )}
 
         {/* OPTIONS GRID */}
-        <div className={`px-6 pb-6 ${(data as any).blockTitle ? 'pt-0' : 'pt-6'}`}>
-          <div className={`grid ${columnClass} gap-3`}>
-            {data.options?.map((option, index) => {
+        {hasPollOptions && (
+          <div className={`px-6 pb-6 ${(data as any).blockTitle ? 'pt-0' : 'pt-6'}`}>
+            <div className={`grid ${columnClass} gap-3`}>
+              {pollOptions.map((option, index) => {
               const isSelected = votedOption === option.id;
               const displayTotalVotes = hasVoted ? (data.totalVotes || 0) + 1 : (data.totalVotes || 0);
               const currentOptionVotes = (isSelected && hasVoted) ? (option.votes || 0) + 1 : (option.votes || 0);
@@ -108,7 +112,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                     key={option.id}
                     disabled={hasVoted}
                     onClick={() => handleVote(option.id)}
-                    className={`group relative flex flex-col text-left rounded-[6px] overflow-hidden transition-all duration-400 bg-white border ${hasVoted
+                    className={`group relative flex flex-col text-left rounded-[4px] overflow-hidden transition-all duration-400 bg-white border ${hasVoted
                       ? isSelected
                         ? 'ring-2 ring-palette-maroon shadow-lg z-10 border-palette-maroon/40 bg-palette-beige/[0.02]'
                         : 'opacity-40 grayscale-[50%] scale-[0.98] border-palette-beige/30'
@@ -121,7 +125,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                     )}
 
                     {/* Image Container - Fixed Height with Blurred Background */}
-                    <div className="relative w-full h-[240px] overflow-hidden border-b border-palette-beige/20">
+                    <div className="relative w-full h-[240px] overflow-hidden rounded-t-[4px] border-b border-palette-beige/20">
                       {/* Blurred Background Fill */}
                       <div
                         className="absolute inset-0 bg-center bg-cover blur-2xl opacity-50 scale-110"
@@ -201,7 +205,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                   key={option.id}
                   disabled={hasVoted}
                   onClick={() => handleVote(option.id)}
-                  className={`group relative w-full text-left rounded-[6px] transition-all duration-400 bg-white border overflow-hidden ${hasVoted
+                  className={`group relative w-full text-left rounded-[4px] transition-all duration-400 bg-white border overflow-hidden ${hasVoted
                     ? isSelected
                       ? 'border-palette-maroon/40 shadow-md bg-palette-beige/[0.02]'
                       : 'border-palette-beige/30 opacity-60'
@@ -265,25 +269,28 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                   </div>
                 </button>
               );
-            })}
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* FOOTER - Minimal Stats */}
-        <div className="px-6 py-4 bg-palette-beige/[0.04] border-t border-palette-beige/20 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-palette-tan/50">
-            <RemixIcon name="ri-group-line" size={14} />
-            <span className="text-[11px] font-[800] tracking-wide">
-              <AnimatedNumber value={hasVoted ? (data.totalVotes || 0) + 1 : (data.totalVotes || 0)} suffix="" /> {t('poll.participant_unit')}
-            </span>
-          </div>
-          {hasVoted && (
-            <div className="flex items-center gap-1.5 text-emerald-600 animate-in fade-in slide-in-from-right-2 duration-500">
-              <RemixIcon name="ri-check-line" size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest">{t('card.vote')}</span>
+        {hasPollOptions && (
+          <div className="px-6 py-4 bg-palette-beige/[0.04] border-t border-palette-beige/20 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-palette-tan/50">
+              <RemixIcon name="ri-group-line" size={14} />
+              <span className="text-[11px] font-[800] tracking-wide">
+                <AnimatedNumber value={hasVoted ? (data.totalVotes || 0) + 1 : (data.totalVotes || 0)} suffix="" /> {t('poll.participant_unit')}
+              </span>
             </div>
-          )}
-        </div>
+            {hasVoted && (
+              <div className="flex items-center gap-1.5 text-emerald-600 animate-in fade-in slide-in-from-right-2 duration-500">
+                <RemixIcon name="ri-check-line" size={14} />
+                <span className="text-[10px] font-black uppercase tracking-widest">{t('card.vote')}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

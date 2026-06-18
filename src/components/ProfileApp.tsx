@@ -4,7 +4,7 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
 import { supabase } from '@/lib/supabase';
-import { navigate } from 'astro:transitions/client';
+import { navigateImmediately } from '@/utils/immediateNavigation';
 // import Navbar from '@/components/Navbar'; // Removed - Global
 import Login from '@/components/auth/Login';
 import MainLoading from '@/components/MainLoading';
@@ -26,20 +26,20 @@ const ProfileApp: React.FC<ProfileAppProps> = ({ initialLang, initialTranslation
   }, [loading, user]);
 
   const goHome = useCallback(() => {
-    void navigate('/');
+    void navigateImmediately('/');
   }, []);
 
   const goProfile = useCallback(() => {
-    void navigate('/profil');
+    void navigateImmediately('/profil');
   }, []);
 
   const goEditProfile = useCallback(() => {
-    void navigate('/profil-duzenle');
+    void navigateImmediately('/profil-duzenle');
   }, []);
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
-    await navigate('/');
+    await navigateImmediately('/');
   }, []);
 
   const profileName = useMemo(() => {
@@ -47,7 +47,7 @@ const ProfileApp: React.FC<ProfileAppProps> = ({ initialLang, initialTranslation
   }, [user]);
 
   const handleNewsSelect = useCallback((id: string) => {
-    void navigate(`/haber/${encodeURIComponent(id)}`);
+    void navigateImmediately(`/haber/${encodeURIComponent(id)}`);
   }, []);
 
   return (
@@ -67,6 +67,16 @@ const ProfileApp: React.FC<ProfileAppProps> = ({ initialLang, initialTranslation
                   onEditClick={goEditProfile}
                   onNewsSelect={handleNewsSelect}
                   siteSettings={siteSettings}
+                  initialProfile={profile ? {
+                    id: profile.id,
+                    username: profile.username,
+                    full_name: profile.full_name,
+                    avatar_url: profile.avatar_url,
+                    role: profile.role,
+                    email: profile.email,
+                    show_email: true,
+                    is_own_profile: true,
+                  } : null}
                 />
               ) : null}
             </div>

@@ -1,0 +1,328 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - img "Pateez.com" [ref=e7] [cursor=pointer]
+      - navigation [ref=e8]:
+        - button "Ana Sayfa" [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]: 
+          - generic [ref=e11]: Ana Sayfa
+        - button "Anket" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]: 
+          - generic [ref=e14]: Anket
+        - button "Test" [ref=e15] [cursor=pointer]:
+          - generic [ref=e16]: 
+          - generic [ref=e17]: Test
+        - button "Video" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: 
+          - generic [ref=e20]: Video
+        - button "İçindekiler" [ref=e21] [cursor=pointer]:
+          - generic [ref=e22]: 
+          - generic [ref=e23]: İçindekiler
+        - button "Tarif" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: 
+          - generic [ref=e26]: Tarif
+        - button "Etkinlik" [ref=e27] [cursor=pointer]:
+          - generic [ref=e28]: 
+          - generic [ref=e29]: Etkinlik
+      - generic [ref=e30]:
+        - button [ref=e31] [cursor=pointer]:
+          - generic [ref=e32]: 
+        - text:  
+        - button [ref=e34] [cursor=pointer]:
+          - generic [ref=e36]: 
+    - generic [ref=e39]:
+      - generic [ref=e41]: 
+      - textbox "Haber ara..." [ref=e42]
+      - button [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: 
+  - main [ref=e48]:
+    - complementary [ref=e49]:
+      - generic [ref=e50]:
+        - generic [ref=e52]:
+          - button "Niğde" [ref=e53] [cursor=pointer]:
+            - generic [ref=e54]:
+              - generic [ref=e56]: 
+              - generic [ref=e57]: Niğde
+          - button "Nevşehir" [ref=e58] [cursor=pointer]:
+            - generic [ref=e59]:
+              - generic [ref=e61]: 
+              - generic [ref=e62]: Nevşehir
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - heading "İlçeler" [level=3] [ref=e65] [cursor=pointer]:
+              - text: İlçeler
+              - generic [ref=e66]: 
+            - generic [ref=e67]:
+              - button "Altunhisar" [ref=e68] [cursor=pointer]:
+                - generic [ref=e70]: 
+                - generic [ref=e71]: Altunhisar
+              - button "Bor" [ref=e72] [cursor=pointer]:
+                - generic [ref=e74]: 
+                - generic [ref=e75]: Bor
+              - button "Çamardı" [ref=e76] [cursor=pointer]:
+                - generic [ref=e78]: 
+                - generic [ref=e79]: Çamardı
+              - button "Çiftlik" [ref=e80] [cursor=pointer]:
+                - generic [ref=e82]: 
+                - generic [ref=e83]: Çiftlik
+              - button "Ulukışla" [ref=e84] [cursor=pointer]:
+                - generic [ref=e86]: 
+                - generic [ref=e87]: Ulukışla
+          - generic [ref=e88]:
+            - heading "Kategoriler" [level=3] [ref=e89] [cursor=pointer]:
+              - text: Kategoriler
+              - generic [ref=e90]: 
+            - generic [ref=e91]:
+              - button "Köşe Yazısı" [ref=e92] [cursor=pointer]:
+                - generic [ref=e94]: 
+                - generic [ref=e95]: Köşe Yazısı
+              - button "Siyaset" [ref=e96] [cursor=pointer]:
+                - generic [ref=e98]: 
+                - generic [ref=e99]: Siyaset
+              - button "Yaşam" [ref=e100] [cursor=pointer]:
+                - generic [ref=e102]: 
+                - generic [ref=e103]: Yaşam
+          - generic [ref=e104]:
+            - heading "Trendler" [level=3] [ref=e105] [cursor=pointer]:
+              - text: Trendler
+              - generic [ref=e106]: 
+            - generic [ref=e107]:
+              - button "Haftanın Trendleri" [ref=e108] [cursor=pointer]:
+                - generic [ref=e110]: 
+                - generic [ref=e111]: Haftanın Trendleri
+              - button "Haftanın Okunanları" [ref=e112] [cursor=pointer]:
+                - generic [ref=e114]: 
+                - generic [ref=e115]: Haftanın Okunanları
+              - button "Haftanın Paylaşılanları" [ref=e116] [cursor=pointer]:
+                - generic [ref=e118]: 
+                - generic [ref=e119]: Haftanın Paylaşılanları
+              - button "Haftanın Yorumlananları" [ref=e120] [cursor=pointer]:
+                - generic [ref=e122]: 
+                - generic [ref=e123]: Haftanın Yorumlananları
+              - button "Haftanın Beğenilenleri" [ref=e124] [cursor=pointer]:
+                - generic [ref=e126]: 
+                - generic [ref=e127]: Haftanın Beğenilenleri
+        - generic [ref=e128]:
+          - navigation [ref=e129]:
+            - link "Hakkımızda" [ref=e130] [cursor=pointer]:
+              - /url: /kurumsal/hakkimizda
+            - link "Künye" [ref=e131] [cursor=pointer]:
+              - /url: /kurumsal/kunye
+            - link "İletişim" [ref=e132] [cursor=pointer]:
+              - /url: /kurumsal/iletisim
+            - link "Gizlilik" [ref=e133] [cursor=pointer]:
+              - /url: /kurumsal/gizlilik-politikasi
+          - paragraph [ref=e134]: © 2025 · Tüm Hakları Saklıdır.
+    - generic [ref=e137]:
+      - generic [ref=e138]:
+        - generic [ref=e139]:
+          - button "Geri dön" [ref=e140] [cursor=pointer]:
+            - img [ref=e141]
+          - button "Yazarları Daralt" [expanded] [active] [ref=e357] [cursor=pointer]:
+            - generic [ref=e144]: 
+            - generic [ref=e145]: Yazarları Daralt
+        - generic [ref=e146]:
+          - generic [ref=e147]:
+            - generic [ref=e148]:
+              - generic [ref=e149]: 
+              - text: Köşe Yazıları
+            - heading "Köşe Yazısı" [level=1] [ref=e150]
+            - paragraph [ref=e151]: Yazarların en güncel yorumları, gündem notları ve kişisel bakış açıları tek yerde.
+          - generic [ref=e152]:
+            - generic [ref=e153]:
+              - generic [ref=e154]: "1"
+              - generic [ref=e155]: Yazı
+            - generic [ref=e156]:
+              - generic [ref=e157]: "1"
+              - generic [ref=e158]: Yazar
+            - generic [ref=e159]:
+              - generic [ref=e160]: "0"
+              - generic [ref=e161]: Okunma
+      - generic [ref=e162]:
+        - button "Deneme “ Deneme Deneme AK Ali Kemal Gündoğu @alkml 18 Haziran 2026 Perşembe 0 okunma" [ref=e164] [cursor=pointer]:
+          - img "Deneme" [ref=e166]
+          - generic [ref=e167]:
+            - generic [ref=e168]:
+              - generic [ref=e169]: “
+              - heading "Deneme" [level=2] [ref=e170]
+              - paragraph [ref=e171]: Deneme
+            - generic [ref=e172]:
+              - generic [ref=e174]: AK
+              - generic [ref=e175]:
+                - generic [ref=e176]:
+                  - generic [ref=e177]: Ali Kemal Gündoğu
+                  - generic [ref=e178]: 
+                - generic [ref=e179]:
+                  - generic [ref=e180]: "@alkml"
+                  - time [ref=e181]: 18 Haziran 2026 Perşembe
+                  - generic [ref=e182]: 0 okunma
+        - generic [ref=e183]:
+          - main [ref=e184]:
+            - generic [ref=e185]:
+              - generic [ref=e186]:
+                - generic [ref=e187]:
+                  - text: Tüm Yazarlar
+                  - heading "Kalemleri takip et" [level=2] [ref=e188]
+                - generic [ref=e189]: 1 yazar
+              - article [ref=e191]:
+                - generic [ref=e192]:
+                  - generic [ref=e194]: AK
+                  - generic [ref=e195]:
+                    - generic [ref=e196]:
+                      - heading "Ali Kemal Gündoğu" [level=3] [ref=e197]
+                      - generic [ref=e198]: 
+                    - generic [ref=e199]: "@alkml"
+                - button "Deneme 18 Haziran 2026 Perşembe 1 yazı 0 okunma" [ref=e200] [cursor=pointer]:
+                  - generic [ref=e201]: Deneme
+                  - generic [ref=e202]:
+                    - time [ref=e203]: 18 Haziran 2026 Perşembe
+                    - generic [ref=e204]: 1 yazı
+                    - generic [ref=e205]: 0 okunma
+          - complementary [ref=e206]:
+            - generic [ref=e207]:
+              - text: Özet
+              - generic [ref=e208]:
+                - generic [ref=e209]:
+                  - generic [ref=e210]: Toplam yazı
+                  - generic [ref=e211]: "1"
+                - generic [ref=e212]:
+                  - generic [ref=e213]: Yazar sayısı
+                  - generic [ref=e214]: "1"
+                - generic [ref=e215]:
+                  - generic [ref=e216]: Okunma
+                  - generic [ref=e217]: "0"
+            - generic [ref=e218]:
+              - heading "Bültene Katıl" [level=4] [ref=e219]
+              - paragraph [ref=e220]: Yeni içerikler yayınlandığında ilk sen haberdar ol.
+              - generic [ref=e221]:
+                - textbox "E-posta adresiniz..." [ref=e222]
+                - button "Abone Ol" [ref=e223] [cursor=pointer]
+  - contentinfo "Pateez.com alt bilgisi" [ref=e225]:
+    - generic [ref=e226]:
+      - generic [ref=e227]:
+        - generic [ref=e228]:
+          - link "Pateez.com" [ref=e229] [cursor=pointer]:
+            - /url: /
+            - img "Pateez.com" [ref=e230]
+          - paragraph [ref=e231]: Pateez.com; Niğde’den başlayarak Konya, Kayseri, Aksaray, Nevşehir, Kırşehir, Sivas ve Karaman’a uzanan geniş bir coğrafyanın dijital hafızasıdır. Sadece son dakika gelişmelerini değil; İç Anadolu’nun tarihini, kültürünü ve insanını merkeze alıyoruz. Şehrinizin siyasi nabzını tutan anketlerimiz, bölgeye has eğlenceli testlerimiz ve özel video içeriklerimizle, haberciliği interaktif bir deneyime dönüştürüyoruz. Toprağımızın hikayesini, en doğru ve tarafsız haliyle okuyucularımıza sunmak için buradayız.
+        - generic [ref=e232]:
+          - heading "Kurumsal" [level=2] [ref=e233]: Kurumsal
+          - list [ref=e235]:
+            - listitem [ref=e236]:
+              - link "Hakkımızda" [ref=e237] [cursor=pointer]:
+                - /url: /kurumsal/hakkimizda
+                - generic [ref=e239]: Hakkımızda
+            - listitem [ref=e240]:
+              - link "Basın Odası" [ref=e241] [cursor=pointer]:
+                - /url: /kurumsal/basin-odasi
+                - generic [ref=e243]: Basın Odası
+            - listitem [ref=e244]:
+              - link "Künye" [ref=e245] [cursor=pointer]:
+                - /url: /kurumsal/kunye
+                - generic [ref=e247]: Künye
+            - listitem [ref=e248]:
+              - link "Reklam" [ref=e249] [cursor=pointer]:
+                - /url: /kurumsal/reklam
+                - generic [ref=e251]: Reklam
+            - listitem [ref=e252]:
+              - link "İnsan Kaynakları" [ref=e253] [cursor=pointer]:
+                - /url: /kurumsal/insan-kaynaklari
+                - generic [ref=e255]: İnsan Kaynakları
+            - listitem [ref=e256]:
+              - link "Sosyal Medya" [ref=e257] [cursor=pointer]:
+                - /url: /kurumsal/sosyal-medya
+                - generic [ref=e259]: Sosyal Medya
+            - listitem [ref=e260]:
+              - link "Mobil Uygulamalar" [ref=e261] [cursor=pointer]:
+                - /url: /kurumsal/mobil-uygulamalar
+                - generic [ref=e263]: Mobil Uygulamalar
+            - listitem [ref=e264]:
+              - link "İletişim" [ref=e265] [cursor=pointer]:
+                - /url: /kurumsal/iletisim
+                - generic [ref=e267]: İletişim
+        - generic [ref=e268]:
+          - heading "Yasal" [level=2] [ref=e269]: Yasal
+          - list [ref=e271]:
+            - listitem [ref=e272]:
+              - link "Yayın İlkeleri" [ref=e273] [cursor=pointer]:
+                - /url: /kurumsal/yayin-ilkeleri
+                - generic [ref=e275]: Yayın İlkeleri
+            - listitem [ref=e276]:
+              - link "Tekzip ve Düzeltme" [ref=e277] [cursor=pointer]:
+                - /url: /kurumsal/tekzip-ve-duzeltme
+                - generic [ref=e279]: Tekzip ve Düzeltme
+            - listitem [ref=e280]:
+              - link "Bilgi Toplumu Hizmetleri" [ref=e281] [cursor=pointer]:
+                - /url: /kurumsal/bilgi-toplumu-hizmetleri
+                - generic [ref=e283]: Bilgi Toplumu Hizmetleri
+            - listitem [ref=e284]:
+              - link "Kişisel Verilerin Korunması" [ref=e285] [cursor=pointer]:
+                - /url: /kurumsal/kisisel-verilerin-korunmasi
+                - generic [ref=e287]: Kişisel Verilerin Korunması
+            - listitem [ref=e288]:
+              - link "Çerez Politikası" [ref=e289] [cursor=pointer]:
+                - /url: /kurumsal/cerez-politikasi
+                - generic [ref=e291]: Çerez Politikası
+            - listitem [ref=e292]:
+              - link "Kullanım Koşulları" [ref=e293] [cursor=pointer]:
+                - /url: /kurumsal/kullanim-kosullari
+                - generic [ref=e295]: Kullanım Koşulları
+            - listitem [ref=e296]:
+              - link "Gizlilik Politikası" [ref=e297] [cursor=pointer]:
+                - /url: /kurumsal/gizlilik-politikasi
+                - generic [ref=e299]: Gizlilik Politikası
+        - generic [ref=e300]:
+          - heading "İletişim" [level=2] [ref=e301]: İletişim
+          - link "info@pateez.com" [ref=e304] [cursor=pointer]:
+            - /url: mailto:info@pateez.com
+            - generic [ref=e306]: 
+            - generic [ref=e307]: info@pateez.com
+          - generic [ref=e308]:
+            - link "Instagram" [ref=e309] [cursor=pointer]:
+              - /url: https://www.instagram.com/pateezcom/
+              - generic [ref=e310]: 
+            - link "X" [ref=e311] [cursor=pointer]:
+              - /url: https://x.com/pateezcom
+              - generic [ref=e312]: 
+            - link "YouTube" [ref=e313] [cursor=pointer]:
+              - /url: https://www.youtube.com/@pateezcomtv
+              - generic [ref=e314]: 
+            - link "Facebook" [ref=e315] [cursor=pointer]:
+              - /url: https://www.facebook.com/pateezcom/
+              - generic [ref=e316]: 
+            - link "TikTok" [ref=e317] [cursor=pointer]:
+              - /url: https://www.tiktok.com/@pateezcom
+              - generic [ref=e318]: 
+            - link "Pinterest" [ref=e319] [cursor=pointer]:
+              - /url: https://tr.pinterest.com/pateezcom/
+              - generic [ref=e320]: 
+          - link "İletişim" [ref=e321] [cursor=pointer]:
+            - /url: /kurumsal/iletisim
+            - generic [ref=e322]: İletişim
+            - generic [ref=e323]: 
+      - generic [ref=e324]:
+        - paragraph [ref=e325]: 2026 Pateez
+        - navigation "Alt bilgi yasal bağlantıları" [ref=e326]:
+          - link "Yayın İlkeleri" [ref=e327] [cursor=pointer]:
+            - /url: /kurumsal/yayin-ilkeleri
+          - link "Tekzip ve Düzeltme" [ref=e328] [cursor=pointer]:
+            - /url: /kurumsal/tekzip-ve-duzeltme
+          - link "Bilgi Toplumu Hizmetleri" [ref=e329] [cursor=pointer]:
+            - /url: /kurumsal/bilgi-toplumu-hizmetleri
+          - link "Kişisel Verilerin Korunması" [ref=e330] [cursor=pointer]:
+            - /url: /kurumsal/kisisel-verilerin-korunmasi
+  - generic [ref=e333]:
+    - button "Menu" [ref=e334]:
+      - img [ref=e336]
+      - generic: Menu
+    - button "Inspect" [ref=e340]:
+      - img [ref=e342]
+      - generic: Inspect
+    - button "Audit" [ref=e344]:
+      - generic [ref=e345]:
+        - img [ref=e346]
+        - img [ref=e349]
+      - generic: Audit
+    - button "Settings" [ref=e352]:
+      - img [ref=e354]
+      - generic: Settings

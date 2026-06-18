@@ -65,7 +65,9 @@ const withLocalImageVariant = (
       // Doğrudan statik varyant: tek istek, CDN'den, redirect yok.
       const target = nearestVariantWidth(Math.min(Math.max(width, 64), 3840));
       const variantPath = variantObjectPath(objectPath, target);
-      return new URL(`/local-upload/${variantPath}`, baseUrl).toString();
+      if (exactLocalStaticPath(variantPath)) {
+        return new URL(`/local-upload/${variantPath}`, baseUrl).toString();
+      }
     }
 
     // Diğer durumlar (ör. cdn-cgi yolu gereken haller) eski davranışta kalır.
@@ -331,7 +333,6 @@ type ContentHomeSettings = {
   homePageSize: number;
   featuredSource: "manual" | "latest";
   featuredSorting: "slider_order" | "publish_date";
-  featuredDurationDays: number;
   featuredLimit: number;
   featuredShowNewsInfo: boolean;
 };
@@ -361,7 +362,6 @@ const defaultContentHomeSettings: ContentHomeSettings = {
   homePageSize: 16,
   featuredSource: "manual",
   featuredSorting: "slider_order",
-  featuredDurationDays: 10,
   featuredLimit: 15,
   featuredShowNewsInfo: false,
 };
@@ -393,7 +393,6 @@ const loadContentHomeSettings = async (
               content_home_page_size,
               content_featured_source,
               content_featured_sorting,
-              content_featured_duration_days,
               content_featured_limit,
               content_featured_show_news_info
        FROM public.site_settings
@@ -424,14 +423,6 @@ const loadContentHomeSettings = async (
       ),
       featuredSource: featuredSource(row.content_featured_source),
       featuredSorting: featuredSorting(row.content_featured_sorting),
-      featuredDurationDays: numberParam(
-        row.content_featured_duration_days == null
-          ? null
-          : String(row.content_featured_duration_days),
-        defaultContentHomeSettings.featuredDurationDays,
-        1,
-        365,
-      ),
       featuredLimit: numberParam(
         row.content_featured_limit == null
           ? null
@@ -1906,8 +1897,6 @@ export const GET: APIRoute = async ({ url, request }) => {
       Math.max(50, feedLimit + limit + 20),
     );
 
-    const featuredCutoff =
-      Date.now() - settings.featuredDurationDays * 24 * 60 * 60 * 1000;
     const mansetItems = settings.showFeaturedSection
       ? items
           .filter((item: NewsItem) =>
@@ -1915,10 +1904,6 @@ export const GET: APIRoute = async ({ url, request }) => {
               ? true
               : item.isManset === true,
           )
-          .filter((item: NewsItem) => {
-            const time = getNewsTime(item);
-            return time === 0 || time >= featuredCutoff;
-          })
       : [];
     if (settings.featuredSorting === "publish_date") {
       mansetItems.sort(
@@ -1981,7 +1966,6 @@ export const GET: APIRoute = async ({ url, request }) => {
           homePageSize: settings.homePageSize,
           featuredContentSource: settings.featuredSource,
           featuredSortingLogic: settings.featuredSorting,
-          featuredDurationDays: settings.featuredDurationDays,
           featuredLimit: settings.featuredLimit,
           featuredShowNewsInfo: settings.featuredShowNewsInfo,
         },

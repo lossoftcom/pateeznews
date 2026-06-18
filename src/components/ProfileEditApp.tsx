@@ -4,7 +4,7 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
 import { supabase } from '@/lib/supabase';
-import { navigate } from 'astro:transitions/client';
+import { navigateImmediately } from '@/utils/immediateNavigation';
 // import Navbar from '@/components/Navbar'; // Removed - Global
 import Login from '@/components/auth/Login';
 import MainLoading from '@/components/MainLoading';
@@ -26,20 +26,20 @@ const ProfileEditApp: React.FC<ProfileEditAppProps> = ({ initialLang, initialTra
   }, [loading, user]);
 
   const goHome = useCallback(() => {
-    void navigate('/');
+    void navigateImmediately('/');
   }, []);
 
   const goProfile = useCallback(() => {
-    void navigate('/profil');
+    void navigateImmediately('/profil');
   }, []);
 
   const goEditProfile = useCallback(() => {
-    void navigate('/profil-duzenle');
+    void navigateImmediately('/profil-duzenle');
   }, []);
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
-    await navigate('/');
+    await navigateImmediately('/');
   }, []);
 
   const profileName = useMemo(() => {

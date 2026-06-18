@@ -2,9 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, MessageSquare, Share2, Calendar, Settings2, Sparkles, User as UserIcon, Mail, Link as LinkIcon, Globe, Users, FileText, Eye, Heart } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import {  type NewsItem, type SiteSettings } from '@/types';
+import { NewsType, type NewsItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
-import { accountAction } from '@/services/appActions';
 
 interface UserProfileProps {
   userId?: string;
@@ -14,6 +13,7 @@ interface UserProfileProps {
   onEditClick?: () => void;
   siteSettings?: SiteSettings | null;
   showEmail?: boolean;
+  initialProfile?: Record<string, any> | null;
 }
 
 const TEXT_ENTITY_MAP: Record<string, string> = {
@@ -62,156 +62,168 @@ const normalizeStoredPlainText = (value: unknown) => {
   return decodeOnce(decodeOnce(String(value ?? ''))).replace(/\u00a0/g, ' ').trim();
 };
 
-const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsSelect, onEditClick, siteSettings, showEmail = true }) => {
-  const { t } = useLanguage();
+const normalizeProfileMediaUrl = (input: any): string => {
+  if (!input) return '';
+  const url = String(input).trim();
+  if (!url) return '';
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('data:') ||
+    url.startsWith('/')
+  ) {
+    return url;
+  }
+  if (url.startsWith('api/storage/file/')) return `/${url}`;
+  if (url.startsWith('profile/')) return `/api/storage/file/${url}`;
+  return `/api/storage/file/profile/${url}`;
+};
 
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
-  const [userNews, setUserNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isOwnProfile, setIsOwnProfile] = useState(false);
+const parseProfileSocialLinks = (value: unknown) => {
+  try {
+    if (!value) return {};
+    if (typeof value === 'string') return JSON.parse(value);
+    if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, any>;
+  } catch (error) {
+    console.error('Social links parsing error:', error);
+  }
+  return {};
+};
 
-  const normalizeProfileMediaUrl = (input: any): string => {
-    if (!input) return '';
-    const url = String(input).trim();
-    if (!url) return '';
-    if (
-      url.startsWith('http://') ||
-      url.startsWith('https://') ||
-      url.startsWith('data:') ||
-      url.startsWith('/')
-    ) {
-      return url;
-    }
-    if (url.startsWith('api/storage/file/')) return `/${url}`;
-    if (url.startsWith('profile/')) return `/api/storage/file/${url}`;
-    return `/api/storage/file/profile/${url}`;
+const joinedDateLabel = (value: unknown) => {
+  const date = new Date(String(value || ''));
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+const mapProfileToViewData = (
+  profile: Record<string, any>,
+  showEmail: boolean,
+  fallbackUserLabel: string,
+  fallbackCategoryLabel: string,
+) => {
+  const socialLinks = parseProfileSocialLinks(profile.social_links);
+  const stats = profile.stats && typeof profile.stats === 'object' ? profile.stats : {};
+  const shouldShowEmail = showEmail && profile.show_email !== false;
+  const role = String(profile.role || '').toLowerCase();
+  const joinedDate = joinedDateLabel(profile.created_at);
+
+  return {
+    id: profile.id,
+    name: normalizeStoredPlainText(profile.full_name || profile.username || fallbackUserLabel),
+    handle: profile.username ? `@${profile.username}` : '',
+    category: normalizeStoredPlainText(profile.expertise || fallbackCategoryLabel),
+    description: normalizeStoredPlainText(profile.about_me),
+    email: shouldShowEmail ? (profile.email || '') : '',
+    avatar: normalizeProfileMediaUrl(profile.avatar_url),
+    cover: normalizeProfileMediaUrl(profile.cover_url || (socialLinks as any)?.cover_url),
+    followers: String(stats.followers ?? profile.followers ?? 0),
+    following: String(stats.following ?? profile.following ?? 0),
+    postsCount: String(stats.posts ?? profile.posts_count ?? 0),
+    joinedDate,
+    verified: role === 'admin' || role === 'editor',
+    social_links: socialLinks
   };
+};
+
+const mapProfilePosts = (profile: Record<string, any>): NewsItem[] => {
+  const posts = Array.isArray(profile.posts) ? profile.posts : [];
+  return posts.map((item: any) => ({
+    id: String(item.id || ''),
+    type: NewsType.STANDARD,
+    title: normalizeStoredPlainText(item.title),
+    summary: normalizeStoredPlainText(item.summary),
+    category: normalizeStoredPlainText(item.category),
+    source: normalizeStoredPlainText(item.source || profile.full_name || profile.username),
+    author: normalizeStoredPlainText(item.source || profile.full_name || profile.username),
+    timestamp: item.publishedAt || item.timestamp || '',
+    mediaUrl: item.videoUrl || item.imageUrl || item.mediaUrl || '',
+    thumbnail: item.imageUrl || item.thumbnail || item.coverThumbnail || item.mediaUrl || '',
+    likes: Number(item.likes || 0),
+    comments: Number(item.comments || 0),
+    shares: Number(item.shares || 0),
+    views: Number(item.views || 0),
+    slug: item.slug || '',
+    sourceAvatar: item.sourceAvatar || profile.avatar_url || '',
+    publisherId: item.publisherId || profile.id || '',
+    publisherHandle: item.publisherHandle || profile.username || '',
+  }));
+};
+
+const getProfileAccessToken = async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return String(session?.access_token || '').trim();
+  } catch {
+    return '';
+  }
+};
+
+const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsSelect, onEditClick, siteSettings, showEmail = true, initialProfile = null }) => {
+  const { t, currentLang } = useLanguage();
+
+  const [isFollowing, setIsFollowing] = useState(Boolean(initialProfile?.viewer_following));
+  const [userData, setUserData] = useState<any>(() => (
+    initialProfile ? mapProfileToViewData(initialProfile, showEmail, t('common.user'), t('users_list.default_description')) : null
+  ));
+  const [userNews, setUserNews] = useState<NewsItem[]>(() => (
+    initialProfile ? mapProfilePosts(initialProfile) : []
+  ));
+  const [loading, setLoading] = useState(!initialProfile);
+  const [isOwnProfile, setIsOwnProfile] = useState(Boolean(initialProfile?.is_own_profile));
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
+      const queryUserId = String(userId || initialProfile?.id || '').trim();
+      const queryUsername = String(initialProfile?.username || name || '').trim().replace(/^@+/, '');
+      if (!queryUserId && !queryUsername) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        setLoading(true);
-        await accountAction('ensure-schema').catch(() => null);
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (!initialProfile) setLoading(true);
 
-        // Query building - Standardized and robust
-        const profileSelect = 'id, full_name, username, expertise, about_me, avatar_url, social_links, created_at, role, email, show_email';
-
-        let profileQuery = supabase
-          .from('profiles')
-          .select(profileSelect);
-
-        if (userId) {
-          profileQuery = profileQuery.eq('id', userId);
+        const url = new URL('/api/app/profile', window.location.origin);
+        url.searchParams.set('lang', currentLang?.code || 'tr');
+        if (queryUserId) {
+          url.searchParams.set('userId', queryUserId);
         } else {
-          // Search by name or username (case-insensitive and handles spaces)
-          profileQuery = profileQuery.or(`full_name.ilike."${name}",username.ilike."${name}"`);
+          url.searchParams.set('username', queryUsername);
         }
 
-        const { data: profile, error: profileError } = await profileQuery.maybeSingle();
-
-        if (profileError) throw profileError;
-
-        if (profile) {
-          if (currentUser && currentUser.id === profile.id) {
-            setIsOwnProfile(true);
-          }
-
-          const [postsCountResult, followersResult, followingResult] = await Promise.all([
-            supabase
-              .from('posts')
-              .select('id', { count: 'exact', head: true })
-              .eq('publisher_id', profile.id)
-              .eq('status', 'published'),
-            supabase
-              .from('publisher_follows')
-              .select('id', { count: 'exact', head: true })
-              .eq('publisher_id', profile.id),
-            supabase
-              .from('publisher_follows')
-              .select('id', { count: 'exact', head: true })
-              .eq('user_id', profile.id),
-          ]);
-          const shouldShowEmail = showEmail && profile.show_email !== false;
-
-          // Parse social links safely
-          let socialLinks = {};
-          try {
-            if (profile.social_links) {
-              if (typeof profile.social_links === 'string') {
-                try {
-                  socialLinks = JSON.parse(profile.social_links);
-                } catch (e) {
-                  console.error("Error parsing social_links JSON:", e);
-                  socialLinks = {}; // Fallback to empty object on error
-                }
-              } else if (typeof profile.social_links === 'object') {
-                socialLinks = profile.social_links;
-              }
-            }
-          } catch (e) {
-            console.error("Social links parsing error:", e);
-          }
-
-          const newData = {
-            id: profile.id,
-            name: normalizeStoredPlainText(profile.full_name || profile.username || t('common.user')),
-            handle: profile.username ? `@${profile.username}` : '',
-            category: normalizeStoredPlainText(profile.expertise || t('users_list.default_description')),
-            description: normalizeStoredPlainText(profile.about_me),
-            email: shouldShowEmail ? (profile.email || '') : '',
-            avatar: normalizeProfileMediaUrl(profile.avatar_url),
-            cover: normalizeProfileMediaUrl((socialLinks as any)?.cover_url),
-            followers: (followersResult.count || 0).toString(),
-            following: (followingResult.count || 0).toString(),
-            postsCount: (postsCountResult.count || 0).toString(),
-            joinedDate: profile.created_at ? new Date(profile.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '',
-            verified: profile.role === 'admin' || profile.role === 'editor',
-            social_links: socialLinks
-          };
-          setUserData(newData);
-
-          const { data: postsData, error: postsError } = await supabase
-            .from('posts')
-            .select('*')
-            .eq('publisher_id', profile.id)
-            .eq('status', 'published')
-            .order('published_at', { ascending: false });
-
-          if (postsError) throw postsError;
-
-          if (postsData) {
-            const mappedNews: NewsItem[] = postsData.map((item: any) => {
-              return {
-                id: item.id,
-                type: 'STANDARD',
-                title: normalizeStoredPlainText(item.title),
-                summary: normalizeStoredPlainText(item.summary),
-                category: normalizeStoredPlainText(item.category),
-                source: normalizeStoredPlainText(profile.full_name || profile.username),
-                author: normalizeStoredPlainText(profile.full_name || t('common.editor')),
-                timestamp: item.published_at ? new Date(item.published_at).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '',
-                mediaUrl: item.media_url || '',
-                thumbnail: item.thumbnail_url || item.media_url || '',
-                likes: item.likes_count || 0,
-                comments: item.comments_count || 0,
-                shares: item.shares_count || 0,
-                views: item.views_count || item.likes_count || 0
-              } as any;
-            });
-            setUserNews(mappedNews);
-          }
+        const token = await getProfileAccessToken();
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.error || !payload?.profile) {
+          throw new Error(payload?.error?.message || 'Profile load failed');
         }
+
+        if (!isMounted) return;
+        const profile = payload.profile as Record<string, any>;
+        setIsOwnProfile(profile.is_own_profile === true);
+        setIsFollowing(profile.viewer_following === true);
+        setUserData(mapProfileToViewData(profile, showEmail, t('common.user'), t('users_list.default_description')));
+        setUserNews(mapProfilePosts(profile));
       } catch (err) {
         console.error('Error fetching user profile:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchData();
-  }, [name, userId, t, showEmail]);
+    void fetchData();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentLang?.code, initialProfile, name, showEmail, t, userId]);
 
   if (loading) return (
     <div className="flex justify-center items-center min-h-[400px]">

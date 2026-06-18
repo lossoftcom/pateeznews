@@ -4,11 +4,11 @@ import React, { useCallback, useMemo, useState } from 'react';
 import Sidebar from './Sidebar';
 import Feed from './Feed';
 import RightSidebar from './RightSidebar';
-import { navigate } from 'astro:transitions/client';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import type { SiteSettings, NavigationItem, NewsItem } from '@/types';
 import { slugify } from '@/utils/helpers';
+import { navigateImmediately, updateUrlImmediately } from '@/utils/immediateNavigation';
 
 import { dataService } from '@/services/dataService';
 import CategoriesList from './CategoriesList';
@@ -17,6 +17,7 @@ import DistrictsList from './DistrictsList';
 import TrendsList from './TrendsList';
 import { getSpecialContentConfig } from '@/utils/specialContent';
 import { getPostHref } from '@/utils/postUrl';
+import { getProfileHref } from '@/utils/profileUrl';
 
 const NORMAL_CATEGORY_LABELS: Record<string, string> = {
     spor: 'Spor',
@@ -79,7 +80,10 @@ const HomePage: React.FC<HomePageProps> = ({
         getSpecialContentConfig(activeCat, activeNavItem?.value, activeNavItem?.label)
     ), [activeCat, activeNavItem]);
 
-    const isCategoryDetailView = activeView === 'feed' && !isInitialHome && !!activeCat && !activeSpecialContent && activeNavItem?.type !== 'trends';
+    const isRootCategoryActive = Boolean(activeNavItem && (!activeNavItem.parent_id || activeNavItem.parent_id === 'root'));
+    const hideOpinionColumnsInFeed = !activeCat || isRootCategoryActive;
+
+    const isCategoryDetailView = activeView === 'feed' && !isInitialHome && !!activeCat && !activeSpecialContent;
 
     const handleCategoryNavigation = useCallback(async (category: string | null) => {
         const normalize = (value: string | null) => {
@@ -111,19 +115,17 @@ const HomePage: React.FC<HomePageProps> = ({
 
                 const targetUrl = `/?kategori=${encodeURIComponent(specialContent.value)}`;
                 if (window.location.pathname !== '/' && window.location.pathname !== '') {
-                    void navigate(targetUrl);
+                    void navigateImmediately(targetUrl);
                     return;
                 }
+
+                updateUrlImmediately(targetUrl);
 
                 const langCode = typeof initialLang === 'object' && initialLang !== null ? initialLang.code : initialLang;
                 const news = await dataService.getNewsItems(langCode, specialContent.value);
 
                 setDisplayNews(news);
                 setActiveCat(navItem?.value || navItem?.label || specialContent.value);
-
-                const url = new URL(window.location.href);
-                url.searchParams.set('kategori', specialContent.value);
-                window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
             } catch (err) {
                 console.error('Special content filtering error:', err);
                 setActiveCat(null);
@@ -135,7 +137,7 @@ const HomePage: React.FC<HomePageProps> = ({
         }
 
         if (!navItem) {
-            void navigate(`/kategori/${slugify(normalized)}`);
+            void navigateImmediately(`/kategori/${slugify(normalized)}`);
             return;
         }
 
@@ -154,7 +156,7 @@ const HomePage: React.FC<HomePageProps> = ({
             // If we are not on the home page, redirect to / to reset any sub-path (districts, trends etc).
             // This ensures the "seçimler kalkacak" requirement is met globally.
             if (window.location.pathname !== '/' && window.location.pathname !== '') {
-                void navigate('/');
+                void navigateImmediately('/');
                 return;
             }
 
@@ -163,7 +165,7 @@ const HomePage: React.FC<HomePageProps> = ({
             setDisplayNews(initialNews);
         } else {
             // If it's a sub-category or trend, we redirect to its specific page for full SEO
-            void navigate(`/kategori/${slugify(normalized)}`);
+            void navigateImmediately(`/kategori/${slugify(normalized)}`);
         }
     }, [navigationItems, initialNews, initialLang]);
 
@@ -197,8 +199,14 @@ const HomePage: React.FC<HomePageProps> = ({
 
     const handleNewsSelect = useCallback((id: string) => {
         const selected = displayNews.find((n) => n.id === id);
-        void navigate(getPostHref(selected || { id }, siteSettings));
+        void navigateImmediately(getPostHref(selected || { id }, siteSettings));
     }, [displayNews, siteSettings]);
+
+    const handleProfileSelect = useCallback((news: NewsItem) => {
+        const href = getProfileHref(news.publisherHandle);
+        if (!href) return;
+        void navigateImmediately(href);
+    }, []);
 
     const categoryTitleKey = useMemo(() => {
         if (!activeCat) return undefined;
@@ -246,7 +254,8 @@ const HomePage: React.FC<HomePageProps> = ({
                                             pagination={categoryPagination}
                                             siteSettings={siteSettings}
                                             onNewsSelect={handleNewsSelect}
-                                            onBack={() => void navigate('/')}
+                                            onProfileSelect={handleProfileSelect}
+                                            onBack={() => void navigateImmediately('/')}
                                         />
                                     ) : (
                                         <Feed
@@ -256,7 +265,9 @@ const HomePage: React.FC<HomePageProps> = ({
                                             selectedCategory={activeCat || undefined}
                                             title={categoryTitleKey}
                                             onNewsSelect={handleNewsSelect}
+                                            onSourceClick={handleProfileSelect}
                                             loading={isNewsLoading || initialNews.length === 0}
+                                            hideOpinionColumns={hideOpinionColumnsInFeed}
                                         />
                                     )
                                 ) : activeView === 'categories' ? (

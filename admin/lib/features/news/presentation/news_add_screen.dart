@@ -49,7 +49,16 @@ import 'widgets/poll_question_block.dart';
 import 'widgets/quiz_question_block.dart';
 import 'widgets/quiz_result_block.dart';
 
-enum NewsAddFormatTab { article, quiz, poll, video, contents, recipe, event }
+enum NewsAddFormatTab {
+  article,
+  opinion,
+  quiz,
+  poll,
+  video,
+  contents,
+  recipe,
+  event,
+}
 
 enum NewsAddQuizSubTab { personality, trivia, checklist }
 
@@ -63,6 +72,12 @@ const _newsAddMediaSeoGreen = Color(0xFF11835B);
 const _newsAddActionHeight = 42.0;
 const _newsAddCoverVisualHeight = 160.0;
 const _newsAddFormatCategoryAliases = <NewsAddFormatTab, List<String>>{
+  NewsAddFormatTab.opinion: [
+    'köşe yazısı',
+    'kose yazisi',
+    'kose-yazisi',
+    'opinion',
+  ],
   NewsAddFormatTab.quiz: ['test', 'testler', 'quiz', 'quizzes'],
   NewsAddFormatTab.poll: ['anket', 'anketler', 'poll', 'polls'],
   NewsAddFormatTab.video: ['video', 'videolar', 'videos'],
@@ -86,6 +101,7 @@ const _newsAddFormatCategoryAliases = <NewsAddFormatTab, List<String>>{
   NewsAddFormatTab.event: ['etkinlik', 'etkinlikler', 'event', 'events'],
 };
 const _newsAddFormatDefaultCategoryLabels = <NewsAddFormatTab, String>{
+  NewsAddFormatTab.opinion: 'Köşe Yazısı',
   NewsAddFormatTab.quiz: 'Testler',
   NewsAddFormatTab.poll: 'Anket',
   NewsAddFormatTab.video: 'Video',
@@ -274,6 +290,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   String? _loadError;
   String? _editingPostId;
   String? _loadedPublisherId;
+  String? _selectedPublisherId;
   String? _formatSettingsLanguageCode;
   String _lastAutoSlug = '';
   String _lastAutoSeoTitle = '';
@@ -431,6 +448,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _mansetImageUrl = null;
     _editingPostId = widget.postId;
     _loadedPublisherId = null;
+    _selectedPublisherId = null;
     _loadedCardData = const {};
     _lastAutoSlug = '';
     _lastAutoSeoTitle = '';
@@ -544,9 +562,37 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ];
   }
 
+  String get _currentRoleName {
+    final profileRole = widget.profile?.role?.trim();
+    if (profileRole != null && profileRole.isNotEmpty) return profileRole;
+    final metadataRole = widget.session.user.userMetadata['role']
+        ?.toString()
+        .trim();
+    if (metadataRole != null && metadataRole.isNotEmpty) return metadataRole;
+    return 'member';
+  }
+
+  bool get _isSuperAdminUser {
+    final role = _currentRoleName.toLowerCase();
+    return role == 'admin' || role == 'super_admin';
+  }
+
+  bool get _showsOpinionPublisherSelector {
+    return _activeTab == NewsAddFormatTab.opinion && _isSuperAdminUser;
+  }
+
+  bool get _hasSelectedOpinionPublisher {
+    final selectedId = _selectedPublisherId?.trim() ?? '';
+    return selectedId.isNotEmpty &&
+        _bootstrap.publishers.any(
+          (publisher) => publisher.id.trim() == selectedId,
+        );
+  }
+
   NewsAddFormatTab? _formatTabFromSettingsKey(String key) {
     return switch (key) {
       'article' => NewsAddFormatTab.article,
+      'opinion' => NewsAddFormatTab.opinion,
       'quiz' => NewsAddFormatTab.quiz,
       'poll' => NewsAddFormatTab.poll,
       'video' => NewsAddFormatTab.video,
@@ -576,6 +622,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   void _applyEditorPost(AdminNewsEditorPost post) {
     _editingPostId = post.id;
     _loadedPublisherId = post.publisherId;
+    _selectedPublisherId = post.publisherId.trim().isEmpty
+        ? null
+        : post.publisherId;
     _loadedCardData = post.cardData;
     _setControllerText(_titleController, post.title);
     _setControllerText(_summaryController, post.summary);
@@ -751,6 +800,21 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return _newsAddFormatCategoryAliases.containsKey(tab);
   }
 
+  bool _usesDistrictScopedCategorySelection(NewsAddFormatTab tab) {
+    return _usesScopedCategorySelection(tab) && tab != NewsAddFormatTab.opinion;
+  }
+
+  bool _isArticleContentTab(NewsAddFormatTab tab) {
+    return tab == NewsAddFormatTab.article || tab == NewsAddFormatTab.opinion;
+  }
+
+  bool get _isOpinionCategorySelected {
+    return _normalizeNewsAddCategoryLabel(_selectedCategory) ==
+        _normalizeNewsAddCategoryLabel(
+          _newsAddFormatDefaultCategoryLabels[NewsAddFormatTab.opinion] ?? '',
+        );
+  }
+
   bool _isDistrictCategory(AdminNewsEditorCategory category) {
     return _normalizeNewsAddCategoryLabel(category.type) == 'district';
   }
@@ -861,6 +925,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           _activeTab,
           parentId: _categoryByLabel(_mainCategory)?.id ?? '',
         );
+    if (!_usesDistrictScopedCategorySelection(_activeTab)) {
+      return _dedupeCategoriesByLabel([?directCategory]);
+    }
     return _dedupeCategoriesByLabel([
       ?directCategory,
       ...children.where(_isDistrictCategory),
@@ -1172,8 +1239,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         .where((item) => _text(item['type']) != 'faq')
         .toList(growable: false);
     _activeTab = _tabFromPostType(postType);
+    if (_activeTab == NewsAddFormatTab.article && _isOpinionCategorySelected) {
+      _activeTab = NewsAddFormatTab.opinion;
+    }
     switch (_activeTab) {
       case NewsAddFormatTab.article:
+      case NewsAddFormatTab.opinion:
         final blocks = items.map(_blockFromItem).whereType<Object>().toList();
         _replaceContentBlocks(
           _articleBlocks,
@@ -1903,6 +1974,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           _editingPostId = saved.id;
           _loadedCardData = saved.cardData;
           _loadedPublisherId = saved.publisherId;
+          _selectedPublisherId = saved.publisherId.trim().isEmpty
+              ? null
+              : saved.publisherId;
         }
       });
       _showEditorMessage(
@@ -1927,6 +2001,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     }
     if (_selectedCategory.trim().isEmpty) {
       return context.t('newsAdd.errorCategoryRequired');
+    }
+    if (_showsOpinionPublisherSelector && !_hasSelectedOpinionPublisher) {
+      return context.t('newsAdd.errorPublisherRequired');
     }
     if (_mansetSlider && (_mansetImageUrl?.trim().isEmpty ?? true)) {
       return context.t('newsAdd.mansetImageRequiredError');
@@ -2246,19 +2323,29 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       'published_at': publishAt,
       'status': status,
       'language_code': _languageCode,
-      'publisher_id': (_loadedPublisherId?.trim().isNotEmpty ?? false)
-          ? _loadedPublisherId
-          : widget.session.user.id,
+      'publisher_id': _publisherIdForSave,
       'is_pinned': _pinToTop,
       'show_in_manset': _mansetSlider,
       'type': _postTypeForActiveTab,
     };
   }
 
+  String get _publisherIdForSave {
+    if (_activeTab == NewsAddFormatTab.opinion) {
+      if (_isSuperAdminUser) return _selectedPublisherId?.trim() ?? '';
+      final currentUserId = widget.session.user.id.trim();
+      if (currentUserId.isNotEmpty) return currentUserId;
+    }
+    final loadedPublisherId = _loadedPublisherId?.trim() ?? '';
+    if (loadedPublisherId.isNotEmpty) return loadedPublisherId;
+    return widget.session.user.id;
+  }
+
   String get _postTypeForActiveTab {
     return switch (_activeTab) {
       NewsAddFormatTab.contents => 'contents',
       NewsAddFormatTab.article => 'article',
+      NewsAddFormatTab.opinion => 'article',
       NewsAddFormatTab.quiz => 'quiz',
       NewsAddFormatTab.poll => 'poll',
       NewsAddFormatTab.video => 'video',
@@ -2270,6 +2357,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   List<Map<String, Object?>> _itemsForStorage() {
     final items = switch (_activeTab) {
       NewsAddFormatTab.article => _serializeContentBlocks(
+        _articleBlocks,
+        _articleSort,
+      ),
+      NewsAddFormatTab.opinion => _serializeContentBlocks(
         _articleBlocks,
         _articleSort,
       ),
@@ -2871,7 +2962,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           .cast<Map<String, Object?>?>()
           .firstWhere((item) => item != null, orElse: () => null);
     }
-    if (featured == null && _activeTab == NewsAddFormatTab.article) {
+    if (featured == null && _isArticleContentTab(_activeTab)) {
       featured = items
           .where((item) => _text(item['type']) == 'quote')
           .cast<Map<String, Object?>?>()
@@ -5300,7 +5391,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _AiSelectedSourceImage? sourceImage,
     List<_AiSelectedSourceImage> eventImages = const [],
   }) {
-    if (targetTab != NewsAddFormatTab.article) {
+    if (!_isArticleContentTab(targetTab)) {
       _applyAiDraftToStructuredTab(
         draft,
         targetTab,
@@ -5312,7 +5403,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     final blocks = _contentBlocksFromAiDraft(draft, sourceImage: sourceImage);
     _hydrating = true;
     setState(() {
-      _activeTab = NewsAddFormatTab.article;
+      _activeTab = targetTab;
       _applyAiDraftCommonFields(draft);
       if (blocks.isNotEmpty) {
         _replaceContentBlocks(_articleBlocks, blocks);
@@ -5382,6 +5473,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             _hydrateEventItem(item);
           }
           _applySelectedEventImagesToEventBlocks(draft, eventImages);
+        case NewsAddFormatTab.opinion:
         case NewsAddFormatTab.article:
           break;
       }
@@ -5555,7 +5647,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         item['recipeData'] = _map(tabItem['recipeData']);
       case NewsAddFormatTab.event:
         item['eventData'] = _map(tabItem['eventData']);
-      case NewsAddFormatTab.video || NewsAddFormatTab.article:
+      case NewsAddFormatTab.video ||
+          NewsAddFormatTab.article ||
+          NewsAddFormatTab.opinion:
         break;
     }
     return item;
@@ -5661,6 +5755,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return switch (tab) {
       NewsAddFormatTab.contents => 'toc',
       NewsAddFormatTab.article => 'article',
+      NewsAddFormatTab.opinion => 'article',
       NewsAddFormatTab.quiz => 'quiz',
       NewsAddFormatTab.poll => 'poll',
       NewsAddFormatTab.video => 'video',
@@ -5965,6 +6060,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   List<Widget> _buildTabBody() {
     switch (_activeTab) {
       case NewsAddFormatTab.article:
+      case NewsAddFormatTab.opinion:
         return _buildArticleTabBody();
       case NewsAddFormatTab.quiz:
         return _buildQuizTabBody();
@@ -6785,14 +6881,20 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         ),
         const SizedBox(height: 18),
         _CategorySettingsCard(
+          showPublisherSelector: _showsOpinionPublisherSelector,
+          publisherId: _selectedPublisherId ?? '',
           languageCode: _languageCode,
           mainCategory: _mainCategory,
           subCategory: _subCategory,
           thirdCategory: _thirdCategory,
+          publishers: _bootstrap.publishers,
           languages: _bootstrap.languages,
           mainCategories: _mainCategoriesForActiveTab(),
           subCategories: _subCategoriesForActiveTab(),
           thirdCategories: _thirdCategoriesForActiveTab(),
+          onPublisherChanged: (value) => setState(() {
+            _selectedPublisherId = value?.trim().isEmpty ?? true ? null : value;
+          }),
           onLanguageChanged: (value) {
             final nextLanguageCode = value ?? 'tr';
             setState(() {
@@ -7419,6 +7521,11 @@ class _FormatTabsStrip extends StatelessWidget {
       NewsAddFormatTab.article,
       Symbols.description_outlined,
       'newsAdd.tab.article',
+    ),
+    _TabInfo(
+      NewsAddFormatTab.opinion,
+      Symbols.edit_note_outlined,
+      'newsAdd.tab.opinion',
     ),
     _TabInfo(
       NewsAddFormatTab.quiz,
@@ -13948,28 +14055,36 @@ class _CoverImageActionButton extends StatelessWidget {
 
 class _CategorySettingsCard extends StatelessWidget {
   const _CategorySettingsCard({
+    required this.showPublisherSelector,
+    required this.publisherId,
     required this.languageCode,
     required this.mainCategory,
     required this.subCategory,
     required this.thirdCategory,
+    required this.publishers,
     required this.languages,
     required this.mainCategories,
     required this.subCategories,
     required this.thirdCategories,
+    required this.onPublisherChanged,
     required this.onLanguageChanged,
     required this.onMainChanged,
     required this.onSubChanged,
     required this.onThirdChanged,
   });
 
+  final bool showPublisherSelector;
+  final String publisherId;
   final String languageCode;
   final String mainCategory;
   final String? subCategory;
   final String? thirdCategory;
+  final List<AdminNewsEditorPublisher> publishers;
   final List<AdminNewsEditorLanguage> languages;
   final List<AdminNewsEditorCategory> mainCategories;
   final List<AdminNewsEditorCategory> subCategories;
   final List<AdminNewsEditorCategory> thirdCategories;
+  final ValueChanged<String?> onPublisherChanged;
   final ValueChanged<String?> onLanguageChanged;
   final ValueChanged<String?> onMainChanged;
   final ValueChanged<String?> onSubChanged;
@@ -14005,6 +14120,30 @@ class _CategorySettingsCard extends StatelessWidget {
               ],
             ),
           ),
+          if (showPublisherSelector) ...[
+            const _FieldLabel(
+              'newsAdd.publisher',
+              icon: Symbols.person_outline,
+            ),
+            _DropdownField(
+              value: publisherId,
+              leadingIcon: Symbols.person_outline,
+              items: [
+                DropdownMenuItem(
+                  value: '',
+                  child: Text(context.t('newsAdd.selectPublisher')),
+                ),
+                for (final publisher in publishers)
+                  if (publisher.id.trim().isNotEmpty)
+                    DropdownMenuItem(
+                      value: publisher.id,
+                      child: Text(publisher.name),
+                    ),
+              ],
+              onChanged: onPublisherChanged,
+            ),
+            const SizedBox(height: 16),
+          ],
           const _FieldLabel('newsAdd.language', icon: Symbols.language),
           _DropdownField(
             value: languageCode,

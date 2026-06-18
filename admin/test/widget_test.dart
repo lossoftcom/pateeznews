@@ -103,9 +103,13 @@ Future<Object?> _handleSecureStorageCall(MethodCall call) async {
 }
 
 class _FakeAdminAuthRepository implements AdminAuthRepository {
-  _FakeAdminAuthRepository({this.signInException});
+  _FakeAdminAuthRepository({this.signInException, AdminAuthState? authState})
+    : authState =
+          authState ??
+          const AdminAuthState(session: _testSession, profile: _testProfile);
 
   final AdminAuthException? signInException;
+  final AdminAuthState authState;
 
   @override
   Future<AdminAuthState?> restoreSession() async => null;
@@ -117,7 +121,7 @@ class _FakeAdminAuthRepository implements AdminAuthRepository {
   }) async {
     final exception = signInException;
     if (exception != null) throw exception;
-    return const AdminAuthState(session: _testSession, profile: _testProfile);
+    return authState;
   }
 
   @override
@@ -408,7 +412,10 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
 }
 
 class _FakeAdminRolesRepository implements AdminRolesRepository {
-  _FakeAdminRolesRepository();
+  _FakeAdminRolesRepository({Map<String, Set<String>>? permissionOverrides})
+    : _permissionOverrides = permissionOverrides ?? const {};
+
+  final Map<String, Set<String>> _permissionOverrides;
 
   final _permissions = const <AdminPermission>[
     AdminPermission(
@@ -494,6 +501,8 @@ class _FakeAdminRolesRepository implements AdminRolesRepository {
 
   @override
   Future<Set<String>> fetchPermissionKeysForRole(String roleName) async {
+    final override = _permissionOverrides[roleName];
+    if (override != null) return override;
     if (roleName == 'admin') return {'*'};
     final role = _roles.where((item) => item.name == roleName).firstOrNull;
     return role?.permissionKeys.toSet() ?? const {};
@@ -1077,6 +1086,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
   String? toggledPinnedPostId;
   String? deletedPostId;
   List<String>? deletedPostIds;
+  Map<String, Object?>? lastSavedEditorValues;
 
   @override
   Future<int> countPinnedPosts({String? excludingPostId}) async {
@@ -1171,11 +1181,21 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
           icon: 'spa',
         ),
         AdminNewsEditorCategory(
+          id: 'cat-10',
+          label: 'Köşe Yazısı',
+          parentId: 'cat-1',
+          languageCode: 'tr',
+          orderIndex: 6,
+          type: 'category',
+          value: 'kose-yazisi',
+          icon: 'forum',
+        ),
+        AdminNewsEditorCategory(
           id: 'cat-6',
           label: 'Altunhisar',
           parentId: 'cat-1',
           languageCode: 'tr',
-          orderIndex: 6,
+          orderIndex: 7,
           type: 'district',
         ),
         AdminNewsEditorCategory(
@@ -1183,7 +1203,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
           label: 'Bor',
           parentId: 'cat-1',
           languageCode: 'tr',
-          orderIndex: 7,
+          orderIndex: 8,
           type: 'district',
         ),
         AdminNewsEditorCategory(
@@ -1191,7 +1211,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
           label: 'Video',
           parentId: 'cat-1',
           languageCode: 'tr',
-          orderIndex: 8,
+          orderIndex: 9,
           type: 'category',
           icon: 'video_library',
         ),
@@ -1210,6 +1230,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
           id: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
           name: 'Nasip Gündoğu',
         ),
+        AdminNewsEditorPublisher(id: 'author-2', name: 'Ayşe Yazar'),
       ],
     );
   }
@@ -1257,6 +1278,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
     required String? postId,
     required AdminNewsEditorSavePayload payload,
   }) async {
+    lastSavedEditorValues = Map<String, Object?>.from(payload.values);
     final id = postId ?? '99';
     return AdminNewsEditorPost.fromJson({...payload.values, 'id': id});
   }
@@ -4581,6 +4603,212 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Niğde > Bor > Anket'), findsOneWidget);
   });
+
+  testWidgets('Köşe yazısı sekmesi makale akışını köşe kategorisine sabitler', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Köşe Yazısı').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Haber Başlığı'), findsOneWidget);
+    expect(find.text('Metin İçerik Bloğu'), findsOneWidget);
+    expect(find.text('Niğde > Köşe Yazısı'), findsOneWidget);
+
+    final opinionDropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButton<String> && widget.value == 'Köşe Yazısı',
+    );
+    await tester.tap(opinionDropdown.first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Siyaset'), findsNothing);
+    expect(find.text('Yaşam'), findsNothing);
+    expect(find.text('Testler'), findsNothing);
+    expect(find.text('Altunhisar'), findsNothing);
+    expect(find.text('Bor'), findsNothing);
+    expect(find.text('Köşe Yazısı'), findsWidgets);
+  });
+
+  testWidgets('Süper yönetici köşe yazısında yazar seçmeden kaydedemez', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final newsRepository = _FakeAdminNewsRepository();
+    await _pumpAdminApp(tester, newsRepository: newsRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Haber Ekle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Köşe Yazısı').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yazar'), findsOneWidget);
+    expect(find.text('Yazar Seçin'), findsOneWidget);
+
+    Finder fieldWithHint(String hint) {
+      return find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.decoration?.hintText == hint,
+      );
+    }
+
+    await tester.enterText(
+      fieldWithHint('Haber Başlığı...'),
+      'Köşe yazısı test başlığı',
+    );
+    await tester.enterText(
+      fieldWithHint('Kısa Özet (Spot)...'),
+      'Köşe yazısı test özeti',
+    );
+
+    await tester.ensureVisible(find.text('Taslak'));
+    await tester.tap(find.text('Taslak'));
+    await tester.pump();
+
+    expect(newsRepository.lastSavedEditorValues, isNull);
+    expect(
+      find.text('Köşe yazısı için yazar seçimi zorunludur.'),
+      findsOneWidget,
+    );
+
+    final publisherDropdown = find.ancestor(
+      of: find.text('Yazar Seçin'),
+      matching: find.byType(DropdownButton<String>),
+    );
+    await tester.tap(publisherDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ayşe Yazar').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Taslak'));
+    await tester.tap(find.text('Taslak'));
+    await tester.pumpAndSettle();
+
+    expect(newsRepository.lastSavedEditorValues?['publisher_id'], 'author-2');
+    expect(newsRepository.lastSavedEditorValues?['category'], 'Köşe Yazısı');
+    expect(newsRepository.lastSavedEditorValues?['type'], 'article');
+  });
+
+  testWidgets(
+    'Normal kullanıcı köşe yazısını kendi kullanıcısı adına kaydeder',
+    (tester) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const writerUser = AdminUser(
+        id: 'writer-user-id',
+        email: 'writer@pateeznews.com',
+        role: 'authenticated',
+        aud: 'authenticated',
+        userMetadata: {},
+        appMetadata: {},
+      );
+      const writerSession = AdminSession(
+        accessToken: 'writer-token',
+        tokenType: 'bearer',
+        expiresAt: 4102444800,
+        user: writerUser,
+      );
+      const writerProfile = AdminProfile(
+        id: 'writer-user-id',
+        username: 'writer',
+        fullName: 'Köşe Yazarı',
+        avatarUrl: '',
+        role: 'writer',
+        email: 'writer@pateeznews.com',
+      );
+      final newsRepository = _FakeAdminNewsRepository();
+
+      await _pumpAdminApp(
+        tester,
+        authRepository: _FakeAdminAuthRepository(
+          authState: const AdminAuthState(
+            session: writerSession,
+            profile: writerProfile,
+          ),
+        ),
+        rolesRepository: _FakeAdminRolesRepository(
+          permissionOverrides: const {
+            'writer': {'*'},
+          },
+        ),
+        newsRepository: newsRepository,
+      );
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'writer@pateeznews.com',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+      await tester.tap(find.text('Giriş yap'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Haber Ekle'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Köşe Yazısı').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Yazar'), findsNothing);
+      expect(find.text('Yazar Seçin'), findsNothing);
+
+      Finder fieldWithHint(String hint) {
+        return find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField && widget.decoration?.hintText == hint,
+        );
+      }
+
+      await tester.enterText(
+        fieldWithHint('Haber Başlığı...'),
+        'Normal yazar köşe yazısı',
+      );
+      await tester.enterText(
+        fieldWithHint('Kısa Özet (Spot)...'),
+        'Normal yazar köşe yazısı özeti',
+      );
+
+      await tester.ensureVisible(find.text('Taslak'));
+      await tester.tap(find.text('Taslak'));
+      await tester.pumpAndSettle();
+
+      expect(
+        newsRepository.lastSavedEditorValues?['publisher_id'],
+        'writer-user-id',
+      );
+      expect(newsRepository.lastSavedEditorValues?['category'], 'Köşe Yazısı');
+      expect(newsRepository.lastSavedEditorValues?['type'], 'article');
+    },
+  );
 
   testWidgets('Hikayeler menüsü yorumların üzerinde hikaye yönetimini açar', (
     tester,

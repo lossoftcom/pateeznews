@@ -142,7 +142,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'content_comment_approval_enabled', 'content_emoji_reactions_enabled',
       'content_home_page_size',
       'content_featured_source', 'content_featured_sorting',
-      'content_featured_duration_days', 'content_featured_limit',
+      'content_featured_limit',
       'content_featured_show_news_info',
       'content_enabled_post_formats', 'content_upload_image_format',
       'content_upload_allowed_extensions', 'content_upload_max_image_mb',

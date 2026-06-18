@@ -162,7 +162,7 @@ async function resolveProfileId(
   return cleanUuid(input.fallbackUserId);
 }
 
-async function loadProfile(client: any, userId: string, origin: string, viewerId: string | null) {
+export async function loadProfile(client: any, userId: string, origin: string, viewerId: string | null) {
   const profileResult = await client.query(
     `SELECT id, username, full_name, avatar_url, cover_url, role, status,
             reward_system, email, phone, created_at, about_me, social_links,

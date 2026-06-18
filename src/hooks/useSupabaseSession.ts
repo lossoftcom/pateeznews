@@ -44,19 +44,53 @@ export function useSupabaseSession(): {
       }
     };
 
-    async function fetchProfile(userId: string) {
+    const cacheProfile = (data: Profile) => {
+      try {
+        localStorage.setItem('pateez_profile_cache', JSON.stringify(data));
+      } catch { }
+    };
+
+    async function completeOAuthProfile(nextSession: Session) {
+      const accessToken = String(nextSession.access_token || '').trim();
+      if (!accessToken) return null;
+
+      try {
+        const response = await fetch('/api/app/auth', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: JSON.stringify({
+            action: 'completeOAuthProfile',
+            token: accessToken,
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.error) return null;
+        return (payload?.data?.profile || null) as Profile | null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function fetchProfile(nextSession: Session) {
       const { data, error } = await supabase
         .from('profiles')
         .select('id,username,full_name,avatar_url,role,email')
-        .eq('id', userId)
+        .eq('id', nextSession.user.id)
         .single();
 
       if (isMounted && data && !error) {
         setProfile(data as Profile);
-        // Cache for instant access on next hydration
-        try {
-          localStorage.setItem('pateez_profile_cache', JSON.stringify(data));
-        } catch { }
+        cacheProfile(data as Profile);
+        return;
+      }
+
+      const syncedProfile = await completeOAuthProfile(nextSession);
+      if (isMounted && syncedProfile) {
+        setProfile(syncedProfile);
+        cacheProfile(syncedProfile);
       }
     }
 
@@ -76,7 +110,7 @@ export function useSupabaseSession(): {
       if (!isMounted) return;
       if (currentSession) {
         setSession(currentSession);
-        fetchProfile(currentSession.user.id);
+        fetchProfile(currentSession);
       } else {
         setSession(null);
         setProfile(null);
@@ -91,7 +125,7 @@ export function useSupabaseSession(): {
       if (isMounted) {
         setSession(nextSession);
         if (nextSession) {
-          fetchProfile(nextSession.user.id);
+          fetchProfile(nextSession);
         } else {
           setProfile(null);
           // Clear cache on logout

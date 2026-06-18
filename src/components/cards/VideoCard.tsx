@@ -6,6 +6,7 @@ import RemixIcon from '@/components/ui/RemixIcon';
 
 interface VideoCardProps {
   data: NewsItem;
+  layout?: 'default' | 'feed';
 }
 
 const youtubeParser = (url: string) => {
@@ -25,11 +26,13 @@ const youtubeParser = (url: string) => {
   return null;
 };
 
-const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [progress, setProgress] = useState(0);
   const [timeDisplay, setTimeDisplay] = useState(data.videoDuration || "00:00");
+  const [isDirectVerticalVideo, setIsDirectVerticalVideo] = useState(false);
+  const [directVideoAspectRatio, setDirectVideoAspectRatio] = useState<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -47,6 +50,14 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
   const isYoutube = !!ytInfo;
   const hasDirectVideo = !isYoutube && !!String(data.mediaUrl || '').trim();
   const posterSrc = data.optimizedThumbnail?.src || data.thumbnail;
+  const usePendingDirectFeedLayout = layout === 'feed' && hasDirectVideo && directVideoAspectRatio === null;
+  const useFeedTallLayout = layout === 'feed' && (ytInfo?.isShorts || isDirectVerticalVideo || usePendingDirectFeedLayout);
+  const feedVerticalStyle: React.CSSProperties | undefined = useFeedTallLayout
+    ? { height: 500, maxHeight: 500 }
+    : undefined;
+  const directFeedVideoStyle: React.CSSProperties | undefined = useFeedTallLayout
+    ? { height: 500, width: directVideoAspectRatio ? Math.round(500 * directVideoAspectRatio) : 281.25, maxWidth: '100%' }
+    : undefined;
 
   const sendYoutubeCommand = (func: string, args: any = "") => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -170,6 +181,16 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
     const timer = setTimeout(checkAndPlayVideo, 50);
     return () => clearTimeout(timer);
   }, [isYoutube]);
+
+  useEffect(() => {
+    setIsDirectVerticalVideo(false);
+    setDirectVideoAspectRatio(null);
+  }, [data.mediaUrl]);
+
+  useEffect(() => {
+    if (layout !== 'feed' || !hasDirectVideo) return;
+    videoRef.current?.load();
+  }, [data.mediaUrl, hasDirectVideo, layout]);
 
   // YouTube Message Listener
   useEffect(() => {
@@ -456,6 +477,14 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
     }
   };
 
+  const handleLoadedMetadata = (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.currentTarget;
+    const aspectRatio = video.videoHeight > 0 ? video.videoWidth / video.videoHeight : null;
+    setTimeDisplay(formatTime(video.duration));
+    setDirectVideoAspectRatio(aspectRatio);
+    setIsDirectVerticalVideo(!!aspectRatio && aspectRatio < 1);
+  };
+
   return (
     <div className="mt-1 space-y-3 overflow-hidden">
       <div className="px-1 mb-3">
@@ -468,14 +497,18 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
       <div
         ref={videoContainerRef}
         onClick={togglePlay}
-        className="video-interact-area relative w-full bg-black shadow-lg border border-gray-100 group flex justify-center items-center overflow-hidden cursor-pointer rounded-[5px]"
+        className={`video-interact-area relative w-full bg-black shadow-lg border border-gray-100 group flex justify-center items-center overflow-hidden cursor-pointer rounded-[5px] ${useFeedTallLayout ? 'h-[500px]' : ''}`}
+        style={feedVerticalStyle}
       >
         {isYoutube ? (
-          <div className={`w-full mx-auto aspect-video ${ytInfo.isShorts ? 'max-w-[300px] aspect-[9/16]' : ''}`}>
+          <div
+            className={`mx-auto ${useFeedTallLayout ? 'h-[500px] w-auto max-w-full aspect-[9/16]' : `w-full aspect-video ${ytInfo.isShorts ? 'max-w-[300px] aspect-[9/16]' : ''}`}`}
+            style={useFeedTallLayout ? { height: 500, width: 281.25, maxWidth: '100%' } : undefined}
+          >
             <iframe
               ref={iframeRef}
               src={ytInfo.embed}
-              className="w-full h-full pointer-events-none scale-105"
+              className={`w-full h-full pointer-events-none ${useFeedTallLayout ? '' : 'scale-105'}`}
               allow="autoplay; encrypted-media; fullscreen"
               title="YouTube video player"
               onLoad={initYoutubeListeners}
@@ -486,11 +519,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
             ref={videoRef}
             src={data.mediaUrl}
             poster={posterSrc || undefined}
-            className="w-auto h-auto max-h-[450px] object-contain mx-auto"
+            className={useFeedTallLayout ? 'h-[500px] flex-none object-contain mx-auto' : 'w-auto h-auto max-h-[450px] object-contain mx-auto'}
+            style={directFeedVideoStyle}
             muted={true}
             playsInline
             loop
-            onLoadedMetadata={(e) => setTimeDisplay(formatTime(e.currentTarget.duration))}
+            preload="metadata"
+            onLoadedMetadata={handleLoadedMetadata}
             onTimeUpdate={handleTimeUpdate}
           />
         ) : posterSrc ? (

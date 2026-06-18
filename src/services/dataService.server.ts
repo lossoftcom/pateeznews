@@ -9,6 +9,31 @@ const parsePayload = (value: unknown) => {
     return typeof value === 'string' ? JSON.parse(value) : value;
 };
 
+const SIDEBAR_SERVICE_TIMEZONE = 'Europe/Istanbul';
+
+const getSidebarServiceDateKey = (date = new Date()) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: SIDEBAR_SERVICE_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date);
+    const pick = (type: string) => parts.find((part) => part.type === type)?.value || '';
+    return `${pick('year')}-${pick('month')}-${pick('day')}`;
+};
+
+const isCurrentNigdeServicePayload = (payload: any, serviceDate: string) => (
+    payload?.citySlug === 'nigde' &&
+    payload?.serviceDate === serviceDate
+);
+
+const usableSidebarServicePayload = (payload: any, expiresAt: unknown, serviceDate: string) => {
+    if (!payload) return null;
+    const expires = expiresAt ? new Date(String(expiresAt)).getTime() : 0;
+    if (expires > Date.now()) return payload;
+    return isCurrentNigdeServicePayload(payload, serviceDate) ? payload : null;
+};
+
 const CATEGORY_TYPE_ALIASES: Record<string, string[]> = {
     anket: ['poll'],
     anketler: ['poll'],
@@ -60,6 +85,41 @@ const getCategoryTypeAliases = (terms: string[]) => {
     return Array.from(new Set(
         terms.flatMap((term) => CATEGORY_TYPE_ALIASES[slugify(term)] || [])
     ));
+};
+
+const WEEKLY_TREND_VALUES = new Set([
+    'weekly_trends',
+    'weekly_likes',
+    'weekly_comments',
+    'weekly_shares',
+    'weekly_reads',
+]);
+
+const normalizeWeeklyTrendValue = (value: string) => {
+    const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_');
+    return WEEKLY_TREND_VALUES.has(normalized) ? normalized : 'weekly_trends';
+};
+
+const getWeeklyTrendScoreSql = (trendValue: string) => {
+    switch (normalizeWeeklyTrendValue(trendValue)) {
+        case 'weekly_likes':
+            return 'COALESCE(likes_count, 0)';
+        case 'weekly_comments':
+            return 'COALESCE(comments_count, 0)';
+        case 'weekly_shares':
+            return 'COALESCE(shares_count, 0)';
+        case 'weekly_reads':
+            return 'COALESCE(views_count, 0)';
+        default:
+            return `(
+                ln(1 + COALESCE(views_count, 0)) +
+                ln(1 + COALESCE(likes_count, 0)) * 2.4 +
+                ln(1 + COALESCE(comments_count, 0)) * 2.2 +
+                ln(1 + COALESCE(shares_count, 0)) * 2.8 +
+                ln(1 + COALESCE(saves_count, 0)) * 2.5 -
+                ln(1 + COALESCE(dislikes_count, 0)) * 1.1
+            )`;
+    }
 };
 
 const SITE_SETTINGS_SELECT = [
@@ -356,6 +416,50 @@ const getLiveSeoAlternates = async (): Promise<{ code: string; canonicalUrl: str
     });
 };
 
+export interface FooterPageEntry {
+    id: string;
+    title: string;
+    slug: string;
+    pageGroup: string;
+    pageType: string;
+    menuOrder: number;
+}
+
+const getLiveFooterPages = async (lang: string): Promise<FooterPageEntry[]> => {
+    const languageCode = normalizeLanguageCode(lang);
+    return withServerCache(`footer_pages_${languageCode}`, SERVER_CACHE_TTL.NAV, async () => {
+        await ensureAppSchema();
+        const result = await dbQuery<any>(
+            `SELECT
+                id,
+                title,
+                slug,
+                page_group,
+                page_type,
+                menu_order
+             FROM public.pages
+             WHERE language_code = $1
+               AND status = 'active'
+               AND registered_only IS NOT TRUE
+             ORDER BY COALESCE(NULLIF(page_group, ''), 'Kurumsal') ASC,
+                      menu_order ASC NULLS LAST,
+                      title ASC`,
+            [languageCode]
+        );
+
+        return (result.rows || [])
+            .map((row) => ({
+                id: String(row.id || ''),
+                title: String(row.title || '').trim(),
+                slug: String(row.slug || '').trim(),
+                pageGroup: String(row.page_group || '').trim(),
+                pageType: String(row.page_type || '').trim(),
+                menuOrder: Number.isFinite(Number(row.menu_order)) ? Number(row.menu_order) : 0,
+            }))
+            .filter((page) => page.id && page.title && page.slug);
+    });
+};
+
 export interface CategoryNewsPage {
     items: NewsItem[];
     total: number;
@@ -472,6 +576,73 @@ const getLiveCategoryNewsPage = async (
          ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC NULLS LAST, p.id DESC
          LIMIT $5 OFFSET $6`,
         [lang, exactTerms, likeTerms, typeAliases, safeLimit, safeOffset]
+    );
+
+    const rows = result.rows || [];
+    const total = Number(rows[0]?.total_count || 0);
+    const totalViews = Number(rows[0]?.total_views || 0);
+    const items = rows.map((post: any) => sharedDataService.mapPost(post));
+    const nextOffset = safeOffset + items.length;
+
+    return {
+        items,
+        total,
+        totalViews,
+        nextOffset,
+        hasMore: nextOffset < total,
+        limit: safeLimit,
+        offset: safeOffset,
+    };
+};
+
+const getLiveWeeklyTrendNewsPage = async (
+    lang: string,
+    trendValue: string,
+    limit = 12,
+    offset = 0
+): Promise<CategoryNewsPage> => {
+    const languageCode = normalizeLanguageCode(lang);
+    const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 50);
+    const safeOffset = Math.max(Number(offset) || 0, 0);
+    const scoreSql = getWeeklyTrendScoreSql(trendValue);
+
+    const result = await dbQuery<any>(
+        `WITH base AS (
+            SELECT
+                ${POST_FEED_SELECT},
+                COALESCE(p.published_at, p.created_at) AS trend_time
+             FROM public.posts p
+             LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
+             WHERE p.status = 'published'
+               AND p.language_code = $1
+               AND (p.published_at <= now() OR p.published_at IS NULL)
+        ),
+        weekly AS (
+            SELECT *
+            FROM base
+            WHERE trend_time >= now() - interval '7 days'
+        ),
+        scoped AS (
+            SELECT *
+            FROM weekly
+            UNION ALL
+            SELECT *
+            FROM base
+            WHERE NOT EXISTS (SELECT 1 FROM weekly)
+        ),
+        ranked AS (
+            SELECT
+                scoped.*,
+                COUNT(*) OVER()::int AS total_count,
+                COALESCE(SUM(COALESCE(views_count, 0)) OVER(), 0)::int AS total_views,
+                ${scoreSql} AS trend_score
+            FROM scoped
+        )
+        SELECT *
+        FROM ranked
+        ORDER BY trend_score DESC, trend_time DESC NULLS LAST, id DESC
+        LIMIT $2 OFFSET $3`,
+        [languageCode, safeLimit, safeOffset]
     );
 
     const rows = result.rows || [];
@@ -645,6 +816,10 @@ export const dataService = {
         return getLiveSeoAlternates();
     },
 
+    async getFooterPages(lang: string): Promise<FooterPageEntry[]> {
+        return getLiveFooterPages(lang);
+    },
+
     async getNavigationItems(lang: string): Promise<NavigationItem[]> {
         return getLiveNavigationItems(lang);
     },
@@ -678,41 +853,58 @@ export const dataService = {
         );
     },
 
+    async getWeeklyTrendNewsPage(
+        lang: string,
+        trendValue: string,
+        limit = 12,
+        offset = 0
+    ): Promise<CategoryNewsPage> {
+        const languageCode = normalizeLanguageCode(lang);
+        const normalizedTrendValue = normalizeWeeklyTrendValue(trendValue);
+        const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 50);
+        const safeOffset = Math.max(Number(offset) || 0, 0);
+        return withServerCache(
+            `weekly_trend_page_${languageCode}_${normalizedTrendValue}_${safeLimit}_${safeOffset}`,
+            SERVER_CACHE_TTL.NEWS,
+            () => getLiveWeeklyTrendNewsPage(languageCode, normalizedTrendValue, safeLimit, safeOffset)
+        );
+    },
+
     async getSidebarSnapshot(lang: string): Promise<any | null> {
         const languageCode = normalizeLanguageCode(lang);
         return withServerCache(`sidebar_${languageCode}`, SERVER_CACHE_TTL.SIDEBAR, async () => {
             try {
                 await ensureAppSchema();
 
-                const [sidebarResult, pharmacyResult, deathNoticeResult] = await Promise.all([
-                    dbQuery<{ payload: any }>(
-                        `SELECT payload
-                         FROM public.app_cache
-                         WHERE key = $1
-                         LIMIT 1`,
-                        [`sidebar:${languageCode}`]
-                    ),
-                    dbQuery<{ payload: any }>(
-                        `SELECT payload
-                         FROM public.app_cache
-                         WHERE key = $1
-                           AND expires_at > now()
-                         LIMIT 1`,
-                        ['duty_pharmacies:nigde']
-                    ),
-                    dbQuery<{ payload: any }>(
-                        `SELECT payload
-                         FROM public.app_cache
-                         WHERE key = $1
-                           AND expires_at > now()
-                         LIMIT 1`,
-                        ['death_notices:nigde']
-                    ),
-                ]);
+                const cacheKeys = [
+                    `sidebar:${languageCode}`,
+                    'duty_pharmacies:nigde',
+                    'death_notices:nigde',
+                ];
+                const cacheResult = await dbQuery<{ key: string; payload: any; expires_at: string }>(
+                    `SELECT key, payload, expires_at
+                     FROM public.app_cache
+                     WHERE key = ANY($1::text[])`,
+                    [cacheKeys]
+                );
+                const cacheRows = new Map(
+                    (cacheResult.rows || []).map((row) => [String(row.key || ''), row])
+                );
 
-                const sidebarPayload = parsePayload(sidebarResult.rows[0]?.payload);
-                const pharmacyPayload = parsePayload(pharmacyResult.rows[0]?.payload);
-                const deathNoticePayload = parsePayload(deathNoticeResult.rows[0]?.payload);
+                const serviceDate = getSidebarServiceDateKey();
+                const sidebarPayload = parsePayload(cacheRows.get(`sidebar:${languageCode}`)?.payload);
+                const pharmacyRow = cacheRows.get('duty_pharmacies:nigde');
+                const deathNoticeRow = cacheRows.get('death_notices:nigde');
+                const pharmacyPayload = usableSidebarServicePayload(
+                    parsePayload(pharmacyRow?.payload),
+                    pharmacyRow?.expires_at,
+                    serviceDate
+                );
+                const deathNoticePayload = usableSidebarServicePayload(
+                    parsePayload(deathNoticeRow?.payload),
+                    deathNoticeRow?.expires_at,
+                    serviceDate
+                );
 
                 if (!sidebarPayload && !pharmacyPayload && !deathNoticePayload) return null;
                 return {

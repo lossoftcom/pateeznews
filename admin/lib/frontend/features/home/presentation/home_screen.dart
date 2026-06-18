@@ -12,12 +12,17 @@ import '../data/home_repository.dart';
 import '../../pharmacy/data/pharmacy_repository.dart';
 import '../../prayer_times/data/prayer_times_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
+import '../../markets/presentation/markets_screen.dart';
+import '../../markets/presentation/widgets/home_market_strip.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import '../../today/presentation/widgets/today_widget.dart';
 import '../../weather/data/weather_repository.dart';
+import '../../weather/presentation/weather_screen.dart';
+import '../../weather/presentation/widgets/home_weather_card.dart';
 import 'widgets/featured_slider.dart';
 import 'widgets/feed_filter_tabs.dart';
 import 'widgets/home_app_bar.dart';
+import 'widgets/home_columnist_strip.dart';
 import 'widgets/news_card.dart';
 import 'widgets/section_header.dart';
 import 'widgets/stories_strip.dart';
@@ -176,6 +181,41 @@ class _HomeScreenState extends State<HomeScreen> {
     if (index >= 0) _openDetail(feed, index);
   }
 
+  void _openMarkets() {
+    _pushFeature((_) => MarketsScreen(onSearch: widget.onSearch));
+  }
+
+  void _openWeather() {
+    _pushFeature(
+      (_) =>
+          WeatherScreen(initialData: widget.weatherData, onSearch: widget.onSearch),
+    );
+  }
+
+  void _pushFeature(WidgetBuilder builder) {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
+        pageBuilder: (context, _, _) => builder(context),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final feed = _sortedFeed(widget.feedItems);
@@ -275,6 +315,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                       ),
                     ),
+                  // Manşetin hemen ardından: yatay kayan piyasa şeridi.
+                  SliverToBoxAdapter(
+                    child: HomeMarketStrip(onSeeAll: _openMarkets)
+                        .animate()
+                        .fadeIn(
+                          delay: 160.ms,
+                          duration: 360.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .slideY(
+                          begin: 0.05,
+                          end: 0,
+                          delay: 160.ms,
+                          duration: 360.ms,
+                          curve: Curves.easeOutCubic,
+                        ),
+                  ),
                   SliverToBoxAdapter(
                     child: SectionHeader(
                       title: 'Senin İçin',
@@ -324,11 +381,49 @@ class _HomeScreenState extends State<HomeScreen> {
                               curve: Curves.easeOutCubic,
                             );
                       }
+                      // İlk haberin ardından: o günkü hava + saatlik tahmin.
+                      Widget body = card;
+                      if (index == 0) {
+                        body = Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            card,
+                            const SizedBox(height: AppSpacing.xxl),
+                            HomeWeatherCard(
+                                  weatherData: widget.weatherData,
+                                  onOpen: _openWeather,
+                                )
+                                .animate()
+                                .fadeIn(
+                                  delay: 120.ms,
+                                  duration: 360.ms,
+                                  curve: Curves.easeOutCubic,
+                                )
+                                .slideY(
+                                  begin: 0.05,
+                                  end: 0,
+                                  delay: 120.ms,
+                                  duration: 360.ms,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                          ],
+                        );
+                      } else if (index == 2) {
+                        // Hava durumundan sonra iki haber geçince: Yazarlar.
+                        body = Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            card,
+                            const SizedBox(height: AppSpacing.xxl),
+                            const HomeColumnistStrip(),
+                          ],
+                        );
+                      }
                       return Padding(
                         padding: EdgeInsets.only(
                           bottom: index < feed.length - 1 ? AppSpacing.xxl : 0,
                         ),
-                        child: card,
+                        child: body,
                       );
                     },
                   ),

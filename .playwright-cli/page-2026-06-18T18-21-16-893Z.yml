@@ -1,0 +1,576 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - img "Pateez.com" [ref=e512] [cursor=pointer]
+      - navigation [ref=e6]:
+        - button "Ana Sayfa" [ref=e7] [cursor=pointer]:
+          - generic [ref=e8]: 
+          - generic [ref=e9]: Ana Sayfa
+        - button "Anket" [ref=e10] [cursor=pointer]:
+          - generic [ref=e11]: 
+          - generic [ref=e12]: Anket
+        - button "Test" [ref=e13] [cursor=pointer]:
+          - generic [ref=e14]: 
+          - generic [ref=e15]: Test
+        - button "Video" [ref=e16] [cursor=pointer]:
+          - generic [ref=e17]: 
+          - generic [ref=e18]: Video
+        - button "İçindekiler" [ref=e19] [cursor=pointer]:
+          - generic [ref=e20]: 
+          - generic [ref=e21]: İçindekiler
+        - button "Tarif" [ref=e22] [cursor=pointer]:
+          - generic [ref=e23]: 
+          - generic [ref=e24]: Tarif
+        - button "Etkinlik" [ref=e25] [cursor=pointer]:
+          - generic [ref=e26]: 
+          - generic [ref=e27]: Etkinlik
+      - generic [ref=e28]:
+        - button [ref=e29] [cursor=pointer]:
+          - generic [ref=e30]: 
+        - text:  
+        - button [ref=e32] [cursor=pointer]:
+          - generic [ref=e34]: 
+    - generic [ref=e37]:
+      - generic [ref=e39]: 
+      - textbox "Haber ara..." [ref=e40]
+      - button [ref=e42] [cursor=pointer]:
+        - generic [ref=e43]: 
+  - main [ref=e46]:
+    - generic [ref=e49]:
+      - generic [ref=e51]:
+        - navigation [ref=e52]:
+          - button "Ana Sayfa" [ref=e53] [cursor=pointer]:
+            - generic [ref=e54]: 
+            - generic [ref=e55]: Ana Sayfa
+          - generic [ref=e56]: 
+          - generic [ref=e57]: niğde
+          - generic [ref=e58]: 
+          - generic [ref=e59]: çamardı
+          - generic [ref=e60]: 
+          - generic [ref=e61]: testler
+        - generic [ref=e62]:
+          - 'heading "Toroslar''ın Eteğindeki Cennet: Niğde Çamardı''yı Ne Kadar İyi Tanıyorsun? 🏔️" [level=1] [ref=e63]'
+          - generic [ref=e64]: Doğasıyla büyüleyen, Aladağlar'ın gölgesindeki Niğde Çamardı hakkında eğlenceli bir bilgi yolculuğuna çıkmaya hazır mısın? Testi çöz, bilgini kanıtla!
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - link "Pateez Niğde" [ref=e67] [cursor=pointer]:
+              - /url: /profil/pateez
+              - img "Pateez Niğde" [ref=e68]
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - link "Pateez Niğde" [ref=e71] [cursor=pointer]:
+                  - /url: /profil/pateez
+                - generic [ref=e72]: 
+              - generic [ref=e73]:
+                - generic [ref=e74]:
+                  - generic [ref=e75]: 
+                  - time [ref=e76]: 12 Haziran 2026 Cuma
+                - generic [ref=e77]:
+                  - generic [ref=e78]: 
+                  - text: 12:00
+                - generic [ref=e79]:
+                  - generic [ref=e80]: 
+                  - text: 1 dk okuma
+                - generic [ref=e81]:
+                  - generic [ref=e82]: 
+                  - text: "4"
+          - generic [ref=e83]:
+            - button "Paylaş" [ref=e84] [cursor=pointer]:
+              - generic [ref=e85]: 
+              - generic [ref=e86]: Paylaş
+            - button [ref=e87] [cursor=pointer]:
+              - generic [ref=e88]: 
+      - generic [ref=e89]:
+        - complementary [ref=e90]:
+          - generic [ref=e91]:
+            - generic [ref=e92]: PAYLAŞ
+            - generic [ref=e94]: "0"
+          - button "Instagram'da paylaş" [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]: 
+          - button "Facebook'ta paylaş" [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]: 
+          - button "X'te paylaş" [ref=e99] [cursor=pointer]:
+            - generic [ref=e100]: 
+          - button "WhatsApp'ta paylaş" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: 
+          - button "Beğen" [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: 
+          - button "Beğenme" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: 
+          - button "Kaydet" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]: 
+        - article [ref=e112]:
+          - generic [ref=e114]:
+            - generic [ref=e115]:
+              - 'heading "Toroslar''ın Eteğindeki Cennet: Niğde Çamardı''yı Ne Kadar İyi Tanıyorsun? 🏔️" [level=3] [ref=e116]'
+              - generic [ref=e117]: Doğasıyla büyüleyen, Aladağlar'ın gölgesindeki Niğde Çamardı hakkında eğlenceli bir bilgi yolculuğuna çıkmaya hazır mısın? Testi çöz, bilgini kanıtla!
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - generic [ref=e120]:
+                  - generic [ref=e121]: "1"
+                  - generic [ref=e122]:
+                    - heading "Niğde Çamardı'nın Osmanlı topraklarına kesin olarak katılması hangi padişah döneminde gerçekleşmiştir?" [level=4] [ref=e123]
+                    - paragraph [ref=e744]: Tarih sayfalarını biraz aralayalım...
+                - img "Niğde Çamardı'nın Osmanlı topraklarına kesin olarak katılması hangi padişah döneminde gerçekleşmiştir?" [ref=e128]
+                - generic [ref=e129]:
+                  - button "Yıldırım Beyazıt" [ref=e130] [cursor=pointer]:
+                    - generic [ref=e132]: Yıldırım Beyazıt
+                  - button "Fatih Sultan Mehmet" [ref=e133] [cursor=pointer]:
+                    - generic [ref=e135]: Fatih Sultan Mehmet
+                  - button "Kanuni Sultan Süleyman" [ref=e136] [cursor=pointer]:
+                    - generic [ref=e138]: Kanuni Sultan Süleyman
+                  - button "Yavuz Sultan Selim" [ref=e139] [cursor=pointer]:
+                    - generic [ref=e141]: Yavuz Sultan Selim
+              - generic [ref=e142]:
+                - generic [ref=e143]:
+                  - generic [ref=e144]: "2"
+                  - generic [ref=e145]:
+                    - heading "Toroslar'ın en yüksek zirvelerinden olan ve Çamardı sınırlarında yer alan meşhur Demirkazık Tepesi'nin yüksekliği kaç metredir?" [level=4] [ref=e146]
+                    - paragraph [ref=e745]: Dağcıların göz bebeği olan o devasa yükseklik!
+                - img "Toroslar'ın en yüksek zirvelerinden olan ve Çamardı sınırlarında yer alan meşhur Demirkazık Tepesi'nin yüksekliği kaç metredir?" [ref=e151]
+                - generic [ref=e152]:
+                  - button "2756 m" [ref=e153] [cursor=pointer]:
+                    - generic [ref=e155]: 2756 m
+                  - button "3256 m" [ref=e156] [cursor=pointer]:
+                    - generic [ref=e158]: 3256 m
+                  - button "3756 m" [ref=e159] [cursor=pointer]:
+                    - generic [ref=e161]: 3756 m
+                  - button "4256 m" [ref=e162] [cursor=pointer]:
+                    - generic [ref=e164]: 4256 m
+              - generic [ref=e165]:
+                - generic [ref=e166]:
+                  - generic [ref=e167]: "3"
+                  - generic [ref=e168]:
+                    - heading "Çamardı'da yer alan, XII. yüzyıl Bizans dönemine tarihlenen ve Kapadokya'daki benzerleri gibi savunma amaçlı inşa edilen tarihi yapı hangisidir?" [level=4] [ref=e169]
+                    - paragraph [ref=e746]: Yerin altındaki gizemli tarih!
+                - img "Çamardı'da yer alan, XII. yüzyıl Bizans dönemine tarihlenen ve Kapadokya'daki benzerleri gibi savunma amaçlı inşa edilen tarihi yapı hangisidir?" [ref=e174]
+                - generic [ref=e175]:
+                  - button "Eski Cami" [ref=e176] [cursor=pointer]:
+                    - generic [ref=e178]: Eski Cami
+                  - button "Maden Cami" [ref=e179] [cursor=pointer]:
+                    - generic [ref=e181]: Maden Cami
+                  - button "Kavlaktepe Yeraltı Şehri" [ref=e182] [cursor=pointer]:
+                    - generic [ref=e184]: Kavlaktepe Yeraltı Şehri
+                  - button "Üç Kapılı Yaylası" [ref=e185] [cursor=pointer]:
+                    - generic [ref=e187]: Üç Kapılı Yaylası
+              - generic [ref=e188]:
+                - generic [ref=e189]:
+                  - generic [ref=e190]: "4"
+                  - generic [ref=e191]:
+                    - heading "Çamardı'nın özellikle Kocapınar köyünde yaygın olarak tüketilen, Çerkes mutfağı kökenli nefis yöresel lezzet hangisidir?" [level=4] [ref=e192]
+                    - paragraph [ref=e747]: Biraz da gastronomi konuşalım!
+                - img "Çamardı'nın özellikle Kocapınar köyünde yaygın olarak tüketilen, Çerkes mutfağı kökenli nefis yöresel lezzet hangisidir?" [ref=e197]
+                - generic [ref=e198]:
+                  - button "Niğde Tava" [ref=e199] [cursor=pointer]:
+                    - generic [ref=e201]: Niğde Tava
+                  - button "Patatesli İçli Köfte" [ref=e202] [cursor=pointer]:
+                    - generic [ref=e204]: Patatesli İçli Köfte
+                  - button "Şipsi (Kaçamak)" [ref=e205] [cursor=pointer]:
+                    - generic [ref=e207]: Şipsi (Kaçamak)
+                  - button "Halka Tatlısı" [ref=e208] [cursor=pointer]:
+                    - generic [ref=e210]: Halka Tatlısı
+              - generic [ref=e211]:
+                - generic [ref=e212]:
+                  - generic [ref=e213]: "5"
+                  - generic [ref=e214]:
+                    - heading "Okul Sporları Yıldız Kızlar Güreş Türkiye Şampiyonası'nda takım halinde Türkiye Şampiyonu olarak göğsümüzü kabartan Çamardı okulu hangisidir?" [level=4] [ref=e215]
+                    - paragraph [ref=e748]: Geleceğin şampiyonları buradan çıkıyor!
+                - img "Okul Sporları Yıldız Kızlar Güreş Türkiye Şampiyonası'nda takım halinde Türkiye Şampiyonu olarak göğsümüzü kabartan Çamardı okulu hangisidir?" [ref=e220]
+                - generic [ref=e221]:
+                  - button "Çamardı Lisesi" [ref=e222] [cursor=pointer]:
+                    - generic [ref=e224]: Çamardı Lisesi
+                  - button "Çamardı Anadolu İmam Hatip Lisesi" [ref=e225] [cursor=pointer]:
+                    - generic [ref=e227]: Çamardı Anadolu İmam Hatip Lisesi
+                  - button "Çamardı Mehmet Akif Ersoy Yatılı Bölge Ortaokulu" [ref=e228] [cursor=pointer]:
+                    - generic [ref=e230]: Çamardı Mehmet Akif Ersoy Yatılı Bölge Ortaokulu
+                  - button "Çamardı Cumhuriyet Ortaokulu" [ref=e231] [cursor=pointer]:
+                    - generic [ref=e233]: Çamardı Cumhuriyet Ortaokulu
+            - paragraph [ref=e235]: Sonucunu görmek için tüm soruları cevapla.
+          - generic [ref=e236]:
+            - generic [ref=e237]: FAQ
+            - generic [ref=e238]:
+              - button "? Demirkazık Tepesi'nin yüksekliği ne kadardır?" [ref=e240] [cursor=pointer]:
+                - generic [ref=e241]: "?"
+                - generic [ref=e242]: Demirkazık Tepesi'nin yüksekliği ne kadardır?
+                - generic [ref=e243]: 
+              - button "? Çamardı'da hangi yeraltı şehri bulunmaktadır?" [ref=e245] [cursor=pointer]:
+                - generic [ref=e246]: "?"
+                - generic [ref=e247]: Çamardı'da hangi yeraltı şehri bulunmaktadır?
+                - generic [ref=e248]: 
+          - generic [ref=e249]:
+            - generic [ref=e250]: "Etiketler:"
+            - button "#Niğde Çamardı" [ref=e251] [cursor=pointer]
+            - button "#Çamardı bilgi testi" [ref=e252] [cursor=pointer]
+            - button "#Demirkazık Tepesi" [ref=e253] [cursor=pointer]
+            - button "#Aladağlar Milli Parkı" [ref=e254] [cursor=pointer]
+            - button "#Kavlaktepe Yeraltı Şehri" [ref=e255] [cursor=pointer]
+            - button "#Çamardı dondurması" [ref=e256] [cursor=pointer]
+            - button "#Çamardı Şipsi yemeği" [ref=e257] [cursor=pointer]
+            - button "#Niğde Çamardı gezilecek yerler" [ref=e258] [cursor=pointer]
+            - generic [ref=e259]: "+6"
+          - generic [ref=e260]:
+            - generic [ref=e261]:
+              - generic [ref=e263]: 
+              - generic [ref=e264]:
+                - heading "Emojiyle Tepki Ver" [level=3] [ref=e265]
+                - paragraph [ref=e266]: Bu haber sana ne hissettirdi?
+              - generic [ref=e267]:
+                - generic [ref=e268]: 
+                - generic [ref=e269]: "2"
+            - generic [ref=e270]:
+              - button "Beğendim 1 Beğendim" [pressed] [ref=e737] [cursor=pointer]:
+                - generic [ref=e272]:
+                  - generic [ref=e739]: 
+                  - img "Beğendim" [ref=e274]
+                - generic [ref=e275]: "1"
+                - generic [ref=e276]: Beğendim
+              - button "Aydınlatıcı 1 Aydınlatıcı" [active] [pressed] [ref=e749] [cursor=pointer]:
+                - generic [ref=e278]:
+                  - generic [ref=e751]: 
+                  - img "Aydınlatıcı" [ref=e280]
+                - generic [ref=e281]: "1"
+                - generic [ref=e282]: Aydınlatıcı
+              - button "Düşündürdü 0 Düşündürdü" [ref=e283] [cursor=pointer]:
+                - img "Düşündürdü" [ref=e286]
+                - generic [ref=e287]: "0"
+                - generic [ref=e288]: Düşündürdü
+              - button "Şaşırttı 0 Şaşırttı" [ref=e289] [cursor=pointer]:
+                - img "Şaşırttı" [ref=e292]
+                - generic [ref=e293]: "0"
+                - generic [ref=e294]: Şaşırttı
+              - button "Üzdü 0 Üzdü" [ref=e295] [cursor=pointer]:
+                - img "Üzdü" [ref=e298]
+                - generic [ref=e299]: "0"
+                - generic [ref=e300]: Üzdü
+              - button "Kızdırdı 0 Kızdırdı" [ref=e301] [cursor=pointer]:
+                - img "Kızdırdı" [ref=e304]
+                - generic [ref=e305]: "0"
+                - generic [ref=e306]: Kızdırdı
+          - generic [ref=e310]:
+            - generic [ref=e311]:
+              - generic [ref=e312]:
+                - generic [ref=e313]: 
+                - textbox [ref=e314]:
+                  - /placeholder: Ad soyad
+              - generic [ref=e315]:
+                - generic [ref=e316]: 
+                - textbox [ref=e317]:
+                  - /placeholder: E-posta
+            - generic [ref=e318]:
+              - generic [ref=e320]: 
+              - textbox "Yorumunuzu ekleyin" [ref=e322]
+              - button "Emoji Ekle" [ref=e324] [cursor=pointer]:
+                - generic [ref=e325]: 
+              - button "Gönder" [disabled] [ref=e326]
+            - paragraph [ref=e327]: Pateez.com'da paylaştığın yorumlar haber tartışmasına katkı sağlar. Farklı görüşlere saygılı kal; hakaret, hedef gösterme ve ayrımcı ifadeler kullanma.
+      - button [ref=e740] [cursor=pointer]:
+        - generic [ref=e741]: 
+    - complementary [ref=e328]:
+      - generic [ref=e518]:
+        - generic [ref=e519]:
+          - generic [ref=e520]:
+            - generic [ref=e521]:
+              - generic [ref=e524]:
+                - heading "Nöbetçi eczane" [level=3] [ref=e527]
+                - paragraph [ref=e528]: Niğde · 18 Haziran 2026
+              - generic [ref=e529]: 15 dk
+            - generic [ref=e530]:
+              - button "MERKEZ 1" [ref=e531] [cursor=pointer]:
+                - generic [ref=e532]: MERKEZ
+                - generic [ref=e533]: "1"
+              - button "ALTUNHİSAR 1" [ref=e534] [cursor=pointer]:
+                - generic [ref=e535]: ALTUNHİSAR
+                - generic [ref=e536]: "1"
+              - button "BOR 1" [ref=e537] [cursor=pointer]:
+                - generic [ref=e538]: BOR
+                - generic [ref=e539]: "1"
+              - button "ÇAMARDI 1" [ref=e540] [cursor=pointer]:
+                - generic [ref=e541]: ÇAMARDI
+                - generic [ref=e542]: "1"
+              - button "ÇİFTLİK 1" [ref=e543] [cursor=pointer]:
+                - generic [ref=e544]: ÇİFTLİK
+                - generic [ref=e545]: "1"
+              - button "ULUKIŞLA 1" [ref=e546] [cursor=pointer]:
+                - generic [ref=e547]: ULUKIŞLA
+                - generic [ref=e548]: "1"
+          - generic [ref=e550]:
+            - generic [ref=e551]:
+              - generic [ref=e552]:
+                - heading "ÖZTÜRK ECZANESİ" [level=4] [ref=e553]
+                - generic [ref=e554]: MERKEZ
+              - generic [ref=e556]: 
+            - paragraph [ref=e557]: KUMLUCA MAH. HASTANELER CAD. NİĞDE ÖMER HALİSDEMİR EĞİTİM VE ARAŞTIRMA HASTANESİ
+            - generic [ref=e558]:
+              - link "0388 221 02 03" [ref=e559] [cursor=pointer]:
+                - /url: tel:03882210203
+                - generic [ref=e560]: 
+                - text: 0388 221 02 03
+              - link "Yol Tarifi" [ref=e561] [cursor=pointer]:
+                - /url: https://www.google.com/maps/dir/?api=1&destination=37.969988,34.644239
+                - generic [ref=e562]: 
+                - text: Yol Tarifi
+          - generic [ref=e563]:
+            - generic [ref=e564]:
+              - generic [ref=e565]: 
+              - generic [ref=e566]: 00:00 geçişi korunuyor
+            - generic [ref=e567]: 08:23
+        - generic [ref=e568]:
+          - generic [ref=e569]:
+            - generic [ref=e570]:
+              - generic [ref=e571]:
+                - generic [ref=e572]: 
+                - generic [ref=e573]: Niğde
+              - generic [ref=e574]:
+                - generic [ref=e575]: 19°
+                - generic [ref=e576]:
+                  - generic [ref=e577]: Açık
+                  - generic [ref=e578]: "Hissedilen: 14°"
+            - generic [ref=e579]:
+              - img "Açık"
+          - generic [ref=e580]:
+            - generic [ref=e581]:
+              - generic [ref=e582]: Paz
+              - generic [ref=e583]: 
+              - generic [ref=e584]: 20°
+            - generic [ref=e585]:
+              - generic [ref=e586]: Pzt
+              - generic [ref=e587]: 
+              - generic [ref=e588]: 22°
+            - generic [ref=e589]:
+              - generic [ref=e590]: Sal
+              - generic [ref=e591]: 
+              - generic [ref=e592]: 24°
+            - generic [ref=e593]:
+              - generic [ref=e594]: Çar
+              - generic [ref=e595]: 
+              - generic [ref=e596]: 22°
+            - generic [ref=e597]:
+              - generic [ref=e598]: Per
+              - generic [ref=e599]: 
+              - generic [ref=e600]: 25°
+        - generic [ref=e601]:
+          - generic [ref=e602]:
+            - heading "Gündem" [level=3] [ref=e605]
+            - generic [ref=e606]: Canlı
+          - generic [ref=e607]:
+            - generic [ref=e608] [cursor=pointer]:
+              - generic [ref=e609]:
+                - generic [ref=e610]:
+                  - generic [ref=e611]: Teknoloji
+                  - generic [ref=e612]: 128K
+                - heading "Türkiye'nin En Büyük Teknoloji Zirvesi Başladı" [level=4] [ref=e613]
+              - generic [ref=e615]: "01"
+            - generic [ref=e616] [cursor=pointer]:
+              - generic [ref=e617]:
+                - generic [ref=e618]:
+                  - generic [ref=e619]: Otomobil
+                  - generic [ref=e620]: 85K
+                - heading "Yeni Nesil Elektrikli Otomobiller Tanıtıldı" [level=4] [ref=e621]
+              - generic [ref=e623]: "02"
+            - generic [ref=e624] [cursor=pointer]:
+              - generic [ref=e625]:
+                - generic [ref=e626]:
+                  - generic [ref=e627]: Yaşam
+                  - generic [ref=e628]: 64K
+                - heading "Sürdürülebilir Yaşam İçin 10 Önemli Tavsiye" [level=4] [ref=e629]
+              - generic [ref=e631]: "03"
+            - generic [ref=e632] [cursor=pointer]:
+              - generic [ref=e633]:
+                - generic [ref=e634]:
+                  - generic [ref=e635]: Sinema
+                  - generic [ref=e636]: 42K
+                - heading "Haftanın En Çok İzlenen Sinema Filmleri" [level=4] [ref=e637]
+              - generic [ref=e639]: "04"
+          - button "Tüm gündemi gör" [ref=e640] [cursor=pointer]
+        - generic [ref=e641]:
+          - generic [ref=e642]:
+            - heading "Piyasalar" [level=3] [ref=e645]
+            - button "Tümü" [ref=e646] [cursor=pointer]
+          - generic [ref=e647]:
+            - generic [ref=e648] [cursor=pointer]:
+              - generic [ref=e649]:
+                - generic [ref=e651]: 
+                - generic [ref=e652]:
+                  - generic [ref=e653]: USDT
+                  - generic [ref=e654]: Dolar / TL
+              - generic [ref=e655]:
+                - generic [ref=e656]: 45,89
+                - generic [ref=e657]: "%0.45"
+            - generic [ref=e658] [cursor=pointer]:
+              - generic [ref=e659]:
+                - generic [ref=e661]: 
+                - generic [ref=e662]:
+                  - generic [ref=e663]: EUR
+                  - generic [ref=e664]: Euro / TL
+              - generic [ref=e665]:
+                - generic [ref=e666]: 53,43
+                - generic [ref=e667]: "%0.12"
+            - generic [ref=e668] [cursor=pointer]:
+              - generic [ref=e669]:
+                - generic [ref=e671]: 
+                - generic [ref=e672]:
+                  - generic [ref=e673]: GA
+                  - generic [ref=e674]: Gram Altın
+              - generic [ref=e675]:
+                - generic [ref=e676]: 6.698,16
+                - generic [ref=e677]: "%-0.23"
+            - generic [ref=e678] [cursor=pointer]:
+              - generic [ref=e679]:
+                - generic [ref=e681]: 
+                - generic [ref=e682]:
+                  - generic [ref=e683]: BTC
+                  - generic [ref=e684]: Bitcoin / USD
+              - generic [ref=e685]:
+                - generic [ref=e686]: $64.200
+                - generic [ref=e687]: "%1.85"
+        - generic [ref=e688]:
+          - generic [ref=e689]:
+            - img [ref=e691]
+            - generic [ref=e702]:
+              - heading "Ölüm ilanları" [level=3] [ref=e703]
+              - paragraph [ref=e704]: Niğde · 18 Haziran 2026
+          - generic [ref=e707]:
+            - generic [ref=e709]: 
+            - generic [ref=e710]:
+              - paragraph [ref=e711]: Bugün kayıt bulunmuyor
+              - paragraph [ref=e712]: Niğde Belediyesi kaynağında bugünün tarihine ait vefat ilanı yok.
+          - generic [ref=e713]:
+            - link "Niğde Belediyesi kaynağı" [ref=e714] [cursor=pointer]:
+              - /url: https://nigde.bel.tr/vefat-edenler
+            - generic [ref=e715]: 21:20
+        - generic [ref=e718]:
+          - generic [ref=e720]: 
+          - heading "Bültene Abone Ol" [level=4] [ref=e721]
+          - paragraph [ref=e722]: Gündemi kaçırma, her sabah özet cebine gelsin.
+          - generic [ref=e723]:
+            - textbox "E-posta" [ref=e724]
+            - button "ABONE OL" [ref=e725] [cursor=pointer]
+  - contentinfo "Pateez.com alt bilgisi" [ref=e384]:
+    - generic [ref=e385]:
+      - generic [ref=e386]:
+        - generic [ref=e387]:
+          - link "Pateez.com" [ref=e726] [cursor=pointer]:
+            - /url: /
+            - img "Pateez.com" [ref=e727]
+          - paragraph [ref=e388]: Pateez.com; Niğde’den başlayarak Konya, Kayseri, Aksaray, Nevşehir, Kırşehir, Sivas ve Karaman’a uzanan geniş bir coğrafyanın dijital hafızasıdır. Sadece son dakika gelişmelerini değil; İç Anadolu’nun tarihini, kültürünü ve insanını merkeze alıyoruz. Şehrinizin siyasi nabzını tutan anketlerimiz, bölgeye has eğlenceli testlerimiz ve özel video içeriklerimizle, haberciliği interaktif bir deneyime dönüştürüyoruz. Toprağımızın hikayesini, en doğru ve tarafsız haliyle okuyucularımıza sunmak için buradayız.
+        - generic [ref=e389]:
+          - heading "Kurumsal" [level=2] [ref=e390]: Kurumsal
+          - list [ref=e392]:
+            - listitem [ref=e393]:
+              - link "Hakkımızda" [ref=e394] [cursor=pointer]:
+                - /url: /kurumsal/hakkimizda
+                - generic [ref=e396]: Hakkımızda
+            - listitem [ref=e397]:
+              - link "Basın Odası" [ref=e398] [cursor=pointer]:
+                - /url: /kurumsal/basin-odasi
+                - generic [ref=e400]: Basın Odası
+            - listitem [ref=e401]:
+              - link "Künye" [ref=e402] [cursor=pointer]:
+                - /url: /kurumsal/kunye
+                - generic [ref=e404]: Künye
+            - listitem [ref=e405]:
+              - link "Reklam" [ref=e406] [cursor=pointer]:
+                - /url: /kurumsal/reklam
+                - generic [ref=e408]: Reklam
+            - listitem [ref=e409]:
+              - link "İnsan Kaynakları" [ref=e410] [cursor=pointer]:
+                - /url: /kurumsal/insan-kaynaklari
+                - generic [ref=e412]: İnsan Kaynakları
+            - listitem [ref=e413]:
+              - link "Sosyal Medya" [ref=e414] [cursor=pointer]:
+                - /url: /kurumsal/sosyal-medya
+                - generic [ref=e416]: Sosyal Medya
+            - listitem [ref=e417]:
+              - link "Mobil Uygulamalar" [ref=e418] [cursor=pointer]:
+                - /url: /kurumsal/mobil-uygulamalar
+                - generic [ref=e420]: Mobil Uygulamalar
+            - listitem [ref=e421]:
+              - link "İletişim" [ref=e422] [cursor=pointer]:
+                - /url: /kurumsal/iletisim
+                - generic [ref=e424]: İletişim
+        - generic [ref=e425]:
+          - heading "Yasal" [level=2] [ref=e426]: Yasal
+          - list [ref=e428]:
+            - listitem [ref=e429]:
+              - link "Yayın İlkeleri" [ref=e430] [cursor=pointer]:
+                - /url: /kurumsal/yayin-ilkeleri
+                - generic [ref=e432]: Yayın İlkeleri
+            - listitem [ref=e433]:
+              - link "Tekzip ve Düzeltme" [ref=e434] [cursor=pointer]:
+                - /url: /kurumsal/tekzip-ve-duzeltme
+                - generic [ref=e436]: Tekzip ve Düzeltme
+            - listitem [ref=e437]:
+              - link "Bilgi Toplumu Hizmetleri" [ref=e438] [cursor=pointer]:
+                - /url: /kurumsal/bilgi-toplumu-hizmetleri
+                - generic [ref=e440]: Bilgi Toplumu Hizmetleri
+            - listitem [ref=e441]:
+              - link "Kişisel Verilerin Korunması" [ref=e442] [cursor=pointer]:
+                - /url: /kurumsal/kisisel-verilerin-korunmasi
+                - generic [ref=e444]: Kişisel Verilerin Korunması
+            - listitem [ref=e445]:
+              - link "Çerez Politikası" [ref=e446] [cursor=pointer]:
+                - /url: /kurumsal/cerez-politikasi
+                - generic [ref=e448]: Çerez Politikası
+            - listitem [ref=e449]:
+              - link "Kullanım Koşulları" [ref=e450] [cursor=pointer]:
+                - /url: /kurumsal/kullanim-kosullari
+                - generic [ref=e452]: Kullanım Koşulları
+            - listitem [ref=e453]:
+              - link "Gizlilik Politikası" [ref=e454] [cursor=pointer]:
+                - /url: /kurumsal/gizlilik-politikasi
+                - generic [ref=e456]: Gizlilik Politikası
+        - generic [ref=e457]:
+          - heading "İletişim" [level=2] [ref=e458]: İletişim
+          - link "info@pateez.com" [ref=e461] [cursor=pointer]:
+            - /url: mailto:info@pateez.com
+            - generic [ref=e463]: 
+            - generic [ref=e464]: info@pateez.com
+          - generic [ref=e465]:
+            - link "Instagram" [ref=e466] [cursor=pointer]:
+              - /url: https://www.instagram.com/pateezcom/
+              - generic [ref=e467]: 
+            - link "X" [ref=e468] [cursor=pointer]:
+              - /url: https://x.com/pateezcom
+              - generic [ref=e469]: 
+            - link "YouTube" [ref=e470] [cursor=pointer]:
+              - /url: https://www.youtube.com/@pateezcomtv
+              - generic [ref=e471]: 
+            - link "Facebook" [ref=e472] [cursor=pointer]:
+              - /url: https://www.facebook.com/pateezcom/
+              - generic [ref=e473]: 
+            - link "TikTok" [ref=e474] [cursor=pointer]:
+              - /url: https://www.tiktok.com/@pateezcom
+              - generic [ref=e475]: 
+            - link "Pinterest" [ref=e476] [cursor=pointer]:
+              - /url: https://tr.pinterest.com/pateezcom/
+              - generic [ref=e477]: 
+          - link "İletişim" [ref=e478] [cursor=pointer]:
+            - /url: /kurumsal/iletisim
+            - generic [ref=e479]: İletişim
+            - generic [ref=e480]: 
+      - generic [ref=e481]:
+        - paragraph [ref=e482]: 2026 Pateez
+        - navigation "Alt bilgi yasal bağlantıları" [ref=e483]:
+          - link "Yayın İlkeleri" [ref=e484] [cursor=pointer]:
+            - /url: /kurumsal/yayin-ilkeleri
+          - link "Tekzip ve Düzeltme" [ref=e485] [cursor=pointer]:
+            - /url: /kurumsal/tekzip-ve-duzeltme
+          - link "Bilgi Toplumu Hizmetleri" [ref=e486] [cursor=pointer]:
+            - /url: /kurumsal/bilgi-toplumu-hizmetleri
+          - link "Kişisel Verilerin Korunması" [ref=e487] [cursor=pointer]:
+            - /url: /kurumsal/kisisel-verilerin-korunmasi
+  - generic [ref=e490]:
+    - button "Menu" [ref=e491]:
+      - img [ref=e493]
+      - generic: Menu
+    - button "Inspect" [ref=e497]:
+      - img [ref=e499]
+      - generic: Inspect
+    - button "Audit" [ref=e501]:
+      - generic [ref=e502]:
+        - img [ref=e503]
+        - img [ref=e752]
+      - generic: Audit
+    - button "Settings" [ref=e506]:
+      - img [ref=e508]
+      - generic: Settings

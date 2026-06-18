@@ -1,0 +1,503 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - img "Pateez.com" [ref=e7] [cursor=pointer]
+      - navigation [ref=e8]:
+        - button "Ana Sayfa" [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]: 
+          - generic [ref=e11]: Ana Sayfa
+        - button "Anket" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]: 
+          - generic [ref=e14]: Anket
+        - button "Test" [ref=e15] [cursor=pointer]:
+          - generic [ref=e16]: 
+          - generic [ref=e17]: Test
+        - button "Video" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: 
+          - generic [ref=e20]: Video
+        - button "İçindekiler" [ref=e21] [cursor=pointer]:
+          - generic [ref=e22]: 
+          - generic [ref=e23]: İçindekiler
+        - button "Tarif" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: 
+          - generic [ref=e26]: Tarif
+        - button "Etkinlik" [ref=e27] [cursor=pointer]:
+          - generic [ref=e28]: 
+          - generic [ref=e29]: Etkinlik
+      - generic [ref=e30]:
+        - button [ref=e31] [cursor=pointer]:
+          - generic [ref=e32]: 
+        - text:  
+        - button [ref=e34] [cursor=pointer]:
+          - generic [ref=e36]: 
+    - generic [ref=e39]:
+      - generic [ref=e41]: 
+      - textbox "Haber ara..." [ref=e42]
+      - button [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: 
+  - main [ref=e48]:
+    - generic [ref=e51]:
+      - generic [ref=e53]:
+        - navigation [ref=e54]:
+          - button "Ana Sayfa" [ref=e55] [cursor=pointer]:
+            - generic [ref=e56]: 
+            - generic [ref=e57]: Ana Sayfa
+          - generic [ref=e58]: 
+          - generic [ref=e59]: niğde
+          - generic [ref=e60]: 
+          - generic [ref=e61]: video
+        - generic [ref=e62]:
+          - heading "Niğde’nin Tarihi ve Doğal Güzellikleri 4K Çözünürlükte Görsel Şölene Dönüştü" [level=1] [ref=e63]
+          - generic [ref=e64]: TRT 4K tarafından hazırlanan timelapse video, Niğde'nin binlerce yıllık tarihini ve şehir yaşamını 2 dakikalık büyüleyici bir serüvenle ekranlara taşıyor.
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - link "Pateez Niğde" [ref=e67] [cursor=pointer]:
+              - /url: /profil/pateez
+              - img "Pateez Niğde" [ref=e68]
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - link "Pateez Niğde" [ref=e71] [cursor=pointer]:
+                  - /url: /profil/pateez
+                - generic [ref=e72]: 
+              - generic [ref=e73]:
+                - generic [ref=e74]:
+                  - generic [ref=e75]: 
+                  - time [ref=e76]: 7 Haziran 2026 Pazar
+                - generic [ref=e77]:
+                  - generic [ref=e78]: 
+                  - text: 13:39
+                - generic [ref=e79]:
+                  - generic [ref=e80]: 
+                  - text: 1 dk okuma
+                - generic [ref=e81]:
+                  - generic [ref=e82]: 
+                  - text: "3"
+          - generic [ref=e83]:
+            - button "Paylaş" [ref=e84] [cursor=pointer]:
+              - generic [ref=e85]: 
+              - generic [ref=e86]: Paylaş
+            - button [ref=e87] [cursor=pointer]:
+              - generic [ref=e88]: 
+      - generic [ref=e89]:
+        - complementary [ref=e90]:
+          - generic [ref=e91]:
+            - generic [ref=e92]: PAYLAŞ
+            - generic [ref=e94]: "0"
+          - button "Instagram'da paylaş" [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]: 
+          - button "Facebook'ta paylaş" [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]: 
+          - button "X'te paylaş" [ref=e99] [cursor=pointer]:
+            - generic [ref=e100]: 
+          - button "WhatsApp'ta paylaş" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: 
+          - button "Beğen" [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: 
+          - button "Beğenme" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: 
+          - button "Kaydet" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]: 
+        - article [ref=e112]:
+          - generic [ref=e114]:
+            - generic [ref=e116]: TRT 4K tarafından hazırlanan timelapse video, Niğde'nin binlerce yıllık tarihini ve şehir yaşamını 2 dakikalık büyüleyici bir serüvenle ekranlara taşıyor.
+            - generic [ref=e117] [cursor=pointer]:
+              - iframe [ref=e119]:
+                - generic [active] [ref=f1e1]:
+                  - generic "YouTube Video Oynatıcısı" [ref=f1e3]
+                  - generic [ref=f1e5]:
+                    - generic:
+                      - generic:
+                        - button "Videoyu oynat" [ref=f1e10] [cursor=pointer]:
+                          - generic [ref=f1e13]:
+                            - img
+                        - button "Oynatıcı kontrollerini gizle" [ref=f1e14] [cursor=pointer]
+                        - generic [ref=f1e16]:
+                          - generic [ref=f1e21]:
+                            - generic [ref=f1e22]:
+                              - link "TIMELAPSE NIGDE" [ref=f1e23] [cursor=pointer]:
+                                - /url: https://www.youtube.com/watch?v=ArGev69ErF0
+                              - link "TRT 4K" [ref=f1e24] [cursor=pointer]:
+                                - /url: /channel/UCYeW6ifPBPpT3NN9F3F23xA
+                                - generic [ref=f1e25]: TRT 4K
+                            - generic [ref=f1e26]:
+                              - button "thumbnail-image" [ref=f1e27] [cursor=pointer]:
+                                - img "thumbnail-image" [ref=f1e28]
+                              - generic [ref=f1e30]:
+                                - generic: TRT 4K
+                                - generic: 29,7 B abone
+                          - generic [ref=f1e31]:
+                            - button "Paylaş" [ref=f1e34] [cursor=pointer]:
+                              - generic [ref=f1e38]:
+                                - img
+                            - link "YouTube'da izleyin" [ref=f1e45] [cursor=pointer]:
+                              - /url: https://www.youtube.com/watch?v=ArGev69ErF0
+                              - generic [ref=f1e48]:
+                                - text: "İzlemek için:"
+                                - img [ref=f1e50]:
+                                  - generic [ref=f1e52]:
+                                    - img
+              - generic:
+                - generic: 
+                - generic: 00:00
+              - generic [ref=e120]:
+                - button [ref=e121]:
+                  - generic [ref=e122]: 
+                - generic:
+                  - generic:
+                    - generic: 
+          - generic [ref=e124]:
+            - generic [ref=e125]: FAQ
+            - generic [ref=e126]:
+              - button "? Niğde tanıtım videosunda hangi teknik kullanıldı?" [ref=e128] [cursor=pointer]:
+                - generic [ref=e129]: "?"
+                - generic [ref=e130]: Niğde tanıtım videosunda hangi teknik kullanıldı?
+                - generic [ref=e131]: 
+              - button "? Videoda hangi tarihi yapılar yer alıyor?" [ref=e133] [cursor=pointer]:
+                - generic [ref=e134]: "?"
+                - generic [ref=e135]: Videoda hangi tarihi yapılar yer alıyor?
+                - generic [ref=e136]: 
+              - button "? Alâeddin Camii'nin videoda öne çıkan özelliği nedir?" [ref=e138] [cursor=pointer]:
+                - generic [ref=e139]: "?"
+                - generic [ref=e140]: Alâeddin Camii'nin videoda öne çıkan özelliği nedir?
+                - generic [ref=e141]: 
+          - generic [ref=e142]:
+            - generic [ref=e143]: "Etiketler:"
+            - button "#Niğde" [ref=e144] [cursor=pointer]
+            - button "#Niğde Kalesi" [ref=e145] [cursor=pointer]
+            - button "#TRT 4K" [ref=e146] [cursor=pointer]
+            - button "#Alâeddin Camii" [ref=e147] [cursor=pointer]
+            - button "#Hüdavent Hatun Türbesi" [ref=e148] [cursor=pointer]
+            - button "#Niğde Saat Kulesi" [ref=e149] [cursor=pointer]
+            - button "#Timelapse" [ref=e150] [cursor=pointer]
+            - button "#Niğde tanıtım videosu" [ref=e151] [cursor=pointer]
+            - generic [ref=e152]: "+6"
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - generic [ref=e156]: 
+              - generic [ref=e157]:
+                - heading "Emojiyle Tepki Ver" [level=3] [ref=e158]
+                - paragraph [ref=e159]: Bu haber sana ne hissettirdi?
+              - generic [ref=e160]:
+                - generic [ref=e161]: 
+                - generic [ref=e162]: "0"
+            - generic [ref=e163]:
+              - button "Beğendim 0 Beğendim" [ref=e164] [cursor=pointer]:
+                - img "Beğendim" [ref=e167]
+                - generic [ref=e168]: "0"
+                - generic [ref=e169]: Beğendim
+              - button "Aydınlatıcı 0 Aydınlatıcı" [ref=e170] [cursor=pointer]:
+                - img "Aydınlatıcı" [ref=e173]
+                - generic [ref=e174]: "0"
+                - generic [ref=e175]: Aydınlatıcı
+              - button "Düşündürdü 0 Düşündürdü" [ref=e176] [cursor=pointer]:
+                - img "Düşündürdü" [ref=e179]
+                - generic [ref=e180]: "0"
+                - generic [ref=e181]: Düşündürdü
+              - button "Şaşırttı 0 Şaşırttı" [ref=e182] [cursor=pointer]:
+                - img "Şaşırttı" [ref=e185]
+                - generic [ref=e186]: "0"
+                - generic [ref=e187]: Şaşırttı
+              - button "Üzdü 0 Üzdü" [ref=e188] [cursor=pointer]:
+                - img "Üzdü" [ref=e191]
+                - generic [ref=e192]: "0"
+                - generic [ref=e193]: Üzdü
+              - button "Kızdırdı 0 Kızdırdı" [ref=e194] [cursor=pointer]:
+                - img "Kızdırdı" [ref=e197]
+                - generic [ref=e198]: "0"
+                - generic [ref=e199]: Kızdırdı
+          - generic [ref=e203]:
+            - generic [ref=e204]:
+              - generic [ref=e205]:
+                - generic [ref=e206]: 
+                - textbox [ref=e207]:
+                  - /placeholder: Ad soyad
+              - generic [ref=e208]:
+                - generic [ref=e209]: 
+                - textbox [ref=e210]:
+                  - /placeholder: E-posta
+            - generic [ref=e211]:
+              - generic [ref=e213]: 
+              - textbox "Yorumunuzu ekleyin" [ref=e215]
+              - button "Emoji Ekle" [ref=e217] [cursor=pointer]:
+                - generic [ref=e218]: 
+              - button "Gönder" [disabled] [ref=e219]
+            - paragraph [ref=e220]: Pateez.com'da paylaştığın yorumlar haber tartışmasına katkı sağlar. Farklı görüşlere saygılı kal; hakaret, hedef gösterme ve ayrımcı ifadeler kullanma.
+      - button:
+        - generic: 
+    - complementary [ref=e221]:
+      - generic [ref=e222]:
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - generic [ref=e225]:
+              - generic [ref=e228]:
+                - heading "Nöbetçi eczane" [level=3] [ref=e231]
+                - paragraph [ref=e232]: Niğde
+              - generic [ref=e233]: 15 dk
+            - button "MERKEZ" [ref=e235] [cursor=pointer]:
+              - generic [ref=e236]: MERKEZ
+          - generic [ref=e238]:
+            - paragraph [ref=e239]: Liste hazırlanıyor
+            - paragraph [ref=e240]: Niğde Eczacı Odası kaynağı kontrol ediliyor.
+          - generic [ref=e242]:
+            - generic [ref=e243]: 
+            - generic [ref=e244]: 00:00 geçişi korunuyor
+        - generic [ref=e245]:
+          - generic [ref=e246]:
+            - generic [ref=e247]:
+              - generic [ref=e248]:
+                - generic [ref=e249]: 
+                - generic [ref=e250]: Niğde
+              - generic [ref=e251]:
+                - generic [ref=e252]: "--°"
+                - generic [ref=e253]:
+                  - generic [ref=e254]: Parçalı Bulutlu
+                  - generic [ref=e255]: "Hissedilen: --°"
+            - generic [ref=e256]:
+              - img "Parçalı Bulutlu"
+          - generic [ref=e257]:
+            - generic [ref=e258]:
+              - generic [ref=e259]: PZT
+              - generic [ref=e260]: 
+              - generic [ref=e261]: "--°"
+            - generic [ref=e262]:
+              - generic [ref=e263]: SAL
+              - generic [ref=e264]: 
+              - generic [ref=e265]: "--°"
+            - generic [ref=e266]:
+              - generic [ref=e267]: ÇAR
+              - generic [ref=e268]: 
+              - generic [ref=e269]: "--°"
+            - generic [ref=e270]:
+              - generic [ref=e271]: PER
+              - generic [ref=e272]: 
+              - generic [ref=e273]: "--°"
+            - generic [ref=e274]:
+              - generic [ref=e275]: CUM
+              - generic [ref=e276]: 
+              - generic [ref=e277]: "--°"
+        - generic [ref=e278]:
+          - generic [ref=e279]:
+            - heading "Gündem" [level=3] [ref=e282]
+            - generic [ref=e283]: Canlı
+          - generic [ref=e284]:
+            - generic [ref=e285] [cursor=pointer]:
+              - generic [ref=e286]:
+                - generic [ref=e287]:
+                  - generic [ref=e288]: Teknoloji
+                  - generic [ref=e289]: 128K
+                - heading "Türkiye'nin En Büyük Teknoloji Zirvesi Başladı" [level=4] [ref=e290]
+              - generic [ref=e292]: "01"
+            - generic [ref=e293] [cursor=pointer]:
+              - generic [ref=e294]:
+                - generic [ref=e295]:
+                  - generic [ref=e296]: Otomobil
+                  - generic [ref=e297]: 85K
+                - heading "Yeni Nesil Elektrikli Otomobiller Tanıtıldı" [level=4] [ref=e298]
+              - generic [ref=e300]: "02"
+            - generic [ref=e301] [cursor=pointer]:
+              - generic [ref=e302]:
+                - generic [ref=e303]:
+                  - generic [ref=e304]: Yaşam
+                  - generic [ref=e305]: 64K
+                - heading "Sürdürülebilir Yaşam İçin 10 Önemli Tavsiye" [level=4] [ref=e306]
+              - generic [ref=e308]: "03"
+            - generic [ref=e309] [cursor=pointer]:
+              - generic [ref=e310]:
+                - generic [ref=e311]:
+                  - generic [ref=e312]: Sinema
+                  - generic [ref=e313]: 42K
+                - heading "Haftanın En Çok İzlenen Sinema Filmleri" [level=4] [ref=e314]
+              - generic [ref=e316]: "04"
+          - button "Tüm gündemi gör" [ref=e317] [cursor=pointer]
+        - generic [ref=e318]:
+          - generic [ref=e319]:
+            - heading "Piyasalar" [level=3] [ref=e322]
+            - button "Tümü" [ref=e323] [cursor=pointer]
+          - generic [ref=e324]:
+            - generic [ref=e325] [cursor=pointer]:
+              - generic [ref=e326]:
+                - generic [ref=e328]: 
+                - generic [ref=e329]:
+                  - generic [ref=e330]: USDT
+                  - generic [ref=e331]: Dolar / TL
+              - generic [ref=e332]:
+                - generic [ref=e333]: "34.42"
+                - generic [ref=e334]: "%0.45"
+            - generic [ref=e335] [cursor=pointer]:
+              - generic [ref=e336]:
+                - generic [ref=e338]: 
+                - generic [ref=e339]:
+                  - generic [ref=e340]: EUR
+                  - generic [ref=e341]: Euro / TL
+              - generic [ref=e342]:
+                - generic [ref=e343]: "37.15"
+                - generic [ref=e344]: "%0.12"
+            - generic [ref=e345] [cursor=pointer]:
+              - generic [ref=e346]:
+                - generic [ref=e348]: 
+                - generic [ref=e349]:
+                  - generic [ref=e350]: GA
+                  - generic [ref=e351]: Gram Altın
+              - generic [ref=e352]:
+                - generic [ref=e353]: "2.450"
+                - generic [ref=e354]: "%-0.23"
+            - generic [ref=e355] [cursor=pointer]:
+              - generic [ref=e356]:
+                - generic [ref=e358]: 
+                - generic [ref=e359]:
+                  - generic [ref=e360]: BTC
+                  - generic [ref=e361]: Bitcoin / USD
+              - generic [ref=e362]:
+                - generic [ref=e363]: $64.200
+                - generic [ref=e364]: "%1.85"
+        - generic [ref=e365]:
+          - generic [ref=e366]:
+            - img [ref=e368]
+            - generic [ref=e379]:
+              - heading "Ölüm ilanları" [level=3] [ref=e380]
+              - paragraph [ref=e381]: Niğde · 18 Haziran 2026
+          - generic [ref=e384]:
+            - generic [ref=e386]: 
+            - generic [ref=e387]:
+              - paragraph [ref=e388]: Bugün kayıt bulunmuyor
+              - paragraph [ref=e389]: Niğde Belediyesi kaynağında bugünün tarihine ait vefat ilanı yok.
+          - generic [ref=e390]:
+            - link "Niğde Belediyesi kaynağı" [ref=e391] [cursor=pointer]:
+              - /url: https://nigde.bel.tr/vefat-edenler
+            - generic [ref=e392]: 20:45
+        - generic [ref=e395]:
+          - generic [ref=e397]: 
+          - heading "Bültene Abone Ol" [level=4] [ref=e398]
+          - paragraph [ref=e399]: Gündemi kaçırma, her sabah özet cebine gelsin.
+          - generic [ref=e400]:
+            - textbox "E-posta" [ref=e401]
+            - button "ABONE OL" [ref=e402] [cursor=pointer]
+  - contentinfo "Pateez.com alt bilgisi" [ref=e404]:
+    - generic [ref=e405]:
+      - generic [ref=e406]:
+        - generic [ref=e407]:
+          - link "Pateez.com" [ref=e408] [cursor=pointer]:
+            - /url: /
+            - img "Pateez.com" [ref=e409]
+          - paragraph [ref=e410]: Pateez.com; Niğde’den başlayarak Konya, Kayseri, Aksaray, Nevşehir, Kırşehir, Sivas ve Karaman’a uzanan geniş bir coğrafyanın dijital hafızasıdır. Sadece son dakika gelişmelerini değil; İç Anadolu’nun tarihini, kültürünü ve insanını merkeze alıyoruz. Şehrinizin siyasi nabzını tutan anketlerimiz, bölgeye has eğlenceli testlerimiz ve özel video içeriklerimizle, haberciliği interaktif bir deneyime dönüştürüyoruz. Toprağımızın hikayesini, en doğru ve tarafsız haliyle okuyucularımıza sunmak için buradayız.
+        - generic [ref=e411]:
+          - heading "Kurumsal" [level=2] [ref=e412]: Kurumsal
+          - list [ref=e414]:
+            - listitem [ref=e415]:
+              - link "Hakkımızda" [ref=e416] [cursor=pointer]:
+                - /url: /kurumsal/hakkimizda
+                - generic [ref=e418]: Hakkımızda
+            - listitem [ref=e419]:
+              - link "Basın Odası" [ref=e420] [cursor=pointer]:
+                - /url: /kurumsal/basin-odasi
+                - generic [ref=e422]: Basın Odası
+            - listitem [ref=e423]:
+              - link "Künye" [ref=e424] [cursor=pointer]:
+                - /url: /kurumsal/kunye
+                - generic [ref=e426]: Künye
+            - listitem [ref=e427]:
+              - link "Reklam" [ref=e428] [cursor=pointer]:
+                - /url: /kurumsal/reklam
+                - generic [ref=e430]: Reklam
+            - listitem [ref=e431]:
+              - link "İnsan Kaynakları" [ref=e432] [cursor=pointer]:
+                - /url: /kurumsal/insan-kaynaklari
+                - generic [ref=e434]: İnsan Kaynakları
+            - listitem [ref=e435]:
+              - link "Sosyal Medya" [ref=e436] [cursor=pointer]:
+                - /url: /kurumsal/sosyal-medya
+                - generic [ref=e438]: Sosyal Medya
+            - listitem [ref=e439]:
+              - link "Mobil Uygulamalar" [ref=e440] [cursor=pointer]:
+                - /url: /kurumsal/mobil-uygulamalar
+                - generic [ref=e442]: Mobil Uygulamalar
+            - listitem [ref=e443]:
+              - link "İletişim" [ref=e444] [cursor=pointer]:
+                - /url: /kurumsal/iletisim
+                - generic [ref=e446]: İletişim
+        - generic [ref=e447]:
+          - heading "Yasal" [level=2] [ref=e448]: Yasal
+          - list [ref=e450]:
+            - listitem [ref=e451]:
+              - link "Yayın İlkeleri" [ref=e452] [cursor=pointer]:
+                - /url: /kurumsal/yayin-ilkeleri
+                - generic [ref=e454]: Yayın İlkeleri
+            - listitem [ref=e455]:
+              - link "Tekzip ve Düzeltme" [ref=e456] [cursor=pointer]:
+                - /url: /kurumsal/tekzip-ve-duzeltme
+                - generic [ref=e458]: Tekzip ve Düzeltme
+            - listitem [ref=e459]:
+              - link "Bilgi Toplumu Hizmetleri" [ref=e460] [cursor=pointer]:
+                - /url: /kurumsal/bilgi-toplumu-hizmetleri
+                - generic [ref=e462]: Bilgi Toplumu Hizmetleri
+            - listitem [ref=e463]:
+              - link "Kişisel Verilerin Korunması" [ref=e464] [cursor=pointer]:
+                - /url: /kurumsal/kisisel-verilerin-korunmasi
+                - generic [ref=e466]: Kişisel Verilerin Korunması
+            - listitem [ref=e467]:
+              - link "Çerez Politikası" [ref=e468] [cursor=pointer]:
+                - /url: /kurumsal/cerez-politikasi
+                - generic [ref=e470]: Çerez Politikası
+            - listitem [ref=e471]:
+              - link "Kullanım Koşulları" [ref=e472] [cursor=pointer]:
+                - /url: /kurumsal/kullanim-kosullari
+                - generic [ref=e474]: Kullanım Koşulları
+            - listitem [ref=e475]:
+              - link "Gizlilik Politikası" [ref=e476] [cursor=pointer]:
+                - /url: /kurumsal/gizlilik-politikasi
+                - generic [ref=e478]: Gizlilik Politikası
+        - generic [ref=e479]:
+          - heading "İletişim" [level=2] [ref=e480]: İletişim
+          - link "info@pateez.com" [ref=e483] [cursor=pointer]:
+            - /url: mailto:info@pateez.com
+            - generic [ref=e485]: 
+            - generic [ref=e486]: info@pateez.com
+          - generic [ref=e487]:
+            - link "Instagram" [ref=e488] [cursor=pointer]:
+              - /url: https://www.instagram.com/pateezcom/
+              - generic [ref=e489]: 
+            - link "X" [ref=e490] [cursor=pointer]:
+              - /url: https://x.com/pateezcom
+              - generic [ref=e491]: 
+            - link "YouTube" [ref=e492] [cursor=pointer]:
+              - /url: https://www.youtube.com/@pateezcomtv
+              - generic [ref=e493]: 
+            - link "Facebook" [ref=e494] [cursor=pointer]:
+              - /url: https://www.facebook.com/pateezcom/
+              - generic [ref=e495]: 
+            - link "TikTok" [ref=e496] [cursor=pointer]:
+              - /url: https://www.tiktok.com/@pateezcom
+              - generic [ref=e497]: 
+            - link "Pinterest" [ref=e498] [cursor=pointer]:
+              - /url: https://tr.pinterest.com/pateezcom/
+              - generic [ref=e499]: 
+          - link "İletişim" [ref=e500] [cursor=pointer]:
+            - /url: /kurumsal/iletisim
+            - generic [ref=e501]: İletişim
+            - generic [ref=e502]: 
+      - generic [ref=e503]:
+        - paragraph [ref=e504]: 2026 Pateez
+        - navigation "Alt bilgi yasal bağlantıları" [ref=e505]:
+          - link "Yayın İlkeleri" [ref=e506] [cursor=pointer]:
+            - /url: /kurumsal/yayin-ilkeleri
+          - link "Tekzip ve Düzeltme" [ref=e507] [cursor=pointer]:
+            - /url: /kurumsal/tekzip-ve-duzeltme
+          - link "Bilgi Toplumu Hizmetleri" [ref=e508] [cursor=pointer]:
+            - /url: /kurumsal/bilgi-toplumu-hizmetleri
+          - link "Kişisel Verilerin Korunması" [ref=e509] [cursor=pointer]:
+            - /url: /kurumsal/kisisel-verilerin-korunmasi
+  - generic [ref=e512]:
+    - button "Menu" [ref=e513]:
+      - img [ref=e515]
+      - generic: Menu
+    - button "Inspect" [ref=e519]:
+      - img [ref=e521]
+      - generic: Inspect
+    - button "Audit" [ref=e523]:
+      - generic [ref=e524]:
+        - img [ref=e525]
+        - img [ref=e528]
+      - generic: Audit
+    - button "Settings" [ref=e531]:
+      - img [ref=e533]
+      - generic: Settings

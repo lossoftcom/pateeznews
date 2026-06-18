@@ -66,22 +66,47 @@ const NORMAL_CATEGORY_LABELS: Record<string, string> = {
   spor: 'Spor',
 };
 
-const resolveNavigationLabel = (value: string) => {
+const WEEKLY_TREND_VALUES = new Set([
+  'weekly_trends',
+  'weekly_likes',
+  'weekly_comments',
+  'weekly_shares',
+  'weekly_reads',
+]);
+
+const normalizeWeeklyTrendValue = (value: string) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_');
+  return WEEKLY_TREND_VALUES.has(normalized) ? normalized : '';
+};
+
+const resolveNavigationItem = (value: string) => {
   const normalizedSlug = slugify(value);
-  const match = navigationItems.find((item) =>
+  return navigationItems.find((item) =>
     item.value === value ||
     item.label === value ||
     (item.value && slugify(item.value) === normalizedSlug) ||
     slugify(item.label) === normalizedSlug
-  );
+  ) || null;
+};
+
+const resolveNavigationLabel = (value: string) => {
+  const normalizedSlug = slugify(value);
+  const match = resolveNavigationItem(value);
   return match?.label || NORMAL_CATEGORY_LABELS[normalizedSlug] || value;
 };
 
-const resolvedCategory = resolveNavigationLabel(slug);
+const activeNavigationItem = resolveNavigationItem(slug);
+const trendValue = normalizeWeeklyTrendValue(String(activeNavigationItem?.value || slug || ''));
+const isTrendPage = activeNavigationItem?.type === 'trends' || !!trendValue;
+const resolvedCategory = isTrendPage
+  ? activeNavigationItem?.label || resolveNavigationLabel(slug)
+  : resolveNavigationLabel(slug);
 const resolvedSubcategory = subcategorySlug ? resolveNavigationLabel(subcategorySlug) : null;
 
 const CATEGORY_PAGE_SIZE = 12;
-const categoryNewsPage = await dataService.getCategoryNewsPage(lang, resolvedCategory || '', CATEGORY_PAGE_SIZE, 0);
+const categoryNewsPage = isTrendPage
+  ? await dataService.getWeeklyTrendNewsPage(lang, trendValue || 'weekly_trends', CATEGORY_PAGE_SIZE, 0)
+  : await dataService.getCategoryNewsPage(lang, resolvedCategory || '', CATEGORY_PAGE_SIZE, 0);
 const newsItems = categoryNewsPage.items;
 
 const titlePrefix = resolvedSubcategory ? `${resolvedSubcategory} - ${resolvedCategory}` : resolvedCategory;

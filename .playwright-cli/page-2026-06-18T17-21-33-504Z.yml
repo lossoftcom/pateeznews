@@ -1,0 +1,528 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - img "Pateez.com" [ref=e7] [cursor=pointer]
+      - navigation [ref=e8]:
+        - button "Ana Sayfa" [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]: 
+          - generic [ref=e11]: Ana Sayfa
+        - button "Anket" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]: 
+          - generic [ref=e14]: Anket
+        - button "Test" [ref=e15] [cursor=pointer]:
+          - generic [ref=e16]: 
+          - generic [ref=e17]: Test
+        - button "Video" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: 
+          - generic [ref=e20]: Video
+        - button "İçindekiler" [ref=e21] [cursor=pointer]:
+          - generic [ref=e22]: 
+          - generic [ref=e23]: İçindekiler
+        - button "Tarif" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: 
+          - generic [ref=e26]: Tarif
+        - button "Etkinlik" [ref=e27] [cursor=pointer]:
+          - generic [ref=e28]: 
+          - generic [ref=e29]: Etkinlik
+      - generic [ref=e30]:
+        - button [ref=e31] [cursor=pointer]:
+          - generic [ref=e32]: 
+        - text:  
+        - button [ref=e34] [cursor=pointer]:
+          - generic [ref=e36]: 
+    - generic [ref=e39]:
+      - generic [ref=e41]: 
+      - textbox "Haber ara..." [ref=e42]
+      - button [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: 
+  - main [ref=e48]:
+    - generic [ref=e51]:
+      - generic [ref=e53]:
+        - navigation [ref=e54]:
+          - button "Ana Sayfa" [ref=e55] [cursor=pointer]:
+            - generic [ref=e56]: 
+            - generic [ref=e57]: Ana Sayfa
+          - generic [ref=e58]: 
+          - generic [ref=e59]: niğde
+          - generic [ref=e60]: 
+          - generic [ref=e61]: etkinlik
+        - generic [ref=e62]:
+          - heading "Neon Waves Live Concert 2026 Canlı Müzik Deneyimi Sunmaya Hazırlanıyor" [level=1] [ref=e63]
+          - generic [ref=e64]: Dünya standartlarında sanatçıları ve sürükleyici görselleri bir araya getirecek olan Neon Waves Live Concert 2026, müzikseverlere unutulmaz bir performans gecesi vaat ediyor.
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - link "Pateez Niğde" [ref=e67] [cursor=pointer]:
+              - /url: /profil/pateez
+              - img "Pateez Niğde" [ref=e68]
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - link "Pateez Niğde" [ref=e71] [cursor=pointer]:
+                  - /url: /profil/pateez
+                - generic [ref=e72]: 
+              - generic [ref=e73]:
+                - generic [ref=e74]:
+                  - generic [ref=e75]: 
+                  - time [ref=e76]: 12 Haziran 2026 Cuma
+                - generic [ref=e77]:
+                  - generic [ref=e78]: 
+                  - text: 17:47
+                - generic [ref=e79]:
+                  - generic [ref=e80]: 
+                  - text: 1 dk okuma
+                - generic [ref=e81]:
+                  - generic [ref=e82]: 
+                  - text: "6"
+          - generic [ref=e83]:
+            - button "Paylaş" [ref=e84] [cursor=pointer]:
+              - generic [ref=e85]: 
+              - generic [ref=e86]: Paylaş
+            - button [ref=e87] [cursor=pointer]:
+              - generic [ref=e88]: 
+      - generic [ref=e89]:
+        - complementary [ref=e90]:
+          - generic [ref=e91]:
+            - generic [ref=e92]: PAYLAŞ
+            - generic [ref=e94]: "0"
+          - button "Instagram'da paylaş" [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]: 
+          - button "Facebook'ta paylaş" [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]: 
+          - button "X'te paylaş" [ref=e99] [cursor=pointer]:
+            - generic [ref=e100]: 
+          - button "WhatsApp'ta paylaş" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: 
+          - button "Beğen" [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: 
+          - button "Beğenme" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: 
+          - button "Kaydet" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]: 
+        - article [ref=e112]:
+          - img "Neon Waves Live Concert 2026 Canlı Müzik Etkinliği" [ref=e115]
+          - generic [ref=e117]:
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - heading "Etkinlik" [level=3] [ref=e120]
+                - paragraph [ref=e121]: Tarih, konum, program ve katılım bilgileri.
+              - generic [ref=e122]:
+                - generic [ref=e123]:
+                  - generic [ref=e124]:
+                    - generic [ref=e125]: 
+                    - text: Başlangıç
+                  - generic [ref=e126]: Jan 01, 2026, 08:00 PM
+                - generic [ref=e127]:
+                  - generic [ref=e128]:
+                    - generic [ref=e129]: 
+                    - text: Bitiş
+                  - generic [ref=e130]: Jan 01, 2026, 11:30 PM
+                - generic [ref=e131]:
+                  - generic [ref=e132]:
+                    - generic [ref=e133]: 
+                    - text: Organizatör
+                  - generic [ref=e134]: Neon Waves
+                - generic [ref=e135]:
+                  - generic [ref=e136]:
+                    - generic [ref=e137]: 
+                    - text: Mekan
+                  - generic [ref=e138]: Belirtilmedi
+            - generic [ref=e139]:
+              - generic [ref=e140]:
+                - heading "Konum" [level=4] [ref=e141]:
+                  - generic [ref=e142]: 
+                  - text: Konum
+                - paragraph [ref=e144]: Belirtilmedi
+              - generic [ref=e145]:
+                - heading "Kayıt" [level=4] [ref=e146]:
+                  - generic [ref=e147]: 
+                  - text: Kayıt
+                - generic [ref=e148]:
+                  - generic [ref=e149]:
+                    - generic [ref=e150]: Kayıt
+                    - generic [ref=e151]: Kayıt gerekli
+                  - generic [ref=e152]:
+                    - generic [ref=e153]: Ücret
+                    - generic [ref=e154]: Belirtilmedi
+                  - link "Kayıt / Bilet" [ref=e155] [cursor=pointer]:
+                    - /url: https://varient.codingest.com/neon-waves-live-concert-2026
+                    - generic [ref=e156]: 
+                    - text: Kayıt / Bilet
+            - generic [ref=e157]:
+              - heading "Etkinlik Programı" [level=4] [ref=e158]
+              - generic [ref=e160]:
+                - generic [ref=e161]:
+                  - generic [ref=e162]: Jan 01, 2026
+                  - generic [ref=e163]: 20:00
+                - generic [ref=e164]:
+                  - generic [ref=e165]:
+                    - heading "Neon Waves Canlı Performans" [level=5] [ref=e166]
+                    - paragraph [ref=e167]: Dünya standartlarında sanatçıların sahne alacağı yüksek enerjili canlı müzik ve görsel şov başlangıcı.
+                  - figure [ref=e168]:
+                    - img "Neon Waves Canlı Performans" [ref=e169]
+            - generic [ref=e170]:
+              - heading "Etkinlik Özellikleri" [level=4] [ref=e171]:
+                - generic [ref=e172]: 
+                - text: Etkinlik Özellikleri
+              - generic [ref=e173]:
+                - generic [ref=e174]:
+                  - generic [ref=e175]: Etkinlik Yılı
+                  - generic [ref=e176]: "2026"
+                - generic [ref=e177]:
+                  - generic [ref=e178]: Katılım Koşulu
+                  - generic [ref=e179]: Kayıt Gereklidir
+                - generic [ref=e180]:
+                  - generic [ref=e181]: Deneyim Türü
+                  - generic [ref=e182]: Canlı Müzik ve Sürükleyici Görseller
+          - generic [ref=e183]:
+            - generic [ref=e186]:
+              - generic [ref=e187]: 
+              - generic [ref=e188]: Sık Sorulan Sorular
+            - generic [ref=e191]:
+              - generic: "?"
+              - generic [ref=e192]:
+                - generic [ref=e193]:
+                  - generic [ref=e194]: Q.
+                  - heading "Neon Waves Live Concert 2026 nedir?" [level=4] [ref=e195]
+                - paragraph [ref=e198]: Dünya standartlarında sanatçıları, sürükleyici görselleri ve yüksek enerjili canlı müzik performanslarını bir araya getiren özel bir konser deneyimidir.
+          - generic [ref=e199]:
+            - button "#Neon Waves Live Concert 2026" [ref=e200] [cursor=pointer]
+            - button "#Neon Waves" [ref=e201] [cursor=pointer]
+            - button "#canlı konser" [ref=e202] [cursor=pointer]
+            - button "#canlı müzik" [ref=e203] [cursor=pointer]
+            - button "#konser etkinlikleri 2026" [ref=e204] [cursor=pointer]
+            - button "#müzik performansı" [ref=e205] [cursor=pointer]
+            - button "#sürükleyici görsel şov" [ref=e206] [cursor=pointer]
+            - button "#Neon Waves Live" [ref=e207] [cursor=pointer]
+            - button "#Unlock This Exclusive" [ref=e208] [cursor=pointer]
+            - button "#Content This" [ref=e209] [cursor=pointer]
+            - button "#Related Posts Towers" [ref=e210] [cursor=pointer]
+            - button "#Doğrulanabilir Etkinlik Bilgileri" [ref=e211] [cursor=pointer]
+            - button "#Eksik Alanları Tamamlamak" [ref=e212] [cursor=pointer]
+          - generic [ref=e213]:
+            - generic [ref=e216]:
+              - img [ref=e217]
+              - generic [ref=e219]: Tepkiler
+            - generic [ref=e221]:
+              - button "👏 Bravo 0" [ref=e222] [cursor=pointer]:
+                - generic [ref=e223]: 👏
+                - generic [ref=e224]: Bravo
+                - generic [ref=e225]: "0"
+              - button "👎 Beğenmedim 0" [ref=e226] [cursor=pointer]:
+                - generic [ref=e227]: 👎
+                - generic [ref=e228]: Beğenmedim
+                - generic [ref=e229]: "0"
+              - button "😍 Çok iyi 0" [ref=e230] [cursor=pointer]:
+                - generic [ref=e231]: 😍
+                - generic [ref=e232]: Çok iyi
+                - generic [ref=e233]: "0"
+              - button "🥺 Üzücü 0" [ref=e234] [cursor=pointer]:
+                - generic [ref=e235]: 🥺
+                - generic [ref=e236]: Üzücü
+                - generic [ref=e237]: "0"
+              - button "🙌 Harika 0" [ref=e238] [cursor=pointer]:
+                - generic [ref=e239]: 🙌
+                - generic [ref=e240]: Harika
+                - generic [ref=e241]: "0"
+              - button "😂 Komik 0" [ref=e242] [cursor=pointer]:
+                - generic [ref=e243]: 😂
+                - generic [ref=e244]: Komik
+                - generic [ref=e245]: "0"
+              - button "😡 Kızgın 0" [ref=e246] [cursor=pointer]:
+                - generic [ref=e247]: 😡
+                - generic [ref=e248]: Kızgın
+                - generic [ref=e249]: "0"
+            - paragraph [ref=e250]: Kalan
+          - generic [ref=e254]:
+            - generic [ref=e255]:
+              - generic [ref=e256]:
+                - generic [ref=e257]: 
+                - textbox [ref=e258]:
+                  - /placeholder: Ad soyad
+              - generic [ref=e259]:
+                - generic [ref=e260]: 
+                - textbox [ref=e261]:
+                  - /placeholder: E-posta
+            - generic [ref=e262]:
+              - generic [ref=e264]: 
+              - textbox "Yorumunuzu ekleyin" [ref=e266]
+              - button "Emoji Ekle" [ref=e268] [cursor=pointer]:
+                - generic [ref=e269]: 
+              - button "Gönder" [disabled] [ref=e270]
+      - button:
+        - generic: 
+    - complementary [ref=e271]:
+      - generic [ref=e272]:
+        - generic [ref=e273]:
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - generic [ref=e278]:
+                - heading "Nöbetçi eczane" [level=3] [ref=e281]
+                - paragraph [ref=e282]: Niğde
+              - generic [ref=e283]: 15 dk
+            - button "MERKEZ" [ref=e285] [cursor=pointer]:
+              - generic [ref=e286]: MERKEZ
+          - generic [ref=e288]:
+            - paragraph [ref=e289]: Liste hazırlanıyor
+            - paragraph [ref=e290]: Niğde Eczacı Odası kaynağı kontrol ediliyor.
+          - generic [ref=e292]:
+            - generic [ref=e293]: 
+            - generic [ref=e294]: 00:00 geçişi korunuyor
+        - generic [ref=e295]:
+          - generic [ref=e296]:
+            - generic [ref=e297]:
+              - generic [ref=e298]:
+                - generic [ref=e299]: 
+                - generic [ref=e300]: Niğde
+              - generic [ref=e301]:
+                - generic [ref=e302]: "--°"
+                - generic [ref=e303]:
+                  - generic [ref=e304]: Parçalı Bulutlu
+                  - generic [ref=e305]: "Hissedilen: --°"
+            - generic [ref=e306]:
+              - img "Parçalı Bulutlu"
+          - generic [ref=e307]:
+            - generic [ref=e308]:
+              - generic [ref=e309]: PZT
+              - generic [ref=e310]: 
+              - generic [ref=e311]: "--°"
+            - generic [ref=e312]:
+              - generic [ref=e313]: SAL
+              - generic [ref=e314]: 
+              - generic [ref=e315]: "--°"
+            - generic [ref=e316]:
+              - generic [ref=e317]: ÇAR
+              - generic [ref=e318]: 
+              - generic [ref=e319]: "--°"
+            - generic [ref=e320]:
+              - generic [ref=e321]: PER
+              - generic [ref=e322]: 
+              - generic [ref=e323]: "--°"
+            - generic [ref=e324]:
+              - generic [ref=e325]: CUM
+              - generic [ref=e326]: 
+              - generic [ref=e327]: "--°"
+        - generic [ref=e328]:
+          - generic [ref=e329]:
+            - heading "Gündem" [level=3] [ref=e332]
+            - generic [ref=e333]: Canlı
+          - generic [ref=e334]:
+            - generic [ref=e335] [cursor=pointer]:
+              - generic [ref=e336]:
+                - generic [ref=e337]:
+                  - generic [ref=e338]: Teknoloji
+                  - generic [ref=e339]: 128K
+                - heading "Türkiye'nin En Büyük Teknoloji Zirvesi Başladı" [level=4] [ref=e340]
+              - generic [ref=e342]: "01"
+            - generic [ref=e343] [cursor=pointer]:
+              - generic [ref=e344]:
+                - generic [ref=e345]:
+                  - generic [ref=e346]: Otomobil
+                  - generic [ref=e347]: 85K
+                - heading "Yeni Nesil Elektrikli Otomobiller Tanıtıldı" [level=4] [ref=e348]
+              - generic [ref=e350]: "02"
+            - generic [ref=e351] [cursor=pointer]:
+              - generic [ref=e352]:
+                - generic [ref=e353]:
+                  - generic [ref=e354]: Yaşam
+                  - generic [ref=e355]: 64K
+                - heading "Sürdürülebilir Yaşam İçin 10 Önemli Tavsiye" [level=4] [ref=e356]
+              - generic [ref=e358]: "03"
+            - generic [ref=e359] [cursor=pointer]:
+              - generic [ref=e360]:
+                - generic [ref=e361]:
+                  - generic [ref=e362]: Sinema
+                  - generic [ref=e363]: 42K
+                - heading "Haftanın En Çok İzlenen Sinema Filmleri" [level=4] [ref=e364]
+              - generic [ref=e366]: "04"
+          - button "Tüm gündemi gör" [ref=e367] [cursor=pointer]
+        - generic [ref=e368]:
+          - generic [ref=e369]:
+            - heading "Piyasalar" [level=3] [ref=e372]
+            - button "Tümü" [ref=e373] [cursor=pointer]
+          - generic [ref=e374]:
+            - generic [ref=e375] [cursor=pointer]:
+              - generic [ref=e376]:
+                - generic [ref=e378]: 
+                - generic [ref=e379]:
+                  - generic [ref=e380]: USDT
+                  - generic [ref=e381]: Dolar / TL
+              - generic [ref=e382]:
+                - generic [ref=e383]: "34.42"
+                - generic [ref=e384]: "%0.45"
+            - generic [ref=e385] [cursor=pointer]:
+              - generic [ref=e386]:
+                - generic [ref=e388]: 
+                - generic [ref=e389]:
+                  - generic [ref=e390]: EUR
+                  - generic [ref=e391]: Euro / TL
+              - generic [ref=e392]:
+                - generic [ref=e393]: "37.15"
+                - generic [ref=e394]: "%0.12"
+            - generic [ref=e395] [cursor=pointer]:
+              - generic [ref=e396]:
+                - generic [ref=e398]: 
+                - generic [ref=e399]:
+                  - generic [ref=e400]: GA
+                  - generic [ref=e401]: Gram Altın
+              - generic [ref=e402]:
+                - generic [ref=e403]: "2.450"
+                - generic [ref=e404]: "%-0.23"
+            - generic [ref=e405] [cursor=pointer]:
+              - generic [ref=e406]:
+                - generic [ref=e408]: 
+                - generic [ref=e409]:
+                  - generic [ref=e410]: BTC
+                  - generic [ref=e411]: Bitcoin / USD
+              - generic [ref=e412]:
+                - generic [ref=e413]: $64.200
+                - generic [ref=e414]: "%1.85"
+        - generic [ref=e415]:
+          - generic [ref=e416]:
+            - img [ref=e418]
+            - generic [ref=e429]:
+              - heading "Ölüm ilanları" [level=3] [ref=e430]
+              - paragraph [ref=e431]: Niğde · 18 Haziran 2026
+          - generic [ref=e434]:
+            - generic [ref=e436]: 
+            - generic [ref=e437]:
+              - paragraph [ref=e438]: Bugün kayıt bulunmuyor
+              - paragraph [ref=e439]: Niğde Belediyesi kaynağında bugünün tarihine ait vefat ilanı yok.
+          - generic [ref=e440]:
+            - link "Niğde Belediyesi kaynağı" [ref=e441] [cursor=pointer]:
+              - /url: https://nigde.bel.tr/vefat-edenler
+            - generic [ref=e442]: 20:13
+        - generic [ref=e445]:
+          - generic [ref=e447]: 
+          - heading "Bültene Abone Ol" [level=4] [ref=e448]
+          - paragraph [ref=e449]: Gündemi kaçırma, her sabah özet cebine gelsin.
+          - generic [ref=e450]:
+            - textbox "E-posta" [ref=e451]
+            - button "ABONE OL" [ref=e452] [cursor=pointer]
+  - contentinfo "Pateez.com alt bilgisi" [ref=e454]:
+    - generic [ref=e455]:
+      - generic [ref=e456]:
+        - generic [ref=e457]:
+          - link "Pateez.com" [ref=e458] [cursor=pointer]:
+            - /url: /
+            - img "Pateez.com" [ref=e459]
+          - paragraph [ref=e460]: Pateez.com; Niğde’den başlayarak Konya, Kayseri, Aksaray, Nevşehir, Kırşehir, Sivas ve Karaman’a uzanan geniş bir coğrafyanın dijital hafızasıdır. Sadece son dakika gelişmelerini değil; İç Anadolu’nun tarihini, kültürünü ve insanını merkeze alıyoruz. Şehrinizin siyasi nabzını tutan anketlerimiz, bölgeye has eğlenceli testlerimiz ve özel video içeriklerimizle, haberciliği interaktif bir deneyime dönüştürüyoruz. Toprağımızın hikayesini, en doğru ve tarafsız haliyle okuyucularımıza sunmak için buradayız.
+        - generic [ref=e461]:
+          - heading "Kurumsal" [level=2] [ref=e462]: Kurumsal
+          - list [ref=e464]:
+            - listitem [ref=e465]:
+              - link "Hakkımızda" [ref=e466] [cursor=pointer]:
+                - /url: /kurumsal/hakkimizda
+                - generic [ref=e468]: Hakkımızda
+            - listitem [ref=e469]:
+              - link "Basın Odası" [ref=e470] [cursor=pointer]:
+                - /url: /kurumsal/basin-odasi
+                - generic [ref=e472]: Basın Odası
+            - listitem [ref=e473]:
+              - link "Künye" [ref=e474] [cursor=pointer]:
+                - /url: /kurumsal/kunye
+                - generic [ref=e476]: Künye
+            - listitem [ref=e477]:
+              - link "Reklam" [ref=e478] [cursor=pointer]:
+                - /url: /kurumsal/reklam
+                - generic [ref=e480]: Reklam
+            - listitem [ref=e481]:
+              - link "İnsan Kaynakları" [ref=e482] [cursor=pointer]:
+                - /url: /kurumsal/insan-kaynaklari
+                - generic [ref=e484]: İnsan Kaynakları
+            - listitem [ref=e485]:
+              - link "Sosyal Medya" [ref=e486] [cursor=pointer]:
+                - /url: /kurumsal/sosyal-medya
+                - generic [ref=e488]: Sosyal Medya
+            - listitem [ref=e489]:
+              - link "Mobil Uygulamalar" [ref=e490] [cursor=pointer]:
+                - /url: /kurumsal/mobil-uygulamalar
+                - generic [ref=e492]: Mobil Uygulamalar
+            - listitem [ref=e493]:
+              - link "İletişim" [ref=e494] [cursor=pointer]:
+                - /url: /kurumsal/iletisim
+                - generic [ref=e496]: İletişim
+        - generic [ref=e497]:
+          - heading "Yasal" [level=2] [ref=e498]: Yasal
+          - list [ref=e500]:
+            - listitem [ref=e501]:
+              - link "Yayın İlkeleri" [ref=e502] [cursor=pointer]:
+                - /url: /kurumsal/yayin-ilkeleri
+                - generic [ref=e504]: Yayın İlkeleri
+            - listitem [ref=e505]:
+              - link "Tekzip ve Düzeltme" [ref=e506] [cursor=pointer]:
+                - /url: /kurumsal/tekzip-ve-duzeltme
+                - generic [ref=e508]: Tekzip ve Düzeltme
+            - listitem [ref=e509]:
+              - link "Bilgi Toplumu Hizmetleri" [ref=e510] [cursor=pointer]:
+                - /url: /kurumsal/bilgi-toplumu-hizmetleri
+                - generic [ref=e512]: Bilgi Toplumu Hizmetleri
+            - listitem [ref=e513]:
+              - link "Kişisel Verilerin Korunması" [ref=e514] [cursor=pointer]:
+                - /url: /kurumsal/kisisel-verilerin-korunmasi
+                - generic [ref=e516]: Kişisel Verilerin Korunması
+            - listitem [ref=e517]:
+              - link "Çerez Politikası" [ref=e518] [cursor=pointer]:
+                - /url: /kurumsal/cerez-politikasi
+                - generic [ref=e520]: Çerez Politikası
+            - listitem [ref=e521]:
+              - link "Kullanım Koşulları" [ref=e522] [cursor=pointer]:
+                - /url: /kurumsal/kullanim-kosullari
+                - generic [ref=e524]: Kullanım Koşulları
+            - listitem [ref=e525]:
+              - link "Gizlilik Politikası" [ref=e526] [cursor=pointer]:
+                - /url: /kurumsal/gizlilik-politikasi
+                - generic [ref=e528]: Gizlilik Politikası
+        - generic [ref=e529]:
+          - heading "İletişim" [level=2] [ref=e530]: İletişim
+          - link "info@pateez.com" [ref=e533] [cursor=pointer]:
+            - /url: mailto:info@pateez.com
+            - generic [ref=e535]: 
+            - generic [ref=e536]: info@pateez.com
+          - generic [ref=e537]:
+            - link "Instagram" [ref=e538] [cursor=pointer]:
+              - /url: https://www.instagram.com/pateezcom/
+              - generic [ref=e539]: 
+            - link "X" [ref=e540] [cursor=pointer]:
+              - /url: https://x.com/pateezcom
+              - generic [ref=e541]: 
+            - link "YouTube" [ref=e542] [cursor=pointer]:
+              - /url: https://www.youtube.com/@pateezcomtv
+              - generic [ref=e543]: 
+            - link "Facebook" [ref=e544] [cursor=pointer]:
+              - /url: https://www.facebook.com/pateezcom/
+              - generic [ref=e545]: 
+            - link "TikTok" [ref=e546] [cursor=pointer]:
+              - /url: https://www.tiktok.com/@pateezcom
+              - generic [ref=e547]: 
+            - link "Pinterest" [ref=e548] [cursor=pointer]:
+              - /url: https://tr.pinterest.com/pateezcom/
+              - generic [ref=e549]: 
+          - link "İletişim" [ref=e550] [cursor=pointer]:
+            - /url: /kurumsal/iletisim
+            - generic [ref=e551]: İletişim
+            - generic [ref=e552]: 
+      - generic [ref=e553]:
+        - paragraph [ref=e554]: 2026 Pateez
+        - navigation "Alt bilgi yasal bağlantıları" [ref=e555]:
+          - link "Yayın İlkeleri" [ref=e556] [cursor=pointer]:
+            - /url: /kurumsal/yayin-ilkeleri
+          - link "Tekzip ve Düzeltme" [ref=e557] [cursor=pointer]:
+            - /url: /kurumsal/tekzip-ve-duzeltme
+          - link "Bilgi Toplumu Hizmetleri" [ref=e558] [cursor=pointer]:
+            - /url: /kurumsal/bilgi-toplumu-hizmetleri
+          - link "Kişisel Verilerin Korunması" [ref=e559] [cursor=pointer]:
+            - /url: /kurumsal/kisisel-verilerin-korunmasi
+  - generic [ref=e562]:
+    - button "Menu" [ref=e563]:
+      - img [ref=e565]
+      - generic: Menu
+    - button "Inspect" [ref=e569]:
+      - img [ref=e571]
+      - generic: Inspect
+    - button "Audit" [ref=e573]:
+      - generic [ref=e574]:
+        - img [ref=e575]
+        - img [ref=e578]
+      - generic: Audit
+    - button "Settings" [ref=e581]:
+      - img [ref=e583]
+      - generic: Settings

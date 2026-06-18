@@ -685,6 +685,7 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
   AdminWhatsappAccount _accountFromJson(Map<dynamic, dynamic> json) {
     final providerId = json['service_type']?.toString() ?? 'meta_cloud_api';
     final preset = adminWhatsappProviderById(providerId);
+    final apiBaseUrl = _decodeText(json['api_base_url']);
     return AdminWhatsappAccount(
       id: _asInt(json['id']),
       accountName: _decodeText(json['account_name']),
@@ -698,14 +699,14 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
       smtpPort: 0,
       security: AdminWhatsappSecurity.none,
       smtpUser: '',
-      apiBaseUrl: _decodeText(json['api_base_url']),
+      apiBaseUrl: apiBaseUrl,
       dailyLimit: _asInt(json['daily_limit'], fallback: 5000),
       monthlyLimit: _asInt(json['monthly_limit'], fallback: 150000),
       hourlyLimit: _asInt(json['hourly_limit'], fallback: 700),
       sentToday: _asInt(json['sent_today']),
-      spfReady: _asBool(json['token_verified']),
-      dkimReady: _asBool(json['webhook_verified']),
-      dmarcReady: _asBool(json['templates_synced']),
+      spfReady: apiBaseUrl.trim().isNotEmpty,
+      dkimReady: _asBool(json['token_verified']),
+      dmarcReady: _asBool(json['webhook_verified']),
       trackingDomain: _decodeText(json['webhook_url']),
       active: _asBool(json['is_active'], fallback: true),
       createdAt: _parseDate(json['created_at']) ?? DateTime.now(),
