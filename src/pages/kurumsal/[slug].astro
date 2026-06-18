@@ -1,0 +1,596 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { loadLocaleData } from '@/lib/locales';
+import { setPublicHtmlCache } from '@/lib/server/publicCache';
+import { dbQuery } from '@/lib/server/supabaseDb';
+import { dataService } from '@/services/dataService.server';
+import { resolveLangCode } from '@/utils/lang';
+
+export const prerender = false;
+setPublicHtmlCache(Astro.response);
+
+type CorporatePageRow = {
+  id: string;
+  title: string | null;
+  slug: string | null;
+  category: string | null;
+  page_group: string | null;
+  content_plain: string | null;
+  meta_title: string | null;
+  meta_keywords: string | null;
+  meta_description: string | null;
+  canonical_url: string | null;
+  show_title: boolean | null;
+  show_breadcrumb: boolean | null;
+  show_sidebar: boolean | null;
+  menu_order: number | null;
+  updated_at: string | null;
+  created_at: string | null;
+};
+
+type CorporatePageTabRow = {
+  id: string;
+  title: string | null;
+  slug: string | null;
+  page_group: string | null;
+  menu_order: number | null;
+};
+
+const { slug } = Astro.params;
+const pageSlug = String(slug || '').trim();
+if (!pageSlug) return Astro.redirect('/404');
+
+const cookies = Astro.request.headers.get('cookie') || '';
+const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];
+const acceptLanguageHeader = Astro.request.headers.get('accept-language');
+const urlLang = Astro.url.searchParams.get('lang');
+
+const seoAlternates = await dataService.getSeoAlternates();
+const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
+const lang = resolveLangCode({
+  urlLang,
+  cookieLang,
+  acceptLanguageHeader,
+  supported: seoAlternates.map((entry) => ({ code: entry.code, isDefault: entry.isDefault })),
+  fallback: defaultLangCode,
+});
+const langMeta = seoAlternates.find((entry) => entry.code === lang);
+
+const [initialTranslations, siteSettings, navigationItems] = await Promise.all([
+  loadLocaleData(lang),
+  dataService.getSiteSettings(lang),
+  dataService.getNavigationItems(lang),
+]);
+
+const pageResult = await dbQuery<CorporatePageRow>(
+  `SELECT
+      id,
+      title,
+      slug,
+      category,
+      page_group,
+      content_plain,
+      meta_title,
+      meta_keywords,
+      meta_description,
+      canonical_url,
+      show_title,
+      show_breadcrumb,
+      show_sidebar,
+      menu_order,
+      updated_at,
+      created_at
+   FROM public.pages
+   WHERE language_code = $1
+     AND slug = $2
+     AND status = 'active'
+     AND registered_only IS NOT TRUE
+   LIMIT 1`,
+  [lang, pageSlug],
+);
+const page = pageResult.rows[0] || null;
+
+if (!page) return Astro.redirect('/404');
+
+const pageGroup = String(page.page_group || 'Kurumsal').trim() || 'Kurumsal';
+const pageTabsResult = page.show_sidebar === false
+  ? { rows: [] as CorporatePageTabRow[] }
+  : await dbQuery<CorporatePageTabRow>(
+    `SELECT
+        id,
+        title,
+        slug,
+        page_group,
+        menu_order
+     FROM public.pages
+     WHERE language_code = $1
+       AND status = 'active'
+       AND registered_only IS NOT TRUE
+       AND show_sidebar IS NOT FALSE
+       AND COALESCE(NULLIF(page_group, ''), 'Kurumsal') = $2
+     ORDER BY menu_order ASC NULLS LAST, title ASC`,
+    [lang, pageGroup],
+  );
+const pageTabs = pageTabsResult.rows
+  .map((tab) => ({
+    id: String(tab.id || ''),
+    title: String(tab.title || '').trim(),
+    slug: String(tab.slug || '').trim(),
+  }))
+  .filter((tab) => tab.id && tab.title && tab.slug);
+const showPageTabs = page.show_sidebar !== false && pageTabs.length > 1;
+
+const initialLang = {
+  code: lang,
+  name: langMeta?.name || lang.toUpperCase(),
+  direction: langMeta?.direction || 'ltr',
+  status: 'active',
+  flag_code: langMeta?.flagCode || lang,
+  is_default: langMeta?.isDefault || lang === defaultLangCode,
+};
+
+const escapeHtml = (value: string) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const textToHtml = (value: string) => {
+  const blocks = String(value || '')
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+  return blocks.map((block) => {
+    const lines = block.split(/\n/).map((line) => line.trim()).filter(Boolean);
+    if (lines.length === 1 && lines[0].length <= 80 && !/[.!?:;]$/.test(lines[0])) {
+      return `<h2>${escapeHtml(lines[0])}</h2>`;
+    }
+    return `<p>${escapeHtml(lines.join('\n')).replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+};
+
+const canonicalBase = String(siteSettings?.canonical_url || Astro.url.origin).trim();
+const derivedCanonicalUrl = new URL(`/kurumsal/${encodeURIComponent(pageSlug)}`, canonicalBase).toString();
+const canonicalUrl = (() => {
+  const raw = String(page.canonical_url || '').trim();
+  if (!raw) return derivedCanonicalUrl;
+  try {
+    const candidate = new URL(raw, canonicalBase);
+    return candidate.protocol === 'http:' || candidate.protocol === 'https:' ? candidate.toString() : derivedCanonicalUrl;
+  } catch {
+    return derivedCanonicalUrl;
+  }
+})();
+
+const title = String(page.meta_title || page.title || '').trim() || (siteSettings?.site_name || 'Pateez');
+const description = String(page.meta_description || page.content_plain || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+const keywords = String(page.meta_keywords || '').trim();
+const rawContentPlain = String(page.content_plain || '');
+const isContactPage = pageSlug === 'iletisim';
+const contactBrandName = 'Pateez.com';
+
+const cleanText = (value: unknown) => String(value || '').replace(/\s+/g, ' ').trim();
+const cleanMultilineText = (value: unknown) => String(value || '')
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .join('\n')
+  .trim();
+
+const normalizeExternalUrl = (value: unknown) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw) || /^whatsapp:\/\//i.test(raw) || /^tg:\/\//i.test(raw)) return raw;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(raw)) return `https://${raw}`;
+  return '';
+};
+
+const normalizeWhatsappUrl = (value: unknown) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw) || /^whatsapp:\/\//i.test(raw)) return raw;
+  if (/^wa\.me\//i.test(raw)) return `https://${raw}`;
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 10 ? `https://wa.me/${digits}` : '';
+};
+
+const normalizeTelegramUrl = (value: unknown) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw) || /^tg:\/\//i.test(raw)) return raw;
+  if (/^t\.me\//i.test(raw)) return `https://${raw}`;
+  const username = raw.replace(/^@/, '');
+  return /^[a-zA-Z0-9_]{5,32}$/.test(username) ? `https://t.me/${username}` : '';
+};
+
+const mailtoHref = (value: unknown) => {
+  const email = cleanText(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? `mailto:${email}` : '';
+};
+
+const phoneHref = (value: unknown) => {
+  const raw = cleanText(value);
+  const normalized = raw.replace(/[^\d+]/g, '');
+  return normalized.replace(/\D/g, '').length >= 10 ? `tel:${normalized}` : '';
+};
+
+const contactPhone = cleanText(siteSettings?.contact_phone || siteSettings?.organization_phone);
+const contactCity = cleanText(siteSettings?.contact_city);
+const contactAddress = cleanMultilineText(siteSettings?.contact_address || siteSettings?.organization_address);
+const contactLocationHref = normalizeExternalUrl(siteSettings?.contact_location_url);
+const contactEmailItems = isContactPage ? [
+  { label: 'Genel Bilgi', value: cleanText(siteSettings?.contact_email_info), icon: 'ri-mail-line' },
+  { label: 'Destek', value: cleanText(siteSettings?.contact_email_support), icon: 'ri-customer-service-2-line' },
+  { label: 'Haber', value: cleanText(siteSettings?.contact_email_news), icon: 'ri-newspaper-line' },
+  { label: 'Reklam', value: cleanText(siteSettings?.contact_email_ads), icon: 'ri-megaphone-line' },
+].filter((item) => item.value) : [];
+const primaryEmail = contactEmailItems[0]?.value || '';
+const contactCards = isContactPage ? [
+  {
+    label: 'Telefon',
+    value: contactPhone,
+    href: phoneHref(contactPhone),
+    icon: 'ri-phone-line',
+  },
+  {
+    label: 'E-posta',
+    value: primaryEmail,
+    href: mailtoHref(primaryEmail),
+    icon: 'ri-mail-send-line',
+  },
+  {
+    label: 'Adres',
+    value: contactAddress,
+    detail: contactCity,
+    href: contactLocationHref,
+    icon: 'ri-map-pin-line',
+  },
+].filter((item) => item.value || item.detail) : [];
+const contactWhatsappHref = normalizeWhatsappUrl(siteSettings?.contact_whatsapp_url || siteSettings?.social_whatsapp_url);
+const contactTelegramHref = normalizeTelegramUrl(siteSettings?.contact_telegram_url || siteSettings?.social_telegram_url);
+const contentHtml = isContactPage ? '' : textToHtml(rawContentPlain);
+
+const socialActions = isContactPage ? [
+  {
+    label: 'WhatsApp',
+    href: contactWhatsappHref,
+    icon: 'ri-whatsapp-fill',
+    className: 'bg-[#25D366] text-white hover:bg-[#1fb85a]',
+  },
+  {
+    label: 'Telegram',
+    href: contactTelegramHref,
+    icon: 'ri-telegram-fill',
+    className: 'bg-[#26A5E4] text-white hover:bg-[#1d94cf]',
+  },
+].filter((item) => item.href) : [];
+
+const socialProfiles = isContactPage ? [
+  ['Instagram', normalizeExternalUrl(siteSettings?.social_instagram_url), 'ri-instagram-fill'],
+  ['X', normalizeExternalUrl(siteSettings?.social_x_url), 'ri-twitter-x-fill'],
+  ['YouTube', normalizeExternalUrl(siteSettings?.social_youtube_url), 'ri-youtube-fill'],
+  ['Facebook', normalizeExternalUrl(siteSettings?.social_facebook_url), 'ri-facebook-fill'],
+  ['TikTok', normalizeExternalUrl(siteSettings?.social_tiktok_url), 'ri-tiktok-fill'],
+  ['LinkedIn', normalizeExternalUrl(siteSettings?.social_linkedin_url), 'ri-linkedin-fill'],
+  ['Pinterest', normalizeExternalUrl(siteSettings?.social_pinterest_url), 'ri-pinterest-fill'],
+  ['Discord', normalizeExternalUrl(siteSettings?.social_discord_url), 'ri-discord-fill'],
+].filter(([, href]) => href) : [];
+
+const breadcrumbLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: siteSettings?.site_name || "Home",
+      item: new URL('/', canonicalBase).toString(),
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: String(page.title || title),
+      item: canonicalUrl,
+    },
+  ],
+};
+
+const pageLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: String(page.title || title),
+  description,
+  url: canonicalUrl,
+  inLanguage: lang,
+  ...(page.updated_at || page.created_at ? { dateModified: new Date(page.updated_at || page.created_at).toISOString() } : {}),
+};
+---
+
+<Layout
+  title={`${title} | ${siteSettings?.site_name || 'Pateez'}`}
+  description={description}
+  keywords={keywords}
+  canonical={canonicalUrl}
+  jsonLd={[pageLd, breadcrumbLd]}
+  favicon={siteSettings?.favicon_url}
+  lang={lang}
+  dir={initialLang.direction}
+  siteSettings={siteSettings}
+  navigationItems={navigationItems}
+  initialTranslations={initialTranslations}
+  initialLang={initialLang}
+  seoAlternates={seoAlternates}
+>
+  <main class="mx-auto w-full max-w-6xl px-4 py-8 md:px-8 lg:py-10">
+    {page.show_breadcrumb !== false && (
+      <nav class="mb-6 text-xs font-bold uppercase tracking-normal text-gray-400">
+        <a href="/" class="hover:text-palette-red">Ana Sayfa</a>
+        <span class="mx-2">/</span>
+        <span>{pageGroup}</span>
+        <span class="mx-2">/</span>
+        <span>{page.title}</span>
+      </nav>
+    )}
+    <div class:list={[
+      'grid gap-7',
+      showPageTabs ? 'lg:grid-cols-[230px_minmax(0,1fr)]' : 'max-w-4xl',
+    ]}>
+      {showPageTabs && (
+        <aside class="lg:sticky lg:top-28 lg:self-start">
+          <div class="border-l border-palette-beige/60 pl-3">
+            <p class="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-palette-tan/55">{pageGroup}</p>
+            <nav aria-label={`${pageGroup} sayfaları`} class="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
+              {pageTabs.map((tab) => {
+                const isActive = tab.slug === pageSlug;
+                return (
+                  <a
+                    href={`/kurumsal/${encodeURIComponent(tab.slug)}`}
+                    class:list={[
+                      'group flex min-w-max items-center justify-between gap-3 rounded-[6px] px-3 py-2 text-[13px] font-extrabold transition-all lg:min-w-0',
+                      isActive
+                        ? 'bg-palette-red text-white shadow-[0_10px_24px_rgba(234,67,53,0.16)]'
+                        : 'text-gray-600 hover:bg-palette-beige/10 hover:text-gray-950',
+                    ]}
+                  >
+                    <span>{tab.title}</span>
+                    <span class:list={[
+                      'h-1.5 w-1.5 rounded-full transition-all',
+                      isActive ? 'bg-white' : 'bg-palette-beige group-hover:bg-palette-red',
+                    ]}></span>
+                  </a>
+                );
+              })}
+            </nav>
+          </div>
+        </aside>
+      )}
+
+      <section class:list={[
+        'min-w-0',
+        isContactPage
+          ? 'space-y-6'
+          : 'rounded-[8px] border border-palette-beige/35 bg-white px-5 py-6 shadow-[0_20px_70px_rgba(44,62,80,0.06)] md:px-8 md:py-8',
+      ]}>
+        {isContactPage ? (
+          <div class="space-y-6">
+            {page.show_title !== false && (
+              <header class="relative overflow-hidden rounded-[8px] border border-palette-beige/35 bg-white shadow-[0_24px_80px_rgba(44,62,80,0.08)]">
+                <div class="h-1 bg-palette-red" aria-hidden="true"></div>
+                <div class="grid gap-6 px-5 py-6 md:px-8 md:py-8 lg:grid-cols-[minmax(0,1fr)_310px]">
+                  <div class="max-w-2xl">
+                    <p class="mb-3 text-[12px] font-black uppercase tracking-normal text-palette-red">{pageGroup}</p>
+                    <h1 class="text-3xl font-black leading-tight text-gray-950 md:text-5xl">{page.title}</h1>
+                    <p class="mt-4 max-w-xl text-[16px] font-semibold leading-8 text-gray-600">
+                      {contactBrandName} ile ilgili soru, öneri, haber ihbarı, reklam ve kurumsal talepleriniz için bize ulaşabilirsiniz.
+                    </p>
+                  </div>
+
+                  {(primaryEmail || contactPhone || contactCity) && (
+                    <div class="border-t border-palette-beige/45 pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                      <p class="text-[12px] font-black uppercase tracking-normal text-gray-400">Doğrudan iletişim</p>
+                      <div class="mt-4 space-y-3 text-[14px] font-extrabold text-gray-950">
+                        {primaryEmail && (
+                          <a href={mailtoHref(primaryEmail)} class="flex items-center gap-3 transition hover:text-palette-red">
+                            <i class="ri-mail-line text-[18px] text-palette-red"></i>
+                            <span>{primaryEmail}</span>
+                          </a>
+                        )}
+                        {contactPhone && (
+                          <a href={phoneHref(contactPhone) || undefined} class="flex items-center gap-3 transition hover:text-palette-red">
+                            <i class="ri-phone-line text-[18px] text-palette-red"></i>
+                            <span>{contactPhone}</span>
+                          </a>
+                        )}
+                        {contactCity && (
+                          <p class="flex items-center gap-3">
+                            <i class="ri-map-pin-line text-[18px] text-palette-red"></i>
+                            <span>{contactCity}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </header>
+            )}
+
+            <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_330px]">
+              <div class="rounded-[8px] border border-palette-beige/35 bg-white px-5 py-6 shadow-[0_24px_80px_rgba(44,62,80,0.08)] md:px-7">
+                <div class="mb-6 flex items-start gap-4">
+                  <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] bg-palette-red text-white shadow-[0_12px_30px_rgba(234,67,53,0.22)]">
+                    <i class="ri-send-plane-2-line text-[22px]"></i>
+                  </span>
+                  <div>
+                    <h2 class="text-xl font-black leading-tight text-gray-950">Mesaj gönder</h2>
+                    <p class="mt-2 text-[14px] font-semibold leading-7 text-gray-500">Talebiniz ilgili birime aktarılır.</p>
+                  </div>
+                </div>
+
+                <form data-contact-form class="space-y-4">
+                  <input type="text" name="company" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <label class="block">
+                      <span class="mb-2 block text-[12px] font-black uppercase tracking-normal text-gray-500">Ad Soyad</span>
+                      <input name="name" required maxlength="120" class="h-12 w-full rounded-[8px] border border-palette-beige/60 bg-white px-4 text-[14px] font-semibold text-gray-900 outline-none transition focus:border-palette-red focus:ring-4 focus:ring-palette-red/10" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-[12px] font-black uppercase tracking-normal text-gray-500">E-posta</span>
+                      <input name="email" type="email" required maxlength="180" class="h-12 w-full rounded-[8px] border border-palette-beige/60 bg-white px-4 text-[14px] font-semibold text-gray-900 outline-none transition focus:border-palette-red focus:ring-4 focus:ring-palette-red/10" />
+                    </label>
+                  </div>
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <label class="block">
+                      <span class="mb-2 block text-[12px] font-black uppercase tracking-normal text-gray-500">Telefon</span>
+                      <input name="phone" maxlength="40" class="h-12 w-full rounded-[8px] border border-palette-beige/60 bg-white px-4 text-[14px] font-semibold text-gray-900 outline-none transition focus:border-palette-red focus:ring-4 focus:ring-palette-red/10" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-[12px] font-black uppercase tracking-normal text-gray-500">Konu</span>
+                      <input name="subject" maxlength="160" class="h-12 w-full rounded-[8px] border border-palette-beige/60 bg-white px-4 text-[14px] font-semibold text-gray-900 outline-none transition focus:border-palette-red focus:ring-4 focus:ring-palette-red/10" />
+                    </label>
+                  </div>
+                  <label class="block">
+                    <span class="mb-2 block text-[12px] font-black uppercase tracking-normal text-gray-500">Mesaj</span>
+                    <textarea name="message" required minlength="10" maxlength="5000" rows="7" class="w-full resize-y rounded-[8px] border border-palette-beige/60 bg-white px-4 py-3 text-[14px] font-semibold leading-7 text-gray-900 outline-none transition focus:border-palette-red focus:ring-4 focus:ring-palette-red/10"></textarea>
+                  </label>
+                  <div data-contact-status class="hidden rounded-[8px] px-3 py-2 text-[13px] font-bold"></div>
+                  <button data-contact-submit type="submit" class="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] bg-palette-red px-5 text-[13px] font-black uppercase tracking-normal text-white shadow-[0_14px_32px_rgba(234,67,53,0.2)] transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60">
+                    <i class="ri-send-plane-fill text-[17px]"></i>
+                    <span>Mesaj Gönder</span>
+                  </button>
+                </form>
+              </div>
+
+              <aside class="space-y-4">
+                {contactCards.length > 0 && (
+                  <section class="rounded-[8px] border border-palette-beige/35 bg-white px-5 py-5 shadow-[0_18px_60px_rgba(44,62,80,0.06)]">
+                    <h2 class="text-lg font-black text-gray-950">İletişim bilgileri</h2>
+                    <div class="mt-4 divide-y divide-palette-beige/45">
+                      {contactCards.map((item) => (
+                        <div class="flex gap-3 py-4 first:pt-0 last:pb-0">
+                          <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-palette-red/10 text-palette-red">
+                            <i class={`${item.icon} text-[19px]`}></i>
+                          </span>
+                          <div class="min-w-0">
+                            <p class="text-[12px] font-black uppercase tracking-normal text-gray-400">{item.label}</p>
+                            {item.href ? (
+                              <a href={item.href} target={item.href.startsWith('http') ? '_blank' : undefined} rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined} class="mt-1 block whitespace-pre-line break-words text-[14px] font-extrabold leading-6 text-gray-950 transition hover:text-palette-red">
+                                {item.value || item.detail}
+                              </a>
+                            ) : (
+                              <p class="mt-1 whitespace-pre-line break-words text-[14px] font-extrabold leading-6 text-gray-950">{item.value || item.detail}</p>
+                            )}
+                            {item.value && item.detail && (
+                              <p class="mt-1 text-[13px] font-bold text-gray-400">{item.detail}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {contactEmailItems.length > 1 && (
+                  <section class="rounded-[8px] border border-palette-beige/35 bg-white px-5 py-5 shadow-[0_18px_60px_rgba(44,62,80,0.06)]">
+                    <h2 class="text-lg font-black text-gray-950">Birim e-postaları</h2>
+                    <div class="mt-4 space-y-3">
+                      {contactEmailItems.map((item) => (
+                        <a href={mailtoHref(item.value)} class="flex items-center gap-3 rounded-[8px] border border-palette-beige/45 px-3 py-3 text-[13px] font-extrabold text-gray-950 transition hover:border-palette-red/40 hover:text-palette-red">
+                          <i class={`${item.icon} text-[17px] text-palette-red`}></i>
+                          <span class="min-w-0">
+                            <span class="block text-[11px] font-black uppercase tracking-normal text-gray-400">{item.label}</span>
+                            <span class="block break-words">{item.value}</span>
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {(socialActions.length > 0 || socialProfiles.length > 0) && (
+                  <section class="rounded-[8px] border border-palette-beige/35 bg-white px-5 py-5 shadow-[0_18px_60px_rgba(44,62,80,0.06)]">
+                    {socialActions.length > 0 && (
+                      <div class="space-y-3">
+                        <h2 class="text-lg font-black text-gray-950">Hızlı iletişim</h2>
+                        {socialActions.map((item) => (
+                          <a href={item.href} target="_blank" rel="noopener noreferrer" class:list={[
+                            'flex h-12 items-center gap-3 rounded-[8px] px-4 text-[13px] font-black transition',
+                            item.className,
+                          ]}>
+                            <i class={`${item.icon} text-[19px]`}></i>
+                            <span>{item.label}</span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {socialProfiles.length > 0 && (
+                      <div class:list={[
+                        'space-y-3',
+                        socialActions.length > 0 ? 'mt-5 border-t border-palette-beige/45 pt-5' : '',
+                      ]}>
+                        <h2 class="text-lg font-black text-gray-950">Sosyal medya</h2>
+                        <div class="flex flex-wrap gap-2">
+                          {socialProfiles.map(([label, href, icon]) => (
+                            <a href={href} target="_blank" rel="noopener noreferrer" class="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-palette-beige/45 text-gray-500 transition hover:border-palette-red/40 hover:bg-palette-red/5 hover:text-palette-red" aria-label={label}>
+                              <i class={`${icon} text-[18px]`}></i>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
+              </aside>
+            </div>
+
+          </div>
+        ) : (
+          <>
+            {page.show_title !== false && (
+              <header class="mb-7 border-b border-palette-beige/35 pb-6">
+                <p class="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-palette-red">{pageGroup}</p>
+                <h1 class="text-3xl font-black leading-tight text-gray-950 md:text-5xl">{page.title}</h1>
+              </header>
+            )}
+            <article class="rich-text-content prose prose-lg max-w-none text-gray-800 prose-headings:font-black prose-headings:text-gray-950 prose-p:leading-8 prose-a:text-palette-red" set:html={contentHtml} />
+          </>
+        )}
+      </section>
+	    </div>
+	  </main>
+	  <script is:inline>
+	    (() => {
+	      const form = document.querySelector('[data-contact-form]');
+	      if (!(form instanceof HTMLFormElement)) return;
+	      const status = form.querySelector('[data-contact-status]');
+	      const submit = form.querySelector('[data-contact-submit]');
+	      const setStatus = (message, ok) => {
+	        if (!status) return;
+	        status.textContent = message;
+	        status.className = `rounded-[8px] px-3 py-2 text-[13px] font-bold ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`;
+	      };
+	      form.addEventListener('submit', async (event) => {
+	        event.preventDefault();
+	        if (submit instanceof HTMLButtonElement) submit.disabled = true;
+	        try {
+	          const payload = Object.fromEntries(new FormData(form).entries());
+	          const response = await fetch('/api/contact-message', {
+	            method: 'POST',
+	            headers: { 'Content-Type': 'application/json' },
+	            body: JSON.stringify(payload),
+	          });
+	          const result = await response.json().catch(() => ({}));
+	          if (!response.ok || result.ok === false) {
+	            throw new Error(result?.error?.message || 'Mesaj gönderilemedi.');
+	          }
+	          form.reset();
+	          setStatus(result.message || 'Mesajınız alındı.', true);
+	        } catch (error) {
+	          setStatus(error instanceof Error ? error.message : 'Mesaj gönderilemedi.', false);
+	        } finally {
+	          if (submit instanceof HTMLButtonElement) submit.disabled = false;
+	        }
+	      });
+	    })();
+	  </script>
+	</Layout>

@@ -3,11 +3,13 @@ import Layout from '@/layouts/Layout.astro';
 import HomePage from '@/components/HomePage';
 import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
+import { setPublicHtmlCache } from '@/lib/server/publicCache';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getPostPathSegment } from '@/utils/postUrl';
 
 export const prerender = false;
+setPublicHtmlCache(Astro.response);
 
 const { slug } = Astro.params;
 const cookies = Astro.request.headers.get('cookie') || '';
@@ -82,6 +84,10 @@ const decodeTextEntities = (value: string) => {
 const stripHtml = (html: string) => decodeTextEntities((html || '').replace(/<[^>]*>?/gm, ' ').replace(/&nbsp;/g, ' '))
   .replace(/\s+/g, ' ')
   .trim();
+const categorySummary = stripHtml(String(newsItems?.[0]?.seoDescription || newsItems?.[0]?.summary || ''));
+const description = categorySummary
+  ? categorySummary.slice(0, 160)
+  : `${stripHtml(String(resolvedCategory || slug || ''))} haberleri ve son dakika gelişmeleri ${siteSettings?.site_name || 'Pateez'} üzerinde.`;
 
 const breadcrumbLd = {
   "@context": "https://schema.org",
@@ -119,6 +125,7 @@ const itemListLd = {
 
 <Layout
   title={title}
+  description={description}
   lang={lang}
   dir={initialLang.direction}
   favicon={siteSettings?.favicon_url}
@@ -130,7 +137,7 @@ const itemListLd = {
   initialLang={initialLang}
 >
   <HomePage 
-    client:idle 
+    client:load 
     initialLang={initialLang} 
     initialTranslations={initialTranslations}
     siteSettings={siteSettings}

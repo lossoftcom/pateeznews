@@ -6,6 +6,7 @@ import { useToast } from '@/context/ToastContext';
 import Skeleton from '@/components/ui/Skeleton';
 import { postAction } from '@/services/appActions';
 import { getPostHref, getPostPathSegment } from '@/utils/postUrl';
+import { formatPostDateParts } from '@/utils/helpers';
 import RemixIcon from './ui/RemixIcon';
 
 // Kart bileşenleri
@@ -74,6 +75,57 @@ const stripHtmlToText = (html: string) => {
   return decodeOnce(decodeOnce(String(html || '').replace(/<[^>]*>?/gm, ' ').replace(/&nbsp;/g, ' ')))
     .replace(/\s+/g, ' ')
     .trim();
+};
+
+const withImageVariant = (src: string | null | undefined, width: number, quality = 86) => {
+  const raw = String(src || '').trim();
+  if (!raw || width <= 0 || raw.startsWith('data:')) return raw;
+  try {
+    const placeholderOrigin = 'https://pateez.local';
+    const parsed = new URL(raw, placeholderOrigin);
+    const isLocal =
+      parsed.pathname.startsWith('/api/storage/file/') ||
+      parsed.pathname.startsWith('/local-upload/');
+    if (!isLocal) return raw.replace('_sm', '_xl');
+    parsed.searchParams.set('w', String(Math.min(Math.max(Math.round(width), 64), 3840)));
+    parsed.searchParams.set('q', String(Math.min(Math.max(Math.round(quality), 40), 95)));
+    return raw.startsWith('http://') || raw.startsWith('https://')
+      ? parsed.toString()
+      : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return raw.replace('_sm', '_xl');
+  }
+};
+
+const imageSizeAttrs = (image?: { width?: number; height?: number }, fallbackWidth = 1200, fallbackHeight = 675) => {
+  const width = Number(image?.width || 0);
+  const height = Number(image?.height || 0);
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    return { width, height };
+  }
+  return { width: fallbackWidth, height: fallbackHeight };
+};
+
+const profileHref = (handle?: string) => {
+  const clean = String(handle || '').trim().replace(/^@+/, '');
+  return clean ? `/profil/${encodeURIComponent(clean)}` : '';
+};
+
+const titleCaseText = (value: string) => {
+  const lower = String(value || '').trim().toLocaleLowerCase('tr-TR');
+  if (!lower) return lower;
+  let result = '';
+  let capitalizeNext = true;
+  for (const char of lower) {
+    if (char === ' ' || char === '\t' || char === '\n' || char === '/' || char === '-' || char === '_' || char === '.') {
+      capitalizeNext = true;
+      result += char;
+      continue;
+    }
+    result += capitalizeNext ? char.toLocaleUpperCase('tr-TR') : char;
+    capitalizeNext = false;
+  }
+  return result;
 };
 
 type QuizImageOrientation = 'unknown' | 'portrait' | 'wide';
@@ -1020,7 +1072,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     saves: data.saves || 0,
     views: data.views || 0,
   });
-  const [detailState, setDetailState] = useState({ liked: false, saved: false });
+  const [detailState, setDetailState] = useState({ liked: false, disliked: false, saved: false });
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
@@ -1051,6 +1103,31 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     void recordShare('facebook');
     const url = getUtmUrl('facebook');
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const shareToInstagram = async () => {
+    void recordShare('instagram');
+    const url = getUtmUrl('instagram');
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast(t('common.link_copied_instagram'), 'info');
+    } catch {
+      showToast(t('common.copy_failed'), 'error');
+    }
+    setTimeout(() => {
+      window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
+    }, 1000);
+  };
+
+  const shareToWhatsApp = () => {
+    void recordShare('whatsapp');
+    const cleanTitle = stripHtml(data.title);
+    const cleanSummary = stripHtml(data.summary).substring(0, 100);
+    const url = getUtmUrl('whatsapp');
+    const message = cleanSummary
+      ? `📢 ${cleanTitle}\n\n"${cleanSummary}..."\n\n🔗 ${url}`
+      : `📢 ${cleanTitle}\n\n🔗 ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
 
   const copyLink = async (track = true) => {
@@ -1112,6 +1189,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       setSelectedEmojis(result.userState.reactions || []);
       setDetailState({
         liked: !!result.userState.liked,
+        disliked: !!result.userState.disliked,
         saved: !!result.userState.saved,
       });
     }
@@ -1139,6 +1217,14 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       applyPostState(await postAction('toggle_like', { postId: data.id, publisherId: data.publisherId }));
     } catch {
       showToast(t('auth.login_required_like'), 'info');
+    }
+  };
+
+  const toggleDetailDislike = async () => {
+    try {
+      applyPostState(await postAction('toggle_dislike', { postId: data.id, publisherId: data.publisherId }));
+    } catch {
+      showToast(t('auth.login_required_dislike'), 'info');
     }
   };
 
@@ -1209,12 +1295,18 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
       const coverSrc = coverOptimized?.src || coverThumbnail;
       if (!coverSrc) return null;
+      const coverSize = imageSizeAttrs(coverOptimized);
       return (
         <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-2">
           <img
-            src={coverSrc?.replace('_sm', '_xl')}
+            src={withImageVariant(coverSrc, 1600)}
             alt={data.thumbnailAlt || data.seoTitle || data.title}
             title={data.thumbnailAlt || data.seoTitle || data.title}
+            width={coverSize.width}
+            height={coverSize.height}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
             className="w-full h-auto object-cover max-h-[600px]"
           />
         </div>
@@ -1235,12 +1327,19 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       case NewsType.PARAGRAPH: return <ParagraphCard data={data} />;
       default:
         if (!data.thumbnail && !data.optimizedThumbnail?.src) return null;
+        const image = data.optimizedThumbnail;
+        const size = imageSizeAttrs(image);
         return (
           <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-2">
             <img
-              src={(data.optimizedThumbnail?.src || data.thumbnail)?.replace('_sm', '_xl')}
+              src={withImageVariant(image?.src || data.thumbnail, 1600)}
               alt={data.thumbnailAlt || data.seoTitle || data.title}
               title={data.thumbnailAlt || data.seoTitle || data.title}
+              width={size.width}
+              height={size.height}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
               className="w-full h-auto object-cover max-h-[600px]"
             />
           </div>
@@ -1258,6 +1357,9 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   };
 
   const readingTime = calculateReadingTime();
+  const authorUrl = profileHref(data.publisherHandle);
+  const displayAuthorName = titleCaseText(data.author || data.source || '');
+  const publishedAt = formatPostDateParts(data.timestamp, currentLang?.code || 'tr');
 
   return (
     <div className="animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
@@ -1309,20 +1411,36 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
         <div className={`flex items-center justify-between pt-6 border-t border-gray-100 ${data.title || data.summary ? 'mt-6' : 'mt-2'}`}>
           <div className="flex items-center gap-4">
             {showPostAuthor && (
-              <div className="w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm">
-                <img src={data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`} alt={data.author} className="w-full h-full object-cover" />
-              </div>
+              authorUrl ? (
+                <a href={authorUrl} className="w-14 h-14 rounded-full bg-white p-[2px] border border-palette-beige/70 shadow-[0_6px_18px_rgba(24,37,64,0.07)] overflow-hidden">
+                  <img src={withImageVariant(data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`, 180)} alt={displayAuthorName || data.author} width={112} height={112} loading="lazy" decoding="async" className="w-full h-full rounded-full object-cover" />
+                </a>
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-white p-[2px] border border-palette-beige/70 shadow-[0_6px_18px_rgba(24,37,64,0.07)] overflow-hidden">
+                  <img src={withImageVariant(data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`, 180)} alt={displayAuthorName || data.author} width={112} height={112} loading="lazy" decoding="async" className="w-full h-full rounded-full object-cover" />
+                </div>
+              )
             )}
             <div>
               {showPostAuthor && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-black text-gray-900">{data.author}</span>
-                  <RemixIcon name="ri-verified-badge-fill" size={14} className="text-palette-red" />
+                <div className="flex items-center gap-2">
+                  {authorUrl ? (
+                    <a href={authorUrl} className="text-[15px] font-[800] tracking-tight text-gray-900 hover:text-palette-red transition-colors">{displayAuthorName || data.author}</a>
+                  ) : (
+                    <span className="text-[15px] font-[800] tracking-tight text-gray-900">{displayAuthorName || data.author}</span>
+                  )}
+                  <RemixIcon name="ri-verified-badge-fill" size={16} className="text-palette-red" />
                 </div>
               )}
-              <div className="flex items-center gap-3 text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                {showPostDate && <span className="flex items-center gap-1"><RemixIcon name="ri-calendar-line" size={12} /> {data.timestamp}</span>}
-                <span className="flex items-center gap-1"><RemixIcon name="ri-time-line" size={12} /> {readingTime} {t('news.reading_time')}</span>
+              <div className="flex items-center gap-2 text-[10px] text-palette-tan/45 font-bold leading-none mt-1">
+                {showPostDate && (
+                  <span className="flex items-center gap-1">
+                    <RemixIcon name="ri-calendar-line" size={12} />
+                    <time dateTime={publishedAt.iso || undefined}>{publishedAt.date || data.timestamp}</time>
+                  </span>
+                )}
+                {publishedAt.time && <span className="flex items-center gap-1"><RemixIcon name="ri-time-line" size={12} /> {publishedAt.time}</span>}
+                <span className="flex items-center gap-1"><RemixIcon name="ri-book-open-line" size={12} /> {readingTime} {t('news.reading_time')}</span>
                 {showPostViewCount && <span className="flex items-center gap-1"><RemixIcon name="ri-eye-line" size={12} /> {detailCounts.views.toLocaleString()}</span>}
               </div>
             </div>
@@ -1347,7 +1465,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       <div className="flex flex-col md:flex-row relative">
 
         {/* LEFT STICKY SHARE BAR */}
-        <aside className="hidden md:flex flex-col items-center gap-3 sticky top-24 p-6 border-r border-gray-50 z-10" style={{ height: 'fit-content', alignSelf: 'flex-start' }}>
+        <aside className="hidden md:flex relative isolate flex-col items-center gap-3 sticky top-24 p-6 border-r border-gray-50 z-10 overflow-visible before:pointer-events-none before:absolute before:left-1/2 before:top-20 before:h-[440px] before:w-[150px] before:-translate-x-1/2 before:rounded-full before:bg-[radial-gradient(ellipse_at_center,rgba(125,190,255,0.22)_0%,rgba(186,226,255,0.13)_38%,rgba(255,255,255,0)_76%)] before:blur-2xl before:-z-10" style={{ height: 'fit-content', alignSelf: 'flex-start' }}>
           <div className="flex flex-col items-center mb-2">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest [writing-mode:vertical-lr] rotate-180 mb-2">{t('card.share')}</span>
             <div className="w-px h-8 bg-gray-100 mb-2"></div>
@@ -1355,47 +1473,80 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
           </div>
 
           <button
-            onClick={shareToTwitter}
-            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-red text-palette-beige hover:scale-110 transition-all shadow-sm active:scale-95"
+            onClick={shareToInstagram}
+            aria-label="Instagram'da paylaş"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-gray-100 bg-white text-[#E1306C] shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-110 transition-all active:scale-95"
           >
-            <RemixIcon name="ri-twitter-x-fill" size={18} />
+            <RemixIcon name="ri-instagram-fill" size={18} />
           </button>
           <button
             onClick={shareToFacebook}
-            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-maroon text-palette-beige hover:scale-110 transition-all shadow-sm active:scale-95"
+            aria-label="Facebook'ta paylaş"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-gray-100 bg-white text-[#1877F2] shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-110 transition-all active:scale-95"
           >
             <RemixIcon name="ri-facebook-fill" size={18} />
           </button>
           <button
-            onClick={() => {
-              const url = getUtmUrl('linkedin');
-              window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
-            }}
-            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-accent text-palette-maroon hover:scale-110 transition-all shadow-sm active:scale-95"
+            onClick={shareToTwitter}
+            aria-label="X'te paylaş"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-gray-100 bg-white text-[#0F1419] shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-110 transition-all active:scale-95"
           >
-            <RemixIcon name="ri-linkedin-fill" size={18} />
+            <RemixIcon name="ri-twitter-x-fill" size={18} />
           </button>
           <button
-            onClick={() => copyLink()}
-            className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-gray-100 text-gray-500 hover:bg-gray-900 hover:text-white transition-all shadow-sm active:scale-95"
+            onClick={shareToWhatsApp}
+            aria-label="WhatsApp'ta paylaş"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-gray-100 bg-white text-[#25D366] shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-110 transition-all active:scale-95"
           >
-            <RemixIcon name="ri-link" size={18} />
+            <RemixIcon name="ri-whatsapp-fill" size={18} />
           </button>
 
-          <div className="w-px h-6 bg-gray-100 my-1"></div>
+          <div className="h-2"></div>
 
-          {/* Like Button with Count */}
-          <div className="flex flex-col items-center">
-            <button onClick={toggleDetailLike} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm group ${detailState.liked ? 'bg-palette-red text-white' : 'bg-palette-red/5 text-palette-red hover:bg-palette-red hover:text-white'}`}>
-              <RemixIcon name={detailState.liked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'} size={18} className="group-hover:scale-110 transition-transform" />
+          <div className="relative">
+            <button
+              onClick={toggleDetailLike}
+              aria-label="Beğen"
+              className={`w-10 h-10 flex items-center justify-center rounded-full border border-gray-100 shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-110 transition-all active:scale-95 ${detailState.liked ? 'bg-palette-maroon text-white' : 'bg-white text-palette-maroon'}`}
+            >
+              <RemixIcon name={detailState.liked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'} size={17} />
             </button>
-            <span className="text-[10px] font-black text-palette-red mt-1">{detailCounts.likes.toLocaleString()}</span>
+            {detailCounts.likes > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-palette-maroon px-1 text-center text-[9px] font-black leading-4 text-white shadow-sm">
+                {detailCounts.likes.toLocaleString()}
+              </span>
+            )}
           </div>
 
-          {/* Bookmark Button */}
-          <button onClick={toggleDetailSave} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm border border-gray-100 ${detailState.saved ? 'bg-palette-maroon text-white' : 'bg-gray-50 text-gray-400 hover:bg-palette-maroon hover:text-white'}`}>
-            <RemixIcon name={detailState.saved ? 'ri-bookmark-fill' : 'ri-bookmark-line'} size={18} />
-          </button>
+          <div className="relative">
+            <button
+              onClick={toggleDetailDislike}
+              aria-label="Beğenme"
+              className={`w-10 h-10 flex items-center justify-center rounded-full border border-gray-100 shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-110 transition-all active:scale-95 ${detailState.disliked ? 'bg-palette-red text-white' : 'bg-white text-palette-red'}`}
+            >
+              <RemixIcon name={detailState.disliked ? 'ri-thumb-down-fill' : 'ri-thumb-down-line'} size={17} />
+            </button>
+            {detailCounts.dislikes > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-palette-red px-1 text-center text-[9px] font-black leading-4 text-white shadow-sm">
+                {detailCounts.dislikes.toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={toggleDetailSave}
+              aria-label="Kaydet"
+              className={`w-10 h-10 flex items-center justify-center rounded-full border border-gray-100 shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-110 transition-all active:scale-95 ${detailState.saved ? 'bg-palette-accent text-palette-maroon' : 'bg-white text-palette-accent'}`}
+            >
+              <RemixIcon name={detailState.saved ? 'ri-bookmark-fill' : 'ri-bookmark-line'} size={17} />
+            </button>
+            {detailCounts.saves > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-palette-accent px-1 text-center text-[9px] font-black leading-4 text-palette-maroon shadow-sm">
+                {detailCounts.saves.toLocaleString()}
+              </span>
+            )}
+          </div>
         </aside>
 
         {/* MAIN BODY CONTENT */}
@@ -1426,17 +1577,25 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                       </div>
                     );
                   case 'image':
+                    const itemImageSize = imageSizeAttrs({
+                      width: item.width || item.imageWidth,
+                      height: item.height || item.imageHeight,
+                    });
                     return (
                       <div key={item.id} className="space-y-4 max-w-full overflow-hidden">
                         {item.title && <h3 className="text-2xl font-black text-gray-900 break-normal">{item.title}</h3>}
                         <div className="relative w-full bg-gray-50 rounded-[5px] overflow-hidden border border-gray-100 shadow-lg flex items-center justify-center max-h-[600px]">
                           <div
                             className="absolute inset-0 bg-center bg-no-repeat bg-cover blur-2xl opacity-10 scale-110"
-                            style={{ backgroundImage: `url(${item.mediaUrl})` }}
+                            style={{ backgroundImage: `url(${withImageVariant(item.mediaUrl, 64, 60)})` }}
                           />
                           <img
-                            src={item.mediaUrl}
+                            src={withImageVariant(item.mediaUrl, 1200)}
                             alt={item.altText || item.title || t('news.image_alt_default')}
+                            width={itemImageSize.width}
+                            height={itemImageSize.height}
+                            loading="lazy"
+                            decoding="async"
                             className="relative z-10 w-full h-auto max-h-[600px] object-contain"
                           />
                         </div>

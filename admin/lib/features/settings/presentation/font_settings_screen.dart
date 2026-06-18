@@ -3345,6 +3345,7 @@ class _DialogFooter extends StatelessWidget {
 enum _FontSizeSection {
   layoutSpecial('fontSettings.webSection.navigationFeatured'),
   general('fontSettings.webSection.newsCard'),
+  category('fontSettings.webSection.categoryCards'),
   titles('fontSettings.webSection.detail');
 
   const _FontSizeSection(this.labelKey);
@@ -3355,6 +3356,7 @@ enum _FontSizeSection {
     return switch (this) {
       _FontSizeSection.layoutSpecial => _FontSizeItem.layoutSpecial,
       _FontSizeSection.general => _FontSizeItem.general,
+      _FontSizeSection.category => _FontSizeItem.category,
       _FontSizeSection.titles => _FontSizeItem.titles,
     };
   }
@@ -3416,6 +3418,37 @@ class _FontSizeItem {
     ),
   ];
 
+  static const category = [
+    _FontSizeItem(
+      key: 'web-category-slider-title',
+      labelKey: 'fontSettings.webSize.categorySliderTitle',
+      descriptionKey: 'fontSettings.webSize.categorySliderTitleHelp',
+      initialValue: '22',
+      initialWeight: '700',
+    ),
+    _FontSizeItem(
+      key: 'web-category-slider-summary',
+      labelKey: 'fontSettings.webSize.categorySliderSummary',
+      descriptionKey: 'fontSettings.webSize.categorySliderSummaryHelp',
+      initialValue: '14',
+      initialWeight: '400',
+    ),
+    _FontSizeItem(
+      key: 'web-category-card-title',
+      labelKey: 'fontSettings.webSize.categoryCardTitle',
+      descriptionKey: 'fontSettings.webSize.categoryCardTitleHelp',
+      initialValue: '19',
+      initialWeight: '700',
+    ),
+    _FontSizeItem(
+      key: 'web-category-card-summary',
+      labelKey: 'fontSettings.webSize.categoryCardSummary',
+      descriptionKey: 'fontSettings.webSize.categoryCardSummaryHelp',
+      initialValue: '13',
+      initialWeight: '400',
+    ),
+  ];
+
   static const titles = [
     _FontSizeItem(
       key: 'web-detail-title',
@@ -3440,7 +3473,7 @@ class _FontSizeItem {
     ),
   ];
 
-  static const all = [...layoutSpecial, ...general, ...titles];
+  static const all = [...layoutSpecial, ...general, ...category, ...titles];
 }
 
 enum _MobileFontSizeSection {

@@ -36,6 +36,7 @@ class CategoryScreen extends StatefulWidget {
     required this.categoryName,
     this.categoryType = 'category',
     this.categoryValue = '',
+    this.categoryImageUrl = '',
     this.categoryRepository = const CategoryRepository(),
     this.initialItems,
     this.initialTotal,
@@ -56,6 +57,7 @@ class CategoryScreen extends StatefulWidget {
   /// Öğe tipi: category / district / trends / dropdown / link.
   final String categoryType;
   final String categoryValue;
+  final String categoryImageUrl;
   final CategoryRepository categoryRepository;
   final List<NewsArticle>? initialItems;
   final int? initialTotal;
@@ -224,6 +226,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                         child:
                             CategoryMasthead(
                                   content: _content,
+                                  imageUrl: widget.categoryImageUrl,
                                   articleCount: _articleTotal,
                                   totalReads: _totalReads,
                                 )

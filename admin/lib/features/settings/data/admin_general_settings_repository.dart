@@ -27,6 +27,92 @@ enum GeneralSettingsLogoField {
   }
 }
 
+enum SocialPasswordField {
+  whatsapp('whatsapp'),
+  telegram('telegram'),
+  instagram('instagram'),
+  facebook('facebook'),
+  x('x'),
+  youtube('youtube'),
+  tiktok('tiktok'),
+  linkedin('linkedin'),
+  pinterest('pinterest'),
+  discord('discord');
+
+  const SocialPasswordField(this.key);
+
+  final String key;
+
+  static SocialPasswordField? fromKey(String value) {
+    final normalized = value.trim().toLowerCase();
+    for (final field in values) {
+      if (field.key == normalized) return field;
+    }
+    return null;
+  }
+}
+
+class SocialPasswordStatus {
+  const SocialPasswordStatus(this._values);
+
+  static const empty = SocialPasswordStatus({});
+
+  final Map<SocialPasswordField, bool> _values;
+
+  bool has(SocialPasswordField field) => _values[field] ?? false;
+
+  factory SocialPasswordStatus.fromJson(Map<String, Object?> json) {
+    final raw = json['hasPasswords'] ?? json['has_passwords'];
+    if (raw is! Map) return SocialPasswordStatus.empty;
+    final values = <SocialPasswordField, bool>{};
+    for (final entry in raw.entries) {
+      final field = SocialPasswordField.fromKey(entry.key.toString());
+      if (field != null) values[field] = entry.value == true;
+    }
+    return SocialPasswordStatus(values);
+  }
+}
+
+enum ContactEmailPasswordField {
+  info('info'),
+  support('support'),
+  news('news'),
+  ads('ads');
+
+  const ContactEmailPasswordField(this.key);
+
+  final String key;
+
+  static ContactEmailPasswordField? fromKey(String value) {
+    final normalized = value.trim().toLowerCase();
+    for (final field in values) {
+      if (field.key == normalized) return field;
+    }
+    return null;
+  }
+}
+
+class ContactEmailPasswordStatus {
+  const ContactEmailPasswordStatus(this._values);
+
+  static const empty = ContactEmailPasswordStatus({});
+
+  final Map<ContactEmailPasswordField, bool> _values;
+
+  bool has(ContactEmailPasswordField field) => _values[field] ?? false;
+
+  factory ContactEmailPasswordStatus.fromJson(Map<String, Object?> json) {
+    final raw = json['hasPasswords'] ?? json['has_passwords'];
+    if (raw is! Map) return ContactEmailPasswordStatus.empty;
+    final values = <ContactEmailPasswordField, bool>{};
+    for (final entry in raw.entries) {
+      final field = ContactEmailPasswordField.fromKey(entry.key.toString());
+      if (field != null) values[field] = entry.value == true;
+    }
+    return ContactEmailPasswordStatus(values);
+  }
+}
+
 class GeneralSettingsData {
   const GeneralSettingsData({
     required this.languageCode,
@@ -48,11 +134,33 @@ class GeneralSettingsData {
     required this.organizationLegalName,
     required this.organizationPhone,
     required this.organizationAddress,
+    required this.contactPhone,
+    required this.contactCity,
+    required this.contactAddress,
+    required this.contactLocationUrl,
+    required this.contactWhatsappUrl,
+    required this.contactTelegramUrl,
+    required this.contactEmailInfo,
+    required this.contactEmailSupport,
+    required this.contactEmailNews,
+    required this.contactEmailAds,
     required this.twitterUsername,
     required this.fbAppId,
+    required this.socialWhatsappUrl,
+    required this.socialTelegramUrl,
+    required this.socialInstagramUrl,
+    required this.socialFacebookUrl,
+    required this.socialXUrl,
+    required this.socialYoutubeUrl,
+    required this.socialTiktokUrl,
+    required this.socialLinkedinUrl,
+    required this.socialPinterestUrl,
+    required this.socialDiscordUrl,
     required this.googleAnalyticsId,
     required this.googleSearchConsoleCode,
     required this.bingVerificationCode,
+    required this.yandexVerificationCode,
+    required this.indexNowKey,
     required this.socialAuthGoogleEnabled,
     required this.socialAuthAppleEnabled,
     required this.socialAuthFacebookEnabled,
@@ -85,11 +193,33 @@ class GeneralSettingsData {
       organizationLegalName: '',
       organizationPhone: '',
       organizationAddress: '',
+      contactPhone: '',
+      contactCity: '',
+      contactAddress: '',
+      contactLocationUrl: '',
+      contactWhatsappUrl: '',
+      contactTelegramUrl: '',
+      contactEmailInfo: '',
+      contactEmailSupport: '',
+      contactEmailNews: '',
+      contactEmailAds: '',
       twitterUsername: '',
       fbAppId: '',
+      socialWhatsappUrl: '',
+      socialTelegramUrl: '',
+      socialInstagramUrl: '',
+      socialFacebookUrl: '',
+      socialXUrl: '',
+      socialYoutubeUrl: '',
+      socialTiktokUrl: '',
+      socialLinkedinUrl: '',
+      socialPinterestUrl: '',
+      socialDiscordUrl: '',
       googleAnalyticsId: '',
       googleSearchConsoleCode: '',
       bingVerificationCode: '',
+      yandexVerificationCode: '',
+      indexNowKey: '',
       socialAuthGoogleEnabled: true,
       socialAuthAppleEnabled: true,
       socialAuthFacebookEnabled: true,
@@ -126,11 +256,33 @@ class GeneralSettingsData {
       organizationLegalName: _string(json['organization_legal_name']),
       organizationPhone: _string(json['organization_phone']),
       organizationAddress: _string(json['organization_address']),
+      contactPhone: _string(json['contact_phone']),
+      contactCity: _string(json['contact_city']),
+      contactAddress: _string(json['contact_address']),
+      contactLocationUrl: _string(json['contact_location_url']),
+      contactWhatsappUrl: _string(json['contact_whatsapp_url']),
+      contactTelegramUrl: _string(json['contact_telegram_url']),
+      contactEmailInfo: _string(json['contact_email_info']),
+      contactEmailSupport: _string(json['contact_email_support']),
+      contactEmailNews: _string(json['contact_email_news']),
+      contactEmailAds: _string(json['contact_email_ads']),
       twitterUsername: _string(json['twitter_username']),
       fbAppId: _string(json['fb_app_id']),
+      socialWhatsappUrl: _string(json['social_whatsapp_url']),
+      socialTelegramUrl: _string(json['social_telegram_url']),
+      socialInstagramUrl: _string(json['social_instagram_url']),
+      socialFacebookUrl: _string(json['social_facebook_url']),
+      socialXUrl: _string(json['social_x_url']),
+      socialYoutubeUrl: _string(json['social_youtube_url']),
+      socialTiktokUrl: _string(json['social_tiktok_url']),
+      socialLinkedinUrl: _string(json['social_linkedin_url']),
+      socialPinterestUrl: _string(json['social_pinterest_url']),
+      socialDiscordUrl: _string(json['social_discord_url']),
       googleAnalyticsId: _string(json['google_analytics_id']),
       googleSearchConsoleCode: _string(json['google_search_console_code']),
       bingVerificationCode: _string(json['bing_verification_code']),
+      yandexVerificationCode: _string(json['yandex_verification_code']),
+      indexNowKey: _string(json['indexnow_key']),
       socialAuthGoogleEnabled: _bool(
         json['social_auth_google_enabled'],
         fallback: true,
@@ -177,11 +329,33 @@ class GeneralSettingsData {
   final String organizationLegalName;
   final String organizationPhone;
   final String organizationAddress;
+  final String contactPhone;
+  final String contactCity;
+  final String contactAddress;
+  final String contactLocationUrl;
+  final String contactWhatsappUrl;
+  final String contactTelegramUrl;
+  final String contactEmailInfo;
+  final String contactEmailSupport;
+  final String contactEmailNews;
+  final String contactEmailAds;
   final String twitterUsername;
   final String fbAppId;
+  final String socialWhatsappUrl;
+  final String socialTelegramUrl;
+  final String socialInstagramUrl;
+  final String socialFacebookUrl;
+  final String socialXUrl;
+  final String socialYoutubeUrl;
+  final String socialTiktokUrl;
+  final String socialLinkedinUrl;
+  final String socialPinterestUrl;
+  final String socialDiscordUrl;
   final String googleAnalyticsId;
   final String googleSearchConsoleCode;
   final String bingVerificationCode;
+  final String yandexVerificationCode;
+  final String indexNowKey;
   final bool socialAuthGoogleEnabled;
   final bool socialAuthAppleEnabled;
   final bool socialAuthFacebookEnabled;
@@ -213,11 +387,33 @@ class GeneralSettingsData {
       'organization_legal_name': organizationLegalName,
       'organization_phone': organizationPhone,
       'organization_address': organizationAddress,
+      'contact_phone': contactPhone,
+      'contact_city': contactCity,
+      'contact_address': contactAddress,
+      'contact_location_url': contactLocationUrl,
+      'contact_whatsapp_url': contactWhatsappUrl,
+      'contact_telegram_url': contactTelegramUrl,
+      'contact_email_info': contactEmailInfo,
+      'contact_email_support': contactEmailSupport,
+      'contact_email_news': contactEmailNews,
+      'contact_email_ads': contactEmailAds,
       'twitter_username': twitterUsername,
       'fb_app_id': fbAppId,
+      'social_whatsapp_url': socialWhatsappUrl,
+      'social_telegram_url': socialTelegramUrl,
+      'social_instagram_url': socialInstagramUrl,
+      'social_facebook_url': socialFacebookUrl,
+      'social_x_url': socialXUrl,
+      'social_youtube_url': socialYoutubeUrl,
+      'social_tiktok_url': socialTiktokUrl,
+      'social_linkedin_url': socialLinkedinUrl,
+      'social_pinterest_url': socialPinterestUrl,
+      'social_discord_url': socialDiscordUrl,
       'google_analytics_id': googleAnalyticsId,
       'google_search_console_code': googleSearchConsoleCode,
       'bing_verification_code': bingVerificationCode,
+      'yandex_verification_code': yandexVerificationCode,
+      'indexnow_key': indexNowKey,
       'social_auth_google_enabled': socialAuthGoogleEnabled,
       'social_auth_apple_enabled': socialAuthAppleEnabled,
       'social_auth_facebook_enabled': socialAuthFacebookEnabled,
@@ -266,11 +462,33 @@ class GeneralSettingsData {
     String? organizationLegalName,
     String? organizationPhone,
     String? organizationAddress,
+    String? contactPhone,
+    String? contactCity,
+    String? contactAddress,
+    String? contactLocationUrl,
+    String? contactWhatsappUrl,
+    String? contactTelegramUrl,
+    String? contactEmailInfo,
+    String? contactEmailSupport,
+    String? contactEmailNews,
+    String? contactEmailAds,
     String? twitterUsername,
     String? fbAppId,
+    String? socialWhatsappUrl,
+    String? socialTelegramUrl,
+    String? socialInstagramUrl,
+    String? socialFacebookUrl,
+    String? socialXUrl,
+    String? socialYoutubeUrl,
+    String? socialTiktokUrl,
+    String? socialLinkedinUrl,
+    String? socialPinterestUrl,
+    String? socialDiscordUrl,
     String? googleAnalyticsId,
     String? googleSearchConsoleCode,
     String? bingVerificationCode,
+    String? yandexVerificationCode,
+    String? indexNowKey,
     bool? socialAuthGoogleEnabled,
     bool? socialAuthAppleEnabled,
     bool? socialAuthFacebookEnabled,
@@ -303,12 +521,35 @@ class GeneralSettingsData {
           organizationLegalName ?? this.organizationLegalName,
       organizationPhone: organizationPhone ?? this.organizationPhone,
       organizationAddress: organizationAddress ?? this.organizationAddress,
+      contactPhone: contactPhone ?? this.contactPhone,
+      contactCity: contactCity ?? this.contactCity,
+      contactAddress: contactAddress ?? this.contactAddress,
+      contactLocationUrl: contactLocationUrl ?? this.contactLocationUrl,
+      contactWhatsappUrl: contactWhatsappUrl ?? this.contactWhatsappUrl,
+      contactTelegramUrl: contactTelegramUrl ?? this.contactTelegramUrl,
+      contactEmailInfo: contactEmailInfo ?? this.contactEmailInfo,
+      contactEmailSupport: contactEmailSupport ?? this.contactEmailSupport,
+      contactEmailNews: contactEmailNews ?? this.contactEmailNews,
+      contactEmailAds: contactEmailAds ?? this.contactEmailAds,
       twitterUsername: twitterUsername ?? this.twitterUsername,
       fbAppId: fbAppId ?? this.fbAppId,
+      socialWhatsappUrl: socialWhatsappUrl ?? this.socialWhatsappUrl,
+      socialTelegramUrl: socialTelegramUrl ?? this.socialTelegramUrl,
+      socialInstagramUrl: socialInstagramUrl ?? this.socialInstagramUrl,
+      socialFacebookUrl: socialFacebookUrl ?? this.socialFacebookUrl,
+      socialXUrl: socialXUrl ?? this.socialXUrl,
+      socialYoutubeUrl: socialYoutubeUrl ?? this.socialYoutubeUrl,
+      socialTiktokUrl: socialTiktokUrl ?? this.socialTiktokUrl,
+      socialLinkedinUrl: socialLinkedinUrl ?? this.socialLinkedinUrl,
+      socialPinterestUrl: socialPinterestUrl ?? this.socialPinterestUrl,
+      socialDiscordUrl: socialDiscordUrl ?? this.socialDiscordUrl,
       googleAnalyticsId: googleAnalyticsId ?? this.googleAnalyticsId,
       googleSearchConsoleCode:
           googleSearchConsoleCode ?? this.googleSearchConsoleCode,
       bingVerificationCode: bingVerificationCode ?? this.bingVerificationCode,
+      yandexVerificationCode:
+          yandexVerificationCode ?? this.yandexVerificationCode,
+      indexNowKey: indexNowKey ?? this.indexNowKey,
       socialAuthGoogleEnabled:
           socialAuthGoogleEnabled ?? this.socialAuthGoogleEnabled,
       socialAuthAppleEnabled:
@@ -340,6 +581,42 @@ abstract class AdminGeneralSettingsRepository {
     required GeneralSettingsLogoField field,
     required String fileName,
     required List<int> bytes,
+  });
+
+  Future<SocialPasswordStatus> fetchSocialPasswordStatus({
+    required AdminSession session,
+    required String languageCode,
+  });
+
+  Future<SocialPasswordStatus> saveSocialPasswords({
+    required AdminSession session,
+    required String languageCode,
+    required Map<SocialPasswordField, String> values,
+  });
+
+  Future<String> revealSocialPassword({
+    required AdminSession session,
+    required String languageCode,
+    required SocialPasswordField field,
+    required String superAdminPassword,
+  });
+
+  Future<ContactEmailPasswordStatus> fetchContactEmailPasswordStatus({
+    required AdminSession session,
+    required String languageCode,
+  });
+
+  Future<ContactEmailPasswordStatus> saveContactEmailPasswords({
+    required AdminSession session,
+    required String languageCode,
+    required Map<ContactEmailPasswordField, String> values,
+  });
+
+  Future<String> revealContactEmailPassword({
+    required AdminSession session,
+    required String languageCode,
+    required ContactEmailPasswordField field,
+    required String superAdminPassword,
   });
 
   String publicUrl(String value);
@@ -395,7 +672,7 @@ class SupabaseAdminGeneralSettingsRepository
       'values': normalizedSettings.toJson(),
       'options': {'onConflict': 'language_code'},
       'single': 'maybeSingle',
-    });
+    }, session: session);
     _throwIfApiError(result, fallbackMessage: 'Genel ayarlar kaydedilemedi');
     final data = result['data'];
     if (data is! Map) return normalizedSettings;
@@ -455,6 +732,141 @@ class SupabaseAdminGeneralSettingsRepository
   }
 
   @override
+  Future<SocialPasswordStatus> fetchSocialPasswordStatus({
+    required AdminSession session,
+    required String languageCode,
+  }) async {
+    final result = await _postJson('/api/admin/settings/social-passwords', {
+      'action': 'status',
+      'language_code': _cleanLanguageCode(languageCode),
+    }, session: session);
+    _throwIfApiError(result, fallbackMessage: 'Sosyal şifre durumu alınamadı');
+    final data = result['data'];
+    if (data is! Map) return SocialPasswordStatus.empty;
+    return SocialPasswordStatus.fromJson(_asStringKeyMap(data));
+  }
+
+  @override
+  Future<SocialPasswordStatus> saveSocialPasswords({
+    required AdminSession session,
+    required String languageCode,
+    required Map<SocialPasswordField, String> values,
+  }) async {
+    final passwords = <String, Object?>{};
+    for (final entry in values.entries) {
+      final value = entry.value.trim();
+      if (value.isNotEmpty) passwords[entry.key.key] = value;
+    }
+    if (passwords.isEmpty) {
+      return fetchSocialPasswordStatus(
+        session: session,
+        languageCode: languageCode,
+      );
+    }
+
+    final result = await _postJson('/api/admin/settings/social-passwords', {
+      'action': 'save',
+      'language_code': _cleanLanguageCode(languageCode),
+      'passwords': passwords,
+    }, session: session);
+    _throwIfApiError(result, fallbackMessage: 'Sosyal şifreler kaydedilemedi');
+    final data = result['data'];
+    if (data is! Map) return SocialPasswordStatus.empty;
+    return SocialPasswordStatus.fromJson(_asStringKeyMap(data));
+  }
+
+  @override
+  Future<String> revealSocialPassword({
+    required AdminSession session,
+    required String languageCode,
+    required SocialPasswordField field,
+    required String superAdminPassword,
+  }) async {
+    final result = await _postJson('/api/admin/settings/social-passwords', {
+      'action': 'reveal',
+      'language_code': _cleanLanguageCode(languageCode),
+      'field': field.key,
+      'super_admin_password': superAdminPassword,
+    }, session: session);
+    _throwIfApiError(result, fallbackMessage: 'Sosyal şifre görüntülenemedi');
+    final data = result['data'];
+    if (data is! Map) return '';
+    return data['value']?.toString() ?? '';
+  }
+
+  @override
+  Future<ContactEmailPasswordStatus> fetchContactEmailPasswordStatus({
+    required AdminSession session,
+    required String languageCode,
+  }) async {
+    final result = await _postJson('/api/admin/settings/contact-passwords', {
+      'action': 'status',
+      'language_code': _cleanLanguageCode(languageCode),
+    }, session: session);
+    _throwIfApiError(
+      result,
+      fallbackMessage: 'İletişim mail şifre durumu alınamadı',
+    );
+    final data = result['data'];
+    if (data is! Map) return ContactEmailPasswordStatus.empty;
+    return ContactEmailPasswordStatus.fromJson(_asStringKeyMap(data));
+  }
+
+  @override
+  Future<ContactEmailPasswordStatus> saveContactEmailPasswords({
+    required AdminSession session,
+    required String languageCode,
+    required Map<ContactEmailPasswordField, String> values,
+  }) async {
+    final passwords = <String, Object?>{};
+    for (final entry in values.entries) {
+      final value = entry.value.trim();
+      if (value.isNotEmpty) passwords[entry.key.key] = value;
+    }
+    if (passwords.isEmpty) {
+      return fetchContactEmailPasswordStatus(
+        session: session,
+        languageCode: languageCode,
+      );
+    }
+
+    final result = await _postJson('/api/admin/settings/contact-passwords', {
+      'action': 'save',
+      'language_code': _cleanLanguageCode(languageCode),
+      'passwords': passwords,
+    }, session: session);
+    _throwIfApiError(
+      result,
+      fallbackMessage: 'İletişim mail şifreleri kaydedilemedi',
+    );
+    final data = result['data'];
+    if (data is! Map) return ContactEmailPasswordStatus.empty;
+    return ContactEmailPasswordStatus.fromJson(_asStringKeyMap(data));
+  }
+
+  @override
+  Future<String> revealContactEmailPassword({
+    required AdminSession session,
+    required String languageCode,
+    required ContactEmailPasswordField field,
+    required String superAdminPassword,
+  }) async {
+    final result = await _postJson('/api/admin/settings/contact-passwords', {
+      'action': 'reveal',
+      'language_code': _cleanLanguageCode(languageCode),
+      'field': field.key,
+      'super_admin_password': superAdminPassword,
+    }, session: session);
+    _throwIfApiError(
+      result,
+      fallbackMessage: 'İletişim mail şifresi görüntülenemedi',
+    );
+    final data = result['data'];
+    if (data is! Map) return '';
+    return data['value']?.toString() ?? '';
+  }
+
+  @override
   String publicUrl(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return '';
@@ -465,17 +877,18 @@ class SupabaseAdminGeneralSettingsRepository
 
   Future<Map<String, Object?>> _postJson(
     String path,
-    Map<String, Object?> body,
-  ) async {
+    Map<String, Object?> body, {
+    AdminSession? session,
+  }) async {
     final response =
         await (httpClient?.post(
                   _uri(path),
-                  headers: await adminJsonHeaders(),
+                  headers: await adminJsonHeaders(token: session?.accessToken),
                   body: jsonEncode(body),
                 ) ??
                 adminHttpClient.post(
                   _uri(path),
-                  headers: await adminJsonHeaders(),
+                  headers: await adminJsonHeaders(token: session?.accessToken),
                   body: jsonEncode(body),
                 ))
             .timeout(_requestTimeout);
@@ -537,8 +950,16 @@ const _settingsSelect =
     'copyright_text,logo_url,footer_logo_url,dark_logo_url,email_logo_url,'
     'favicon_url,home_title,meta_description,meta_keywords,canonical_url,'
     'og_image_url,organization_legal_name,organization_phone,'
-    'organization_address,twitter_username,fb_app_id,google_analytics_id,'
+    'organization_address,contact_phone,contact_city,contact_address,'
+    'contact_location_url,contact_whatsapp_url,contact_telegram_url,'
+    'contact_email_info,contact_email_support,contact_email_news,'
+    'contact_email_ads,twitter_username,fb_app_id,google_analytics_id,'
+    'social_whatsapp_url,social_telegram_url,social_instagram_url,'
+    'social_facebook_url,social_x_url,social_youtube_url,'
+    'social_tiktok_url,social_linkedin_url,social_pinterest_url,'
+    'social_discord_url,'
     'google_search_console_code,bing_verification_code,'
+    'yandex_verification_code,indexnow_key,'
     'social_auth_google_enabled,social_auth_apple_enabled,'
     'social_auth_facebook_enabled,social_auth_x_enabled,'
     'social_auth_redirect_scheme,social_auth_redirect_host,robots_txt,'

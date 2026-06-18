@@ -112,12 +112,16 @@ class AppShellNavigationItem {
     required this.type,
     required this.value,
     required this.icon,
+    this.imageUrl = '',
     required this.orderIndex,
     required this.isActive,
     required this.languageCode,
   });
 
-  factory AppShellNavigationItem.fromJson(Map<dynamic, dynamic> json) {
+  factory AppShellNavigationItem.fromJson(
+    Map<dynamic, dynamic> json,
+    String Function(String) resolveUrl,
+  ) {
     return AppShellNavigationItem(
       id: _string(json['id']),
       menuId: _string(json['menuId']),
@@ -127,6 +131,7 @@ class AppShellNavigationItem {
       type: _string(json['type']),
       value: _string(json['value']),
       icon: _string(json['icon']),
+      imageUrl: resolveUrl(_string(json['imageUrl'] ?? json['image_url'])),
       orderIndex: int.tryParse(json['orderIndex']?.toString() ?? '') ?? 0,
       isActive: json['isActive'] != false,
       languageCode: _string(json['languageCode']),
@@ -141,6 +146,7 @@ class AppShellNavigationItem {
   final String type;
   final String value;
   final String icon;
+  final String imageUrl;
   final int orderIndex;
   final bool isActive;
   final String languageCode;
@@ -221,7 +227,7 @@ class AppShellData {
     final items = rawItems is List
         ? rawItems
               .whereType<Map>()
-              .map(AppShellNavigationItem.fromJson)
+              .map((item) => AppShellNavigationItem.fromJson(item, resolveUrl))
               .where((item) => item.isActive && item.label.isNotEmpty)
               .toList()
         : <AppShellNavigationItem>[];

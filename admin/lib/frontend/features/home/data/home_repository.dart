@@ -20,6 +20,7 @@ class HomeContentSettings {
     this.featuredSortingLogic = 'slider_order',
     this.featuredDurationDays = 10,
     this.featuredLimit = 15,
+    this.featuredShowNewsInfo = false,
   });
 
   const HomeContentSettings.defaults() : this();
@@ -33,6 +34,7 @@ class HomeContentSettings {
   final String featuredSortingLogic;
   final int featuredDurationDays;
   final int featuredLimit;
+  final bool featuredShowNewsInfo;
 
   factory HomeContentSettings.fromJson(Object? value) {
     if (value is! Map) return const HomeContentSettings.defaults();
@@ -62,6 +64,7 @@ class HomeContentSettings {
         min: 1,
         max: 50,
       ),
+      featuredShowNewsInfo: _boolSetting(value['featuredShowNewsInfo']),
     );
   }
 }

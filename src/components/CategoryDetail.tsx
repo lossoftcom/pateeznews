@@ -1,24 +1,41 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Zap, Filter, TrendingUp } from 'lucide-react';
-import { type NavigationItem, type NewsItem, NewsType, type SiteSettings } from '@/types';
+import { type NavigationItem, type NewsItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { subscribeNewsletter } from '@/services/appActions';
 import { useToast } from '@/context/ToastContext';
-import { slugify } from '@/utils/helpers';
+import { formatPostDateParts, slugify } from '@/utils/helpers';
+import RemixIcon from './ui/RemixIcon';
 
-const CATEGORY_TYPE_ALIASES: Record<string, NewsType[]> = {
-  anket: [NewsType.POLL],
-  anketler: [NewsType.POLL],
-  poll: [NewsType.POLL],
-  polls: [NewsType.POLL],
-  test: [NewsType.QUIZ],
-  testler: [NewsType.QUIZ],
-  quiz: [NewsType.QUIZ],
-  quizzes: [NewsType.QUIZ],
-  video: [NewsType.VIDEO],
-  videolar: [NewsType.VIDEO],
-  videos: [NewsType.VIDEO],
+const CATEGORY_TYPE_ALIASES: Record<string, string[]> = {
+  anket: ['poll'],
+  anketler: ['poll'],
+  poll: ['poll'],
+  polls: ['poll'],
+  test: ['quiz'],
+  testler: ['quiz'],
+  quiz: ['quiz'],
+  quizzes: ['quiz'],
+  video: ['video'],
+  videolar: ['video'],
+  videos: ['video'],
+  liste: ['contents'],
+  listeler: ['contents'],
+  icindekiler: ['contents'],
+  'içindekiler': ['contents'],
+  contents: ['contents'],
+  content: ['contents'],
+  'table-of-contents': ['contents'],
+  toc: ['contents'],
+  tarif: ['recipe'],
+  tarifler: ['recipe'],
+  recipe: ['recipe'],
+  recipes: ['recipe'],
+  etkinlik: ['event'],
+  etkinlikler: ['event'],
+  event: ['event'],
+  events: ['event'],
 };
 
 const CATEGORY_SLIDER_AUTOPLAY_DELAY = 5500;
@@ -91,11 +108,30 @@ const stripHtml = (value?: string) => (
   )
 );
 
+const normalizeCategoryImageUrl = (value?: string | null) => {
+  const clean = String(value || '').trim();
+  if (!clean) return '';
+  if (/^(https?:)?\/\//i.test(clean) || clean.startsWith('data:') || clean.startsWith('/')) {
+    return clean;
+  }
+  return `/${clean.replace(/^\/+/, '')}`;
+};
+
 const formatCompactMetric = (value: number) => {
   const safeValue = Math.max(0, Number(value) || 0);
   if (safeValue >= 1_000_000) return `${Number((safeValue / 1_000_000).toFixed(1))}M`;
   if (safeValue >= 1_000) return `${Number((safeValue / 1_000).toFixed(1))}K`;
   return safeValue.toString();
+};
+
+const formatFullMetric = (value: number, lang = 'tr') => (
+  Math.max(0, Number(value) || 0).toLocaleString(lang || 'tr')
+);
+
+const getCategoryMetricLabel = (metric: 'likes' | 'comments', lang = 'tr') => {
+  const isTurkish = String(lang || '').toLocaleLowerCase('tr-TR').startsWith('tr');
+  if (metric === 'likes') return isTurkish ? 'beğeni' : 'likes';
+  return isTurkish ? 'yorum' : 'comments';
 };
 
 const getNewsImage = (news: NewsItem) => (
@@ -118,6 +154,32 @@ const getNewsTime = (news: NewsItem) => {
 const sortNewsNewest = (items: NewsItem[]) => (
   [...items].sort((a, b) => getNewsTime(b) - getNewsTime(a))
 );
+
+const normalizedToken = (value: unknown) => String(value || '').trim().toLocaleLowerCase('tr-TR');
+
+const getNewsCategoryLabels = (news: NewsItem) => {
+  const rawTrail = (news as any).categoryTrail ?? (news as any).categoryPath;
+  const trail = Array.isArray(rawTrail) ? rawTrail : [];
+  return [news.category, ...trail]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+};
+
+const getNewsTypeTokens = (news: NewsItem) => [
+  news.type,
+  (news as any).postType,
+  (news as any).type,
+]
+  .map(normalizedToken)
+  .filter(Boolean);
+
+const safeDecodePathPart = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
 
 const mergeNewsById = (current: NewsItem[], incoming: NewsItem[]) => {
   const seen = new Set<string>();
@@ -160,6 +222,7 @@ interface CategoryDetailProps {
     total: number;
     totalViews: number;
     hasMore: boolean;
+    activeSubcategory?: string | null;
   };
 }
 
@@ -175,18 +238,22 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
   const [totalViews, setTotalViews] = useState(() => pagination?.totalViews ?? 0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState('');
+  const [activeSubcategory, setActiveSubcategory] = useState<string | null>(() => pagination?.activeSubcategory || null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const displayCategory = useMemo(() => {
+  const activeCategoryItem = useMemo(() => {
     const categorySlug = slugify(category);
-    const match = navItems?.find(item =>
+    return navItems?.find(item =>
       item.value === category ||
       item.label === category ||
       (item.value && slugify(item.value) === categorySlug) ||
       slugify(item.label) === categorySlug
-    );
-    return match?.label || category;
+    ) || null;
   }, [category, navItems]);
+  const displayCategory = activeCategoryItem?.label || category;
+  const categoryImageUrl = normalizeCategoryImageUrl(
+    (activeCategoryItem as any)?.image_url || (activeCategoryItem as any)?.imageUrl
+  );
 
   useEffect(() => {
     setPagedNews(sortNewsNewest(newsItems || []));
@@ -195,9 +262,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
     setTotalCount(pagination?.total ?? (newsItems?.length || 0));
     setTotalViews(pagination?.totalViews ?? 0);
     setLoadMoreError('');
+    setActiveSubcategory(pagination?.activeSubcategory || null);
   }, [
     category,
     newsItems,
+    pagination?.activeSubcategory,
     pagination?.hasMore,
     pagination?.nextOffset,
     pagination?.total,
@@ -279,35 +348,133 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
     return () => observer.disconnect();
   }, [hasMore, isLoadingMore, loadMoreError, loadMoreNews]);
 
-  const categoryNews = useMemo(() => {
+  const matchedCategoryNews = useMemo(() => {
     const categorySlug = slugify(displayCategory);
+    const categoryValueSlug = slugify((activeCategoryItem as any)?.value || '');
+    const acceptedCategorySlugs = new Set([categorySlug, categoryValueSlug].filter(Boolean));
     const typeAliases = CATEGORY_TYPE_ALIASES[categorySlug] || [];
     const sourceNews = pagedNews || [];
 
     return sortNewsNewest(sourceNews.filter(news => {
-      const newsCategory = String(news.category || '');
-      const newsCategorySlug = slugify(newsCategory);
-      const newsType = String(news.type || '').toUpperCase();
+      const newsCategoryLabels = getNewsCategoryLabels(news);
+      const newsCategorySlugs = newsCategoryLabels.map(slugify).filter(Boolean);
+      const newsTypeTokens = getNewsTypeTokens(news);
       const hasMatchingBlock = Array.isArray(news.items) && news.items.some((item: any) =>
-        typeAliases.some((type) => String(item?.type || '').toUpperCase() === type)
+        typeAliases.includes(normalizedToken(item?.type))
       );
 
       if (typeAliases.length > 0) {
-        return typeAliases.some((type) => news.type === type || newsType === type || hasMatchingBlock);
+        return typeAliases.some((type) => newsTypeTokens.includes(type)) || hasMatchingBlock;
       }
 
-      return (
-        newsCategory.toLowerCase().includes(displayCategory.toLowerCase()) ||
-        newsCategorySlug === categorySlug ||
-        newsCategorySlug.includes(categorySlug)
-      );
+      return newsCategoryLabels.some((label, index) => {
+        const labelSlug = newsCategorySlugs[index] || '';
+        return (
+          normalizedToken(label).includes(normalizedToken(displayCategory)) ||
+          acceptedCategorySlugs.has(labelSlug) ||
+          (!!categorySlug && labelSlug.includes(categorySlug))
+        );
+      });
     }));
-  }, [displayCategory, pagedNews]);
+  }, [activeCategoryItem, displayCategory, pagedNews]);
+
+  const subcategoryOptions = useMemo(() => {
+    if (activeCategoryItem?.type !== 'district') return [];
+    const categorySlug = slugify(displayCategory);
+    const categoryValueSlug = slugify((activeCategoryItem as any)?.value || '');
+    const acceptedCategorySlugs = new Set([categorySlug, categoryValueSlug].filter(Boolean));
+    const seen = new Set<string>();
+    const options: string[] = [];
+
+    matchedCategoryNews.forEach((news) => {
+      const labels = getNewsCategoryLabels(news);
+      const parentIndex = labels.findIndex((label) => acceptedCategorySlugs.has(slugify(label)));
+      const nextLabel = parentIndex >= 0 ? labels[parentIndex + 1] : '';
+      const fallbackLabel = !nextLabel && !acceptedCategorySlugs.has(slugify(news.category)) ? news.category : '';
+      const label = String(nextLabel || fallbackLabel || '').trim();
+      const key = slugify(label);
+      if (!label || !key || seen.has(key)) return;
+      seen.add(key);
+      options.push(label);
+    });
+
+    return options;
+  }, [activeCategoryItem, displayCategory, matchedCategoryNews]);
+
+  const categoryPathSlug = useMemo(() => (
+    slugify(String((activeCategoryItem as any)?.value || activeCategoryItem?.label || displayCategory || category || ''))
+  ), [activeCategoryItem, category, displayCategory]);
+
+  const getSubcategoryFromLocation = useCallback(() => {
+    if (typeof window === 'undefined' || subcategoryOptions.length === 0) return null;
+
+    const pathParts = window.location.pathname
+      .split('/')
+      .filter(Boolean)
+      .map(safeDecodePathPart);
+    const categoryIndex = pathParts.findIndex((part) => ['kategori', 'kategoriler'].includes(slugify(part)));
+    const rawSubcategory = categoryIndex >= 0 ? pathParts[categoryIndex + 2] : '';
+    const subcategorySlug = slugify(rawSubcategory || '');
+
+    if (!subcategorySlug) return null;
+    return subcategoryOptions.find((label) => slugify(label) === subcategorySlug) || null;
+  }, [subcategoryOptions]);
+
+  const updateSubcategoryPath = useCallback((nextSubcategory: string | null) => {
+    if (typeof window === 'undefined' || !categoryPathSlug) return;
+
+    const subcategorySlug = nextSubcategory ? slugify(nextSubcategory) : '';
+    const nextPath = `/kategori/${categoryPathSlug}${subcategorySlug ? `/${subcategorySlug}` : ''}`;
+    const nextUrl = `${nextPath}${window.location.search}${window.location.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (currentUrl !== nextUrl) {
+      window.history.pushState({ category: categoryPathSlug, subcategory: subcategorySlug || null }, '', nextUrl);
+    }
+  }, [categoryPathSlug]);
+
+  const handleSubcategorySelect = useCallback((nextSubcategory: string | null) => {
+    setActiveSubcategory(nextSubcategory);
+    updateSubcategoryPath(nextSubcategory);
+  }, [updateSubcategoryPath]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const syncSubcategoryFromLocation = () => {
+      const nextSubcategory = getSubcategoryFromLocation();
+      setActiveSubcategory((current) => (
+        slugify(current || '') === slugify(nextSubcategory || '') ? current : nextSubcategory
+      ));
+    };
+
+    syncSubcategoryFromLocation();
+    window.addEventListener('popstate', syncSubcategoryFromLocation);
+    return () => window.removeEventListener('popstate', syncSubcategoryFromLocation);
+  }, [getSubcategoryFromLocation]);
+
+  useEffect(() => {
+    if (!activeSubcategory) return;
+    const activeSlug = slugify(activeSubcategory);
+    if (!subcategoryOptions.some((label) => slugify(label) === activeSlug)) {
+      setActiveSubcategory(null);
+    }
+  }, [activeSubcategory, subcategoryOptions]);
+
+  const categoryNews = useMemo(() => {
+    if (!activeSubcategory) return matchedCategoryNews;
+    const activeSlug = slugify(activeSubcategory);
+    return matchedCategoryNews.filter((news) => (
+      getNewsCategoryLabels(news).some((label) => slugify(label) === activeSlug)
+    ));
+  }, [activeSubcategory, matchedCategoryNews]);
 
   const categoryStats = useMemo(() => ({
-    newsCount: Math.max(totalCount, categoryNews.length),
-    totalViews: totalViews || categoryNews.reduce((total, news) => total + (Number(news.views) || 0), 0),
-  }), [categoryNews, totalCount, totalViews]);
+    newsCount: activeSubcategory ? categoryNews.length : Math.max(totalCount, categoryNews.length),
+    totalViews: activeSubcategory
+      ? categoryNews.reduce((total, news) => total + (Number(news.views) || 0), 0)
+      : totalViews || categoryNews.reduce((total, news) => total + (Number(news.views) || 0), 0),
+  }), [activeSubcategory, categoryNews, totalCount, totalViews]);
 
   const categorySliderItems = useMemo(() => (
     categoryNews
@@ -409,27 +576,93 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
         }
 
         .category-detail-compact .category-hero-slider-media {
+          display: flex;
+          align-items: center;
+          justify-content: center;
           height: 100%;
           min-width: 0;
         }
 
         .category-detail-compact .category-hero-slider-card img {
+          width: 100%;
           height: 100%;
           min-height: 0;
+          object-fit: contain;
+          object-position: center;
         }
 
         .category-detail-compact .category-hero-slider-copy h2 {
+          font-size: var(--web-category-slider-title-size, 22px) !important;
+          font-weight: var(--web-category-slider-title-weight, 700) !important;
+          line-height: 1.2;
           display: -webkit-box;
-          -webkit-line-clamp: 2;
+          -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
         }
 
         .category-detail-compact .category-hero-slider-copy p {
+          font-size: var(--web-category-slider-summary-size, 14px) !important;
+          font-weight: var(--web-category-slider-summary-weight, 400) !important;
+          line-height: 1.55;
           display: -webkit-box;
           -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+
+        .category-detail-compact .category-news-list-item {
+          position: relative;
+          isolation: isolate;
+        }
+
+        .category-detail-compact .category-news-list-item::before {
+          content: "";
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 3px;
+          background: linear-gradient(180deg, #EA4335 0%, #F39C12 100%);
+          opacity: 0;
+          transition: opacity 180ms ease;
+          z-index: 1;
+        }
+
+        .category-detail-compact .category-news-list-item:hover::before {
+          opacity: 1;
+        }
+
+        .category-detail-compact .category-news-list-media {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          aspect-ratio: var(--category-list-image-ratio, 4 / 3);
+          height: auto;
+          min-height: 0;
+        }
+
+        .category-detail-compact .category-news-list-media img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          object-position: center;
+        }
+
+        .category-detail-compact .category-news-list-title {
+          font-size: var(--web-category-card-title-size, 19px) !important;
+          font-weight: var(--web-category-card-title-weight, 700) !important;
+          line-height: 1.2;
+          overflow-wrap: anywhere;
+        }
+
+        .category-detail-compact .category-news-list-summary {
+          font-size: var(--web-category-card-summary-size, 13px) !important;
+          font-weight: var(--web-category-card-summary-weight, 400) !important;
+          line-height: 1.52;
+          overflow-wrap: anywhere;
+        }
+
+        .category-detail-compact .category-news-list-meta {
+          font-family: var(--site-font-content, 'PateezInter'), 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
         }
 
         @media (min-width: 768px) {
@@ -439,6 +672,10 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
         }
 
         @media (max-width: 760px) {
+          .category-detail-compact .category-identity-visual {
+            height: 146px;
+          }
+
           .category-detail-compact .category-hero-slider-card {
             height: auto;
             min-height: 0;
@@ -452,11 +689,19 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           .category-detail-compact .category-hero-slider-copy h2 {
             -webkit-line-clamp: 3;
           }
+
+          .category-detail-compact .category-news-list-media {
+            height: auto;
+          }
+
+          .category-detail-compact .category-news-list-title {
+            font-size: var(--web-category-card-title-size, 19px) !important;
+          }
         }
       `}</style>
 
       {/* Header Section */}
-      <div className="p-6 md:p-8 border-b border-gray-50 bg-gray-50/30">
+      <div className={`${categoryImageUrl ? 'px-6 pt-6 pb-3 md:px-8 md:pt-8 md:pb-3' : 'p-6 md:p-8'} border-b border-gray-50 bg-gray-50/30`}>
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={onBack}
@@ -475,30 +720,94 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="max-w-2xl">
-            <h1 className="text-3xl md:text-4xl font-[900] text-gray-900 tracking-tight mb-2">{displayCategory}</h1>
-            <p className="text-sm md:text-base text-gray-500 font-medium leading-relaxed">
-              {t('category_detail.description').replace('{category}', displayCategory)}
-            </p>
+        {categoryImageUrl && (
+          <div className="category-identity-visual relative h-[176px] overflow-hidden rounded-[4px] border border-gray-100 bg-gray-100 shadow-sm md:h-[184px]">
+            <img
+              src={categoryImageUrl}
+              alt={`${displayCategory} kategori görseli`}
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-gray-950/55 via-gray-950/10 to-transparent" />
+            <div className="absolute right-3 top-3 flex items-center gap-2 sm:right-4 sm:top-4">
+              <div className="flex items-center gap-2 rounded-[4px] border border-white/35 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
+                <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.newsCount)}</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-500">{t('common.news')}</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-[4px] border border-white/35 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
+                <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.totalViews)}</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-500">{t('metrics.reads')}</span>
+              </div>
+            </div>
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-4 md:p-5">
+              <div className="min-w-0">
+                <span className="block text-[10px] font-black tracking-[0.18em] text-white/75">
+                  {activeCategoryItem?.type === 'district' ? 'İlçe' : 'Kategori'}
+                </span>
+                <h1 className="news-title-font mt-1 block truncate text-2xl font-black leading-none text-white md:text-3xl">
+                  {displayCategory}
+                </h1>
+              </div>
+              <span className="hidden h-1.5 w-16 rounded-full bg-palette-accent/90 shadow-[0_0_22px_rgba(243,156,18,0.35)] sm:block" />
+            </div>
           </div>
+        )}
 
-          <div className="flex items-center gap-4 py-4 px-6 bg-white border border-gray-100 rounded-[4px] shadow-sm">
-            <div className="flex flex-col">
-              <span className="text-xl font-black text-gray-900 leading-none">{formatCompactMetric(categoryStats.newsCount)}</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('common.news')}</span>
+        {!categoryImageUrl && (
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="max-w-2xl">
+              <h1 className="text-3xl md:text-4xl font-[900] text-gray-900 tracking-tight mb-2">{displayCategory}</h1>
+              <p className="text-sm md:text-base text-gray-500 font-medium leading-relaxed">
+                {t('category_detail.description').replace('{category}', displayCategory)}
+              </p>
             </div>
-            <div className="w-px h-8 bg-gray-100" />
-            <div className="flex flex-col">
-              <span className="text-xl font-black text-gray-900 leading-none">{formatCompactMetric(categoryStats.totalViews)}</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('metrics.reads')}</span>
+
+            <div className="flex items-center gap-4 py-4 px-6 bg-white border border-gray-100 rounded-[4px] shadow-sm">
+              <div className="flex flex-col">
+                <span className="text-xl font-black text-gray-900 leading-none">{formatCompactMetric(categoryStats.newsCount)}</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('common.news')}</span>
+              </div>
+              <div className="w-px h-8 bg-gray-100" />
+              <div className="flex flex-col">
+                <span className="text-xl font-black text-gray-900 leading-none">{formatCompactMetric(categoryStats.totalViews)}</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('metrics.reads')}</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {subcategoryOptions.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-pressed={!activeSubcategory}
+              onClick={() => handleSubcategorySelect(null)}
+              className={`h-9 rounded-[4px] border px-4 text-[11px] font-black uppercase tracking-widest transition-all ${!activeSubcategory ? 'border-palette-accent bg-palette-accent text-palette-maroon shadow-sm' : 'border-gray-200 bg-white text-gray-500 hover:border-palette-accent/40 hover:text-palette-accent'}`}
+            >
+              {t('right.all')}
+            </button>
+            {subcategoryOptions.map((label) => {
+              const isActive = slugify(activeSubcategory || '') === slugify(label);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => handleSubcategorySelect(label)}
+                  className={`h-9 rounded-[4px] border px-4 text-[11px] font-black uppercase tracking-widest transition-all ${isActive ? 'border-palette-accent bg-palette-accent text-palette-maroon shadow-sm' : 'border-gray-200 bg-white text-gray-500 hover:border-palette-accent/40 hover:text-palette-accent'}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
       </div>
 
-      <div className="p-5 md:p-6 lg:p-8 bg-gray-50/20">
+      <div className={`${categoryImageUrl ? 'px-5 pt-3 pb-5 md:px-6 md:pt-3 md:pb-6 lg:px-8 lg:pt-4 lg:pb-8' : 'p-5 md:p-6 lg:p-8'} bg-gray-50/20`}>
         {activeSlide && (
           <section
             className="category-hero-slider relative mb-8"
@@ -511,7 +820,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
               className="category-hero-slider-card grid grid-cols-1 overflow-hidden rounded-[4px] bg-white border border-gray-100 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md"
               onClick={() => onNewsSelect(activeSlide.id)}
             >
-              <div className="category-hero-slider-media relative overflow-hidden bg-gray-100">
+              <div className="category-hero-slider-media relative overflow-hidden bg-gray-50">
                 <img
                   src={activeSlide.image}
                   alt={activeSlide.alt}
@@ -520,15 +829,15 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                   loading="eager"
                   fetchPriority="high"
                   decoding="async"
-                  className="w-full object-cover transition-transform duration-[9000ms] ease-out hover:scale-105"
+                  className="h-full w-full object-contain"
                 />
               </div>
-              <div className="category-hero-slider-copy flex flex-col justify-center p-6 md:p-8">
-                <h2 className="news-title-font text-[22px] md:text-[26px] font-[800] text-gray-800 leading-[1.22] tracking-normal mb-3">
+              <div className="category-hero-slider-copy flex flex-col justify-center p-5 md:p-6">
+                <h2 className="news-title-font text-gray-800 tracking-normal mb-2.5">
                   {activeSlide.title}
                 </h2>
                 {activeSlide.description && (
-                  <p className="news-subtitle-font text-[14px] md:text-[15px] text-gray-600 font-medium leading-relaxed">
+                  <p className="news-subtitle-font text-gray-600">
                     {activeSlide.description}
                   </p>
                 )}
@@ -556,7 +865,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           </section>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5 lg:gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_260px] gap-4 lg:gap-5 items-start">
           <section className="min-w-0">
             {categoryNews.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
@@ -564,32 +873,66 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                   const image = getNewsImage(news);
                   const title = stripHtml(news.seoTitle || news.title);
                   const description = stripHtml(news.summary || news.seoDescription);
+                  const imageDimensions = getNewsImageDimensions(news);
+                  const imageFrameStyle = imageDimensions.ratio
+                    ? { '--category-list-image-ratio': `${imageDimensions.ratio}` } as React.CSSProperties
+                    : undefined;
+                  const publishedAt = formatPostDateParts(news.timestamp, currentLang.code);
+                  const metricLang = currentLang.code || 'tr';
 
                   return (
                     <button
                       key={news.id}
                       type="button"
                       onClick={() => onNewsSelect(news.id)}
-                      className={`category-news-list-item group grid grid-cols-1 ${image ? 'sm:grid-cols-[250px_minmax(0,1fr)]' : 'sm:grid-cols-1'} overflow-hidden rounded-[4px] border border-gray-100 bg-white text-left shadow-sm transition-all duration-200 hover:border-palette-accent/20 hover:shadow-md active:scale-[0.995]`}
+                      className={`category-news-list-item group grid grid-cols-1 ${image ? 'sm:grid-cols-[150px_minmax(0,1fr)] lg:grid-cols-[156px_minmax(0,1fr)]' : 'sm:grid-cols-1'} items-center overflow-hidden rounded-[4px] border border-gray-100 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-palette-accent/20 hover:shadow-md active:scale-[0.995]`}
                     >
                       {image && (
-                        <div className="h-[160px] sm:h-full min-h-[160px] overflow-hidden bg-gray-100">
+                        <div className="category-news-list-media overflow-hidden bg-gray-50 sm:self-center" style={imageFrameStyle}>
                           <img
                             src={image}
                             alt={news.thumbnailAlt || title}
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-contain"
                           />
                         </div>
                       )}
-                      <div className="flex min-w-0 flex-col justify-center p-5 md:p-6">
-                        <h3 className="news-title-font text-[20px] md:text-[22px] font-[800] text-gray-800 leading-[1.16] tracking-normal line-clamp-2">
-                          {title}
-                        </h3>
-                        {description && (
-                          <p className="news-subtitle-font mt-3 text-[14px] md:text-[15px] text-gray-600 font-medium leading-relaxed line-clamp-3">
-                            {description}
-                          </p>
-                        )}
+                      <div className="category-news-list-content flex min-w-0 flex-col justify-between p-4 sm:min-h-[118px] md:p-4">
+                        <div className="min-w-0">
+                          <h3 className="category-news-list-title news-title-font text-gray-800 tracking-normal transition-colors group-hover:text-palette-red">
+                            {title}
+                          </h3>
+                          {description && (
+                            <p className="category-news-list-summary news-subtitle-font mt-2 text-gray-600">
+                              {description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="category-news-list-meta mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-palette-beige/20 pt-2.5 text-[11px] font-semibold text-palette-tan/45">
+                          {publishedAt.date && (
+                            <span className="inline-flex min-w-0 items-center gap-1.5 normal-case tracking-normal">
+                              <RemixIcon name="ri-calendar-line" size={13} className="opacity-80" />
+                              <time dateTime={publishedAt.iso || undefined}>{publishedAt.date}</time>
+                            </span>
+                          )}
+                          {publishedAt.time && (
+                            <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
+                              <RemixIcon name="ri-time-line" size={13} className="opacity-80" />
+                              <time dateTime={publishedAt.iso || undefined}>{publishedAt.time}</time>
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1.5">
+                            <RemixIcon name="ri-thumb-up-line" size={13} className="opacity-80" />
+                            <span>{formatFullMetric(news.likes, metricLang)}</span>
+                            <span>{getCategoryMetricLabel('likes', metricLang)}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <RemixIcon name="ri-chat-3-line" size={13} className="opacity-80" />
+                            <span>{formatFullMetric(news.comments, metricLang)}</span>
+                            <span>{getCategoryMetricLabel('comments', metricLang)}</span>
+                          </span>
+                        </div>
                       </div>
                     </button>
                   );

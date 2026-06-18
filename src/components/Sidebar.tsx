@@ -31,7 +31,7 @@ const ICON_COLORS = [
   '#EA4335', '#F39C12', '#2C3E50', '#95A5A6'
 ];
 
-const HIDDEN_SIDEBAR_SPECIAL_KEYS = new Set(['poll', 'quiz', 'video', 'event']);
+const HIDDEN_SIDEBAR_SPECIAL_KEYS = new Set(['poll', 'quiz', 'video', 'event', 'recipe']);
 const SIDEBAR_END_SPECIAL_KEYS = new Set(['contents']);
 const NORMAL_SIDEBAR_CATEGORY_FALLBACKS: NavigationItem[] = [
   {
@@ -179,7 +179,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
   const injectedSidebarCategories: NavigationItem[] = selectedRootId
     ? SPECIAL_CONTENT_FILTERS
-      .filter((config) => config.injectInSidebar && !existingSpecialKeys.has(config.key))
+      .filter((config) => (
+        config.injectInSidebar &&
+        !HIDDEN_SIDEBAR_SPECIAL_KEYS.has(config.key) &&
+        !existingSpecialKeys.has(config.key)
+      ))
       .map((config) => ({
         id: `sidebar-special-${config.key}`,
         menu_id: 'virtual',

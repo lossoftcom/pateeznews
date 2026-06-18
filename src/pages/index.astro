@@ -3,10 +3,13 @@ import Layout from '@/layouts/Layout.astro';
 import HomePage from '@/components/HomePage';
 import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
+import { setPublicHtmlCache } from '@/lib/server/publicCache';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getSpecialContentConfig } from '@/utils/specialContent';
 import { getPostPathSegment } from '@/utils/postUrl';
+
+setPublicHtmlCache(Astro.response);
 
 const cookies = Astro.request.headers.get('cookie') || '';
 const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];

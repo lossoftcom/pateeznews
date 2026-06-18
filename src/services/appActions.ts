@@ -1,14 +1,22 @@
-const AUTH_STORAGE_KEY = 'supabase-auth-token';
+const AUTH_STORAGE_KEYS = ['pateeznews-supabase-auth', 'supabase-auth-token'];
 
 function readAccessToken() {
   if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw)?.access_token || null;
-  } catch {
-    return null;
+  for (const key of AUTH_STORAGE_KEYS) {
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      const token =
+        parsed?.access_token ||
+        parsed?.currentSession?.access_token ||
+        parsed?.session?.access_token;
+      if (token) return token;
+    } catch {
+      // Ignore invalid legacy auth payloads and keep checking known keys.
+    }
   }
+  return null;
 }
 
 async function postJson<T>(url: string, payload: Record<string, any>): Promise<T> {

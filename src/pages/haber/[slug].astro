@@ -3,11 +3,13 @@ import Layout from '@/layouts/Layout.astro';
 import NewsDetailPage from '@/components/NewsDetailPage';
 import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
+import { setPublicHtmlCache } from '@/lib/server/publicCache';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getPostPathSegment } from '@/utils/postUrl';
 
 export const prerender = false;
+setPublicHtmlCache(Astro.response);
 
 const { slug } = Astro.params;
 const cookies = Astro.request.headers.get('cookie') || '';
@@ -96,24 +98,34 @@ const toIso = (value: string | null | undefined) => {
   return d.toISOString();
 };
 
+const articleSchemaTypes = new Set(['Article', 'NewsArticle', 'BlogPosting']);
+const selectedSchemaType = String(newsItem.schemaType || '').trim();
+const articleSchemaType = articleSchemaTypes.has(selectedSchemaType) ? selectedSchemaType : 'NewsArticle';
+const authorProfileUrl = newsItem.publisherHandle
+  ? new URL(`/profil/${encodeURIComponent(newsItem.publisherHandle)}`, canonicalBase).toString()
+  : '';
+const articleImage = toAbsoluteUrl(ogImage);
+
 const orgName = (siteSettings?.organization_legal_name || siteSettings?.site_name || 'Pateez').trim();
 const orgLogo = toAbsoluteUrl(siteSettings?.logo_url || siteSettings?.favicon_url);
 const articleLd = {
   "@context": "https://schema.org",
-  "@type": (newsItem.schemaType || 'NewsArticle'),
+  "@type": articleSchemaType,
   mainEntityOfPage: {
     "@type": "WebPage",
     "@id": canonicalUrl,
   },
   headline: stripHtml(newsItem.seoTitle || newsItem.title),
   description: stripHtml(newsItem.seoDescription || newsItem.summary),
-  ...(toAbsoluteUrl(ogImage) ? { image: [toAbsoluteUrl(ogImage)] } : {}),
+  ...(articleImage ? { image: [articleImage] } : {}),
   ...(toIso(newsItem.timestamp) ? { datePublished: toIso(newsItem.timestamp) } : {}),
+  ...(toIso(newsItem.modifiedAt || newsItem.timestamp) ? { dateModified: toIso(newsItem.modifiedAt || newsItem.timestamp) } : {}),
   ...(newsItem.category ? { articleSection: stripHtml(newsItem.category) } : {}),
   ...(newsItem.keywords ? { keywords: stripHtml(newsItem.keywords) } : {}),
   author: {
     "@type": "Person",
     name: stripHtml(newsItem.author || newsItem.source || orgName),
+    ...(authorProfileUrl ? { url: authorProfileUrl } : {}),
   },
   publisher: {
     "@type": "Organization",
@@ -129,6 +141,96 @@ const articleLd = {
   inLanguage: lang,
   isAccessibleForFree: true,
 };
+
+const getItemType = (item: any) => String(item?.type || '').trim().toLowerCase();
+const contentItems = Array.isArray(newsItem.items) ? newsItem.items : [];
+const recipeItem = contentItems.find((item: any) => getItemType(item) === 'recipe');
+const eventItem = contentItems.find((item: any) => getItemType(item) === 'event');
+const videoItem = contentItems.find((item: any) => getItemType(item) === 'video');
+const quizItem = contentItems.find((item: any) => getItemType(item) === 'quiz');
+
+const recipeData = recipeItem?.recipeData || null;
+const recipeLd = recipeData ? {
+  "@context": "https://schema.org",
+  "@type": "Recipe",
+  mainEntityOfPage: canonicalUrl,
+  name: stripHtml(recipeItem?.title || newsItem.title),
+  description: stripHtml(recipeItem?.description || newsItem.summary),
+  ...(articleImage ? { image: [articleImage] } : {}),
+  ...(toIso(newsItem.timestamp) ? { datePublished: toIso(newsItem.timestamp) } : {}),
+  ...(toIso(newsItem.modifiedAt || newsItem.timestamp) ? { dateModified: toIso(newsItem.modifiedAt || newsItem.timestamp) } : {}),
+  author: articleLd.author,
+  ...(recipeData.serving ? { recipeYield: stripHtml(String(recipeData.serving)) } : {}),
+  ...(Array.isArray(recipeData.ingredients) ? {
+    recipeIngredient: recipeData.ingredients
+      .map((item: any) => stripHtml(String(item?.text || '')))
+      .filter(Boolean),
+  } : {}),
+  ...(Array.isArray(recipeData.directions) ? {
+    recipeInstructions: recipeData.directions
+      .map((item: any) => {
+        const text = stripHtml([item?.title, item?.content].filter(Boolean).join(' '));
+        return text ? { "@type": "HowToStep", text } : null;
+      })
+      .filter(Boolean),
+  } : {}),
+} : null;
+
+const eventData = eventItem?.eventData || null;
+const eventStart = toIso(eventData?.startDateTime);
+const eventLd = eventData && eventStart ? {
+  "@context": "https://schema.org",
+  "@type": "Event",
+  name: stripHtml(eventItem?.title || newsItem.title),
+  description: stripHtml(eventItem?.description || newsItem.summary),
+  startDate: eventStart,
+  ...(toIso(eventData?.endDateTime) ? { endDate: toIso(eventData?.endDateTime) } : {}),
+  ...(articleImage ? { image: [articleImage] } : {}),
+  eventStatus: "https://schema.org/EventScheduled",
+  eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+  ...(eventData.venueName || eventData.address ? {
+    location: {
+      "@type": "Place",
+      name: stripHtml(String(eventData.venueName || '')),
+      address: stripHtml(String(eventData.address || '')),
+    },
+  } : {}),
+  ...(eventData.organizer ? {
+    organizer: {
+      "@type": "Organization",
+      name: stripHtml(String(eventData.organizer)),
+    },
+  } : {}),
+  ...(eventData.ticketUrl ? {
+    offers: {
+      "@type": "Offer",
+      url: String(eventData.ticketUrl),
+      availability: "https://schema.org/InStock",
+      ...(eventData.ticketPrice ? { price: stripHtml(String(eventData.ticketPrice)) } : {}),
+    },
+  } : {}),
+} : null;
+
+const resolveVideoUrl = (value: unknown) => String(value || '').trim();
+const videoUrl = resolveVideoUrl(videoItem?.mediaUrl || newsItem.mediaUrl);
+const isEmbeddableVideo = /(?:youtube\.com|youtu\.be|vimeo\.com)/i.test(videoUrl);
+const videoLd = videoUrl ? {
+  "@context": "https://schema.org",
+  "@type": "VideoObject",
+  name: stripHtml(videoItem?.title || newsItem.title),
+  description: stripHtml(videoItem?.description || newsItem.summary),
+  ...(articleImage ? { thumbnailUrl: [articleImage] } : {}),
+  ...(toIso(newsItem.timestamp) ? { uploadDate: toIso(newsItem.timestamp) } : {}),
+  ...(isEmbeddableVideo ? { embedUrl: videoUrl } : { contentUrl: videoUrl }),
+} : null;
+
+const quizLd = quizItem ? {
+  "@context": "https://schema.org",
+  "@type": "Quiz",
+  name: stripHtml(quizItem?.title || newsItem.title),
+  description: stripHtml(quizItem?.description || newsItem.summary),
+  url: canonicalUrl,
+} : null;
 
 const categoryLabel = String(newsItem.category || '').trim();
 const categorySlug = categoryLabel ? slugify(categoryLabel) : '';
@@ -172,6 +274,8 @@ const faqLd = faqItems.length > 0 ? {
     },
   })),
 } : null;
+
+const jsonLdItems = [articleLd, breadcrumbLd, recipeLd, eventLd, videoLd, quizLd, faqLd].filter(Boolean);
 ---
 
 <Layout 
@@ -181,7 +285,7 @@ const faqLd = faqItems.length > 0 ? {
   ogType="article"
   ogImage={ogImage}
   canonical={canonicalUrl}
-  jsonLd={faqLd ? [articleLd, breadcrumbLd, faqLd] : [articleLd, breadcrumbLd]}
+  jsonLd={jsonLdItems}
   favicon={siteSettings?.favicon_url}
   lang={lang}
   dir={initialLang.direction}

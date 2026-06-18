@@ -24,6 +24,42 @@ export const isPostId = (value: unknown): boolean => {
 
 const DISPLAY_TIME_ZONE = 'Europe/Istanbul';
 
+export const formatPostDateParts = (dateString: string | null | undefined, lang = 'tr') => {
+  const raw = String(dateString || '').trim();
+  if (!raw) return { date: '', time: '', iso: '' };
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return { date: raw, time: '', iso: '' };
+
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+  const parts = new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    weekday: 'long',
+    timeZone: DISPLAY_TIME_ZONE,
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value || '';
+  const day = part('day');
+  const month = part('month');
+  const year = part('year');
+  const weekday = part('weekday');
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: DISPLAY_TIME_ZONE,
+  }).format(date);
+
+  return {
+    date: lang === 'tr'
+      ? [day, month, year, weekday].filter(Boolean).join(' ')
+      : [weekday, `${month} ${day}, ${year}`].filter(Boolean).join(', '),
+    time,
+    iso: date.toISOString(),
+  };
+};
+
 // Görece zaman formatlayıcı (Örn: 2 saat önce)
 export const getRelativeTime = (dateString: string | null | undefined, lang = 'tr'): string => {
   if (!dateString) return '';

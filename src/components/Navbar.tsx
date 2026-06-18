@@ -29,12 +29,12 @@ interface NavbarProps {
 }
 
 const APPLE_NAV_FONT = 'var(--site-font-primary, "PateezAppleText"), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
-const DESKTOP_NAV_ITEM_CLASS = 'relative h-full flex items-center gap-1.5 px-0.5 text-[12px] font-bold tracking-[0.08em] whitespace-nowrap transition-all group text-gray-600 hover:text-palette-red';
+const DESKTOP_NAV_ITEM_CLASS = 'relative h-full flex items-center gap-1.5 px-0.5 text-[13px] font-medium tracking-[0.055em] whitespace-nowrap transition-all group text-gray-600 hover:text-palette-red';
 const MOBILE_NAV_ITEM_CLASS = 'w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[13px] font-black tracking-widest text-gray-500 hover:bg-palette-beige/10 hover:text-palette-red';
 const DESKTOP_NAV_ICON_SIZE = 17;
 const MOBILE_NAV_ICON_SIZE = '19px';
-const DESKTOP_NAV_ICON_CLASS = 'transition-all duration-100 group-hover:-translate-y-0.5 opacity-70 group-hover:opacity-100';
-const NAV_ICON_THIN_STYLE: React.CSSProperties = { fontWeight: 300 };
+const DESKTOP_NAV_ICON_CLASS = 'transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-95';
+const NAV_ICON_THIN_STYLE: React.CSSProperties = { fontWeight: 300, lineHeight: 1 };
 const SHOW_MOBILE_TOP_NAVIGATION = false;
 const REMIX_ICON_BY_MATERIAL: Record<string, string> = {
   home: 'ri-home-5-line',
@@ -289,7 +289,10 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* NAV */}
-          <nav className="hidden lg:flex items-center justify-center gap-5 h-full px-6 flex-1 min-w-0 overflow-hidden">
+          <nav
+            className="hidden lg:flex items-center justify-start gap-7 h-full ml-8 pl-0 pr-4 flex-1 min-w-0 overflow-hidden"
+            style={{ '--web-nav-label-weight': 500 } as React.CSSProperties}
+          >
             {!hasExplicitTopNav && (
               <button
                 onClick={goHome}
@@ -363,7 +366,7 @@ const Navbar: React.FC<NavbarProps> = ({
               <RemixIcon name={isSearchOpen ? 'ri-close-line' : 'ri-search-line'} size={21} />
             </button>
 
-            <div className="relative" ref={langMenuRef}>
+            <div className="relative hidden" ref={langMenuRef} aria-hidden="true">
               <button onClick={() => setShowLangMenu(!showLangMenu)} className="h-10 flex items-center gap-0.5 px-2 rounded-[5px] text-palette-tan hover:bg-palette-beige/10 transition-colors font-bold text-[10px] uppercase">
                 <RemixIcon name="ri-global-line" size={19} />
                 <RemixIcon name="ri-arrow-down-s-line" size={15} className={`transition-transform duration-200 ${showLangMenu ? 'rotate-180' : ''}`} />
@@ -384,8 +387,8 @@ const Navbar: React.FC<NavbarProps> = ({
             <div className="relative" ref={userMenuRef}>
               {authLoading ? (
                 /* AUTH LOADING (STABILIZED) - No pulse, no jump */
-                <div className="flex items-center justify-center w-10 h-10">
-                  <div className="w-7 h-7 rounded-[5px] bg-palette-beige/20 border border-palette-beige/10" />
+                <div className="flex items-center justify-center w-11 h-11">
+                  <div className="w-9 h-9 rounded-full bg-white border border-palette-beige/70 shadow-[0_6px_18px_rgba(24,37,64,0.07)]" />
                 </div>
               ) : (
                 <button
@@ -396,13 +399,13 @@ const Navbar: React.FC<NavbarProps> = ({
                       onProfileClick?.();
                     }
                   }}
-                  className={`flex items-center justify-center w-10 h-10 rounded-[5px] transition-all duration-200 group/profile active:scale-95 ${isLoggedIn
+                  className={`flex items-center justify-center w-11 h-11 rounded-full transition-all duration-200 group/profile active:scale-95 ${isLoggedIn
                     ? 'bg-palette-beige/5 border border-palette-beige/20 hover:border-palette-tan/30'
                     : 'hover:bg-palette-beige/10'
                     }`}
                 >
                   <div className={`flex items-center justify-center transition-all duration-150 ${isLoggedIn
-                    ? 'w-7 h-7 rounded-[5px] border border-palette-tan/20 overflow-hidden shadow-sm'
+                    ? 'w-9 h-9 rounded-full bg-white p-[2px] border border-palette-beige/70 overflow-hidden shadow-[0_6px_18px_rgba(24,37,64,0.07)]'
                     : 'w-7 h-7'
                     }`}>
                     {isLoggedIn ? (
@@ -438,7 +441,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         return (
                           <img
                             src={finalUrl}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full rounded-full object-cover"
                             alt={t('navbar.profile_alt')}
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';

@@ -558,6 +558,10 @@ const defaultWebFontSizes = <String, int>{
   'web-featured-summary': 16,
   'web-card-title': 38,
   'web-card-summary': 16,
+  'web-category-slider-title': 22,
+  'web-category-slider-summary': 14,
+  'web-category-card-title': 19,
+  'web-category-card-summary': 13,
   'web-detail-title': 48,
   'web-detail-summary': 18,
   'web-detail-body': 17,
@@ -580,6 +584,10 @@ const defaultWebFontWeights = <String, int>{
   'web-featured-summary': 500,
   'web-card-title': 800,
   'web-card-summary': 500,
+  'web-category-slider-title': 700,
+  'web-category-slider-summary': 400,
+  'web-category-card-title': 700,
+  'web-category-card-summary': 400,
   'web-detail-title': 800,
   'web-detail-summary': 500,
   'web-detail-body': 400,
@@ -1159,6 +1167,13 @@ Map<String, int> _defaultWebFontSizesFromLegacy(Map<String, int> legacySizes) {
     'web-card-summary': legacySizes['fs-content'] == null
         ? defaultWebFontSizes['web-card-summary']!
         : (legacySizes['fs-content']! - 2).clamp(8, 96),
+    'web-category-slider-title':
+        defaultWebFontSizes['web-category-slider-title']!,
+    'web-category-slider-summary':
+        defaultWebFontSizes['web-category-slider-summary']!,
+    'web-category-card-title': defaultWebFontSizes['web-category-card-title']!,
+    'web-category-card-summary':
+        defaultWebFontSizes['web-category-card-summary']!,
     'web-detail-title':
         legacySizes['fs-post-title'] ??
         defaultWebFontSizes['web-detail-title']!,

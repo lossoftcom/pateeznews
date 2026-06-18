@@ -21,9 +21,15 @@ import 'featured_card.dart';
 ///   3. İçerik alanının altında tam ortada, palet kırmızısı (actionRed) sayfa
 ///      göstergeleri.
 class FeaturedSlider extends StatefulWidget {
-  const FeaturedSlider({super.key, required this.items, this.onOpen});
+  const FeaturedSlider({
+    super.key,
+    required this.items,
+    this.showNewsInfo = false,
+    this.onOpen,
+  });
 
   final List<FeaturedNews> items;
+  final bool showNewsInfo;
   final ValueChanged<FeaturedNews>? onOpen;
 
   @override
@@ -170,9 +176,14 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
           item: active,
           contentWidth: contentWidth,
           textScaler: textScaler,
+          showNewsInfo: widget.showNewsInfo,
         );
-        final sliderHeight =
-            imageHeight + contentPanelHeight - _contentPanelOverlap;
+        final contentPanelTop = widget.showNewsInfo
+            ? imageHeight - _contentPanelOverlap
+            : imageHeight - contentPanelHeight;
+        final sliderHeight = widget.showNewsInfo
+            ? imageHeight + contentPanelHeight - _contentPanelOverlap
+            : imageHeight;
 
         return SizedBox(
           height: sliderHeight,
@@ -239,12 +250,13 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
               Positioned(
                 left: 0,
                 right: 0,
-                top: imageHeight - _contentPanelOverlap,
+                top: contentPanelTop,
                 height: contentPanelHeight,
                 child: _FeaturedContentPanel(
                   active: active,
                   itemCount: items.length,
                   activeIndex: safeIndex,
+                  showNewsInfo: widget.showNewsInfo,
                   onHorizontalDragEnd: _handlePanelDragEnd,
                   onIndicatorTap: _goToSlide,
                   onOpen: () => widget.onOpen?.call(active),
@@ -261,7 +273,12 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
     required FeaturedNews item,
     required double contentWidth,
     required TextScaler textScaler,
+    required bool showNewsInfo,
   }) {
+    if (!showNewsInfo) {
+      return _indicatorHeight + _contentBottomPadding;
+    }
+
     final titleHeight = _measureTextHeight(
       item.title,
       _featuredTitleStyle,
@@ -387,6 +404,7 @@ class _FeaturedContentPanel extends StatelessWidget {
     required this.active,
     required this.itemCount,
     required this.activeIndex,
+    required this.showNewsInfo,
     required this.onHorizontalDragEnd,
     required this.onIndicatorTap,
     required this.onOpen,
@@ -395,19 +413,23 @@ class _FeaturedContentPanel extends StatelessWidget {
   final FeaturedNews active;
   final int itemCount;
   final int activeIndex;
+  final bool showNewsInfo;
   final GestureDragEndCallback onHorizontalDragEnd;
   final ValueChanged<int> onIndicatorTap;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = showNewsInfo
+        ? _FeaturedSliderState._contentTopPadding
+        : 0.0;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragEnd: onHorizontalDragEnd,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
+        padding: EdgeInsets.fromLTRB(
           AppSpacing.pageHorizontal,
-          _FeaturedSliderState._contentTopPadding,
+          topPadding,
           AppSpacing.pageHorizontal,
           _FeaturedSliderState._contentBottomPadding,
         ),
@@ -415,21 +437,23 @@ class _FeaturedContentPanel extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              layoutBuilder: (currentChild, previousChildren) =>
-                  currentChild ?? const SizedBox.shrink(),
-              transitionBuilder: (child, anim) =>
-                  FadeTransition(opacity: anim, child: child),
-              child: _ActiveContent(
-                key: ValueKey<String>('featured-${active.id}'),
-                news: active,
-                onTap: onOpen,
+            if (showNewsInfo)
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (currentChild, previousChildren) =>
+                    currentChild ?? const SizedBox.shrink(),
+                transitionBuilder: (child, anim) =>
+                    FadeTransition(opacity: anim, child: child),
+                child: _ActiveContent(
+                  key: ValueKey<String>('featured-${active.id}'),
+                  news: active,
+                  onTap: onOpen,
+                ),
               ),
-            ),
-            const SizedBox(height: _FeaturedSliderState._indicatorTopGap),
+            if (showNewsInfo)
+              const SizedBox(height: _FeaturedSliderState._indicatorTopGap),
             Center(
               child: _Indicator(
                 count: itemCount,

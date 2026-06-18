@@ -800,6 +800,7 @@ class _ShellScreenState extends State<ShellScreen>
           categoryName: item.label,
           categoryType: item.type,
           categoryValue: item.value,
+          categoryImageUrl: item.imageUrl,
           shellSettings: widget.shellData.siteSettings,
           navigationItems: widget.shellData.navigationItems,
           contentSettings: widget.contentSettings,

@@ -204,8 +204,20 @@ const SITE_PUBLIC_COLUMNS = [
     'google_analytics_id',
     'google_search_console_code',
     'bing_verification_code',
+    'yandex_verification_code',
+    'indexnow_key',
     'twitter_username',
     'fb_app_id',
+    'social_whatsapp_url',
+    'social_telegram_url',
+    'social_instagram_url',
+    'social_facebook_url',
+    'social_x_url',
+    'social_youtube_url',
+    'social_tiktok_url',
+    'social_linkedin_url',
+    'social_pinterest_url',
+    'social_discord_url',
     'social_auth_google_enabled',
     'social_auth_apple_enabled',
     'social_auth_facebook_enabled',
@@ -215,6 +227,16 @@ const SITE_PUBLIC_COLUMNS = [
     'organization_legal_name',
     'organization_phone',
     'organization_address',
+    'contact_phone',
+    'contact_city',
+    'contact_address',
+    'contact_location_url',
+    'contact_whatsapp_url',
+    'contact_telegram_url',
+    'contact_email_info',
+    'contact_email_support',
+    'contact_email_news',
+    'contact_email_ads',
     'robots_txt',
     'weather_enabled',
     'weather_location_name',
@@ -251,6 +273,7 @@ const SITE_PUBLIC_COLUMNS = [
     'content_comment_system_enabled',
     'content_comment_approval_enabled',
     'content_emoji_reactions_enabled',
+    'content_featured_show_news_info',
     'content_show_post_author',
     'content_show_post_date',
     'content_show_post_view_count',
@@ -451,9 +474,9 @@ export const dataService = {
         });
     },
 
-    async getNewsItems(lang: string, category?: string | string[] | null, limit = 50): Promise<NewsItem[]> {
+    async getNewsItems(lang: string, category?: string | string[] | null, limit = 50, options?: { fresh?: boolean }): Promise<NewsItem[]> {
         const cacheKey = `news_${lang}_${Array.isArray(category) ? category.join(',') : (category || 'home')}_${limit}`;
-        return withCache(cacheKey, CACHE_TTL.NEWS, async () => {
+        const fetchNewsItems = async () => {
             const isHomeFeed = !category || category === 'home';
             const publishedAtLimit = new Date().toISOString();
             const selectColumns = `id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, views_count, saves_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, show_in_manset, fact_checked, schema_type, card_data, items, faq_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
@@ -511,7 +534,10 @@ export const dataService = {
             }
 
             return rows.map((post: any) => this.mapPost(post));
-        });
+        };
+
+        if (options?.fresh) return fetchNewsItems();
+        return withCache(cacheKey, CACHE_TTL.NEWS, fetchNewsItems);
     },
 
     async getNewsBySlug(slugOrId: string): Promise<NewsItem | null> {
@@ -567,6 +593,7 @@ export const dataService = {
             source: (cardData as any)?.source ?? baseSource,
             author: (cardData as any)?.author ?? baseAuthor,
             timestamp: post?.published_at || post?.created_at,
+            modifiedAt: post?.updated_at || post?.published_at || post?.created_at,
             mediaUrl: (cardData as any)?.mediaUrl ?? post?.media_url ?? '',
             thumbnail: (cardData as any)?.thumbnail ?? post?.thumbnail_url ?? '',
             thumbnailAlt: post?.thumbnail_alt ?? (cardData as any)?.thumbnailAlt,

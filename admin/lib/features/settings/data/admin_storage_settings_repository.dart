@@ -9,6 +9,9 @@ class AdminStorageSettingsData {
     required this.activeStorageKey,
     required this.selectedProviderId,
     required this.providers,
+    this.localBackupEnabled = false,
+    this.localMediaCount = 0,
+    this.localMediaByType = const <String, int>{},
   });
 
   factory AdminStorageSettingsData.empty() {
@@ -16,26 +19,39 @@ class AdminStorageSettingsData {
       activeStorageKey: 'storageSettings.option.localStorage',
       selectedProviderId: 'awsS3',
       providers: <String, Map<String, String>>{},
+      localBackupEnabled: false,
+      localMediaCount: 0,
+      localMediaByType: <String, int>{},
     );
   }
 
-  factory AdminStorageSettingsData.fromJson(Map<dynamic, dynamic> json) {
+  factory AdminStorageSettingsData.fromJson(
+    Map<dynamic, dynamic> json, {
+    Object? localMedia,
+  }) {
     return AdminStorageSettingsData(
       activeStorageKey: _activeStorageKey(json['activeStorage']),
       selectedProviderId: _providerId(json['selectedProvider']),
       providers: _providerMap(json['providers']),
+      localBackupEnabled: json['localBackupEnabled'] == true,
+      localMediaCount: _localMediaCount(localMedia),
+      localMediaByType: _localMediaByType(localMedia),
     );
   }
 
   final String activeStorageKey;
   final String selectedProviderId;
   final Map<String, Map<String, String>> providers;
+  final bool localBackupEnabled;
+  final int localMediaCount;
+  final Map<String, int> localMediaByType;
 
   Map<String, Object?> toJson() {
     return {
       'activeStorage': _activeStorageId(activeStorageKey),
       'selectedProvider': selectedProviderId,
       'providers': providers,
+      'localBackupEnabled': localBackupEnabled,
     };
   }
 }
@@ -44,8 +60,9 @@ abstract class AdminStorageSettingsRepository {
   Future<AdminStorageSettingsData> fetchSettings();
 
   Future<AdminStorageSettingsData> saveSettings(
-    AdminStorageSettingsData settings,
-  );
+    AdminStorageSettingsData settings, {
+    bool migrateLocalMedia = false,
+  });
 }
 
 class SupabaseAdminStorageSettingsRepository
@@ -73,16 +90,23 @@ class SupabaseAdminStorageSettingsRepository
     if (decoded is! Map) return AdminStorageSettingsData.empty();
     final data = decoded['data'];
     if (data is! Map) return AdminStorageSettingsData.empty();
-    return AdminStorageSettingsData.fromJson(data);
+    return AdminStorageSettingsData.fromJson(
+      data,
+      localMedia: decoded['localMedia'],
+    );
   }
 
   @override
   Future<AdminStorageSettingsData> saveSettings(
-    AdminStorageSettingsData settings,
-  ) async {
+    AdminStorageSettingsData settings, {
+    bool migrateLocalMedia = false,
+  }) async {
     final response = await _post(
       _uri('/api/admin/storage-settings'),
-      jsonEncode({'values': settings.toJson()}),
+      jsonEncode({
+        'values': settings.toJson(),
+        if (migrateLocalMedia) 'migrateLocalMedia': true,
+      }),
     );
     final decoded = response.body.isEmpty ? null : jsonDecode(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -93,7 +117,10 @@ class SupabaseAdminStorageSettingsRepository
     if (decoded is! Map) return settings;
     final data = decoded['data'];
     if (data is! Map) return settings;
-    return AdminStorageSettingsData.fromJson(data);
+    return AdminStorageSettingsData.fromJson(
+      data,
+      localMedia: decoded['localMedia'],
+    );
   }
 
   Future<http.Response> _get(Uri uri) async {
@@ -190,6 +217,24 @@ Map<String, String> _stringMap(Map<dynamic, dynamic> value) {
   return {
     for (final entry in value.entries)
       entry.key.toString(): entry.value?.toString() ?? '',
+  };
+}
+
+int _localMediaCount(Object? value) {
+  if (value is! Map) return 0;
+  final total = value['total'];
+  return total is num ? total.toInt() : 0;
+}
+
+Map<String, int> _localMediaByType(Object? value) {
+  if (value is! Map) return <String, int>{};
+  final byType = value['byType'];
+  if (byType is! Map) return <String, int>{};
+  return {
+    for (final entry in byType.entries)
+      entry.key.toString(): entry.value is num
+          ? (entry.value as num).toInt()
+          : int.tryParse(entry.value?.toString() ?? '') ?? 0,
   };
 }
 

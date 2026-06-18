@@ -41,6 +41,7 @@ interface MansetSlide {
 
 interface MansetSliderProps {
     slides?: NewsItem[];
+    showNewsInfo?: boolean;
     onNewsSelect?: (id: string) => void;
 }
 
@@ -135,7 +136,7 @@ const withLocalImageVariant = (image: string, width: number) => {
     }
 };
 
-const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], onNewsSelect }) => {
+const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], showNewsInfo = false, onNewsSelect }) => {
     const slides = useMemo(() => newsSlides.map(mapNewsToSlide).filter(Boolean) as MansetSlide[], [newsSlides]);
     const [activeIndex, setActiveIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
@@ -198,25 +199,29 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                                 fetchPriority={index === 0 ? 'high' : 'low'}
                                 className="w-full h-full object-contain bg-gray-950"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent opacity-85 transition-opacity duration-500 group-hover:opacity-95" />
-                            <div className="absolute bottom-0 left-0 w-full px-6 sm:px-8 md:px-10 pt-6 sm:pt-8 md:pt-10 pb-5 sm:pb-6 md:pb-7 z-10 flex flex-col justify-end transform transition-transform duration-500 translate-y-1 group-hover:translate-y-0">
-                                <h2 className="news-title-font text-white text-[23px] sm:text-[30px] md:text-[36px] font-[800] tracking-normal leading-[1.08] mb-2.5 drop-shadow-lg line-clamp-3 transition-colors duration-300 group-hover:text-palette-red">
-                                    {slide.title}
-                                </h2>
-                                {slide.description && (
-                                    <p className="news-subtitle-font text-gray-200 text-[14px] sm:text-[16px] line-clamp-3 max-w-4xl font-medium leading-snug drop-shadow-md mb-3.5">
-                                        {slide.description}
-                                    </p>
-                                )}
-                                {slide.date && (
-                                    <div className="flex items-center mb-0">
-                                        <span className="text-gray-400 text-xs font-light flex items-center gap-1.5 drop-shadow-md">
-                                            <RemixIcon name="ri-time-line" size={14} className="opacity-70" />
-                                            {slide.date}
-                                        </span>
+                            {showNewsInfo && (
+                                <>
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent opacity-85 transition-opacity duration-500 group-hover:opacity-95" />
+                                    <div className="absolute bottom-0 left-0 w-full px-6 sm:px-8 md:px-10 pt-6 sm:pt-8 md:pt-10 pb-5 sm:pb-6 md:pb-7 z-10 flex flex-col justify-end transform transition-transform duration-500 translate-y-1 group-hover:translate-y-0">
+                                        <h2 className="news-title-font text-white text-[23px] sm:text-[30px] md:text-[36px] font-[800] tracking-normal leading-[1.08] mb-2.5 drop-shadow-lg line-clamp-3 transition-colors duration-300 group-hover:text-palette-red">
+                                            {slide.title}
+                                        </h2>
+                                        {slide.description && (
+                                            <p className="news-subtitle-font text-gray-200 text-[14px] sm:text-[16px] line-clamp-3 max-w-4xl font-medium leading-snug drop-shadow-md mb-3.5">
+                                                {slide.description}
+                                            </p>
+                                        )}
+                                        {slide.date && (
+                                            <div className="flex items-center mb-0">
+                                                <span className="text-gray-400 text-xs font-light flex items-center gap-1.5 drop-shadow-md">
+                                                    <RemixIcon name="ri-time-line" size={14} className="opacity-70" />
+                                                    {slide.date}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
+                                </>
+                            )}
                         </article>
                     );
                 })}

@@ -1,8 +1,14 @@
 import type { APIRoute } from 'astro';
 import { getStorageType } from '@/lib/server/supabaseStorage';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
-import { getStorageSettings, isLocalStorageActive } from '@/lib/server/storageSettings';
+import {
+  getStorageSettings,
+  isLocalStorageActive,
+  isS3CompatibleStorageActive,
+  localBackupEnabled,
+} from '@/lib/server/storageSettings';
 import { listLocalStorageFiles } from '@/lib/server/localStorageProxy';
+import { listRemoteStorageFiles } from '@/lib/server/remoteObjectStorage';
 
 export const GET: APIRoute = async ({ request }) => {
   try {
@@ -10,6 +16,21 @@ export const GET: APIRoute = async ({ request }) => {
     const type = getStorageType(url.searchParams.get('type'));
     await requireStorageAdminRequest(request, type);
     const storageSettings = await getStorageSettings();
+
+    if (isS3CompatibleStorageActive(storageSettings)) {
+      let files;
+      try {
+        files = await listRemoteStorageFiles(storageSettings, type);
+      } catch (error) {
+        const localFiles = await listLocalStorageFiles(type);
+        if (!localFiles.length && !localBackupEnabled(storageSettings)) throw error;
+        files = localFiles;
+      }
+      return new Response(JSON.stringify(files), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     if (!isLocalStorageActive(storageSettings)) {
       return new Response(JSON.stringify({

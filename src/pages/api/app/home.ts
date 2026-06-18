@@ -333,6 +333,7 @@ type ContentHomeSettings = {
   featuredSorting: "slider_order" | "publish_date";
   featuredDurationDays: number;
   featuredLimit: number;
+  featuredShowNewsInfo: boolean;
 };
 
 const authorName = (row: any): string =>
@@ -362,6 +363,7 @@ const defaultContentHomeSettings: ContentHomeSettings = {
   featuredSorting: "slider_order",
   featuredDurationDays: 10,
   featuredLimit: 15,
+  featuredShowNewsInfo: false,
 };
 
 const featuredSource = (value: unknown): "manual" | "latest" => {
@@ -392,7 +394,8 @@ const loadContentHomeSettings = async (
               content_featured_source,
               content_featured_sorting,
               content_featured_duration_days,
-              content_featured_limit
+              content_featured_limit,
+              content_featured_show_news_info
        FROM public.site_settings
        WHERE language_code = $1
        LIMIT 1`,
@@ -437,6 +440,7 @@ const loadContentHomeSettings = async (
         1,
         50,
       ),
+      featuredShowNewsInfo: row.content_featured_show_news_info === true,
     };
   } catch {
     return defaultContentHomeSettings;
@@ -1979,6 +1983,7 @@ export const GET: APIRoute = async ({ url, request }) => {
           featuredSortingLogic: settings.featuredSorting,
           featuredDurationDays: settings.featuredDurationDays,
           featuredLimit: settings.featuredLimit,
+          featuredShowNewsInfo: settings.featuredShowNewsInfo,
         },
       },
       200,

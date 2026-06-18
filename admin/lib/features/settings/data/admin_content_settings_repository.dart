@@ -262,6 +262,7 @@ class ContentFeaturedSettingsData {
     required this.sortingLogic,
     required this.displayDurationDays,
     required this.displayLimit,
+    required this.showNewsInfo,
   });
 
   factory ContentFeaturedSettingsData.defaults(String languageCode) {
@@ -271,6 +272,7 @@ class ContentFeaturedSettingsData {
       sortingLogic: 'slider_order',
       displayDurationDays: 10,
       displayLimit: 15,
+      showNewsInfo: false,
     );
   }
 
@@ -300,6 +302,10 @@ class ContentFeaturedSettingsData {
         json['content_featured_limit'],
         fallback: fallback.displayLimit,
       ),
+      showNewsInfo: _bool(
+        json['content_featured_show_news_info'],
+        fallback: fallback.showNewsInfo,
+      ),
     );
   }
 
@@ -308,6 +314,7 @@ class ContentFeaturedSettingsData {
   final String sortingLogic;
   final int displayDurationDays;
   final int displayLimit;
+  final bool showNewsInfo;
 
   Map<String, Object?> toJson() {
     return {
@@ -318,6 +325,7 @@ class ContentFeaturedSettingsData {
         displayDurationDays,
       ),
       'content_featured_limit': _clampFeaturedLimit(displayLimit),
+      'content_featured_show_news_info': showNewsInfo,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
@@ -328,6 +336,7 @@ class ContentFeaturedSettingsData {
     String? sortingLogic,
     int? displayDurationDays,
     int? displayLimit,
+    bool? showNewsInfo,
   }) {
     return ContentFeaturedSettingsData(
       languageCode: languageCode ?? this.languageCode,
@@ -335,6 +344,7 @@ class ContentFeaturedSettingsData {
       sortingLogic: sortingLogic ?? this.sortingLogic,
       displayDurationDays: displayDurationDays ?? this.displayDurationDays,
       displayLimit: displayLimit ?? this.displayLimit,
+      showNewsInfo: showNewsInfo ?? this.showNewsInfo,
     );
   }
 }
@@ -994,6 +1004,7 @@ class SupabaseAdminContentSettingsRepository
         settings.displayDurationDays,
       ),
       displayLimit: _clampFeaturedLimit(settings.displayLimit),
+      showNewsInfo: settings.showNewsInfo,
     );
     final result = await _postJson('/api/admin/query', {
       'table': 'site_settings',
@@ -1168,7 +1179,8 @@ const _uploadSettingsSelect =
 
 const _featuredSettingsSelect =
     'language_code,content_featured_source,content_featured_sorting,'
-    'content_featured_duration_days,content_featured_limit';
+    'content_featured_duration_days,content_featured_limit,'
+    'content_featured_show_news_info';
 
 const _trashCleanupSettingsSelect =
     'language_code,content_trash_auto_delete_enabled,'

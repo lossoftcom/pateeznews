@@ -18,6 +18,19 @@ interface RightSidebarProps {
 
 type ForecastItem = { day: string; icon: string; temp: string };
 type MarketItem = { symbol: string; name: string; price: string; change: string; isUp: boolean; icon: string; color: string; bg: string };
+type TrendingItem = {
+   id: string;
+   title: string;
+   hits: string;
+   category: string;
+   rising: boolean;
+   href: string;
+   image?: string;
+   imageAlt?: string;
+   imageSrcSet?: string;
+   imageWidth?: number;
+   imageHeight?: number;
+};
 type WeatherMotionKind = 'clear-day' | 'clear-night' | 'cloudy' | 'fog' | 'rain' | 'snow' | 'storm';
 type DutyPharmacy = {
    id: string;
@@ -41,6 +54,69 @@ type DeathNotice = {
 };
 
 const SIDEBAR_TIMEZONE = 'Europe/Istanbul';
+
+const withSidebarImageVariant = (src: string | null | undefined, width: number, quality = 82) => {
+   const raw = String(src || '').trim();
+   if (!raw || width <= 0 || raw.startsWith('data:')) return raw;
+   try {
+      const placeholderOrigin = 'https://pateez.local';
+      const parsed = new URL(raw, placeholderOrigin);
+      const isLocal =
+         parsed.pathname.startsWith('/api/storage/file/') ||
+         parsed.pathname.startsWith('/local-upload/');
+      if (!isLocal) return raw;
+      parsed.searchParams.set('w', String(Math.min(Math.max(Math.round(width), 64), 512)));
+      parsed.searchParams.set('q', String(Math.min(Math.max(Math.round(quality), 40), 95)));
+      return raw.startsWith('http://') || raw.startsWith('https://')
+         ? parsed.toString()
+         : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+   } catch {
+      return raw;
+   }
+};
+
+const isLikelyImageUrl = (src: string | null | undefined) => {
+   const raw = String(src || '').trim();
+   if (!raw) return false;
+   if (raw.startsWith('data:image/')) return true;
+   if (raw.includes('/api/storage/file/') || raw.includes('/local-upload/')) return true;
+   try {
+      const pathname = new URL(raw, 'https://pateez.local').pathname.toLowerCase();
+      return /\.(avif|webp|png|jpe?g|gif|svg)(?:$|\?)/.test(pathname);
+   } catch {
+      return /\.(avif|webp|png|jpe?g|gif|svg)(?:$|\?)/i.test(raw);
+   }
+};
+
+const toReadableCase = (value: string, lang = 'tr') => {
+   const text = String(value || '').trim();
+   if (!text) return text;
+   const locale = String(lang || '').toLowerCase().startsWith('tr') ? 'tr-TR' : 'en-US';
+   const lower = text.toLocaleLowerCase(locale);
+   if (text === lower) return text;
+   const upper = text.toLocaleUpperCase(locale);
+   if (text !== upper) return text;
+   return lower.replace(/(^|[.!?]\s+)(\p{L})/gu, (match) => match.toLocaleUpperCase(locale));
+};
+
+const getTrendingImage = (item: NewsItem) => {
+   const optimized = item.optimizedCoverThumbnail || item.optimizedThumbnail;
+   const candidates = [
+      optimized?.src,
+      item.coverThumbnail,
+      item.thumbnail,
+      item.mansetImageUrl,
+      item.mediaList?.[0],
+      item.mediaUrl,
+   ];
+   const image = candidates.find(isLikelyImageUrl) || '';
+   return {
+      image,
+      imageSrcSet: optimized?.srcSet,
+      imageWidth: optimized?.width,
+      imageHeight: optimized?.height,
+   };
+};
 
 const MemorialDoveIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
    <svg viewBox="0 0 64 64" aria-hidden="true" className={className} fill="none">
@@ -248,14 +324,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
       12
    );
 
-   const fallbackTrending = useMemo(() => [
+   const fallbackTrending = useMemo<TrendingItem[]>(() => [
       { id: '01', title: t('right.trending.01.title'), hits: '128K', category: t('right.trending.01.category'), rising: true, href: '' },
       { id: '02', title: t('right.trending.02.title'), hits: '85K', category: t('right.trending.02.category'), rising: true, href: '' },
       { id: '03', title: t('right.trending.03.title'), hits: '64K', category: t('right.trending.03.category'), rising: false, href: '' },
       { id: '04', title: t('right.trending.04.title'), hits: '42K', category: t('right.trending.04.category'), rising: true, href: '' },
    ].slice(0, popularPostLimit), [t, popularPostLimit]);
 
-   const trending = useMemo(() => {
+   const trending = useMemo<TrendingItem[]>(() => {
       const source = (newsData || [])
          .filter((item) => item?.title)
          .sort((a, b) => {
@@ -269,13 +345,19 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
 
       return source.map((item, idx) => {
          const score = (item.views || 0) || (item.likes || 0) + (item.comments || 0) + (item.shares || 0);
+         const image = getTrendingImage(item);
          return {
             id: String(idx + 1).padStart(2, '0'),
             title: item.title,
             hits: formatMetric(score),
-            category: item.category || t('right.agenda'),
+            category: toReadableCase(item.category || t('right.agenda'), currentLang.code),
             rising: idx < 3,
-            href: getPostHref(item, siteSettings)
+            href: getPostHref(item, siteSettings),
+            image: image.image,
+            imageAlt: item.thumbnailAlt || item.seoTitle || item.title,
+            imageSrcSet: image.imageSrcSet,
+            imageWidth: image.imageWidth,
+            imageHeight: image.imageHeight,
          };
       });
    }, [fallbackTrending, newsData, t, currentLang.code, popularPostLimit, siteSettings]);
@@ -433,7 +515,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
                            <span className="w-1.5 h-1.5 rounded-[5px] bg-palette-red animate-pulse"></span>
-                           <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-widest truncate">{t('right.pharmacy_title')}</h3>
+                           <h3 className="text-sm font-semibold text-gray-800 tracking-[0.02em] truncate">{t('right.pharmacy_title')}</h3>
                         </div>
                         <p className="text-[11px] font-medium text-palette-tan/60 mt-1 truncate">
                            {livePharmacyData?.city || 'Niğde'}{livePharmacyData?.serviceDateLabel ? ` · ${livePharmacyData.serviceDateLabel}` : ''}
@@ -536,7 +618,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                <div>
                   <div className="flex items-center gap-1.5 text-palette-tan/50 mb-2">
                      <RemixIcon name="ri-map-pin-line" size={12} />
-                     <span className="text-[10px] font-medium uppercase tracking-[0.15em]">{weatherLocation}</span>
+                     <span className="text-[10px] font-medium tracking-[0.02em]">{weatherLocation}</span>
                   </div>
                   <div className="flex items-center gap-3">
                      <span className="text-5xl font-light text-gray-800 tracking-tighter">{currentTemperature ?? '--'}°</span>
@@ -567,40 +649,51 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-palette-beige/30 bg-white">
                <div className="flex items-center gap-3">
                   <div className="w-1.5 h-1.5 bg-palette-red rounded-[5px]"></div>
-                  <h3 className="font-semibold text-gray-800 uppercase tracking-[0.1em] text-[13px]">{t('right.agenda')}</h3>
+                  <h3 className="font-semibold text-gray-800 tracking-[0.02em] text-[13px]">{t('right.agenda')}</h3>
                </div>
                <span className="text-[10px] font-medium text-palette-red bg-palette-red/5 px-2 py-1 rounded-[5px] border border-palette-red/10 animate-pulse">{t('right.live')}</span>
             </div>
 
-            <div className="flex flex-col p-3 space-y-1">
+            <div className="flex flex-col p-3 divide-y divide-palette-beige/45">
                {trending.map((item, idx) => (
                   <div
                      key={idx}
                      onClick={() => openHref(item.href)}
                      onMouseEnter={() => item.href && prefetch(item.href)}
-                     className="group relative flex items-center gap-5 p-4 rounded-[5px] hover:bg-palette-beige/20 transition-all duration-100 cursor-pointer border border-transparent hover:border-palette-beige/50"
+                     className="group relative flex items-center gap-3 px-3 py-4 hover:bg-palette-beige/15 transition-all duration-100 cursor-pointer"
                   >
-                     <div className="flex flex-col items-center">
-                        <span className="text-3xl font-light text-palette-tan/20 group-hover:text-palette-tan/40 transition-colors leading-none italic">
-                           {item.id}
-                        </span>
-                     </div>
+                     {item.image && (
+                        <div className="flex h-[84px] w-[84px] shrink-0 items-center justify-center overflow-hidden rounded-[4px] border border-palette-beige/40 bg-white">
+                           <img
+                              src={withSidebarImageVariant(item.image, 160)}
+                              srcSet={item.imageSrcSet}
+                              sizes="84px"
+                              alt={item.imageAlt || item.title}
+                              width={item.imageWidth || 168}
+                              height={item.imageHeight || 140}
+                              loading={idx < 3 ? 'eager' : 'lazy'}
+                              decoding="async"
+                              fetchPriority={idx === 0 ? 'high' : 'low'}
+                              className="h-full w-full object-contain object-center"
+                           />
+                        </div>
+                     )}
 
                      <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                           <span className="text-[9px] font-medium text-palette-tan/50 uppercase tracking-wider">{item.category}</span>
+                           <span className="text-[9px] font-medium text-palette-tan/50 tracking-[0.02em]">{item.category}</span>
                            <span className="text-[10px] font-medium text-palette-tan/40">{item.hits}</span>
                         </div>
-                        <h4 className="text-[18px] font-semibold text-gray-800 leading-snug tracking-tight group-hover:text-palette-red transition-colors line-clamp-2" style={{ fontFamily: 'var(--site-font-title, var(--site-font-primary, inherit))' }}>
+                        <h4 className="text-[14px] font-semibold text-gray-800 leading-snug tracking-tight group-hover:text-palette-red transition-colors break-words" style={{ fontFamily: 'var(--site-font-title, var(--site-font-primary, inherit))' }}>
                            {item.title}
                         </h4>
                      </div>
 
-                     {item.rising && (
-                        <div className="flex-shrink-0 w-8 h-8 rounded-[5px] bg-palette-beige/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                           <RemixIcon name="ri-line-chart-line" size={14} className="text-palette-red" />
-                        </div>
-                     )}
+                     <div className="flex w-7 shrink-0 justify-end">
+                        <span className="text-2xl font-light text-palette-tan/20 group-hover:text-palette-tan/40 transition-colors leading-none italic">
+                           {item.id}
+                        </span>
+                     </div>
                   </div>
                ))}
             </div>
@@ -621,7 +714,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             <div className="p-6 pb-2 flex items-center justify-between">
                <div className="flex items-center gap-3">
                   <div className="w-1.5 h-1.5 bg-palette-tan/20 rounded-[5px]"></div>
-                  <h3 className="font-semibold text-gray-800 uppercase tracking-[0.1em] text-[13px]">{t('right.markets')}</h3>
+                  <h3 className="font-semibold text-gray-800 tracking-[0.02em] text-[13px]">{t('right.markets')}</h3>
                </div>
                <button onClick={() => openHref('/kategori/ekonomi')} className="text-[10px] font-medium text-palette-tan/50 hover:text-palette-red uppercase tracking-widest transition-colors">{t('right.all')}</button>
             </div>
@@ -663,7 +756,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                   <MemorialDoveIcon className="w-7 h-7" />
                </div>
                <div className="min-w-0 flex-1 pt-0.5">
-                  <h3 className="font-bold text-white/90 uppercase tracking-[0.15em] text-[12px]">{t('right.death_title')}</h3>
+                  <h3 className="font-bold text-white/90 tracking-[0.02em] text-[12px]">{t('right.death_title')}</h3>
                   <p className="text-[10px] font-medium text-[#C9A96E]/50 mt-1 tracking-wide truncate">
                      {liveDeathData?.city || 'Niğde'}{liveDeathData?.serviceDateLabel ? ` · ${liveDeathData.serviceDateLabel}` : ''}
                   </p>

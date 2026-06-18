@@ -91,10 +91,14 @@ export const GET: APIRoute = async ({ request }) => {
     const indexBaseUrl = toBaseUrl(requestOrigin, requestOrigin);
     const sitemapLocs = entriesForHost
       .filter((entry) => !!entry.code)
-      .map((entry) => {
+      .flatMap((entry) => {
         const loc = new URL('sitemap.xml', indexBaseUrl);
         loc.searchParams.set('lang', entry.code);
-        return loc.toString();
+        const newsLoc = new URL('news-sitemap.xml', indexBaseUrl);
+        newsLoc.searchParams.set('lang', entry.code);
+        const imageLoc = new URL('image-sitemap.xml', indexBaseUrl);
+        imageLoc.searchParams.set('lang', entry.code);
+        return [loc.toString(), newsLoc.toString(), imageLoc.toString()];
       });
 
     const body = [
@@ -142,7 +146,7 @@ export const GET: APIRoute = async ({ request }) => {
     ? toBaseUrl(requestUrl.origin, requestUrl.origin)
     : baseUrl;
 
-  const [postsRes, navRes, profilesRes, siteSettings] = await Promise.all([
+  const [postsRes, navRes, profilesRes, pagesRes, siteSettings] = await Promise.all([
     supabase
       .from('posts')
       .select('id, slug, updated_at, published_at')
@@ -158,6 +162,12 @@ export const GET: APIRoute = async ({ request }) => {
       .select('username, created_at, updated_at, role')
       .eq('role', 'publisher')
       .not('username', 'is', null),
+    supabase
+      .from('pages')
+      .select('slug, created_at, updated_at')
+      .eq('status', 'active')
+      .eq('language_code', lang)
+      .not('slug', 'is', null),
     dataService.getSiteSettings(lang),
   ]);
 
@@ -207,6 +217,16 @@ export const GET: APIRoute = async ({ request }) => {
     const lastmod = toIso((profile as any)?.updated_at) || toIso((profile as any)?.created_at);
     urls.push({
       loc: toLoc(`/profil/${encodeURIComponent(username)}`),
+      ...(lastmod ? { lastmod } : {}),
+    });
+  }
+
+  for (const page of (pagesRes.data || [])) {
+    const pageSlug = String((page as any)?.slug || '').trim();
+    if (!pageSlug) continue;
+    const lastmod = toIso((page as any)?.updated_at) || toIso((page as any)?.created_at);
+    urls.push({
+      loc: toLoc(`/kurumsal/${encodeURIComponent(pageSlug)}`),
       ...(lastmod ? { lastmod } : {}),
     });
   }

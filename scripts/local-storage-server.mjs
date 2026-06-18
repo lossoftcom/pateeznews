@@ -18,6 +18,7 @@ const IMAGE_TYPES = new Set(['image', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
 const IMAGE_VARIANT_SUFFIXES = ['_sm', '_xl', '_md', '_lg'];
 const THUMB_EXTENSIONS = ['.webp', '.jpg', '.jpeg', '.png'];
+const LEGACY_IMAGE_ROOTS = new Set(['announcements', 'navigation']);
 const IMAGE_VARIANT_WIDTHS = [180, 260, 800, 900, 1200, 1440, 1600];
 const IMAGE_VARIANT_QUALITY = 86;
 const VARIANT_ROOT = path.resolve(ROOT, '.variants');
@@ -80,6 +81,15 @@ function resolveUploadPath(type, id) {
   const base = path.resolve(ROOT, type);
   const absolutePath = path.resolve(base, relativeId);
   if (!inside(base, absolutePath)) return null;
+  return { relativeId, absolutePath };
+}
+
+function resolveLegacyImagePath(id) {
+  const relativeId = normalizeStorageId('image', id);
+  const legacyRoot = relativeId.split('/')[0] || '';
+  if (!LEGACY_IMAGE_ROOTS.has(legacyRoot)) return null;
+  const absolutePath = path.resolve(ROOT, relativeId);
+  if (!inside(ROOT, absolutePath)) return null;
   return { relativeId, absolutePath };
 }
 
@@ -875,12 +885,19 @@ async function remove(req, res) {
     const ids = [rawId, ...(itemType === 'video' ? videoThumbIds(rawId) : [])];
     const removed = [];
     for (const id of ids) {
-      const resolved = resolveUploadPath(itemType, id);
-      if (!resolved) continue;
-      await fs.promises.unlink(resolved.absolutePath).then(() => removed.push(id)).catch((error) => {
-        if (error?.code !== 'ENOENT') throw error;
-      });
-      await deleteImageVariants(itemType, id);
+      const resolvedPaths = [
+        resolveUploadPath(itemType, id),
+        itemType === 'image' ? resolveLegacyImagePath(id) : null,
+      ].filter(Boolean);
+      const uniquePaths = new Map(resolvedPaths.map((resolved) => [resolved.absolutePath, resolved]));
+      for (const resolved of uniquePaths.values()) {
+        await fs.promises.unlink(resolved.absolutePath).then(() => {
+          removed.push(resolved.relativeId);
+        }).catch((error) => {
+          if (error?.code !== 'ENOENT') throw error;
+        });
+        await deleteImageVariants(itemType, resolved.relativeId);
+      }
     }
     if (removed.length) deleted.push({ type: itemType, ids: removed });
   }

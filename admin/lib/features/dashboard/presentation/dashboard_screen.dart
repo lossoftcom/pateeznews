@@ -1321,6 +1321,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 _DashboardPage.generalSettings =>
                                   GeneralSettingsScreen(
                                     session: widget.session,
+                                    profile: widget.profile,
                                     repository:
                                         widget.generalSettingsRepository,
                                   ),

@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "astro-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 4321,
+      "autoPort": true
+    },
+    {
       "name": "posta-builder",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8791", "--directory", "admin/assets/posta_builder"],

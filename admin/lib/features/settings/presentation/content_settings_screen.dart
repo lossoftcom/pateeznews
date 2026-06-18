@@ -88,6 +88,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   var _imageFileFormat = 'WEBP';
   var _featuredContentSource = _ContentSettingOptions.manualSelection;
   var _featuredSortingLogic = _ContentSettingOptions.sliderOrder;
+  var _featuredShowNewsInfo = false;
   var _autoDeletePosts = _ContentSettingOptions.deleteAllPosts;
   var _postFormats = {
     for (final key in _ContentSettingOptions.postFormatKeys) key: true,
@@ -218,6 +219,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   void _applyFeaturedSettings(ContentFeaturedSettingsData settings) {
     _featuredContentSource = _featuredSourceOption(settings.contentSource);
     _featuredSortingLogic = _featuredSortingOption(settings.sortingLogic);
+    _featuredShowNewsInfo = settings.showNewsInfo;
     _featuredDurationController.text = settings.displayDurationDays.toString();
     _featuredLimitController.text = settings.displayLimit.toString();
   }
@@ -513,6 +515,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
           sortingLogic: _featuredSortingValue(_featuredSortingLogic),
           displayDurationDays: durationDays,
           displayLimit: displayLimit,
+          showNewsInfo: _featuredShowNewsInfo,
         ),
       );
       if (!mounted) return;
@@ -699,6 +702,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                     _FeaturedContentCard(
                       contentSource: _featuredContentSource,
                       sortingLogic: _featuredSortingLogic,
+                      showNewsInfo: _featuredShowNewsInfo,
                       loading: _featuredLoading,
                       saving: _featuredSaving,
                       durationController: _featuredDurationController,
@@ -710,6 +714,9 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                       onSortingLogicChanged: (value) {
                         if (value == null) return;
                         setState(() => _featuredSortingLogic = value);
+                      },
+                      onShowNewsInfoChanged: (value) {
+                        setState(() => _featuredShowNewsInfo = value);
                       },
                       onSave: _saveFeaturedSettings,
                     ),
@@ -1388,32 +1395,36 @@ class _FeaturedContentCard extends StatelessWidget {
   const _FeaturedContentCard({
     required this.contentSource,
     required this.sortingLogic,
+    required this.showNewsInfo,
     required this.loading,
     required this.saving,
     required this.durationController,
     required this.limitController,
     required this.onContentSourceChanged,
     required this.onSortingLogicChanged,
+    required this.onShowNewsInfoChanged,
     required this.onSave,
   });
 
   final String contentSource;
   final String sortingLogic;
+  final bool showNewsInfo;
   final bool loading;
   final bool saving;
   final TextEditingController durationController;
   final TextEditingController limitController;
   final ValueChanged<String?> onContentSourceChanged;
   final ValueChanged<String?> onSortingLogicChanged;
+  final ValueChanged<bool> onShowNewsInfoChanged;
   final Future<void> Function() onSave;
 
   @override
   Widget build(BuildContext context) {
     return _ContentCard(
       title: 'contentSettings.featured.title',
-      minHeight: 318,
+      minHeight: 358,
       child: loading
-          ? const _SettingsLoadingPanel(height: 220)
+          ? const _SettingsLoadingPanel(height: 260)
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1440,6 +1451,12 @@ class _FeaturedContentCard extends StatelessWidget {
                   onChanged: onSortingLogicChanged,
                 ),
                 const SizedBox(height: 18),
+                _SwitchLine(
+                  label: 'contentSettings.featured.showNewsInfo',
+                  value: showNewsInfo,
+                  valueLabel: 'contentSettings.value.yes',
+                  onChanged: onShowNewsInfoChanged,
+                ),
                 _TwoFieldRow(
                   children: [
                     _FullTextField(

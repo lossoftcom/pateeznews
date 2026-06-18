@@ -176,6 +176,7 @@ const websiteLd = (siteSettings?.site_name || orgName) ? {
 
 const googleVerificationRaw = String(siteSettings?.google_search_console_code || '').trim();
 const bingVerificationRaw = String(siteSettings?.bing_verification_code || '').trim();
+const yandexVerificationRaw = String(siteSettings?.yandex_verification_code || '').trim();
 const headerCustomCodes = String(siteSettings?.header_custom_codes || '').trim();
 const footerCustomCodes = String(siteSettings?.footer_custom_codes || '').trim();
 
@@ -246,6 +247,10 @@ const defaultWebFontSizes: Record<string, number> = {
 	'web-featured-summary': 16,
 	'web-card-title': 38,
 	'web-card-summary': 16,
+	'web-category-slider-title': 22,
+	'web-category-slider-summary': 14,
+	'web-category-card-title': 19,
+	'web-category-card-summary': 13,
 	'web-detail-title': 48,
 	'web-detail-summary': 18,
 	'web-detail-body': 17,
@@ -257,6 +262,10 @@ const defaultWebFontWeights: Record<string, number> = {
 	'web-featured-summary': 500,
 	'web-card-title': 800,
 	'web-card-summary': 500,
+	'web-category-slider-title': 700,
+	'web-category-slider-summary': 400,
+	'web-category-card-title': 700,
+	'web-category-card-summary': 400,
 	'web-detail-title': 800,
 	'web-detail-summary': 500,
 	'web-detail-body': 400,
@@ -335,6 +344,10 @@ const webDefaultsFromLegacy = (legacySizes: Record<string, number>): Record<stri
 	'web-featured-summary': legacySizes['fs-post-summary'] ?? defaultWebFontSizes['web-featured-summary'],
 	'web-card-title': legacySizes['fs-title-5xl'] ?? legacySizes['fs-title-3xl'] ?? defaultWebFontSizes['web-card-title'],
 	'web-card-summary': legacySizes['fs-content'] ? Math.min(96, Math.max(8, legacySizes['fs-content'] - 2)) : defaultWebFontSizes['web-card-summary'],
+	'web-category-slider-title': defaultWebFontSizes['web-category-slider-title'],
+	'web-category-slider-summary': defaultWebFontSizes['web-category-slider-summary'],
+	'web-category-card-title': defaultWebFontSizes['web-category-card-title'],
+	'web-category-card-summary': defaultWebFontSizes['web-category-card-summary'],
 	'web-detail-title': legacySizes['fs-post-title'] ?? defaultWebFontSizes['web-detail-title'],
 	'web-detail-summary': legacySizes['fs-post-summary'] ?? defaultWebFontSizes['web-detail-summary'],
 	'web-detail-body': legacySizes['fs-content'] ?? defaultWebFontSizes['web-detail-body'],
@@ -614,6 +627,11 @@ const fontPreloadHrefs = Array.from(new Set(
 		{bingVerificationRaw && (bingVerificationRaw.includes('<')
 			? <Fragment set:html={bingVerificationRaw} />
 			: <meta name="msvalidate.01" content={bingVerificationRaw} />
+		)}
+
+		{yandexVerificationRaw && (yandexVerificationRaw.includes('<')
+			? <Fragment set:html={yandexVerificationRaw} />
+			: <meta name="yandex-verification" content={yandexVerificationRaw} />
 		)}
 
 		{siteSettings?.google_analytics_id && (

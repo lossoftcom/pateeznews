@@ -1,6 +1,5 @@
 
 import React, { useEffect, useState } from 'react';
-import { useLanguage } from '@/context/LanguageContext';
 
 interface ToastProps {
     message: string;
@@ -9,7 +8,6 @@ interface ToastProps {
 }
 
 const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose }) => {
-    const { t } = useLanguage();
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
@@ -17,46 +15,56 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose }) => 
         const timer = setTimeout(() => {
             setIsVisible(false);
             setTimeout(onClose, 500);
-        }, 3500);
+        }, 2800);
 
         return () => clearTimeout(timer);
     }, [onClose]);
 
     const getIcon = () => {
         switch (type) {
-            case 'success': return 'check_circle';
+            case 'success': return 'check';
             case 'error': return 'error';
             case 'warning': return 'warning';
             default: return 'info';
         }
     };
 
-    return (
-        <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 z-[999999] transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] ${isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-90'}`}>
-            <div className={`flex items-center gap-5 px-8 py-5 rounded-[5px] border border-palette-tan/20 bg-white/90 backdrop-blur-xl shadow-[0_20px_50px_rgba(24,37,64,0.15)] min-w-[360px] max-w-md overflow-hidden relative group`}>
-                {/* Accent line on left */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-palette-red' : type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+    const toneClass = {
+        success: 'text-emerald-600 bg-emerald-50',
+        error: 'text-palette-red bg-palette-red/5',
+        warning: 'text-amber-600 bg-amber-50',
+        info: 'text-blue-600 bg-blue-50',
+    }[type];
 
-                <div className={`w-12 h-12 rounded-[5px] flex items-center justify-center bg-palette-beige/20 shadow-inner ${type === 'success' ? 'text-emerald-500' : type === 'error' ? 'text-palette-red' : type === 'warning' ? 'text-amber-500' : 'text-blue-500'}`}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '28px', fontVariationSettings: "'FILL' 1" }}>{getIcon()}</span>
+    const progressClass = {
+        success: 'bg-emerald-500',
+        error: 'bg-palette-red',
+        warning: 'bg-amber-500',
+        info: 'bg-blue-500',
+    }[type];
+
+    return (
+        <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[999999] px-4 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-5 scale-95'}`}>
+            <div className="relative flex min-w-[280px] max-w-[360px] items-center gap-3 overflow-hidden rounded-[6px] border border-gray-200/80 bg-white/95 px-4 py-3 shadow-[0_14px_36px_rgba(24,37,64,0.12)] backdrop-blur-xl">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[5px] ${toneClass}`}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '19px', fontVariationSettings: "'FILL' 1" }}>{getIcon()}</span>
                 </div>
 
-                <div className="flex-1 space-y-0.5">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 leading-none">{t(`toast.${type}`)}</p>
-                    <p className="text-[15px] font-bold text-palette-maroon tracking-tight leading-snug">{message}</p>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-palette-maroon tracking-tight leading-snug">{message}</p>
                 </div>
 
                 <button
                     onClick={() => { setIsVisible(false); setTimeout(onClose, 500); }}
-                    className="w-10 h-10 flex items-center justify-center rounded-[5px] hover:bg-palette-red/5 text-palette-tan/40 hover:text-palette-red transition-all active:scale-90"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[5px] text-palette-tan/45 transition-all hover:bg-gray-100 hover:text-palette-maroon active:scale-90"
+                    aria-label="Kapat"
                 >
-                    <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>close</span>
+                    <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
                 </button>
 
-                {/* Animated progress bar at bottom */}
-                <div className="absolute bottom-0 left-0 h-[3px] w-full bg-palette-beige/10">
+                <div className="absolute bottom-0 left-0 h-[2px] w-full bg-gray-100">
                     <div
-                        className={`h-full transition-all duration-[3000ms] ease-linear rounded-r-full ${type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-palette-red' : type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`}
+                        className={`h-full rounded-r-full transition-all duration-[2800ms] ease-linear ${progressClass}`}
                         style={{ width: isVisible ? '100%' : '0%' }}
                     />
                 </div>

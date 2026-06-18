@@ -49,6 +49,12 @@ interface InlineCardCommentsProps {
   emojiEnabled?: boolean;
 }
 
+interface InlineProfileCache {
+  username?: string;
+  full_name?: string;
+  avatar_url?: string;
+}
+
 const normalizeComments = (value: unknown): InlineComment[] => (
   Array.isArray(value) ? value as InlineComment[] : []
 );
@@ -57,6 +63,16 @@ const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.tr
 
 const avatarForName = (name: string) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Misafir')}&background=f3f4f6&color=94a3b8`;
+
+const readProfileCache = (): InlineProfileCache | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('pateez_profile_cache');
+    return raw ? JSON.parse(raw) as InlineProfileCache : null;
+  } catch {
+    return null;
+  }
+};
 
 const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
   postId,
@@ -72,7 +88,8 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [busyCommentId, setBusyCommentId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<InlineComment | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any | null | undefined>(undefined);
+  const [profile, setProfile] = useState<InlineProfileCache | null>(null);
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [newComment, setNewComment] = useState('');
@@ -84,7 +101,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
   const canToggleMore = totalCount > COLLAPSED_LIMIT || comments.length > COLLAPSED_LIMIT;
   const canSend = newComment.trim().length > 0
     && newComment.trim().length <= COMMENT_MAX_LENGTH
-    && (user || (guestName.trim().length >= 2 && validEmail(guestEmail)));
+    && (user ? true : user === null && guestName.trim().length >= 2 && validEmail(guestEmail));
 
   const loadComments = useCallback(async (nextLimit = COLLAPSED_LIMIT) => {
     setLoading(true);
@@ -104,14 +121,25 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
       if (typeof window !== 'undefined') {
         setGuestName(localStorage.getItem(GUEST_NAME_KEY) || '');
         setGuestEmail(localStorage.getItem(GUEST_EMAIL_KEY) || '');
+        setProfile(readProfileCache());
       }
-      const { data } = await supabase.auth.getSession();
+      const sessionPromise = supabase.auth.getSession();
+      void loadComments(COLLAPSED_LIMIT);
+      const { data } = await sessionPromise;
       if (!mounted) return;
       setUser(data.session?.user || null);
-      await loadComments(COLLAPSED_LIMIT);
+      setProfile(data.session?.user ? readProfileCache() : null);
     };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setUser(session?.user || null);
+      setProfile(session?.user ? readProfileCache() : null);
+    });
     void bootstrap();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [postId, loadComments]);
 
   useEffect(() => {
@@ -131,6 +159,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (user === undefined) return;
     if (!canSend || submitting) {
       if (!user && newComment.trim() && (!guestName.trim() || !validEmail(guestEmail))) {
         showToast(t('comments.enter_name_email'), 'info');
@@ -210,10 +239,19 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
     }
   };
 
+  const activeProfile = profile || (user as any)?.profile || null;
   const activeName = user
-    ? (user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || t('comments.guest'))
+    ? (
+      activeProfile?.full_name ||
+      activeProfile?.username ||
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email?.split('@')[0] ||
+      t('comments.guest')
+    )
     : t('comments.guest');
-  const activeAvatar = user?.user_metadata?.avatar_url || avatarForName(activeName);
+  const activeAvatar = activeProfile?.avatar_url || user?.user_metadata?.avatar_url || avatarForName(activeName);
+  const sessionReady = user !== undefined;
 
   return (
     <div
@@ -222,11 +260,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
       data-news-card-comments
     >
       <div className="px-6 pt-2">
-        {loading ? (
-          <div className="py-4 text-center text-[10px] font-black uppercase tracking-[0.18em] text-palette-tan/30 animate-pulse">
-            {t('comments.loading')}
-          </div>
-        ) : visibleComments.length > 0 ? (
+        {loading ? null : visibleComments.length > 0 ? (
           <div className="space-y-2 pb-2">
             {visibleComments.map((comment) => (
               <InlineCommentTile
@@ -266,7 +300,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
           </div>
         )}
 
-        {!user && (
+        {sessionReady && !user && (
           <div className="mb-2 grid grid-cols-2 gap-2 max-[420px]:grid-cols-1">
             <InlineGuestInput
               icon="ri-user-3-line"
@@ -286,7 +320,9 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
 
         <div className="flex items-center gap-2">
           <div className="flex h-[31px] w-[31px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-palette-beige/40 bg-gray-50 text-palette-tan/50">
-            {user ? (
+            {!sessionReady ? (
+              <div className="h-3 w-3 rounded-full bg-palette-tan/20" />
+            ) : user ? (
               <img src={activeAvatar} alt={activeName} className="h-full w-full object-cover" />
             ) : (
               <RemixIcon name="ri-chat-3-line" size={15} />
@@ -303,6 +339,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
                   void handleSubmit();
                 }
               }}
+              disabled={!sessionReady}
               rows={1}
               maxLength={COMMENT_MAX_LENGTH}
               placeholder={replyTo ? 'Yanıtınızı yazın' : 'Yorumunuzu ekleyin'}
@@ -343,7 +380,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
           <button
             type="button"
             onClick={() => void handleSubmit()}
-            disabled={!canSend || submitting}
+            disabled={!sessionReady || !canSend || submitting}
             className={`px-2 py-1 text-[12px] font-black transition-colors ${canSend && !submitting ? 'text-gray-800 hover:text-palette-red' : 'text-palette-tan/30'}`}
           >
             {submitting ? 'Gönderiliyor' : 'Gönder'}

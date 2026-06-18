@@ -7,7 +7,10 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/data/admin_image_url.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/admin_cached_image.dart';
+import '../../../shared/widgets/media_library_dialog.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../data/admin_navigation_repository.dart';
 import 'navigation_icon_picker.dart';
@@ -757,6 +760,10 @@ class _NavigationItemTile extends StatelessWidget {
             ],
             const SizedBox(width: 10),
             _TypeIconBox(type: item.type),
+            if (item.imageUrl.trim().isNotEmpty) ...[
+              const SizedBox(width: 8),
+              _ItemImagePreview(imageUrl: item.imageUrl),
+            ],
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -798,6 +805,8 @@ class _NavigationItemTile extends StatelessWidget {
                         _ValueLabel(value: _valueLabel(context, item.value)),
                       if (item.icon.isNotEmpty)
                         _SoftPill(label: item.icon.replaceAll('_', ' ')),
+                      if (item.imageUrl.isNotEmpty)
+                        _SoftPill(label: context.t('navigation.form.image')),
                     ],
                   ),
                 ],
@@ -817,6 +826,32 @@ class _NavigationItemTile extends StatelessWidget {
               onPressed: onDelete,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemImagePreview extends StatelessWidget {
+  const _ItemImagePreview({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = adminImageUrl(imageUrl, width: 180);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      child: SizedBox(
+        width: 48,
+        height: 38,
+        child: AdminCachedImage(
+          url: url,
+          width: 48,
+          height: 38,
+          memCacheWidth: 144,
+          placeholderColor: AppColors.surface,
+          errorWidget: const ColoredBox(color: AppColors.surface),
         ),
       ),
     );
@@ -1114,6 +1149,7 @@ class _NavigationItemDialogState extends State<_NavigationItemDialog> {
   late final TextEditingController _labelController;
   late final TextEditingController _valueController;
   late final TextEditingController _iconController;
+  late final TextEditingController _imageUrlController;
   late String _type;
   late String _parentId;
   late String _languageCode;
@@ -1126,6 +1162,7 @@ class _NavigationItemDialogState extends State<_NavigationItemDialog> {
     _labelController = TextEditingController(text: item?.label ?? '');
     _valueController = TextEditingController(text: item?.value ?? '');
     _iconController = TextEditingController(text: item?.icon ?? '');
+    _imageUrlController = TextEditingController(text: item?.imageUrl ?? '');
     _type = item?.type ?? 'link';
     _parentId = item?.parentId ?? 'root';
     _menuCode = _surfaceFromCode(widget.initialMenuCode).code;
@@ -1143,6 +1180,7 @@ class _NavigationItemDialogState extends State<_NavigationItemDialog> {
     _labelController.dispose();
     _valueController.dispose();
     _iconController.dispose();
+    _imageUrlController.dispose();
     super.dispose();
   }
 
@@ -1313,6 +1351,12 @@ class _NavigationItemDialogState extends State<_NavigationItemDialog> {
                           setState(() => _iconController.text = selected);
                         },
                       ),
+                      const SizedBox(height: 12),
+                      _NavigationImageField(
+                        controller: _imageUrlController,
+                        onPick: _pickImage,
+                        onClear: () => setState(_imageUrlController.clear),
+                      ),
                     ],
                   ),
                 ),
@@ -1442,6 +1486,12 @@ class _NavigationItemDialogState extends State<_NavigationItemDialog> {
     ];
   }
 
+  Future<void> _pickImage() async {
+    final selected = await showMediaLibraryDialog(context, type: 'image');
+    if (!mounted || selected == null || selected.trim().isEmpty) return;
+    setState(() => _imageUrlController.text = selected.trim());
+  }
+
   void _save() {
     if (!_formKey.currentState!.validate()) return;
     Navigator.of(context).pop(
@@ -1452,6 +1502,7 @@ class _NavigationItemDialogState extends State<_NavigationItemDialog> {
           type: _type,
           value: _valueController.text.trim(),
           icon: _iconController.text.trim(),
+          imageUrl: _imageUrlController.text.trim(),
           parentId: _safeParentValue == 'root' ? null : _safeParentValue,
           languageCode: _safeLanguageValue,
         ),
@@ -1541,6 +1592,176 @@ class _IconPickerField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NavigationImageField extends StatefulWidget {
+  const _NavigationImageField({
+    required this.controller,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  State<_NavigationImageField> createState() => _NavigationImageFieldState();
+}
+
+class _NavigationImageFieldState extends State<_NavigationImageField> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NavigationImageField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(_onChanged);
+    widget.controller.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.controller.text.trim();
+    final previewUrl = value.isEmpty ? '' : adminImageUrl(value, width: 640);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: widget.controller,
+          mouseCursor: SystemMouseCursors.text,
+          cursorColor: AppColors.support,
+          style: _dialogFieldTextStyle,
+          decoration: _dialogInputDecoration(
+            context,
+            labelText: context.t('navigation.form.image'),
+            hintText: context.t('navigation.form.imageHint'),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 92,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppColors.surface.withValues(alpha: 0.36),
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 150,
+                height: double.infinity,
+                child: value.isEmpty
+                    ? const Center(
+                        child: SymbolIcon(
+                          Symbols.image_outlined,
+                          color: AppColors.iconMuted,
+                          size: 24,
+                        ),
+                      )
+                    : AdminCachedImage(
+                        url: previewUrl,
+                        width: 150,
+                        height: 92,
+                        memCacheWidth: 450,
+                        placeholderColor: AppColors.surface,
+                        errorWidget: const Center(
+                          child: SymbolIcon(
+                            Symbols.broken_image_outlined,
+                            color: AppColors.iconMuted,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    value.isEmpty
+                        ? context.t('navigation.form.imageEmpty')
+                        : value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: value.isEmpty
+                          ? AppColors.placeholder
+                          : AppColors.deepOcean,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ),
+              _ImageFieldButton(
+                tooltip: context.t('navigation.form.imagePick'),
+                icon: Symbols.photo_library_outlined,
+                onTap: widget.onPick,
+              ),
+              if (value.isNotEmpty)
+                _ImageFieldButton(
+                  tooltip: context.t('navigation.form.imageClear'),
+                  icon: Symbols.close,
+                  onTap: widget.onClear,
+                ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ImageFieldButton extends StatelessWidget {
+  const _ImageFieldButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: SizedBox(
+            width: 34,
+            height: 44,
+            child: Center(
+              child: SymbolIcon(icon, size: 18, color: AppColors.inkSoft),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

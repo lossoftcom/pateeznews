@@ -42,6 +42,7 @@ const LOCAL_FALLBACKS: Partial<Record<StorageType, string[]>> = {
   ],
 };
 
+const LEGACY_IMAGE_ROOTS = new Set(['announcements', 'navigation']);
 const VIDEO_THUMB_EXTENSIONS = ['.webp', '.jpg', '.jpeg', '.png'];
 
 export interface LocalUploadItem {
@@ -104,6 +105,23 @@ export function resolveLocalUploadPath(type: StorageType, id: string) {
   };
 }
 
+function resolveLegacyImageUploadPath(id: string) {
+  const relativeId = normalizeRelativePath(id)
+    .replace(/^api\/storage\/file\//, '')
+    .replace(/^local-upload\//, '')
+    .replace(/^image\//, '');
+  const legacyRoot = relativeId.split('/')[0] || '';
+  if (!LEGACY_IMAGE_ROOTS.has(legacyRoot)) return null;
+  const absolutePath = path.resolve(LOCAL_UPLOAD_ROOT, relativeId);
+  if (!isInside(LOCAL_UPLOAD_ROOT, absolutePath)) return null;
+  return {
+    relativeId,
+    objectPath: relativeId,
+    absolutePath,
+    baseDir: LOCAL_UPLOAD_ROOT,
+  };
+}
+
 function resolveLocalObjectPath(objectPath: string) {
   const normalized = normalizeRelativePath(objectPath);
   if (!normalized) return null;
@@ -158,13 +176,21 @@ export async function deleteLocalUploadFiles(type: StorageType, id: string) {
 
   const deleted: string[] = [];
   for (const relativeId of ids.filter(Boolean)) {
-    const resolved = resolveLocalUploadPath(type, relativeId);
-    if (!resolved) continue;
-    try {
-      await fs.promises.unlink(resolved.absolutePath);
-      deleted.push(relativeId);
-    } catch (error: any) {
-      if (error?.code !== 'ENOENT') throw error;
+    const resolvedPaths = [
+      resolveLocalUploadPath(type, relativeId),
+      type === 'image' ? resolveLegacyImageUploadPath(relativeId) : null,
+    ];
+    const uniquePaths = new Map<string, NonNullable<(typeof resolvedPaths)[number]>>();
+    for (const resolved of resolvedPaths) {
+      if (resolved) uniquePaths.set(resolved.absolutePath, resolved);
+    }
+    for (const resolved of uniquePaths.values()) {
+      try {
+        await fs.promises.unlink(resolved.absolutePath);
+        deleted.push(resolved.relativeId);
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
     }
   }
   return deleted;

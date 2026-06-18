@@ -56,6 +56,7 @@ CREATE TABLE public.navigation_items (
   type text NOT NULL DEFAULT 'link'::text,
   value text,
   icon text,
+  image_url text,
   order_index integer DEFAULT 0,
   is_active boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT now(),
@@ -257,6 +258,8 @@ CREATE TABLE public.site_settings (
   google_analytics_id text,
   google_search_console_code text,
   bing_verification_code text,
+  yandex_verification_code text,
+  indexnow_key text,
   twitter_username text,
   fb_app_id text,
   organization_legal_name text,
@@ -264,8 +267,52 @@ CREATE TABLE public.site_settings (
   organization_address text,
   robots_txt text DEFAULT 'User-agent: *
 Disallow: /admin/
+Disallow: /api/admin/
 Allow: /
-Sitemap: https://yourdomain.com/sitemap.xml'::text,
+
+User-agent: Googlebot
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+User-agent: Googlebot-News
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+User-agent: Bingbot
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+User-agent: Yandex
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+User-agent: OAI-SearchBot
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+User-agent: ChatGPT-User
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+User-agent: PerplexityBot
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+User-agent: Claude-SearchBot
+Disallow: /admin/
+Disallow: /api/admin/
+Allow: /
+
+Sitemap: https://yourdomain.com/sitemap.xml
+Sitemap: https://yourdomain.com/news-sitemap.xml
+Sitemap: https://yourdomain.com/image-sitemap.xml'::text,
   header_custom_codes text,
   footer_custom_codes text,
   site_primary_font text DEFAULT 'PateezInter'::text NOT NULL,

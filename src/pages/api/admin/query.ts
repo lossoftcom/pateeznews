@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import { executeQuerySpec, executeRpc, type QuerySpec } from '@/lib/server/supabaseQuery';
+import { submitIndexNowForPosts } from '@/lib/server/indexNow';
 import { invalidateDataCache, invalidateSiteSettingsCache } from '@/services/dataService';
 import { invalidateServerDataCache, invalidateServerSiteSettingsCache } from '@/services/dataService.server';
 
@@ -73,7 +74,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
     ],
     navigation_items: [
       'id', 'menu_id', 'parent_id', 'label', 'type', 'value', 'icon',
-      'order_index', 'is_active', 'created_at', 'language_code',
+      'image_url', 'order_index', 'is_active', 'created_at', 'language_code',
     ],
     navigation_menus: ['id', 'code', 'name', 'description', 'created_at'],
     newsletter_subscribers: [
@@ -120,11 +121,20 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'footer_logo_url', 'dark_logo_url', 'email_logo_url', 'favicon_url',
       'home_title', 'meta_description', 'meta_keywords', 'canonical_url',
       'og_image_url', 'google_analytics_id', 'google_search_console_code',
-      'bing_verification_code', 'twitter_username', 'fb_app_id',
+      'bing_verification_code', 'yandex_verification_code', 'indexnow_key',
+      'twitter_username', 'fb_app_id',
+      'social_whatsapp_url', 'social_telegram_url', 'social_instagram_url',
+      'social_facebook_url', 'social_x_url', 'social_youtube_url',
+      'social_tiktok_url', 'social_linkedin_url', 'social_pinterest_url',
+      'social_discord_url',
       'social_auth_google_enabled', 'social_auth_apple_enabled',
       'social_auth_facebook_enabled', 'social_auth_x_enabled',
       'social_auth_redirect_scheme', 'social_auth_redirect_host',
       'organization_legal_name', 'organization_phone', 'organization_address',
+      'contact_phone', 'contact_city', 'contact_address',
+      'contact_location_url', 'contact_whatsapp_url', 'contact_telegram_url',
+      'contact_email_info', 'contact_email_support', 'contact_email_news',
+      'contact_email_ads',
       'robots_txt', 'header_custom_codes', 'footer_custom_codes',
       'site_primary_font', 'site_title_font', 'site_content_font',
       'site_font_sizes',
@@ -133,6 +143,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'content_home_page_size',
       'content_featured_source', 'content_featured_sorting',
       'content_featured_duration_days', 'content_featured_limit',
+      'content_featured_show_news_info',
       'content_enabled_post_formats', 'content_upload_image_format',
       'content_upload_allowed_extensions', 'content_upload_max_image_mb',
       'content_upload_max_video_mb', 'content_upload_max_audio_mb',
@@ -337,6 +348,15 @@ export const POST: APIRoute = async ({ request }) => {
     ) {
       invalidateDataCache((key) => key.startsWith('news_'));
       invalidateServerDataCache((key) => key.startsWith('news_') || key.startsWith('post_') || key.startsWith('category_page_'));
+      const rows = Array.isArray(result.data) ? result.data : [result.data].filter(Boolean);
+      const shouldSubmitIndexNow = rows.some((row: any) => String(row?.status || '').trim() === 'published' || String(row?.status || '').trim() === 'trash');
+      if (shouldSubmitIndexNow) {
+        try {
+          await submitIndexNowForPosts(request, rows);
+        } catch (error) {
+          console.warn('IndexNow submission failed:', error instanceof Error ? error.message : error);
+        }
+      }
     }
 
     if (

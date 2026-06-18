@@ -3,10 +3,13 @@ import { getStorageType } from '@/lib/server/supabaseStorage';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import {
   deleteLocalMediaRecords,
+  deleteStorageMediaRecords,
   getStorageSettings,
   isLocalStorageActive,
+  isS3CompatibleStorageActive,
 } from '@/lib/server/storageSettings';
 import { deleteLocalStorageFile } from '@/lib/server/localStorageProxy';
+import { activeRemoteProvider, deleteRemoteStorageFile } from '@/lib/server/remoteObjectStorage';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -40,6 +43,25 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 
     await requireStorageAdminRequest(request, typeHint);
     const storageSettings = await getStorageSettings();
+
+    if (isS3CompatibleStorageActive(storageSettings)) {
+      const provider = activeRemoteProvider(storageSettings);
+      const result = await deleteRemoteStorageFile(storageSettings, {
+        id: rawId,
+        type: typeHint,
+      });
+      for (const item of result.deleted || []) {
+        await deleteStorageMediaRecords(provider, item.type, item.ids || []);
+      }
+      const localResult = await deleteLocalStorageFile({ id: rawId, type: typeHint });
+      for (const item of localResult.deleted || []) {
+        await deleteLocalMediaRecords(item.type, item.ids || []);
+      }
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: jsonHeaders,
+      });
+    }
 
     if (!isLocalStorageActive(storageSettings)) {
       return new Response(JSON.stringify({

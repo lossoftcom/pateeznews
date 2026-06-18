@@ -81,7 +81,7 @@ class SupabaseAdminNavigationRepository implements AdminNavigationRepository {
       'table': 'navigation_items',
       'method': 'select',
       'select':
-          'id,menu_id,parent_id,label,type,value,icon,order_index,is_active,language_code',
+          'id,menu_id,parent_id,label,type,value,icon,image_url,order_index,is_active,language_code',
       'filters': [
         {
           'type': 'comparison',
@@ -419,6 +419,7 @@ class SupabaseAdminNavigationRepository implements AdminNavigationRepository {
       'type': data.type,
       'value': data.value.trim().isEmpty ? null : data.value.trim(),
       'icon': data.icon.trim().isEmpty ? null : data.icon.trim(),
+      'image_url': data.imageUrl.trim().isEmpty ? null : data.imageUrl.trim(),
       'parent_id': data.parentId,
       'order_index': orderIndex,
       'language_code': data.languageCode.trim().isEmpty

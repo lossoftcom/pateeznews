@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { submitIndexNowForPosts } from '@/lib/server/indexNow';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 export const POST: APIRoute = async ({ request }) => {
@@ -15,9 +16,17 @@ export const POST: APIRoute = async ({ request }) => {
            published_at = COALESCE(published_at, now()),
            updated_at = now()
        WHERE id = $1
-       RETURNING id, status, published_at, updated_at`,
+       RETURNING id, slug, language_code, status, published_at, updated_at`,
       [id]
     );
+
+    if (result.rows[0]) {
+      try {
+        await submitIndexNowForPosts(request, result.rows);
+      } catch (error) {
+        console.warn('IndexNow submission failed:', error instanceof Error ? error.message : error);
+      }
+    }
 
     return adminJson({ data: result.rows[0] || null, error: null }, result.rows[0] ? 200 : 404);
   } catch (error) {

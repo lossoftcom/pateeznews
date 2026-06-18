@@ -2243,6 +2243,11 @@ class _FakeAdminGeneralSettingsRepository
 
   GeneralSettingsData? savedSettings;
   GeneralSettingsLogoField? uploadedLogoField;
+  SocialPasswordStatus socialPasswordStatus = SocialPasswordStatus.empty;
+  Map<SocialPasswordField, String>? savedSocialPasswords;
+  ContactEmailPasswordStatus contactEmailPasswordStatus =
+      ContactEmailPasswordStatus.empty;
+  Map<ContactEmailPasswordField, String>? savedContactEmailPasswords;
 
   @override
   Future<GeneralSettingsData> fetchSettings(String languageCode) async {
@@ -2269,6 +2274,71 @@ class _FakeAdminGeneralSettingsRepository
   }) async {
     uploadedLogoField = field;
     return '/api/storage/file/logo/$languageCode/${field.uploadFilename}';
+  }
+
+  @override
+  Future<SocialPasswordStatus> fetchSocialPasswordStatus({
+    required AdminSession session,
+    required String languageCode,
+  }) async {
+    return socialPasswordStatus;
+  }
+
+  @override
+  Future<SocialPasswordStatus> saveSocialPasswords({
+    required AdminSession session,
+    required String languageCode,
+    required Map<SocialPasswordField, String> values,
+  }) async {
+    savedSocialPasswords = values;
+    socialPasswordStatus = SocialPasswordStatus({
+      for (final field in SocialPasswordField.values)
+        field: values.containsKey(field) || socialPasswordStatus.has(field),
+    });
+    return socialPasswordStatus;
+  }
+
+  @override
+  Future<String> revealSocialPassword({
+    required AdminSession session,
+    required String languageCode,
+    required SocialPasswordField field,
+    required String superAdminPassword,
+  }) async {
+    return savedSocialPasswords?[field] ?? '';
+  }
+
+  @override
+  Future<ContactEmailPasswordStatus> fetchContactEmailPasswordStatus({
+    required AdminSession session,
+    required String languageCode,
+  }) async {
+    return contactEmailPasswordStatus;
+  }
+
+  @override
+  Future<ContactEmailPasswordStatus> saveContactEmailPasswords({
+    required AdminSession session,
+    required String languageCode,
+    required Map<ContactEmailPasswordField, String> values,
+  }) async {
+    savedContactEmailPasswords = values;
+    contactEmailPasswordStatus = ContactEmailPasswordStatus({
+      for (final field in ContactEmailPasswordField.values)
+        field:
+            values.containsKey(field) || contactEmailPasswordStatus.has(field),
+    });
+    return contactEmailPasswordStatus;
+  }
+
+  @override
+  Future<String> revealContactEmailPassword({
+    required AdminSession session,
+    required String languageCode,
+    required ContactEmailPasswordField field,
+    required String superAdminPassword,
+  }) async {
+    return savedContactEmailPasswords?[field] ?? '';
   }
 
   @override
@@ -2636,8 +2706,9 @@ class _FakeAdminStorageSettingsRepository
 
   @override
   Future<AdminStorageSettingsData> saveSettings(
-    AdminStorageSettingsData settings,
-  ) async {
+    AdminStorageSettingsData settings, {
+    bool migrateLocalMedia = false,
+  }) async {
     this.settings = settings;
     return settings;
   }
@@ -5260,6 +5331,7 @@ void main() {
     expect(find.text('Google & Servisler'), findsOneWidget);
     expect(find.text('Özel Kodlar'), findsOneWidget);
     expect(find.text('Robots & Teknik'), findsOneWidget);
+    expect(find.text('İletişim'), findsOneWidget);
     expect(find.text('Site Adı'), findsOneWidget);
     expect(find.text('Pateeznews.com'), findsOneWidget);
     expect(find.text('Logo Ayarları'), findsOneWidget);

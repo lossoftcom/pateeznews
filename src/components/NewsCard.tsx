@@ -1,4 +1,4 @@
-import { isPostId, getRelativeTime } from '@/utils/helpers';
+import { isPostId, formatPostDateParts } from '@/utils/helpers';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NewsType, type NewsItem, type SiteSettings, type NavigationItem } from '@/types';
 import InlineCardComments from './InlineCardComments';
@@ -78,6 +78,23 @@ const stripHtmlToText = (html: string) => {
     .trim();
 };
 
+const titleCaseCategory = (value: string) => {
+  const lower = String(value || '').trim().toLocaleLowerCase('tr-TR');
+  if (!lower) return lower;
+  let result = '';
+  let capitalizeNext = true;
+  for (const char of lower) {
+    if (char === ' ' || char === '\t' || char === '\n' || char === '/' || char === '-' || char === '_' || char === '.') {
+      capitalizeNext = true;
+      result += char;
+      continue;
+    }
+    result += capitalizeNext ? char.toLocaleUpperCase('tr-TR') : char;
+    capitalizeNext = false;
+  }
+  return result;
+};
+
 interface CardSocialActionProps {
   icon: string;
   activeIcon?: string;
@@ -115,6 +132,38 @@ const CardSocialAction: React.FC<CardSocialActionProps> = ({
   </button>
 );
 
+type VoteChoice = 'like' | 'dislike' | null;
+
+interface VoteSnapshot {
+  liked: boolean;
+  disliked: boolean;
+  likes: number;
+  dislikes: number;
+}
+
+interface SaveSnapshot {
+  saved: boolean;
+  saves: number;
+}
+
+const getVoteChoice = (liked: boolean, disliked: boolean): VoteChoice => {
+  if (liked) return 'like';
+  if (disliked) return 'dislike';
+  return null;
+};
+
+const getVoteToggleAction = (
+  serverVote: VoteChoice,
+  desiredVote: VoteChoice,
+): 'toggle_like' | 'toggle_dislike' | null => {
+  if (serverVote === desiredVote) return null;
+  if (desiredVote === 'like') return 'toggle_like';
+  if (desiredVote === 'dislike') return 'toggle_dislike';
+  if (serverVote === 'like') return 'toggle_like';
+  if (serverVote === 'dislike') return 'toggle_dislike';
+  return null;
+};
+
 const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, navItems }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
@@ -124,6 +173,8 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   const commentsEnabled = siteSettings?.content_comment_system_enabled !== false;
   const commentApprovalEnabled = siteSettings?.content_comment_approval_enabled !== false;
   const emojiReactionsEnabled = siteSettings?.content_emoji_reactions_enabled !== false;
+  const displaySourceName = titleCaseCategory(data.source || '');
+  const publishedAt = formatPostDateParts(data.timestamp, currentLang.code);
 
   const detailHref = useMemo(() => {
     return getPostHref(data, siteSettings);
@@ -165,10 +216,209 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   const [userId, setUserId] = useState<string | null>(null);
   const [publisherId, setPublisherId] = useState<string | null>(data.publisherId || null);
   const [isFollowing, setIsFollowing] = useState(data.isFollowingPublisher || false);
+  const voteDraftRef = useRef<VoteSnapshot>({
+    liked: data.userLiked || false,
+    disliked: data.userDisliked || false,
+    likes: data.likes || 0,
+    dislikes: data.dislikes || 0,
+  });
+  const voteSyncRef = useRef<{
+    inFlight: boolean;
+    pending: VoteChoice | undefined;
+    serverVote: VoteChoice;
+    serverSnapshot: VoteSnapshot;
+  }>({
+    inFlight: false,
+    pending: undefined,
+    serverVote: getVoteChoice(data.userLiked || false, data.userDisliked || false),
+    serverSnapshot: {
+      liked: data.userLiked || false,
+      disliked: data.userDisliked || false,
+      likes: data.likes || 0,
+      dislikes: data.dislikes || 0,
+    },
+  });
+  const saveDraftRef = useRef<SaveSnapshot>({
+    saved: data.userSaved || false,
+    saves: data.saves || 0,
+  });
+  const saveSyncRef = useRef<{
+    inFlight: boolean;
+    pending: boolean | undefined;
+    serverSaved: boolean;
+    serverSnapshot: SaveSnapshot;
+  }>({
+    inFlight: false,
+    pending: undefined,
+    serverSaved: data.userSaved || false,
+    serverSnapshot: {
+      saved: data.userSaved || false,
+      saves: data.saves || 0,
+    },
+  });
+
+  const applyVoteSnapshot = useCallback((snapshot: VoteSnapshot) => {
+    voteDraftRef.current = snapshot;
+    setIsLiked(snapshot.liked);
+    setIsDisliked(snapshot.disliked);
+    setLikesCount(snapshot.likes);
+    setDislikesCount(snapshot.dislikes);
+  }, []);
+
+  const applyVoteChoice = useCallback((nextVote: VoteChoice) => {
+    const current = voteDraftRef.current;
+    const previousVote = getVoteChoice(current.liked, current.disliked);
+    let nextLikes = current.likes;
+    let nextDislikes = current.dislikes;
+
+    if (previousVote === 'like') nextLikes -= 1;
+    if (previousVote === 'dislike') nextDislikes -= 1;
+    if (nextVote === 'like') nextLikes += 1;
+    if (nextVote === 'dislike') nextDislikes += 1;
+
+    applyVoteSnapshot({
+      liked: nextVote === 'like',
+      disliked: nextVote === 'dislike',
+      likes: Math.max(0, nextLikes),
+      dislikes: Math.max(0, nextDislikes),
+    });
+  }, [applyVoteSnapshot]);
+
+  const syncVotePreference = useCallback(async () => {
+    const sync = voteSyncRef.current;
+    if (sync.inFlight || !isPostId(data.id)) return;
+    sync.inFlight = true;
+
+    try {
+      while (sync.pending !== undefined) {
+        const desiredVote = sync.pending;
+        sync.pending = undefined;
+        const action = getVoteToggleAction(sync.serverVote, desiredVote);
+        if (!action) continue;
+
+        try {
+          const result = await postAction<any>(action, { postId: data.id, publisherId });
+          const serverSnapshot = {
+            liked: !!result.userState?.liked,
+            disliked: !!result.userState?.disliked,
+            likes: result.counts?.likes ?? voteDraftRef.current.likes,
+            dislikes: result.counts?.dislikes ?? voteDraftRef.current.dislikes,
+          };
+          sync.serverVote = getVoteChoice(serverSnapshot.liked, serverSnapshot.disliked);
+          sync.serverSnapshot = serverSnapshot;
+          if (sync.pending === undefined) {
+            applyVoteSnapshot(serverSnapshot);
+          }
+        } catch {
+          if (sync.pending !== undefined) continue;
+          applyVoteSnapshot(sync.serverSnapshot);
+          showToast(
+            t(desiredVote === 'dislike' ? 'common.dislike_failed' : 'common.like_failed'),
+            'error',
+          );
+          return;
+        }
+      }
+    } finally {
+      sync.inFlight = false;
+    }
+  }, [data.id, publisherId, applyVoteSnapshot, showToast, t]);
+
+  const applySaveSnapshot = useCallback((snapshot: SaveSnapshot) => {
+    saveDraftRef.current = snapshot;
+    setIsBookmarked(snapshot.saved);
+    setSavesCount(snapshot.saves);
+  }, []);
+
+  const applySaveChoice = useCallback((nextSaved: boolean) => {
+    const current = saveDraftRef.current;
+    const delta = nextSaved === current.saved ? 0 : nextSaved ? 1 : -1;
+    applySaveSnapshot({
+      saved: nextSaved,
+      saves: Math.max(0, current.saves + delta),
+    });
+  }, [applySaveSnapshot]);
+
+  const syncSavePreference = useCallback(async () => {
+    const sync = saveSyncRef.current;
+    if (sync.inFlight || !isPostId(data.id)) return;
+    sync.inFlight = true;
+
+    try {
+      while (sync.pending !== undefined) {
+        const desiredSaved = sync.pending;
+        sync.pending = undefined;
+        if (sync.serverSaved === desiredSaved) continue;
+
+        try {
+          const result = await postAction<any>('toggle_save', { postId: data.id, publisherId });
+          const serverSnapshot = {
+            saved: !!result.userState?.saved,
+            saves: result.counts?.saves ?? saveDraftRef.current.saves,
+          };
+          sync.serverSaved = serverSnapshot.saved;
+          sync.serverSnapshot = serverSnapshot;
+          if (sync.pending === undefined) {
+            applySaveSnapshot(serverSnapshot);
+          }
+        } catch {
+          if (sync.pending !== undefined) continue;
+          applySaveSnapshot(sync.serverSnapshot);
+          showToast(t('common.bookmark_failed'), 'error');
+          return;
+        }
+      }
+    } finally {
+      sync.inFlight = false;
+    }
+  }, [data.id, publisherId, applySaveSnapshot, showToast, t]);
 
   useEffect(() => {
     setShowComments(commentsEnabled);
   }, [commentsEnabled, data.id]);
+
+  useEffect(() => {
+    const voteSnapshot = {
+      liked: data.userLiked || false,
+      disliked: data.userDisliked || false,
+      likes: data.likes || 0,
+      dislikes: data.dislikes || 0,
+    };
+    voteSyncRef.current = {
+      inFlight: false,
+      pending: undefined,
+      serverVote: getVoteChoice(voteSnapshot.liked, voteSnapshot.disliked),
+      serverSnapshot: voteSnapshot,
+    };
+    applyVoteSnapshot(voteSnapshot);
+    const saveSnapshot = {
+      saved: data.userSaved || false,
+      saves: data.saves || 0,
+    };
+    saveSyncRef.current = {
+      inFlight: false,
+      pending: undefined,
+      serverSaved: saveSnapshot.saved,
+      serverSnapshot: saveSnapshot,
+    };
+    applySaveSnapshot(saveSnapshot);
+    setSharesCount(data.shares || 0);
+    setPublisherId(data.publisherId || null);
+    setIsFollowing(data.isFollowingPublisher || false);
+  }, [
+    data.id,
+    data.userLiked,
+    data.userDisliked,
+    data.userSaved,
+    data.likes,
+    data.dislikes,
+    data.saves,
+    data.shares,
+    data.publisherId,
+    data.isFollowingPublisher,
+    applyVoteSnapshot,
+    applySaveSnapshot,
+  ]);
 
   const readingTime = useMemo(() => {
     const wordsPerMinute = 200;
@@ -196,14 +446,30 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
 
           if (!isMounted) return;
 
-          setIsLiked(!!state.userState?.liked);
-          setIsBookmarked(!!state.userState?.saved);
-          setIsDisliked(!!state.userState?.disliked);
+          const voteSnapshot = {
+            liked: !!state.userState?.liked,
+            disliked: !!state.userState?.disliked,
+            likes: state.counts?.likes ?? data.likes ?? 0,
+            dislikes: state.counts?.dislikes ?? data.dislikes ?? 0,
+          };
+          voteSyncRef.current.serverVote = getVoteChoice(voteSnapshot.liked, voteSnapshot.disliked);
+          voteSyncRef.current.serverSnapshot = voteSnapshot;
+          if (!voteSyncRef.current.inFlight && voteSyncRef.current.pending === undefined) {
+            applyVoteSnapshot(voteSnapshot);
+          }
+          const saveSnapshot = {
+            saved: !!state.userState?.saved,
+            saves: state.counts?.saves ?? data.saves ?? 0,
+          };
+          saveSyncRef.current.serverSaved = saveSnapshot.saved;
+          saveSyncRef.current.serverSnapshot = saveSnapshot;
+          if (!saveSyncRef.current.inFlight && saveSyncRef.current.pending === undefined) {
+            applySaveSnapshot(saveSnapshot);
+          }
           setIsFollowing(!!state.userState?.following);
-          setLikesCount(state.counts?.likes ?? likesCount);
-          setDislikesCount(state.counts?.dislikes ?? dislikesCount);
-          setSharesCount(state.counts?.shares ?? sharesCount);
-          setSavesCount(state.counts?.saves ?? savesCount);
+          setSharesCount(state.counts?.shares ?? data.shares ?? 0);
+        } else if (isMounted) {
+          setUserId(null);
         }
       } catch (error) {
         console.error("Error checking user status:", error);
@@ -211,54 +477,46 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
     };
 
     checkUserAndStatus();
-    return () => { isMounted = false; };
-  }, [data.id]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      void checkUserAndStatus();
+    });
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [data.id, data.publisherId, data.likes, data.dislikes, data.shares, data.saves, applyVoteSnapshot, applySaveSnapshot]);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isLoading) return;
 
-    if (!userId || !isPostId(data.id)) {
-      if (!userId) showToast(t('auth.login_required_like'), 'info');
+    const activeUserId = userId || (await supabase.auth.getSession()).data.session?.user?.id || null;
+    if (!activeUserId || !isPostId(data.id)) {
+      if (!activeUserId) showToast(t('auth.login_required_like'), 'info');
       return;
     }
+    if (!userId) setUserId(activeUserId);
 
-    setIsLoading(true);
-    try {
-      const result = await postAction<any>('toggle_like', { postId: data.id, publisherId });
-      setIsLiked(!!result.userState?.liked);
-      setIsDisliked(!!result.userState?.disliked);
-      setLikesCount(result.counts?.likes ?? likesCount);
-      setDislikesCount(result.counts?.dislikes ?? dislikesCount);
-    } catch (error) {
-      showToast(t('common.like_failed'), 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, userId, data.id, publisherId, likesCount, dislikesCount, showToast, t]);
+    const nextVote = voteDraftRef.current.liked ? null : 'like';
+    applyVoteChoice(nextVote);
+    voteSyncRef.current.pending = nextVote;
+    void syncVotePreference();
+  }, [userId, data.id, applyVoteChoice, syncVotePreference, showToast, t]);
 
   const handleDislike = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isLoading) return;
 
-    if (!userId || !isPostId(data.id)) {
-      if (!userId) showToast(t('auth.login_required_dislike'), 'info');
+    const activeUserId = userId || (await supabase.auth.getSession()).data.session?.user?.id || null;
+    if (!activeUserId || !isPostId(data.id)) {
+      if (!activeUserId) showToast(t('auth.login_required_dislike'), 'info');
       return;
     }
+    if (!userId) setUserId(activeUserId);
 
-    setIsLoading(true);
-    try {
-      const result = await postAction<any>('toggle_dislike', { postId: data.id, publisherId });
-      setIsLiked(!!result.userState?.liked);
-      setIsDisliked(!!result.userState?.disliked);
-      setLikesCount(result.counts?.likes ?? likesCount);
-      setDislikesCount(result.counts?.dislikes ?? dislikesCount);
-    } catch (error) {
-      showToast(t('common.dislike_failed'), 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, userId, data.id, publisherId, likesCount, dislikesCount, showToast, t]);
+    const nextVote = voteDraftRef.current.disliked ? null : 'dislike';
+    applyVoteChoice(nextVote);
+    voteSyncRef.current.pending = nextVote;
+    void syncVotePreference();
+  }, [userId, data.id, applyVoteChoice, syncVotePreference, showToast, t]);
 
   const handleFollow = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -281,25 +539,19 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   // Kaydetme işlemi (giriş gerektirir)
   const handleSave = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isLoading) return;
 
-    // Giriş yapmamışsa uyarı göster
-    if (!userId || !isPostId(data.id)) {
-      if (!userId) showToast(t('auth.login_required_bookmark'), 'info');
+    const activeUserId = userId || (await supabase.auth.getSession()).data.session?.user?.id || null;
+    if (!activeUserId || !isPostId(data.id)) {
+      if (!activeUserId) showToast(t('auth.login_required_bookmark'), 'info');
       return;
     }
+    if (!userId) setUserId(activeUserId);
 
-    setIsLoading(true);
-    try {
-      const result = await postAction<any>('toggle_save', { postId: data.id, publisherId });
-      setIsBookmarked(!!result.userState?.saved);
-      setSavesCount(result.counts?.saves ?? savesCount);
-    } catch (error) {
-      showToast(t('common.bookmark_failed'), 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, userId, data.id, publisherId, savesCount, showToast, t]);
+    const nextSaved = !saveDraftRef.current.saved;
+    applySaveChoice(nextSaved);
+    saveSyncRef.current.pending = nextSaved;
+    void syncSavePreference();
+  }, [userId, data.id, applySaveChoice, syncSavePreference, showToast, t]);
 
   // Paylaş menüsü state
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -521,17 +773,17 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
             {showPostAuthor && (
               <div
                 onClick={handleSourceAction}
-                className="w-11 h-11 rounded-[5px] bg-palette-beige/20 p-[2px] border border-palette-beige shadow-sm cursor-pointer group/avatar relative pointer-events-auto"
+                className="w-12 h-12 rounded-full bg-white p-[2px] border border-palette-beige/70 shadow-[0_6px_18px_rgba(24,37,64,0.07)] cursor-pointer group/avatar relative pointer-events-auto"
               >
-                <div className="w-full h-full rounded-[5px] overflow-hidden">
+                <div className="w-full h-full rounded-full overflow-hidden">
                   <img
                     src={data.sourceAvatar || `https://picsum.photos/seed/source${data.id}/100`}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110"
-                    alt={data.source}
+                    alt={displaySourceName || data.source}
                   />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white rounded-[5px] flex items-center justify-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-[5px] animate-pulse"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center border border-palette-beige/60 shadow-sm">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 </div>
               </div>
             )}
@@ -544,7 +796,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                     className="flex items-center gap-1.5 cursor-pointer group/title pointer-events-auto"
                   >
                     <h5 className="text-[15px] font-[800] text-gray-900 tracking-tight group-hover/title:text-palette-red transition-colors">
-                      {data.source}
+                      {displaySourceName || data.source}
                     </h5>
                     <RemixIcon name="ri-verified-badge-fill" size={16} className="text-palette-red" />
                   </div>
@@ -552,7 +804,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                   {/* FOLLOW BUTTON - Color changed from red to professional blue */}
                   <button
                     onClick={handleFollow}
-                    className={`uppercase tracking-tighter text-[9px] font-[900] px-2 py-0.5 rounded-full transition-all ${isFollowing ? 'text-gray-400 bg-gray-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white'}`}
+                    className={`tracking-normal text-[9px] font-[800] px-2 py-0.5 rounded-full transition-all ${isFollowing ? 'text-gray-400 bg-gray-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white'}`}
                   >
                     {isFollowing ? t('common.following') : t('common.follow')}
                   </button>
@@ -564,7 +816,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                   {categoryHierarchy.map((cat, idx) => (
                     <React.Fragment key={idx}>
                       {/* CATEGORY COLORS - Changed to gray-500 as requested */}
-                      <span className="text-gray-500 font-[800] uppercase tracking-wider text-[9px]">{t(cat)}</span>
+                      <span className="text-gray-500 font-[800] tracking-normal text-[9px]">{titleCaseCategory(t(cat))}</span>
                       {idx < categoryHierarchy.length - 1 && <span className="text-gray-500 mx-0.5 text-[8px]">/</span>}
                     </React.Fragment>
                   ))}
@@ -572,7 +824,13 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                 {showPostDate && (
                   <>
                     <span className="w-0.5 h-0.5 bg-palette-beige rounded-[5px]"></span>
-                    <span className="font-medium">{getRelativeTime(data.timestamp, currentLang.code)}</span>
+                    <span className="font-medium">{publishedAt.date || data.timestamp}</span>
+                    {publishedAt.time && (
+                      <>
+                        <RemixIcon name="ri-time-line" size={11} className="opacity-80" />
+                        <span className="font-medium">{publishedAt.time}</span>
+                      </>
+                    )}
                   </>
                 )}
               </div>

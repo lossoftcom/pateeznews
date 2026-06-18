@@ -152,12 +152,10 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
     return switch (_quickFilter) {
       mailQuickAll => true,
       mailQuickInbox => message.folder == mailFolderInbox,
+      mailQuickContact => mailMessageIsContact(message),
       mailQuickUnread => !message.read,
       mailQuickStarred => message.starred,
       mailQuickAttachments => message.hasAttachments || message.hasImages,
-      mailQuickInvoice => message.labels.any(
-        (label) => label.toLowerCase() == 'fatura',
-      ),
       mailQuickSent => message.isOutboxSource,
       mailQuickDraft => message.folder == mailFolderDraft,
       mailQuickScheduled => message.folder == mailFolderScheduled,

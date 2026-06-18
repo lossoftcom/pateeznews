@@ -4,6 +4,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -18,10 +19,12 @@ class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({
     super.key,
     required this.session,
+    this.profile,
     this.repository = const SupabaseAdminGeneralSettingsRepository(),
   });
 
   final AdminSession session;
+  final AdminProfile? profile;
   final AdminGeneralSettingsRepository repository;
 
   @override
@@ -38,6 +41,12 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
   var _saving = false;
   String? _error;
   GeneralSettingsLogoField? _uploadingField;
+  var _socialPasswordStatus = SocialPasswordStatus.empty;
+  final _visibleSocialPasswordFields = <SocialPasswordField>{};
+  SocialPasswordField? _revealingSocialPasswordField;
+  var _contactEmailPasswordStatus = ContactEmailPasswordStatus.empty;
+  final _visibleContactEmailPasswordFields = <ContactEmailPasswordField>{};
+  ContactEmailPasswordField? _revealingContactEmailPasswordField;
 
   @override
   void initState() {
@@ -63,9 +72,27 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
       final settings = await widget.repository.fetchSettings(
         _settingsLanguageCode,
       );
+      final socialPasswordStatus = _canManageSocialPasswords
+          ? await widget.repository.fetchSocialPasswordStatus(
+              session: widget.session,
+              languageCode: _settingsLanguageCode,
+            )
+          : SocialPasswordStatus.empty;
+      final contactEmailPasswordStatus = _canManageContactEmailPasswords
+          ? await widget.repository.fetchContactEmailPasswordStatus(
+              session: widget.session,
+              languageCode: _settingsLanguageCode,
+            )
+          : ContactEmailPasswordStatus.empty;
       if (!mounted) return;
       _applySettings(settings);
       setState(() {
+        _socialPasswordStatus = socialPasswordStatus;
+        _contactEmailPasswordStatus = contactEmailPasswordStatus;
+        _form.clearSocialPasswordValues();
+        _form.clearContactEmailPasswordValues();
+        _visibleSocialPasswordFields.clear();
+        _visibleContactEmailPasswordFields.clear();
         _loading = false;
       });
     } catch (error) {
@@ -74,6 +101,12 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         _settings = GeneralSettingsData.empty(_settingsLanguageCode);
         _timezone = 'Europe/Istanbul';
         _form.apply(_settings);
+        _form.clearSocialPasswordValues();
+        _form.clearContactEmailPasswordValues();
+        _socialPasswordStatus = SocialPasswordStatus.empty;
+        _contactEmailPasswordStatus = ContactEmailPasswordStatus.empty;
+        _visibleSocialPasswordFields.clear();
+        _visibleContactEmailPasswordFields.clear();
         _error = error.toString();
         _loading = false;
       });
@@ -96,15 +129,41 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
 
   Future<void> _saveSettings() async {
     if (_saving || _loading) return;
+    final socialPasswordValues = _canManageSocialPasswords
+        ? _form.socialPasswordValues()
+        : <SocialPasswordField, String>{};
+    final contactEmailPasswordValues = _canManageContactEmailPasswords
+        ? _form.contactEmailPasswordValues()
+        : <ContactEmailPasswordField, String>{};
     setState(() => _saving = true);
     try {
       final saved = await widget.repository.saveSettings(
         session: widget.session,
         settings: _currentSettings(),
       );
+      final socialPasswordStatus = socialPasswordValues.isEmpty
+          ? _socialPasswordStatus
+          : await widget.repository.saveSocialPasswords(
+              session: widget.session,
+              languageCode: _settingsLanguageCode,
+              values: socialPasswordValues,
+            );
+      final contactEmailPasswordStatus = contactEmailPasswordValues.isEmpty
+          ? _contactEmailPasswordStatus
+          : await widget.repository.saveContactEmailPasswords(
+              session: widget.session,
+              languageCode: _settingsLanguageCode,
+              values: contactEmailPasswordValues,
+            );
       if (!mounted) return;
       setState(() {
         _applySettings(saved);
+        _socialPasswordStatus = socialPasswordStatus;
+        _contactEmailPasswordStatus = contactEmailPasswordStatus;
+        _form.clearSocialPasswordValues();
+        _form.clearContactEmailPasswordValues();
+        _visibleSocialPasswordFields.clear();
+        _visibleContactEmailPasswordFields.clear();
         _saving = false;
       });
       _showMessage('settings.save_success');
@@ -180,6 +239,101 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     };
   }
 
+  String get _roleName {
+    final profileRole = widget.profile?.role?.trim();
+    if (profileRole != null && profileRole.isNotEmpty) return profileRole;
+    final metadataRole = widget.session.user.userMetadata['role']
+        ?.toString()
+        .trim();
+    if (metadataRole != null && metadataRole.isNotEmpty) return metadataRole;
+    return '';
+  }
+
+  bool get _canManageSocialPasswords {
+    final role = _roleName.toLowerCase();
+    return role == 'admin' || role == 'super_admin';
+  }
+
+  bool get _canManageContactEmailPasswords => _canManageSocialPasswords;
+
+  Future<void> _revealSocialPassword(SocialPasswordField field) async {
+    if (!_canManageSocialPasswords || _saving || _loading) return;
+    if (_visibleSocialPasswordFields.contains(field)) {
+      setState(() => _visibleSocialPasswordFields.remove(field));
+      return;
+    }
+
+    final superAdminPassword = await showDialog<String>(
+      context: context,
+      builder: (context) => const _SuperAdminPasswordDialog(),
+    );
+    if (superAdminPassword == null || superAdminPassword.trim().isEmpty) {
+      return;
+    }
+
+    final controller = _form.socialPasswordController(field);
+    final typedValue = controller.text;
+    setState(() => _revealingSocialPasswordField = field);
+    try {
+      final revealed = await widget.repository.revealSocialPassword(
+        session: widget.session,
+        languageCode: _settingsLanguageCode,
+        field: field,
+        superAdminPassword: superAdminPassword,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (typedValue.trim().isEmpty) controller.text = revealed;
+        _visibleSocialPasswordFields.add(field);
+        _revealingSocialPasswordField = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _revealingSocialPasswordField = null);
+      _showMessage('Sosyal şifre görüntülenemedi: $error');
+    }
+  }
+
+  Future<void> _revealContactEmailPassword(
+    ContactEmailPasswordField field,
+  ) async {
+    if (!_canManageContactEmailPasswords || _saving || _loading) return;
+    if (_visibleContactEmailPasswordFields.contains(field)) {
+      setState(() => _visibleContactEmailPasswordFields.remove(field));
+      return;
+    }
+
+    final superAdminPassword = await showDialog<String>(
+      context: context,
+      builder: (context) => const _SuperAdminPasswordDialog(),
+    );
+    if (superAdminPassword == null || superAdminPassword.trim().isEmpty) {
+      return;
+    }
+
+    final controller = _form.contactEmailPasswordController(field);
+    final typedValue = controller.text;
+    setState(() => _revealingContactEmailPasswordField = field);
+    try {
+      final revealed = await widget.repository.revealContactEmailPassword(
+        session: widget.session,
+        languageCode: _settingsLanguageCode,
+        field: field,
+        superAdminPassword: superAdminPassword,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (typedValue.trim().isEmpty) controller.text = revealed;
+        _visibleContactEmailPasswordFields.add(field);
+        _revealingContactEmailPasswordField = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _revealingContactEmailPasswordField = null);
+      _showMessage('İletişim mail şifresi görüntülenemedi: $error');
+    }
+  }
+
   void _showMessage(
     String message, {
     AdminToastTone tone = AdminToastTone.info,
@@ -240,8 +394,23 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                   timezone: _timezone,
                   uploadingField: _uploadingField,
                   publicUrl: widget.repository.publicUrl,
+                  canManageSocialPasswords: _canManageSocialPasswords,
+                  socialPasswordStatus: _socialPasswordStatus,
+                  visibleSocialPasswordFields: _visibleSocialPasswordFields,
+                  revealingSocialPasswordField: _revealingSocialPasswordField,
+                  canManageContactEmailPasswords:
+                      _canManageContactEmailPasswords,
+                  contactEmailPasswordStatus: _contactEmailPasswordStatus,
+                  visibleContactEmailPasswordFields:
+                      _visibleContactEmailPasswordFields,
+                  revealingContactEmailPasswordField:
+                      _revealingContactEmailPasswordField,
                   onRetry: () => unawaited(_loadSettings()),
                   onSave: () => unawaited(_saveSettings()),
+                  onRevealSocialPassword: (field) =>
+                      unawaited(_revealSocialPassword(field)),
+                  onRevealContactEmailPassword: (field) =>
+                      unawaited(_revealContactEmailPassword(field)),
                   onTimezoneChanged: (value) {
                     if (value == null) return;
                     setState(() => _timezone = value);
@@ -270,11 +439,43 @@ class _GeneralSettingsForm {
   final organizationLegalName = TextEditingController();
   final organizationPhone = TextEditingController();
   final organizationAddress = TextEditingController();
+  final contactPhone = TextEditingController();
+  final contactCity = TextEditingController();
+  final contactAddress = TextEditingController();
+  final contactLocationUrl = TextEditingController();
+  final contactWhatsappUrl = TextEditingController();
+  final contactTelegramUrl = TextEditingController();
+  final contactEmailInfo = TextEditingController();
+  final contactEmailSupport = TextEditingController();
+  final contactEmailNews = TextEditingController();
+  final contactEmailAds = TextEditingController();
   final twitterUsername = TextEditingController();
   final fbAppId = TextEditingController();
+  final socialWhatsappUrl = TextEditingController();
+  final socialTelegramUrl = TextEditingController();
+  final socialInstagramUrl = TextEditingController();
+  final socialFacebookUrl = TextEditingController();
+  final socialXUrl = TextEditingController();
+  final socialYoutubeUrl = TextEditingController();
+  final socialTiktokUrl = TextEditingController();
+  final socialLinkedinUrl = TextEditingController();
+  final socialPinterestUrl = TextEditingController();
+  final socialDiscordUrl = TextEditingController();
+  final _socialPasswordControllers =
+      <SocialPasswordField, TextEditingController>{
+        for (final field in SocialPasswordField.values)
+          field: TextEditingController(),
+      };
+  final _contactEmailPasswordControllers =
+      <ContactEmailPasswordField, TextEditingController>{
+        for (final field in ContactEmailPasswordField.values)
+          field: TextEditingController(),
+      };
   final googleAnalyticsId = TextEditingController();
   final googleSearchConsoleCode = TextEditingController();
   final bingVerificationCode = TextEditingController();
+  final yandexVerificationCode = TextEditingController();
+  final indexNowKey = TextEditingController();
   final socialAuthRedirectScheme = TextEditingController();
   final socialAuthRedirectHost = TextEditingController();
   final robotsTxt = TextEditingController();
@@ -298,11 +499,33 @@ class _GeneralSettingsForm {
     organizationLegalName.text = settings.organizationLegalName;
     organizationPhone.text = settings.organizationPhone;
     organizationAddress.text = settings.organizationAddress;
+    contactPhone.text = settings.contactPhone;
+    contactCity.text = settings.contactCity;
+    contactAddress.text = settings.contactAddress;
+    contactLocationUrl.text = settings.contactLocationUrl;
+    contactWhatsappUrl.text = settings.contactWhatsappUrl;
+    contactTelegramUrl.text = settings.contactTelegramUrl;
+    contactEmailInfo.text = settings.contactEmailInfo;
+    contactEmailSupport.text = settings.contactEmailSupport;
+    contactEmailNews.text = settings.contactEmailNews;
+    contactEmailAds.text = settings.contactEmailAds;
     twitterUsername.text = settings.twitterUsername;
     fbAppId.text = settings.fbAppId;
+    socialWhatsappUrl.text = settings.socialWhatsappUrl;
+    socialTelegramUrl.text = settings.socialTelegramUrl;
+    socialInstagramUrl.text = settings.socialInstagramUrl;
+    socialFacebookUrl.text = settings.socialFacebookUrl;
+    socialXUrl.text = settings.socialXUrl;
+    socialYoutubeUrl.text = settings.socialYoutubeUrl;
+    socialTiktokUrl.text = settings.socialTiktokUrl;
+    socialLinkedinUrl.text = settings.socialLinkedinUrl;
+    socialPinterestUrl.text = settings.socialPinterestUrl;
+    socialDiscordUrl.text = settings.socialDiscordUrl;
     googleAnalyticsId.text = settings.googleAnalyticsId;
     googleSearchConsoleCode.text = settings.googleSearchConsoleCode;
     bingVerificationCode.text = settings.bingVerificationCode;
+    yandexVerificationCode.text = settings.yandexVerificationCode;
+    indexNowKey.text = settings.indexNowKey;
     socialAuthGoogleEnabled = settings.socialAuthGoogleEnabled;
     socialAuthAppleEnabled = settings.socialAuthAppleEnabled;
     socialAuthFacebookEnabled = settings.socialAuthFacebookEnabled;
@@ -312,6 +535,42 @@ class _GeneralSettingsForm {
     robotsTxt.text = settings.robotsTxt;
     headerCustomCodes.text = settings.headerCustomCodes;
     footerCustomCodes.text = settings.footerCustomCodes;
+  }
+
+  TextEditingController socialPasswordController(SocialPasswordField field) {
+    return _socialPasswordControllers[field]!;
+  }
+
+  Map<SocialPasswordField, String> socialPasswordValues() {
+    return {
+      for (final entry in _socialPasswordControllers.entries)
+        if (entry.value.text.trim().isNotEmpty) entry.key: entry.value.text,
+    };
+  }
+
+  void clearSocialPasswordValues() {
+    for (final controller in _socialPasswordControllers.values) {
+      controller.clear();
+    }
+  }
+
+  TextEditingController contactEmailPasswordController(
+    ContactEmailPasswordField field,
+  ) {
+    return _contactEmailPasswordControllers[field]!;
+  }
+
+  Map<ContactEmailPasswordField, String> contactEmailPasswordValues() {
+    return {
+      for (final entry in _contactEmailPasswordControllers.entries)
+        if (entry.value.text.trim().isNotEmpty) entry.key: entry.value.text,
+    };
+  }
+
+  void clearContactEmailPasswordValues() {
+    for (final controller in _contactEmailPasswordControllers.values) {
+      controller.clear();
+    }
   }
 
   GeneralSettingsData toSettings(GeneralSettingsData base) {
@@ -328,11 +587,33 @@ class _GeneralSettingsForm {
       organizationLegalName: organizationLegalName.text,
       organizationPhone: organizationPhone.text,
       organizationAddress: organizationAddress.text,
+      contactPhone: contactPhone.text,
+      contactCity: contactCity.text,
+      contactAddress: contactAddress.text,
+      contactLocationUrl: contactLocationUrl.text,
+      contactWhatsappUrl: contactWhatsappUrl.text,
+      contactTelegramUrl: contactTelegramUrl.text,
+      contactEmailInfo: contactEmailInfo.text,
+      contactEmailSupport: contactEmailSupport.text,
+      contactEmailNews: contactEmailNews.text,
+      contactEmailAds: contactEmailAds.text,
       twitterUsername: twitterUsername.text,
       fbAppId: fbAppId.text,
+      socialWhatsappUrl: socialWhatsappUrl.text,
+      socialTelegramUrl: socialTelegramUrl.text,
+      socialInstagramUrl: socialInstagramUrl.text,
+      socialFacebookUrl: socialFacebookUrl.text,
+      socialXUrl: socialXUrl.text,
+      socialYoutubeUrl: socialYoutubeUrl.text,
+      socialTiktokUrl: socialTiktokUrl.text,
+      socialLinkedinUrl: socialLinkedinUrl.text,
+      socialPinterestUrl: socialPinterestUrl.text,
+      socialDiscordUrl: socialDiscordUrl.text,
       googleAnalyticsId: googleAnalyticsId.text,
       googleSearchConsoleCode: googleSearchConsoleCode.text,
       bingVerificationCode: bingVerificationCode.text,
+      yandexVerificationCode: yandexVerificationCode.text,
+      indexNowKey: indexNowKey.text,
       socialAuthGoogleEnabled: socialAuthGoogleEnabled,
       socialAuthAppleEnabled: socialAuthAppleEnabled,
       socialAuthFacebookEnabled: socialAuthFacebookEnabled,
@@ -358,17 +639,54 @@ class _GeneralSettingsForm {
     organizationLegalName.dispose();
     organizationPhone.dispose();
     organizationAddress.dispose();
+    contactPhone.dispose();
+    contactCity.dispose();
+    contactAddress.dispose();
+    contactLocationUrl.dispose();
+    contactWhatsappUrl.dispose();
+    contactTelegramUrl.dispose();
+    contactEmailInfo.dispose();
+    contactEmailSupport.dispose();
+    contactEmailNews.dispose();
+    contactEmailAds.dispose();
     twitterUsername.dispose();
     fbAppId.dispose();
+    socialWhatsappUrl.dispose();
+    socialTelegramUrl.dispose();
+    socialInstagramUrl.dispose();
+    socialFacebookUrl.dispose();
+    socialXUrl.dispose();
+    socialYoutubeUrl.dispose();
+    socialTiktokUrl.dispose();
+    socialLinkedinUrl.dispose();
+    socialPinterestUrl.dispose();
+    socialDiscordUrl.dispose();
+    for (final controller in _socialPasswordControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _contactEmailPasswordControllers.values) {
+      controller.dispose();
+    }
     googleAnalyticsId.dispose();
     googleSearchConsoleCode.dispose();
     bingVerificationCode.dispose();
+    yandexVerificationCode.dispose();
+    indexNowKey.dispose();
     socialAuthRedirectScheme.dispose();
     socialAuthRedirectHost.dispose();
     robotsTxt.dispose();
     headerCustomCodes.dispose();
     footerCustomCodes.dispose();
   }
+}
+
+Future<void> _openPublicSitemap() async {
+  final uri = Uri.base.resolve('/sitemap.xml');
+  await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
+  );
 }
 
 class _SettingsLanguageSelect extends StatelessWidget {
@@ -560,8 +878,18 @@ class _GeneralSettingsTabView extends StatelessWidget {
     required this.timezone,
     required this.uploadingField,
     required this.publicUrl,
+    required this.canManageSocialPasswords,
+    required this.socialPasswordStatus,
+    required this.visibleSocialPasswordFields,
+    required this.revealingSocialPasswordField,
+    required this.canManageContactEmailPasswords,
+    required this.contactEmailPasswordStatus,
+    required this.visibleContactEmailPasswordFields,
+    required this.revealingContactEmailPasswordField,
     required this.onRetry,
     required this.onSave,
+    required this.onRevealSocialPassword,
+    required this.onRevealContactEmailPassword,
     required this.onTimezoneChanged,
     required this.onUploadLogo,
   });
@@ -575,8 +903,18 @@ class _GeneralSettingsTabView extends StatelessWidget {
   final String timezone;
   final GeneralSettingsLogoField? uploadingField;
   final String Function(String value) publicUrl;
+  final bool canManageSocialPasswords;
+  final SocialPasswordStatus socialPasswordStatus;
+  final Set<SocialPasswordField> visibleSocialPasswordFields;
+  final SocialPasswordField? revealingSocialPasswordField;
+  final bool canManageContactEmailPasswords;
+  final ContactEmailPasswordStatus contactEmailPasswordStatus;
+  final Set<ContactEmailPasswordField> visibleContactEmailPasswordFields;
+  final ContactEmailPasswordField? revealingContactEmailPasswordField;
   final VoidCallback onRetry;
   final VoidCallback onSave;
+  final ValueChanged<SocialPasswordField> onRevealSocialPassword;
+  final ValueChanged<ContactEmailPasswordField> onRevealContactEmailPassword;
   final ValueChanged<String?> onTimezoneChanged;
   final ValueChanged<GeneralSettingsLogoField> onUploadLogo;
 
@@ -614,6 +952,16 @@ class _GeneralSettingsTabView extends StatelessWidget {
         saving: saving,
         onSave: onSave,
       ),
+      _GeneralSettingsTab.socialAddresses => _SocialAddressSettings(
+        form: form,
+        saving: saving,
+        canManageSocialPasswords: canManageSocialPasswords,
+        socialPasswordStatus: socialPasswordStatus,
+        visibleSocialPasswordFields: visibleSocialPasswordFields,
+        revealingSocialPasswordField: revealingSocialPasswordField,
+        onRevealSocialPassword: onRevealSocialPassword,
+        onSave: onSave,
+      ),
       _GeneralSettingsTab.services => _ServicesSettings(
         form: form,
         saving: saving,
@@ -632,6 +980,16 @@ class _GeneralSettingsTabView extends StatelessWidget {
       _GeneralSettingsTab.robots => _RobotsSettings(
         form: form,
         saving: saving,
+        onSave: onSave,
+      ),
+      _GeneralSettingsTab.contact => _ContactSettings(
+        form: form,
+        saving: saving,
+        canManageContactEmailPasswords: canManageContactEmailPasswords,
+        contactEmailPasswordStatus: contactEmailPasswordStatus,
+        visibleContactEmailPasswordFields: visibleContactEmailPasswordFields,
+        revealingContactEmailPasswordField: revealingContactEmailPasswordField,
+        onRevealContactEmailPassword: onRevealContactEmailPassword,
         onSave: onSave,
       ),
     };
@@ -984,7 +1342,6 @@ class _SitemapActionButton extends StatelessWidget {
     return SizedBox(
       height: 38,
       child: TextButton(
-        onPressed: () {},
         style:
             TextButton.styleFrom(
               backgroundColor: AppColors.actionRed,
@@ -1004,6 +1361,7 @@ class _SitemapActionButton extends StatelessWidget {
                 SystemMouseCursors.click,
               ),
             ),
+        onPressed: () => unawaited(_openPublicSitemap()),
         child: Text(context.t('generalSettings.seo.sitemap.generate')),
       ),
     );
@@ -1041,16 +1399,11 @@ class _SitemapGeneratedFile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const _SitemapIconButton(
+          _SitemapIconButton(
             icon: Symbols.download,
             color: Color(0xFF16A34A),
             background: Color(0xFFE9FBEF),
-          ),
-          const SizedBox(width: 8),
-          const _SitemapIconButton(
-            icon: Symbols.delete,
-            color: AppColors.actionRed,
-            background: Color(0xFFFFEFF0),
+            onPressed: _openPublicSitemap,
           ),
         ],
       ),
@@ -1063,11 +1416,13 @@ class _SitemapIconButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.background,
+    required this.onPressed,
   });
 
   final IconData icon;
   final Color color;
   final Color background;
+  final Future<void> Function() onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -1075,7 +1430,7 @@ class _SitemapIconButton extends StatelessWidget {
       width: 34,
       height: 28,
       child: TextButton(
-        onPressed: () {},
+        onPressed: () => unawaited(onPressed()),
         style:
             TextButton.styleFrom(
               backgroundColor: background,
@@ -1251,8 +1606,693 @@ class _ServicesSettings extends StatelessWidget {
           label: 'Bing Webmaster Doğrulama Kodu',
           controller: form.bingVerificationCode,
         ),
+        const SizedBox(height: 18),
+        _TextInputField(
+          label: 'Yandex Webmaster Doğrulama Kodu',
+          controller: form.yandexVerificationCode,
+        ),
+        const SizedBox(height: 18),
+        _TextInputField(
+          label: 'IndexNow Anahtarı',
+          controller: form.indexNowKey,
+        ),
         const _FormDivider(),
         _SaveRow(saving: saving, onPressed: onSave),
+      ],
+    );
+  }
+}
+
+class _SocialAddressSettings extends StatelessWidget {
+  const _SocialAddressSettings({
+    required this.form,
+    required this.saving,
+    required this.canManageSocialPasswords,
+    required this.socialPasswordStatus,
+    required this.visibleSocialPasswordFields,
+    required this.revealingSocialPasswordField,
+    required this.onRevealSocialPassword,
+    required this.onSave,
+  });
+
+  final _GeneralSettingsForm form;
+  final bool saving;
+  final bool canManageSocialPasswords;
+  final SocialPasswordStatus socialPasswordStatus;
+  final Set<SocialPasswordField> visibleSocialPasswordFields;
+  final SocialPasswordField? revealingSocialPasswordField;
+  final ValueChanged<SocialPasswordField> onRevealSocialPassword;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SubsectionHeader('İletişim ve sosyal medya adresleri'),
+        const SizedBox(height: 14),
+        _ResponsiveFieldRow(
+          children: [
+            _SocialCredentialInput(
+              label: 'WhatsApp',
+              urlController: form.socialWhatsappUrl,
+              hintText: 'https://wa.me/905xxxxxxxxx',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.whatsapp,
+              ),
+              passwordField: SocialPasswordField.whatsapp,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.whatsapp,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.whatsapp,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.whatsapp,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+            _SocialCredentialInput(
+              label: 'Telegram',
+              urlController: form.socialTelegramUrl,
+              hintText: 'https://t.me/kullaniciadi',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.telegram,
+              ),
+              passwordField: SocialPasswordField.telegram,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.telegram,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.telegram,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.telegram,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _SocialCredentialInput(
+              label: 'Instagram',
+              urlController: form.socialInstagramUrl,
+              hintText: 'https://instagram.com/kullaniciadi',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.instagram,
+              ),
+              passwordField: SocialPasswordField.instagram,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.instagram,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.instagram,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.instagram,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+            _SocialCredentialInput(
+              label: 'Facebook',
+              urlController: form.socialFacebookUrl,
+              hintText: 'https://facebook.com/sayfa',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.facebook,
+              ),
+              passwordField: SocialPasswordField.facebook,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.facebook,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.facebook,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.facebook,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _SocialCredentialInput(
+              label: 'X (Twitter)',
+              urlController: form.socialXUrl,
+              hintText: 'https://x.com/kullaniciadi',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.x,
+              ),
+              passwordField: SocialPasswordField.x,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(SocialPasswordField.x),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.x,
+              ),
+              revealing: revealingSocialPasswordField == SocialPasswordField.x,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+            _SocialCredentialInput(
+              label: 'YouTube',
+              urlController: form.socialYoutubeUrl,
+              hintText: 'https://youtube.com/@kanal',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.youtube,
+              ),
+              passwordField: SocialPasswordField.youtube,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.youtube,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.youtube,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.youtube,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _SocialCredentialInput(
+              label: 'TikTok',
+              urlController: form.socialTiktokUrl,
+              hintText: 'https://tiktok.com/@kullaniciadi',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.tiktok,
+              ),
+              passwordField: SocialPasswordField.tiktok,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(SocialPasswordField.tiktok),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.tiktok,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.tiktok,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+            _SocialCredentialInput(
+              label: 'LinkedIn',
+              urlController: form.socialLinkedinUrl,
+              hintText: 'https://linkedin.com/company/sayfa',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.linkedin,
+              ),
+              passwordField: SocialPasswordField.linkedin,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.linkedin,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.linkedin,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.linkedin,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _SocialCredentialInput(
+              label: 'Pinterest',
+              urlController: form.socialPinterestUrl,
+              hintText: 'https://pinterest.com/kullaniciadi',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.pinterest,
+              ),
+              passwordField: SocialPasswordField.pinterest,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.pinterest,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.pinterest,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.pinterest,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+            _SocialCredentialInput(
+              label: 'Discord',
+              urlController: form.socialDiscordUrl,
+              hintText: 'https://discord.gg/davet',
+              passwordController: form.socialPasswordController(
+                SocialPasswordField.discord,
+              ),
+              passwordField: SocialPasswordField.discord,
+              showPasswordInput: canManageSocialPasswords,
+              hasPassword: socialPasswordStatus.has(
+                SocialPasswordField.discord,
+              ),
+              passwordVisible: visibleSocialPasswordFields.contains(
+                SocialPasswordField.discord,
+              ),
+              revealing:
+                  revealingSocialPasswordField == SocialPasswordField.discord,
+              onTogglePassword: onRevealSocialPassword,
+            ),
+          ],
+        ),
+        const _FormDivider(),
+        _SaveRow(saving: saving, onPressed: onSave),
+      ],
+    );
+  }
+}
+
+class _ContactSettings extends StatelessWidget {
+  const _ContactSettings({
+    required this.form,
+    required this.saving,
+    required this.canManageContactEmailPasswords,
+    required this.contactEmailPasswordStatus,
+    required this.visibleContactEmailPasswordFields,
+    required this.revealingContactEmailPasswordField,
+    required this.onRevealContactEmailPassword,
+    required this.onSave,
+  });
+
+  final _GeneralSettingsForm form;
+  final bool saving;
+  final bool canManageContactEmailPasswords;
+  final ContactEmailPasswordStatus contactEmailPasswordStatus;
+  final Set<ContactEmailPasswordField> visibleContactEmailPasswordFields;
+  final ContactEmailPasswordField? revealingContactEmailPasswordField;
+  final ValueChanged<ContactEmailPasswordField> onRevealContactEmailPassword;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SubsectionHeader('Genel iletişim bilgileri'),
+        const SizedBox(height: 14),
+        _ResponsiveFieldRow(
+          children: [
+            _TextInputField(label: 'Telefon', controller: form.contactPhone),
+            _TextInputField(label: 'Şehir', controller: form.contactCity),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _TextAreaField(
+          label: 'Adres',
+          minLines: 3,
+          controller: form.contactAddress,
+        ),
+        const SizedBox(height: 18),
+        _TextInputField(
+          label: 'Adres konum linki',
+          hintText: 'https://maps.google.com/...',
+          controller: form.contactLocationUrl,
+        ),
+        const SizedBox(height: 28),
+        const _SubsectionHeader('Mesajlaşma adresleri'),
+        const SizedBox(height: 14),
+        _ResponsiveFieldRow(
+          children: [
+            _TextInputField(
+              label: 'WhatsApp Adresi',
+              hintText: 'https://wa.me/905xxxxxxxxx',
+              controller: form.contactWhatsappUrl,
+            ),
+            _TextInputField(
+              label: 'Telegram Adresi',
+              hintText: 'https://t.me/kullaniciadi',
+              controller: form.contactTelegramUrl,
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        const _SubsectionHeader('E-posta adresleri'),
+        const SizedBox(height: 14),
+        _ResponsiveFieldRow(
+          children: [
+            _ContactEmailCredentialInput(
+              label: 'Genel Bilgi',
+              emailController: form.contactEmailInfo,
+              hintText: 'info@pateez.com',
+              passwordController: form.contactEmailPasswordController(
+                ContactEmailPasswordField.info,
+              ),
+              passwordField: ContactEmailPasswordField.info,
+              showPasswordInput: canManageContactEmailPasswords,
+              hasPassword: contactEmailPasswordStatus.has(
+                ContactEmailPasswordField.info,
+              ),
+              passwordVisible: visibleContactEmailPasswordFields.contains(
+                ContactEmailPasswordField.info,
+              ),
+              revealing:
+                  revealingContactEmailPasswordField ==
+                  ContactEmailPasswordField.info,
+              onTogglePassword: onRevealContactEmailPassword,
+            ),
+            _ContactEmailCredentialInput(
+              label: 'Destek',
+              emailController: form.contactEmailSupport,
+              hintText: 'destek@pateez.com',
+              passwordController: form.contactEmailPasswordController(
+                ContactEmailPasswordField.support,
+              ),
+              passwordField: ContactEmailPasswordField.support,
+              showPasswordInput: canManageContactEmailPasswords,
+              hasPassword: contactEmailPasswordStatus.has(
+                ContactEmailPasswordField.support,
+              ),
+              passwordVisible: visibleContactEmailPasswordFields.contains(
+                ContactEmailPasswordField.support,
+              ),
+              revealing:
+                  revealingContactEmailPasswordField ==
+                  ContactEmailPasswordField.support,
+              onTogglePassword: onRevealContactEmailPassword,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _ContactEmailCredentialInput(
+              label: 'Haber',
+              emailController: form.contactEmailNews,
+              hintText: 'haber@pateez.com',
+              passwordController: form.contactEmailPasswordController(
+                ContactEmailPasswordField.news,
+              ),
+              passwordField: ContactEmailPasswordField.news,
+              showPasswordInput: canManageContactEmailPasswords,
+              hasPassword: contactEmailPasswordStatus.has(
+                ContactEmailPasswordField.news,
+              ),
+              passwordVisible: visibleContactEmailPasswordFields.contains(
+                ContactEmailPasswordField.news,
+              ),
+              revealing:
+                  revealingContactEmailPasswordField ==
+                  ContactEmailPasswordField.news,
+              onTogglePassword: onRevealContactEmailPassword,
+            ),
+            _ContactEmailCredentialInput(
+              label: 'Reklam',
+              emailController: form.contactEmailAds,
+              hintText: 'reklam@pateez.com',
+              passwordController: form.contactEmailPasswordController(
+                ContactEmailPasswordField.ads,
+              ),
+              passwordField: ContactEmailPasswordField.ads,
+              showPasswordInput: canManageContactEmailPasswords,
+              hasPassword: contactEmailPasswordStatus.has(
+                ContactEmailPasswordField.ads,
+              ),
+              passwordVisible: visibleContactEmailPasswordFields.contains(
+                ContactEmailPasswordField.ads,
+              ),
+              revealing:
+                  revealingContactEmailPasswordField ==
+                  ContactEmailPasswordField.ads,
+              onTogglePassword: onRevealContactEmailPassword,
+            ),
+          ],
+        ),
+        const _FormDivider(),
+        _SaveRow(saving: saving, onPressed: onSave),
+      ],
+    );
+  }
+}
+
+class _SocialCredentialInput extends StatelessWidget {
+  const _SocialCredentialInput({
+    required this.label,
+    required this.urlController,
+    required this.hintText,
+    required this.passwordController,
+    required this.passwordField,
+    required this.showPasswordInput,
+    required this.hasPassword,
+    required this.passwordVisible,
+    required this.revealing,
+    required this.onTogglePassword,
+  });
+
+  final String label;
+  final TextEditingController urlController;
+  final String hintText;
+  final TextEditingController passwordController;
+  final SocialPasswordField passwordField;
+  final bool showPasswordInput;
+  final bool hasPassword;
+  final bool passwordVisible;
+  final bool revealing;
+  final ValueChanged<SocialPasswordField> onTogglePassword;
+
+  @override
+  Widget build(BuildContext context) {
+    final urlField = _TextInputField(
+      label: label,
+      controller: urlController,
+      hintText: hintText,
+    );
+    if (!showPasswordInput) return urlField;
+
+    final passwordFieldWidget = _SocialPasswordInputField(
+      controller: passwordController,
+      hasPassword: hasPassword,
+      visible: passwordVisible,
+      revealing: revealing,
+      onToggleVisibility: () => onTogglePassword(passwordField),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              urlField,
+              const SizedBox(height: 12),
+              passwordFieldWidget,
+            ],
+          );
+        }
+
+        final passwordWidth = (constraints.maxWidth * 0.32).clamp(180.0, 240.0);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: urlField),
+            const SizedBox(width: 12),
+            SizedBox(width: passwordWidth, child: passwordFieldWidget),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ContactEmailCredentialInput extends StatelessWidget {
+  const _ContactEmailCredentialInput({
+    required this.label,
+    required this.emailController,
+    required this.hintText,
+    required this.passwordController,
+    required this.passwordField,
+    required this.showPasswordInput,
+    required this.hasPassword,
+    required this.passwordVisible,
+    required this.revealing,
+    required this.onTogglePassword,
+  });
+
+  final String label;
+  final TextEditingController emailController;
+  final String hintText;
+  final TextEditingController passwordController;
+  final ContactEmailPasswordField passwordField;
+  final bool showPasswordInput;
+  final bool hasPassword;
+  final bool passwordVisible;
+  final bool revealing;
+  final ValueChanged<ContactEmailPasswordField> onTogglePassword;
+
+  @override
+  Widget build(BuildContext context) {
+    final emailField = _TextInputField(
+      label: label,
+      controller: emailController,
+      hintText: hintText,
+    );
+    if (!showPasswordInput) return emailField;
+
+    final passwordFieldWidget = _SocialPasswordInputField(
+      controller: passwordController,
+      hasPassword: hasPassword,
+      visible: passwordVisible,
+      revealing: revealing,
+      onToggleVisibility: () => onTogglePassword(passwordField),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              emailField,
+              const SizedBox(height: 12),
+              passwordFieldWidget,
+            ],
+          );
+        }
+
+        final passwordWidth = (constraints.maxWidth * 0.32).clamp(180.0, 240.0);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: emailField),
+            const SizedBox(width: 12),
+            SizedBox(width: passwordWidth, child: passwordFieldWidget),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SocialPasswordInputField extends StatelessWidget {
+  const _SocialPasswordInputField({
+    required this.controller,
+    required this.hasPassword,
+    required this.visible,
+    required this.revealing,
+    required this.onToggleVisibility,
+  });
+
+  final TextEditingController controller;
+  final bool hasPassword;
+  final bool visible;
+  final bool revealing;
+  final VoidCallback onToggleVisibility;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _FieldLabel('Şifre'),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 40,
+          child: TextFormField(
+            controller: controller,
+            obscureText: !visible,
+            enableSuggestions: false,
+            autocorrect: false,
+            mouseCursor: SystemMouseCursors.text,
+            cursorColor: AppColors.support,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+            decoration: _inputDecoration(
+              context,
+              hintText: hasPassword ? 'Kayıtlı şifre var' : 'Şifre',
+              suffixIcon: IconButton(
+                tooltip: visible ? 'Gizle' : 'Göster',
+                onPressed: revealing ? null : onToggleVisibility,
+                icon: revealing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : SymbolIcon(
+                        visible ? Symbols.visibility_off : Symbols.visibility,
+                        color: AppColors.iconMuted,
+                        size: 18,
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SuperAdminPasswordDialog extends StatefulWidget {
+  const _SuperAdminPasswordDialog();
+
+  @override
+  State<_SuperAdminPasswordDialog> createState() =>
+      _SuperAdminPasswordDialogState();
+}
+
+class _SuperAdminPasswordDialogState extends State<_SuperAdminPasswordDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text;
+    if (value.trim().isEmpty) return;
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      title: Text(
+        'Süper yönetici şifresi',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: AppColors.deepOcean,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+      ),
+      content: SizedBox(
+        width: 360,
+        child: TextField(
+          controller: _controller,
+          obscureText: true,
+          enableSuggestions: false,
+          autocorrect: false,
+          autofocus: true,
+          onSubmitted: (_) => _submit(),
+          decoration: _inputDecoration(context, hintText: 'Şifre'),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('İptal'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.actionRed,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Göster'),
+        ),
       ],
     );
   }
@@ -2404,7 +3444,11 @@ class _FormDivider extends StatelessWidget {
   }
 }
 
-InputDecoration _inputDecoration(BuildContext context, {String? hintText}) {
+InputDecoration _inputDecoration(
+  BuildContext context, {
+  String? hintText,
+  Widget? suffixIcon,
+}) {
   return InputDecoration(
     hintText: hintText == null ? null : context.t(hintText),
     hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -2415,6 +3459,10 @@ InputDecoration _inputDecoration(BuildContext context, {String? hintText}) {
     filled: true,
     fillColor: Colors.white,
     isDense: true,
+    suffixIcon: suffixIcon,
+    suffixIconConstraints: suffixIcon == null
+        ? null
+        : const BoxConstraints(minWidth: 40, minHeight: 40),
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppRadius.value),
@@ -2455,10 +3503,12 @@ enum _GeneralSettingsTab {
   general('Genel & Logo'),
   seo('SEO Ayarları'),
   corporate('Kurumsal (EEAT)'),
+  socialAddresses('Sosyal Adresler'),
   services('Google & Servisler'),
   socialAuth('Sosyal Giriş'),
   customCode('Özel Kodlar'),
-  robots('Robots & Teknik');
+  robots('Robots & Teknik'),
+  contact('İletişim');
 
   const _GeneralSettingsTab(this.title);
 

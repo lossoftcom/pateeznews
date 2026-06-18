@@ -1,0 +1,194 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import HomePage from '@/components/HomePage';
+import { dataService } from '@/services/dataService.server';
+import { loadLocaleData } from '@/lib/locales';
+import { setPublicHtmlCache } from '@/lib/server/publicCache';
+import { slugify } from '@/utils/helpers';
+import { resolveLangCode } from '@/utils/lang';
+import { getPostPathSegment } from '@/utils/postUrl';
+
+export const prerender = false;
+setPublicHtmlCache(Astro.response);
+
+const rawPath = Astro.params.path;
+const pathParts = String(rawPath || '')
+  .split('/')
+  .map((part) => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      return part;
+    }
+  })
+  .filter(Boolean);
+
+const slug = pathParts[0] || '';
+const subcategorySlug = pathParts[1] || '';
+
+if (!slug) {
+  return Astro.redirect('/');
+}
+
+const cookies = Astro.request.headers.get('cookie') || '';
+const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];
+const acceptLanguageHeader = Astro.request.headers.get('accept-language');
+const urlLang = Astro.url.searchParams.get('lang');
+
+const seoAlternates = await dataService.getSeoAlternates();
+const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
+const lang = resolveLangCode({
+  urlLang,
+  cookieLang,
+  acceptLanguageHeader,
+  supported: seoAlternates.map((entry) => ({ code: entry.code, isDefault: entry.isDefault })),
+  fallback: defaultLangCode,
+});
+
+const langMeta = seoAlternates.find((entry) => entry.code === lang);
+
+const [initialTranslations, siteSettings, navigationItems] = await Promise.all([
+  loadLocaleData(lang),
+  dataService.getSiteSettings(lang),
+  dataService.getNavigationItems(lang)
+]);
+
+const initialLang = {
+  code: lang,
+  name: langMeta?.name || lang.toUpperCase(),
+  direction: langMeta?.direction || 'ltr',
+  status: 'active',
+  flag_code: langMeta?.flagCode || lang,
+  is_default: langMeta?.isDefault || lang === defaultLangCode
+};
+
+const NORMAL_CATEGORY_LABELS: Record<string, string> = {
+  spor: 'Spor',
+};
+
+const resolveNavigationLabel = (value: string) => {
+  const normalizedSlug = slugify(value);
+  const match = navigationItems.find((item) =>
+    item.value === value ||
+    item.label === value ||
+    (item.value && slugify(item.value) === normalizedSlug) ||
+    slugify(item.label) === normalizedSlug
+  );
+  return match?.label || NORMAL_CATEGORY_LABELS[normalizedSlug] || value;
+};
+
+const resolvedCategory = resolveNavigationLabel(slug);
+const resolvedSubcategory = subcategorySlug ? resolveNavigationLabel(subcategorySlug) : null;
+
+const CATEGORY_PAGE_SIZE = 12;
+const categoryNewsPage = await dataService.getCategoryNewsPage(lang, resolvedCategory || '', CATEGORY_PAGE_SIZE, 0);
+const newsItems = categoryNewsPage.items;
+
+const titlePrefix = resolvedSubcategory ? `${resolvedSubcategory} - ${resolvedCategory}` : resolvedCategory;
+const title = `${titlePrefix} | ${siteSettings?.site_name || "Pateez"}`;
+
+const canonicalBase = String(siteSettings?.canonical_url || Astro.url.origin).trim();
+const canonicalPath = `/kategori/${encodeURIComponent(slug)}${resolvedSubcategory ? `/${encodeURIComponent(slugify(resolvedSubcategory))}` : ''}`;
+const canonicalUrl = new URL(canonicalPath, canonicalBase).toString();
+
+const TEXT_ENTITY_MAP: Record<string, string> = {
+  amp: '&', apos: "'", Ccedil: 'Ç', ccedil: 'ç', Gbreve: 'Ğ', gbreve: 'ğ', hellip: '...',
+  Idot: 'İ', imath: 'ı', laquo: '"', ldquo: '"', lsquo: "'", nbsp: ' ', Ouml: 'Ö',
+  ouml: 'ö', quot: '"', raquo: '"', rdquo: '"', rsquo: "'", Scedil: 'Ş', scedil: 'ş',
+  Uuml: 'Ü', uuml: 'ü',
+};
+const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
+  const codePoint = Number.parseInt(value, radix);
+  if (!Number.isFinite(codePoint) || codePoint <= 0) return fallback;
+  try { return String.fromCodePoint(codePoint); } catch { return fallback; }
+};
+const decodeTextEntities = (value: string) => {
+  const decodeOnce = (input: string) => input
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (match, entity: string) => TEXT_ENTITY_MAP[entity] ?? match)
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex: string) => decodeTextCodePoint(hex, 16, match))
+    .replace(/&#(\d+);/g, (match, decimal: string) => decodeTextCodePoint(decimal, 10, match));
+  return decodeOnce(decodeOnce(value));
+};
+const stripHtml = (html: string) => decodeTextEntities((html || '').replace(/<[^>]*>?/gm, ' ').replace(/&nbsp;/g, ' '))
+  .replace(/\s+/g, ' ')
+  .trim();
+const categorySummary = stripHtml(String(newsItems?.[0]?.seoDescription || newsItems?.[0]?.summary || ''));
+const description = categorySummary
+  ? categorySummary.slice(0, 160)
+  : `${stripHtml(String(titlePrefix || slug || ''))} haberleri ve son dakika gelişmeleri ${siteSettings?.site_name || 'Pateez'} üzerinde.`;
+
+const breadcrumbItems = [
+  {
+    "@type": "ListItem",
+    position: 1,
+    name: siteSettings?.site_name || "Home",
+    item: new URL('/', canonicalBase).toString(),
+  },
+  {
+    "@type": "ListItem",
+    position: 2,
+    name: stripHtml(String(resolvedCategory || slug || '')),
+    item: new URL(`/kategori/${encodeURIComponent(slug)}`, canonicalBase).toString(),
+  },
+];
+
+if (resolvedSubcategory) {
+  breadcrumbItems.push({
+    "@type": "ListItem",
+    position: 3,
+    name: stripHtml(String(resolvedSubcategory)),
+    item: canonicalUrl,
+  });
+}
+
+const breadcrumbLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: breadcrumbItems,
+};
+
+const itemListLd = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  itemListElement: (newsItems || []).slice(0, 10).map((item: any, index: number) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    name: stripHtml(String(item?.seoTitle || item?.title || '')),
+    url: new URL(`/haber/${encodeURIComponent(getPostPathSegment(item, siteSettings) || '')}`, canonicalBase).toString(),
+  })),
+};
+---
+
+<Layout
+  title={title}
+  description={description}
+  lang={lang}
+  dir={initialLang.direction}
+  favicon={siteSettings?.favicon_url}
+  canonical={canonicalUrl}
+  jsonLd={[breadcrumbLd, itemListLd]}
+  siteSettings={siteSettings}
+  navigationItems={navigationItems}
+  initialTranslations={initialTranslations}
+  initialLang={initialLang}
+>
+  <HomePage
+    client:load
+    initialLang={initialLang}
+    initialTranslations={initialTranslations}
+    siteSettings={siteSettings}
+    navigationItems={navigationItems}
+    newsItems={newsItems}
+    categoryPagination={{
+      category: String(resolvedCategory || slug || ''),
+      limit: categoryNewsPage.limit,
+      nextOffset: categoryNewsPage.nextOffset,
+      total: categoryNewsPage.total,
+      totalViews: categoryNewsPage.totalViews,
+      hasMore: categoryNewsPage.hasMore,
+      activeSubcategory: resolvedSubcategory,
+    }}
+    selectedCategory={slug}
+    isInitialHome={false}
+  />
+</Layout>

@@ -14,10 +14,10 @@ import '../mail_inbox_models.dart';
 const mailFilterAll = '__all';
 const mailQuickAll = 'all';
 const mailQuickInbox = 'inbox';
+const mailQuickContact = 'contact';
 const mailQuickUnread = 'unread';
 const mailQuickStarred = 'starred';
 const mailQuickAttachments = 'attachments';
-const mailQuickInvoice = 'invoice';
 const mailQuickSent = 'sent';
 const mailQuickDraft = 'draft';
 const mailQuickScheduled = 'scheduled';
@@ -27,6 +27,18 @@ const mailDateAll = 'all';
 const mailDateToday = 'today';
 const mailDateSevenDays = 'seven_days';
 const mailDateThirtyDays = 'thirty_days';
+
+bool mailMessageIsContact(AdminMailMessage message) {
+  return message.labels.any((label) {
+    final normalized = label
+        .trim()
+        .toLowerCase()
+        .replaceAll('i̇', 'i')
+        .replaceAll('ı', 'i')
+        .replaceAll('ş', 's');
+    return normalized == 'iletisim' || normalized == 'contact';
+  });
+}
 
 class MailInboxTableCard extends StatelessWidget {
   const MailInboxTableCard({
@@ -297,19 +309,12 @@ class MailFolderPanel extends StatelessWidget {
       mailQuickAll => messages.length,
       mailQuickInbox =>
         messages.where((message) => message.folder == mailFolderInbox).length,
+      mailQuickContact => messages.where(mailMessageIsContact).length,
       mailQuickUnread => messages.where((message) => !message.read).length,
       mailQuickStarred => messages.where((message) => message.starred).length,
       mailQuickAttachments =>
         messages
             .where((message) => message.hasAttachments || message.hasImages)
-            .length,
-      mailQuickInvoice =>
-        messages
-            .where(
-              (message) => message.labels.any(
-                (label) => label.toLowerCase() == 'fatura',
-              ),
-            )
             .length,
       mailQuickSent =>
         messages.where((message) => message.isOutboxSource).length,
@@ -330,6 +335,7 @@ class MailFolderPanel extends StatelessWidget {
   int _sideCountFor(String value) {
     return switch (value) {
       mailQuickUnread ||
+      mailQuickContact ||
       mailQuickStarred ||
       mailQuickSent ||
       mailQuickDraft ||
@@ -343,6 +349,12 @@ class MailFolderPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
+      _MailFolderItemData(
+        value: mailQuickContact,
+        label: 'mail.filter.contact',
+        icon: Symbols.chat_bubble_outline,
+        color: AppColors.actionRed,
+      ),
       _MailFolderItemData(
         value: mailQuickAll,
         label: 'All',
@@ -372,12 +384,6 @@ class MailFolderPanel extends StatelessWidget {
         label: 'mail.filter.attachments',
         icon: Symbols.draft,
         color: const Color(0xFF198754),
-      ),
-      _MailFolderItemData(
-        value: mailQuickInvoice,
-        label: 'mail.filter.invoice',
-        icon: Symbols.article,
-        color: AppColors.inkSoft,
       ),
       _MailFolderItemData(
         value: mailQuickSent,

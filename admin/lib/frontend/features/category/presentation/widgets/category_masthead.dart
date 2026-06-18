@@ -5,6 +5,7 @@ import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/cached_image.dart';
 import '../../data/category_content.dart';
 
 /// Kategori sayfasının kimliğini taşıyan üst blok.
@@ -17,11 +18,13 @@ class CategoryMasthead extends StatelessWidget {
   const CategoryMasthead({
     super.key,
     required this.content,
+    this.imageUrl = '',
     required this.articleCount,
     required this.totalReads,
   });
 
   final CategoryContent content;
+  final String imageUrl;
   final int articleCount;
   final int totalReads;
 
@@ -37,6 +40,10 @@ class CategoryMasthead extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (imageUrl.trim().isNotEmpty) ...[
+            _CategoryHeroImage(url: imageUrl.trim(), title: content.title),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           _Eyebrow(icon: content.icon, label: content.kindLabel),
           const SizedBox(height: AppSpacing.md),
           _Title(title: content.title),
@@ -56,6 +63,74 @@ class CategoryMasthead extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _CategoryHeroImage extends StatelessWidget {
+  const _CategoryHeroImage({required this.url, required this.title});
+
+  final String url;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cacheWidth = (constraints.maxWidth * dpr).round();
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 154,
+            width: double.infinity,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedImage(
+                  url: url,
+                  memCacheWidth: cacheWidth > 0 ? cacheWidth : null,
+                  placeholderColor: AppColors.surfaceSoft,
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        AppColors.deepOcean.withValues(alpha: 0.58),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: AppSpacing.md,
+                  right: AppSpacing.md,
+                  bottom: AppSpacing.md,
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.mobileDetailTitle.copyWith(
+                      color: Colors.white,
+                      height: 1,
+                      letterSpacing: -0.2,
+                      shadows: [
+                        Shadow(
+                          color: AppColors.deepOcean.withValues(alpha: 0.32),
+                          blurRadius: 14,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

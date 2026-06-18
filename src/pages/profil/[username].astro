@@ -5,8 +5,10 @@ import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { resolveLangCode } from '@/utils/lang';
 import { createAstroSupabaseClient } from '@/lib/server/supabaseSsr';
+import { setPublicHtmlCache } from '@/lib/server/publicCache';
 
 export const prerender = false;
+setPublicHtmlCache(Astro.response);
 
 const { username } = Astro.params;
 const rawUsernameParam = String(username || '').trim();

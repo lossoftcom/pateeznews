@@ -565,7 +565,17 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "settings.upload_error": "Error during upload",
   "storageSettings.title": "Storage",
   "storageSettings.saveSuccess": "Storage settings saved",
+  "storageSettings.saveChanges": "Save Changes",
   "storageSettings.activeStorage.title": "Active Storage",
+  "storageSettings.localBackup.title": "Also back up locally",
+  "storageSettings.localBackup.description":
+      "New media is stored remotely while a local copy is kept.",
+  "storageSettings.migrationConfirm.title":
+      "Upload local media to remote storage?",
+  "storageSettings.migrationConfirm.message":
+      "You are switching from local storage to remote storage. If existing local media is not uploaded to R2, some images, videos, or files may not appear on Astro and mobile frontends. Uploading the media before saving is recommended.",
+  "storageSettings.migrationConfirm.skip": "Save Only",
+  "storageSettings.migrationConfirm.confirm": "Upload to Remote",
   "storageSettings.field.storage": "Storage",
   "storageSettings.option.localStorage": "Local Storage",
   "storageSettings.option.awsS3": "AWS S3",
@@ -593,6 +603,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "storageSettings.field.clientSecret": "Client Secret",
   "storageSettings.field.refreshToken": "Refresh Token",
   "storageSettings.field.folderId": "Folder ID",
+  "storageSettings.field.pathPrefix": "Folder / Prefix",
   "storageSettings.hint.accessKey": "Access Key",
   "storageSettings.hint.secretKey": "Secret Key",
   "storageSettings.hint.bucketName": "Bucket Name",
@@ -608,6 +619,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "storageSettings.hint.clientSecret": "Google OAuth Client Secret",
   "storageSettings.hint.refreshToken": "Google OAuth Refresh Token",
   "storageSettings.hint.folderId": "Google Drive folder ID",
+  "storageSettings.hint.pathPrefix": "E.g: pateez",
   "googleNews.title": "Google News",
   "googleNews.saveSuccess": "Google News settings saved",
   "googleNews.settings.title": "Settings",
@@ -736,6 +748,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "contentSettings.featured.mainSlider": "Main Slider",
   "contentSettings.featured.contentSource": "Content Source",
   "contentSettings.featured.sortingLogic": "Sorting Logic",
+  "contentSettings.featured.showNewsInfo": "Show news info on headline",
   "contentSettings.featured.displayDuration":
       "Display Duration (Number of Days)",
   "contentSettings.featured.displayLimit": "Display Limit",
@@ -777,6 +790,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "fontSettings.fontSize.titles": "Titles",
   "fontSettings.webSection.navigationFeatured": "Menu & Featured",
   "fontSettings.webSection.newsCard": "News Card",
+  "fontSettings.webSection.categoryCards": "Category Cards",
   "fontSettings.webSection.detail": "Detail Page",
   "fontSettings.webSize.navLabel": "Top menu labels",
   "fontSettings.webSize.navLabelHelp":
@@ -792,6 +806,18 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "fontSettings.webSize.cardSummary": "News card subtitle",
   "fontSettings.webSize.cardSummaryHelp":
       "Summary text inside web feed news cards",
+  "fontSettings.webSize.categorySliderTitle": "Category slider title",
+  "fontSettings.webSize.categorySliderTitleHelp":
+      "Headline in the category page top slider",
+  "fontSettings.webSize.categorySliderSummary": "Category slider subtitle",
+  "fontSettings.webSize.categorySliderSummaryHelp":
+      "Summary text in the category page top slider",
+  "fontSettings.webSize.categoryCardTitle": "Category card title",
+  "fontSettings.webSize.categoryCardTitleHelp":
+      "Headline inside category list news cards",
+  "fontSettings.webSize.categoryCardSummary": "Category card subtitle",
+  "fontSettings.webSize.categoryCardSummaryHelp":
+      "Summary text inside category list news cards",
   "fontSettings.webSize.detailTitle": "Detail title",
   "fontSettings.webSize.detailTitleHelp":
       "Main headline on the web news detail page",
@@ -2012,6 +2038,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "mail.detail.conversation": "Reply history",
   "mail.detailTitle": "Mail Detail",
   "mail.filter.attachments": "With attachments",
+  "mail.filter.contact": "Contact Inbox",
   "mail.filter.invoice": "Invoice",
   "mail.filter.starred": "Starred",
   "mail.folder": "Folder",
@@ -2099,6 +2126,12 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "navigation.emptyMenus": "There is no menu to edit yet.",
   "navigation.form.icon": "Icon Name",
   "navigation.form.iconHint": "Ex: location_on, poll, quiz",
+  "navigation.form.image": "Image URL",
+  "navigation.form.imageClear": "Clear image",
+  "navigation.form.imageEmpty":
+      "No image is attached to this navigation item yet.",
+  "navigation.form.imageHint": "/local-upload/navigation/districts/bor.webp",
+  "navigation.form.imagePick": "Select from media library",
   "navigation.form.label": "Display Name",
   "navigation.form.labelPlaceholder": "Ex: Nigde",
   "navigation.form.labelRequired": "Display name is required",

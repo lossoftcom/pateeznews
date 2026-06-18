@@ -1,18 +1,25 @@
 import type { APIRoute } from 'astro';
+import fs from 'fs';
 import path from 'path';
 import { setStorageUploadProgress } from '../../../lib/server/storageUploadProgress';
 import {
     contentTypeForFilename,
     getStorageType,
+    normalizeStoragePath,
     type StorageType,
 } from '@/lib/server/supabaseStorage';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import {
     getStorageSettings,
     isLocalStorageActive,
+    isS3CompatibleStorageActive,
+    localBackupEnabled,
     recordLocalMediaFile,
+    recordStorageMediaFile,
 } from '@/lib/server/storageSettings';
-import { uploadLocalStorageFile } from '@/lib/server/localStorageProxy';
+import { resolveLocalUploadPath } from '@/lib/server/localUploadStorage';
+import { deleteLocalStorageFile, uploadLocalStorageFile } from '@/lib/server/localStorageProxy';
+import { remoteApiPath, uploadRemoteStorageFile, uploadRemoteStorageObject } from '@/lib/server/remoteObjectStorage';
 import {
     allowedExtensionsForRuleType,
     loadContentUploadSettings,
@@ -156,6 +163,90 @@ function validateUploadInput({
     }
 }
 
+function storageObjectPathFromMediaUrl(value: string) {
+    const clean = String(value || '').split(/[?#]/)[0];
+    const apiMarker = '/api/storage/file/';
+    const localMarker = '/local-upload/';
+    const apiIndex = clean.indexOf(apiMarker);
+    if (apiIndex >= 0) return normalizeStoragePath(clean.slice(apiIndex + apiMarker.length));
+    const localIndex = clean.indexOf(localMarker);
+    if (localIndex >= 0) return normalizeStoragePath(clean.slice(localIndex + localMarker.length));
+    return '';
+}
+
+async function readLocalUploadBuffer(type: StorageType, id: string) {
+    const resolved = resolveLocalUploadPath(type, id);
+    if (!resolved || !fs.existsSync(resolved.absolutePath)) {
+        throw Object.assign(new Error('Processed local upload file is missing'), { status: 500 });
+    }
+    return fs.promises.readFile(resolved.absolutePath);
+}
+
+async function uploadLocalThumbToRemote(
+    storageSettings: Awaited<ReturnType<typeof getStorageSettings>>,
+    localResult: Record<string, unknown>,
+    type: StorageType,
+    id: string,
+) {
+    const objectPath = `${type}/${id}`;
+    const thumbObjectPath = storageObjectPathFromMediaUrl(String(localResult.thumb || ''));
+    if (!thumbObjectPath || thumbObjectPath === objectPath) return '';
+
+    const [thumbTypeValue, ...thumbParts] = thumbObjectPath.split('/');
+    const thumbType = getStorageType(thumbTypeValue);
+    if (!thumbParts.length) return '';
+
+    const buffer = await readLocalUploadBuffer(thumbType, thumbParts.join('/'));
+    await uploadRemoteStorageObject(storageSettings, {
+        objectPath: thumbObjectPath,
+        body: buffer,
+        contentType: contentTypeForFilename(thumbObjectPath),
+    });
+    return thumbObjectPath;
+}
+
+async function cleanupLocalUpload(type: StorageType, id: string) {
+    await deleteLocalStorageFile({ type, id }).catch((error) => {
+        console.warn('Temporary local upload cleanup skipped:', error instanceof Error ? error.message : error);
+    });
+}
+
+function localMediaRecordFromResult(localResult: Record<string, unknown>) {
+    const type = getStorageType(localResult.type);
+    return {
+        id: String(localResult.id || ''),
+        type,
+        value: String(localResult.value || ''),
+        path: String(localResult.path || ''),
+        size: Number(localResult.size || 0),
+        contentType: String(localResult.contentType || ''),
+        src: String(localResult.src || ''),
+        publicSrc: String(localResult.publicSrc || ''),
+        thumb: String(localResult.thumb || localResult.src || ''),
+    };
+}
+
+function localFallbackResult(localResult: Record<string, unknown>) {
+    const record = localMediaRecordFromResult(localResult);
+    const objectPath = `${record.type}/${record.id}`;
+    const thumbObjectPath = storageObjectPathFromMediaUrl(record.thumb) || objectPath;
+    const src = remoteApiPath(objectPath);
+    return {
+        id: record.id,
+        value: record.value,
+        size: record.size,
+        date: Math.floor(Date.now() / 1000),
+        type: record.type,
+        src,
+        thumb: remoteApiPath(thumbObjectPath),
+        publicSrc: src,
+        path: record.path,
+        provider: 'localFallback',
+        objectPath,
+        contentType: record.contentType,
+    };
+}
+
 export const POST: APIRoute = async ({ request }) => {
     let activeUploadId: string | null = null;
 
@@ -189,10 +280,6 @@ export const POST: APIRoute = async ({ request }) => {
         const uploadId = (formData.get('uploadId') as string | null)?.trim() || null;
         activeUploadId = uploadId;
 
-        if (!isLocalStorageActive(storageSettings)) {
-            return new Response(`Selected storage provider is not implemented: ${storageSettings.activeStorage}`, { status: 501 });
-        }
-
         const uploadFormData = fileField instanceof File ? formData : new FormData();
         if (!(fileField instanceof File)) {
             const buffer = await file.arrayBuffer();
@@ -204,6 +291,88 @@ export const POST: APIRoute = async ({ request }) => {
         }
         if (OPTIMIZED_IMAGE_STORAGE_TYPES.has(type)) {
             uploadFormData.set('imageOutputFormat', uploadSettings.imageOutputFormat);
+        }
+
+        if (isS3CompatibleStorageActive(storageSettings)) {
+            const keepLocalBackup = localBackupEnabled(storageSettings);
+            let localResult: Record<string, unknown> | null = null;
+            try {
+                const processed = await uploadLocalStorageFile(uploadFormData);
+                localResult = processed;
+                const resultType = getStorageType(processed.type);
+                const resultId = String(processed.id || '');
+                const buffer = await readLocalUploadBuffer(resultType, resultId);
+                const contentType = String(processed.contentType || contentTypeForFilename(resultId));
+                let result;
+                try {
+                    const thumbObjectPath = await uploadLocalThumbToRemote(
+                        storageSettings,
+                        processed,
+                        resultType,
+                        resultId,
+                    );
+                    result = await uploadRemoteStorageFile(storageSettings, {
+                        type: resultType,
+                        id: resultId,
+                        body: buffer,
+                        contentType,
+                        thumbObjectPath,
+                    });
+                } catch (error) {
+                    if (!keepLocalBackup) throw error;
+                    const fallback = localFallbackResult(processed);
+                    await recordLocalMediaFile(localMediaRecordFromResult(processed));
+                    setStorageUploadProgress(uploadId, {
+                        phase: 'done',
+                        progress: 1,
+                        etaSeconds: 0,
+                        message: 'Remote storage unavailable; local backup used.',
+                    });
+                    return new Response(JSON.stringify(fallback), {
+                        status: 200,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                }
+
+                await recordStorageMediaFile(result.provider, {
+                    id: result.id,
+                    type: result.type,
+                    value: result.value,
+                    path: result.path,
+                    size: result.size,
+                    contentType,
+                    src: result.src,
+                    publicSrc: result.publicSrc,
+                    thumb: result.thumb,
+                });
+
+                if (keepLocalBackup) {
+                    await recordLocalMediaFile(localMediaRecordFromResult(processed));
+                }
+
+                setStorageUploadProgress(uploadId, {
+                    phase: 'done',
+                    progress: 1,
+                    etaSeconds: 0,
+                });
+
+                return new Response(JSON.stringify(result), {
+                    status: 200,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+            } finally {
+                if (!keepLocalBackup && localResult?.id) {
+                    await cleanupLocalUpload(getStorageType(localResult.type), String(localResult.id));
+                }
+            }
+        }
+
+        if (!isLocalStorageActive(storageSettings)) {
+            return new Response(`Selected storage provider is not implemented: ${storageSettings.activeStorage}`, { status: 501 });
         }
 
         const result = await uploadLocalStorageFile(uploadFormData);

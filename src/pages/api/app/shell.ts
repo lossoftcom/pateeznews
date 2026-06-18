@@ -125,6 +125,7 @@ const navigationItemPayload = (item: NavigationItem) => ({
   type: text(item.type),
   value: text(item.value),
   icon: text(item.icon),
+  imageUrl: text(item.image_url),
   orderIndex: Number.isFinite(Number(item.order_index))
     ? Number(item.order_index)
     : 0,

@@ -44,6 +44,7 @@ class AdminNavigationItem {
     required this.type,
     required this.value,
     required this.icon,
+    this.imageUrl = '',
     required this.orderIndex,
     required this.isActive,
     required this.languageCode,
@@ -56,6 +57,7 @@ class AdminNavigationItem {
   final String type;
   final String value;
   final String icon;
+  final String imageUrl;
   final int orderIndex;
   final bool isActive;
   final String languageCode;
@@ -70,6 +72,7 @@ class AdminNavigationItem {
       type: json['type']?.toString() ?? 'link',
       value: decodeNavigationText(json['value']),
       icon: json['icon']?.toString() ?? '',
+      imageUrl: json['image_url']?.toString().trim() ?? '',
       orderIndex: asNavigationInt(json['order_index']),
       isActive: json['is_active'] != false,
       languageCode: json['language_code']?.toString() ?? 'tr',
@@ -85,6 +88,7 @@ class AdminNavigationItem {
       type: type,
       value: value,
       icon: icon,
+      imageUrl: imageUrl,
       orderIndex: orderIndex ?? this.orderIndex,
       isActive: isActive,
       languageCode: languageCode,
@@ -100,6 +104,7 @@ class NavigationItemFormData {
     required this.type,
     required this.value,
     required this.icon,
+    required this.imageUrl,
     required this.parentId,
     required this.languageCode,
   });
@@ -108,6 +113,7 @@ class NavigationItemFormData {
   final String type;
   final String value;
   final String icon;
+  final String imageUrl;
   final String? parentId;
   final String languageCode;
 }

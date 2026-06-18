@@ -83,8 +83,20 @@ const SITE_SETTINGS_SELECT = [
     'google_analytics_id',
     'google_search_console_code',
     'bing_verification_code',
+    'yandex_verification_code',
+    'indexnow_key',
     'twitter_username',
     'fb_app_id',
+    'social_whatsapp_url',
+    'social_telegram_url',
+    'social_instagram_url',
+    'social_facebook_url',
+    'social_x_url',
+    'social_youtube_url',
+    'social_tiktok_url',
+    'social_linkedin_url',
+    'social_pinterest_url',
+    'social_discord_url',
     'social_auth_google_enabled',
     'social_auth_apple_enabled',
     'social_auth_facebook_enabled',
@@ -94,6 +106,16 @@ const SITE_SETTINGS_SELECT = [
     'organization_legal_name',
     'organization_phone',
     'organization_address',
+    'contact_phone',
+    'contact_city',
+    'contact_address',
+    'contact_location_url',
+    'contact_whatsapp_url',
+    'contact_telegram_url',
+    'contact_email_info',
+    'contact_email_support',
+    'contact_email_news',
+    'contact_email_ads',
     'robots_txt',
     'weather_enabled',
     'weather_location_name',
@@ -134,6 +156,7 @@ const SITE_SETTINGS_SELECT = [
     'content_comment_system_enabled',
     'content_comment_approval_enabled',
     'content_emoji_reactions_enabled',
+    'content_featured_show_news_info',
     'content_show_post_author',
     'content_show_post_date',
     'content_show_post_view_count',
@@ -427,6 +450,16 @@ const getLiveCategoryNewsPage = async (
                 OR lower(coalesce(p.card_data->>'type', '')) = ANY($4::text[])
                 OR EXISTS (
                     SELECT 1
+                    FROM jsonb_array_elements_text(
+                        CASE
+                            WHEN jsonb_typeof(p.card_data->'categoryPath') = 'array' THEN p.card_data->'categoryPath'
+                            ELSE '[]'::jsonb
+                        END
+                    ) AS cat_path
+                    WHERE lower(cat_path) = ANY($2::text[])
+                )
+                OR EXISTS (
+                    SELECT 1
                     FROM jsonb_array_elements(
                         CASE
                             WHEN jsonb_typeof(p.items) = 'array' THEN p.items
@@ -477,6 +510,7 @@ const getLiveNavigationItems = async (lang: string): Promise<NavigationItem[]> =
                 ni.type,
                 ni.value,
                 ni.icon,
+                ni.image_url,
                 ni.order_index,
                 ni.is_active,
                 ni.language_code

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { submitIndexNowForPosts } from '@/lib/server/indexNow';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 export const POST: APIRoute = async ({ request }) => {
@@ -22,9 +23,17 @@ export const POST: APIRoute = async ({ request }) => {
          updated_at = now()
        WHERE id = ANY($1::bigint[])
          AND deleted_at IS NULL
-       RETURNING id`,
+       RETURNING id, slug, language_code, status`,
       [ids, adminContext.profile.id]
     );
+
+    if (result.rows.length) {
+      try {
+        await submitIndexNowForPosts(request, result.rows);
+      } catch (error) {
+        console.warn('IndexNow submission failed:', error instanceof Error ? error.message : error);
+      }
+    }
 
     return adminJson({ data: { trashed: result.rows.map((row) => row.id) }, error: null });
   } catch (error) {

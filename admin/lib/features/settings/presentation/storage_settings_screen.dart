@@ -5,6 +5,7 @@ import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../data/admin_storage_settings_repository.dart';
 
@@ -25,10 +26,14 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   final _secretKeyController = TextEditingController();
   final _bucketController = TextEditingController();
   final _regionController = TextEditingController();
+  final _pathPrefixController = TextEditingController();
 
   var _activeStorage = 'storageSettings.option.localStorage';
+  var _loadedActiveStorage = 'storageSettings.option.localStorage';
   var _selectedProvider = _StorageProvider.awsS3;
   var _providerValues = <String, Map<String, String>>{};
+  var _localBackupEnabled = false;
+  var _localMediaCount = 0;
   var _loading = true;
   var _saving = false;
 
@@ -44,6 +49,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     _secretKeyController.dispose();
     _bucketController.dispose();
     _regionController.dispose();
+    _pathPrefixController.dispose();
     super.dispose();
   }
 
@@ -53,6 +59,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
       if (!mounted) return;
       setState(() {
         _activeStorage = settings.activeStorageKey;
+        _loadedActiveStorage = settings.activeStorageKey;
         _selectedProvider = _StorageProvider.fromId(
           settings.selectedProviderId,
         );
@@ -60,6 +67,8 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
           for (final entry in settings.providers.entries)
             entry.key: Map<String, String>.of(entry.value),
         };
+        _localBackupEnabled = settings.localBackupEnabled;
+        _localMediaCount = settings.localMediaCount;
         _applyProviderValues(_selectedProvider);
         _loading = false;
       });
@@ -72,6 +81,8 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   Future<void> _saveSettings() async {
     if (_saving) return;
     _rememberProviderValues(_selectedProvider);
+    final migrateLocalMedia = await _confirmLocalMediaMigrationIfNeeded();
+    if (!mounted) return;
     setState(() => _saving = true);
     try {
       final saved = await widget.repository.saveSettings(
@@ -79,16 +90,21 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
           activeStorageKey: _activeStorage,
           selectedProviderId: _selectedProvider.id,
           providers: _providerValues,
+          localBackupEnabled: _localBackupEnabled,
         ),
+        migrateLocalMedia: migrateLocalMedia,
       );
       if (!mounted) return;
       setState(() {
         _activeStorage = saved.activeStorageKey;
+        _loadedActiveStorage = saved.activeStorageKey;
         _selectedProvider = _StorageProvider.fromId(saved.selectedProviderId);
         _providerValues = {
           for (final entry in saved.providers.entries)
             entry.key: Map<String, String>.of(entry.value),
         };
+        _localBackupEnabled = saved.localBackupEnabled;
+        _localMediaCount = saved.localMediaCount;
         _applyProviderValues(_selectedProvider);
         _saving = false;
       });
@@ -102,6 +118,21 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         tone: AdminToastTone.error,
       );
     }
+  }
+
+  Future<bool> _confirmLocalMediaMigrationIfNeeded() async {
+    final switchedFromLocal =
+        _loadedActiveStorage == 'storageSettings.option.localStorage' &&
+        _activeStorage != 'storageSettings.option.localStorage';
+    if (!switchedFromLocal || _localMediaCount <= 0) return false;
+    return showAppConfirmationDialog(
+      context,
+      title: 'storageSettings.migrationConfirm.title',
+      message: 'storageSettings.migrationConfirm.message',
+      cancelLabel: 'storageSettings.migrationConfirm.skip',
+      confirmLabel: 'storageSettings.migrationConfirm.confirm',
+      danger: true,
+    );
   }
 
   void _showSavedMessage() {
@@ -121,6 +152,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         keys[1]: _secretKeyController.text.trim(),
         keys[2]: _bucketController.text.trim(),
         keys[3]: _regionController.text.trim(),
+        if (keys.length > 4) keys[4]: _pathPrefixController.text.trim(),
       },
     };
   }
@@ -132,6 +164,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     _secretKeyController.text = values[keys[1]] ?? '';
     _bucketController.text = values[keys[2]] ?? '';
     _regionController.text = values[keys[3]] ?? '';
+    _pathPrefixController.text = keys.length > 4
+        ? values[keys[4]] ?? 'pateez'
+        : '';
   }
 
   @override
@@ -168,9 +203,23 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               _StorageLayout(
                 left: _ActiveStorageCard(
                   value: _activeStorage,
+                  localBackupEnabled: _localBackupEnabled,
                   onChanged: (value) {
                     if (value == null) return;
-                    setState(() => _activeStorage = value);
+                    _rememberProviderValues(_selectedProvider);
+                    final provider = _StorageProvider.fromStorageOptionKey(
+                      value,
+                    );
+                    setState(() {
+                      _activeStorage = value;
+                      if (provider != null) {
+                        _selectedProvider = provider;
+                        _applyProviderValues(provider);
+                      }
+                    });
+                  },
+                  onLocalBackupChanged: (value) {
+                    setState(() => _localBackupEnabled = value);
                   },
                 ),
                 right: Column(
@@ -189,12 +238,13 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                       secretKeyController: _secretKeyController,
                       bucketController: _bucketController,
                       regionController: _regionController,
+                      pathPrefixController: _pathPrefixController,
                     ),
                     const SizedBox(height: 26),
                     Align(
                       alignment: Alignment.centerRight,
                       child: _PrimaryButton(
-                        label: 'Save Changes',
+                        label: 'storageSettings.saveChanges',
                         icon: Symbols.check,
                         onPressed: _saving ? () {} : () => _saveSettings(),
                       ),
@@ -241,10 +291,17 @@ class _StorageLayout extends StatelessWidget {
 }
 
 class _ActiveStorageCard extends StatelessWidget {
-  const _ActiveStorageCard({required this.value, required this.onChanged});
+  const _ActiveStorageCard({
+    required this.value,
+    required this.localBackupEnabled,
+    required this.onChanged,
+    required this.onLocalBackupChanged,
+  });
 
   final String value;
+  final bool localBackupEnabled;
   final ValueChanged<String?> onChanged;
+  final ValueChanged<bool> onLocalBackupChanged;
 
   static const _options = [
     'storageSettings.option.localStorage',
@@ -257,6 +314,8 @@ class _ActiveStorageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showLocalBackup = value != 'storageSettings.option.localStorage';
+
     return _StorageCard(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
       child: Column(
@@ -271,8 +330,58 @@ class _ActiveStorageCard extends StatelessWidget {
             onChanged: onChanged,
             isRequired: true,
           ),
+          if (showLocalBackup) ...[
+            const SizedBox(height: 20),
+            _BackupSwitchRow(
+              value: localBackupEnabled,
+              onChanged: onLocalBackupChanged,
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _BackupSwitchRow extends StatelessWidget {
+  const _BackupSwitchRow({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.t('storageSettings.localBackup.title'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                context.t('storageSettings.localBackup.description'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w500,
+                  height: 1.35,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 14),
+        _CompactCheckSwitch(value: value, onChanged: onChanged),
+      ],
     );
   }
 }
@@ -285,6 +394,7 @@ class _ProviderSettingsCard extends StatelessWidget {
     required this.secretKeyController,
     required this.bucketController,
     required this.regionController,
+    required this.pathPrefixController,
   });
 
   final _StorageProvider selectedProvider;
@@ -293,6 +403,7 @@ class _ProviderSettingsCard extends StatelessWidget {
   final TextEditingController secretKeyController;
   final TextEditingController bucketController;
   final TextEditingController regionController;
+  final TextEditingController pathPrefixController;
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +412,7 @@ class _ProviderSettingsCard extends StatelessWidget {
       secretKeyController: secretKeyController,
       bucketController: bucketController,
       regionController: regionController,
+      pathPrefixController: pathPrefixController,
     );
 
     return _StorageCard(
@@ -424,6 +536,64 @@ class _StorageCard extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+class _CompactCheckSwitch extends StatelessWidget {
+  const _CompactCheckSwitch({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: value,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onChanged(!value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            width: 42,
+            height: 24,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: value ? AppColors.actionRed : AppColors.softLine,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: value
+                    ? AppColors.actionRed
+                    : AppColors.line.withValues(alpha: 0.9),
+              ),
+            ),
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 140),
+              curve: Curves.easeOut,
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: value
+                    ? const SymbolIcon(
+                        Symbols.check,
+                        color: AppColors.actionRed,
+                        size: 13,
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -737,6 +907,17 @@ enum _StorageProvider {
     );
   }
 
+  static _StorageProvider? fromStorageOptionKey(String key) {
+    return switch (key) {
+      'storageSettings.option.awsS3' => _StorageProvider.awsS3,
+      'storageSettings.option.cloudflareR2' => _StorageProvider.cloudflareR2,
+      'storageSettings.option.backblazeB2' => _StorageProvider.backblazeB2,
+      'storageSettings.option.bunnyNet' => _StorageProvider.bunnyNet,
+      'storageSettings.option.googleDrive' => _StorageProvider.googleDrive,
+      _ => null,
+    };
+  }
+
   List<String> get settingKeys {
     return switch (this) {
       _StorageProvider.awsS3 => [
@@ -744,18 +925,21 @@ enum _StorageProvider {
         'secretKey',
         'bucketName',
         'region',
+        'pathPrefix',
       ],
       _StorageProvider.cloudflareR2 => [
         'accountId',
         'accessKey',
         'secretKey',
         'bucketName',
+        'pathPrefix',
       ],
       _StorageProvider.backblazeB2 => [
         'keyId',
         'applicationKey',
         'bucketName',
         'endpoint',
+        'pathPrefix',
       ],
       _StorageProvider.bunnyNet => [
         'storageZoneName',
@@ -777,6 +961,7 @@ enum _StorageProvider {
     required TextEditingController secretKeyController,
     required TextEditingController bucketController,
     required TextEditingController regionController,
+    required TextEditingController pathPrefixController,
   }) {
     return switch (this) {
       _StorageProvider.awsS3 => [
@@ -800,6 +985,11 @@ enum _StorageProvider {
           hint: 'storageSettings.hint.region',
           controller: regionController,
         ),
+        _StorageField(
+          label: 'storageSettings.field.pathPrefix',
+          hint: 'storageSettings.hint.pathPrefix',
+          controller: pathPrefixController,
+        ),
       ],
       _StorageProvider.cloudflareR2 => [
         _StorageField(
@@ -822,6 +1012,11 @@ enum _StorageProvider {
           hint: 'storageSettings.hint.bucketName',
           controller: regionController,
         ),
+        _StorageField(
+          label: 'storageSettings.field.pathPrefix',
+          hint: 'storageSettings.hint.pathPrefix',
+          controller: pathPrefixController,
+        ),
       ],
       _StorageProvider.backblazeB2 => [
         _StorageField(
@@ -843,6 +1038,11 @@ enum _StorageProvider {
           label: 'storageSettings.field.endpoint',
           hint: 'storageSettings.hint.endpoint',
           controller: regionController,
+        ),
+        _StorageField(
+          label: 'storageSettings.field.pathPrefix',
+          hint: 'storageSettings.hint.pathPrefix',
+          controller: pathPrefixController,
         ),
       ],
       _StorageProvider.bunnyNet => [

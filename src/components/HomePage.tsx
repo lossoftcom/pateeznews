@@ -36,6 +36,7 @@ interface HomePageProps {
         total: number;
         totalViews: number;
         hasMore: boolean;
+        activeSubcategory?: string | null;
     };
     selectedCategory?: string;
     isInitialHome?: boolean;
@@ -144,49 +145,22 @@ const HomePage: React.FC<HomePageProps> = ({
 
         // 🚀 SMART INTERNAL NAVIGATION (2026 LIGHT-SPEED)
         if (isMain) {
-            // Find ALL recursively nested children to fetch broad content
-            const children = navigationItems.filter(i => i.parent_id === navItem.id);
+            // Clicking a root city ("Niğde") clears all filters and shows the full feed.
+            // The previous broad fetch matched only the leaf `category` column and ignored the
+            // hierarchical `card_data.categoryPath`, so it returned nothing and emptied the feed.
+            // Clear the saved selection so a reload also stays on the unfiltered feed.
+            document.cookie = "pateez_active_cat=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
 
-            // Collect all possible identifiers (Value, Label, and Slugified versions)
-            const rootSlug = (navItem.value || navItem.label || '').trim();
-            const subSlugs = children.map(c => (c.value || c.label || '').trim()).filter(Boolean);
-
-            // Build a broad list for the database query including lowercase and slugified variants
-            const broadFilters = Array.from(new Set([
-                rootSlug,
-                rootSlug.toLowerCase(),
-                slugify(rootSlug),
-                ...subSlugs,
-                ...subSlugs.map(s => s.toLowerCase()),
-                ...subSlugs.map(s => slugify(s))
-            ])).filter(Boolean) as string[];
-
-            setIsNewsLoading(true);
-            try {
-                // 🚀 SET PERMANENT CACHE (2026 LIGHT-SPEED)
-                document.cookie = `pateez_active_cat=${encodeURIComponent(normalized)}; path=/; max-age=31536000; SameSite=Lax`;
-
-                // If we are not on the home page, we should redirect to / to reset any sub-path (districts, trends etc)
-                // This ensures "seçimler kalkacak" requirement is met globally.
-                if (window.location.pathname !== '/' && window.location.pathname !== '') {
-                    void navigate('/');
-                    return;
-                }
-
-                // Wide fetch: fetches everything associated with this root and its children
-                // CRITICAL FIX: Use initialLang.code (string) instead of initialLang (object)
-                const langCode = typeof initialLang === 'object' && initialLang !== null ? initialLang.code : initialLang;
-                const news = await dataService.getNewsItems(langCode, broadFilters);
-
-                setDisplayNews(news);
-                setActiveCat(normalized);
-            } catch (err) {
-                console.error('Filtering error:', err);
-                setActiveCat(null);
-                setDisplayNews(initialNews);
-            } finally {
-                setIsNewsLoading(false);
+            // If we are not on the home page, redirect to / to reset any sub-path (districts, trends etc).
+            // This ensures the "seçimler kalkacak" requirement is met globally.
+            if (window.location.pathname !== '/' && window.location.pathname !== '') {
+                void navigate('/');
+                return;
             }
+
+            // Already on the home page: reset to the full, already-loaded feed.
+            setActiveCat(null);
+            setDisplayNews(initialNews);
         } else {
             // If it's a sub-category or trend, we redirect to its specific page for full SEO
             void navigate(`/kategori/${slugify(normalized)}`);

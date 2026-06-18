@@ -254,6 +254,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   child: FeaturedSlider(
                                     items: widget.featuredItems,
+                                    showNewsInfo: widget
+                                        .contentSettings
+                                        .featuredShowNewsInfo,
                                     onOpen: _openFeatured,
                                   ),
                                 )
