@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pateeznews_admin/shared/constants/turkey_cities.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -9,6 +10,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/back_circle_button.dart';
+import '../../../shared/widgets/adaptive_city_select_field.dart';
 import '../../../shared/widgets/cached_image.dart';
 import '../../../shared/widgets/frontend_toast.dart';
 import '../data/profile_content.dart';
@@ -79,6 +81,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String _coverUrl;
   late String _avatarPath;
   late String _coverPath;
+  late String _city;
 
   @override
   void initState() {
@@ -93,6 +96,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _about = TextEditingController(text: data.hasAbout ? data.aboutMe : '');
     _website = TextEditingController(text: data.website);
     _address = TextEditingController(text: data.address);
+    _city = normalizeTurkeyCity(data.city);
     _x = TextEditingController(text: _linkFor(data, 'x'));
     _instagram = TextEditingController(text: _linkFor(data, 'instagram'));
     _facebook = TextEditingController(text: _linkFor(data, 'facebook'));
@@ -172,6 +176,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       return;
     }
+    if (!isTurkeyCity(_city)) {
+      _toast('Şehir seçimi zorunlu.', tone: FrontendToastTone.error);
+      return;
+    }
     final token = widget.authToken.trim();
     if (token.isEmpty) {
       _toast(
@@ -192,6 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           aboutMe: _about.text,
           website: _website.text,
           address: _address.text,
+          city: _city,
           instagram: _instagram.text,
           x: _x.text,
           facebook: _facebook.text,
@@ -466,6 +475,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         hint: 'ör. Yayıncı, Editör',
                         icon: Symbols.sparkling_fill,
                         controller: _expertise,
+                      ),
+                      AdaptiveCitySelectField(
+                        value: _city,
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        onChanged: (value) {
+                          setState(() => _city = normalizeTurkeyCity(value));
+                        },
                       ),
                       _Field(
                         label: 'Hakkında',

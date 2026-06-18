@@ -10,6 +10,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/services/frontend_link_launcher.dart';
 import '../../../shared/widgets/frontend_toast.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../account/presentation/account_sign_in_screen.dart';
@@ -29,6 +30,7 @@ import '../../home/presentation/widgets/news_video_player.dart';
 import '../../../core/mock/home_mock_data.dart';
 import '../../markets/data/markets_repository.dart';
 import '../../markets/presentation/markets_screen.dart';
+import '../../news_detail/presentation/news_detail_screen.dart';
 import '../../obituaries/data/death_notice_repository.dart';
 import '../../obituaries/presentation/obituaries_screen.dart';
 import '../../pharmacy/data/pharmacy_repository.dart';
@@ -38,6 +40,7 @@ import '../../prayer_times/presentation/prayer_times_screen.dart';
 import '../../profile/data/profile_content.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_screen.dart';
+import '../../search/data/search_repository.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../weather/data/weather_repository.dart';
 import '../../weather/presentation/weather_screen.dart';
@@ -69,8 +72,13 @@ class ShellScreen extends StatefulWidget {
     this.authState,
     this.profileData,
     this.profileRepository = const ProfileRepository(),
+    this.searchRepository = const SearchRepository(),
     this.authLoading = false,
+    this.notificationDeepLink = '',
+    this.notificationDeepLinkSerial = 0,
     this.onSignIn,
+    this.onSignUp,
+    this.onSocialSignIn,
     this.onSignOut,
     this.onOpenAdminPanel,
     this.onProfileUpdated,
@@ -92,8 +100,13 @@ class ShellScreen extends StatefulWidget {
   final FrontendAuthState? authState;
   final ProfileData? profileData;
   final ProfileRepository profileRepository;
+  final SearchRepository searchRepository;
   final bool authLoading;
+  final String notificationDeepLink;
+  final int notificationDeepLinkSerial;
   final FrontendSignInCallback? onSignIn;
+  final FrontendSignUpCallback? onSignUp;
+  final FrontendSocialSignInCallback? onSocialSignIn;
   final Future<void> Function()? onSignOut;
   final Future<void> Function()? onOpenAdminPanel;
   final ValueChanged<ProfileSaveResult>? onProfileUpdated;
@@ -114,6 +127,7 @@ class _ShellScreenState extends State<ShellScreen>
   final _videoFeedArticleId = '';
   final _videoFeedRevealSerial = 0;
   var _homeResetSerial = 0;
+  var _handledNotificationDeepLinkSerial = 0;
 
   late final AnimationController _appsController = AnimationController(
     vsync: this,
@@ -124,6 +138,12 @@ class _ShellScreenState extends State<ShellScreen>
   static const _accountNavIndex = 4;
   static const _appsNavIndex = 2;
   static const _videoNavIndex = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleNotificationDeepLinkIfNeeded();
+  }
 
   @override
   void dispose() {
@@ -178,6 +198,8 @@ class _ShellScreenState extends State<ShellScreen>
                     authState: widget.authState,
                     authLoading: widget.authLoading,
                     onSignIn: widget.onSignIn,
+                    onSignUp: widget.onSignUp,
+                    onSocialSignIn: widget.onSocialSignIn,
                     onSignOut: widget.onSignOut,
                     shellSettings: widget.shellData.siteSettings,
                   ),
@@ -283,6 +305,168 @@ class _ShellScreenState extends State<ShellScreen>
     _closeAccountMenu();
     _closeAppsSheet();
     setState(() => _index = 0);
+  }
+
+  void _scheduleNotificationDeepLinkIfNeeded() {
+    final serial = widget.notificationDeepLinkSerial;
+    final link = widget.notificationDeepLink.trim();
+    if (serial <= _handledNotificationDeepLinkSerial || link.isEmpty) return;
+    _handledNotificationDeepLinkSerial = serial;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_openNotificationDeepLink(link));
+    });
+  }
+
+  Future<void> _openNotificationDeepLink(String value) async {
+    final uri = _notificationUri(value);
+    if (uri == null) return;
+
+    _closeMenu();
+    _closeAccountMenu();
+    _closeAppsSheet();
+
+    final slugOrId = _newsSlugOrIdFromUri(uri);
+    if (slugOrId.isNotEmpty) {
+      final article = await _resolveNotificationArticle(slugOrId);
+      if (!mounted) return;
+      if (article != null) {
+        _openNotificationArticle(article);
+        return;
+      }
+    }
+
+    await openFrontendUri(uri);
+  }
+
+  Uri? _notificationUri(String value) {
+    final clean = value.trim();
+    if (clean.isEmpty) return null;
+    if (clean.startsWith('/')) {
+      return Uri.tryParse('https://pateeznews.com$clean');
+    }
+    return frontendUriFromUserInput(clean);
+  }
+
+  String _newsSlugOrIdFromUri(Uri uri) {
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme == 'pateez') {
+      final parts = [
+        if (uri.host.trim().isNotEmpty) uri.host.trim(),
+        ...uri.pathSegments,
+      ];
+      if (parts.length >= 2 && parts.first.toLowerCase() == 'haber') {
+        return Uri.decodeComponent(parts[1]).trim();
+      }
+      return '';
+    }
+
+    if (!_isPateezHost(uri)) return '';
+    final segments = uri.pathSegments;
+    if (segments.length < 2 || segments.first.toLowerCase() != 'haber') {
+      return '';
+    }
+    return Uri.decodeComponent(segments[1]).trim();
+  }
+
+  bool _isPateezHost(Uri uri) {
+    final host = uri.host.toLowerCase();
+    return host == 'pateeznews.com' ||
+        host == 'www.pateeznews.com' ||
+        host == 'pateez.com' ||
+        host == 'www.pateez.com' ||
+        host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '10.0.2.2';
+  }
+
+  Future<NewsArticle?> _resolveNotificationArticle(String slugOrId) async {
+    final key = slugOrId.trim();
+    if (key.isEmpty) return null;
+    final local = _findArticleByKey(_notificationArticlePool(), key);
+    if (local != null) return local;
+
+    final data = await widget.searchRepository.search(
+      query: key,
+      token: widget.authState?.session.accessToken,
+    );
+    return _findArticleByKey(data.posts, key) ??
+        (data.posts.isEmpty ? null : data.posts.first);
+  }
+
+  List<NewsArticle> _notificationArticlePool() {
+    final output = <NewsArticle>[];
+    final seen = <String>{};
+    void addArticle(NewsArticle article) {
+      final key = article.id.trim().isNotEmpty
+          ? 'id:${article.id.trim()}'
+          : 'slug:${article.slug.trim()}';
+      if (!seen.add(key)) return;
+      output.add(article);
+    }
+
+    for (final item in widget.homeFeedItems) {
+      addArticle(item);
+    }
+    for (final item in widget.featuredItems) {
+      final article = item.article;
+      if (article != null) addArticle(article);
+    }
+    return output;
+  }
+
+  NewsArticle? _findArticleByKey(List<NewsArticle> articles, String key) {
+    final clean = key.toLowerCase();
+    for (final article in articles) {
+      if (article.id.trim().toLowerCase() == clean ||
+          article.slug.trim().toLowerCase() == clean) {
+        return article;
+      }
+    }
+    return null;
+  }
+
+  void _openNotificationArticle(NewsArticle article) {
+    final feed = _notificationArticlePool();
+    final index = feed.indexWhere(
+      (item) =>
+          item.id == article.id ||
+          (item.slug.trim().isNotEmpty && item.slug == article.slug),
+    );
+    final articles = index >= 0 ? feed : [article, ...feed];
+    final initialIndex = index >= 0 ? index : 0;
+    Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
+        pageBuilder: (_, _, _) => NewsDetailScreen(
+          articles: articles,
+          initialIndex: initialIndex,
+          shellSettings: widget.shellData.siteSettings,
+          navigationItems: widget.shellData.navigationItems,
+          contentSettings: widget.contentSettings,
+          videoFeedArticles: dateSortedVideoArticles(widget.homeFeedItems),
+          authState: widget.authState,
+          onAuthRequired: _openAccountForRequiredAuth,
+          onAuthorTap: _openAuthorProfile,
+          onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
   }
 
   /// Hesap menüsündeki "Profilim" bu sayfayı açar. Splash canlı profili
@@ -830,6 +1014,7 @@ class _ShellScreenState extends State<ShellScreen>
     if (widget.authState == null && _accountMenuOpen) {
       _accountMenuOpen = false;
     }
+    _scheduleNotificationDeepLinkIfNeeded();
   }
 
   Future<void> _openAdminPanel() async {

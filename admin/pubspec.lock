@@ -324,10 +324,9 @@ packages:
   firebase_messaging:
     dependency: "direct main"
     description:
-      name: firebase_messaging
-      sha256: "9651e833454156b9f0927eaedccffba0f7f6a6e20ceddef82517211e7017e9c4"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/firebase_messaging"
+      relative: true
+    source: path
     version: "16.3.0"
   firebase_messaging_platform_interface:
     dependency: transitive

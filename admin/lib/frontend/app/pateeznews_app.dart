@@ -72,7 +72,7 @@ class PateeznewsApp extends StatefulWidget {
 }
 
 class _PateeznewsAppState extends State<PateeznewsApp> {
-  final _pushNotifications = FrontendPushNotificationService();
+  late final FrontendPushNotificationService _pushNotifications;
   var _fontSettings = FrontendFontSettings.empty();
   var _shellData = const AppShellData.empty();
   var _dutyPharmacyData = const DutyPharmacyData.empty();
@@ -90,6 +90,8 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   var _authLoading = true;
   var _adminOpen = false;
   var _ready = false;
+  var _notificationDeepLink = '';
+  var _notificationDeepLinkSerial = 0;
 
   /// Splash en az bu kadar görünür kalır (animasyon okunabilsin). Yüklemeler
   /// bundan önce biterse aradaki fark kadar beklenir.
@@ -102,6 +104,9 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   @override
   void initState() {
     super.initState();
+    _pushNotifications = FrontendPushNotificationService(
+      onDeepLink: _handlePushDeepLink,
+    );
     AppTypography.configure(_fontSettings);
     unawaited(_bootstrap());
   }
@@ -368,6 +373,45 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     return authState;
   }
 
+  Future<FrontendAuthState> _signUp({
+    required String fullName,
+    required String email,
+    required String password,
+    required String passwordAgain,
+    required String city,
+  }) async {
+    final authState = await widget.authRepository.signUpWithPassword(
+      fullName: fullName,
+      email: email,
+      password: password,
+      passwordAgain: passwordAgain,
+      city: city,
+    );
+    if (mounted) {
+      setState(() => _authState = authState);
+      unawaited(_refreshProfileData(authState));
+      unawaited(_loadHomeData());
+      unawaited(_syncPushNotifications(authState));
+    }
+    return authState;
+  }
+
+  Future<FrontendAuthState> _signInWithSocial(
+    FrontendSocialAuthProvider provider,
+  ) async {
+    final authState = await widget.authRepository.signInWithOAuth(
+      provider: provider,
+      redirectTo: _shellData.siteSettings.socialAuth.redirectTo,
+    );
+    if (mounted) {
+      setState(() => _authState = authState);
+      unawaited(_refreshProfileData(authState));
+      unawaited(_loadHomeData());
+      unawaited(_syncPushNotifications(authState));
+    }
+    return authState;
+  }
+
   Future<void> _refreshProfileData(FrontendAuthState authState) async {
     try {
       final profile = await widget.profileRepository.fetchSelf(
@@ -406,6 +450,15 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     return _pushNotifications.configure(
       authToken: authState?.session.accessToken,
     );
+  }
+
+  Future<void> _handlePushDeepLink(String deepLink) async {
+    final clean = deepLink.trim();
+    if (clean.isEmpty || !mounted) return;
+    setState(() {
+      _notificationDeepLink = clean;
+      _notificationDeepLinkSerial++;
+    });
   }
 
   Future<void> _handleProfileUpdated(ProfileSaveResult result) async {
@@ -478,7 +531,11 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
                 profileData: _profileData,
                 profileRepository: widget.profileRepository,
                 authLoading: _authLoading,
+                notificationDeepLink: _notificationDeepLink,
+                notificationDeepLinkSerial: _notificationDeepLinkSerial,
                 onSignIn: _signIn,
+                onSignUp: _signUp,
+                onSocialSignIn: _signInWithSocial,
                 onSignOut: _signOut,
                 onOpenAdminPanel: _openAdminPanel,
                 onProfileUpdated: _handleProfileUpdated,

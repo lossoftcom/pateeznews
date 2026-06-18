@@ -27,6 +27,8 @@ class ManagedUser {
     required this.fullName,
     required this.username,
     required this.email,
+    required this.city,
+    required this.authProvider,
     required this.role,
     required this.roleLabel,
     required this.status,
@@ -40,6 +42,8 @@ class ManagedUser {
   final String fullName;
   final String username;
   final String email;
+  final String city;
+  final String authProvider;
   final String role;
   final String roleLabel;
   final String status;
@@ -87,6 +91,20 @@ class ManagedUser {
   }
 
   bool get active => status == 'Aktif';
+
+  String get authProviderLabel => authProviderLabelFor(authProvider);
+}
+
+String authProviderLabelFor(String provider) {
+  final value = provider.trim().toLowerCase();
+  return switch (value) {
+    'google' => 'Google',
+    'apple' => 'Apple',
+    'facebook' => 'Facebook',
+    'x' || 'twitter' => 'X / Twitter',
+    'email' || '' => 'E-posta',
+    _ => provider.trim(),
+  };
 }
 
 class AdminUserRole {
@@ -131,6 +149,7 @@ class UserFormData {
     required this.fullName,
     required this.username,
     required this.email,
+    required this.city,
     required this.role,
     required this.status,
     required this.rewardEnabled,
@@ -140,6 +159,7 @@ class UserFormData {
   final String fullName;
   final String username;
   final String email;
+  final String city;
   final String role;
   final String status;
   final bool rewardEnabled;

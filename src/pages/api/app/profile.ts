@@ -3,6 +3,7 @@ import { getSessionFromRequest, json, withTransaction } from '@/lib/server/appDb
 import { dataService } from '@/services/dataService.server';
 import { mapAppFeedItems } from '@/lib/server/appFeed';
 import { updateUser } from '@/lib/server/supabaseAuth';
+import { normalizeTurkeyCity } from '@/lib/server/turkeyCities';
 
 const PROFILE_POST_SELECT = `
             p.id,
@@ -164,8 +165,9 @@ async function resolveProfileId(
 async function loadProfile(client: any, userId: string, origin: string, viewerId: string | null) {
   const profileResult = await client.query(
     `SELECT id, username, full_name, avatar_url, cover_url, role, status,
-            reward_system, email, created_at, about_me, social_links,
-            show_email, rss_feeds, expertise, website, address
+            reward_system, email, phone, created_at, about_me, social_links,
+            show_email, rss_feeds, expertise, website, address, city,
+            auth_provider, auth_providers
        FROM public.profiles
       WHERE id = $1::uuid
       LIMIT 1`,
@@ -336,6 +338,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (!validEmail(email)) {
       return json({ error: { message: 'Geçerli bir e-posta girin' } }, 400);
     }
+    const city = normalizeTurkeyCity(body.city);
+    if (!city) {
+      return json({ error: { message: 'Şehir seçimi zorunlu' } }, 400);
+    }
 
     const result = await withTransaction(async (client) => {
       await ensureUniqueProfileFields(client, { userId, email, username });
@@ -356,12 +362,13 @@ export const POST: APIRoute = async ({ request }) => {
                 about_me = $7,
                 website = $8,
                 address = $9,
-                social_links = $10::jsonb,
-                show_email = $11,
-                rss_feeds = $12,
-                slug = $13,
+                city = $10,
+                social_links = $11::jsonb,
+                show_email = $12,
+                rss_feeds = $13,
+                slug = $14,
                 updated_at = now()
-          WHERE id = $14::uuid
+          WHERE id = $15::uuid
           RETURNING id`,
         [
           fullName,
@@ -373,6 +380,7 @@ export const POST: APIRoute = async ({ request }) => {
           nullableText(body.aboutMe || body.about_me, 2000),
           nullableText(body.website, 500),
           nullableText(body.address, 500),
+          city,
           JSON.stringify(socialLinks(body.socialLinks || body.social_links)),
           body.showEmail !== false && body.show_email !== false,
           body.rssFeeds !== false && body.rss_feeds !== false,

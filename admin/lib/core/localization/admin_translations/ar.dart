@@ -2036,6 +2036,7 @@ const Map<String, String> adminArTranslations = <String, String>{
   "nav.socialSettings": "إعدادات وسائل التواصل",
   "nav.navigation": "التنقل",
   "nav.languageSettings": "إعدادات اللغة",
+  "nav.ads": "الإعلانات",
   "nav.menu": "القائمة",
   "nav.modules": "الوحدات",
   "nav.notifications": "الإشعارات",
@@ -3614,12 +3615,12 @@ const Map<String, String> adminArTranslations = <String, String>{
   "notifications.campaigns.title": "مركز الإشعارات",
   "notifications.campaigns.description":
       "إدارة حملات إشعارات الهاتف وFlutter Web وAstro Web عبر Firebase Cloud Messaging.",
-  "notifications.campaigns.add": "+ إضافة إشعار",
+  "notifications.campaigns.add": "إضافة إشعار",
   "notifications.campaigns.edit": "تعديل الإشعار",
   "notifications.templates.title": "قوالب الإشعارات",
   "notifications.templates.description":
       "إدارة العنوان والوصف والرابط العميق والأولوية والقوالب حسب اللغة.",
-  "notifications.templates.add": "+ إضافة قالب",
+  "notifications.templates.add": "إضافة قالب",
   "notifications.templates.edit": "تعديل القالب",
   "notifications.templates.empty": "لا توجد قوالب إشعارات",
   "notifications.templates.deleteTitle": "حذف قالب الإشعار",

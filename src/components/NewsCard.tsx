@@ -1,14 +1,15 @@
 import { isPostId, getRelativeTime } from '@/utils/helpers';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { CheckCircle2, Heart, Bookmark, Share2 } from 'lucide-react';
 import { NewsType, type NewsItem, type SiteSettings, type NavigationItem } from '@/types';
-import CommentSection from './CommentSection';
+import InlineCardComments from './InlineCardComments';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from '@/components/ui/Skeleton';
 import { prefetch } from 'astro:prefetch';
 import { postAction } from '@/services/appActions';
+import { getPostHref } from '@/utils/postUrl';
+import RemixIcon from './ui/RemixIcon';
 
 // Kart Bileşenleri
 import ReviewCard from './cards/ReviewCard';
@@ -77,14 +78,56 @@ const stripHtmlToText = (html: string) => {
     .trim();
 };
 
+interface CardSocialActionProps {
+  icon: string;
+  activeIcon?: string;
+  active?: boolean;
+  count?: number;
+  label: string;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  activeClassName?: string;
+  iconSize?: number;
+  className?: string;
+}
+
+const CardSocialAction: React.FC<CardSocialActionProps> = ({
+  icon,
+  activeIcon,
+  active = false,
+  count,
+  label,
+  onClick,
+  activeClassName = 'text-gray-800',
+  iconSize = 22,
+  className = '',
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    aria-pressed={active}
+    className={`inline-flex items-center gap-1.5 rounded-[5px] px-1.5 py-1.5 transition-all duration-150 active:scale-95 ${active ? activeClassName : 'text-palette-tan/55 hover:text-gray-800'} ${className}`}
+  >
+    <RemixIcon name={active ? (activeIcon || icon) : icon} size={iconSize} className="transition-all duration-150" />
+    {count !== undefined && (
+      <span className="text-[12px] font-semibold leading-none">{count.toLocaleString()}</span>
+    )}
+  </button>
+);
+
 const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, navItems }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
+  const showPostAuthor = siteSettings?.content_show_post_author !== false;
+  const showPostDate = siteSettings?.content_show_post_date !== false;
+  const showPostViewCount = siteSettings?.content_show_post_view_count !== false;
+  const commentsEnabled = siteSettings?.content_comment_system_enabled !== false;
+  const commentApprovalEnabled = siteSettings?.content_comment_approval_enabled !== false;
+  const emojiReactionsEnabled = siteSettings?.content_emoji_reactions_enabled !== false;
 
   const detailHref = useMemo(() => {
-    const slugOrId = data.slug || data.id;
-    return `/haber/${encodeURIComponent(slugOrId)}`;
-  }, [data.id, data.slug]);
+    return getPostHref(data, siteSettings);
+  }, [data, siteSettings]);
 
   const categoryHierarchy = useMemo(() => {
     if (!data.category || !navItems) return [data.category];
@@ -112,7 +155,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
 
   const [isLiked, setIsLiked] = useState(data.userLiked || false);
   const [isDisliked, setIsDisliked] = useState(data.userDisliked || false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(commentsEnabled);
   const [isBookmarked, setIsBookmarked] = useState(data.userSaved || false);
   const [likesCount, setLikesCount] = useState(data.likes || 0);
   const [dislikesCount, setDislikesCount] = useState(data.dislikes || 0);
@@ -122,6 +165,18 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
   const [userId, setUserId] = useState<string | null>(null);
   const [publisherId, setPublisherId] = useState<string | null>(data.publisherId || null);
   const [isFollowing, setIsFollowing] = useState(data.isFollowingPublisher || false);
+
+  useEffect(() => {
+    setShowComments(commentsEnabled);
+  }, [commentsEnabled, data.id]);
+
+  const readingTime = useMemo(() => {
+    const wordsPerMinute = 200;
+    const itemContent = data.items?.map((item: any) => `${item?.title || ''} ${item?.description || ''}`).join(' ') || '';
+    const totalContent = `${data.title || ''} ${data.summary || ''} ${data.content || ''} ${itemContent}`;
+    const words = stripHtmlToText(totalContent).split(/\s+/).filter(Boolean).length;
+    return Math.max(1, Math.ceil(words / wordsPerMinute));
+  }, [data.title, data.summary, data.content, data.items]);
 
   // Kullanıcı ve mevcut like/save durumunu kontrol et
   useEffect(() => {
@@ -274,7 +329,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
 
   // 2026 SEO & AI Optimized Sharing Config
   const shareUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/haber/${data.slug || data.id}`
+    ? `${window.location.origin}${detailHref}`
     : '';
 
   const recordShare = async (platform: string) => {
@@ -411,7 +466,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
       case NewsType.BEFORE_AFTER: return <BeforeAfterCard data={data} />;
       case NewsType.FLIP_CARD: return <FlipCard data={data} />;
       case NewsType.EMBED: return <EmbedCard data={data} />;
-      case NewsType.AUDIO: return <AudioCard data={data} />;
+      case NewsType.AUDIO: return <AudioCard data={data} allowDownload={siteSettings?.content_audio_download_enabled !== false} />;
       case NewsType.VIDEO: return <VideoCard data={data} />;
       case NewsType.GALLERY: return <GalleryCard data={data} />;
       case NewsType.POLL: return <PollCard data={data} />;
@@ -463,42 +518,46 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
         {/* HEADER */}
         <div className="px-6 pt-6 pb-2 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div
-              onClick={handleSourceAction}
-              className="w-11 h-11 rounded-[5px] bg-palette-beige/20 p-[2px] border border-palette-beige shadow-sm cursor-pointer group/avatar relative pointer-events-auto"
-            >
-              <div className="w-full h-full rounded-[5px] overflow-hidden">
-                <img
-                  src={data.sourceAvatar || `https://picsum.photos/seed/source${data.id}/100`}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110"
-                  alt={data.source}
-                />
+            {showPostAuthor && (
+              <div
+                onClick={handleSourceAction}
+                className="w-11 h-11 rounded-[5px] bg-palette-beige/20 p-[2px] border border-palette-beige shadow-sm cursor-pointer group/avatar relative pointer-events-auto"
+              >
+                <div className="w-full h-full rounded-[5px] overflow-hidden">
+                  <img
+                    src={data.sourceAvatar || `https://picsum.photos/seed/source${data.id}/100`}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110"
+                    alt={data.source}
+                  />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white rounded-[5px] flex items-center justify-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-[5px] animate-pulse"></div>
+                </div>
               </div>
-              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white rounded-[5px] flex items-center justify-center">
-                <div className="w-2 h-2 bg-green-500 rounded-[5px] animate-pulse"></div>
-              </div>
-            </div>
+            )}
 
             <div>
-              <div className="flex items-center gap-2">
-                <div
-                  onClick={handleSourceAction}
-                  className="flex items-center gap-1.5 cursor-pointer group/title pointer-events-auto"
-                >
-                  <h5 className="text-[15px] font-[800] text-gray-900 tracking-tight group-hover/title:text-palette-red transition-colors">
-                    {data.source}
-                  </h5>
-                  <span className="material-symbols-rounded text-palette-red" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>verified</span>
-                </div>
+              {showPostAuthor && (
+                <div className="flex items-center gap-2">
+                  <div
+                    onClick={handleSourceAction}
+                    className="flex items-center gap-1.5 cursor-pointer group/title pointer-events-auto"
+                  >
+                    <h5 className="text-[15px] font-[800] text-gray-900 tracking-tight group-hover/title:text-palette-red transition-colors">
+                      {data.source}
+                    </h5>
+                    <RemixIcon name="ri-verified-badge-fill" size={16} className="text-palette-red" />
+                  </div>
 
-                {/* FOLLOW BUTTON - Color changed from red to professional blue */}
-                <button
-                  onClick={handleFollow}
-                  className={`uppercase tracking-tighter text-[9px] font-[900] px-2 py-0.5 rounded-full transition-all ${isFollowing ? 'text-gray-400 bg-gray-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white'}`}
-                >
-                  {isFollowing ? t('common.following') : t('common.follow')}
-                </button>
-              </div>
+                  {/* FOLLOW BUTTON - Color changed from red to professional blue */}
+                  <button
+                    onClick={handleFollow}
+                    className={`uppercase tracking-tighter text-[9px] font-[900] px-2 py-0.5 rounded-full transition-all ${isFollowing ? 'text-gray-400 bg-gray-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white'}`}
+                  >
+                    {isFollowing ? t('common.following') : t('common.follow')}
+                  </button>
+                </div>
+              )}
 
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-palette-tan/40 leading-none mt-1">
                 <div className="flex items-center gap-1">
@@ -510,15 +569,19 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                     </React.Fragment>
                   ))}
                 </div>
-                <span className="w-0.5 h-0.5 bg-palette-beige rounded-[5px]"></span>
-                <span className="font-medium">{getRelativeTime(data.timestamp, currentLang.code)}</span>
+                {showPostDate && (
+                  <>
+                    <span className="w-0.5 h-0.5 bg-palette-beige rounded-[5px]"></span>
+                    <span className="font-medium">{getRelativeTime(data.timestamp, currentLang.code)}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
           {/* PINNED INDICATOR */}
           {data.isPinned && (
             <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/5 border border-amber-100 rounded-[5px] text-amber-600 animate-in fade-in slide-in-from-right-4 duration-500">
-              <span className="material-symbols-rounded" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>push_pin</span>
+              <RemixIcon name="ri-pushpin-fill" size={16} />
               <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline-block">{t('news.featured')}</span>
             </div>
           )}
@@ -537,28 +600,74 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
         <div className="px-6 pb-2 rounded-[5px] overflow-hidden">{renderContent()}</div>
 
         {/* INTERACTION BAR */}
-        <div className="mt-0.5 px-6 py-1 border-t border-palette-beige/20 bg-white/50 backdrop-blur-md relative z-[100]">
-          <div className="flex items-center justify-between">
-            {/* Sol Grup: Paylaş + Yorum */}
-            <div className="flex items-center gap-1 relative">
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-[5px] text-palette-tan/50 hover:text-palette-red hover:bg-palette-red/5 transition-all duration-100 active:scale-95 group/share"
-              >
-                <span className="text-[12px] font-bold leading-none">{sharesCount.toLocaleString()}</span>
-                <span className="material-symbols-rounded leading-none animate-heartbeat-1" style={{ fontSize: '20px' }}>
-                  share
-                </span>
-                <span className="text-[10px] font-[900] uppercase tracking-widest leading-none">{t('common.share')}</span>
-              </button>
+        <div className="mt-0.5 border-t border-palette-beige/20 bg-white relative z-[100]">
+          <div className="px-6 pt-3 pb-1 flex items-center gap-3 text-[12px] font-semibold text-palette-tan/45">
+            <span className="flex items-center gap-1.5">
+              <RemixIcon name="ri-book-open-line" size={14} />
+              {readingTime} {t('news.reading_time')}
+            </span>
+            {showPostViewCount && (
+              <span className="flex items-center gap-1.5">
+                <RemixIcon name="ri-eye-line" size={14} />
+                {(data.views || 0).toLocaleString()} görüntüleme
+              </span>
+            )}
+          </div>
 
-              {/* Paylaş Menüsü */}
-              {showShareMenu && (
-                <div
-                  ref={shareMenuRef}
-                  className="absolute bottom-full left-0 mb-4 bg-white/95 backdrop-blur-xl rounded-[12px] shadow-[0_25px_60px_rgba(24,37,64,0.2)] border border-palette-beige/30 p-1.5 min-w-[220px] z-[99999] animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-300 pointer-events-auto"
-                  onClick={(e) => e.stopPropagation()}
-                >
+          <div className="px-6 pb-2 flex items-center justify-between">
+            <div className="flex items-center gap-1 min-w-0">
+              <CardSocialAction
+                icon="ri-thumb-up-line"
+                activeIcon="ri-thumb-up-fill"
+                active={isLiked}
+                count={likesCount}
+                label="Beğen"
+                onClick={handleLike}
+                activeClassName="text-gray-800"
+                iconSize={22}
+              />
+              <CardSocialAction
+                icon="ri-thumb-down-line"
+                activeIcon="ri-thumb-down-fill"
+                active={isDisliked}
+                count={dislikesCount}
+                label="Beğenme"
+                onClick={handleDislike}
+                activeClassName="text-palette-red"
+                iconSize={22}
+              />
+              {commentsEnabled && (
+                <CardSocialAction
+                  icon="ri-chat-3-line"
+                  activeIcon="ri-chat-3-fill"
+                  active={showComments}
+                  count={data.comments}
+                  label="Yorumlar"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowComments((value) => !value);
+                  }}
+                  activeClassName="text-gray-800"
+                  iconSize={24}
+                />
+              )}
+
+              <div className="relative" ref={shareMenuRef}>
+                <CardSocialAction
+                  icon="ri-share-forward-line"
+                  active={false}
+                  count={sharesCount}
+                  label={t('common.share')}
+                  onClick={handleShare}
+                  iconSize={24}
+                />
+
+                {/* Paylaş Menüsü */}
+                {showShareMenu && (
+                  <div
+                    className="absolute bottom-full left-0 mb-3 bg-white/95 backdrop-blur-xl rounded-[12px] shadow-[0_25px_60px_rgba(24,37,64,0.2)] border border-palette-beige/30 p-1.5 min-w-[220px] z-[99999] animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-300 pointer-events-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                   <div className="grid grid-cols-1 gap-0.5">
                     <button onClick={shareToWhatsApp} className="w-full h-[38px] flex items-center gap-3 px-3 rounded-[8px] hover:bg-palette-accent/10 transition-all duration-300 group">
                       <div className="w-[20px] h-[20px] flex items-center justify-center text-palette-accent/70 group-hover:text-palette-accent group-hover:scale-110 transition-all">
@@ -635,91 +744,40 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                       <span className="text-[11px] font-bold text-gray-600 group-hover:text-gray-900 transition-colors">{t('share.copy_link')}</span>
                     </button>
                   </div>
-                </div>
-              )}
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowComments(!showComments);
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-[5px] transition-all duration-100 group/comment text-palette-tan/50 hover:text-palette-maroon hover:bg-palette-tan/5"
-              >
-                <span
-                  className="material-symbols-rounded transition-all duration-300 animate-heartbeat-2"
-                  style={{
-                    fontSize: '20px',
-                    fontVariationSettings: showComments ? "'FILL' 1, 'wght' 400" : "'FILL' 0, 'wght' 300",
-                  }}
-                >
-                  chat_bubble
-                </span>
-                <span className="text-[12px] font-bold leading-none">{data.comments.toLocaleString()}</span>
-              </button>
-            </div>
-
-            {/* Sağ Grup: Kaydet + Like/Dislike */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSave}
-                className={`flex items-center justify-center w-10 h-10 rounded-[5px] transition-all duration-150 group/bookmark ${isBookmarked
-                  ? 'text-palette-red bg-palette-red/5'
-                  : 'text-palette-tan/40 hover:text-palette-red hover:bg-palette-red/5'
-                  }`}
-              >
-                <span
-                  className="material-symbols-rounded transition-all duration-300 animate-heartbeat-3"
-                  style={{
-                    fontSize: '22px',
-                    fontVariationSettings: isBookmarked ? "'FILL' 1, 'wght' 400" : "'FILL' 0, 'wght' 300",
-                  }}
-                >
-                  bookmark
-                </span>
-                {savesCount > 0 && <span className="sr-only">{savesCount}</span>}
-              </button>
-
-              {/* Premium Like/Dislike Capsule */}
-              <div className="flex items-center bg-palette-beige/10 rounded-[5px] border border-palette-beige/30 p-1">
-                <button
-                  onClick={handleLike}
-                  className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-[5px] transition-all duration-300
-                  ${isLiked
-                      ? 'bg-palette-red text-white shadow-md'
-                      : 'text-palette-maroon/60 hover:bg-white hover:text-palette-red'}
-                `}
-                >
-                  <span className="material-symbols-rounded !text-[20px]" style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }}>
-                    thumb_up
-                  </span>
-                  <span className="text-[12px] font-[900]">{likesCount.toLocaleString()}</span>
-                </button>
-
-                <div className="w-px h-4 bg-palette-beige/60 mx-1" />
-
-                <button
-                  onClick={handleDislike}
-                  className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-[5px] transition-all duration-300
-                  ${isDisliked
-                      ? 'bg-gray-800 text-white shadow-md'
-                      : 'text-palette-maroon/60 hover:bg-white hover:text-gray-900'}
-                `}
-                >
-                  <span className="material-symbols-rounded !text-[20px]" style={{ fontVariationSettings: isDisliked ? "'FILL' 1" : "'FILL' 0" }}>
-                    thumb_down
-                  </span>
-                  <span className="text-[12px] font-[900]">{dislikesCount.toLocaleString()}</span>
-                </button>
+                  </div>
+                )}
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              aria-label="Kaydet"
+              aria-pressed={isBookmarked}
+              className={`relative flex h-10 w-10 items-center justify-center rounded-[5px] transition-all duration-150 active:scale-95 ${isBookmarked
+                ? 'text-palette-red'
+                : 'text-palette-tan/55 hover:text-gray-800'
+                }`}
+            >
+              <RemixIcon name={isBookmarked ? 'ri-bookmark-fill' : 'ri-bookmark-line'} size={28} />
+              {savesCount > 0 && (
+                <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-palette-red px-1 text-center text-[9px] font-black leading-[16px] text-white">
+                  {savesCount > 99 ? '99+' : savesCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        {showComments && (
+        {commentsEnabled && showComments && (
           <div onClick={(e) => e.stopPropagation()} className="animate-in fade-in slide-in-from-top-1 duration-300 pointer-events-auto">
-            <CommentSection postId={data.id} publisherId={data.publisherId} />
+            <InlineCardComments
+              postId={data.id}
+              publisherId={data.publisherId}
+              totalCount={data.comments || 0}
+              commentApprovalEnabled={commentApprovalEnabled}
+              emojiEnabled={emojiReactionsEnabled}
+            />
           </div>
         )}
       </div>

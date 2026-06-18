@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Volume2, VolumeX, Clock } from 'lucide-react';
 import { NewsType, type NewsItem } from '@/types';
 import { formatTime } from '@/utils/helpers';
+import RemixIcon from '@/components/ui/RemixIcon';
 
 interface VideoCardProps {
   data: NewsItem;
@@ -45,6 +45,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
 
   const ytInfo = youtubeParser(data.mediaUrl);
   const isYoutube = !!ytInfo;
+  const hasDirectVideo = !isYoutube && !!String(data.mediaUrl || '').trim();
+  const posterSrc = data.optimizedThumbnail?.src || data.thumbnail;
 
   const sendYoutubeCommand = (func: string, args: any = "") => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -479,11 +481,11 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
               onLoad={initYoutubeListeners}
             />
           </div>
-        ) : (
+        ) : hasDirectVideo ? (
           <video
             ref={videoRef}
             src={data.mediaUrl}
-            poster={data.optimizedThumbnail?.src || data.thumbnail}
+            poster={posterSrc || undefined}
             className="w-auto h-auto max-h-[450px] object-contain mx-auto"
             muted={true}
             playsInline
@@ -491,7 +493,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
             onLoadedMetadata={(e) => setTimeDisplay(formatTime(e.currentTarget.duration))}
             onTimeUpdate={handleTimeUpdate}
           />
-        )}
+        ) : posterSrc ? (
+          <img
+            src={posterSrc}
+            alt={data.thumbnailAlt || data.seoTitle || data.title}
+            className="w-auto h-auto max-h-[450px] object-contain mx-auto"
+          />
+        ) : null}
 
         {/* Custom Poster Overlay for YouTube when not playing to hide YouTube UI */}
         {isYoutube && !isPlaying && (data.optimizedThumbnail?.src || data.thumbnail) && (
@@ -503,7 +511,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
 
         {/* Timer */}
         <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-[5px] border border-white/10 flex items-center gap-1.5 z-20 mb-1.5 pointer-events-none">
-          <Clock size={12} className="text-white/80" />
+          <RemixIcon name="ri-time-line" size={12} className="text-white/80" />
           <span className="text-xs font-bold text-white tracking-wide font-mono min-w-[35px] text-left">{timeDisplay}</span>
         </div>
 
@@ -513,7 +521,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
             onClick={toggleMute}
             className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-[5px] bg-black/50 backdrop-blur-md border border-white/20 text-white z-20"
           >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            <RemixIcon name={isMuted ? 'ri-volume-mute-line' : 'ri-volume-up-line'} size={16} />
           </button>
 
 
@@ -524,9 +532,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data }) => {
               flex items-center justify-center transition-all duration-300
               group-hover:scale-110 group-hover:bg-white/10 group-hover:border-white
             `}>
-              <span className="material-symbols-rounded text-white" style={{ fontSize: '28px', fontVariationSettings: "'FILL' 1" }}>
-                {isPlaying ? 'pause' : 'play_arrow'}
-              </span>
+              <RemixIcon name={isPlaying ? 'ri-pause-fill' : 'ri-play-fill'} size={28} className="text-white" />
             </div>
           </div>
         </div>

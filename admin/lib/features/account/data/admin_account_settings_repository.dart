@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
+import 'package:pateeznews_admin/shared/constants/turkey_cities.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 
@@ -19,6 +20,7 @@ class AdminAccountProfile {
     required this.expertise,
     required this.foundationDate,
     required this.address,
+    required this.city,
     required this.website,
     required this.aboutMe,
     required this.slug,
@@ -46,6 +48,7 @@ class AdminAccountProfile {
       expertise: '',
       foundationDate: '',
       address: '',
+      city: defaultTurkeyCity,
       website: '',
       aboutMe: '',
       slug: '',
@@ -79,6 +82,7 @@ class AdminAccountProfile {
       expertise: item['expertise']?.toString() ?? '',
       foundationDate: item['foundation_date']?.toString() ?? '',
       address: item['address']?.toString() ?? '',
+      city: normalizeTurkeyCity(item['city']?.toString() ?? defaultTurkeyCity),
       website: item['website']?.toString() ?? '',
       aboutMe: item['about_me']?.toString() ?? '',
       slug: item['slug']?.toString() ?? '',
@@ -109,6 +113,7 @@ class AdminAccountProfile {
   final String expertise;
   final String foundationDate;
   final String address;
+  final String city;
   final String website;
   final String aboutMe;
   final String slug;
@@ -133,6 +138,7 @@ class AdminAccountProfile {
     String? expertise,
     String? foundationDate,
     String? address,
+    String? city,
     String? website,
     String? aboutMe,
     String? slug,
@@ -156,6 +162,7 @@ class AdminAccountProfile {
       expertise: expertise ?? this.expertise,
       foundationDate: foundationDate ?? this.foundationDate,
       address: address ?? this.address,
+      city: city ?? this.city,
       website: website ?? this.website,
       aboutMe: aboutMe ?? this.aboutMe,
       slug: slug ?? this.slug,
@@ -191,6 +198,7 @@ class AdminAccountProfile {
       'expertise': expertise.trim(),
       'foundation_date': foundationDate.trim(),
       'address': address.trim(),
+      'city': normalizeTurkeyCity(city),
       'website': website.trim(),
       'about_me': aboutMe.trim(),
       'slug': slug.trim(),
@@ -258,7 +266,7 @@ class SupabaseAdminAccountSettingsRepository
       'table': 'profiles',
       'method': 'select',
       'select':
-          'id,full_name,username,email,phone,expertise,foundation_date,address,website,about_me,slug,meta_title,meta_keywords,meta_description,canonical_url,avatar_url,social_links,reward_system,show_email,rss_feeds',
+          'id,full_name,username,email,phone,expertise,foundation_date,address,city,website,about_me,slug,meta_title,meta_keywords,meta_description,canonical_url,avatar_url,social_links,reward_system,show_email,rss_feeds',
       'filters': [_idFilter(session.user.id)],
       'single': 'maybeSingle',
     });

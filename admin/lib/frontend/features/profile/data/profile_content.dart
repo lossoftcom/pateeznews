@@ -70,6 +70,7 @@ class ProfileData {
     this.isFollowing = false,
     this.website = '',
     this.address = '',
+    this.city = 'Niğde',
     this.rssFeeds = true,
     required this.postsCount,
     required this.followers,
@@ -104,6 +105,7 @@ class ProfileData {
   final bool isFollowing;
   final String website;
   final String address;
+  final String city;
   final bool rssFeeds;
   final int postsCount;
   final int followers;
@@ -140,6 +142,7 @@ class ProfileData {
     bool? isFollowing,
     String? website,
     String? address,
+    String? city,
     bool? rssFeeds,
     int? postsCount,
     int? followers,
@@ -174,6 +177,7 @@ class ProfileData {
       isFollowing: isFollowing ?? this.isFollowing,
       website: website ?? this.website,
       address: address ?? this.address,
+      city: city ?? this.city,
       rssFeeds: rssFeeds ?? this.rssFeeds,
       postsCount: postsCount ?? this.postsCount,
       followers: followers ?? this.followers,
@@ -232,6 +236,7 @@ class ProfileData {
       isOwnProfile: isOwnProfile,
       website: 'https://pateez.com',
       address: '',
+      city: 'Niğde',
       rssFeeds: true,
       postsCount: HomeMockData.feed.length,
       followers: 12840,

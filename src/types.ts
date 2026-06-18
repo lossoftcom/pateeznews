@@ -212,6 +212,12 @@ export interface SiteSettings {
   organization_address?: string;
   twitter_username?: string;
   fb_app_id?: string;
+  social_auth_google_enabled?: boolean;
+  social_auth_apple_enabled?: boolean;
+  social_auth_facebook_enabled?: boolean;
+  social_auth_x_enabled?: boolean;
+  social_auth_redirect_scheme?: string;
+  social_auth_redirect_host?: string;
   google_analytics_id?: string;
   google_search_console_code?: string;
   bing_verification_code?: string;
@@ -258,4 +264,20 @@ export interface SiteSettings {
   site_title_font?: string;
   site_content_font?: string;
   site_font_sizes?: Record<string, unknown> | string;
+  // Content/Post Settings
+  content_post_url_structure?: 'slug' | 'id' | string;
+  content_bulk_post_upload_enabled?: boolean;
+  content_delete_media_with_post_enabled?: boolean;
+  content_audio_download_enabled?: boolean;
+  content_comment_system_enabled?: boolean;
+  content_comment_approval_enabled?: boolean;
+  content_emoji_reactions_enabled?: boolean;
+  content_show_post_author?: boolean;
+  content_show_post_date?: boolean;
+  content_show_post_view_count?: boolean;
+  content_require_new_post_approval?: boolean;
+  content_require_edited_post_approval?: boolean;
+  content_redirect_rss_posts?: boolean;
+  content_popular_post_limit?: number;
+  content_related_post_limit?: number;
 }

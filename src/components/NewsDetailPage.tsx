@@ -39,6 +39,7 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
                                 <NewsDetail
                                     data={newsItem as any}
                                     navItems={navigationItems}
+                                    siteSettings={siteSettings}
                                     onBack={() => window.history.back()}
                                     loading={!newsItem}
                                 />

@@ -275,9 +275,15 @@ class _GeneralSettingsForm {
   final googleAnalyticsId = TextEditingController();
   final googleSearchConsoleCode = TextEditingController();
   final bingVerificationCode = TextEditingController();
+  final socialAuthRedirectScheme = TextEditingController();
+  final socialAuthRedirectHost = TextEditingController();
   final robotsTxt = TextEditingController();
   final headerCustomCodes = TextEditingController();
   final footerCustomCodes = TextEditingController();
+  var socialAuthGoogleEnabled = true;
+  var socialAuthAppleEnabled = true;
+  var socialAuthFacebookEnabled = true;
+  var socialAuthXEnabled = true;
 
   void apply(GeneralSettingsData settings) {
     siteName.text = settings.siteName;
@@ -297,6 +303,12 @@ class _GeneralSettingsForm {
     googleAnalyticsId.text = settings.googleAnalyticsId;
     googleSearchConsoleCode.text = settings.googleSearchConsoleCode;
     bingVerificationCode.text = settings.bingVerificationCode;
+    socialAuthGoogleEnabled = settings.socialAuthGoogleEnabled;
+    socialAuthAppleEnabled = settings.socialAuthAppleEnabled;
+    socialAuthFacebookEnabled = settings.socialAuthFacebookEnabled;
+    socialAuthXEnabled = settings.socialAuthXEnabled;
+    socialAuthRedirectScheme.text = settings.socialAuthRedirectScheme;
+    socialAuthRedirectHost.text = settings.socialAuthRedirectHost;
     robotsTxt.text = settings.robotsTxt;
     headerCustomCodes.text = settings.headerCustomCodes;
     footerCustomCodes.text = settings.footerCustomCodes;
@@ -321,6 +333,12 @@ class _GeneralSettingsForm {
       googleAnalyticsId: googleAnalyticsId.text,
       googleSearchConsoleCode: googleSearchConsoleCode.text,
       bingVerificationCode: bingVerificationCode.text,
+      socialAuthGoogleEnabled: socialAuthGoogleEnabled,
+      socialAuthAppleEnabled: socialAuthAppleEnabled,
+      socialAuthFacebookEnabled: socialAuthFacebookEnabled,
+      socialAuthXEnabled: socialAuthXEnabled,
+      socialAuthRedirectScheme: socialAuthRedirectScheme.text,
+      socialAuthRedirectHost: socialAuthRedirectHost.text,
       robotsTxt: robotsTxt.text,
       headerCustomCodes: headerCustomCodes.text,
       footerCustomCodes: footerCustomCodes.text,
@@ -345,6 +363,8 @@ class _GeneralSettingsForm {
     googleAnalyticsId.dispose();
     googleSearchConsoleCode.dispose();
     bingVerificationCode.dispose();
+    socialAuthRedirectScheme.dispose();
+    socialAuthRedirectHost.dispose();
     robotsTxt.dispose();
     headerCustomCodes.dispose();
     footerCustomCodes.dispose();
@@ -595,6 +615,11 @@ class _GeneralSettingsTabView extends StatelessWidget {
         onSave: onSave,
       ),
       _GeneralSettingsTab.services => _ServicesSettings(
+        form: form,
+        saving: saving,
+        onSave: onSave,
+      ),
+      _GeneralSettingsTab.socialAuth => _SocialAuthSettings(
         form: form,
         saving: saving,
         onSave: onSave,
@@ -1229,6 +1254,216 @@ class _ServicesSettings extends StatelessWidget {
         const _FormDivider(),
         _SaveRow(saving: saving, onPressed: onSave),
       ],
+    );
+  }
+}
+
+class _SocialAuthSettings extends StatefulWidget {
+  const _SocialAuthSettings({
+    required this.form,
+    required this.saving,
+    required this.onSave,
+  });
+
+  final _GeneralSettingsForm form;
+  final bool saving;
+  final VoidCallback onSave;
+
+  @override
+  State<_SocialAuthSettings> createState() => _SocialAuthSettingsState();
+}
+
+class _SocialAuthSettingsState extends State<_SocialAuthSettings> {
+  @override
+  Widget build(BuildContext context) {
+    final form = widget.form;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ResponsiveFieldRow(
+          children: [
+            _TextInputField(
+              label: 'Mobil yönlendirme şeması',
+              controller: form.socialAuthRedirectScheme,
+              hintText: 'com.pateez.app',
+            ),
+            _TextInputField(
+              label: 'Mobil yönlendirme hostu',
+              controller: form.socialAuthRedirectHost,
+              hintText: 'login-callback',
+            ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        const _SubsectionHeader('Sosyal giriş sağlayıcıları'),
+        const SizedBox(height: 14),
+        _SocialProviderGrid(
+          items: [
+            _SocialProviderItem(
+              label: 'Google',
+              value: form.socialAuthGoogleEnabled,
+              onChanged: (value) =>
+                  setState(() => form.socialAuthGoogleEnabled = value),
+            ),
+            _SocialProviderItem(
+              label: 'Apple',
+              value: form.socialAuthAppleEnabled,
+              onChanged: (value) =>
+                  setState(() => form.socialAuthAppleEnabled = value),
+            ),
+            _SocialProviderItem(
+              label: 'Facebook',
+              value: form.socialAuthFacebookEnabled,
+              onChanged: (value) =>
+                  setState(() => form.socialAuthFacebookEnabled = value),
+            ),
+            _SocialProviderItem(
+              label: 'X / Twitter',
+              value: form.socialAuthXEnabled,
+              onChanged: (value) =>
+                  setState(() => form.socialAuthXEnabled = value),
+            ),
+          ],
+        ),
+        const _FormDivider(),
+        _SaveRow(saving: widget.saving, onPressed: widget.onSave),
+      ],
+    );
+  }
+}
+
+class _SocialProviderGrid extends StatelessWidget {
+  const _SocialProviderGrid({required this.items});
+
+  final List<_SocialProviderItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 980
+            ? 4
+            : constraints.maxWidth >= 620
+            ? 2
+            : 1;
+        const spacing = 14.0;
+        final width =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final item in items) SizedBox(width: width, child: item),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SocialProviderItem extends StatelessWidget {
+  const _SocialProviderItem({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.86)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              context.t(label),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          _CompactToggle(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactToggle extends StatelessWidget {
+  const _CompactToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const width = 42.0;
+    const height = 24.0;
+    const padding = 3.0;
+    const knobSize = 18.0;
+
+    return Semantics(
+      button: true,
+      toggled: value,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onChanged(!value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            width: width,
+            height: height,
+            padding: const EdgeInsets.all(padding),
+            decoration: BoxDecoration(
+              color: value ? AppColors.actionRed : AppColors.softLine,
+              borderRadius: BorderRadius.circular(height / 2),
+              border: Border.all(
+                color: value
+                    ? AppColors.actionRed
+                    : AppColors.line.withValues(alpha: 0.9),
+              ),
+            ),
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 140),
+              curve: Curves.easeOut,
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: knobSize,
+                height: knobSize,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: value
+                    ? const SymbolIcon(
+                        Symbols.check,
+                        color: AppColors.actionRed,
+                        size: 12,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2221,6 +2456,7 @@ enum _GeneralSettingsTab {
   seo('SEO Ayarları'),
   corporate('Kurumsal (EEAT)'),
   services('Google & Servisler'),
+  socialAuth('Sosyal Giriş'),
   customCode('Özel Kodlar'),
   robots('Robots & Teknik');
 

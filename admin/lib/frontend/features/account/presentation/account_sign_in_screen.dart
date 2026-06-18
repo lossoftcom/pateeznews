@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:pateeznews_admin/shared/constants/turkey_cities.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/brand/default_brand_assets.dart';
@@ -8,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/adaptive_city_select_field.dart';
 import '../../../shared/widgets/back_circle_button.dart';
 import '../../shell/data/app_shell_repository.dart';
 
@@ -19,6 +22,18 @@ typedef FrontendSignInCallback =
       required String password,
     });
 
+typedef FrontendSignUpCallback =
+    Future<FrontendAuthState> Function({
+      required String fullName,
+      required String email,
+      required String password,
+      required String passwordAgain,
+      required String city,
+    });
+
+typedef FrontendSocialSignInCallback =
+    Future<FrontendAuthState> Function(FrontendSocialAuthProvider provider);
+
 class AccountSignInScreen extends StatefulWidget {
   const AccountSignInScreen({
     super.key,
@@ -26,6 +41,8 @@ class AccountSignInScreen extends StatefulWidget {
     this.authState,
     this.authLoading = false,
     this.onSignIn,
+    this.onSignUp,
+    this.onSocialSignIn,
     this.onSignOut,
     this.shellSettings = const AppShellSettings.empty(),
   });
@@ -34,6 +51,8 @@ class AccountSignInScreen extends StatefulWidget {
   final FrontendAuthState? authState;
   final bool authLoading;
   final FrontendSignInCallback? onSignIn;
+  final FrontendSignUpCallback? onSignUp;
+  final FrontendSocialSignInCallback? onSocialSignIn;
   final Future<void> Function()? onSignOut;
   final AppShellSettings shellSettings;
 
@@ -95,6 +114,9 @@ class _AccountSignInScreenState extends State<AccountSignInScreen> {
                               authLoading: widget.authLoading,
                               onModeChanged: _setMode,
                               onSignIn: widget.onSignIn,
+                              onSignUp: widget.onSignUp,
+                              onSocialSignIn: widget.onSocialSignIn,
+                              shellSettings: widget.shellSettings,
                             ),
                         ],
                       ),
@@ -176,9 +198,7 @@ class _AccountBrandMark extends StatelessWidget {
       DefaultBrandAssets.logo,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
-      semanticLabel: settings.siteName.isEmpty
-          ? 'Pateez'
-          : settings.siteName,
+      semanticLabel: settings.siteName.isEmpty ? 'Pateez' : settings.siteName,
       errorBuilder: (_, _, _) => _AccountWordmark(siteName: settings.siteName),
     );
     if (logoUrl.isEmpty) {
@@ -445,12 +465,18 @@ class _AuthPanel extends StatefulWidget {
     required this.authLoading,
     required this.onModeChanged,
     required this.onSignIn,
+    required this.onSignUp,
+    required this.onSocialSignIn,
+    required this.shellSettings,
   });
 
   final _AccountMode mode;
   final bool authLoading;
   final ValueChanged<_AccountMode> onModeChanged;
   final FrontendSignInCallback? onSignIn;
+  final FrontendSignUpCallback? onSignUp;
+  final FrontendSocialSignInCallback? onSocialSignIn;
+  final AppShellSettings shellSettings;
 
   @override
   State<_AuthPanel> createState() => _AuthPanelState();
@@ -464,6 +490,7 @@ class _AuthPanelState extends State<_AuthPanel> {
   final _newPassword = TextEditingController();
   final _newPasswordAgain = TextEditingController();
 
+  var _city = defaultTurkeyCity;
   var _submitting = false;
   String? _error;
 
@@ -485,7 +512,50 @@ class _AuthPanelState extends State<_AuthPanel> {
     if (_busy) return;
     FocusScope.of(context).unfocus();
     if (_isSignUp) {
-      setState(() => _error = 'Üyelik sistemi şu an aktif değil.');
+      final fullName = _name.text.trim();
+      final email = _email.text.trim().toLowerCase();
+      final password = _newPassword.text;
+      final passwordAgain = _newPasswordAgain.text;
+      if (fullName.isEmpty || email.isEmpty || password.isEmpty) {
+        setState(() => _error = 'Ad soyad, e-posta, şifre ve şehir zorunlu.');
+        return;
+      }
+      if (!isTurkeyCity(_city)) {
+        setState(() => _error = 'Şehir seçimi zorunlu.');
+        return;
+      }
+      if (password != passwordAgain) {
+        setState(() => _error = 'Şifreler eşleşmiyor.');
+        return;
+      }
+      final onSignUp = widget.onSignUp;
+      if (onSignUp == null) {
+        setState(() => _error = 'Kayıt servisi hazır değil.');
+        return;
+      }
+      setState(() {
+        _submitting = true;
+        _error = null;
+      });
+      try {
+        await onSignUp(
+          fullName: fullName,
+          email: email,
+          password: password,
+          passwordAgain: passwordAgain,
+          city: _city,
+        );
+        if (!mounted) return;
+        Navigator.of(context).maybePop();
+      } on FrontendAuthException catch (error) {
+        if (!mounted) return;
+        setState(() => _error = error.message);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _error = 'Kayıt oluşturulamadı. Lütfen tekrar dene.');
+      } finally {
+        if (mounted) setState(() => _submitting = false);
+      }
       return;
     }
 
@@ -520,6 +590,35 @@ class _AuthPanelState extends State<_AuthPanel> {
     }
   }
 
+  Future<void> _submitSocial(FrontendSocialAuthProvider provider) async {
+    if (_busy) return;
+    final onSocialSignIn = widget.onSocialSignIn;
+    if (onSocialSignIn == null) {
+      setState(() => _error = 'Sosyal giriş servisi hazır değil.');
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await onSocialSignIn(provider);
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+    } on FrontendAuthException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _error = 'Sosyal giriş tamamlanamadı. Lütfen tekrar dene.',
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AutofillGroup(
@@ -531,10 +630,17 @@ class _AuthPanelState extends State<_AuthPanel> {
           key: ValueKey<_AccountMode>(widget.mode),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ProviderButtons(mode: widget.mode),
-            const SizedBox(height: AppSpacing.md),
-            const _DividerLabel(),
-            const SizedBox(height: AppSpacing.md),
+            _ProviderButtons(
+              mode: widget.mode,
+              settings: widget.shellSettings.socialAuth,
+              enabled: !_busy,
+              onSelected: _submitSocial,
+            ),
+            if (widget.shellSettings.socialAuth.hasAny) ...[
+              const SizedBox(height: AppSpacing.md),
+              const _DividerLabel(),
+              const SizedBox(height: AppSpacing.md),
+            ],
             if (_isSignUp) ...[
               _TextInputField(
                 label: 'Ad soyad',
@@ -556,6 +662,15 @@ class _AuthPanelState extends State<_AuthPanel> {
                 autofillHints: [AutofillHints.email],
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AdaptiveCitySelectField(
+                label: 'Şehir',
+                value: _city,
+                enabled: !_busy,
+                onChanged: (value) {
+                  setState(() => _city = normalizeTurkeyCity(value));
+                },
               ),
               const SizedBox(height: AppSpacing.sm),
               _PasswordField(
@@ -647,26 +762,70 @@ class _AuthPanelState extends State<_AuthPanel> {
 }
 
 class _ProviderButtons extends StatelessWidget {
-  const _ProviderButtons({required this.mode});
+  const _ProviderButtons({
+    required this.mode,
+    required this.settings,
+    required this.enabled,
+    required this.onSelected,
+  });
 
   final _AccountMode mode;
+  final AppSocialAuthSettings settings;
+  final bool enabled;
+  final ValueChanged<FrontendSocialAuthProvider> onSelected;
 
   bool get _isSignUp => mode == _AccountMode.signUp;
 
   @override
   Widget build(BuildContext context) {
-    final google = _ProviderButton(
-      label: _isSignUp ? 'Google ile kayıt ol' : 'Google ile giriş',
-      semanticLabel: _isSignUp ? 'Google ile kayıt ol' : 'Google ile giriş',
-      leading: const _GoogleGlyph(),
-      onTap: () {},
-    );
-    final apple = _ProviderButton(
-      label: _isSignUp ? 'Apple ile kayıt ol' : 'Apple ile giriş',
-      semanticLabel: _isSignUp ? 'Apple ile kayıt ol' : 'Apple ile giriş',
-      leading: const Icon(Symbols.apple_rounded, color: Colors.black, size: 20),
-      onTap: () {},
-    );
+    final providers = <_ProviderButtonData>[
+      if (settings.googleEnabled)
+        _ProviderButtonData(
+          provider: FrontendSocialAuthProvider.google,
+          label: _isSignUp ? 'Google ile kayıt ol' : 'Google ile giriş',
+          leading: const _GoogleGlyph(),
+        ),
+      if (settings.appleEnabled)
+        _ProviderButtonData(
+          provider: FrontendSocialAuthProvider.apple,
+          label: _isSignUp ? 'Apple ile kayıt ol' : 'Apple ile giriş',
+          leading: const Icon(
+            Symbols.apple_rounded,
+            color: Colors.black,
+            size: 20,
+          ),
+        ),
+      if (settings.facebookEnabled)
+        _ProviderButtonData(
+          provider: FrontendSocialAuthProvider.facebook,
+          label: _isSignUp ? 'Facebook ile kayıt ol' : 'Facebook ile giriş',
+          leading: SvgPicture.asset(
+            'assets/images/social/facebook.svg',
+            width: 18,
+            height: 18,
+          ),
+        ),
+      if (settings.xEnabled)
+        _ProviderButtonData(
+          provider: FrontendSocialAuthProvider.x,
+          label: _isSignUp ? 'X ile kayıt ol' : 'X ile giriş',
+          leading: SvgPicture.asset(
+            'assets/images/social/x.svg',
+            width: 17,
+            height: 17,
+          ),
+        ),
+    ];
+    if (providers.isEmpty) return const SizedBox.shrink();
+
+    Widget button(_ProviderButtonData data) {
+      return _ProviderButton(
+        label: data.label,
+        semanticLabel: data.label,
+        leading: data.leading,
+        onTap: enabled ? () => onSelected(data.provider) : null,
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -674,23 +833,40 @@ class _ProviderButtons extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              google,
-              const SizedBox(height: AppSpacing.sm),
-              apple,
+              for (var index = 0; index < providers.length; index++) ...[
+                if (index > 0) const SizedBox(height: AppSpacing.sm),
+                button(providers[index]),
+              ],
             ],
           );
         }
 
-        return Row(
+        return Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
           children: [
-            Expanded(child: google),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(child: apple),
+            for (final provider in providers)
+              SizedBox(
+                width: (constraints.maxWidth - AppSpacing.sm) / 2,
+                child: button(provider),
+              ),
           ],
         );
       },
     );
   }
+}
+
+class _ProviderButtonData {
+  const _ProviderButtonData({
+    required this.provider,
+    required this.label,
+    required this.leading,
+  });
+
+  final FrontendSocialAuthProvider provider;
+  final String label;
+  final Widget leading;
 }
 
 class _AccountAvatar extends StatelessWidget {
@@ -812,7 +988,7 @@ class _ProviderButton extends StatelessWidget {
   final String label;
   final String semanticLabel;
   final Widget leading;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

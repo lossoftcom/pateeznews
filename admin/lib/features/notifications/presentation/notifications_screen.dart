@@ -9,10 +9,14 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/branding/admin_branding.dart';
+import '../../../shared/widgets/admin_brand_mark.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../../news/data/admin_news_repository.dart';
+import '../../social/presentation/widgets/social_news_source_picker.dart';
 import '../data/admin_notifications_repository.dart';
 import 'notification_models.dart';
 
@@ -21,10 +25,12 @@ class NotificationCampaignsScreen extends StatelessWidget {
     super.key,
     required this.session,
     this.repository = const SupabaseAdminNotificationsRepository(),
+    this.newsRepository = const SupabaseAdminNewsRepository(),
   });
 
   final AdminSession session;
   final AdminNotificationsRepository repository;
+  final AdminNewsRepository newsRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +38,7 @@ class NotificationCampaignsScreen extends StatelessWidget {
       section: AdminNotificationSection.campaigns,
       session: session,
       repository: repository,
+      newsRepository: newsRepository,
     );
   }
 }
@@ -102,11 +109,13 @@ class NotificationsScreen extends StatefulWidget {
     required this.section,
     required this.session,
     required this.repository,
+    this.newsRepository = const SupabaseAdminNewsRepository(),
   });
 
   final AdminNotificationSection section;
   final AdminSession session;
   final AdminNotificationsRepository repository;
+  final AdminNewsRepository newsRepository;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -358,9 +367,60 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _showCampaignDialog({
     AdminNotificationCampaign? campaign,
   }) async {
-    final result = await showDialog<AdminNotificationCampaign>(
+    final templates = await _campaignTemplates();
+    if (!mounted) return;
+    final result = await showGeneralDialog<AdminNotificationCampaign>(
       context: context,
-      builder: (context) => _CampaignDialog(campaign: campaign),
+      barrierDismissible: true,
+      barrierLabel: context.t('common.cancel'),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final mobile = screenWidth < 720;
+        final drawerWidth = mobile
+            ? screenWidth
+            : screenWidth <= 1220
+            ? (screenWidth - 24).clamp(760.0, 980.0).toDouble()
+            : 980.0;
+
+        return SafeArea(
+          child: Align(
+            alignment: mobile ? Alignment.center : Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: drawerWidth,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      spreadRadius: 2,
+                      blurRadius: 14,
+                    ),
+                  ],
+                ),
+                child: _CampaignDialog(
+                  campaign: campaign,
+                  templates: templates,
+                  newsRepository: widget.newsRepository,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
     );
     if (result == null || !mounted) return;
     try {
@@ -375,12 +435,75 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  Future<List<AdminNotificationTemplate>> _campaignTemplates() async {
+    try {
+      final page = await widget.repository.fetchTemplates(
+        widget.session,
+        limit: 100,
+      );
+      return [
+        for (final template in page.items)
+          if (template.active && template.ready) template,
+      ];
+    } catch (_) {
+      return [
+        for (final template in _templates)
+          if (template.active && template.ready) template,
+      ];
+    }
+  }
+
   Future<void> _showTemplateDialog({
     AdminNotificationTemplate? template,
   }) async {
-    final result = await showDialog<AdminNotificationTemplate>(
+    final result = await showGeneralDialog<AdminNotificationTemplate>(
       context: context,
-      builder: (context) => _TemplateDialog(template: template),
+      barrierDismissible: true,
+      barrierLabel: context.t('common.cancel'),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final mobile = screenWidth < 700;
+        final drawerWidth = mobile
+            ? screenWidth
+            : screenWidth <= 1120
+            ? (screenWidth - 24).clamp(720.0, 860.0).toDouble()
+            : 860.0;
+
+        return SafeArea(
+          child: Align(
+            alignment: mobile ? Alignment.center : Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: drawerWidth,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      spreadRadius: 2,
+                      blurRadius: 14,
+                    ),
+                  ],
+                ),
+                child: _TemplateDialog(template: template),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
     );
     if (result == null || !mounted) return;
     try {
@@ -926,6 +1049,10 @@ class _NotificationTable extends StatelessWidget {
     required this.emptyLabel,
   });
 
+  static const _minTableWidth = 860.0;
+  static const _selectWidth = 42.0;
+  static const _actionsWidth = 76.0;
+
   final List<_TableHeader> headers;
   final List<Widget> rows;
   final TableSortState sortState;
@@ -941,55 +1068,76 @@ class _NotificationTable extends StatelessWidget {
         border: Border.all(color: AppColors.line),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Container(
-            height: 70,
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 34),
-            child: Row(
-              children: [
-                const SizedBox(
-                  width: 38,
-                  child: Checkbox(value: false, onChanged: null),
-                ),
-                for (final header in headers)
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth < _minTableWidth
+              ? _minTableWidth
+              : constraints.maxWidth;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: width,
+              height: constraints.hasBoundedHeight
+                  ? constraints.maxHeight
+                  : null,
+              child: Column(
+                children: [
+                  Container(
+                    height: 58,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: AppColors.softLine.withValues(alpha: 0.86),
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: _selectWidth,
+                          child: Center(child: _NotificationCheckbox()),
+                        ),
+                        for (final header in headers)
+                          Expanded(
+                            flex: header.flex,
+                            child: SortableTableHeader(
+                              label: header.label,
+                              sortKey: header.key,
+                              sortState: sortState,
+                              onSort: onSort,
+                            ),
+                          ),
+                        SizedBox(
+                          width: _actionsWidth,
+                          child: Center(
+                            child: Text(
+                              context.t('common.actions'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.inkSoft,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   Expanded(
-                    flex: header.flex,
-                    child: SortableTableHeader(
-                      label: header.label,
-                      sortKey: header.key,
-                      sortState: sortState,
-                      onSort: onSort,
-                    ),
+                    child: rows.isEmpty
+                        ? Center(child: AdminTableEmptyText(label: emptyLabel))
+                        : ListView.builder(
+                            itemCount: rows.length,
+                            itemBuilder: (context, index) => rows[index],
+                          ),
                   ),
-                SizedBox(
-                  width: 92,
-                  child: Text(
-                    context.t('common.actions'),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      color: AppColors.inkSoft,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1, color: AppColors.line),
-          Expanded(
-            child: rows.isEmpty
-                ? Center(child: AdminTableEmptyText(label: emptyLabel))
-                : ListView.separated(
-                    itemCount: rows.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, color: AppColors.line),
-                    itemBuilder: (context, index) => rows[index],
-                  ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1213,7 +1361,7 @@ class _DeviceRow extends StatelessWidget {
         Expanded(
           flex: 2,
           child: _TwoLineCell(
-            title: device.permissionStatus,
+            title: _permissionStatusLabel(device.permissionStatus),
             subtitle: device.languageCode.toUpperCase(),
           ),
         ),
@@ -1250,20 +1398,25 @@ class _TableRowShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 92),
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 14),
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: AppColors.softLine.withValues(alpha: 0.86)),
+        ),
+      ),
       child: Row(
         children: [
           const SizedBox(
-            width: 38,
-            child: Checkbox(value: false, onChanged: null),
+            width: _NotificationTable._selectWidth,
+            child: Center(child: _NotificationCheckbox()),
           ),
           ...children,
           SizedBox(
-            width: 92,
+            width: _NotificationTable._actionsWidth,
             child: Align(
-              alignment: Alignment.centerRight,
+              alignment: Alignment.center,
               child: _RowActionMenu(items: menuItems),
             ),
           ),
@@ -1291,19 +1444,36 @@ class _TitleCell extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 42,
-          height: 42,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(AppRadius.value),
           ),
-          child: Center(child: SymbolIcon(icon, color: color, size: 22)),
+          child: Center(child: SymbolIcon(icon, color: color, size: 18)),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
         Expanded(
           child: _TwoLineCell(title: title, subtitle: subtitle),
         ),
       ],
+    );
+  }
+}
+
+class _NotificationCheckbox extends StatelessWidget {
+  const _NotificationCheckbox();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.line),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
     );
   }
 }
@@ -1327,19 +1497,20 @@ class _TwoLineCell extends StatelessWidget {
           style: const TextStyle(
             color: AppColors.deepOcean,
             fontSize: 13,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
+            height: 1.22,
             letterSpacing: 0,
           ),
         ),
-        const SizedBox(height: 5),
         Text(
           subtitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            color: AppColors.support,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+            color: AppColors.inkSoft,
+            fontSize: 11,
+            fontWeight: FontWeight.w400,
+            height: 1.25,
             letterSpacing: 0,
           ),
         ),
@@ -1378,23 +1549,34 @@ class _StatusBadge extends StatelessWidget {
       _BadgeTone.muted => AppColors.support,
     };
     return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppRadius.value),
       ),
-      alignment: Alignment.center,
-      child: Text(
-        '• $label',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1424,7 +1606,7 @@ class _RowActionMenuState extends State<_RowActionMenu> {
 
   @override
   void dispose() {
-    _close();
+    _removeOverlay();
     super.dispose();
   }
 
@@ -1465,9 +1647,13 @@ class _RowActionMenuState extends State<_RowActionMenu> {
   }
 
   void _close() {
+    _removeOverlay();
+    if (mounted) setState(() {});
+  }
+
+  void _removeOverlay() {
     _entry?.remove();
     _entry = null;
-    if (mounted) setState(() {});
   }
 
   @override
@@ -1635,9 +1821,15 @@ class _Footer extends StatelessWidget {
 }
 
 class _CampaignDialog extends StatefulWidget {
-  const _CampaignDialog({this.campaign});
+  const _CampaignDialog({
+    this.campaign,
+    required this.templates,
+    required this.newsRepository,
+  });
 
   final AdminNotificationCampaign? campaign;
+  final List<AdminNotificationTemplate> templates;
+  final AdminNewsRepository newsRepository;
 
   @override
   State<_CampaignDialog> createState() => _CampaignDialogState();
@@ -1647,9 +1839,25 @@ class _CampaignDialogState extends State<_CampaignDialog> {
   late final TextEditingController _name;
   late final TextEditingController _title;
   late final TextEditingController _body;
-  late final TextEditingController _deepLink;
-  late final TextEditingController _platforms;
+  late Set<String> _selectedPlatforms;
+  AdminNotificationTemplate? _selectedTemplate;
+  String _deepLink = '';
+  String _manualLink = '';
+  String _selectedNewsLink = '';
+  String _selectedNewsTitle = '';
+  String _selectedNewsCategory = '';
+  String _selectedNewsType = '';
+  String _imageUrl = '';
   var _priority = 'normal';
+  var _ttlSeconds = 3600;
+  var _channelId = 'pateez_general';
+
+  static const _platforms = <_CampaignPlatform>[
+    _CampaignPlatform('android', 'Android', Symbols.apps),
+    _CampaignPlatform('ios', 'iOS', Symbols.apple_rounded),
+    _CampaignPlatform('flutter_web', 'Flutter Web', Symbols.language),
+    _CampaignPlatform('astro_web', 'Astro Web', Symbols.public),
+  ];
 
   @override
   void initState() {
@@ -1658,76 +1866,1006 @@ class _CampaignDialogState extends State<_CampaignDialog> {
     _name = TextEditingController(text: campaign?.name ?? '');
     _title = TextEditingController(text: campaign?.title ?? '');
     _body = TextEditingController(text: campaign?.body ?? '');
-    _deepLink = TextEditingController(text: campaign?.deepLink ?? '');
-    _platforms = TextEditingController(
-      text: campaign?.targetPlatforms.join(', ') ?? '',
-    );
+    _title.addListener(_refreshPreview);
+    _body.addListener(_refreshPreview);
+    _deepLink = campaign?.deepLink ?? '';
+    _manualLink = _deepLink;
+    _selectedNewsLink = _deepLink;
+    _imageUrl = campaign?.imageUrl ?? '';
+    _ttlSeconds = campaign?.ttlSeconds ?? 3600;
+    _channelId = (campaign?.channelId ?? '').trim().isEmpty
+        ? 'pateez_general'
+        : campaign!.channelId;
     _priority = campaign?.priority == 'high' ? 'high' : 'normal';
+    _selectedPlatforms = campaign?.targetType == 'platform'
+        ? {
+            for (final platform in campaign?.targetPlatforms ?? const [])
+              if (_platforms.any((option) => option.value == platform))
+                platform,
+          }
+        : <String>{};
+    _selectedTemplate = _templateById(campaign?.templateId ?? 0);
   }
 
   @override
   void dispose() {
+    _title.removeListener(_refreshPreview);
+    _body.removeListener(_refreshPreview);
     _name.dispose();
     _title.dispose();
     _body.dispose();
-    _deepLink.dispose();
-    _platforms.dispose();
     super.dispose();
+  }
+
+  void _refreshPreview() {
+    if (mounted) setState(() {});
+  }
+
+  AdminNotificationTemplate? _templateById(int id) {
+    if (id <= 0) return null;
+    for (final template in widget.templates) {
+      if (template.id == id) return template;
+    }
+    return null;
+  }
+
+  void _save() {
+    final platforms = _targetPlatforms();
+    final template = _selectedTemplate;
+    Navigator.of(context).pop(
+      AdminNotificationCampaign(
+        id: widget.campaign?.id ?? 0,
+        templateId: template?.id ?? widget.campaign?.templateId ?? 0,
+        templateName: template?.name ?? widget.campaign?.templateName ?? '',
+        name: _name.text.trim(),
+        title: _title.text.trim(),
+        body: _body.text.trim(),
+        targetType: platforms.isEmpty ? 'all' : 'platform',
+        targetPlatforms: platforms,
+        targetTopics: widget.campaign?.targetTopics ?? const <String>[],
+        imageUrl: _imageUrl.trim(),
+        deepLink: _deepLink.trim(),
+        status: widget.campaign?.status ?? AdminNotificationStatus.draft,
+        priority: _priority,
+        ttlSeconds: _ttlSeconds,
+        channelId: _channelId,
+        recipientCount: widget.campaign?.recipientCount ?? 0,
+        queuedCount: widget.campaign?.queuedCount ?? 0,
+        sentCount: widget.campaign?.sentCount ?? 0,
+        failedCount: widget.campaign?.failedCount ?? 0,
+        openedCount: widget.campaign?.openedCount ?? 0,
+        clickedCount: widget.campaign?.clickedCount ?? 0,
+        scheduledStartAt: widget.campaign?.scheduledStartAt,
+        createdAt: widget.campaign?.createdAt ?? DateTime.now(),
+      ),
+    );
+  }
+
+  List<String> _targetPlatforms() {
+    if (_selectedPlatforms.isEmpty ||
+        _selectedPlatforms.length == _platforms.length) {
+      return const <String>[];
+    }
+    return [
+      for (final option in _platforms)
+        if (_selectedPlatforms.contains(option.value)) option.value,
+    ];
+  }
+
+  void _togglePlatform(String value) {
+    setState(() {
+      if (value == 'all') {
+        _selectedPlatforms.clear();
+        return;
+      }
+      final next = Set<String>.from(_selectedPlatforms);
+      if (next.isEmpty) {
+        next.add(value);
+      } else if (next.contains(value)) {
+        next.remove(value);
+      } else {
+        next.add(value);
+      }
+      _selectedPlatforms = next.length == _platforms.length ? <String>{} : next;
+    });
+  }
+
+  void _onManualLinkChanged(String value) {
+    setState(() {
+      _manualLink = value;
+      _selectedNewsLink = value;
+      _deepLink = value;
+    });
+  }
+
+  void _onNewsSelected({
+    required String title,
+    required String imageUrl,
+    required String link,
+    required String summary,
+    required String keywords,
+    required String category,
+    required String type,
+  }) {
+    final templateCategory = _templateCategoryFor(
+      title: title,
+      category: category,
+      type: type,
+    );
+    final template = _templateForCategory(templateCategory);
+    final cleanTitle = _compactText(title, 96);
+    final bodySource = summary.trim().isNotEmpty
+        ? summary
+        : template?.body ?? 'Ayrıntılar haberin içinde.';
+    setState(() {
+      _selectedNewsTitle = title;
+      _selectedNewsCategory = category;
+      _selectedNewsType = type;
+      _selectedNewsLink = link;
+      _manualLink = link;
+      _deepLink = link;
+      _imageUrl = imageUrl;
+      _name.text = _campaignNameFor(cleanTitle, templateCategory);
+      _title.text = _titleForNews(cleanTitle, templateCategory, template);
+      _body.text = _compactText(bodySource, 152);
+      if (template != null) _applyTemplate(template, fillEmptyText: false);
+    });
+  }
+
+  void _applyTemplate(
+    AdminNotificationTemplate template, {
+    required bool fillEmptyText,
+  }) {
+    _selectedTemplate = template;
+    _priority = template.priority == 'high' ? 'high' : 'normal';
+    _ttlSeconds = template.ttlSeconds <= 0 ? 3600 : template.ttlSeconds;
+    _channelId = template.channelId.trim().isEmpty
+        ? 'pateez_general'
+        : template.channelId.trim();
+    if (_imageUrl.trim().isEmpty && template.imageUrl.trim().isNotEmpty) {
+      _imageUrl = template.imageUrl.trim();
+    }
+    if (fillEmptyText) {
+      if (_title.text.trim().isEmpty) _title.text = template.title;
+      if (_body.text.trim().isEmpty) _body.text = template.body;
+      if (_deepLink.trim().isEmpty) {
+        _deepLink = template.deepLink;
+        _manualLink = template.deepLink;
+        _selectedNewsLink = template.deepLink;
+      }
+    }
+  }
+
+  void _selectTemplate(AdminNotificationTemplate template) {
+    setState(() => _applyTemplate(template, fillEmptyText: true));
+  }
+
+  AdminNotificationTemplate? _templateForCategory(String category) {
+    final cleanCategory = category.toLowerCase();
+    for (final template in widget.templates) {
+      if (template.category.trim().toLowerCase() == cleanCategory) {
+        return template;
+      }
+    }
+    final nameNeedles = switch (cleanCategory) {
+      'breaking' => const ['son dakika', 'breaking'],
+      'video' => const ['video'],
+      'quiz' => const ['test', 'quiz', 'anket'],
+      _ => const ['haber', 'makale', 'news', 'general'],
+    };
+    for (final template in widget.templates) {
+      final haystack = '${template.name} ${template.category}'
+          .trim()
+          .toLowerCase();
+      if (nameNeedles.any(haystack.contains)) return template;
+    }
+    if (cleanCategory != 'news') return _templateForCategory('news');
+    return widget.templates.isEmpty ? null : widget.templates.first;
+  }
+
+  String _templateCategoryFor({
+    required String title,
+    required String category,
+    required String type,
+  }) {
+    final haystack = '$title $category $type'.toLowerCase();
+    if (haystack.contains('son dakika') ||
+        haystack.contains('breaking') ||
+        haystack.contains('acil')) {
+      return 'breaking';
+    }
+    if (haystack.contains('video') ||
+        haystack.contains('reels') ||
+        haystack.contains('youtube')) {
+      return 'video';
+    }
+    if (haystack.contains('test') ||
+        haystack.contains('quiz') ||
+        haystack.contains('anket') ||
+        haystack.contains('poll')) {
+      return 'quiz';
+    }
+    return 'news';
+  }
+
+  String _titleForNews(
+    String title,
+    String category,
+    AdminNotificationTemplate? template,
+  ) {
+    final cleanTitle = _withoutSonDakikaPrefix(title);
+    return switch (category) {
+      'breaking' => _compactText('Son dakika: $cleanTitle', 96),
+      'video' => _compactText('Yeni video: $cleanTitle', 96),
+      'quiz' => _compactText('Yeni test: $cleanTitle', 96),
+      _ =>
+        title.trim().isNotEmpty
+            ? _compactText(title, 96)
+            : _compactText(template?.title ?? '', 96),
+    };
+  }
+
+  String _withoutSonDakikaPrefix(String value) {
+    return value
+        .replaceFirst(
+          RegExp(r'^\s*son\s*dakika\s*:?\s*', caseSensitive: false),
+          '',
+        )
+        .trim();
+  }
+
+  String _campaignNameFor(String title, String category) {
+    final prefix = switch (category) {
+      'breaking' => 'Son Dakika',
+      'video' => 'Video',
+      'quiz' => 'Test',
+      _ => 'Haber',
+    };
+    return _compactText('$prefix - $title', 100);
+  }
+
+  String _compactText(String value, int maxLength) {
+    final clean = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (clean.length <= maxLength) return clean;
+    final cut = clean.substring(0, maxLength - 3);
+    final lastSpace = cut.lastIndexOf(' ');
+    final safeCut = lastSpace > 24 ? cut.substring(0, lastSpace) : cut;
+    return '${safeCut.trimRight()}...';
+  }
+
+  Widget _buildEditor({required bool mobile}) {
+    final priorityField = _DialogSelect(
+      label: 'notifications.form.priority',
+      value: _priority,
+      items: const ['normal', 'high'],
+      onChanged: (value) => setState(() => _priority = value),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SocialNewsSourcePicker(
+          newsRepository: widget.newsRepository,
+          selectedLink: _selectedNewsLink,
+          manualLink: _manualLink,
+          onNewsSelected: _onNewsSelected,
+          onManualLinkChanged: _onManualLinkChanged,
+        ),
+        const SizedBox(height: 18),
+        _DialogTextField(label: 'notifications.form.name', controller: _name),
+        const SizedBox(height: 14),
+        _DialogTextField(label: 'notifications.form.title', controller: _title),
+        const SizedBox(height: 14),
+        _DialogTextField(
+          label: 'notifications.form.body',
+          controller: _body,
+          maxLines: 4,
+        ),
+        const SizedBox(height: 14),
+        mobile
+            ? priorityField
+            : Row(
+                children: [
+                  Expanded(child: priorityField),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: _ReadOnlySpecTile(
+                      label: 'TTL',
+                      value: '${(_ttlSeconds / 60).round().clamp(1, 40320)} dk',
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: _ReadOnlySpecTile(label: 'Kanal', value: _channelId),
+                  ),
+                ],
+              ),
+        const SizedBox(height: 16),
+        _PlatformSelector(
+          platforms: _platforms,
+          selectedPlatforms: _selectedPlatforms,
+          onToggle: _togglePlatform,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSidePanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _TemplateAutoPanel(
+          selectedTemplate: _selectedTemplate,
+          templates: widget.templates,
+          onTemplateSelected: _selectTemplate,
+        ),
+        const SizedBox(height: 14),
+        _NotificationPreviewCard(
+          title: _title.text,
+          body: _body.text,
+          imageUrl: _imageUrl,
+          deepLink: _deepLink,
+          newsTitle: _selectedNewsTitle,
+          newsMeta: [
+            _selectedNewsCategory,
+            _selectedNewsType,
+          ].where((value) => value.trim().isNotEmpty).join(' · '),
+        ),
+        const SizedBox(height: 14),
+        _ReadOnlySpecTile(
+          label: 'Gönderim güvenliği',
+          value: _priority == 'high'
+              ? 'Yüksek öncelik: zaman hassas görünür bildirim'
+              : 'Normal öncelik: haber, video ve test akışı',
+          dense: false,
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return _EditDialogShell(
-      title: context.t(
-        widget.campaign == null
-            ? 'notifications.campaigns.add'
-            : 'notifications.campaigns.edit',
-      ),
-      onSave: () {
-        Navigator.of(context).pop(
-          AdminNotificationCampaign(
-            id: widget.campaign?.id ?? 0,
-            name: _name.text.trim(),
-            title: _title.text.trim(),
-            body: _body.text.trim(),
-            targetType: _platforms.text.trim().isEmpty ? 'all' : 'platform',
-            targetPlatforms: _commaList(_platforms.text),
-            status: widget.campaign?.status ?? AdminNotificationStatus.draft,
-            priority: _priority,
-            recipientCount: widget.campaign?.recipientCount ?? 0,
-            queuedCount: widget.campaign?.queuedCount ?? 0,
-            sentCount: widget.campaign?.sentCount ?? 0,
-            failedCount: widget.campaign?.failedCount ?? 0,
-            openedCount: widget.campaign?.openedCount ?? 0,
-            clickedCount: widget.campaign?.clickedCount ?? 0,
-            createdAt: widget.campaign?.createdAt ?? DateTime.now(),
-            deepLink: _deepLink.text.trim(),
+    final title = context.t(
+      widget.campaign == null
+          ? 'notifications.campaigns.add'
+          : 'notifications.campaigns.edit',
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 760;
+        return Padding(
+          padding: EdgeInsets.all(mobile ? 14 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  ValueListenableBuilder(
+                    valueListenable: adminBranding,
+                    builder: (context, branding, _) =>
+                        AdminBrandMark(branding: branding, size: 40),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: AppColors.deepOcean,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0,
+                              ),
+                        ),
+                        const SizedBox(height: 3),
+                        const Text(
+                          'Haberi seç, şablon ve gönderim alanları otomatik dolsun.',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.inkSoft,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    mouseCursor: SystemMouseCursors.click,
+                    tooltip: context.t('common.cancel'),
+                    icon: const SymbolIcon(
+                      Symbols.close,
+                      color: AppColors.deepOcean,
+                      size: 22,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                    border: Border.all(
+                      color: AppColors.line.withValues(alpha: 0.82),
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: mobile
+                      ? SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildEditor(mobile: true),
+                              const SizedBox(height: 18),
+                              _buildSidePanel(),
+                            ],
+                          ),
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              flex: 7,
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(20),
+                                child: _buildEditor(mobile: false),
+                              ),
+                            ),
+                            const VerticalDivider(
+                              width: 1,
+                              color: AppColors.line,
+                            ),
+                            SizedBox(
+                              width: 310,
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(18),
+                                child: _buildSidePanel(),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _TemplateDrawerActions(
+                mobile: mobile,
+                onCancel: () => Navigator.of(context).pop(),
+                onSave: _save,
+              ),
+            ],
           ),
         );
       },
+    );
+  }
+}
+
+class _CampaignPlatform {
+  const _CampaignPlatform(this.value, this.label, this.icon);
+
+  final String value;
+  final String label;
+  final IconData icon;
+}
+
+class _PlatformSelector extends StatelessWidget {
+  const _PlatformSelector({
+    required this.platforms,
+    required this.selectedPlatforms,
+    required this.onToggle,
+  });
+
+  final List<_CampaignPlatform> platforms;
+  final Set<String> selectedPlatforms;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final allSelected = selectedPlatforms.isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _DialogTextField(label: 'notifications.form.name', controller: _name),
-        _DialogTextField(label: 'notifications.form.title', controller: _title),
-        _DialogTextField(
-          label: 'notifications.form.body',
-          controller: _body,
-          maxLines: 3,
+        const Text(
+          'Platformlar',
+          style: TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
         ),
-        _DialogTextField(
-          label: 'notifications.form.deepLink',
-          controller: _deepLink,
-        ),
-        _DialogTextField(
-          label: 'notifications.form.platforms',
-          controller: _platforms,
-        ),
-        _DialogSelect(
-          label: 'notifications.form.priority',
-          value: _priority,
-          items: const ['normal', 'high'],
-          onChanged: (value) => setState(() => _priority = value),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _PlatformChip(
+              label: 'Tümü',
+              icon: Symbols.public,
+              selected: allSelected,
+              onTap: () => onToggle('all'),
+            ),
+            for (final platform in platforms)
+              _PlatformChip(
+                label: platform.label,
+                icon: platform.icon,
+                selected:
+                    !allSelected && selectedPlatforms.contains(platform.value),
+                onTap: () => onToggle(platform.value),
+              ),
+          ],
         ),
       ],
+    );
+  }
+}
+
+class _PlatformChip extends StatelessWidget {
+  const _PlatformChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.actionRed : AppColors.deepOcean;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      mouseCursor: SystemMouseCursors.click,
+      onTap: onTap,
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.actionRed.withValues(alpha: 0.08)
+              : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(
+            color: selected
+                ? AppColors.actionRed.withValues(alpha: 0.38)
+                : AppColors.line,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(icon, color: color, size: 16),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateAutoPanel extends StatelessWidget {
+  const _TemplateAutoPanel({
+    required this.selectedTemplate,
+    required this.templates,
+    required this.onTemplateSelected,
+  });
+
+  final AdminNotificationTemplate? selectedTemplate;
+  final List<AdminNotificationTemplate> templates;
+  final ValueChanged<AdminNotificationTemplate> onTemplateSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final template = selectedTemplate;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Otomatik şablon',
+            style: TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (template == null)
+            const Text(
+              'Haber seçilince türüne göre şablon burada seçilir.',
+              style: TextStyle(
+                color: AppColors.inkSoft,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+                letterSpacing: 0,
+              ),
+            )
+          else
+            Row(
+              children: [
+                _TemplateCategoryIcon(category: template.category),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        template.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          height: 1.2,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${template.category} · ${template.priority}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          if (templates.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final item in templates.take(6))
+                  _TemplateQuickChip(
+                    template: item,
+                    selected: selectedTemplate?.id == item.id,
+                    onTap: () => onTemplateSelected(item),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateQuickChip extends StatelessWidget {
+  const _TemplateQuickChip({
+    required this.template,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AdminNotificationTemplate template;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      mouseCursor: SystemMouseCursors.click,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.actionRed.withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(
+            color: selected ? AppColors.actionRed : AppColors.line,
+          ),
+        ),
+        child: Text(
+          template.category,
+          style: TextStyle(
+            color: selected ? AppColors.actionRed : AppColors.deepOcean,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateCategoryIcon extends StatelessWidget {
+  const _TemplateCategoryIcon({required this.category});
+
+  final String category;
+
+  @override
+  Widget build(BuildContext context) {
+    final clean = category.trim().toLowerCase();
+    final icon = switch (clean) {
+      'breaking' => Symbols.notifications_active_outlined,
+      'video' => Symbols.play_circle_outline,
+      'quiz' => Symbols.fact_check_outlined,
+      _ => Symbols.description_outlined,
+    };
+    final color = switch (clean) {
+      'breaking' => AppColors.actionRed,
+      'video' => const Color(0xFFC0392B),
+      'quiz' => const Color(0xFF5B3FB0),
+      _ => AppColors.deepOcean,
+    };
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      child: SymbolIcon(icon, color: color, size: 19),
+    );
+  }
+}
+
+class _NotificationPreviewCard extends StatelessWidget {
+  const _NotificationPreviewCard({
+    required this.title,
+    required this.body,
+    required this.imageUrl,
+    required this.deepLink,
+    required this.newsTitle,
+    required this.newsMeta,
+  });
+
+  final String title;
+  final String body;
+  final String imageUrl;
+  final String deepLink;
+  final String newsTitle;
+  final String newsMeta;
+
+  @override
+  Widget build(BuildContext context) {
+    final cleanTitle = title.trim().isEmpty ? 'Bildirim başlığı' : title.trim();
+    final cleanBody = body.trim().isEmpty
+        ? 'Bildirim açıklaması burada görünecek.'
+        : body.trim();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Önizleme',
+            style: TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: AppColors.softLine),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ValueListenableBuilder(
+                  valueListenable: adminBranding,
+                  builder: (context, branding, _) =>
+                      AdminBrandMark(branding: branding, size: 38),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cleanTitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          height: 1.22,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        cleanBody,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1.28,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (imageUrl.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    color: AppColors.surface,
+                    alignment: Alignment.center,
+                    child: const SymbolIcon(
+                      Symbols.image_outlined,
+                      color: AppColors.iconMuted,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          if (newsTitle.trim().isNotEmpty)
+            _PreviewLine(label: 'Haber', value: newsTitle.trim()),
+          if (newsMeta.trim().isNotEmpty)
+            _PreviewLine(label: 'Tür', value: newsMeta.trim()),
+          _PreviewLine(
+            label: 'Link',
+            value: deepLink.trim().isEmpty ? 'Seçilmedi' : deepLink.trim(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewLine extends StatelessWidget {
+  const _PreviewLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 5),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 44,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.inkSoft,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReadOnlySpecTile extends StatelessWidget {
+  const _ReadOnlySpecTile({
+    required this.label,
+    required this.value,
+    this.dense = true,
+  });
+
+  final String label;
+  final String value;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: dense ? 56 : null,
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: dense ? 8 : 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.inkSoft,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: dense ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1778,61 +2916,109 @@ class _TemplateDialogState extends State<_TemplateDialog> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return _EditDialogShell(
-      title: context.t(
-        widget.template == null
-            ? 'notifications.templates.add'
-            : 'notifications.templates.edit',
+  AdminNotificationTemplate _buildTemplate() {
+    return AdminNotificationTemplate(
+      id: widget.template?.id ?? 0,
+      name: _name.text.trim(),
+      category: _category.text.trim().isEmpty
+          ? 'general'
+          : _category.text.trim(),
+      title: _title.text.trim(),
+      body: _body.text.trim(),
+      languageCode: _language.text.trim().isEmpty
+          ? 'tr'
+          : _language.text.trim(),
+      priority: _priority,
+      ready: _ready,
+      active: _active,
+      createdAt: widget.template?.createdAt ?? DateTime.now(),
+      deepLink: _deepLink.text.trim(),
+    );
+  }
+
+  void _save() {
+    Navigator.of(context).pop(_buildTemplate());
+  }
+
+  void _applyPreset(_NotificationTemplatePreset preset) {
+    setState(() {
+      _name.text = preset.name;
+      _category.text = preset.category;
+      _title.text = preset.title;
+      _body.text = preset.body;
+      _deepLink.text = preset.deepLink;
+      _language.text = 'tr';
+      _priority = preset.priority;
+      _ready = true;
+      _active = true;
+    });
+  }
+
+  Widget _buildForm({required bool mobile}) {
+    final nameField = _DialogTextField(
+      label: 'notifications.form.name',
+      controller: _name,
+    );
+    final categoryField = _DialogTextField(
+      label: 'notifications.form.category',
+      controller: _category,
+    );
+    final titleField = _DialogTextField(
+      label: 'notifications.form.title',
+      controller: _title,
+    );
+    final languageField = _DialogTextField(
+      label: 'notifications.form.language',
+      controller: _language,
+    );
+    final priorityField = _DialogSelect(
+      label: 'notifications.form.priority',
+      value: _priority,
+      items: const ['normal', 'high'],
+      onChanged: (value) => setState(() => _priority = value),
+    );
+
+    final children = <Widget>[
+      if (mobile) ...[
+        nameField,
+        const SizedBox(height: 14),
+        categoryField,
+        const SizedBox(height: 14),
+        titleField,
+        const SizedBox(height: 14),
+        languageField,
+      ] else ...[
+        Row(
+          children: [
+            Expanded(child: nameField),
+            const SizedBox(width: 14),
+            Expanded(child: categoryField),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(child: titleField),
+            const SizedBox(width: 14),
+            SizedBox(width: 150, child: languageField),
+          ],
+        ),
+      ],
+      const SizedBox(height: 14),
+      _DialogTextField(
+        label: 'notifications.form.body',
+        controller: _body,
+        maxLines: 4,
       ),
-      onSave: () {
-        Navigator.of(context).pop(
-          AdminNotificationTemplate(
-            id: widget.template?.id ?? 0,
-            name: _name.text.trim(),
-            category: _category.text.trim().isEmpty
-                ? 'general'
-                : _category.text.trim(),
-            title: _title.text.trim(),
-            body: _body.text.trim(),
-            languageCode: _language.text.trim().isEmpty
-                ? 'tr'
-                : _language.text.trim(),
-            priority: _priority,
-            ready: _ready,
-            active: _active,
-            createdAt: widget.template?.createdAt ?? DateTime.now(),
-            deepLink: _deepLink.text.trim(),
-          ),
-        );
-      },
-      children: [
-        _DialogTextField(label: 'notifications.form.name', controller: _name),
-        _DialogTextField(
-          label: 'notifications.form.category',
-          controller: _category,
-        ),
-        _DialogTextField(label: 'notifications.form.title', controller: _title),
-        _DialogTextField(
-          label: 'notifications.form.body',
-          controller: _body,
-          maxLines: 3,
-        ),
-        _DialogTextField(
-          label: 'notifications.form.deepLink',
-          controller: _deepLink,
-        ),
-        _DialogTextField(
-          label: 'notifications.form.language',
-          controller: _language,
-        ),
-        _DialogSelect(
-          label: 'notifications.form.priority',
-          value: _priority,
-          items: const ['normal', 'high'],
-          onChanged: (value) => setState(() => _priority = value),
-        ),
+      const SizedBox(height: 14),
+      _DialogTextField(
+        label: 'notifications.form.deepLink',
+        controller: _deepLink,
+      ),
+      const SizedBox(height: 14),
+      if (mobile) ...[
+        priorityField,
+        const SizedBox(height: 14),
         _SwitchRow(
           label: 'notifications.templates.ready',
           value: _ready,
@@ -1843,82 +3029,308 @@ class _TemplateDialogState extends State<_TemplateDialog> {
           value: _active,
           onChanged: (value) => setState(() => _active = value),
         ),
-      ],
+      ] else
+        Row(
+          children: [
+            Expanded(child: priorityField),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _SwitchRow(
+                label: 'notifications.templates.ready',
+                value: _ready,
+                onChanged: (value) => setState(() => _ready = value),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _SwitchRow(
+                label: 'common.active',
+                value: _active,
+                onChanged: (value) => setState(() => _active = value),
+              ),
+            ),
+          ],
+        ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = context.t(
+      widget.template == null
+          ? 'notifications.templates.add'
+          : 'notifications.templates.edit',
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 700;
+        return Padding(
+          padding: EdgeInsets.all(mobile ? 14 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: AppColors.deepOcean,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    mouseCursor: SystemMouseCursors.click,
+                    tooltip: context.t('common.cancel'),
+                    icon: const SymbolIcon(
+                      Symbols.close,
+                      color: AppColors.deepOcean,
+                      size: 22,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                    border: Border.all(
+                      color: AppColors.line.withValues(alpha: 0.82),
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: mobile
+                      ? SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _TemplatePresetRail(
+                                mobile: true,
+                                onSelected: _applyPreset,
+                              ),
+                              const SizedBox(height: 18),
+                              _buildForm(mobile: true),
+                            ],
+                          ),
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _TemplatePresetRail(
+                              mobile: false,
+                              onSelected: _applyPreset,
+                            ),
+                            const VerticalDivider(
+                              width: 1,
+                              color: AppColors.line,
+                            ),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(20),
+                                child: _buildForm(mobile: false),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _TemplateDrawerActions(
+                mobile: mobile,
+                onCancel: () => Navigator.of(context).pop(),
+                onSave: _save,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _EditDialogShell extends StatelessWidget {
-  const _EditDialogShell({
+const _notificationTemplatePresets = <_NotificationTemplatePreset>[
+  _NotificationTemplatePreset(
+    name: 'Son Dakika Haberi',
+    tag: 'Son Dakika',
+    category: 'breaking',
+    title: 'Son dakika: başlığı buraya yazın',
+    body: 'Gelişmenin en önemli bilgisini tek cümleyle yazın.',
+    deepLink: '/haber/',
+    priority: 'high',
+    icon: Symbols.notifications_active_outlined,
+    color: AppColors.actionRed,
+  ),
+  _NotificationTemplatePreset(
+    name: 'Haber Bildirimi',
+    tag: 'Makale',
+    category: 'news',
+    title: 'Yeni haber: başlığı buraya yazın',
+    body: 'Haberin okuyucuya verdiği ana değeri kısa yazın.',
+    deepLink: '/haber/',
+    priority: 'normal',
+    icon: Symbols.description_outlined,
+    color: AppColors.deepOcean,
+  ),
+  _NotificationTemplatePreset(
+    name: 'Test Bildirimi',
+    tag: 'Test',
+    category: 'quiz',
+    title: 'Yeni test yayında',
+    body: 'Testi çöz, sonucunu hemen öğren.',
+    deepLink: '/test/',
+    priority: 'normal',
+    icon: Symbols.fact_check_outlined,
+    color: Color(0xFF5B3FB0),
+  ),
+  _NotificationTemplatePreset(
+    name: 'Video Haber Bildirimi',
+    tag: 'Video',
+    category: 'video',
+    title: 'Yeni video haber yayında',
+    body: 'Videodaki gelişmeyi kısa bir cümleyle öne çıkarın.',
+    deepLink: '/video/',
+    priority: 'normal',
+    icon: Symbols.play_circle_outline,
+    color: Color(0xFFC0392B),
+  ),
+];
+
+class _NotificationTemplatePreset {
+  const _NotificationTemplatePreset({
+    required this.name,
+    required this.tag,
+    required this.category,
     required this.title,
-    required this.children,
-    required this.onSave,
+    required this.body,
+    required this.deepLink,
+    required this.priority,
+    required this.icon,
+    required this.color,
   });
 
+  final String name;
+  final String tag;
+  final String category;
   final String title;
-  final List<Widget> children;
-  final VoidCallback onSave;
+  final String body;
+  final String deepLink;
+  final String priority;
+  final IconData icon;
+  final Color color;
+}
+
+class _TemplatePresetRail extends StatelessWidget {
+  const _TemplatePresetRail({required this.mobile, required this.onSelected});
+
+  final bool mobile;
+  final ValueChanged<_NotificationTemplatePreset> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: Container(
-        width: 560,
-        constraints: const BoxConstraints(maxHeight: 760),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          border: Border.all(color: AppColors.line),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Haber şablonları',
+          style: TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        const SizedBox(height: 12),
+        for (final preset in _notificationTemplatePresets) ...[
+          _TemplatePresetCard(preset: preset, onTap: () => onSelected(preset)),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+
+    if (mobile) return content;
+    return SizedBox(
+      width: 248,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(18),
+        child: content,
+      ),
+    );
+  }
+}
+
+class _TemplatePresetCard extends StatelessWidget {
+  const _TemplatePresetCard({required this.preset, required this.onTap});
+
+  final _NotificationTemplatePreset preset;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      mouseCursor: SystemMouseCursors.click,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: preset.color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: preset.color.withValues(alpha: 0.18)),
+        ),
+        child: Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.deepOcean,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
-                ),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: preset.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              child: Center(
+                child: SymbolIcon(preset.icon, color: preset.color, size: 18),
               ),
             ),
-            const Divider(height: 1, color: AppColors.line),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final child in children) ...[
-                      child,
-                      const SizedBox(height: 14),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const Divider(height: 1, color: AppColors.line),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AdminTableSecondaryActionButton(
-                    icon: Symbols.close,
-                    label: context.t('common.cancel'),
-                    onPressed: () => Navigator.of(context).pop(),
+                  Text(
+                    preset.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      height: 1.22,
+                      letterSpacing: 0,
+                    ),
                   ),
-                  const SizedBox(width: 10),
-                  AdminTablePrimaryActionButton(
-                    icon: Symbols.save,
-                    label: context.t('common.save'),
-                    onPressed: onSave,
+                  const SizedBox(height: 2),
+                  Text(
+                    preset.tag,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.inkSoft,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      height: 1.22,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ],
               ),
@@ -1926,6 +3338,47 @@ class _EditDialogShell extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TemplateDrawerActions extends StatelessWidget {
+  const _TemplateDrawerActions({
+    required this.mobile,
+    required this.onCancel,
+    required this.onSave,
+  });
+
+  final bool mobile;
+  final VoidCallback onCancel;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final cancel = AdminTableSecondaryActionButton(
+      icon: Symbols.close,
+      label: context.t('common.cancel'),
+      onPressed: onCancel,
+    );
+    final save = AdminTablePrimaryActionButton(
+      icon: Symbols.save,
+      label: context.t('common.save'),
+      onPressed: onSave,
+    );
+
+    if (mobile) {
+      return Row(
+        children: [
+          Expanded(child: cancel),
+          const SizedBox(width: 10),
+          Expanded(child: save),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [cancel, const SizedBox(width: 10), save],
     );
   }
 }
@@ -2022,18 +3475,86 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchListTile(
-      value: value,
-      contentPadding: EdgeInsets.zero,
-      activeThumbColor: AppColors.deepOcean,
-      title: Text(
-        context.t(label),
-        style: const TextStyle(
-          color: AppColors.deepOcean,
-          fontWeight: FontWeight.w700,
+    return SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              context.t(label),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          _NotificationToggleSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationToggleSwitch extends StatelessWidget {
+  const _NotificationToggleSwitch({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const width = 42.0;
+    const height = 24.0;
+    const padding = 3.0;
+    const knobSize = 18.0;
+    const activeColor = AppColors.actionRed;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(!value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: width,
+          height: height,
+          padding: const EdgeInsets.all(padding),
+          decoration: BoxDecoration(
+            color: value ? activeColor : AppColors.softLine,
+            borderRadius: BorderRadius.circular(height / 2),
+            border: Border.all(
+              color: value
+                  ? activeColor
+                  : AppColors.line.withValues(alpha: 0.9),
+            ),
+          ),
+          child: AnimatedAlign(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOut,
+            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: knobSize,
+              height: knobSize,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: value
+                  ? const SymbolIcon(
+                      Symbols.check,
+                      color: activeColor,
+                      size: 12,
+                    )
+                  : null,
+            ),
+          ),
         ),
       ),
-      onChanged: onChanged,
     );
   }
 }
@@ -2292,10 +3813,21 @@ String _shortToken(String token) {
   return '${token.substring(0, 14)}...${token.substring(token.length - 10)}';
 }
 
-List<String> _commaList(String value) {
-  return value
-      .split(',')
-      .map((item) => item.trim())
-      .where((item) => item.isNotEmpty)
-      .toList(growable: false);
+String _permissionStatusLabel(String status) {
+  switch (status.trim().toLowerCase()) {
+    case 'authorized':
+    case 'granted':
+      return 'İzin verildi';
+    case 'provisional':
+      return 'Geçici izin';
+    case 'denied':
+      return 'Reddedildi';
+    case 'not_determined':
+    case 'notdetermined':
+      return 'Sorulmadı';
+    case 'unknown':
+      return 'Bilinmiyor';
+    default:
+      return status;
+  }
 }

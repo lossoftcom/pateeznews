@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 import '../../../core/network/frontend_http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,6 +17,26 @@ class FrontendAuthException implements Exception {
 
   @override
   String toString() => message;
+}
+
+enum FrontendSocialAuthProvider {
+  google('google'),
+  apple('apple'),
+  facebook('facebook'),
+  x('x');
+
+  const FrontendSocialAuthProvider(this.id);
+
+  final String id;
+
+  sdk.OAuthProvider get oauthProvider {
+    return switch (this) {
+      FrontendSocialAuthProvider.google => sdk.OAuthProvider.google,
+      FrontendSocialAuthProvider.apple => sdk.OAuthProvider.apple,
+      FrontendSocialAuthProvider.facebook => sdk.OAuthProvider.facebook,
+      FrontendSocialAuthProvider.x => sdk.OAuthProvider.x,
+    };
+  }
 }
 
 class FrontendAuthUser {
@@ -86,6 +109,10 @@ class FrontendProfile {
     required this.coverUrl,
     required this.role,
     required this.email,
+    this.city,
+    this.phone,
+    this.address,
+    this.authProvider,
   });
 
   final String id;
@@ -95,6 +122,10 @@ class FrontendProfile {
   final String? coverUrl;
   final String? role;
   final String? email;
+  final String? city;
+  final String? phone;
+  final String? address;
+  final String? authProvider;
 
   bool get isAdmin {
     final value = role?.trim().toLowerCase() ?? '';
@@ -140,6 +171,10 @@ class FrontendProfile {
       coverUrl: resolveAvatarUrl(json['cover_url']?.toString() ?? ''),
       role: json['role']?.toString(),
       email: json['email']?.toString(),
+      city: json['city']?.toString(),
+      phone: json['phone']?.toString(),
+      address: json['address']?.toString(),
+      authProvider: json['auth_provider']?.toString(),
     );
   }
 
@@ -151,6 +186,10 @@ class FrontendProfile {
     String? coverUrl,
     String? role,
     String? email,
+    String? city,
+    String? phone,
+    String? address,
+    String? authProvider,
   }) {
     return FrontendProfile(
       id: id ?? this.id,
@@ -160,6 +199,10 @@ class FrontendProfile {
       coverUrl: coverUrl ?? this.coverUrl,
       role: role ?? this.role,
       email: email ?? this.email,
+      city: city ?? this.city,
+      phone: phone ?? this.phone,
+      address: address ?? this.address,
+      authProvider: authProvider ?? this.authProvider,
     );
   }
 
@@ -172,6 +215,10 @@ class FrontendProfile {
       'cover_url': coverUrl,
       'role': role,
       'email': email,
+      'city': city,
+      'phone': phone,
+      'address': address,
+      'auth_provider': authProvider,
     };
   }
 }
@@ -286,7 +333,14 @@ class FrontendAuthRepository {
   Future<FrontendAuthState?> restoreSession() async {
     final cachedSession = await store.readSession();
     if (cachedSession == null || cachedSession.accessToken.isEmpty) {
-      // Hiç oturum yok → giriş ekranı. (Burada temizlemeye gerek yok.)
+      try {
+        final session = _supabaseClient().auth.currentSession;
+        if (session != null && session.accessToken.isNotEmpty) {
+          return _completeOAuthProfile(session);
+        }
+      } catch (_) {
+        // API-only çalışma ya da Supabase hazır değilse giriş ekranı açılır.
+      }
       return null;
     }
 
@@ -342,12 +396,138 @@ class FrontendAuthRepository {
     return FrontendAuthState(session: session, profile: profile);
   }
 
-  Future<void> signOut() {
-    return store.clearAuth();
+  Future<FrontendAuthState> signUpWithPassword({
+    required String fullName,
+    required String email,
+    required String password,
+    required String passwordAgain,
+    required String city,
+  }) async {
+    final result = await _postJson('/api/app/auth', {
+      'action': 'signUpWithPassword',
+      'fullName': fullName.trim(),
+      'email': email.trim().toLowerCase(),
+      'password': password,
+      'passwordAgain': passwordAgain,
+      'city': city.trim(),
+    });
+    _throwIfApiError(result, fallbackMessage: 'Kayıt oluşturulamadı');
+    final session = _sessionFromResult(result);
+    if (session == null || session.accessToken.isEmpty) {
+      throw const FrontendAuthException('Kayıt oturumu alınamadı');
+    }
+
+    final profile = _profileFromResult(result);
+    await store.saveSession(session);
+    if (profile != null) {
+      await store.saveProfileCache(profile);
+    } else {
+      await store.clearProfileCache();
+    }
+    return FrontendAuthState(session: session, profile: profile);
+  }
+
+  Future<FrontendAuthState> signInWithOAuth({
+    required FrontendSocialAuthProvider provider,
+    required String redirectTo,
+  }) async {
+    final supabase = _supabaseClient();
+    final completer = Completer<sdk.Session>();
+    late final StreamSubscription<sdk.AuthState> subscription;
+    subscription = supabase.auth.onAuthStateChange.listen((state) {
+      final session = state.session;
+      if ((state.event == sdk.AuthChangeEvent.signedIn ||
+              state.event == sdk.AuthChangeEvent.tokenRefreshed) &&
+          session != null &&
+          !completer.isCompleted) {
+        completer.complete(session);
+      }
+    });
+
+    try {
+      final launched = await supabase.auth.signInWithOAuth(
+        provider.oauthProvider,
+        redirectTo: kIsWeb ? null : redirectTo,
+        authScreenLaunchMode: sdk.LaunchMode.platformDefault,
+      );
+      if (!launched) {
+        throw const FrontendAuthException('Sosyal giriş başlatılamadı');
+      }
+
+      final session = await completer.future.timeout(
+        const Duration(minutes: 3),
+        onTimeout: () {
+          throw const FrontendAuthException(
+            'Sosyal giriş tamamlanamadı. Lütfen tekrar dene.',
+          );
+        },
+      );
+      return _completeOAuthProfile(session);
+    } on FrontendAuthException {
+      rethrow;
+    } catch (_) {
+      throw const FrontendAuthException(
+        'Sosyal giriş tamamlanamadı. Lütfen tekrar dene.',
+      );
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
+  Future<void> signOut() async {
+    await store.clearAuth();
+    try {
+      await _supabaseClient().auth.signOut();
+    } catch (_) {
+      // API-only sessions still clear through FrontendAuthStore.
+    }
   }
 
   Future<FrontendProfile?> _cachedProfile() {
     return store.readProfileCache(_resolveAvatarUrl);
+  }
+
+  sdk.SupabaseClient _supabaseClient() {
+    try {
+      return sdk.Supabase.instance.client;
+    } catch (_) {
+      throw const FrontendAuthException('Supabase sosyal giriş hazır değil');
+    }
+  }
+
+  Future<FrontendAuthState> _completeOAuthProfile(sdk.Session session) async {
+    final fallbackSession = _sessionFromSupabase(session);
+    final result = await _postJson('/api/app/auth', {
+      'action': 'completeOAuthProfile',
+      'token': session.accessToken,
+    });
+    _throwIfApiError(result, fallbackMessage: 'Sosyal profil tamamlanamadı');
+    final syncedSession = _sessionFromResult(result) ?? fallbackSession;
+    final profile = _profileFromResult(result);
+    await store.saveSession(syncedSession);
+    if (profile != null) {
+      await store.saveProfileCache(profile);
+    } else {
+      await store.clearProfileCache();
+    }
+    return FrontendAuthState(session: syncedSession, profile: profile);
+  }
+
+  FrontendAuthSession _sessionFromSupabase(sdk.Session session) {
+    final expiresAt =
+        session.expiresAt ??
+        (DateTime.now().millisecondsSinceEpoch ~/ 1000) +
+            (session.expiresIn ?? 3600);
+    return FrontendAuthSession(
+      accessToken: session.accessToken,
+      tokenType: session.tokenType,
+      expiresAt: expiresAt,
+      user: FrontendAuthUser(
+        id: session.user.id,
+        email: session.user.email,
+        userMetadata: _asStringMap(session.user.userMetadata ?? const {}),
+      ),
+    );
   }
 
   Future<Map<String, Object?>> _postJson(

@@ -40,6 +40,11 @@ const SETTINGS_SELECT = `
   private_key_encrypted IS NOT NULL AS has_private_key
 `;
 
+type NotificationSettingsRow = {
+  id: string;
+  [key: string]: unknown;
+};
+
 function serverConfigured() {
   return Boolean(
     (readRuntimeEnv('FIREBASE_PROJECT_ID') || readRuntimeEnv('FCM_PROJECT_ID')) &&
@@ -49,7 +54,7 @@ function serverConfigured() {
 }
 
 async function selectedSettings(id?: string) {
-  const result = await dbQuery(
+  const result = await dbQuery<NotificationSettingsRow>(
     `SELECT ${SETTINGS_SELECT}
      FROM public.notification_settings
      WHERE ${id ? 'id = $1::bigint' : "provider_id = 'firebase_fcm'"}

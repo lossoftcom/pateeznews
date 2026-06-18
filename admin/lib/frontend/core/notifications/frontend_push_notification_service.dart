@@ -11,7 +11,11 @@ import '../network/frontend_http_client.dart';
 import '../network/local_api_base_url.dart';
 
 class FrontendPushNotificationService {
-  FrontendPushNotificationService({this.httpClient, this.apiBaseUrl});
+  FrontendPushNotificationService({
+    this.httpClient,
+    this.apiBaseUrl,
+    this.onDeepLink,
+  });
 
   static const _configuredApiBaseUrl = String.fromEnvironment(
     'PATEEZNEWS_API_BASE_URL',
@@ -26,6 +30,7 @@ class FrontendPushNotificationService {
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
+  final FutureOr<void> Function(String deepLink)? onDeepLink;
   StreamSubscription<String>? _tokenRefreshSubscription;
   StreamSubscription<RemoteMessage>? _messageOpenedSubscription;
   String _currentAuthToken = '';
@@ -96,24 +101,41 @@ class FrontendPushNotificationService {
     _messageOpenedSubscription ??= FirebaseMessaging.onMessageOpenedApp.listen((
       message,
     ) {
-      unawaited(
-        recordMessageEvent(
-          message,
-          eventType: 'open',
-          authToken: _currentAuthToken,
-        ),
-      );
+      unawaited(_handleMessageOpen(message, authToken: _currentAuthToken));
     });
 
     final initialMessage = await messaging.getInitialMessage();
     if (initialMessage != null) {
-      unawaited(
-        recordMessageEvent(
-          initialMessage,
-          eventType: 'open',
-          authToken: authToken,
-        ),
+      unawaited(_handleMessageOpen(initialMessage, authToken: authToken));
+    }
+  }
+
+  Future<void> _handleMessageOpen(
+    RemoteMessage message, {
+    required String authToken,
+  }) async {
+    try {
+      await recordMessageEvent(
+        message,
+        eventType: 'open',
+        authToken: authToken,
       );
+    } catch (error) {
+      debugPrint('Pateez push open event failed: $error');
+    }
+
+    final deepLink = _firstText(message.data, const [
+      'deepLink',
+      'deep_link',
+      'click_action',
+      'link',
+      'url',
+    ]);
+    if (deepLink.isEmpty) return;
+    try {
+      await onDeepLink?.call(deepLink);
+    } catch (error) {
+      debugPrint('Pateez push deep link failed: $error');
     }
   }
 

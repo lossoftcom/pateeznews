@@ -137,6 +137,7 @@ class _FakeAdminAccountSettingsRepository
     expertise: 'Yerel haber',
     foundationDate: '2026',
     address: 'Niğde',
+    city: 'Niğde',
     website: 'https://www.pateez.com',
     aboutMe: 'Pateez admin hesabı',
     slug: 'nigdejournal',
@@ -223,6 +224,8 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
       fullName: 'Pateez Niğde',
       username: 'nigdejournal',
       email: 'pateezcom@gmail.com',
+      city: 'Niğde',
+      authProvider: 'email',
       role: 'admin',
       roleLabel: 'Süper Yönetici',
       status: 'Aktif',
@@ -236,6 +239,8 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
       fullName: 'Nasip Gündoğu',
       username: 'nasip',
       email: 'demo.user@gmail.com',
+      city: 'Niğde',
+      authProvider: 'email',
       role: 'admin',
       roleLabel: 'Süper Yönetici',
       status: 'Aktif',
@@ -262,6 +267,8 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
         fullName: data.fullName,
         username: data.username,
         email: data.email,
+        city: data.city,
+        authProvider: 'email',
         role: data.role,
         roleLabel: roleLabelFor(data.role, _roles),
         status: data.status,
@@ -319,7 +326,9 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
           term.isEmpty ||
           user.fullName.toLowerCase().contains(term) ||
           user.username.toLowerCase().contains(term) ||
-          user.email.toLowerCase().contains(term);
+          user.email.toLowerCase().contains(term) ||
+          user.authProvider.toLowerCase().contains(term) ||
+          user.authProviderLabel.toLowerCase().contains(term);
       final matchesRole = role == 'Tümü' || user.role == role;
       final matchesReward =
           reward == 'Tümü' ||
@@ -350,6 +359,9 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
         b.displayName.toLowerCase(),
       ),
       'role' => a.roleLabel.toLowerCase().compareTo(b.roleLabel.toLowerCase()),
+      'authProvider' => a.authProviderLabel.toLowerCase().compareTo(
+        b.authProviderLabel.toLowerCase(),
+      ),
       'reward' =>
         a.rewardEnabled == b.rewardEnabled
             ? 0
@@ -383,6 +395,8 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
       fullName: data.fullName,
       username: data.username,
       email: data.email,
+      city: data.city,
+      authProvider: current.authProvider,
       role: data.role,
       roleLabel: roleLabelFor(data.role, _roles),
       status: data.status,
@@ -3593,6 +3607,86 @@ void main() {
     expect(find.text('Dil Ayarları'), findsNothing);
     expect(find.text('Yayın akışı'), findsOneWidget);
     expect(find.text('Son durum'), findsOneWidget);
+  });
+
+  testWidgets(
+    'İnaktivite süresi dolunca açık modallar kapanır ve giriş ekranına düşülür',
+    (tester) async {
+      tester.view.physicalSize = const Size(1366, 1080);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pumpAdminApp(tester);
+
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'editor@pateeznews.com',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+      await tester.tap(find.text('Giriş yap'));
+      await tester.pumpAndSettle();
+
+      // Root Navigator'a gerçek bir diyalog (modal) aç.
+      await tester.tap(find.text('Ayarlar'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Dil Ayarları'));
+      await tester.tap(find.text('Dil Ayarları'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Çevirileri Düzenle').first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dialog), findsOneWidget);
+
+      // İnaktivite süresi (30 dk) boyunca hiç etkileşim yok → idle çıkış.
+      await tester.pump(const Duration(minutes: 30, seconds: 1));
+      await tester.pumpAndSettle();
+
+      // Modal kapandı, dashboard gitti, giriş ekranı döndü.
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.text('Giriş yap'), findsWidgets);
+      expect(find.text('Ayarlar'), findsNothing);
+    },
+  );
+
+  testWidgets('Kullanıcı etkileşimi inaktivite sayacını sıfırlar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpAdminApp(tester);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ayarlar'), findsOneWidget);
+
+    // 25 dk sonra (henüz dolmadı) yan etkisiz fare hareketi → sayaç sıfırlanır.
+    await tester.pump(const Duration(minutes: 25));
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(10, 10));
+    addTearDown(() => mouse.removePointer());
+    await mouse.moveTo(const Offset(500, 400));
+    await tester.pump();
+
+    // Sıfırlamadan 25 dk sonra (toplam 50 dk) hâlâ oturum açık olmalı.
+    await tester.pump(const Duration(minutes: 25));
+    await tester.pumpAndSettle();
+    expect(find.text('Ayarlar'), findsOneWidget);
+    expect(find.text('Giriş yap'), findsNothing);
+
+    // Etkileşim olmadan 30 dk geçince çıkış yapılır.
+    await tester.pump(const Duration(minutes: 31));
+    await tester.pumpAndSettle();
+    expect(find.text('Giriş yap'), findsWidgets);
+    expect(find.text('Ayarlar'), findsNothing);
   });
 
   testWidgets(

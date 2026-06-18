@@ -5,6 +5,7 @@ import NewsCard, { NewsCardSkeleton } from './NewsCard';
 import { type NewsItem, type SiteSettings, type NavigationItem } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from './ui/Skeleton';
+import RemixIcon from './ui/RemixIcon';
 
 interface FeedProps {
   newsData: NewsItem[];
@@ -93,7 +94,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
                 : 'text-palette-tan hover:text-palette-red'
                 }`}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>schedule</span>
+              <RemixIcon name="ri-time-line" size={16} />
               {t('feed.latest')}
             </button>
 
@@ -104,7 +105,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
                 : 'text-palette-tan hover:text-palette-red'
                 }`}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>local_fire_department</span>
+              <RemixIcon name="ri-fire-line" size={16} />
               {t('feed.popular')}
             </button>
           </div>

@@ -1,11 +1,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Headphones, Rewind, FastForward, Play, Pause, VolumeX, Volume1, Volume2 } from 'lucide-react';
-import { NewsType, type NewsItem } from '@/types';
+import { type NewsItem } from '@/types';
 import { formatTime } from '@/utils/helpers';
+import RemixIcon from '@/components/ui/RemixIcon';
 
 interface AudioCardProps {
   data: NewsItem;
+  allowDownload?: boolean;
 }
 
 const youtubeParser = (url: string) => {
@@ -22,7 +23,7 @@ const youtubeParser = (url: string) => {
   return null;
 };
 
-const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
+const AudioCard: React.FC<AudioCardProps> = ({ data, allowDownload = true }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [timeDisplay, setTimeDisplay] = useState(data.videoDuration || "00:00");
@@ -32,6 +33,7 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
 
   const ytInfo = youtubeParser(data.mediaUrl);
   const isYoutube = !!ytInfo;
+  const hasDirectAudio = !isYoutube && !!String(data.mediaUrl || '').trim();
 
   // YouTube state tracking
   const ytDurationRef = useRef<number>(0);
@@ -177,13 +179,15 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-[5px] mix-blend-overlay filter blur-[64px] opacity-20 animate-pulse"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 rounded-[5px] mix-blend-overlay filter blur-[64px] opacity-20 animate-pulse" style={{ animationDelay: '1s' }}></div>
 
-        <audio
-          ref={audioRef}
-          src={data.mediaUrl}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={handleLoadedMetadata}
-          onEnded={() => setIsPlaying(false)}
-        />
+        {hasDirectAudio && (
+          <audio
+            ref={audioRef}
+            src={data.mediaUrl}
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
+            onEnded={() => setIsPlaying(false)}
+          />
+        )}
 
         {/* MAIN CONTENT STACK - Vertical Layout */}
         <div className="relative z-10 flex flex-col items-start gap-6">
@@ -191,7 +195,7 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
           {/* 1. Header & Text Info (En Üstte) */}
           <div className="w-full flex flex-col items-start text-left space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[5px] bg-white/10 border border-white/5 backdrop-blur-sm shadow-sm">
-              <Headphones size={12} className="text-blue-300" />
+              <RemixIcon name="ri-headphone-line" size={12} className="text-blue-300" />
               <span className="text-[10px] font-bold text-blue-100 uppercase tracking-widest">PateezCast Özel</span>
             </div>
             <h3 className="news-title-font text-2xl font-black text-white leading-tight">{data.title}</h3>
@@ -278,7 +282,7 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
             {/* Main Buttons */}
             <div className="flex items-center justify-center gap-8">
               <button onClick={() => skipAudio(-15)} className="text-slate-400 hover:text-white transition-colors p-3 hover:bg-white/5 rounded-[5px]">
-                <Rewind size={24} className="fill-current" />
+                <RemixIcon name="ri-rewind-fill" size={24} />
               </button>
 
               <button
@@ -286,14 +290,14 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
                 className="w-16 h-16 bg-white text-slate-900 rounded-[5px] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]"
               >
                 {isPlaying ? (
-                  <Pause size={28} className="fill-slate-900 ml-0.5" />
+                  <RemixIcon name="ri-pause-fill" size={28} className="ml-0.5" />
                 ) : (
-                  <Play size={28} className="fill-slate-900 ml-1" />
+                  <RemixIcon name="ri-play-fill" size={28} className="ml-1" />
                 )}
               </button>
 
               <button onClick={() => skipAudio(15)} className="text-slate-400 hover:text-white transition-colors p-3 hover:bg-white/5 rounded-[5px]">
-                <FastForward size={24} className="fill-current" />
+                <RemixIcon name="ri-speed-fill" size={24} />
               </button>
             </div>
 
@@ -308,7 +312,7 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
                   audioRef.current.volume = newVol;
                 }
               }} className="text-slate-400 hover:text-white transition-colors">
-                {volume === 0 ? <VolumeX size={18} /> : (volume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />)}
+                <RemixIcon name={volume === 0 ? 'ri-volume-mute-line' : (volume < 0.5 ? 'ri-volume-down-line' : 'ri-volume-up-line')} size={18} />
               </button>
               <div className="w-32 relative h-1.5 bg-slate-700 rounded-[5px] cursor-pointer group/vol">
                 <div
@@ -326,6 +330,20 @@ const AudioCard: React.FC<AudioCardProps> = ({ data }) => {
                 />
               </div>
             </div>
+
+            {allowDownload && hasDirectAudio && (
+              <div className="flex justify-center pt-1">
+                <a
+                  href={data.mediaUrl}
+                  download
+                  onClick={(event) => event.stopPropagation()}
+                  className="inline-flex items-center gap-2 rounded-[5px] border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <RemixIcon name="ri-download-line" size={15} />
+                  İndir
+                </a>
+              </div>
+            )}
 
           </div>
         </div>

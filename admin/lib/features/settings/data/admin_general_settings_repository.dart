@@ -53,6 +53,12 @@ class GeneralSettingsData {
     required this.googleAnalyticsId,
     required this.googleSearchConsoleCode,
     required this.bingVerificationCode,
+    required this.socialAuthGoogleEnabled,
+    required this.socialAuthAppleEnabled,
+    required this.socialAuthFacebookEnabled,
+    required this.socialAuthXEnabled,
+    required this.socialAuthRedirectScheme,
+    required this.socialAuthRedirectHost,
     required this.robotsTxt,
     required this.headerCustomCodes,
     required this.footerCustomCodes,
@@ -84,6 +90,12 @@ class GeneralSettingsData {
       googleAnalyticsId: '',
       googleSearchConsoleCode: '',
       bingVerificationCode: '',
+      socialAuthGoogleEnabled: true,
+      socialAuthAppleEnabled: true,
+      socialAuthFacebookEnabled: true,
+      socialAuthXEnabled: true,
+      socialAuthRedirectScheme: 'com.pateez.app',
+      socialAuthRedirectHost: 'login-callback',
       robotsTxt: '',
       headerCustomCodes: '',
       footerCustomCodes: '',
@@ -119,6 +131,27 @@ class GeneralSettingsData {
       googleAnalyticsId: _string(json['google_analytics_id']),
       googleSearchConsoleCode: _string(json['google_search_console_code']),
       bingVerificationCode: _string(json['bing_verification_code']),
+      socialAuthGoogleEnabled: _bool(
+        json['social_auth_google_enabled'],
+        fallback: true,
+      ),
+      socialAuthAppleEnabled: _bool(
+        json['social_auth_apple_enabled'],
+        fallback: true,
+      ),
+      socialAuthFacebookEnabled: _bool(
+        json['social_auth_facebook_enabled'],
+        fallback: true,
+      ),
+      socialAuthXEnabled: _bool(json['social_auth_x_enabled'], fallback: true),
+      socialAuthRedirectScheme: _string(
+        json['social_auth_redirect_scheme'],
+        fallback: 'com.pateez.app',
+      ),
+      socialAuthRedirectHost: _string(
+        json['social_auth_redirect_host'],
+        fallback: 'login-callback',
+      ),
       robotsTxt: _string(json['robots_txt']),
       headerCustomCodes: _string(json['header_custom_codes']),
       footerCustomCodes: _string(json['footer_custom_codes']),
@@ -149,6 +182,12 @@ class GeneralSettingsData {
   final String googleAnalyticsId;
   final String googleSearchConsoleCode;
   final String bingVerificationCode;
+  final bool socialAuthGoogleEnabled;
+  final bool socialAuthAppleEnabled;
+  final bool socialAuthFacebookEnabled;
+  final bool socialAuthXEnabled;
+  final String socialAuthRedirectScheme;
+  final String socialAuthRedirectHost;
   final String robotsTxt;
   final String headerCustomCodes;
   final String footerCustomCodes;
@@ -179,6 +218,16 @@ class GeneralSettingsData {
       'google_analytics_id': googleAnalyticsId,
       'google_search_console_code': googleSearchConsoleCode,
       'bing_verification_code': bingVerificationCode,
+      'social_auth_google_enabled': socialAuthGoogleEnabled,
+      'social_auth_apple_enabled': socialAuthAppleEnabled,
+      'social_auth_facebook_enabled': socialAuthFacebookEnabled,
+      'social_auth_x_enabled': socialAuthXEnabled,
+      'social_auth_redirect_scheme': socialAuthRedirectScheme.trim().isEmpty
+          ? 'com.pateez.app'
+          : socialAuthRedirectScheme.trim(),
+      'social_auth_redirect_host': socialAuthRedirectHost.trim().isEmpty
+          ? 'login-callback'
+          : socialAuthRedirectHost.trim(),
       'robots_txt': robotsTxt,
       'header_custom_codes': headerCustomCodes,
       'footer_custom_codes': footerCustomCodes,
@@ -222,6 +271,12 @@ class GeneralSettingsData {
     String? googleAnalyticsId,
     String? googleSearchConsoleCode,
     String? bingVerificationCode,
+    bool? socialAuthGoogleEnabled,
+    bool? socialAuthAppleEnabled,
+    bool? socialAuthFacebookEnabled,
+    bool? socialAuthXEnabled,
+    String? socialAuthRedirectScheme,
+    String? socialAuthRedirectHost,
     String? robotsTxt,
     String? headerCustomCodes,
     String? footerCustomCodes,
@@ -254,6 +309,17 @@ class GeneralSettingsData {
       googleSearchConsoleCode:
           googleSearchConsoleCode ?? this.googleSearchConsoleCode,
       bingVerificationCode: bingVerificationCode ?? this.bingVerificationCode,
+      socialAuthGoogleEnabled:
+          socialAuthGoogleEnabled ?? this.socialAuthGoogleEnabled,
+      socialAuthAppleEnabled:
+          socialAuthAppleEnabled ?? this.socialAuthAppleEnabled,
+      socialAuthFacebookEnabled:
+          socialAuthFacebookEnabled ?? this.socialAuthFacebookEnabled,
+      socialAuthXEnabled: socialAuthXEnabled ?? this.socialAuthXEnabled,
+      socialAuthRedirectScheme:
+          socialAuthRedirectScheme ?? this.socialAuthRedirectScheme,
+      socialAuthRedirectHost:
+          socialAuthRedirectHost ?? this.socialAuthRedirectHost,
       robotsTxt: robotsTxt ?? this.robotsTxt,
       headerCustomCodes: headerCustomCodes ?? this.headerCustomCodes,
       footerCustomCodes: footerCustomCodes ?? this.footerCustomCodes,
@@ -472,13 +538,24 @@ const _settingsSelect =
     'favicon_url,home_title,meta_description,meta_keywords,canonical_url,'
     'og_image_url,organization_legal_name,organization_phone,'
     'organization_address,twitter_username,fb_app_id,google_analytics_id,'
-    'google_search_console_code,bing_verification_code,robots_txt,'
+    'google_search_console_code,bing_verification_code,'
+    'social_auth_google_enabled,social_auth_apple_enabled,'
+    'social_auth_facebook_enabled,social_auth_x_enabled,'
+    'social_auth_redirect_scheme,social_auth_redirect_host,robots_txt,'
     'header_custom_codes,footer_custom_codes';
 
 String _string(Object? value, {String fallback = ''}) {
   final text = value?.toString();
   if (text == null || text.isEmpty) return fallback;
   return text;
+}
+
+bool _bool(Object? value, {required bool fallback}) {
+  if (value is bool) return value;
+  final text = value?.toString().trim().toLowerCase();
+  if (text == 'true' || text == '1') return true;
+  if (text == 'false' || text == '0') return false;
+  return fallback;
 }
 
 String _cleanLanguageCode(String value) {

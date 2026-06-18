@@ -97,86 +97,86 @@ class UsersTableCard extends StatelessWidget {
     return _UsersSearchScope(
       query: searchQuery,
       child: LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < AdminMobile.breakpoint) {
-          return _UsersMobileView(
-            users: users,
-            roles: roles,
-            loading: loading,
-            page: page,
-            pageSize: pageSize,
-            totalCount: totalCount,
-            searchQuery: searchQuery,
-            roleFilter: roleFilter,
-            rewardFilter: rewardFilter,
-            statusFilter: statusFilter,
-            selectedUserIds: selectedUserIds,
-            onPageSizeChanged: onPageSizeChanged,
-            onSearchChanged: onSearchChanged,
-            onRoleChanged: onRoleChanged,
-            onRewardChanged: onRewardChanged,
-            onStatusChanged: onStatusChanged,
-            onPageChanged: onPageChanged,
-            onToggleUser: onToggleUser,
-            onAddUser: onAddUser,
-            onEditUser: onEditUser,
-            onToggleStatus: onToggleStatus,
-            onToggleReward: onToggleReward,
-            onDeleteUser: onDeleteUser,
-            onDeleteSelected: onDeleteSelected,
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _UsersFilters(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < AdminMobile.breakpoint) {
+            return _UsersMobileView(
+              users: users,
               roles: roles,
-              roleFilter: roleFilter,
-              rewardFilter: rewardFilter,
-              statusFilter: statusFilter,
-              onRoleChanged: onRoleChanged,
-              onRewardChanged: onRewardChanged,
-              onStatusChanged: onStatusChanged,
-            ),
-            const SizedBox(height: 28),
-            _UsersToolbar(
-              pageSize: pageSize,
-              searchQuery: searchQuery,
-              selectedCount: selectedUserIds.length,
-              onPageSizeChanged: onPageSizeChanged,
-              onSearchChanged: onSearchChanged,
-              onAddUser: onAddUser,
-              onDeleteSelected: onDeleteSelected,
-            ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: _UsersDataTable(
-                users: users,
-                roles: roles,
-                loading: loading,
-                searching: searching,
-                selectedUserIds: selectedUserIds,
-                sortState: sortState,
-                onToggleUser: onToggleUser,
-                onToggleAllUsers: onToggleAllUsers,
-                onEditUser: onEditUser,
-                onToggleStatus: onToggleStatus,
-                onToggleReward: onToggleReward,
-                onDeleteUser: onDeleteUser,
-                onSort: onSort,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _UsersFooter(
+              loading: loading,
               page: page,
               pageSize: pageSize,
               totalCount: totalCount,
-              loading: loading,
+              searchQuery: searchQuery,
+              roleFilter: roleFilter,
+              rewardFilter: rewardFilter,
+              statusFilter: statusFilter,
+              selectedUserIds: selectedUserIds,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onRoleChanged: onRoleChanged,
+              onRewardChanged: onRewardChanged,
+              onStatusChanged: onStatusChanged,
               onPageChanged: onPageChanged,
-            ),
-          ],
-        );
-      },
+              onToggleUser: onToggleUser,
+              onAddUser: onAddUser,
+              onEditUser: onEditUser,
+              onToggleStatus: onToggleStatus,
+              onToggleReward: onToggleReward,
+              onDeleteUser: onDeleteUser,
+              onDeleteSelected: onDeleteSelected,
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _UsersFilters(
+                roles: roles,
+                roleFilter: roleFilter,
+                rewardFilter: rewardFilter,
+                statusFilter: statusFilter,
+                onRoleChanged: onRoleChanged,
+                onRewardChanged: onRewardChanged,
+                onStatusChanged: onStatusChanged,
+              ),
+              const SizedBox(height: 28),
+              _UsersToolbar(
+                pageSize: pageSize,
+                searchQuery: searchQuery,
+                selectedCount: selectedUserIds.length,
+                onPageSizeChanged: onPageSizeChanged,
+                onSearchChanged: onSearchChanged,
+                onAddUser: onAddUser,
+                onDeleteSelected: onDeleteSelected,
+              ),
+              const SizedBox(height: 18),
+              Expanded(
+                child: _UsersDataTable(
+                  users: users,
+                  roles: roles,
+                  loading: loading,
+                  searching: searching,
+                  selectedUserIds: selectedUserIds,
+                  sortState: sortState,
+                  onToggleUser: onToggleUser,
+                  onToggleAllUsers: onToggleAllUsers,
+                  onEditUser: onEditUser,
+                  onToggleStatus: onToggleStatus,
+                  onToggleReward: onToggleReward,
+                  onDeleteUser: onDeleteUser,
+                  onSort: onSort,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _UsersFooter(
+                page: page,
+                pageSize: pageSize,
+                totalCount: totalCount,
+                loading: loading,
+                onPageChanged: onPageChanged,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -566,6 +566,11 @@ class _UsersMobileCard extends StatelessWidget {
                 label: context.t(roleLabelFor(user.role, roles)),
                 icon: Symbols.verified,
                 color: AppColors.deepOcean,
+              ),
+              AdminMobileChip(
+                label: context.t(user.authProviderLabel),
+                icon: Symbols.alternate_email_rounded,
+                color: AppColors.support,
               ),
               if (user.rewardEnabled)
                 AdminMobileChip(
@@ -1144,9 +1149,10 @@ class _UsersDataTable extends StatelessWidget {
   final ValueChanged<ManagedUser> onDeleteUser;
   final ValueChanged<String> onSort;
 
-  static const double _minWidth = 900;
+  static const double _minWidth = 1020;
   static const double _selectWidth = 42;
   static const double _idWidth = 64;
+  static const double _authProviderWidth = 120;
   static const double _roleWidth = 130;
   static const double _rewardWidth = 130;
   static const double _statusWidth = 112;
@@ -1223,6 +1229,7 @@ class _UsersDataTable extends StatelessWidget {
 class _UsersTableColumnLayout {
   const _UsersTableColumnLayout({
     required this.userWidth,
+    required this.authProviderWidth,
     required this.roleWidth,
     required this.rewardWidth,
     required this.statusWidth,
@@ -1230,6 +1237,7 @@ class _UsersTableColumnLayout {
   });
 
   final double userWidth;
+  final double authProviderWidth;
   final double roleWidth;
   final double rewardWidth;
   final double statusWidth;
@@ -1239,6 +1247,7 @@ class _UsersTableColumnLayout {
     return _UsersDataTable._minWidth -
         _UsersDataTable._selectWidth -
         _UsersDataTable._idWidth -
+        _UsersDataTable._authProviderWidth -
         _UsersDataTable._roleWidth -
         _UsersDataTable._rewardWidth -
         _UsersDataTable._statusWidth -
@@ -1251,10 +1260,12 @@ class _UsersTableColumnLayout {
     final extraWidth = tableWidth - _UsersDataTable._minWidth;
 
     return _UsersTableColumnLayout(
-      userWidth: _baseUserWidth + (extraWidth * 0.20),
-      roleWidth: _UsersDataTable._roleWidth + (extraWidth * 0.24),
-      rewardWidth: _UsersDataTable._rewardWidth + (extraWidth * 0.22),
-      statusWidth: _UsersDataTable._statusWidth + (extraWidth * 0.18),
+      userWidth: _baseUserWidth + (extraWidth * 0.18),
+      authProviderWidth:
+          _UsersDataTable._authProviderWidth + (extraWidth * 0.14),
+      roleWidth: _UsersDataTable._roleWidth + (extraWidth * 0.18),
+      rewardWidth: _UsersDataTable._rewardWidth + (extraWidth * 0.20),
+      statusWidth: _UsersDataTable._statusWidth + (extraWidth * 0.14),
       createdWidth: _UsersDataTable._createdWidth + (extraWidth * 0.16),
     );
   }
@@ -1315,6 +1326,15 @@ class _UsersHeader extends StatelessWidget {
             child: SortableTableHeader(
               label: 'User',
               sortKey: 'user',
+              sortState: sortState,
+              onSort: onSort,
+            ),
+          ),
+          SizedBox(
+            width: layout.authProviderWidth,
+            child: SortableTableHeader(
+              label: 'Kayıt',
+              sortKey: 'authProvider',
               sortState: sortState,
               onSort: onSort,
             ),
@@ -1425,6 +1445,10 @@ class _UsersRow extends StatelessWidget {
               onTap: onToggle,
               child: _UserIdentity(user: user),
             ),
+          ),
+          SizedBox(
+            width: layout.authProviderWidth,
+            child: _AuthProviderCell(label: user.authProviderLabel),
           ),
           SizedBox(
             width: layout.roleWidth,
@@ -1665,6 +1689,38 @@ class _RoleCell extends StatelessWidget {
               color: AppColors.deepOcean,
               fontWeight: FontWeight.w600,
               fontSize: 13,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthProviderCell extends StatelessWidget {
+  const _AuthProviderCell({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const SymbolIcon(
+          Symbols.alternate_email_rounded,
+          color: AppColors.iconMuted,
+          size: 17,
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            context.t(label),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
             ),
           ),
         ),

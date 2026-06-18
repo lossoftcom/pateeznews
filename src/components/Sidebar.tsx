@@ -12,6 +12,7 @@ import {
   getSpecialContentConfigForItem,
   getSpecialContentRank
 } from '@/utils/specialContent';
+import RemixIcon from './ui/RemixIcon';
 
 interface SidebarProps {
   items: NavigationItem[];
@@ -47,6 +48,31 @@ const NORMAL_SIDEBAR_CATEGORY_FALLBACKS: NavigationItem[] = [
 ];
 
 const getSpecialSidebarOrder = (rank: number) => Number.isFinite(rank) ? rank : 9999;
+const SIDEBAR_REMIX_ICON_BY_MATERIAL: Record<string, string> = {
+  chevron_right: 'ri-arrow-right-s-line',
+  where_to_vote: 'ri-map-pin-fill',
+  location_on: 'ri-map-pin-line',
+  grid_view: 'ri-layout-grid-line',
+  trending_up: 'ri-line-chart-line',
+  sports_soccer: 'ri-football-line',
+  restaurant: 'ri-restaurant-2-line',
+  account_balance: 'ri-bank-line',
+  spa: 'ri-leaf-line',
+  poll: 'ri-survey-line',
+  bar_chart: 'ri-bar-chart-box-line',
+  quiz: 'ri-questionnaire-line',
+  smart_display: 'ri-video-line',
+  format_list_bulleted: 'ri-list-check-2',
+  format_list_numbered: 'ri-file-list-3-line',
+  calendar_month: 'ri-calendar-event-line',
+};
+
+const sidebarRemixIconFor = (iconName: string) => {
+  const key = String(iconName || '').trim().toLowerCase();
+  if (!key) return 'ri-arrow-right-s-line';
+  if (key.startsWith('ri-')) return key;
+  return SIDEBAR_REMIX_ICON_BY_MATERIAL[key] || 'ri-arrow-right-s-line';
+};
 
 const getDefaultRootItem = (items: NavigationItem[]) => (
   items.find((item) => {
@@ -202,16 +228,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   const renderIcon = (iconName: string, size = 20, color?: string, isSelected = false) => {
     if (!iconName) return null;
     return (
-      <span
-        className="material-symbols-rounded transition-all duration-300"
+      <RemixIcon
+        name={sidebarRemixIconFor(iconName)}
+        size={size}
+        className="transition-all duration-300"
         style={{
-          fontSize: `${size}px`,
           color: isSelected ? 'inherit' : (color || 'inherit'),
           fontWeight: isSelected ? '700' : '500'
         }}
-      >
-        {iconName.toLowerCase()}
-      </span>
+      />
     );
   };
 
@@ -257,7 +282,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className="text-[10px] font-black text-palette-tan/40 uppercase tracking-[0.2em] mb-3 ml-1 cursor-pointer hover:text-palette-red transition-all flex items-center gap-2 group/dis-header"
               >
                 {t('sidebar.districts')}
-                <span className="material-symbols-rounded text-[12px] opacity-0 group-hover/dis-header:opacity-100 transition-all translate-x-[-4px] group-hover/dis-header:translate-x-0">chevron_right</span>
+                <RemixIcon name="ri-arrow-right-s-line" size={12} className="opacity-0 group-hover/dis-header:opacity-100 transition-all translate-x-[-4px] group-hover/dis-header:translate-x-0" />
               </h3>
               <div className="flex flex-col gap-1">
                 {districts.map((child, idx) => {
@@ -290,7 +315,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className="text-[10px] font-black text-palette-tan/40 uppercase tracking-[0.2em] mb-3 ml-1 cursor-pointer hover:text-palette-red transition-all flex items-center gap-2 group/cat-header"
               >
                 {t('sidebar.categories')}
-                <span className="material-symbols-rounded text-[12px] opacity-0 group-hover/cat-header:opacity-100 transition-all translate-x-[-4px] group-hover/cat-header:translate-x-0">chevron_right</span>
+                <RemixIcon name="ri-arrow-right-s-line" size={12} className="opacity-0 group-hover/cat-header:opacity-100 transition-all translate-x-[-4px] group-hover/cat-header:translate-x-0" />
               </h3>
               <div className="flex flex-col gap-1">
                 {categoriesSub.map((child, idx) => {
@@ -323,7 +348,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className="text-[10px] font-black text-palette-tan/40 uppercase tracking-[0.2em] mb-3 ml-1 cursor-pointer hover:text-palette-red transition-all flex items-center gap-2 group/trend-header"
               >
                 {t('cat.trends')}
-                <span className="material-symbols-rounded text-[12px] opacity-0 group-hover/trend-header:opacity-100 transition-all translate-x-[-4px] group-hover/trend-header:translate-x-0">chevron_right</span>
+                <RemixIcon name="ri-arrow-right-s-line" size={12} className="opacity-0 group-hover/trend-header:opacity-100 transition-all translate-x-[-4px] group-hover/trend-header:translate-x-0" />
               </h3>
               <div className="flex flex-col gap-1">
                 {trendsSub.map((child, idx) => {

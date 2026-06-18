@@ -5,6 +5,7 @@ import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
+import { getPostPathSegment } from '@/utils/postUrl';
 
 export const prerender = false;
 
@@ -51,7 +52,7 @@ const description = newsItem.seoDescription || newsItem.summary;
 const ogImage = newsItem.thumbnail || newsItem.mediaUrl || siteSettings?.og_image_url || "";
 
 const canonicalBase = (siteSettings?.canonical_url || Astro.url.origin).trim();
-const canonicalPathSegment = encodeURIComponent(newsItem.slug || slug || newsItem.id);
+const canonicalPathSegment = encodeURIComponent(getPostPathSegment(newsItem, siteSettings) || slug || newsItem.id);
 const canonicalUrl = new URL(`/haber/${canonicalPathSegment}`, canonicalBase).toString();
 
 const toAbsoluteUrl = (value: string | null | undefined) => {

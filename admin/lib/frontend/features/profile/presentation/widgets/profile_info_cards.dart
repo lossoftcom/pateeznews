@@ -104,6 +104,10 @@ class _AboutCard extends StatelessWidget {
             icon: Symbols.schedule_rounded,
             text: '${data.joinedLabel} tarihinde katıldı',
           ),
+          if (data.city.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm + 2),
+            _InfoRow(icon: Symbols.location_on_rounded, text: data.city),
+          ],
           if (data.showEmail && data.email.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm + 2),
             _InfoRow(icon: Symbols.alternate_email_rounded, text: data.email),

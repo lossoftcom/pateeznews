@@ -187,6 +187,8 @@ class _UsersScreenState extends State<UsersScreen> {
       user.fullName,
       user.username,
       user.email,
+      user.authProvider,
+      user.authProviderLabel,
       user.role,
       user.roleLabel,
     ].join(' ');
@@ -435,6 +437,7 @@ class _UsersScreenState extends State<UsersScreen> {
       fullName: user.fullName,
       username: user.username,
       email: user.email,
+      city: user.city,
       role: user.role,
       status: status ?? user.status,
       rewardEnabled: rewardEnabled ?? user.rewardEnabled,

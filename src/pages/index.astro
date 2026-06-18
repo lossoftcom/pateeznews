@@ -6,6 +6,7 @@ import { loadLocaleData } from '@/lib/locales';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getSpecialContentConfig } from '@/utils/specialContent';
+import { getPostPathSegment } from '@/utils/postUrl';
 
 const cookies = Astro.request.headers.get('cookie') || '';
 const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];
@@ -113,7 +114,7 @@ const itemListLd = {
     "@type": "ListItem",
     position: index + 1,
     name: stripHtml(String(item?.seoTitle || item?.title || '')),
-    url: new URL(`/haber/${encodeURIComponent(String(item?.slug || item?.id || ''))}`, canonicalBase).toString(),
+    url: new URL(`/haber/${encodeURIComponent(getPostPathSegment(item, siteSettings) || '')}`, canonicalBase).toString(),
   })),
 };
 

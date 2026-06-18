@@ -2053,6 +2053,7 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "nav.socialSettings": "Sosyal Medya Ayarları",
   "nav.navigation": "Navigasyon",
   "nav.languageSettings": "Dil Ayarları",
+  "nav.ads": "Reklamlar",
   "nav.menu": "Menü",
   "nav.modules": "Modüller",
   "nav.notifications": "Bildirimler",
@@ -3663,12 +3664,12 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "notifications.campaigns.title": "Bildirim Merkezi",
   "notifications.campaigns.description":
       "Firebase Cloud Messaging üzerinden mobil, Flutter Web ve Astro Web bildirim kampanyalarını yönetin.",
-  "notifications.campaigns.add": "+ Bildirim Ekle",
+  "notifications.campaigns.add": "Bildirim Ekle",
   "notifications.campaigns.edit": "Bildirimi Düzenle",
   "notifications.templates.title": "Bildirim Şablonları",
   "notifications.templates.description":
       "Başlık, açıklama, deep link, öncelik ve dil bazlı hazır bildirim şablonlarını yönetin.",
-  "notifications.templates.add": "+ Şablon Ekle",
+  "notifications.templates.add": "Şablon Ekle",
   "notifications.templates.edit": "Şablonu Düzenle",
   "notifications.templates.empty": "Bildirim şablonu bulunamadı",
   "notifications.templates.deleteTitle": "Bildirim şablonunu sil",

@@ -43,6 +43,10 @@ export function postAction<T = any>(action: PostAction, payload: Record<string, 
   return postJson<T>('/api/app/post-action', { action, ...payload });
 }
 
+export function commentAction<T = any>(action: string, payload: Record<string, any>) {
+  return postJson<T>('/api/app/comments', { action, ...payload });
+}
+
 export function subscribeNewsletter(email: string, source: string, languageCode: string) {
   return postJson<{ ok: boolean; subscriber: any }>('/api/app/newsletter', {
     email,

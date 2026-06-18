@@ -1,5 +1,9 @@
 import type { APIRoute } from "astro";
 import { dbQuery } from "@/lib/server/supabaseDb";
+import {
+  getSupabasePublishableKey,
+  getSupabaseUrl,
+} from "@/lib/server/supabaseAuth";
 import { dataService } from "@/services/dataService.server";
 import type { NavigationItem, SiteSettings } from "@/types";
 
@@ -15,6 +19,65 @@ const normalizeLanguageCode = (value: unknown) => {
 
 const text = (value: unknown) => String(value || "").trim();
 
+type SupabaseAuthProviderStatus = {
+  googleEnabled?: boolean;
+  appleEnabled?: boolean;
+  facebookEnabled?: boolean;
+  xEnabled?: boolean;
+};
+
+let authProviderStatusCache:
+  | { expiresAt: number; value: SupabaseAuthProviderStatus | null }
+  | null = null;
+
+async function getSupabaseAuthProviderStatus() {
+  const now = Date.now();
+  if (authProviderStatusCache && authProviderStatusCache.expiresAt > now) {
+    return authProviderStatusCache.value;
+  }
+
+  const supabaseUrl = getSupabaseUrl();
+  const publishableKey = getSupabasePublishableKey();
+  if (!supabaseUrl || !publishableKey) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500);
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+      headers: {
+        Accept: "application/json",
+        apikey: publishableKey,
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as {
+      external?: Record<string, unknown>;
+    };
+    const external = body.external || {};
+    const value: SupabaseAuthProviderStatus = {
+      googleEnabled: external.google === true,
+      appleEnabled: external.apple === true,
+      facebookEnabled: external.facebook === true,
+    };
+    if (typeof external.x === "boolean") {
+      value.xEnabled = external.x;
+    }
+    authProviderStatusCache = { expiresAt: now + 60_000, value };
+    return value;
+  } catch {
+    authProviderStatusCache = { expiresAt: now + 10_000, value: null };
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const socialProviderEnabled = (
+  siteEnabled: boolean | undefined,
+  providerEnabled: boolean | undefined,
+) => siteEnabled !== false && providerEnabled !== false;
+
 const defaultLogoPaths = {
   logoUrl: "/local-upload/logo/tr/pateezlogoson.png",
   emailLogoUrl: "/local-upload/logo/tr/pateezlogoepost.png",
@@ -22,12 +85,35 @@ const defaultLogoPaths = {
   faviconUrl: "/local-upload/logo/tr/pateezlogoicon.png",
 } as const;
 
-const siteSettingsPayload = (settings: SiteSettings | null) => ({
+const siteSettingsPayload = (
+  settings: SiteSettings | null,
+  authProviders: SupabaseAuthProviderStatus | null,
+) => ({
   siteName: text(settings?.site_name),
   logoUrl: text(settings?.logo_url) || defaultLogoPaths.logoUrl,
   emailLogoUrl: text(settings?.email_logo_url) || defaultLogoPaths.emailLogoUrl,
   darkLogoUrl: text(settings?.dark_logo_url) || defaultLogoPaths.darkLogoUrl,
   faviconUrl: text(settings?.favicon_url) || defaultLogoPaths.faviconUrl,
+  socialAuth: {
+    googleEnabled: socialProviderEnabled(
+      settings?.social_auth_google_enabled,
+      authProviders?.googleEnabled,
+    ),
+    appleEnabled: socialProviderEnabled(
+      settings?.social_auth_apple_enabled,
+      authProviders?.appleEnabled,
+    ),
+    facebookEnabled: socialProviderEnabled(
+      settings?.social_auth_facebook_enabled,
+      authProviders?.facebookEnabled,
+    ),
+    xEnabled: socialProviderEnabled(
+      settings?.social_auth_x_enabled,
+      authProviders?.xEnabled,
+    ),
+    redirectScheme: text(settings?.social_auth_redirect_scheme) || "com.pateez.app",
+    redirectHost: text(settings?.social_auth_redirect_host) || "login-callback",
+  },
 });
 
 const navigationItemPayload = (item: NavigationItem) => ({
@@ -99,15 +185,16 @@ export const GET: APIRoute = async ({ url }) => {
   const lang = normalizeLanguageCode(url.searchParams.get("lang"));
 
   try {
-    const [settings, navigationItems, pages] = await Promise.all([
+    const [settings, navigationItems, pages, authProviders] = await Promise.all([
       dataService.getSiteSettings(lang),
       dataService.getNavigationItems(lang),
       getShellPages(lang),
+      getSupabaseAuthProviderStatus(),
     ]);
 
     return json({
       languageCode: lang,
-      siteSettings: siteSettingsPayload(settings),
+      siteSettings: siteSettingsPayload(settings, authProviders),
       navigationItems: navigationItems.map(navigationItemPayload),
       pages: pages.map(pagePayload),
     });

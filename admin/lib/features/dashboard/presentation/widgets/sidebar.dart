@@ -32,6 +32,7 @@ class AdminDrawer extends StatelessWidget {
     required this.navigationVisible,
     required this.usersVisible,
     required this.rolesPermissionsVisible,
+    required this.adsVisible,
     required this.storageSettingsVisible,
     required this.googleNewsVisible,
     required this.aiSettingsVisible,
@@ -78,6 +79,7 @@ class AdminDrawer extends StatelessWidget {
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
+    required this.adsSelected,
     required this.storageSettingsSelected,
     required this.googleNewsSelected,
     required this.aiSettingsSelected,
@@ -124,6 +126,7 @@ class AdminDrawer extends StatelessWidget {
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
+    required this.onAdsSelected,
     required this.onStorageSettingsSelected,
     required this.onGoogleNewsSelected,
     required this.onAiSettingsSelected,
@@ -159,6 +162,7 @@ class AdminDrawer extends StatelessWidget {
   final bool navigationVisible;
   final bool usersVisible;
   final bool rolesPermissionsVisible;
+  final bool adsVisible;
   final bool storageSettingsVisible;
   final bool googleNewsVisible;
   final bool aiSettingsVisible;
@@ -205,6 +209,7 @@ class AdminDrawer extends StatelessWidget {
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
+  final bool adsSelected;
   final bool storageSettingsSelected;
   final bool googleNewsSelected;
   final bool aiSettingsSelected;
@@ -251,6 +256,7 @@ class AdminDrawer extends StatelessWidget {
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
+  final VoidCallback onAdsSelected;
   final VoidCallback onStorageSettingsSelected;
   final VoidCallback onGoogleNewsSelected;
   final VoidCallback onAiSettingsSelected;
@@ -298,6 +304,7 @@ class AdminDrawer extends StatelessWidget {
           navigationVisible: navigationVisible,
           usersVisible: usersVisible,
           rolesPermissionsVisible: rolesPermissionsVisible,
+          adsVisible: adsVisible,
           storageSettingsVisible: storageSettingsVisible,
           googleNewsVisible: googleNewsVisible,
           aiSettingsVisible: aiSettingsVisible,
@@ -344,6 +351,7 @@ class AdminDrawer extends StatelessWidget {
           navigationSelected: navigationSelected,
           usersSelected: usersSelected,
           rolesPermissionsSelected: rolesPermissionsSelected,
+          adsSelected: adsSelected,
           storageSettingsSelected: storageSettingsSelected,
           googleNewsSelected: googleNewsSelected,
           aiSettingsSelected: aiSettingsSelected,
@@ -390,6 +398,7 @@ class AdminDrawer extends StatelessWidget {
           onNavigationSelected: onNavigationSelected,
           onUsersSelected: onUsersSelected,
           onRolesPermissionsSelected: onRolesPermissionsSelected,
+          onAdsSelected: onAdsSelected,
           onStorageSettingsSelected: onStorageSettingsSelected,
           onGoogleNewsSelected: onGoogleNewsSelected,
           onAiSettingsSelected: onAiSettingsSelected,
@@ -432,6 +441,7 @@ class Sidebar extends StatefulWidget {
     required this.navigationVisible,
     required this.usersVisible,
     required this.rolesPermissionsVisible,
+    required this.adsVisible,
     required this.storageSettingsVisible,
     required this.googleNewsVisible,
     required this.aiSettingsVisible,
@@ -478,6 +488,7 @@ class Sidebar extends StatefulWidget {
     required this.navigationSelected,
     required this.usersSelected,
     required this.rolesPermissionsSelected,
+    required this.adsSelected,
     required this.storageSettingsSelected,
     required this.googleNewsSelected,
     required this.aiSettingsSelected,
@@ -524,6 +535,7 @@ class Sidebar extends StatefulWidget {
     required this.onNavigationSelected,
     required this.onUsersSelected,
     required this.onRolesPermissionsSelected,
+    required this.onAdsSelected,
     required this.onStorageSettingsSelected,
     required this.onGoogleNewsSelected,
     required this.onAiSettingsSelected,
@@ -560,6 +572,7 @@ class Sidebar extends StatefulWidget {
   final bool navigationVisible;
   final bool usersVisible;
   final bool rolesPermissionsVisible;
+  final bool adsVisible;
   final bool storageSettingsVisible;
   final bool googleNewsVisible;
   final bool aiSettingsVisible;
@@ -606,6 +619,7 @@ class Sidebar extends StatefulWidget {
   final bool navigationSelected;
   final bool usersSelected;
   final bool rolesPermissionsSelected;
+  final bool adsSelected;
   final bool storageSettingsSelected;
   final bool googleNewsSelected;
   final bool aiSettingsSelected;
@@ -652,6 +666,7 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onNavigationSelected;
   final VoidCallback onUsersSelected;
   final VoidCallback onRolesPermissionsSelected;
+  final VoidCallback onAdsSelected;
   final VoidCallback onStorageSettingsSelected;
   final VoidCallback onGoogleNewsSelected;
   final VoidCallback onAiSettingsSelected;
@@ -1229,6 +1244,14 @@ class _SidebarState extends State<Sidebar> {
                       compact: compact,
                       onTap: () =>
                           _select(context, widget.onRolesPermissionsSelected),
+                    ),
+                  if (widget.adsVisible)
+                    SidebarItem(
+                      icon: Symbols.campaign_outlined,
+                      label: context.t('nav.ads'),
+                      selected: widget.adsSelected,
+                      compact: compact,
+                      onTap: () => _select(context, widget.onAdsSelected),
                     ),
                   if (modulesVisible)
                     SidebarExpandableItem(

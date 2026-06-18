@@ -52,10 +52,19 @@ Future<void> _initializeFirebase() async {
 }
 
 Future<void> _initializeSupabase() async {
-  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  const supabasePublishableKey = String.fromEnvironment(
+  const definedSupabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const definedSupabasePublishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',
   );
+  const fallbackSupabaseUrl = 'https://debgdvrkcqhtwdyrqves.supabase.co';
+  const fallbackSupabasePublishableKey =
+      'sb_publishable_7Pg0aLwv26Ja4w92KeHChg_zW6DqoQB';
+  final supabaseUrl = definedSupabaseUrl.isNotEmpty
+      ? definedSupabaseUrl
+      : fallbackSupabaseUrl;
+  final supabasePublishableKey = definedSupabasePublishableKey.isNotEmpty
+      ? definedSupabasePublishableKey
+      : fallbackSupabasePublishableKey;
   if (supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty) {
     await Supabase.initialize(
       url: supabaseUrl,

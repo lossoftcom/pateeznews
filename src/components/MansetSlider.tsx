@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { NewsItem } from '@/types';
+import RemixIcon from './ui/RemixIcon';
 
 const AUTOPLAY_DELAY = 5000;
 const DISPLAY_TIME_ZONE = 'Europe/Istanbul';
@@ -177,7 +177,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
             onMouseLeave={() => setIsPaused(false)}
             aria-label="Manşet haber sliderı"
         >
-            <div className="relative w-full aspect-[11/10]">
+            <div className="relative w-full aspect-square">
                 {slides.map((slide, index) => {
                     const isActive = index === activeIndex;
 
@@ -196,9 +196,9 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                                 loading={index === 0 ? 'eager' : 'lazy'}
                                 decoding="async"
                                 fetchPriority={index === 0 ? 'high' : 'low'}
-                                className="w-full h-full object-cover transform transition-transform duration-[15000ms] ease-out scale-105 group-hover:scale-110"
+                                className="w-full h-full object-contain bg-gray-950"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent opacity-85 transition-opacity duration-500 group-hover:opacity-95" />
                             <div className="absolute bottom-0 left-0 w-full px-6 sm:px-8 md:px-10 pt-6 sm:pt-8 md:pt-10 pb-5 sm:pb-6 md:pb-7 z-10 flex flex-col justify-end transform transition-transform duration-500 translate-y-1 group-hover:translate-y-0">
                                 <h2 className="news-title-font text-white text-[23px] sm:text-[30px] md:text-[36px] font-[800] tracking-normal leading-[1.08] mb-2.5 drop-shadow-lg line-clamp-3 transition-colors duration-300 group-hover:text-palette-red">
                                     {slide.title}
@@ -211,7 +211,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                                 {slide.date && (
                                     <div className="flex items-center mb-0">
                                         <span className="text-gray-400 text-xs font-light flex items-center gap-1.5 drop-shadow-md">
-                                            <span className="material-symbols-rounded text-[14px] opacity-70">schedule</span>
+                                            <RemixIcon name="ri-time-line" size={14} className="opacity-70" />
                                             {slide.date}
                                         </span>
                                     </div>
@@ -229,7 +229,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                             onClick={goToPrevious}
                             className="manset-nav-button manset-prev absolute top-[24%] md:top-[38%] left-3 md:left-5 -translate-y-1/2 z-30 w-12 h-12 md:w-14 md:h-14 appearance-none border-0 bg-transparent flex items-center justify-center overflow-visible text-white/90 cursor-pointer outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 transition-all duration-300 hover:text-white hover:scale-105 active:scale-95"
                         >
-                            <ChevronLeft className="manset-arrow-icon opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none" strokeWidth={1.25} aria-hidden="true" />
+                            <RemixIcon name="ri-arrow-left-s-line" className="manset-arrow-icon opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none" />
                         </button>
 
                         <button
@@ -238,7 +238,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], on
                             onClick={goToNext}
                             className="manset-nav-button manset-next absolute top-[24%] md:top-[38%] right-3 md:right-5 -translate-y-1/2 z-30 w-12 h-12 md:w-14 md:h-14 appearance-none border-0 bg-transparent flex items-center justify-center overflow-visible text-white/90 cursor-pointer outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 transition-all duration-300 hover:text-white hover:scale-105 active:scale-95"
                         >
-                            <ChevronRight className="manset-arrow-icon opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none" strokeWidth={1.25} aria-hidden="true" />
+                            <RemixIcon name="ri-arrow-right-s-line" className="manset-arrow-icon opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none" />
                         </button>
                     </>
                 )}

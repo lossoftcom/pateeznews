@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/constants/turkey_cities.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../../core/localization/admin_language_controller.dart';
@@ -68,6 +69,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   late final TextEditingController _confirmPasswordController;
   late String _role;
   late String _status;
+  late String _city;
   late bool _rewardEnabled;
 
   bool get _editing => widget.user != null;
@@ -83,6 +85,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
     _confirmPasswordController = TextEditingController();
     _role = user?.role ?? _firstRole;
     _status = user?.status ?? 'Aktif';
+    _city = normalizeTurkeyCity(user?.city ?? defaultTurkeyCity);
     _rewardEnabled = user?.rewardEnabled ?? false;
   }
 
@@ -109,6 +112,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         fullName: _fullNameController.text.trim(),
         username: _usernameController.text.trim(),
         email: _emailController.text.trim().toLowerCase(),
+        city: _city,
         role: _role,
         status: _status,
         rewardEnabled: _rewardEnabled,
@@ -192,6 +196,20 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                       icon: Symbols.alternate_email,
                       keyboardType: TextInputType.emailAddress,
                       validator: _emailValidator,
+                    ),
+                    const SizedBox(height: 22),
+                    _DialogSelectLineField(
+                      label: 'Şehir',
+                      value: _city,
+                      icon: Symbols.location_on_rounded,
+                      items: [
+                        for (final city in turkeyCities)
+                          DropdownMenuItem(value: city, child: Text(city)),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _city = normalizeTurkeyCity(value));
+                      },
                     ),
                     const SizedBox(height: 22),
                     _DialogSelectLineField(

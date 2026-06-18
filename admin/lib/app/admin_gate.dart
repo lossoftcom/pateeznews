@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 
 import '../core/theme/app_colors.dart';
@@ -99,7 +100,13 @@ class _AdminGateState extends State<AdminGate> {
   AdminProfile? _profile;
   ContentSettingsSnapshot? _contentSettingsSnapshot;
   StreamSubscription<sdk.AuthState>? _supabaseAuthSubscription;
-  Timer? _sessionExpiryTimer;
+
+  /// Oturumu yalnızca KULLANICI ETKİNLİĞİNE göre sonlandıran inaktivite süresi.
+  /// Bu süre boyunca hiç etkileşim (dokunma/kaydırma/tuş) olmazsa giriş ekranına
+  /// düşülür; her etkileşimde sayaç sıfırlanır. (Eski davranış: token'ın mutlak
+  /// son kullanım anında, kullanıcı aktif olsa bile çıkış yapılıyordu.)
+  static const _idleTimeout = Duration(minutes: 30);
+  Timer? _idleTimer;
 
   @override
   void initState() {
@@ -110,7 +117,7 @@ class _AdminGateState extends State<AdminGate> {
 
   @override
   void dispose() {
-    _sessionExpiryTimer?.cancel();
+    _idleTimer?.cancel();
     unawaited(_supabaseAuthSubscription?.cancel());
     super.dispose();
   }
@@ -159,13 +166,15 @@ class _AdminGateState extends State<AdminGate> {
     setState(() {
       _session = session;
     });
-    _scheduleSessionExpiry(session);
+    // Token arka planda yenilendi (SDK auto-refresh). İnaktivite sayacı
+    // kullanıcı etkinliğine bağlıdır; sessiz token yenilemesi onu sıfırlamaz.
   }
 
   Future<void> _clearSupabaseSession() async {
     await _sessionStore.clearAuth();
-    _scheduleSessionExpiry(null);
+    _cancelIdleTimer();
     if (!mounted || _session == null) return;
+    _dismissAllModals();
     setState(() {
       _session = null;
       _profile = null;
@@ -191,8 +200,10 @@ class _AdminGateState extends State<AdminGate> {
         _contentSettingsSnapshot = contentSettingsSnapshot;
         _checkingSession = false;
       });
-      _scheduleSessionExpiry(authState?.session);
-      if (authState?.session != null) unawaited(_refreshBranding());
+      if (authState?.session != null) {
+        _startIdleTimer();
+        unawaited(_refreshBranding());
+      }
     } catch (_) {
       await brandingReady;
       if (!mounted) return;
@@ -202,7 +213,7 @@ class _AdminGateState extends State<AdminGate> {
         _contentSettingsSnapshot = null;
         _checkingSession = false;
       });
-      _scheduleSessionExpiry(null);
+      _cancelIdleTimer();
     }
   }
 
@@ -277,12 +288,13 @@ class _AdminGateState extends State<AdminGate> {
       _profile = authState.profile;
       _contentSettingsSnapshot = contentSettingsSnapshot;
     });
-    _scheduleSessionExpiry(authState.session);
+    _startIdleTimer();
     unawaited(_refreshBranding());
   }
 
   Future<void> _logout() async {
-    _scheduleSessionExpiry(null);
+    _cancelIdleTimer();
+    _dismissAllModals();
     setState(() {
       _session = null;
       _profile = null;
@@ -291,32 +303,33 @@ class _AdminGateState extends State<AdminGate> {
     await widget.authRepository.signOut();
   }
 
-  void _scheduleSessionExpiry(AdminSession? session) {
-    _sessionExpiryTimer?.cancel();
-    _sessionExpiryTimer = null;
-    if (session == null) return;
-
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final secondsUntilExpiry = session.expiresAt - now;
-    if (secondsUntilExpiry <= 0) {
-      unawaited(_expireSession(session.accessToken));
-      return;
-    }
-    _sessionExpiryTimer = Timer(
-      Duration(seconds: secondsUntilExpiry),
-      () => unawaited(_expireSession(session.accessToken)),
-    );
+  /// İnaktivite sayacını (yeniden) başlatır → her çağrıda sıfırdan 30 dk sayar.
+  /// Oturum yoksa hiçbir şey yapmaz. Hem oturum kurulurken hem de her kullanıcı
+  /// etkileşiminde çağrılır.
+  void _startIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    if (_session == null) return;
+    _idleTimer = Timer(_idleTimeout, _handleIdleTimeout);
   }
 
-  Future<void> _expireSession(String accessToken) async {
-    if (_session?.accessToken != accessToken) return;
-    await widget.authRepository.signOut();
-    if (!mounted || _session?.accessToken != accessToken) return;
-    setState(() {
-      _session = null;
-      _profile = null;
-      _contentSettingsSnapshot = null;
-    });
+  void _cancelIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+  }
+
+  /// Uzun süre etkileşim olmadı → önce açık tüm modallar kapanır, sonra çıkış.
+  void _handleIdleTimeout() {
+    if (!mounted || _session == null) return;
+    unawaited(_logout());
+  }
+
+  /// Root Navigator'daki tüm diyalog/bottom-sheet/route'ları kapatır; geriye
+  /// yalnızca kök (gate) route'u kalır. Giriş ekranına düşünce ekranda hiçbir
+  /// modal/kart açık kalmaz.
+  void _dismissAllModals() {
+    final navigator = Navigator.maybeOf(context, rootNavigator: true);
+    navigator?.popUntil((route) => route.isFirst);
   }
 
   @override
@@ -328,36 +341,86 @@ class _AdminGateState extends State<AdminGate> {
     final session = _session;
 
     return session != null
-        ? DashboardScreen(
-            session: session,
-            profile: _profile,
-            onLogout: () => unawaited(_logout()),
-            newsRepository: widget.newsRepository,
-            storiesRepository: widget.storiesRepository,
-            pagesRepository: widget.pagesRepository,
-            commentsRepository: widget.commentsRepository,
-            navigationRepository: widget.navigationRepository,
-            usersRepository: widget.usersRepository,
-            rolesRepository: widget.rolesRepository,
-            languagesRepository: widget.languagesRepository,
-            generalSettingsRepository: widget.generalSettingsRepository,
-            fontSettingsRepository: widget.fontSettingsRepository,
-            aiSettingsRepository: widget.aiSettingsRepository,
-            contentSettingsRepository: widget.contentSettingsRepository,
-            initialContentSettings:
-                _contentSettingsSnapshot ??
-                ContentSettingsSnapshot.defaults(widget.languageCode),
-            moduleSettingsRepository: widget.moduleSettingsRepository,
-            securitySettingsRepository: widget.securitySettingsRepository,
-            storageSettingsRepository: widget.storageSettingsRepository,
-            accountSettingsRepository: widget.accountSettingsRepository,
-            subscribersRepository: widget.subscribersRepository,
-            notificationsRepository: widget.notificationsRepository,
-            smsRepository: widget.smsRepository,
-            socialRepository: widget.socialRepository,
-            onOpenFrontend: widget.onOpenFrontend,
+        ? _ActivityDetector(
+            onActivity: _startIdleTimer,
+            child: DashboardScreen(
+              session: session,
+              profile: _profile,
+              onLogout: () => unawaited(_logout()),
+              newsRepository: widget.newsRepository,
+              storiesRepository: widget.storiesRepository,
+              pagesRepository: widget.pagesRepository,
+              commentsRepository: widget.commentsRepository,
+              navigationRepository: widget.navigationRepository,
+              usersRepository: widget.usersRepository,
+              rolesRepository: widget.rolesRepository,
+              languagesRepository: widget.languagesRepository,
+              generalSettingsRepository: widget.generalSettingsRepository,
+              fontSettingsRepository: widget.fontSettingsRepository,
+              aiSettingsRepository: widget.aiSettingsRepository,
+              contentSettingsRepository: widget.contentSettingsRepository,
+              initialContentSettings:
+                  _contentSettingsSnapshot ??
+                  ContentSettingsSnapshot.defaults(widget.languageCode),
+              moduleSettingsRepository: widget.moduleSettingsRepository,
+              securitySettingsRepository: widget.securitySettingsRepository,
+              storageSettingsRepository: widget.storageSettingsRepository,
+              accountSettingsRepository: widget.accountSettingsRepository,
+              subscribersRepository: widget.subscribersRepository,
+              notificationsRepository: widget.notificationsRepository,
+              smsRepository: widget.smsRepository,
+              socialRepository: widget.socialRepository,
+              onOpenFrontend: widget.onOpenFrontend,
+            ),
           )
         : LoginScreen(onLogin: _login);
+  }
+}
+
+/// Giriş yapılmış ekranı sarar; herhangi bir kullanıcı etkileşimini (dokunma,
+/// kaydırma, fare hareketi/tekerleği, donanım klavye tuşu) yakalayıp
+/// [onActivity] çağırır. Olayları TÜKETMEZ — alttaki widget'ların jest/giriş
+/// davranışı aynen devam eder.
+class _ActivityDetector extends StatefulWidget {
+  const _ActivityDetector({required this.onActivity, required this.child});
+
+  final VoidCallback onActivity;
+  final Widget child;
+
+  @override
+  State<_ActivityDetector> createState() => _ActivityDetectorState();
+}
+
+class _ActivityDetectorState extends State<_ActivityDetector> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKey);
+    super.dispose();
+  }
+
+  bool _handleKey(KeyEvent event) {
+    widget.onActivity();
+    return false; // tuşu tüketme — normal klavye akışı bozulmasın
+  }
+
+  void _handlePointer([Object? _]) => widget.onActivity();
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _handlePointer,
+      onPointerMove: _handlePointer,
+      onPointerHover: _handlePointer,
+      onPointerSignal: _handlePointer,
+      child: widget.child,
+    );
   }
 }
 

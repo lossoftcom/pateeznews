@@ -74,6 +74,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
+  firebase_messaging:
+    path: third_party/firebase_messaging
   flutter_secure_storage_windows: 4.1.0
   matcher: 0.12.20
   meta: 1.18.2

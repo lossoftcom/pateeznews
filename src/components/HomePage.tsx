@@ -16,6 +16,7 @@ import CategoryDetail from './CategoryDetail';
 import DistrictsList from './DistrictsList';
 import TrendsList from './TrendsList';
 import { getSpecialContentConfig } from '@/utils/specialContent';
+import { getPostHref } from '@/utils/postUrl';
 
 const NORMAL_CATEGORY_LABELS: Record<string, string> = {
     spor: 'Spor',
@@ -222,9 +223,8 @@ const HomePage: React.FC<HomePageProps> = ({
 
     const handleNewsSelect = useCallback((id: string) => {
         const selected = displayNews.find((n) => n.id === id);
-        const slugOrId = selected?.slug || id;
-        void navigate(`/haber/${encodeURIComponent(slugOrId)}`);
-    }, [displayNews]);
+        void navigate(getPostHref(selected || { id }, siteSettings));
+    }, [displayNews, siteSettings]);
 
     const categoryTitleKey = useMemo(() => {
         if (!activeCat) return undefined;

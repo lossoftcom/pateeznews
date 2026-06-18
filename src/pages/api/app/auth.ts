@@ -1,13 +1,19 @@
 import type { APIRoute } from 'astro';
 import { dbQuery } from '@/lib/server/supabaseDb';
-import { getSessionFromRequest, json } from '@/lib/server/appDb';
-import { signInWithPassword } from '@/lib/server/supabaseAuth';
+import { getSessionFromRequest, json, withTransaction } from '@/lib/server/appDb';
+import {
+  adminCreateAuthUser,
+  adminDeleteAuthUser,
+  signInWithPassword,
+} from '@/lib/server/supabaseAuth';
 import {
   clearLoginFailures,
   getLoginAttemptLock,
   getSecuritySettings,
   recordLoginFailure,
+  validatePasswordWithSecuritySettings,
 } from '@/lib/server/securitySettings';
+import { normalizeTurkeyCity } from '@/lib/server/turkeyCities';
 
 function cleanText(value: unknown) {
   return String(value || '').trim();
@@ -49,11 +55,17 @@ async function profileForUser(userId: string) {
     full_name: string | null;
     avatar_url: string | null;
     cover_url: string | null;
+    phone: string | null;
+    address: string | null;
     role: string | null;
     email: string | null;
     status: string | null;
+    city: string | null;
+    auth_provider: string | null;
+    auth_providers: string[] | null;
   }>(
-    `SELECT id, username, full_name, avatar_url, cover_url, role, email, status
+    `SELECT id, username, full_name, avatar_url, cover_url, phone, address,
+            role, email, status, city, auth_provider, auth_providers
      FROM public.profiles
      WHERE id = $1::uuid
      LIMIT 1`,
@@ -68,10 +80,283 @@ function profileForClient(profile: Awaited<ReturnType<typeof profileForUser>>) {
   return safeProfile;
 }
 
+function cleanSignupUsernameBase(fullName: string, email: string) {
+  const source = fullName || email.split('@')[0] || 'uye';
+  const normalized = source
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 70);
+  return normalized.length >= 3 ? normalized : `uye-${normalized || 'pateez'}`;
+}
+
+async function uniqueSignupUsername(client: any, base: string, excludeUserId = '') {
+  for (let index = 0; index < 50; index += 1) {
+    const candidate = index === 0 ? base : `${base}${index + 1}`;
+    const result = await client.query(
+      `SELECT 1
+       FROM public.profiles
+       WHERE ($2::uuid IS NULL OR id <> $2::uuid)
+         AND (
+           lower(username) = lower($1)
+           OR lower(slug) = lower($1)
+         )
+       LIMIT 1`,
+      [candidate, excludeUserId || null],
+    );
+    if (!result.rows[0]) return candidate;
+  }
+  return `${base.slice(0, 58)}-${Date.now().toString(36).slice(-6)}`;
+}
+
+function cleanAuthProvider(value: unknown) {
+  const provider = cleanText(value).toLowerCase();
+  return ['email', 'google', 'apple', 'facebook', 'x', 'twitter'].includes(provider)
+    ? provider
+    : 'email';
+}
+
+function cleanProviderList(value: unknown, fallback: string) {
+  const source = Array.isArray(value) ? value : [fallback];
+  const providers = source
+    .map((item) => cleanAuthProvider(item))
+    .filter(Boolean);
+  return Array.from(new Set(providers.length ? providers : [fallback]));
+}
+
+function firstMetadataText(metadata: Record<string, any>, keys: string[]) {
+  for (const key of keys) {
+    const value = cleanText(metadata[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+async function completeOAuthProfile(session: NonNullable<Awaited<ReturnType<typeof getSessionFromRequest>>>) {
+  const user = session.user;
+  const metadata = user.user_metadata || {};
+  const appMetadata = user.app_metadata || {};
+  const provider = cleanAuthProvider(
+    appMetadata.provider ||
+      (Array.isArray(appMetadata.providers) ? appMetadata.providers[0] : ''),
+  );
+  const providers = cleanProviderList(appMetadata.providers, provider);
+  const email = cleanEmail(user.email || metadata.email);
+  const fullName = firstMetadataText(metadata, [
+    'full_name',
+    'name',
+    'display_name',
+    'user_name',
+    'preferred_username',
+  ]).slice(0, 160);
+  const avatarUrl = firstMetadataText(metadata, [
+    'avatar_url',
+    'picture',
+    'picture_url',
+  ]);
+  const phone = cleanText((user as any).phone || metadata.phone || metadata.phone_number);
+  const address = cleanText(metadata.address || metadata.location);
+  const usernameBase = cleanSignupUsernameBase(
+    fullName || email.split('@')[0] || user.id,
+    email || user.id,
+  );
+
+  await withTransaction(async (client) => {
+    const existingResult = await client.query(
+      `SELECT username
+       FROM public.profiles
+       WHERE id = $1::uuid
+       LIMIT 1`,
+      [user.id],
+    );
+    const existingUsername = cleanText(existingResult.rows[0]?.username);
+    const username = existingUsername ||
+      (await uniqueSignupUsername(client, usernameBase, user.id));
+    const displayName = fullName || username || email.split('@')[0] || 'Pateez';
+
+    await client.query(
+      `INSERT INTO public.profiles (
+         id, username, slug, full_name, email, avatar_url, phone, address,
+         role, status, auth_provider, auth_providers, updated_at
+       )
+       VALUES (
+         $1::uuid, $2, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''),
+         NULLIF($7, ''), 'member', 'Aktif', $8, $9::text[], now()
+       )
+       ON CONFLICT (id) DO UPDATE
+       SET username = COALESCE(NULLIF(public.profiles.username, ''), EXCLUDED.username),
+           slug = COALESCE(NULLIF(public.profiles.slug, ''), EXCLUDED.slug),
+           full_name = COALESCE(NULLIF(public.profiles.full_name, ''), EXCLUDED.full_name),
+           email = COALESCE(NULLIF(public.profiles.email, ''), EXCLUDED.email),
+           avatar_url = COALESCE(NULLIF(public.profiles.avatar_url, ''), EXCLUDED.avatar_url),
+           phone = COALESCE(NULLIF(public.profiles.phone, ''), EXCLUDED.phone),
+           address = COALESCE(NULLIF(public.profiles.address, ''), EXCLUDED.address),
+           status = COALESCE(NULLIF(public.profiles.status, ''), 'Aktif'),
+           auth_provider = EXCLUDED.auth_provider,
+           auth_providers = EXCLUDED.auth_providers,
+           updated_at = now()`,
+      [
+        user.id,
+        username,
+        displayName,
+        email,
+        avatarUrl,
+        phone,
+        address,
+        provider,
+        providers,
+      ],
+    );
+  });
+}
+
+async function ensureSignupEmailAvailable(client: any, email: string) {
+  const result = await client.query(
+    `SELECT 1
+     FROM public.profiles
+     WHERE lower(email) = lower($1)
+     LIMIT 1`,
+    [email],
+  );
+  if (result.rows[0]) throw new Error('E-posta zaten kullanılıyor');
+}
+
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const action = cleanText(body.action);
+
+    if (action === 'completeOAuthProfile') {
+      const session = await getSessionFromRequest(request, body);
+      if (!session?.user?.id) {
+        return json(
+          { data: { session: null, profile: null }, error: { message: 'Auth required' } },
+          401,
+        );
+      }
+      await completeOAuthProfile(session);
+      const profile = await profileForUser(session.user.id);
+      return json({
+        data: { session, profile: profileForClient(profile) },
+        error: null,
+      });
+    }
+
+    if (action === 'signUpWithPassword') {
+      const fullName = cleanText(body.fullName || body.full_name).slice(0, 160);
+      const email = cleanEmail(body.email);
+      const password = String(body.password || '');
+      const passwordAgain = String(body.passwordAgain || body.password_again || '');
+      const city = normalizeTurkeyCity(body.city);
+      const attemptIdentifier =
+        email ||
+        request.headers.get('cf-connecting-ip') ||
+        request.headers.get('x-real-ip') ||
+        'unknown';
+
+      const settings = await getSecuritySettings('tr');
+      const lock = await getLoginAttemptLock('app-signup', attemptIdentifier);
+      if (lock.locked) {
+        return json(
+          { data: { user: null, session: null, profile: null }, error: { message: 'Kayıt geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.' } },
+          429,
+        );
+      }
+
+      if (!fullName || !email || !password || !city) {
+        await recordLoginFailure('app-signup', attemptIdentifier, settings);
+        return json(
+          { data: { user: null, session: null, profile: null }, error: { message: 'Ad soyad, e-posta, şifre ve şehir zorunlu' } },
+          400,
+        );
+      }
+      if (!looksLikeEmail(email)) {
+        await recordLoginFailure('app-signup', attemptIdentifier, settings);
+        return json(
+          { data: { user: null, session: null, profile: null }, error: { message: 'Geçerli bir e-posta girin' } },
+          400,
+        );
+      }
+      if (passwordAgain && password !== passwordAgain) {
+        await recordLoginFailure('app-signup', attemptIdentifier, settings);
+        return json(
+          { data: { user: null, session: null, profile: null }, error: { message: 'Şifreler eşleşmiyor' } },
+          400,
+        );
+      }
+      const passwordError = validatePasswordWithSecuritySettings(password, settings);
+      if (passwordError) {
+        await recordLoginFailure('app-signup', attemptIdentifier, settings);
+        return json(
+          { data: { user: null, session: null, profile: null }, error: { message: passwordError } },
+          400,
+        );
+      }
+
+      let createdAuthUserId: string | null = null;
+      let createdProfileId: string | null = null;
+      try {
+        const usernameBase = cleanSignupUsernameBase(fullName, email);
+        const authUser = await withTransaction(async (client) => {
+          await ensureSignupEmailAvailable(client, email);
+          const username = await uniqueSignupUsername(client, usernameBase);
+          const created = await adminCreateAuthUser({
+            email,
+            password,
+            userMetadata: {
+              full_name: fullName,
+              username,
+              email,
+              city,
+              role: 'member',
+              status: 'Aktif',
+            },
+            appMetadata: { provider: 'email', providers: ['email'] },
+          });
+          createdAuthUserId = created.id;
+          await client.query(
+            `INSERT INTO public.profiles (
+               id, full_name, username, email, role, status, city, slug, updated_at
+             )
+             VALUES ($1::uuid, $2, $3, $4, 'member', 'Aktif', $5, $3, now())`,
+            [created.id, fullName, username, email, city],
+          );
+          createdProfileId = created.id;
+          return created;
+        });
+
+        const signInResult = await signInWithPassword(email, password);
+        if (signInResult.error || !signInResult.data.session?.user?.id) {
+          throw new Error(signInResult.error?.message || 'Kayıt oturumu oluşturulamadı');
+        }
+        await clearLoginFailures('app-signup', attemptIdentifier);
+        const profile = await profileForUser(authUser.id);
+        return json({
+          data: { ...signInResult.data, profile: profileForClient(profile) },
+          error: null,
+        });
+      } catch (error: any) {
+        if (createdProfileId) {
+          await dbQuery('DELETE FROM public.profiles WHERE id = $1::uuid', [createdProfileId]).catch(() => undefined);
+        }
+        if (createdAuthUserId) {
+          await adminDeleteAuthUser(createdAuthUserId).catch(() => undefined);
+        }
+        await recordLoginFailure('app-signup', attemptIdentifier, settings);
+        return json(
+          { data: { user: null, session: null, profile: null }, error: { message: error?.message || 'Kayıt oluşturulamadı' } },
+          400,
+        );
+      }
+    }
 
     if (action === 'signInWithPassword') {
       const identifier = cleanIdentifier(body.identifier || body.email);

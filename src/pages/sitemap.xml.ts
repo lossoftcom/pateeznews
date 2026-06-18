@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { slugify } from '@/utils/helpers';
 import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
+import { getPostPathSegment } from '@/utils/postUrl';
 
 const CACHE_TTL_MS = 0;
 const cacheByKey: Record<string, { body: string; expiry: number; contentType: string }> = {};
@@ -141,13 +142,12 @@ export const GET: APIRoute = async ({ request }) => {
     ? toBaseUrl(requestUrl.origin, requestUrl.origin)
     : baseUrl;
 
-  const [postsRes, navRes, profilesRes] = await Promise.all([
+  const [postsRes, navRes, profilesRes, siteSettings] = await Promise.all([
     supabase
       .from('posts')
-      .select('slug, updated_at, published_at')
+      .select('id, slug, updated_at, published_at')
       .eq('status', 'published')
-      .eq('language_code', lang)
-      .not('slug', 'is', null),
+      .eq('language_code', lang),
     supabase
       .from('navigation_items')
       .select('label, value, is_active, created_at')
@@ -158,6 +158,7 @@ export const GET: APIRoute = async ({ request }) => {
       .select('username, created_at, updated_at, role')
       .eq('role', 'publisher')
       .not('username', 'is', null),
+    dataService.getSiteSettings(lang),
   ]);
 
   const urls: { loc: string; lastmod?: string }[] = [];
@@ -187,11 +188,11 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   for (const post of (postsRes.data || [])) {
-    const slug = String((post as any).slug || '').trim();
-    if (!slug) continue;
+    const pathSegment = getPostPathSegment(post as any, siteSettings);
+    if (!pathSegment) continue;
     const lastmod = toIso((post as any).updated_at) || toIso((post as any).published_at);
     urls.push({
-      loc: toLoc(`/haber/${encodeURIComponent(slug)}`),
+      loc: toLoc(`/haber/${encodeURIComponent(pathSegment)}`),
       ...(lastmod ? { lastmod } : {}),
     });
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/constants/turkey_cities.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
@@ -236,6 +237,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       expertise: _form.expertise.text,
       foundationDate: _form.foundationDate.text,
       address: _form.address.text,
+      city: _form.city,
       website: _form.website.text,
       aboutMe: _form.aboutMe.text,
       slug: _form.slug.text,
@@ -383,6 +385,7 @@ class _AccountSettingsForm {
   final expertise = TextEditingController();
   final foundationDate = TextEditingController();
   final address = TextEditingController();
+  var city = defaultTurkeyCity;
   final website = TextEditingController();
   final aboutMe = TextEditingController();
   final slug = TextEditingController();
@@ -417,6 +420,7 @@ class _AccountSettingsForm {
     expertise.text = profile.expertise;
     foundationDate.text = profile.foundationDate;
     address.text = profile.address;
+    city = normalizeTurkeyCity(profile.city);
     website.text = profile.website;
     aboutMe.text = profile.aboutMe;
     slug.text = profile.slug;
@@ -497,6 +501,16 @@ class _ProfileInfoTab extends StatelessWidget {
             _TextInputField(
               label: context.t('Foundation / Birth Date'),
               controller: form.foundationDate,
+            ),
+            _SelectInputField(
+              label: 'Şehir',
+              value: form.city,
+              items: turkeyCities,
+              requiredField: true,
+              onChanged: (value) {
+                if (value == null) return;
+                form.city = normalizeTurkeyCity(value);
+              },
             ),
             _TextInputField(
               label: context.t('Website'),
@@ -1179,6 +1193,64 @@ class _TextInputField extends StatelessWidget {
             letterSpacing: 0,
           ),
           decoration: _inputDecoration(hintText: hintText),
+        ),
+      ],
+    );
+  }
+}
+
+class _SelectInputField extends StatelessWidget {
+  const _SelectInputField({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.requiredField = false,
+  });
+
+  final String label;
+  final String value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+  final bool requiredField;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeValue = items.contains(value)
+        ? value
+        : (items.isEmpty ? null : items.first);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(requiredField ? '$label *' : label),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: safeValue,
+          isExpanded: true,
+          validator: requiredField
+              ? (value) => (value ?? '').trim().isEmpty
+                    ? context.t('This field is required')
+                    : null
+              : null,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          dropdownColor: Colors.white,
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            size: 18,
+            color: AppColors.iconMuted,
+          ),
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+          decoration: _inputDecoration(),
+          items: [
+            for (final item in items)
+              DropdownMenuItem<String>(value: item, child: Text(item)),
+          ],
+          onChanged: onChanged,
         ),
       ],
     );

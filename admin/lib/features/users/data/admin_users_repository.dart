@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
+import 'package:pateeznews_admin/shared/constants/turkey_cities.dart';
 
 import '../../auth/data/admin_auth_models.dart';
 import '../presentation/users_models.dart';
@@ -186,7 +187,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       filters.add({
         'type': 'or',
         'value':
-            'full_name.ilike.$pattern,username.ilike.$pattern,email.ilike.$pattern',
+            'full_name.ilike.$pattern,username.ilike.$pattern,email.ilike.$pattern,auth_provider.ilike.$pattern',
       });
     }
 
@@ -197,7 +198,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       'table': 'profiles',
       'method': 'select',
       'select':
-          'id,username,full_name,email,role,status,reward_system,avatar_url,created_at',
+          'id,username,full_name,email,city,auth_provider,role,status,reward_system,avatar_url,created_at',
       'filters': filters,
       'orders': _userOrders(sortKey, sortAscending),
       'range': {'from': from, 'to': to},
@@ -340,6 +341,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
     final column = switch (sortKey) {
       'user' => 'full_name',
       'role' => 'role',
+      'authProvider' => 'auth_provider',
       'reward' => 'reward_system',
       'status' => 'status',
       'id' || 'created' => 'created_at',
@@ -358,6 +360,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       'password': data.password,
       'fullName': data.fullName.trim(),
       'username': data.username.trim(),
+      'city': normalizeTurkeyCity(data.city),
       'role': data.role,
       'status': data.status,
       'rewardEnabled': data.rewardEnabled,
@@ -373,6 +376,8 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       fullName: item['full_name']?.toString() ?? '',
       username: item['username']?.toString() ?? '',
       email: item['email']?.toString() ?? '',
+      city: normalizeTurkeyCity(item['city']?.toString() ?? defaultTurkeyCity),
+      authProvider: item['auth_provider']?.toString() ?? 'email',
       role: role,
       roleLabel: roleLabelFor(role, _fallbackRoles),
       status: item['status']?.toString() ?? 'Aktif',

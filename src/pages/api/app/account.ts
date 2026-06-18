@@ -14,6 +14,7 @@ import {
   validatePasswordWithSecuritySettings,
   type SecuritySettings,
 } from '@/lib/server/securitySettings';
+import { normalizeTurkeyCityOrDefault } from '@/lib/server/turkeyCities';
 
 async function emailForUser(userId: string) {
   const result = await dbQuery<{ email: string | null }>(
@@ -38,6 +39,7 @@ function authUserMetadata(payload: ReturnType<typeof userPayload>) {
     email: payload.email,
     role: payload.role,
     status: payload.status,
+    city: payload.city,
   };
 }
 
@@ -81,6 +83,7 @@ function userPayload(
   const role = cleanText(body.role) || 'member';
   const status = cleanText(body.status) || 'Aktif';
   const rewardEnabled = body.rewardEnabled === true;
+  const city = normalizeTurkeyCityOrDefault(body.city);
 
   if (!fullName || !username || !email) {
     return { error: 'Ad soyad, kullanıcı adı ve e-posta zorunlu' };
@@ -97,7 +100,7 @@ function userPayload(
     if (passwordError) return { error: passwordError };
   }
 
-  return { email, password, fullName, username, role, status, rewardEnabled };
+  return { email, password, fullName, username, role, status, rewardEnabled, city };
 }
 
 async function ensureUniqueUserFields(client: any, input: { userId?: string; email: string; username: string }) {
@@ -120,7 +123,7 @@ async function ensureUniqueUserFields(client: any, input: { userId?: string; ema
 
 async function profileForClient(client: any, userId: string) {
   const result = await client.query(
-    `SELECT id, username, full_name, avatar_url, cover_url, role, status, reward_system, email, created_at
+    `SELECT id, username, full_name, avatar_url, cover_url, role, status, reward_system, email, city, created_at
      FROM public.profiles
      WHERE id = $1::uuid
      LIMIT 1`,
@@ -317,9 +320,9 @@ export const POST: APIRoute = async ({ request }) => {
         createdAuthUserId = targetUserId;
         await client.query(
           `INSERT INTO public.profiles (
-             id, full_name, username, email, role, status, reward_system, updated_at
+             id, full_name, username, email, role, status, reward_system, city, updated_at
            )
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, now())
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, now())
            ON CONFLICT (id) DO UPDATE
            SET full_name = EXCLUDED.full_name,
                username = EXCLUDED.username,
@@ -327,6 +330,7 @@ export const POST: APIRoute = async ({ request }) => {
                role = EXCLUDED.role,
                status = EXCLUDED.status,
                reward_system = EXCLUDED.reward_system,
+               city = EXCLUDED.city,
                updated_at = now()`,
           [
             targetUserId,
@@ -336,6 +340,7 @@ export const POST: APIRoute = async ({ request }) => {
             payload.role,
             payload.status,
             payload.rewardEnabled,
+            payload.city,
           ]
         );
         return profileForClient(client, targetUserId);
@@ -371,8 +376,9 @@ export const POST: APIRoute = async ({ request }) => {
                role = $4,
                status = $5,
                reward_system = $6,
+               city = $7,
                updated_at = now()
-           WHERE id = $7::uuid
+           WHERE id = $8::uuid
            RETURNING id`,
           [
             payload.fullName,
@@ -381,6 +387,7 @@ export const POST: APIRoute = async ({ request }) => {
             payload.role,
             payload.status,
             payload.rewardEnabled,
+            payload.city,
             targetUserId,
           ]
         );

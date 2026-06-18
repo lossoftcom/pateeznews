@@ -177,6 +177,7 @@ async function reserveOutbox(limit: number) {
        FROM public.notification_outbox
        WHERE status IN ('queued', 'failed')
          AND attempts < max_attempts
+         AND COALESCE(error_code, '') <> 'THIRD_PARTY_AUTH_ERROR'
          AND next_attempt_at <= now()
        ORDER BY next_attempt_at ASC, created_at ASC
        LIMIT $1
@@ -208,6 +209,10 @@ function retryDelaySeconds(attempts: number, retryAfterSeconds?: number) {
   const base = Math.min(3600, Math.max(30, Math.pow(2, Math.max(0, attempts - 1)) * 30));
   const jitter = Math.floor(Math.random() * 15);
   return base + jitter;
+}
+
+function isNonRetryableProviderAuthError(errorCode: string) {
+  return String(errorCode || '').toUpperCase() === 'THIRD_PARTY_AUTH_ERROR';
 }
 
 async function markSuccess(row: OutboxRow, messageId: string) {
@@ -257,7 +262,10 @@ async function markFailure(
     );
   }
 
-  const finalFailure = invalidToken || row.attempts >= row.max_attempts;
+  const finalFailure =
+    invalidToken ||
+    isNonRetryableProviderAuthError(errorCode) ||
+    row.attempts >= row.max_attempts;
   const nextAttemptAt = finalFailure
     ? null
     : new Date(Date.now() + retryDelaySeconds(row.attempts, retryAfterSeconds) * 1000).toISOString();
@@ -333,7 +341,11 @@ async function refreshCampaignCounts(campaignId: string) {
          WHERE o.campaign_id = c.id
            AND (
              o.status IN ('queued', 'sending')
-             OR (o.status = 'failed' AND o.attempts < o.max_attempts)
+             OR (
+               o.status = 'failed'
+               AND o.attempts < o.max_attempts
+               AND COALESCE(o.error_code, '') <> 'THIRD_PARTY_AUTH_ERROR'
+             )
            )
        )`,
     [campaignId]

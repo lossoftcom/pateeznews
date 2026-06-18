@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
-import { CheckCircle2, Users } from 'lucide-react';
 import { NewsType, type NewsItem } from '@/types';
 import AnimatedNumber from '../ui/AnimatedNumber';
 import { useLanguage } from '@/context/LanguageContext';
+import RemixIcon from '@/components/ui/RemixIcon';
 
 interface PollCardProps {
   data: NewsItem;
@@ -61,12 +61,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent -translate-x-full group-hover/badge:translate-x-full transition-transform duration-[800ms] ease-out pointer-events-none" />
                 
                 {/* Poll icon */}
-                <span 
-                  className="material-symbols-rounded text-white/80 relative z-10" 
-                  style={{ fontSize: '13px', fontVariationSettings: "'FILL' 1, 'wght' 400" }}
-                >
-                  poll
-                </span>
+                <RemixIcon name="ri-bar-chart-box-line" size={13} className="text-white/80 relative z-10" />
                 
                 {/* Thin divider */}
                 <div className="w-px h-3 bg-white/15 relative z-10" />
@@ -160,7 +155,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                           {/* Selected Check */}
                           {isSelected && (
                             <div className="absolute top-3 right-3 w-8 h-8 bg-white text-palette-maroon rounded-full flex items-center justify-center shadow-lg animate-in zoom-in duration-300">
-                              <CheckCircle2 size={20} strokeWidth={3} />
+                              <RemixIcon name="ri-check-line" size={20} />
                             </div>
                           )}
                           {/* Progress Bar Inside */}
@@ -263,7 +258,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
                           </span>
                         </div>
                         {isSelected && (
-                          <CheckCircle2 size={20} className="text-palette-maroon animate-in zoom-in duration-300" />
+                          <RemixIcon name="ri-check-line" size={20} className="text-palette-maroon animate-in zoom-in duration-300" />
                         )}
                       </div>
                     )}
@@ -277,14 +272,14 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
         {/* FOOTER - Minimal Stats */}
         <div className="px-6 py-4 bg-palette-beige/[0.04] border-t border-palette-beige/20 flex items-center justify-between">
           <div className="flex items-center gap-2 text-palette-tan/50">
-            <Users size={14} />
+            <RemixIcon name="ri-group-line" size={14} />
             <span className="text-[11px] font-[800] tracking-wide">
               <AnimatedNumber value={hasVoted ? (data.totalVotes || 0) + 1 : (data.totalVotes || 0)} suffix="" /> {t('poll.participant_unit')}
             </span>
           </div>
           {hasVoted && (
             <div className="flex items-center gap-1.5 text-emerald-600 animate-in fade-in slide-in-from-right-2 duration-500">
-              <CheckCircle2 size={14} />
+              <RemixIcon name="ri-check-line" size={14} />
               <span className="text-[10px] font-black uppercase tracking-widest">{t('card.vote')}</span>
             </div>
           )}

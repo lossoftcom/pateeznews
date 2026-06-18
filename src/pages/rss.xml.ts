@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase } from '@/lib/supabase';
 import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
+import { getPostPathSegment } from '@/utils/postUrl';
 
 const CACHE_TTL_MS = 0;
 const cacheByKey: Record<string, { body: string; expiry: number; contentType: string }> = {};
@@ -117,7 +118,7 @@ export const GET: APIRoute = async ({ request }) => {
   const fetchSettings = async (languageCode: string) => {
     const { data } = await supabase
       .from('site_settings')
-      .select('site_name, meta_description, canonical_url')
+      .select('site_name, meta_description, canonical_url, content_post_url_structure, content_redirect_rss_posts')
       .eq('language_code', languageCode)
       .maybeSingle();
     return data || null;
@@ -134,23 +135,32 @@ export const GET: APIRoute = async ({ request }) => {
 
   const { data: posts } = await supabase
     .from('posts')
-    .select('id, slug, title, summary, seo_description, published_at, updated_at')
+    .select('id, slug, title, summary, seo_description, published_at, updated_at, card_data')
     .eq('status', 'published')
     .eq('language_code', lang)
-    .not('slug', 'is', null)
     .order('published_at', { ascending: false })
     .limit(50);
 
-  const buildItemLink = (slug: string) => {
-    const url = new URL(`/haber/${encodeURIComponent(slug)}`, base);
+  const getExternalRssLink = (post: any) => {
+    if (settings?.content_redirect_rss_posts !== true) return '';
+    const cardData = post?.card_data && typeof post.card_data === 'object' ? post.card_data : {};
+    const raw = String(cardData.sourceUrl || cardData.source_url || cardData.originalUrl || cardData.original_url || cardData.url || '').trim();
+    if (!raw.startsWith('http://') && !raw.startsWith('https://')) return '';
+    return raw;
+  };
+
+  const buildItemLink = (post: any) => {
+    const externalUrl = getExternalRssLink(post);
+    if (externalUrl) return externalUrl;
+    const segment = getPostPathSegment(post, settings as any);
+    if (!segment) return '';
+    const url = new URL(`/haber/${encodeURIComponent(segment)}`, base);
     return applyLangParam(url, lang, shouldUseLangParam, defaultLangCode).toString();
   };
 
   const itemsXml = (posts || []).map((post: any) => {
-    const slug = String(post?.slug || '').trim();
-    if (!slug) return '';
-
-    const link = buildItemLink(slug);
+    const link = buildItemLink(post);
+    if (!link) return '';
     const title = stripHtml(String(post?.title || ''));
     const descriptionSource = String(post?.seo_description || post?.summary || '').trim();
     const description = stripHtml(descriptionSource);

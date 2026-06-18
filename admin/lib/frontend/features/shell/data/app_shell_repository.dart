@@ -11,13 +11,15 @@ class AppShellSettings {
     required this.logoUrl,
     required this.darkLogoUrl,
     required this.faviconUrl,
+    this.socialAuth = const AppSocialAuthSettings.empty(),
   });
 
   const AppShellSettings.empty()
     : siteName = '',
       logoUrl = '',
       darkLogoUrl = '',
-      faviconUrl = '';
+      faviconUrl = '',
+      socialAuth = const AppSocialAuthSettings.empty();
 
   factory AppShellSettings.fromJson(
     Map<dynamic, dynamic> json,
@@ -28,6 +30,7 @@ class AppShellSettings {
       logoUrl: resolveUrl(_string(json['logoUrl'])),
       darkLogoUrl: resolveUrl(_string(json['darkLogoUrl'])),
       faviconUrl: resolveUrl(_string(json['faviconUrl'])),
+      socialAuth: AppSocialAuthSettings.fromJson(json['socialAuth']),
     );
   }
 
@@ -35,6 +38,7 @@ class AppShellSettings {
   final String logoUrl;
   final String darkLogoUrl;
   final String faviconUrl;
+  final AppSocialAuthSettings socialAuth;
 
   String get displayLogoUrl {
     if (logoUrl.isNotEmpty) return logoUrl;
@@ -49,6 +53,53 @@ class AppShellSettings {
   }
 
   bool get hasLogo => displayLogoUrl.isNotEmpty;
+}
+
+class AppSocialAuthSettings {
+  const AppSocialAuthSettings({
+    required this.googleEnabled,
+    required this.appleEnabled,
+    required this.facebookEnabled,
+    required this.xEnabled,
+    required this.redirectScheme,
+    required this.redirectHost,
+  });
+
+  const AppSocialAuthSettings.empty()
+    : googleEnabled = true,
+      appleEnabled = true,
+      facebookEnabled = true,
+      xEnabled = true,
+      redirectScheme = 'com.pateez.app',
+      redirectHost = 'login-callback';
+
+  factory AppSocialAuthSettings.fromJson(Object? value) {
+    if (value is! Map) return const AppSocialAuthSettings.empty();
+    return AppSocialAuthSettings(
+      googleEnabled: _bool(value['googleEnabled'], fallback: true),
+      appleEnabled: _bool(value['appleEnabled'], fallback: true),
+      facebookEnabled: _bool(value['facebookEnabled'], fallback: true),
+      xEnabled: _bool(value['xEnabled'], fallback: true),
+      redirectScheme: _string(value['redirectScheme']).isEmpty
+          ? 'com.pateez.app'
+          : _string(value['redirectScheme']),
+      redirectHost: _string(value['redirectHost']).isEmpty
+          ? 'login-callback'
+          : _string(value['redirectHost']),
+    );
+  }
+
+  final bool googleEnabled;
+  final bool appleEnabled;
+  final bool facebookEnabled;
+  final bool xEnabled;
+  final String redirectScheme;
+  final String redirectHost;
+
+  bool get hasAny =>
+      googleEnabled || appleEnabled || facebookEnabled || xEnabled;
+
+  String get redirectTo => '$redirectScheme://$redirectHost';
 }
 
 class AppShellNavigationItem {
@@ -295,6 +346,14 @@ String _cleanLanguageCode(String value) {
 }
 
 String _string(Object? value) => (value ?? '').toString().trim();
+
+bool _bool(Object? value, {required bool fallback}) {
+  if (value is bool) return value;
+  final text = value?.toString().trim().toLowerCase();
+  if (text == 'true' || text == '1') return true;
+  if (text == 'false' || text == '0') return false;
+  return fallback;
+}
 
 String? _nullableString(Object? value) {
   final result = _string(value);

@@ -394,7 +394,7 @@ body.admin-scrollbar-visible::-webkit-scrollbar-thumb:hover {
 }
 
 header nav button {
-    font-size: var(--web-nav-label-size, var(--fs-main-nav, 14px)) !important;
+    font-size: clamp(11px, var(--web-nav-label-size, var(--fs-main-nav, 13px)), 13px) !important;
     font-weight: var(--web-nav-label-weight, 700) !important;
 }
 

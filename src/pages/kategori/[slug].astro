@@ -5,6 +5,7 @@ import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
+import { getPostPathSegment } from '@/utils/postUrl';
 
 export const prerender = false;
 
@@ -108,7 +109,7 @@ const itemListLd = {
     "@type": "ListItem",
     position: index + 1,
     name: stripHtml(String(item?.seoTitle || item?.title || '')),
-    url: new URL(`/haber/${encodeURIComponent(String(item?.slug || item?.id || ''))}`, canonicalBase).toString(),
+    url: new URL(`/haber/${encodeURIComponent(getPostPathSegment(item, siteSettings) || '')}`, canonicalBase).toString(),
   })),
 };
 

@@ -1,29 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
-import {
-  ArrowLeft,
-  Share2,
-  Bookmark,
-  Heart,
-  Clock,
-  ChevronRight,
-  CheckCircle2,
-  Calendar,
-  MapPin,
-  Ticket,
-  Users,
-  Info,
-  Twitter,
-  Facebook,
-  Linkedin,
-  Link as LinkIcon,
-  Home
-} from 'lucide-react';
-import { type NewsItem, NewsType, type NavigationItem } from '@/types';
+import { type NewsItem, NewsType, type NavigationItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import Skeleton from '@/components/ui/Skeleton';
 import { postAction } from '@/services/appActions';
+import { getPostHref, getPostPathSegment } from '@/utils/postUrl';
+import RemixIcon from './ui/RemixIcon';
 
 // Kart bileşenleri
 import ReviewCard from './cards/ReviewCard';
@@ -42,6 +25,7 @@ interface NewsDetailProps {
   data: NewsItem;
   onBack: () => void;
   navItems: NavigationItem[];
+  siteSettings?: SiteSettings | null;
   loading?: boolean;
 }
 
@@ -181,7 +165,7 @@ const QuizAnswerImage: React.FC<{
         className={imageClass}
       />
       <span className={`absolute top-2 right-2 w-7 h-7 rounded-full border bg-white/90 backdrop-blur flex items-center justify-center shadow-sm ${isMarked ? 'border-current text-current' : 'border-gray-200 text-transparent'}`}>
-        {isMarked && <CheckCircle2 size={15} />}
+        {isMarked && <RemixIcon name="ri-check-line" size={15} />}
       </span>
     </div>
   );
@@ -368,7 +352,7 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
                       ) : (
                         <>
                           <span className={`w-6 h-6 shrink-0 rounded-full border flex items-center justify-center ${isSelected || (reveal && answer.isCorrect) ? 'border-current' : 'border-gray-200'}`}>
-                            {(isSelected || (reveal && answer.isCorrect)) && <CheckCircle2 size={14} />}
+                            {(isSelected || (reveal && answer.isCorrect)) && <RemixIcon name="ri-check-line" size={14} />}
                           </span>
                           <span className="text-sm font-semibold leading-snug">{answer.text}</span>
                         </>
@@ -546,7 +530,7 @@ const TableOfContentsBlock: React.FC<{ item: any }> = ({ item }) => {
           <li key={entry.id} className="pl-1 text-sm font-bold text-gray-700 marker:text-palette-red marker:font-black">
             <a href={`#toc-${entry.id}`} className="inline-flex items-center gap-2 hover:text-palette-red transition-colors">
               <span>{entry.title || `${t('admin.post.toc.item')} ${entry.orderNumber}`}</span>
-              <ChevronRight size={14} className="text-gray-300" />
+              <RemixIcon name="ri-arrow-right-s-line" size={14} className="text-gray-300" />
             </a>
             {renderNavList(String(entry.orderNumber), Math.min(level + 1, 3))}
           </li>
@@ -569,7 +553,7 @@ const TableOfContentsBlock: React.FC<{ item: any }> = ({ item }) => {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-[4px] border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-gray-600 hover:border-palette-red hover:text-palette-red transition-colors"
             >
-              <LinkIcon size={13} />
+              <RemixIcon name="ri-link" size={13} />
               URL
             </a>
           )}
@@ -674,7 +658,7 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-[4px] border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-gray-600 hover:border-palette-red hover:text-palette-red transition-colors"
             >
-              <LinkIcon size={13} />
+              <RemixIcon name="ri-link" size={13} />
               URL
             </a>
           )}
@@ -712,7 +696,7 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
               <ul className="space-y-3">
                 {ingredients.map((ingredient: string, index: number) => (
                   <li key={`${ingredient}-${index}`} className="flex items-start gap-3 text-sm font-bold text-gray-700">
-                    <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-palette-red" />
+                    <RemixIcon name="ri-check-line" size={17} className="mt-0.5 shrink-0 text-palette-red" />
                     <span>{ingredient}</span>
                   </li>
                 ))}
@@ -848,11 +832,11 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
       .filter((entry: any) => entry.name || entry.role || entry.image || entry.bio)
     : [];
   const metaItems = [
-    eventData.startDateTime ? { icon: Calendar, label: t('news.event.start'), value: formatDateTime(eventData.startDateTime) } : null,
-    eventData.endDateTime ? { icon: Clock, label: t('news.event.end'), value: formatDateTime(eventData.endDateTime) } : null,
-    eventData.organizer ? { icon: Users, label: t('news.event.organizer'), value: eventData.organizer } : null,
-    eventData.venueName ? { icon: MapPin, label: t('news.event.venue'), value: eventData.venueName } : null,
-  ].filter(Boolean) as Array<{ icon: React.ElementType; label: string; value: string }>;
+    eventData.startDateTime ? { icon: 'ri-calendar-line', label: t('news.event.start'), value: formatDateTime(eventData.startDateTime) } : null,
+    eventData.endDateTime ? { icon: 'ri-time-line', label: t('news.event.end'), value: formatDateTime(eventData.endDateTime) } : null,
+    eventData.organizer ? { icon: 'ri-group-line', label: t('news.event.organizer'), value: eventData.organizer } : null,
+    eventData.venueName ? { icon: 'ri-map-pin-line', label: t('news.event.venue'), value: eventData.venueName } : null,
+  ].filter(Boolean) as Array<{ icon: string; label: string; value: string }>;
   const hasRegistration = eventData.registrationType && eventData.registrationType !== 'none';
   const hasLocation = eventData.address || eventData.latitude || eventData.longitude;
   const hasContent = metaItems.length > 0 || hasRegistration || eventData.ticketUrl || eventData.ticketPrice || eventData.capacity || hasLocation || schedule.length > 0 || highlights.length > 0 || speakers.length > 0;
@@ -869,11 +853,10 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
         {metaItems.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {metaItems.map((meta) => {
-              const Icon = meta.icon;
               return (
                 <div key={meta.label} className="rounded-[5px] border border-gray-100 bg-white p-3 shadow-sm">
                   <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    <Icon size={13} />
+                    <RemixIcon name={meta.icon} size={13} />
                     {meta.label}
                   </span>
                   <span className="mt-1 block text-sm font-black text-gray-900">{meta.value}</span>
@@ -889,7 +872,7 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
           {hasLocation && (
             <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
               <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
-                <MapPin size={18} className="text-palette-red" />
+                <RemixIcon name="ri-map-pin-line" size={18} className="text-palette-red" />
                 {t('news.event.location')}
               </h4>
               <div className="space-y-3 text-sm font-bold text-gray-700">
@@ -905,7 +888,7 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
           {(hasRegistration || eventData.ticketUrl || eventData.ticketPrice || eventData.capacity) && (
             <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
               <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
-                <Ticket size={18} className="text-palette-red" />
+                <RemixIcon name="ri-ticket-line" size={18} className="text-palette-red" />
                 {t('news.event.registration')}
               </h4>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -934,7 +917,7 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-1.5 rounded-[4px] border border-gray-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wider text-gray-600 hover:border-palette-red hover:text-palette-red transition-colors"
                   >
-                    <LinkIcon size={13} />
+                    <RemixIcon name="ri-link" size={13} />
                     {t('news.event.ticket_url')}
                   </a>
                 )}
@@ -978,7 +961,7 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
       {highlights.length > 0 && (
         <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
           <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
-            <Info size={18} className="text-palette-red" />
+            <RemixIcon name="ri-information-line" size={18} className="text-palette-red" />
             {eventData.highlightsTitle || t('news.event.highlights')}
           </h4>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -995,7 +978,7 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
       {speakers.length > 0 && (
         <div className="rounded-[5px] border border-gray-100 bg-white p-5 shadow-sm">
           <h4 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
-            <Users size={18} className="text-palette-red" />
+            <RemixIcon name="ri-group-line" size={18} className="text-palette-red" />
             {eventData.speakersTitle || t('news.event.speakers')}
           </h4>
           <div className="grid gap-4 md:grid-cols-2">
@@ -1027,7 +1010,7 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
   );
 };
 
-const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading }) => {
+const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSettings, loading }) => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [detailCounts, setDetailCounts] = useState({
@@ -1041,15 +1024,20 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
+  const showPostAuthor = siteSettings?.content_show_post_author !== false;
+  const showPostDate = siteSettings?.content_show_post_date !== false;
+  const showPostViewCount = siteSettings?.content_show_post_view_count !== false;
+  const detailHref = getPostHref(data, siteSettings);
+  const postPathSegment = getPostPathSegment(data, siteSettings);
 
   const stripHtml = stripHtmlToText;
 
   const shareUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/haber/${data.slug || data.id}`
+    ? `${window.location.origin}${detailHref}`
     : '';
 
   const getUtmUrl = (source: string) => {
-    return `${shareUrl}?utm_source=${source}&utm_medium=social&utm_campaign=news_detail&utm_content=${data.slug || data.id}`;
+    return `${shareUrl}?utm_source=${source}&utm_medium=social&utm_campaign=news_detail&utm_content=${postPathSegment || data.id}`;
   };
 
   const shareToTwitter = () => {
@@ -1238,7 +1226,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
       case NewsType.BEFORE_AFTER: return <BeforeAfterCard data={data} />;
       case NewsType.FLIP_CARD: return <FlipCard data={data} />;
       case NewsType.EMBED: return <EmbedCard data={data} />;
-      case NewsType.AUDIO: return <AudioCard data={data} />;
+      case NewsType.AUDIO: return <AudioCard data={data} allowDownload={siteSettings?.content_audio_download_enabled !== false} />;
       case NewsType.VIDEO: return <VideoCard data={data} />;
       case NewsType.GALLERY: return <GalleryCard data={data} />;
       case NewsType.POLL: return <PollCard data={data} />;
@@ -1287,12 +1275,12 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         {/* Breadcrumbs */}
         <nav className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-400 capitalize tracking-widest mb-6">
           <button onClick={onBack} className="flex items-center gap-1.5 hover:text-palette-red transition-colors">
-            <Home size={12} />
+            <RemixIcon name="ri-home-5-line" size={12} />
             <span>{t('nav.home')}</span>
           </button>
           {breadcrumbs.map((crumb, idx) => (
             <React.Fragment key={idx}>
-              <ChevronRight size={10} />
+              <RemixIcon name="ri-arrow-right-s-line" size={10} />
               <span className="hover:text-gray-600 transition-colors cursor-default">
                 {t(crumb.label).toLowerCase()}
               </span>
@@ -1320,17 +1308,22 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         {/* Meta Info Bar */}
         <div className={`flex items-center justify-between pt-6 border-t border-gray-100 ${data.title || data.summary ? 'mt-6' : 'mt-2'}`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm">
-              <img src={data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`} alt={data.author} className="w-full h-full object-cover" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black text-gray-900">{data.author}</span>
-                <CheckCircle2 size={14} className="text-palette-red" />
+            {showPostAuthor && (
+              <div className="w-12 h-12 rounded-[5px] bg-gray-100 overflow-hidden shadow-sm">
+                <img src={data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`} alt={data.author} className="w-full h-full object-cover" />
               </div>
+            )}
+            <div>
+              {showPostAuthor && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-black text-gray-900">{data.author}</span>
+                  <RemixIcon name="ri-verified-badge-fill" size={14} className="text-palette-red" />
+                </div>
+              )}
               <div className="flex items-center gap-3 text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                <span className="flex items-center gap-1"><Calendar size={12} /> {data.timestamp}</span>
-                <span className="flex items-center gap-1"><Clock size={12} /> {readingTime} {t('news.reading_time')}</span>
+                {showPostDate && <span className="flex items-center gap-1"><RemixIcon name="ri-calendar-line" size={12} /> {data.timestamp}</span>}
+                <span className="flex items-center gap-1"><RemixIcon name="ri-time-line" size={12} /> {readingTime} {t('news.reading_time')}</span>
+                {showPostViewCount && <span className="flex items-center gap-1"><RemixIcon name="ri-eye-line" size={12} /> {detailCounts.views.toLocaleString()}</span>}
               </div>
             </div>
           </div>
@@ -1340,11 +1333,11 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
               onClick={handleNativeShare}
               className="flex items-center gap-2 px-5 py-2.5 bg-palette-maroon text-white rounded-[5px] text-xs font-black transition-all hover:bg-palette-red shadow-md active:scale-95"
             >
-              <Share2 size={14} />
+              <RemixIcon name="ri-share-forward-line" size={14} />
               <span>{t('common.share')}</span>
             </button>
             <button onClick={onBack} className="p-2.5 bg-white border border-gray-200 text-gray-400 rounded-[5px] hover:text-palette-red transition-all">
-              <ArrowLeft size={20} />
+              <RemixIcon name="ri-arrow-left-line" size={20} />
             </button>
           </div>
         </div>
@@ -1365,13 +1358,13 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
             onClick={shareToTwitter}
             className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-red text-palette-beige hover:scale-110 transition-all shadow-sm active:scale-95"
           >
-            <Twitter size={18} className="fill-current" />
+            <RemixIcon name="ri-twitter-x-fill" size={18} />
           </button>
           <button
             onClick={shareToFacebook}
             className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-maroon text-palette-beige hover:scale-110 transition-all shadow-sm active:scale-95"
           >
-            <Facebook size={18} className="fill-current" />
+            <RemixIcon name="ri-facebook-fill" size={18} />
           </button>
           <button
             onClick={() => {
@@ -1380,13 +1373,13 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
             }}
             className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-accent text-palette-maroon hover:scale-110 transition-all shadow-sm active:scale-95"
           >
-            <Linkedin size={18} className="fill-current" />
+            <RemixIcon name="ri-linkedin-fill" size={18} />
           </button>
           <button
             onClick={() => copyLink()}
             className="w-10 h-10 flex items-center justify-center rounded-[5px] bg-gray-100 text-gray-500 hover:bg-gray-900 hover:text-white transition-all shadow-sm active:scale-95"
           >
-            <LinkIcon size={18} />
+            <RemixIcon name="ri-link" size={18} />
           </button>
 
           <div className="w-px h-6 bg-gray-100 my-1"></div>
@@ -1394,14 +1387,14 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
           {/* Like Button with Count */}
           <div className="flex flex-col items-center">
             <button onClick={toggleDetailLike} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm group ${detailState.liked ? 'bg-palette-red text-white' : 'bg-palette-red/5 text-palette-red hover:bg-palette-red hover:text-white'}`}>
-              <Heart size={18} className="group-hover:scale-110 transition-transform" />
+              <RemixIcon name={detailState.liked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'} size={18} className="group-hover:scale-110 transition-transform" />
             </button>
             <span className="text-[10px] font-black text-palette-red mt-1">{detailCounts.likes.toLocaleString()}</span>
           </div>
 
           {/* Bookmark Button */}
           <button onClick={toggleDetailSave} className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-all shadow-sm border border-gray-100 ${detailState.saved ? 'bg-palette-maroon text-white' : 'bg-gray-50 text-gray-400 hover:bg-palette-maroon hover:text-white'}`}>
-            <Bookmark size={18} />
+            <RemixIcon name={detailState.saved ? 'ri-bookmark-fill' : 'ri-bookmark-line'} size={18} />
           </button>
         </aside>
 
@@ -1429,7 +1422,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                       <div key={item.id} className="rich-text-content prose prose-lg max-w-full text-gray-800">
                         {item.title && <h3 className="text-2xl font-black text-gray-900 mb-4">{item.title}</h3>}
                         <div dangerouslySetInnerHTML={{ __html: item.description || '' }} className="leading-[1.85] font-medium text-gray-700" />
-                        {item.source && <p className="text-xs text-gray-400 mt-2 italic flex items-center gap-1"><LinkIcon size={12} /> {t('news.source_prefix')} {item.source}</p>}
+                        {item.source && <p className="text-xs text-gray-400 mt-2 italic flex items-center gap-1"><RemixIcon name="ri-link" size={12} /> {t('news.source_prefix')} {item.source}</p>}
                       </div>
                     );
                   case 'image':
@@ -1535,7 +1528,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
                   case 'audio':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <AudioCard data={{ ...data, mediaUrl: item.mediaUrl } as any} />
+                      <AudioCard data={{ ...data, mediaUrl: item.mediaUrl } as any} allowDownload={siteSettings?.content_audio_download_enabled !== false} />
                     </div>;
                   case 'social':
                   case 'iframe':
@@ -1561,9 +1554,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
               <div className="flex items-center justify-center gap-3 mb-6">
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-palette-beige/30 rounded-full border border-palette-beige">
-                  <span className="material-symbols-rounded text-palette-tan" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>
-                    quiz
-                  </span>
+                  <RemixIcon name="ri-questionnaire-line" size={16} className="text-palette-tan" />
                   <span className="text-[10px] font-bold text-palette-tan uppercase tracking-widest">{t('news.faq_title')}</span>
                 </div>
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-palette-beige to-transparent"></div>
@@ -1688,7 +1679,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, loading
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         className={`fixed bottom-8 right-8 p-4 bg-white border border-gray-200 rounded-[5px] shadow-xl text-gray-400 hover:text-palette-red transition-all z-50 ${scrollProgress > 20 ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}
       >
-        <ChevronRight size={20} className="-rotate-90" />
+        <RemixIcon name="ri-arrow-right-s-line" size={20} className="-rotate-90" />
       </button>
 
     </div>

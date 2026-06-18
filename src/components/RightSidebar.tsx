@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TrendingUp, ArrowUpRight, ArrowDownRight, Sun, Cloud, CloudRain, CloudSun, CloudSnow, CloudFog, CloudLightning, DollarSign, Euro, Bitcoin, Coins, MapPin, Mail, Phone, Navigation, Clock3 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NewsItem, type SiteSettings } from '@/types';
 import Skeleton from '@/components/ui/Skeleton';
@@ -7,6 +6,8 @@ import { navigate } from 'astro:transitions/client';
 import { prefetch } from 'astro:prefetch';
 import { subscribeNewsletter } from '@/services/appActions';
 import { useToast } from '@/context/ToastContext';
+import { getPostHref } from '@/utils/postUrl';
+import RemixIcon from './ui/RemixIcon';
 
 interface RightSidebarProps {
    newsData?: NewsItem[];
@@ -15,9 +16,8 @@ interface RightSidebarProps {
    initialSidebarData?: any;
 }
 
-type IconComponent = React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
-type ForecastItem = { day: string; icon: IconComponent; temp: string };
-type MarketItem = { symbol: string; name: string; price: string; change: string; isUp: boolean; icon: IconComponent; color: string; bg: string };
+type ForecastItem = { day: string; icon: string; temp: string };
+type MarketItem = { symbol: string; name: string; price: string; change: string; isUp: boolean; icon: string; color: string; bg: string };
 type WeatherMotionKind = 'clear-day' | 'clear-night' | 'cloudy' | 'fog' | 'rain' | 'snow' | 'storm';
 type DutyPharmacy = {
    id: string;
@@ -243,13 +243,17 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
          maximumFractionDigits: 1
       }).format(Math.max(0, value || 0)).toUpperCase();
    };
+   const popularPostLimit = Math.min(
+      Math.max(Number(siteSettings?.content_popular_post_limit || 4), 1),
+      12
+   );
 
    const fallbackTrending = useMemo(() => [
       { id: '01', title: t('right.trending.01.title'), hits: '128K', category: t('right.trending.01.category'), rising: true, href: '' },
       { id: '02', title: t('right.trending.02.title'), hits: '85K', category: t('right.trending.02.category'), rising: true, href: '' },
       { id: '03', title: t('right.trending.03.title'), hits: '64K', category: t('right.trending.03.category'), rising: false, href: '' },
       { id: '04', title: t('right.trending.04.title'), hits: '42K', category: t('right.trending.04.category'), rising: true, href: '' },
-   ], [t]);
+   ].slice(0, popularPostLimit), [t, popularPostLimit]);
 
    const trending = useMemo(() => {
       const source = (newsData || [])
@@ -259,7 +263,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             const aScore = (a.views || 0) + (a.likes || 0) + ((a.comments || 0) * 2) + (a.shares || 0);
             return bScore - aScore;
          })
-         .slice(0, 4);
+         .slice(0, popularPostLimit);
 
       if (!source.length) return fallbackTrending;
 
@@ -271,23 +275,23 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             hits: formatMetric(score),
             category: item.category || t('right.agenda'),
             rising: idx < 3,
-            href: `/haber/${encodeURIComponent(item.slug || item.id)}`
+            href: getPostHref(item, siteSettings)
          };
       });
-   }, [fallbackTrending, newsData, t, currentLang.code]);
+   }, [fallbackTrending, newsData, t, currentLang.code, popularPostLimit, siteSettings]);
 
    const fallbackMarkets: MarketItem[] = [
-      { symbol: 'USDT', name: t('right.markets.usdt_try'), price: '34.42', change: '%0.45', isUp: true, icon: DollarSign, color: 'text-palette-red', bg: 'bg-palette-red/5' },
-      { symbol: 'EUR', name: t('right.markets.eur_try'), price: '37.15', change: '%0.12', isUp: true, icon: Euro, color: 'text-palette-tan', bg: 'bg-palette-beige/50' },
-      { symbol: 'GA', name: t('right.markets.gold_gram'), price: '2.450', change: '%-0.23', isUp: false, icon: Coins, color: 'text-palette-accent', bg: 'bg-palette-accent/10' },
-      { symbol: 'BTC', name: t('right.markets.bitcoin'), price: '$64.200', change: '%1.85', isUp: true, icon: Bitcoin, color: 'text-palette-maroon', bg: 'bg-palette-maroon/5' },
+      { symbol: 'USDT', name: t('right.markets.usdt_try'), price: '34.42', change: '%0.45', isUp: true, icon: 'ri-money-dollar-circle-line', color: 'text-palette-red', bg: 'bg-palette-red/5' },
+      { symbol: 'EUR', name: t('right.markets.eur_try'), price: '37.15', change: '%0.12', isUp: true, icon: 'ri-money-euro-circle-line', color: 'text-palette-tan', bg: 'bg-palette-beige/50' },
+      { symbol: 'GA', name: t('right.markets.gold_gram'), price: '2.450', change: '%-0.23', isUp: false, icon: 'ri-copper-coin-line', color: 'text-palette-accent', bg: 'bg-palette-accent/10' },
+      { symbol: 'BTC', name: t('right.markets.bitcoin'), price: '$64.200', change: '%1.85', isUp: true, icon: 'ri-btc-line', color: 'text-palette-maroon', bg: 'bg-palette-maroon/5' },
    ];
 
    const marketStyle: Record<string, any> = {
-      USDT: { icon: DollarSign, color: 'text-palette-red', bg: 'bg-palette-red/5' },
-      EUR: { icon: Euro, color: 'text-palette-tan', bg: 'bg-palette-beige/50' },
-      GA: { icon: Coins, color: 'text-palette-accent', bg: 'bg-palette-accent/10' },
-      BTC: { icon: Bitcoin, color: 'text-palette-maroon', bg: 'bg-palette-maroon/5' },
+      USDT: { icon: 'ri-money-dollar-circle-line', color: 'text-palette-red', bg: 'bg-palette-red/5' },
+      EUR: { icon: 'ri-money-euro-circle-line', color: 'text-palette-tan', bg: 'bg-palette-beige/50' },
+      GA: { icon: 'ri-copper-coin-line', color: 'text-palette-accent', bg: 'bg-palette-accent/10' },
+      BTC: { icon: 'ri-btc-line', color: 'text-palette-maroon', bg: 'bg-palette-maroon/5' },
    };
 
    const markets = useMemo<MarketItem[]>(() => {
@@ -312,22 +316,22 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    }, [liveSidebar, t, currentLang.code]);
 
    const fallbackForecast: ForecastItem[] = [
-      { day: t('days.mon_short'), icon: CloudSun, temp: '--°' },
-      { day: t('days.tue_short'), icon: Sun, temp: '--°' },
-      { day: t('days.wed_short'), icon: CloudRain, temp: '--°' },
-      { day: t('days.thu_short'), icon: Cloud, temp: '--°' },
-      { day: t('days.fri_short'), icon: Sun, temp: '--°' },
+      { day: t('days.mon_short'), icon: 'ri-sun-cloudy-line', temp: '--°' },
+      { day: t('days.tue_short'), icon: 'ri-sun-line', temp: '--°' },
+      { day: t('days.wed_short'), icon: 'ri-showers-line', temp: '--°' },
+      { day: t('days.thu_short'), icon: 'ri-cloudy-line', temp: '--°' },
+      { day: t('days.fri_short'), icon: 'ri-sun-line', temp: '--°' },
    ];
 
    const weatherIcon = (code?: number) => {
       const value = Number(code || 0);
-      if ([0, 1].includes(value)) return Sun;
-      if ([2, 3].includes(value)) return CloudSun;
-      if ([45, 48].includes(value)) return CloudFog;
-      if ((value >= 71 && value <= 77) || [85, 86].includes(value)) return CloudSnow;
-      if (value >= 51 && value <= 82) return CloudRain;
-      if (value >= 95) return CloudLightning;
-      return Cloud;
+      if ([0, 1].includes(value)) return 'ri-sun-line';
+      if ([2, 3].includes(value)) return 'ri-sun-cloudy-line';
+      if ([45, 48].includes(value)) return 'ri-mist-line';
+      if ((value >= 71 && value <= 77) || [85, 86].includes(value)) return 'ri-snowy-line';
+      if (value >= 51 && value <= 82) return 'ri-showers-line';
+      if (value >= 95) return 'ri-thunderstorms-line';
+      return 'ri-cloudy-line';
    };
 
    const weatherConditionLabel = (code?: number) => {
@@ -475,7 +479,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                               {pharmacy.district}
                            </div>
                         </div>
-                        <span className="material-symbols-rounded text-palette-red/80 shrink-0" style={{ fontSize: '22px' }}>local_pharmacy</span>
+                        <RemixIcon name="ri-medicine-bottle-line" size={22} className="text-palette-red/80 shrink-0" />
                      </div>
 
                      {pharmacy.note && (
@@ -493,7 +497,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                            href={pharmacy.phoneHref ? `tel:${pharmacy.phoneHref}` : undefined}
                            className="h-9 rounded-[5px] bg-palette-beige/30 text-gray-800 border border-palette-beige/60 flex items-center justify-center gap-2 text-[11px] font-medium hover:bg-white transition-colors"
                         >
-                           <Phone size={13} />
+                           <RemixIcon name="ri-phone-line" size={13} />
                            {pharmacy.phone || t('right.pharmacy_call')}
                         </a>
                         <a
@@ -502,7 +506,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                            rel="noreferrer"
                            className="h-9 rounded-[5px] bg-palette-accent text-palette-maroon flex items-center justify-center gap-2 text-[11px] font-medium shadow-lg shadow-palette-accent/20 hover:bg-palette-maroon hover:text-palette-beige transition-colors"
                         >
-                           <Navigation size={13} />
+                           <RemixIcon name="ri-navigation-line" size={13} />
                            {t('right.pharmacy_route')}
                         </a>
                      </div>
@@ -517,7 +521,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
 
             <div className="border-t border-palette-beige/40 bg-palette-beige/5 px-5 py-3 flex items-center justify-between gap-3">
                <div className="flex items-center gap-1.5 text-[10px] font-medium text-palette-tan/50 min-w-0">
-                  <Clock3 size={11} />
+                  <RemixIcon name="ri-time-line" size={11} />
                   <span className="truncate">{t('right.pharmacy_midnight_guard')}</span>
                </div>
                {pharmacyUpdatedAt && (
@@ -531,7 +535,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             <div className="p-6 pb-0 flex items-start justify-between">
                <div>
                   <div className="flex items-center gap-1.5 text-palette-tan/50 mb-2">
-                     <MapPin size={12} />
+                     <RemixIcon name="ri-map-pin-line" size={12} />
                      <span className="text-[10px] font-medium uppercase tracking-[0.15em]">{weatherLocation}</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -551,7 +555,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                {forecast.map((day, idx) => (
                   <div key={idx} className={`flex flex-col items-center justify-center py-4 gap-2 ${idx !== forecast.length - 1 ? 'border-r border-palette-beige/40' : ''} hover:bg-white transition-colors cursor-default`}>
                      <span className="text-[10px] font-medium text-palette-tan/50 uppercase">{day.day}</span>
-                     <day.icon size={16} className="text-palette-tan/60" />
+                     <RemixIcon name={day.icon} size={16} className="text-palette-tan/60" />
                      <span className="text-sm font-medium text-gray-800">{day.temp}</span>
                   </div>
                ))}
@@ -559,8 +563,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
          </div>
 
          {/* 2. Gündem (Trending) */}
-         <div className="bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
-            <div className="p-6 pb-2 flex items-center justify-between">
+         <div className="order-first bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-palette-beige/30 bg-white">
                <div className="flex items-center gap-3">
                   <div className="w-1.5 h-1.5 bg-palette-red rounded-[5px]"></div>
                   <h3 className="font-semibold text-gray-800 uppercase tracking-[0.1em] text-[13px]">{t('right.agenda')}</h3>
@@ -587,14 +591,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                            <span className="text-[9px] font-medium text-palette-tan/50 uppercase tracking-wider">{item.category}</span>
                            <span className="text-[10px] font-medium text-palette-tan/40">{item.hits}</span>
                         </div>
-                        <h4 className="news-title-font text-[15px] font-semibold text-gray-800 leading-snug group-hover:text-palette-red transition-colors line-clamp-2">
+                        <h4 className="text-[18px] font-semibold text-gray-800 leading-snug tracking-tight group-hover:text-palette-red transition-colors line-clamp-2" style={{ fontFamily: 'var(--site-font-title, var(--site-font-primary, inherit))' }}>
                            {item.title}
                         </h4>
                      </div>
 
                      {item.rising && (
                         <div className="flex-shrink-0 w-8 h-8 rounded-[5px] bg-palette-beige/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                           <TrendingUp size={14} className="text-palette-red" />
+                           <RemixIcon name="ri-line-chart-line" size={14} className="text-palette-red" />
                         </div>
                      )}
                   </div>
@@ -626,7 +630,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                   <div key={i} className="flex items-center justify-between p-4 rounded-[5px] hover:bg-palette-beige/10 transition-all border border-transparent hover:border-palette-beige/30 cursor-pointer group">
                      <div className="flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-[5px] ${m.bg} ${m.color} flex items-center justify-center shadow-sm border border-black/5`}>
-                           <m.icon size={18} />
+                           <RemixIcon name={m.icon} size={18} />
                         </div>
                         <div className="flex flex-col">
                            <span className="text-[13px] font-semibold text-gray-800">{m.symbol}</span>
@@ -636,7 +640,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                      <div className="flex flex-col items-end">
                         <span className="text-[13px] font-semibold text-gray-800">{m.price}</span>
                         <span className={`text-[10px] font-medium flex items-center gap-0.5 mt-0.5 ${m.isUp ? 'text-palette-red' : 'text-palette-accent'}`}>
-                           {m.isUp ? <ArrowUpRight size={10} strokeWidth={2.5} /> : <ArrowDownRight size={10} strokeWidth={2.5} />}
+                           <RemixIcon name={m.isUp ? 'ri-arrow-up-right-line' : 'ri-arrow-down-right-line'} size={10} />
                            {m.change}
                         </span>
                      </div>
@@ -693,7 +697,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                   <div className="rounded-[5px] border border-neutral-800 bg-[#1a1a1a] p-5">
                      <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-[#222] border border-neutral-700 flex items-center justify-center text-[#C9A96E]/50">
-                           <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>candle</span>
+                           <RemixIcon name="ri-candle-line" size={18} />
                         </div>
                         <div className="min-w-0">
                            <p className="text-[12px] font-semibold text-white/80">{t('right.death_empty_title')}</p>
@@ -725,7 +729,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-[5px] blur-[50px] -translate-y-10 translate-x-10 group-hover:bg-white/20 transition-all duration-700"></div>
             <div className="relative z-10">
                <div className="w-10 h-10 bg-white/10 rounded-[5px] flex items-center justify-center mb-5 border border-white/10">
-                  <Mail size={20} />
+                  <RemixIcon name="ri-mail-line" size={20} />
                </div>
                <h4 className="font-semibold text-xl leading-tight mb-2 tracking-tight">{t('right.newsletter_title')}</h4>
                <p className="text-[12px] text-white/70 mb-6 font-medium leading-relaxed">{t('right.newsletter_desc')}</p>

@@ -49,6 +49,7 @@ class ProfileUpdateInput {
     required this.aboutMe,
     required this.website,
     required this.address,
+    required this.city,
     required this.instagram,
     required this.x,
     required this.facebook,
@@ -76,6 +77,7 @@ class ProfileUpdateInput {
   final String aboutMe;
   final String website;
   final String address;
+  final String city;
   final String instagram;
   final String x;
   final String facebook;
@@ -105,6 +107,7 @@ class ProfileUpdateInput {
       'aboutMe': aboutMe.trim(),
       'website': website.trim(),
       'address': address.trim(),
+      'city': city.trim(),
       'showEmail': showEmail,
       'rssFeeds': rssFeeds,
       'avatarUrl': avatarPath.trim(),
@@ -343,6 +346,7 @@ class ProfileRepository {
       isFollowing: _bool(json['viewer_following'], fallback: false),
       website: _str(json['website']),
       address: _str(json['address']),
+      city: _str(json['city']).isEmpty ? 'Niğde' : _str(json['city']),
       rssFeeds: _bool(json['rss_feeds'], fallback: true),
       postsCount: _int(stats['posts']),
       followers: _int(stats['followers']),

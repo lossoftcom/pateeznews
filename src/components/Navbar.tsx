@@ -5,6 +5,8 @@ import { prefetch } from 'astro:prefetch';
 import { useLanguage } from '@/context/LanguageContext';
 import { type NavigationItem, type SiteSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
+import { getPostHref } from '@/utils/postUrl';
+import RemixIcon from './ui/RemixIcon';
 import {
   SPECIAL_CONTENT_FILTERS,
   getSpecialContentConfig,
@@ -26,12 +28,42 @@ interface NavbarProps {
   authLoading?: boolean;
 }
 
-const APPLE_NAV_FONT = '"PateezAppleText", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
-const DESKTOP_NAV_ITEM_CLASS = 'relative h-full flex items-center gap-2.5 px-1 text-[13px] font-extrabold tracking-widest transition-all group text-gray-500 hover:text-palette-red';
+const APPLE_NAV_FONT = 'var(--site-font-primary, "PateezAppleText"), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+const DESKTOP_NAV_ITEM_CLASS = 'relative h-full flex items-center gap-1.5 px-0.5 text-[12px] font-bold tracking-[0.08em] whitespace-nowrap transition-all group text-gray-600 hover:text-palette-red';
 const MOBILE_NAV_ITEM_CLASS = 'w-full flex items-center gap-3 px-4 py-3 rounded-[5px] text-[13px] font-black tracking-widest text-gray-500 hover:bg-palette-beige/10 hover:text-palette-red';
-const DESKTOP_NAV_ICON_SIZE = '20px';
+const DESKTOP_NAV_ICON_SIZE = 17;
 const MOBILE_NAV_ICON_SIZE = '19px';
+const DESKTOP_NAV_ICON_CLASS = 'transition-all duration-100 group-hover:-translate-y-0.5 opacity-70 group-hover:opacity-100';
+const NAV_ICON_THIN_STYLE: React.CSSProperties = { fontWeight: 300 };
 const SHOW_MOBILE_TOP_NAVIGATION = false;
+const REMIX_ICON_BY_MATERIAL: Record<string, string> = {
+  home: 'ri-home-5-line',
+  bolt: 'ri-flashlight-line',
+  search: 'ri-search-line',
+  close: 'ri-close-line',
+  public: 'ri-global-line',
+  expand_more: 'ri-arrow-down-s-line',
+  person: 'ri-user-3-line',
+  edit: 'ri-edit-line',
+  logout: 'ri-logout-box-r-line',
+  menu: 'ri-menu-line',
+  chevron_right: 'ri-arrow-right-s-line',
+  poll: 'ri-survey-line',
+  bar_chart: 'ri-bar-chart-box-line',
+  quiz: 'ri-questionnaire-line',
+  smart_display: 'ri-video-line',
+  format_list_bulleted: 'ri-list-check-2',
+  format_list_numbered: 'ri-file-list-3-line',
+  restaurant: 'ri-restaurant-2-line',
+  calendar_month: 'ri-calendar-event-line',
+};
+
+const remixIconFor = (icon?: string) => {
+  const key = String(icon || '').trim().toLowerCase();
+  if (!key) return 'ri-arrow-right-s-line';
+  if (key.startsWith('ri-')) return key;
+  return REMIX_ICON_BY_MATERIAL[key] || 'ri-arrow-right-s-line';
+};
 
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
@@ -199,7 +231,7 @@ const Navbar: React.FC<NavbarProps> = ({
     const firstPost = searchResults.posts[0];
     const firstProfile = searchResults.profiles[0];
     if (firstPost) {
-      openSearchResult(`/haber/${encodeURIComponent(firstPost.slug || firstPost.id)}`);
+      openSearchResult(getPostHref(firstPost, siteSettings));
       return;
     }
     if (firstProfile) {
@@ -233,7 +265,7 @@ const Navbar: React.FC<NavbarProps> = ({
               </div>
             ) : (
               <div className="w-[42px] h-[42px] bg-palette-red rounded-[5px] flex items-center justify-center shadow-lg shadow-palette-red/10 group-hover:scale-105 transition-all duration-150">
-                <span className="material-symbols-rounded text-white" style={{ fontSize: '26px', fontVariationSettings: "'FILL' 1, 'wght' 600" }}>bolt</span>
+                <RemixIcon name="ri-flashlight-fill" size={24} className="text-white" />
               </div>
             )}
             {!siteSettings?.logo_url && (
@@ -257,7 +289,7 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* NAV */}
-          <nav className="hidden lg:flex items-center gap-8 h-full px-10 flex-1">
+          <nav className="hidden lg:flex items-center justify-center gap-5 h-full px-6 flex-1 min-w-0 overflow-hidden">
             {!hasExplicitTopNav && (
               <button
                 onClick={goHome}
@@ -265,10 +297,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 className={DESKTOP_NAV_ITEM_CLASS}
                 style={{ fontFamily: APPLE_NAV_FONT }}
               >
-                <span className="material-symbols-rounded transition-all duration-150 scale-110"
-                  style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
-                  home
-                </span>
+                <RemixIcon name="ri-home-5-line" size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
                 <span>{t('nav.home')}</span>
               </button>
             )}
@@ -285,10 +314,7 @@ const Navbar: React.FC<NavbarProps> = ({
                   style={{ fontFamily: APPLE_NAV_FONT }}
                 >
                   {icon && (
-                    <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
-                      style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
-                      {icon.toLowerCase()}
-                    </span>
+                    <RemixIcon name={remixIconFor(icon)} size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
                   )}
                   <span>{t(item.label || config?.label || '')}</span>
                 </button>
@@ -303,10 +329,7 @@ const Navbar: React.FC<NavbarProps> = ({
                     className={DESKTOP_NAV_ITEM_CLASS}
                     style={{ fontFamily: APPLE_NAV_FONT }}
                   >
-                    <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
-                      style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
-                      {item.icon.toLowerCase()}
-                    </span>
+                    <RemixIcon name={remixIconFor(item.icon)} size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
                     <span>{t(item.label)}</span>
                   </button>
                 ))}
@@ -320,10 +343,7 @@ const Navbar: React.FC<NavbarProps> = ({
                     style={{ fontFamily: APPLE_NAV_FONT }}
                   >
                     {item.icon && (
-                      <span className="material-symbols-rounded transition-all duration-100 group-hover:-translate-y-0.5 opacity-60 group-hover:opacity-100"
-                        style={{ fontSize: DESKTOP_NAV_ICON_SIZE, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>
-                        {item.icon.toLowerCase()}
-                      </span>
+                      <RemixIcon name={remixIconFor(item.icon)} size={DESKTOP_NAV_ICON_SIZE} className={DESKTOP_NAV_ICON_CLASS} style={NAV_ICON_THIN_STYLE} />
                     )}
                     <span>{t(item.label)}</span>
                   </button>
@@ -340,15 +360,13 @@ const Navbar: React.FC<NavbarProps> = ({
                 : 'text-palette-tan hover:bg-palette-beige/10'
                 }`}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: '22px', fontVariationSettings: isSearchOpen ? "'FILL' 1" : "'FILL' 0" }}>
-                {isSearchOpen ? 'close' : 'search'}
-              </span>
+              <RemixIcon name={isSearchOpen ? 'ri-close-line' : 'ri-search-line'} size={21} />
             </button>
 
             <div className="relative" ref={langMenuRef}>
               <button onClick={() => setShowLangMenu(!showLangMenu)} className="h-10 flex items-center gap-0.5 px-2 rounded-[5px] text-palette-tan hover:bg-palette-beige/10 transition-colors font-bold text-[10px] uppercase">
-                <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>public</span>
-                <span className={`material-symbols-rounded transition-transform duration-200 ${showLangMenu ? 'rotate-180' : ''}`} style={{ fontSize: '16px' }}>expand_more</span>
+                <RemixIcon name="ri-global-line" size={19} />
+                <RemixIcon name="ri-arrow-down-s-line" size={15} className={`transition-transform duration-200 ${showLangMenu ? 'rotate-180' : ''}`} />
               </button>
               {showLangMenu && (
                 <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-[5px] shadow-2xl border border-palette-beige/10 py-1 overflow-hidden animate-in">
@@ -397,7 +415,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
                         if (!rawUrl) return (
                           <div className="w-full h-full flex items-center justify-center bg-palette-beige text-palette-tan/20">
-                            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>person</span>
+                            <RemixIcon name="ri-user-3-line" size={18} />
                           </div>
                         );
 
@@ -428,10 +446,9 @@ const Navbar: React.FC<NavbarProps> = ({
                               // Show icon fallback
                               const parent = (e.target as HTMLImageElement).parentElement;
                               if (parent) {
-                                const icon = document.createElement('span');
-                                icon.className = 'material-symbols-rounded text-palette-tan/20';
+                                const icon = document.createElement('i');
+                                icon.className = 'ri-user-3-line inline-flex items-center justify-center leading-none text-palette-tan/20';
                                 icon.style.fontSize = '18px';
-                                icon.innerText = 'person';
                                 parent.appendChild(icon);
                               }
                             }}
@@ -439,7 +456,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         );
                       })()
                     ) : (
-                      <span className="material-symbols-rounded text-palette-red" style={{ fontSize: '24px', fontVariationSettings: "'FILL' 0, 'wght' 500" }}>person</span>
+                      <RemixIcon name="ri-user-3-line" size={23} className="text-palette-red" />
                     )}
                   </div>
                 </button>
@@ -462,7 +479,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => { onProfileViewClick(); setShowUserMenu(false); }}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group"
                       >
-                        <span className="material-symbols-rounded text-[20px] opacity-60 group-hover:opacity-100" style={{ fontVariationSettings: "'FILL' 0" }}>person</span>
+                        <RemixIcon name="ri-user-3-line" size={20} className="opacity-60 group-hover:opacity-100" />
                         <span className="text-[12px] font-bold tracking-tight">{t('navbar.my_profile')}</span>
                       </button>
                     )}
@@ -472,7 +489,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => { onEditProfileClick(); setShowUserMenu(false); }}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group"
                       >
-                        <span className="material-symbols-rounded text-[20px] opacity-60 group-hover:opacity-100" style={{ fontVariationSettings: "'FILL' 0" }}>edit</span>
+                        <RemixIcon name="ri-edit-line" size={20} className="opacity-60 group-hover:opacity-100" />
                         <span className="text-[12px] font-bold tracking-tight">{t('navbar.edit_profile')}</span>
                       </button>
                     )}
@@ -484,7 +501,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => { onLogout(); setShowUserMenu(false); }}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-palette-red hover:bg-palette-red/5 transition-all group"
                       >
-                        <span className="material-symbols-rounded text-[20px] opacity-60 group-hover:opacity-100" style={{ fontVariationSettings: "'FILL' 0" }}>logout</span>
+                        <RemixIcon name="ri-logout-box-r-line" size={20} className="opacity-60 group-hover:opacity-100" />
                         <span className="text-[12px] font-[900] tracking-tight truncate">{t('common.logout')}</span>
                       </button>
                     )}
@@ -498,7 +515,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setIsMobileMenuOpen((value) => !value)}
                 className="lg:hidden w-10 h-10 flex items-center justify-center rounded-[5px] bg-palette-beige/10 text-gray-900 ml-1"
               >
-                <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>{isMobileMenuOpen ? 'close' : 'menu'}</span>
+                <RemixIcon name={isMobileMenuOpen ? 'ri-close-line' : 'ri-menu-line'} size={22} />
               </button>
             )}
           </div>
@@ -515,7 +532,7 @@ const Navbar: React.FC<NavbarProps> = ({
                   className={MOBILE_NAV_ITEM_CLASS}
                   style={{ fontFamily: APPLE_NAV_FONT }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>home</span>
+                  <RemixIcon name="ri-home-5-line" size={MOBILE_NAV_ICON_SIZE} />
                   {t('nav.home')}
                 </button>
               )}
@@ -532,7 +549,7 @@ const Navbar: React.FC<NavbarProps> = ({
                     className={MOBILE_NAV_ITEM_CLASS}
                     style={{ fontFamily: APPLE_NAV_FONT }}
                   >
-                    <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{icon}</span>
+                    <RemixIcon name={remixIconFor(icon)} size={MOBILE_NAV_ICON_SIZE} />
                     {t(item.label || config?.label || '')}
                   </button>
                 );
@@ -545,7 +562,7 @@ const Navbar: React.FC<NavbarProps> = ({
                       className={MOBILE_NAV_ITEM_CLASS}
                       style={{ fontFamily: APPLE_NAV_FONT }}
                     >
-                      <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon}</span>
+                      <RemixIcon name={remixIconFor(item.icon)} size={MOBILE_NAV_ICON_SIZE} />
                       {t(item.label)}
                     </button>
                   ))}
@@ -556,7 +573,7 @@ const Navbar: React.FC<NavbarProps> = ({
                       className={MOBILE_NAV_ITEM_CLASS}
                       style={{ fontFamily: APPLE_NAV_FONT }}
                     >
-                      <span className="material-symbols-rounded" style={{ fontSize: MOBILE_NAV_ICON_SIZE }}>{item.icon || 'chevron_right'}</span>
+                      <RemixIcon name={remixIconFor(item.icon || 'chevron_right')} size={MOBILE_NAV_ICON_SIZE} />
                       {t(item.label)}
                     </button>
                   ))}
@@ -575,9 +592,7 @@ const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-[1280px] mx-auto px-4">
           <form onSubmit={handleSearchSubmit} className="relative flex items-center">
             <div className="absolute left-4 flex items-center justify-center z-10">
-              <span className="material-symbols-rounded text-palette-tan/30" style={{ fontSize: '22px' }}>
-                search
-              </span>
+              <RemixIcon name="ri-search-line" size={21} className="text-palette-tan/30" />
             </div>
             <input
               type="text"
@@ -592,7 +607,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setIsSearchOpen(false)}
                 className="p-1 text-palette-tan/30 hover:text-palette-red"
               >
-                <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
+                <RemixIcon name="ri-close-line" size={18} />
               </button>
             </div>
           </form>
@@ -615,8 +630,8 @@ const Navbar: React.FC<NavbarProps> = ({
                   {searchResults.posts.map((post) => (
                     <button
                       key={`post-${post.id}`}
-                      onClick={() => openSearchResult(`/haber/${encodeURIComponent(post.slug || post.id)}`)}
-                      onMouseEnter={() => prefetch(`/haber/${encodeURIComponent(post.slug || post.id)}`)}
+                      onClick={() => openSearchResult(getPostHref(post, siteSettings))}
+                      onMouseEnter={() => prefetch(getPostHref(post, siteSettings))}
                       className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-palette-beige/10 transition-colors"
                     >
                       <div className="w-10 h-10 rounded-[5px] bg-palette-beige/20 overflow-hidden flex-shrink-0">

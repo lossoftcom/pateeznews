@@ -66,6 +66,7 @@ import 'package:pateeznews_admin/features/users/data/admin_roles_repository.dart
 import 'package:pateeznews_admin/features/users/data/admin_users_repository.dart';
 import 'package:pateeznews_admin/features/users/presentation/roles_permissions_screen.dart';
 import 'package:pateeznews_admin/features/users/presentation/users_screen.dart';
+import 'package:pateeznews_admin/features/ads/presentation/ads_screen.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -370,6 +371,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'view_settings',
         'settings_access',
       ]),
+      _DashboardPage.ads => _hasAny([
+        'ads_access',
+        'manage_ads',
+        'view_settings',
+        'settings_access',
+      ]),
     };
   }
 
@@ -592,6 +599,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _openPage(_DashboardPage.rolesPermissions);
   }
 
+  void _openAds() {
+    _openPage(_DashboardPage.ads);
+  }
+
   @override
   Widget build(BuildContext context) {
     final storageSettingsSelected =
@@ -655,6 +666,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _selectedPage == _DashboardPage.users || accountSettingsSelected;
     final rolesPermissionsSelected =
         _selectedPage == _DashboardPage.rolesPermissions;
+    final adsSelected = _selectedPage == _DashboardPage.ads;
     final languageSettingsSelected =
         _selectedPage == _DashboardPage.languageSettings;
     final generalSettingsSelected =
@@ -711,6 +723,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final rolesPermissionsVisible = _canOpen(
           _DashboardPage.rolesPermissions,
         );
+        final adsVisible = _canOpen(_DashboardPage.ads);
         final storageSettingsVisible = _canOpen(_DashboardPage.storageSettings);
         final googleNewsVisible = _canOpen(_DashboardPage.googleNews);
         final aiSettingsVisible = _canOpen(_DashboardPage.aiSettings);
@@ -758,6 +771,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   navigationVisible: navigationVisible,
                   usersVisible: usersVisible,
                   rolesPermissionsVisible: rolesPermissionsVisible,
+                  adsVisible: adsVisible,
                   storageSettingsVisible: storageSettingsVisible,
                   googleNewsVisible: googleNewsVisible,
                   aiSettingsVisible: aiSettingsVisible,
@@ -813,7 +827,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !pharmacySettingsSelected &&
                       !weatherSettingsSelected &&
                       !prayerSettingsSelected &&
-                      !deathNoticeSettingsSelected,
+                      !deathNoticeSettingsSelected &&
+                      !adsSelected,
                   newsAddSelected: newsAddSelected,
                   newsSelected: newsSelected,
                   storiesSelected: storiesSelected,
@@ -845,6 +860,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   navigationSelected: navigationSelected,
                   usersSelected: usersSelected,
                   rolesPermissionsSelected: rolesPermissionsSelected,
+                  adsSelected: adsSelected,
                   storageSettingsSelected: storageSettingsSelected,
                   googleNewsSelected: googleNewsSelected,
                   aiSettingsSelected: aiSettingsSelected,
@@ -891,6 +907,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onNavigationSelected: _openNavigation,
                   onUsersSelected: _openUsers,
                   onRolesPermissionsSelected: _openRolesPermissions,
+                  onAdsSelected: _openAds,
                   onStorageSettingsSelected: _openStorageSettings,
                   onGoogleNewsSelected: _openGoogleNews,
                   onAiSettingsSelected: _openAiSettings,
@@ -931,6 +948,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     navigationVisible: navigationVisible,
                     usersVisible: usersVisible,
                     rolesPermissionsVisible: rolesPermissionsVisible,
+                    adsVisible: adsVisible,
                     storageSettingsVisible: storageSettingsVisible,
                     googleNewsVisible: googleNewsVisible,
                     aiSettingsVisible: aiSettingsVisible,
@@ -986,7 +1004,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !pharmacySettingsSelected &&
                         !weatherSettingsSelected &&
                         !prayerSettingsSelected &&
-                        !deathNoticeSettingsSelected,
+                        !deathNoticeSettingsSelected &&
+                        !adsSelected,
                     newsAddSelected: newsAddSelected,
                     newsSelected: newsSelected,
                     storiesSelected: storiesSelected,
@@ -1020,6 +1039,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     navigationSelected: navigationSelected,
                     usersSelected: usersSelected,
                     rolesPermissionsSelected: rolesPermissionsSelected,
+                    adsSelected: adsSelected,
                     storageSettingsSelected: storageSettingsSelected,
                     googleNewsSelected: googleNewsSelected,
                     aiSettingsSelected: aiSettingsSelected,
@@ -1067,6 +1087,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onNavigationSelected: _openNavigation,
                     onUsersSelected: _openUsers,
                     onRolesPermissionsSelected: _openRolesPermissions,
+                    onAdsSelected: _openAds,
                     onStorageSettingsSelected: _openStorageSettings,
                     onGoogleNewsSelected: _openGoogleNews,
                     onAiSettingsSelected: _openAiSettings,
@@ -1100,6 +1121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ? _DashboardAccessDenied(error: _permissionError)
                             : switch (_selectedPage) {
                                 _DashboardPage.home => const DashboardContent(),
+                                _DashboardPage.ads => const AdsScreen(),
                                 _DashboardPage.newsAdd => NewsAddScreen(
                                   session: widget.session,
                                   profile: widget.profile,
@@ -1134,6 +1156,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   NotificationCampaignsScreen(
                                     session: widget.session,
                                     repository: widget.notificationsRepository,
+                                    newsRepository: widget.newsRepository,
                                   ),
                                 _DashboardPage.notificationTemplates =>
                                   NotificationTemplatesScreen(
@@ -1442,4 +1465,5 @@ enum _DashboardPage {
   contentSettings,
   fontSettings,
   languageSettings,
+  ads,
 }

@@ -2074,6 +2074,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "nav.socialSettings": "Social Media Settings",
   "nav.navigation": "Navigation",
   "nav.languageSettings": "Language Settings",
+  "nav.ads": "Ads",
   "nav.menu": "Menu",
   "nav.modules": "Modules",
   "nav.notifications": "Notifications",
@@ -3688,12 +3689,12 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "notifications.campaigns.title": "Notification Center",
   "notifications.campaigns.description":
       "Manage mobile, Flutter Web, and Astro Web notification campaigns through Firebase Cloud Messaging.",
-  "notifications.campaigns.add": "+ Add Notification",
+  "notifications.campaigns.add": "Add Notification",
   "notifications.campaigns.edit": "Edit Notification",
   "notifications.templates.title": "Notification Templates",
   "notifications.templates.description":
       "Manage title, body, deep link, priority, and language based notification templates.",
-  "notifications.templates.add": "+ Add Template",
+  "notifications.templates.add": "Add Template",
   "notifications.templates.edit": "Edit Template",
   "notifications.templates.empty": "No notification templates found",
   "notifications.templates.deleteTitle": "Delete notification template",
