@@ -108,6 +108,14 @@ const stripHtml = (value?: string) => (
   )
 );
 
+const formatTitleLabel = (value?: string) => (
+  stripHtml(value)
+    .toLocaleLowerCase('tr-TR')
+    .replace(/(^|[\s/-])(\S)/g, (_match, prefix: string, char: string) => (
+      `${prefix}${char.toLocaleUpperCase('tr-TR')}`
+    ))
+);
+
 const normalizeCategoryImageUrl = (value?: string | null) => {
   const clean = String(value || '').trim();
   if (!clean) return '';
@@ -611,6 +619,70 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           overflow: hidden;
         }
 
+        .category-detail-compact .category-identity-visual {
+          height: 252px;
+          isolation: isolate;
+          background:
+            linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 249, 245, 0.92) 48%, rgba(235, 233, 222, 0.86) 100%);
+          box-shadow: 0 24px 70px rgba(44, 55, 68, 0.08), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+        }
+
+        .category-detail-compact .category-identity-backdrop {
+          filter: blur(26px) saturate(1.12);
+          transform: scale(1.12);
+          opacity: 0.5;
+        }
+
+        .category-detail-compact .category-identity-layout {
+          grid-template-columns: minmax(220px, 276px) minmax(0, 1fr);
+          padding: 16px;
+        }
+
+        .category-detail-compact .category-identity-title {
+          overflow-wrap: anywhere;
+        }
+
+        .category-detail-compact .category-identity-image-shell {
+          height: 100%;
+          min-height: 0;
+          background: transparent;
+          box-shadow:
+            0 34px 76px rgba(34, 42, 54, 0.18),
+            0 18px 38px rgba(156, 118, 63, 0.16);
+        }
+
+        .category-detail-compact .category-identity-image-shell::before {
+          content: "";
+          position: absolute;
+          inset: -18px -26px;
+          background:
+            radial-gradient(circle at 62% 42%, rgba(243, 156, 18, 0.28), transparent 46%),
+            radial-gradient(circle at 34% 70%, rgba(234, 67, 53, 0.18), transparent 44%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
+          filter: blur(18px);
+          opacity: 0.9;
+          pointer-events: none;
+        }
+
+        .category-detail-compact .category-identity-image-shell::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border: 1px solid rgba(255, 255, 255, 0.52);
+          border-radius: inherit;
+          pointer-events: none;
+        }
+
+        .category-detail-compact .category-identity-image-shell img {
+          position: relative;
+          z-index: 1;
+          width: auto;
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+          object-position: center;
+        }
+
         .category-detail-compact .category-news-list-item {
           position: relative;
           isolation: isolate;
@@ -671,9 +743,29 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           }
         }
 
+        @media (min-width: 1024px) {
+          .category-detail-compact .category-identity-visual {
+            height: 288px;
+          }
+        }
+
         @media (max-width: 760px) {
           .category-detail-compact .category-identity-visual {
-            height: 146px;
+            height: auto;
+          }
+
+          .category-detail-compact .category-identity-layout {
+            grid-template-columns: minmax(0, 1fr);
+          }
+
+          .category-detail-compact .category-identity-image-shell {
+            aspect-ratio: 1600 / 894;
+            height: auto;
+          }
+
+          .category-detail-compact .category-identity-image-shell img {
+            width: 100%;
+            height: 100%;
           }
 
           .category-detail-compact .category-hero-slider-card {
@@ -721,36 +813,45 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
         </div>
 
         {categoryImageUrl && (
-          <div className="category-identity-visual relative h-[176px] overflow-hidden rounded-[4px] border border-gray-100 bg-gray-100 shadow-sm md:h-[184px]">
+          <div className="category-identity-visual relative overflow-hidden rounded-[4px] border border-gray-100 bg-gray-100 shadow-sm">
             <img
               src={categoryImageUrl}
-              alt={`${displayCategory} kategori görseli`}
+              alt=""
+              aria-hidden="true"
               loading="eager"
               fetchPriority="high"
               decoding="async"
-              className="h-full w-full object-cover"
+              className="category-identity-backdrop pointer-events-none absolute inset-0 h-full w-full object-cover opacity-45"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-gray-950/55 via-gray-950/10 to-transparent" />
-            <div className="absolute right-3 top-3 flex items-center gap-2 sm:right-4 sm:top-4">
-              <div className="flex items-center gap-2 rounded-[4px] border border-white/35 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
-                <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.newsCount)}</span>
-                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-500">{t('common.news')}</span>
-              </div>
-              <div className="flex items-center gap-2 rounded-[4px] border border-white/35 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
-                <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.totalViews)}</span>
-                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-500">{t('metrics.reads')}</span>
-              </div>
-            </div>
-            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-4 md:p-5">
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.84)_36%,rgba(255,255,255,0.40)_100%)]" />
+            <div className="category-identity-layout relative z-10 grid h-full items-center gap-4 p-4 md:gap-5 md:p-5">
               <div className="min-w-0">
-                <span className="block text-[10px] font-black tracking-[0.18em] text-white/75">
+                <span className="block text-[11px] font-black tracking-[0.02em] text-palette-red/80">
                   {activeCategoryItem?.type === 'district' ? 'İlçe' : 'Kategori'}
                 </span>
-                <h1 className="news-title-font mt-1 block truncate text-2xl font-black leading-none text-white md:text-3xl">
+                <h1 className="category-identity-title news-title-font mt-2 block text-2xl font-black leading-none text-gray-900 md:text-3xl">
                   {displayCategory}
                 </h1>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2 rounded-[4px] border border-white/70 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
+                    <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.newsCount)}</span>
+                    <span className="text-[10px] font-black tracking-[0.02em] text-gray-500">{formatTitleLabel(t('common.news'))}</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-[4px] border border-white/70 bg-white/90 px-2.5 py-2 text-gray-900 shadow-sm backdrop-blur">
+                    <span className="text-sm font-black leading-none">{formatCompactMetric(categoryStats.totalViews)}</span>
+                    <span className="text-[10px] font-black tracking-[0.02em] text-gray-500">{formatTitleLabel(t('metrics.reads'))}</span>
+                  </div>
+                </div>
               </div>
-              <span className="hidden h-1.5 w-16 rounded-full bg-palette-accent/90 shadow-[0_0_22px_rgba(243,156,18,0.35)] sm:block" />
+              <div className="category-identity-image-shell relative flex min-w-0 items-center justify-center overflow-hidden rounded-[4px]">
+                <img
+                  src={categoryImageUrl}
+                  alt={`${displayCategory} kategori görseli`}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -784,9 +885,9 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
               type="button"
               aria-pressed={!activeSubcategory}
               onClick={() => handleSubcategorySelect(null)}
-              className={`h-9 rounded-[4px] border px-4 text-[11px] font-black uppercase tracking-widest transition-all ${!activeSubcategory ? 'border-palette-accent bg-palette-accent text-palette-maroon shadow-sm' : 'border-gray-200 bg-white text-gray-500 hover:border-palette-accent/40 hover:text-palette-accent'}`}
+              className={`h-9 rounded-[4px] border px-4 text-[12px] font-black tracking-[0.02em] transition-all ${!activeSubcategory ? 'border-palette-accent bg-palette-accent text-palette-maroon shadow-sm' : 'border-gray-200 bg-white text-gray-500 hover:border-palette-accent/40 hover:text-palette-accent'}`}
             >
-              {t('right.all')}
+              {formatTitleLabel(t('right.all'))}
             </button>
             {subcategoryOptions.map((label) => {
               const isActive = slugify(activeSubcategory || '') === slugify(label);
@@ -796,9 +897,9 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                   type="button"
                   aria-pressed={isActive}
                   onClick={() => handleSubcategorySelect(label)}
-                  className={`h-9 rounded-[4px] border px-4 text-[11px] font-black uppercase tracking-widest transition-all ${isActive ? 'border-palette-accent bg-palette-accent text-palette-maroon shadow-sm' : 'border-gray-200 bg-white text-gray-500 hover:border-palette-accent/40 hover:text-palette-accent'}`}
+                  className={`h-9 rounded-[4px] border px-4 text-[12px] font-black tracking-[0.02em] transition-all ${isActive ? 'border-palette-accent bg-palette-accent text-palette-maroon shadow-sm' : 'border-gray-200 bg-white text-gray-500 hover:border-palette-accent/40 hover:text-palette-accent'}`}
                 >
-                  {label}
+                  {formatTitleLabel(label)}
                 </button>
               );
             })}
