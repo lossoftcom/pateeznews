@@ -2468,6 +2468,10 @@ class _FakeAdminContentSettingsRepository
       <String, ContentTrashCleanupSettingsData>{
         'tr': ContentTrashCleanupSettingsData.defaults('tr'),
       };
+  final _maintenanceSettingsByLanguage =
+      <String, ContentMaintenanceSettingsData>{
+        'tr': ContentMaintenanceSettingsData.defaults('tr'),
+      };
 
   ContentGeneralSettingsData? savedSettings;
   ContentPostSettingsData? savedPostSettings;
@@ -2475,6 +2479,7 @@ class _FakeAdminContentSettingsRepository
   ContentUploadSettingsData? savedUploadSettings;
   ContentFeaturedSettingsData? savedFeaturedSettings;
   ContentTrashCleanupSettingsData? savedTrashCleanupSettings;
+  ContentMaintenanceSettingsData? savedMaintenanceSettings;
 
   @override
   Future<ContentSettingsSnapshot> fetchAllSettings(String languageCode) async {
@@ -2486,6 +2491,7 @@ class _FakeAdminContentSettingsRepository
       upload: await fetchUploadSettings(languageCode),
       featured: await fetchFeaturedSettings(languageCode),
       trashCleanup: await fetchTrashCleanupSettings(languageCode),
+      maintenance: await fetchMaintenanceSettings(languageCode),
     );
   }
 
@@ -2592,6 +2598,24 @@ class _FakeAdminContentSettingsRepository
   }) async {
     savedTrashCleanupSettings = settings;
     _trashCleanupSettingsByLanguage[settings.languageCode] = settings;
+    return settings;
+  }
+
+  @override
+  Future<ContentMaintenanceSettingsData> fetchMaintenanceSettings(
+    String languageCode,
+  ) async {
+    return _maintenanceSettingsByLanguage[languageCode] ??
+        ContentMaintenanceSettingsData.defaults(languageCode);
+  }
+
+  @override
+  Future<ContentMaintenanceSettingsData> saveMaintenanceSettings({
+    required AdminSession session,
+    required ContentMaintenanceSettingsData settings,
+  }) async {
+    savedMaintenanceSettings = settings;
+    _maintenanceSettingsByLanguage[settings.languageCode] = settings;
     return settings;
   }
 }

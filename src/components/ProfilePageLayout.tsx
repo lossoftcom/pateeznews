@@ -23,7 +23,7 @@ const ProfilePageLayout: React.FC<ProfilePageLayoutProps> = ({
         letter-spacing: 0 !important;
       }
     `}</style>
-    <main className="max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
+    <main className="public-page-main public-profile-page-main max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
       <aside className="profile-page-sidebar hidden lg:block w-[260px] flex-shrink-0 sticky top-[92px] h-[calc(100vh-92px)] overflow-y-auto pb-8 no-scrollbar">
         <Sidebar
           items={navigationItems}

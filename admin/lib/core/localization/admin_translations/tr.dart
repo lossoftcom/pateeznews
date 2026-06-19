@@ -694,6 +694,8 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "contentSettings.value.yes": "Evet",
   "contentSettings.value.enabled": "Aktif",
   "contentSettings.value.enable": "Aktifleştir",
+  "contentSettings.value.active": "Aktif",
+  "contentSettings.value.passive": "Pasif",
   "contentSettings.general.showFeaturedSection": "Manşet bölümünü göster",
   "contentSettings.general.commentSystem": "Yorum sistemi",
   "contentSettings.general.commentApprovalSystem": "Yorum onay sistemi",
@@ -750,6 +752,11 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "contentSettings.autoDelete.daysHelp":
       "Örn. 30 girerseniz sistem çöp kutusundaki 30 günden eski haberleri kalıcı olarak siler.",
   "contentSettings.autoDelete.posts": "Çöp kayıtları",
+  "contentSettings.maintenance.title": "Site bakım modu",
+  "contentSettings.maintenance.help":
+      "Bakım modu açıkken yalnızca Astro ana sayfasında ziyaretçilere bakım ekranı gösterilir. Süre dolduğunda ana sayfa otomatik olarak normale döner.",
+  "contentSettings.maintenance.status": "Durum",
+  "contentSettings.maintenance.duration": "Süre",
   "contentSettings.option.slugUrls": "Slug URL kullan (domain.com/slug)",
   "contentSettings.option.idUrls": "ID ile URL kullan",
   "contentSettings.option.manualSelection": "Yalnızca manuel seçim",
@@ -759,6 +766,10 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "contentSettings.option.deleteAllPosts": "Tüm çöp kayıtlarını temizle",
   "contentSettings.option.deleteDraftPosts":
       "Yalnızca taslakken silinenleri temizle",
+  "contentSettings.option.maintenance10Minutes": "10 dakika",
+  "contentSettings.option.maintenance30Minutes": "30 dakika",
+  "contentSettings.option.maintenance60Minutes": "1 saat",
+  "contentSettings.option.maintenanceIndefinite": "Süresiz",
   "fontSettings.title": "Font Ayarları",
   "fontSettings.saveChanges": "Değişiklikleri Kaydet",
   "fontSettings.saveSuccess": "Font ayarları kaydedildi",

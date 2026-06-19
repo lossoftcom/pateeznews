@@ -347,4 +347,7 @@ export interface SiteSettings {
   content_redirect_rss_posts?: boolean;
   content_popular_post_limit?: number;
   content_related_post_limit?: number;
+  content_maintenance_enabled?: boolean;
+  content_maintenance_duration_minutes?: number | null;
+  content_maintenance_started_at?: string | null;
 }

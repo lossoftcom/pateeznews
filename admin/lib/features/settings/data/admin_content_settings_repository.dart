@@ -573,6 +573,92 @@ class ContentTrashCleanupSettingsData {
   }
 }
 
+class ContentMaintenanceSettingsData {
+  const ContentMaintenanceSettingsData({
+    required this.languageCode,
+    required this.enabled,
+    required this.durationMinutes,
+    required this.startedAt,
+  });
+
+  factory ContentMaintenanceSettingsData.defaults(String languageCode) {
+    return ContentMaintenanceSettingsData(
+      languageCode: _cleanLanguageCode(languageCode),
+      enabled: false,
+      durationMinutes: 30,
+      startedAt: null,
+    );
+  }
+
+  factory ContentMaintenanceSettingsData.fromJson(
+    Map<String, Object?> json,
+    String languageCode,
+  ) {
+    final fallback = ContentMaintenanceSettingsData.defaults(languageCode);
+    final durationMinutes = _maintenanceDurationMinutes(
+      json['content_maintenance_duration_minutes'],
+      fallback: fallback.durationMinutes,
+    );
+    final startedAt = _dateTime(json['content_maintenance_started_at']);
+    final expiresAt = durationMinutes == null || startedAt == null
+        ? null
+        : startedAt.add(Duration(minutes: durationMinutes));
+    final active =
+        _bool(
+          json['content_maintenance_enabled'],
+          fallback: fallback.enabled,
+        ) &&
+        (expiresAt == null || expiresAt.isAfter(DateTime.now().toUtc()));
+
+    return ContentMaintenanceSettingsData(
+      languageCode: _string(
+        json['language_code'],
+        fallback: fallback.languageCode,
+      ),
+      enabled: active,
+      durationMinutes: durationMinutes,
+      startedAt: active ? startedAt : null,
+    );
+  }
+
+  final String languageCode;
+  final bool enabled;
+  final int? durationMinutes;
+  final DateTime? startedAt;
+
+  Map<String, Object?> toJson() {
+    return {
+      'language_code': _cleanLanguageCode(languageCode),
+      'content_maintenance_enabled': enabled,
+      'content_maintenance_duration_minutes': durationMinutes == null
+          ? null
+          : _clampMaintenanceDurationMinutes(durationMinutes!),
+      'content_maintenance_started_at': enabled
+          ? (startedAt ?? DateTime.now().toUtc()).toIso8601String()
+          : null,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+  }
+
+  ContentMaintenanceSettingsData copyWith({
+    String? languageCode,
+    bool? enabled,
+    int? durationMinutes,
+    bool clearDurationMinutes = false,
+    DateTime? startedAt,
+    bool clearStartedAt = false,
+  }) {
+    return ContentMaintenanceSettingsData(
+      languageCode: languageCode ?? this.languageCode,
+      enabled: enabled ?? this.enabled,
+      durationMinutes: clearDurationMinutes
+          ? null
+          : durationMinutes ?? this.durationMinutes,
+      startedAt: clearStartedAt ? null : startedAt ?? this.startedAt,
+    );
+  }
+}
+
 class ContentSettingsSnapshot {
   const ContentSettingsSnapshot({
     required this.languageCode,
@@ -582,6 +668,7 @@ class ContentSettingsSnapshot {
     required this.upload,
     required this.featured,
     required this.trashCleanup,
+    required this.maintenance,
   });
 
   factory ContentSettingsSnapshot.defaults(String languageCode) {
@@ -594,6 +681,7 @@ class ContentSettingsSnapshot {
       upload: ContentUploadSettingsData.defaults(normalizedCode),
       featured: ContentFeaturedSettingsData.defaults(normalizedCode),
       trashCleanup: ContentTrashCleanupSettingsData.defaults(normalizedCode),
+      maintenance: ContentMaintenanceSettingsData.defaults(normalizedCode),
     );
   }
 
@@ -604,6 +692,7 @@ class ContentSettingsSnapshot {
   final ContentUploadSettingsData upload;
   final ContentFeaturedSettingsData featured;
   final ContentTrashCleanupSettingsData trashCleanup;
+  final ContentMaintenanceSettingsData maintenance;
 
   ContentSettingsSnapshot copyWith({
     ContentGeneralSettingsData? general,
@@ -612,6 +701,7 @@ class ContentSettingsSnapshot {
     ContentUploadSettingsData? upload,
     ContentFeaturedSettingsData? featured,
     ContentTrashCleanupSettingsData? trashCleanup,
+    ContentMaintenanceSettingsData? maintenance,
   }) {
     return ContentSettingsSnapshot(
       languageCode: languageCode,
@@ -621,6 +711,7 @@ class ContentSettingsSnapshot {
       upload: upload ?? this.upload,
       featured: featured ?? this.featured,
       trashCleanup: trashCleanup ?? this.trashCleanup,
+      maintenance: maintenance ?? this.maintenance,
     );
   }
 }
@@ -675,6 +766,15 @@ abstract class AdminContentSettingsRepository {
     required AdminSession session,
     required ContentTrashCleanupSettingsData settings,
   });
+
+  Future<ContentMaintenanceSettingsData> fetchMaintenanceSettings(
+    String languageCode,
+  );
+
+  Future<ContentMaintenanceSettingsData> saveMaintenanceSettings({
+    required AdminSession session,
+    required ContentMaintenanceSettingsData settings,
+  });
 }
 
 class SupabaseAdminContentSettingsRepository
@@ -700,6 +800,7 @@ class SupabaseAdminContentSettingsRepository
       fetchUploadSettings(normalizedCode),
       fetchFeaturedSettings(normalizedCode),
       fetchTrashCleanupSettings(normalizedCode),
+      fetchMaintenanceSettings(normalizedCode),
     ]);
     return ContentSettingsSnapshot(
       languageCode: normalizedCode,
@@ -709,6 +810,7 @@ class SupabaseAdminContentSettingsRepository
       upload: results[3] as ContentUploadSettingsData,
       featured: results[4] as ContentFeaturedSettingsData,
       trashCleanup: results[5] as ContentTrashCleanupSettingsData,
+      maintenance: results[6] as ContentMaintenanceSettingsData,
     );
   }
 
@@ -1071,6 +1173,72 @@ class SupabaseAdminContentSettingsRepository
     );
   }
 
+  @override
+  Future<ContentMaintenanceSettingsData> fetchMaintenanceSettings(
+    String languageCode,
+  ) async {
+    final normalizedCode = _cleanLanguageCode(languageCode);
+    final result = await _postJson('/api/admin/query', {
+      'table': 'site_settings',
+      'method': 'select',
+      'select': _maintenanceSettingsSelect,
+      'filters': [
+        {
+          'type': 'comparison',
+          'op': 'eq',
+          'column': 'language_code',
+          'value': normalizedCode,
+        },
+      ],
+      'single': 'maybeSingle',
+    });
+    _throwIfApiError(result, fallbackMessage: 'Bakim modu ayarlari alinamadi');
+    final data = result['data'];
+    if (data is! Map) {
+      return ContentMaintenanceSettingsData.defaults(normalizedCode);
+    }
+    return ContentMaintenanceSettingsData.fromJson(
+      _asStringKeyMap(data),
+      normalizedCode,
+    );
+  }
+
+  @override
+  Future<ContentMaintenanceSettingsData> saveMaintenanceSettings({
+    required AdminSession session,
+    required ContentMaintenanceSettingsData settings,
+  }) async {
+    final duration = _maintenanceDurationMinutes(
+      settings.durationMinutes,
+      fallback: 30,
+    );
+    final normalizedSettings = settings.copyWith(
+      languageCode: _cleanLanguageCode(settings.languageCode),
+      durationMinutes: duration ?? 30,
+      clearDurationMinutes: duration == null,
+      startedAt: settings.enabled ? DateTime.now().toUtc() : null,
+      clearStartedAt: !settings.enabled,
+    );
+    final result = await _postJson('/api/admin/query', {
+      'table': 'site_settings',
+      'method': 'upsert',
+      'select': _maintenanceSettingsSelect,
+      'values': normalizedSettings.toJson(),
+      'options': {'onConflict': 'language_code'},
+      'single': 'maybeSingle',
+    });
+    _throwIfApiError(
+      result,
+      fallbackMessage: 'Bakim modu ayarlari kaydedilemedi',
+    );
+    final data = result['data'];
+    if (data is! Map) return normalizedSettings;
+    return ContentMaintenanceSettingsData.fromJson(
+      _asStringKeyMap(data),
+      normalizedSettings.languageCode,
+    );
+  }
+
   Future<Map<String, Object?>> _postJson(
     String path,
     Map<String, Object?> body,
@@ -1169,6 +1337,10 @@ const _featuredSettingsSelect =
 const _trashCleanupSettingsSelect =
     'language_code,content_trash_auto_delete_enabled,'
     'content_trash_auto_delete_days,content_trash_auto_delete_scope';
+
+const _maintenanceSettingsSelect =
+    'language_code,content_maintenance_enabled,'
+    'content_maintenance_duration_minutes,content_maintenance_started_at';
 
 const contentPostFormatKeys = [
   'article',
@@ -1374,11 +1546,31 @@ int _clampTrashDays(int value) {
   return value.clamp(1, 365).toInt();
 }
 
+int? _maintenanceDurationMinutes(Object? value, {required int? fallback}) {
+  final raw = value?.toString().trim().toLowerCase();
+  if (raw == null || raw.isEmpty || raw == 'null' || raw == 'indefinite') {
+    return null;
+  }
+  final parsed = value is num ? value.round() : int.tryParse(raw);
+  if (parsed == null) return fallback;
+  return _clampMaintenanceDurationMinutes(parsed);
+}
+
+int _clampMaintenanceDurationMinutes(int value) {
+  return value.clamp(1, 1440).toInt();
+}
+
 String _trashScope(Object? value, {String fallback = 'all'}) {
   final normalized = value?.toString().trim().toLowerCase();
   if (normalized == 'draft') return 'draft';
   if (normalized == 'all') return 'all';
   return fallback;
+}
+
+DateTime? _dateTime(Object? value) {
+  final raw = value?.toString().trim();
+  if (raw == null || raw.isEmpty) return null;
+  return DateTime.tryParse(raw)?.toUtc();
 }
 
 String _cleanLanguageCode(String value) {

@@ -600,6 +600,11 @@ const fontPreloadHrefs = Array.from(new Set(
 			:root {
 				--public-nav-height: 72px;
 			}
+			@media (max-width: 767px) {
+				:root {
+					--public-nav-height: 56px;
+				}
+			}
 			.route-loading {
 				position: fixed;
 				top: var(--public-nav-height);

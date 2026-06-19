@@ -238,7 +238,7 @@ const HomePage: React.FC<HomePageProps> = ({
             <ToastProvider>
                 <div className="min-h-screen bg-gray-50 text-gray-900 transition-opacity duration-300 opacity-100">
 
-                    <main className="max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
+                    <main className="public-page-main public-home-main max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
                         <aside className="hidden lg:block w-[260px] flex-shrink-0 sticky top-[92px] h-[calc(100vh-92px)] overflow-y-auto pb-8 no-scrollbar">
                             <Sidebar
                                 items={navigationItems}

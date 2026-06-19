@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicAdCreative, PublicAdSettings, PublicAdSlot } from '@/types';
 
 type AdSlotProps = {
@@ -41,6 +41,8 @@ const cleanDimension = (value: number | undefined, fallback = 0) => {
   return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 0;
 };
 
+const ADSENSE_PENDING_COLLAPSE_MS = 12_000;
+
 const AdSlot: React.FC<AdSlotProps> = ({ settings, slotKey, className = '' }) => {
   const slot = useMemo(() => (
     settings?.masterEnabled
@@ -49,19 +51,65 @@ const AdSlot: React.FC<AdSlotProps> = ({ settings, slotKey, className = '' }) =>
   ), [settings, slotKey]);
   const creative = useMemo(() => (slot ? pickCreative(slot) : null), [slot]);
   const pushedAdSenseKey = useRef('');
+  const adSenseElementRef = useRef<HTMLModElement | null>(null);
+  const [isAdSenseCollapsed, setIsAdSenseCollapsed] = useState(false);
+  const adSenseKey = slot && creative?.type === 'adsense'
+    ? `${slot.key}:${creative.id}:${creative.adsenseSlotId || ''}`
+    : '';
+
+  useEffect(() => {
+    setIsAdSenseCollapsed(false);
+  }, [adSenseKey]);
 
   useEffect(() => {
     if (!slot || !creative || creative.type !== 'adsense') return;
-    const key = `${slot.key}:${creative.id}:${creative.adsenseSlotId || ''}`;
-    if (pushedAdSenseKey.current === key) return;
-    pushedAdSenseKey.current = key;
+    if (pushedAdSenseKey.current === adSenseKey) return;
+    pushedAdSenseKey.current = adSenseKey;
     try {
       window.adsbygoogle = window.adsbygoogle || [];
       window.adsbygoogle.push({});
     } catch {
       // Ad blockers or delayed AdSense loading should never break the page.
+      setIsAdSenseCollapsed(true);
     }
-  }, [creative, slot]);
+  }, [adSenseKey, creative, slot]);
+
+  useEffect(() => {
+    if (!adSenseKey) return undefined;
+    const element = adSenseElementRef.current;
+    if (!element) return undefined;
+
+    const syncAdSenseStatus = () => {
+      const adStatus = element.getAttribute('data-ad-status');
+      if (adStatus === 'unfilled') {
+        setIsAdSenseCollapsed(true);
+      } else if (adStatus === 'filled') {
+        setIsAdSenseCollapsed(false);
+      }
+    };
+
+    syncAdSenseStatus();
+
+    const observer = new MutationObserver(syncAdSenseStatus);
+    observer.observe(element, {
+      attributes: true,
+      attributeFilter: ['data-ad-status', 'data-adsbygoogle-status', 'style'],
+      childList: true,
+    });
+
+    const pendingTimer = window.setTimeout(() => {
+      const adStatus = element.getAttribute('data-ad-status');
+      const googleStatus = element.getAttribute('data-adsbygoogle-status');
+      if (!adStatus && !googleStatus && element.childElementCount === 0) {
+        setIsAdSenseCollapsed(true);
+      }
+    }, ADSENSE_PENDING_COLLAPSE_MS);
+
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(pendingTimer);
+    };
+  }, [adSenseKey]);
 
   if (!slot || !creative) return null;
 
@@ -112,6 +160,8 @@ const AdSlot: React.FC<AdSlotProps> = ({ settings, slotKey, className = '' }) =>
   }
 
   if (creative.type === 'adsense' && creative.publisherId && creative.adsenseSlotId) {
+    if (isAdSenseCollapsed) return null;
+
     const responsive = creative.responsive || slot.responsive || !width || !height;
     const style: React.CSSProperties = responsive
       ? { display: 'block', width: '100%' }
@@ -120,6 +170,7 @@ const AdSlot: React.FC<AdSlotProps> = ({ settings, slotKey, className = '' }) =>
     return (
       <div className={wrapperClass} data-ad-slot={slot.key}>
         <ins
+          ref={adSenseElementRef}
           className="adsbygoogle"
           style={style}
           data-ad-client={creative.publisherId}

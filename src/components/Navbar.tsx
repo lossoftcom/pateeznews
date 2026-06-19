@@ -65,6 +65,56 @@ const remixIconFor = (icon?: string) => {
   return REMIX_ICON_BY_MATERIAL[key] || 'ri-arrow-right-s-line';
 };
 
+const DRAWER_MATERIAL_ICON_BY_KEY: Record<string, string> = {
+  home: 'home',
+  where_to_vote: 'location_on',
+  location_on: 'location_on',
+  forum: 'forum',
+  auto_stories: 'auto_stories',
+  poll: 'assignment',
+  bar_chart: 'assignment',
+  quiz: 'quiz',
+  smart_display: 'play_circle',
+  format_list_bulleted: 'format_list_bulleted',
+  format_list_numbered: 'format_list_bulleted',
+  restaurant: 'restaurant',
+  calendar_month: 'calendar_month',
+  account_balance: 'account_balance',
+  spa: 'eco',
+  trending_up: 'monitoring',
+};
+
+const isDrawerCategoryType = (type?: string) => {
+  const normalized = String(type || '').trim().toLowerCase();
+  return !normalized || normalized === 'category' || normalized === 'dropdown' || normalized === 'link';
+};
+
+const drawerMaterialIconFor = (item: NavigationItem) => {
+  const rawIcon = String(item.icon || '').trim().toLowerCase();
+  if (rawIcon && !rawIcon.startsWith('ri-')) return DRAWER_MATERIAL_ICON_BY_KEY[rawIcon] || rawIcon;
+
+  const text = `${item.label || ''} ${item.value || ''}`.toLocaleLowerCase('tr-TR');
+  if (item.type === 'district') return 'location_on';
+  if (item.type === 'trends') return 'monitoring';
+  if (text.includes('köşe')) return 'forum';
+  if (text.includes('anket')) return 'assignment';
+  if (text.includes('test')) return 'quiz';
+  if (text.includes('video')) return 'play_circle';
+  if (text.includes('içindekiler') || text.includes('icindekiler')) return 'format_list_bulleted';
+  if (text.includes('tarif')) return 'restaurant';
+  if (text.includes('etkinlik')) return 'calendar_month';
+  if (text.includes('siyaset')) return 'account_balance';
+  if (text.includes('yaşam') || text.includes('yasam')) return 'eco';
+  return 'grid_view';
+};
+
+const getDefaultDrawerRootItem = (items: NavigationItem[]) => (
+  items.find((item) => {
+    const value = item.value || item.label || '';
+    return slugify(value) === 'nigde' || slugify(item.label || '') === 'nigde';
+  }) || items[0] || null
+);
+
 const desktopNavItemClass = (isActive: boolean) => (
   `${DESKTOP_NAV_ITEM_BASE_CLASS} ${isActive ? 'text-palette-red' : 'text-gray-600 hover:text-palette-red'}`
 );
@@ -103,6 +153,9 @@ const Navbar: React.FC<NavbarProps> = ({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isMobileDrawerGroupOpen, setIsMobileDrawerGroupOpen] = useState(true);
+  const [isMobileAppsOpen, setIsMobileAppsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<{ posts: any[]; profiles: any[] }>({ posts: [], profiles: [] });
@@ -158,7 +211,48 @@ const Navbar: React.FC<NavbarProps> = ({
     });
   }, [hasExplicitTopNav, explicitTopNavItems, navItems]);
 
+  const mobileDrawerItems = React.useMemo(() => {
+    const scoped = navItems.filter((item) => item.menu_code === 'sidebar_main');
+    return (scoped.length > 0 ? scoped : navItems.filter((item) => item.menu_code !== 'top_navbar'))
+      .slice()
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+  }, [navItems]);
+
+  const mobileDrawerRootItems = React.useMemo(() => (
+    mobileDrawerItems
+      .filter((item) => !item.parent_id || item.parent_id === 'root')
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+  ), [mobileDrawerItems]);
+
+  const mobileDrawerRoot = React.useMemo(
+    () => getDefaultDrawerRootItem(mobileDrawerRootItems),
+    [mobileDrawerRootItems]
+  );
+
+  const mobileDrawerChildren = React.useMemo(() => {
+    if (!mobileDrawerRoot) return [];
+    return mobileDrawerItems
+      .filter((item) => item.parent_id === mobileDrawerRoot.id)
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+  }, [mobileDrawerItems, mobileDrawerRoot]);
+
+  const mobileDrawerMenuItems = mobileDrawerChildren.filter((item) => isDrawerCategoryType(item.type));
+  const mobileDrawerDistricts = mobileDrawerChildren.filter((item) => item.type === 'district');
+  const mobileDrawerTrends = mobileDrawerChildren.filter((item) => item.type === 'trends');
+  const mobileDrawerOtherItems = mobileDrawerChildren.filter((item) => (
+    item.type !== 'district' && item.type !== 'trends' && !isDrawerCategoryType(item.type)
+  ));
+
+  const closeMobileOverlays = () => {
+    setIsMobileDrawerOpen(false);
+    setIsMobileAppsOpen(false);
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      setIsSearchOpen(false);
+    }
+  };
+
   const goHome = () => {
+    closeMobileOverlays();
     if (onHomeClick) return onHomeClick();
     void navigateImmediately('/');
   };
@@ -179,6 +273,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
   const navigateSpecialContent = (config: SpecialContentConfig) => {
     const href = getSpecialContentUrl(config.value);
+    closeMobileOverlays();
     if (typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '')) {
       updateUrlImmediately(href);
       setCurrentLocation(readCurrentLocation());
@@ -231,6 +326,57 @@ const Navbar: React.FC<NavbarProps> = ({
       document.removeEventListener('astro:page-load', syncCurrentLocation);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.classList.toggle('mobile-drawer-open', isMobileDrawerOpen);
+    return () => document.body.classList.remove('mobile-drawer-open');
+  }, [isMobileDrawerOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const getShiftTargets = () => ({
+      header: document.querySelector<HTMLElement>('.public-site-header-bar'),
+      main: document.querySelector<HTMLElement>('main'),
+      bottomNav: document.querySelector<HTMLElement>('.mobile-shell-bottom-nav'),
+    });
+    const resetShift = () => {
+      const { header, main, bottomNav } = getShiftTargets();
+      [header, main].forEach((element) => {
+        if (element) element.style.transform = '';
+      });
+      if (bottomNav) {
+        bottomNav.style.transform = '';
+      }
+    };
+    const syncShift = () => {
+      resetShift();
+      if (!isMobileDrawerOpen || !window.matchMedia('(max-width: 767px)').matches) return;
+
+      const screenWidth = window.innerWidth;
+      const drawerWidth = Math.min(276, Math.max(220, screenWidth * 0.68), screenWidth - 84);
+      const shift = `${drawerWidth}px`;
+      const { header, main, bottomNav } = getShiftTargets();
+
+      [header, main].forEach((element) => {
+        if (element) element.style.transform = `translate3d(${shift}, 0, 0)`;
+      });
+      if (bottomNav) {
+        bottomNav.style.transform = `translate3d(${shift}, 0, 0)`;
+      }
+    };
+
+    syncShift();
+    window.addEventListener('resize', syncShift);
+    document.addEventListener('astro:page-load', syncShift);
+
+    return () => {
+      window.removeEventListener('resize', syncShift);
+      document.removeEventListener('astro:page-load', syncShift);
+      resetShift();
+    };
+  }, [isMobileDrawerOpen]);
 
   useEffect(() => {
     if (!isSearchOpen || searchTerm.trim().length < 2) {
@@ -308,16 +454,100 @@ const Navbar: React.FC<NavbarProps> = ({
     return activeCategorySlug === slugify(raw);
   };
 
+  const videoConfig = getSpecialContentConfig('video');
+  const isMobileOverlayActive = isMobileAppsOpen || isSearchOpen;
+  const isHomeActive = !isMobileOverlayActive && activePath === '/' && !activeQueryCategory;
+  const isVideoActive = !isMobileOverlayActive && videoConfig ? isSpecialActive(videoConfig) : false;
+  const isAccountActive = !isMobileOverlayActive && (activePath === '/profil' || activePath === '/profil-duzenle' || activePath.startsWith('/profil/'));
+
+  const openMobileApps = () => {
+    setIsMobileDrawerOpen(false);
+    setIsSearchOpen(false);
+    setShowUserMenu(false);
+    setIsMobileAppsOpen((value) => !value);
+  };
+
+  const openMobileSearch = () => {
+    setIsMobileDrawerOpen(false);
+    setIsMobileAppsOpen(false);
+    setShowUserMenu(false);
+    setIsSearchOpen(true);
+  };
+
+  const openMobileAccount = () => {
+    setIsMobileDrawerOpen(false);
+    setIsMobileAppsOpen(false);
+    setIsSearchOpen(false);
+    if (isLoggedIn && onProfileViewClick) {
+      onProfileViewClick();
+      return;
+    }
+    onProfileClick?.();
+  };
+
+  const openMobileDrawer = () => {
+    setIsMobileAppsOpen(false);
+    setIsSearchOpen(false);
+    setShowUserMenu(false);
+    setIsMobileDrawerOpen((value) => !value);
+  };
+
+  const navigateMobileDrawerItem = (item: NavigationItem) => {
+    const specialConfig = getSpecialContentConfig(item.value, item.label);
+    setIsMobileDrawerOpen(false);
+    if (specialConfig) {
+      navigateSpecialContent(specialConfig);
+      return;
+    }
+    navigateHeaderItem(item);
+  };
+
+  const renderDrawerIcon = (item: NavigationItem, selected = false) => (
+    <span
+      className="material-symbols-rounded mobile-shell-drawer-row-icon"
+      style={{ fontVariationSettings: selected ? "'FILL' 1" : "'FILL' 0" }}
+      aria-hidden="true"
+    >
+      {drawerMaterialIconFor(item)}
+    </span>
+  );
+
+  const renderDrawerRow = (item: NavigationItem) => {
+    const specialConfig = getSpecialContentConfig(item.value, item.label);
+    const active = isHeaderItemActive(item, specialConfig);
+    return (
+      <button
+        key={`mobile-drawer-${item.id}`}
+        type="button"
+        className={`mobile-shell-drawer-row mobile-shell-drawer-row-dense${active ? ' is-selected' : ''}`}
+        onClick={() => navigateMobileDrawerItem(item)}
+      >
+        <span className="mobile-shell-drawer-active-mark" aria-hidden="true" />
+        {renderDrawerIcon(item, active)}
+        <span className="mobile-shell-drawer-row-label">{t(item.label)}</span>
+      </button>
+    );
+  };
+
   return (
-    <header className="fixed top-0 left-0 w-full z-[250]">
-      <div className="h-[72px] bg-white/80 backdrop-blur-2xl border-b border-palette-beige/20 shadow-sm relative z-[251]">
+    <header className="public-site-header fixed top-0 left-0 w-full z-[250]">
+      <div className="public-site-header-bar h-[72px] bg-white/80 backdrop-blur-2xl border-b border-palette-beige/20 shadow-sm relative z-[251]">
         <div className="max-w-[1280px] mx-auto h-full flex items-center px-4">
+          <button
+            type="button"
+            onClick={openMobileDrawer}
+            className="mobile-shell-top-button mobile-shell-menu-button lg:hidden"
+            aria-label="Menü"
+            aria-expanded={isMobileDrawerOpen}
+          >
+            <RemixIcon name="ri-menu-line" size={22} />
+          </button>
 
           {/* LOGO */}
           <div
             onClick={goHome}
             onMouseEnter={() => prefetch('/')}
-            className="flex items-center gap-3 cursor-pointer group select-none z-20 flex-shrink-0 lg:w-[260px] pl-5"
+            className="public-site-brand flex items-center gap-3 cursor-pointer group select-none z-20 flex-shrink-0 lg:w-[260px] pl-5"
           >
             {siteSettings?.logo_url ? (
               <div className="h-[46px] transition-opacity duration-200 group-hover:opacity-95">
@@ -433,7 +663,7 @@ const Navbar: React.FC<NavbarProps> = ({
             )}
           </nav>
 
-          <div className="flex items-center gap-1 ml-auto z-20">
+          <div className="public-site-header-actions flex items-center gap-1 ml-auto z-20">
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
               className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-colors duration-100 ${isSearchOpen
@@ -611,8 +841,109 @@ const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={openMobileApps}
+            className="mobile-shell-top-button mobile-shell-pharmacy-button lg:hidden"
+            aria-label="Nöbetçi eczane"
+            aria-expanded={isMobileAppsOpen}
+          >
+            <img
+              src="/admin/assets/assets/images/nobetci_eczane.webp"
+              alt=""
+              className="mobile-shell-pharmacy-logo"
+              loading="eager"
+              decoding="async"
+            />
+          </button>
         </div>
       </div >
+
+      {isMobileDrawerOpen && (
+        <div className="mobile-shell-drawer-layer lg:hidden">
+          <aside className="mobile-shell-side-drawer" role="dialog" aria-label="Menü">
+            <div className="mobile-shell-drawer-header">
+              <button type="button" className="mobile-shell-drawer-brand" onClick={goHome} aria-label="Ana sayfa">
+                {siteSettings?.logo_url ? (
+                  <img src={siteSettings.logo_url} alt={siteSettings?.site_name || 'Pateez'} loading="eager" decoding="async" />
+                ) : (
+                  <span>pateez</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className="mobile-shell-drawer-close"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                aria-label="Menüyü kapat"
+              >
+                <span className="material-symbols-rounded" aria-hidden="true">close</span>
+              </button>
+            </div>
+
+            <div className="mobile-shell-drawer-scroll">
+              {mobileDrawerRoot && (
+                <button
+                  type="button"
+                  className="mobile-shell-drawer-row is-selected"
+                  onClick={() => setIsMobileDrawerGroupOpen((value) => !value)}
+                >
+                  <span className="mobile-shell-drawer-active-mark" aria-hidden="true" />
+                  {renderDrawerIcon(mobileDrawerRoot, true)}
+                  <span className="mobile-shell-drawer-row-label">{t(mobileDrawerRoot.label)}</span>
+                  <span
+                    className={`material-symbols-rounded mobile-shell-drawer-chevron${isMobileDrawerGroupOpen ? ' is-open' : ''}`}
+                    aria-hidden="true"
+                  >
+                    keyboard_arrow_down
+                  </span>
+                </button>
+              )}
+
+              {isMobileDrawerGroupOpen && (
+                <>
+                  {mobileDrawerMenuItems.map(renderDrawerRow)}
+                  {mobileDrawerDistricts.length > 0 && (
+                    <>
+                      <p className="mobile-shell-drawer-group-title">İlçeler</p>
+                      {mobileDrawerDistricts.map(renderDrawerRow)}
+                    </>
+                  )}
+                  {mobileDrawerTrends.length > 0 && (
+                    <>
+                      <p className="mobile-shell-drawer-group-title">Trendler</p>
+                      {mobileDrawerTrends.map(renderDrawerRow)}
+                    </>
+                  )}
+                  {mobileDrawerOtherItems.length > 0 && mobileDrawerOtherItems.map(renderDrawerRow)}
+                </>
+              )}
+            </div>
+
+            <div className="mobile-shell-drawer-footer">
+              <button
+                type="button"
+                className="mobile-shell-drawer-about"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  void navigateImmediately('/kurumsal/hakkimizda');
+                }}
+              >
+                Hakkımızda
+              </button>
+              <button type="button" className="mobile-shell-drawer-mode" aria-label="Normal mod">
+                <span className="material-symbols-rounded" aria-hidden="true">light_mode</span>
+              </button>
+            </div>
+          </aside>
+          <button
+            type="button"
+            className="mobile-shell-drawer-hit-area"
+            onClick={() => setIsMobileDrawerOpen(false)}
+            aria-label="Menüyü kapat"
+          />
+        </div>
+      )}
 
       {SHOW_MOBILE_TOP_NAVIGATION && isMobileMenuOpen && (
         <div className="lg:hidden absolute top-[72px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl z-[252] animate-in slide-in-from-top-2">
@@ -676,9 +1007,91 @@ const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
+      {isMobileAppsOpen && (
+        <>
+          <div
+            className="mobile-shell-sheet-backdrop lg:hidden"
+            onClick={() => setIsMobileAppsOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="mobile-shell-apps-sheet lg:hidden" role="dialog" aria-label="Uygulamalar">
+            <div className="mobile-shell-sheet-handle" />
+            <div className="mobile-shell-sheet-head">
+              <div>
+                <p>Uygulamalar</p>
+                <span>Haber tipleri ve bölümler</span>
+              </div>
+              <button type="button" onClick={() => setIsMobileAppsOpen(false)} aria-label="Kapat">
+                <RemixIcon name="ri-close-line" size={20} />
+              </button>
+            </div>
+            <div className="mobile-shell-app-grid">
+              {specialHeaderItems.map((item) => {
+                const active = isSpecialActive(item.config);
+                return (
+                  <button
+                    key={`mobile-special-${item.id}`}
+                    type="button"
+                    onClick={() => navigateSpecialContent(item.config)}
+                    className={active ? 'is-active' : undefined}
+                  >
+                    <span><RemixIcon name={remixIconFor(item.icon)} size={20} /></span>
+                    <strong>{t(item.label)}</strong>
+                  </button>
+                );
+              })}
+              {headerItems.map((item) => {
+                const active = isHeaderItemActive(item);
+                return (
+                  <button
+                    key={`mobile-header-${item.id}`}
+                    type="button"
+                    onClick={() => {
+                      setIsMobileAppsOpen(false);
+                      navigateHeaderItem(item);
+                    }}
+                    className={active ? 'is-active' : undefined}
+                  >
+                    <span><RemixIcon name={remixIconFor(item.icon || 'chevron_right')} size={20} /></span>
+                    <strong>{t(item.label)}</strong>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      <nav className="mobile-shell-bottom-nav lg:hidden" aria-label="Mobil ana gezinme">
+        <button type="button" onClick={goHome} className={isHomeActive ? 'is-active' : undefined}>
+          <RemixIcon name={isHomeActive ? 'ri-home-5-fill' : 'ri-home-5-line'} size={22} />
+          <span>Anasayfa</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => videoConfig && navigateSpecialContent(videoConfig)}
+          className={isVideoActive ? 'is-active' : undefined}
+        >
+          <RemixIcon name={isVideoActive ? 'ri-play-circle-fill' : 'ri-play-circle-line'} size={22} />
+          <span>Video</span>
+        </button>
+        <button type="button" onClick={openMobileApps} className={isMobileAppsOpen ? 'is-active' : undefined}>
+          <RemixIcon name={isMobileAppsOpen ? 'ri-apps-fill' : 'ri-apps-line'} size={22} />
+          <span>Uygulamalar</span>
+        </button>
+        <button type="button" onClick={openMobileSearch} className={isSearchOpen ? 'is-active' : undefined}>
+          <RemixIcon name={isSearchOpen ? 'ri-search-fill' : 'ri-search-line'} size={22} />
+          <span>Arama</span>
+        </button>
+        <button type="button" onClick={openMobileAccount} className={isAccountActive ? 'is-active' : undefined}>
+          <RemixIcon name={isAccountActive ? 'ri-user-3-fill' : 'ri-user-3-line'} size={22} />
+          <span>Hesap</span>
+        </button>
+      </nav>
+
       {/* SEARCH BAR */}
       < div
-        className={`absolute top-[72px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl transition-all duration-75 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[420px] opacity-100 py-3.5' : 'max-h-0 opacity-0 py-0'
+        className={`public-search-panel absolute top-[72px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl transition-all duration-75 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[420px] opacity-100 py-3.5' : 'max-h-0 opacity-0 py-0'
           }`}
       >
         <div className="max-w-[1280px] mx-auto px-4">

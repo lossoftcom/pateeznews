@@ -104,7 +104,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
   }, [liveNewsData, hiddenMansetIds, activeFilter]);
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
+    <div className="public-feed flex flex-col gap-6 pb-4">
       {!resolvedTitle && (
         <AdSlot settings={adSettings} slotKey="web_home_top" className="px-1" />
       )}

@@ -178,7 +178,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
             onMouseLeave={() => setIsPaused(false)}
             aria-label="Manşet haber sliderı"
         >
-            <div className="relative w-full aspect-square">
+            <div className="relative w-full aspect-[16/9]">
                 {slides.map((slide, index) => {
                     const isActive = index === activeIndex;
 

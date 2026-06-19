@@ -687,6 +687,8 @@ const Map<String, String> adminArTranslations = <String, String>{
   "contentSettings.value.yes": "نعم",
   "contentSettings.value.enabled": "مفعل",
   "contentSettings.value.enable": "تفعيل",
+  "contentSettings.value.active": "مفعل",
+  "contentSettings.value.passive": "غير مفعل",
   "contentSettings.general.showFeaturedSection": "إظهار قسم العناوين",
   "contentSettings.general.commentSystem": "نظام التعليقات",
   "contentSettings.general.commentApprovalSystem": "نظام اعتماد التعليقات",
@@ -744,6 +746,11 @@ const Map<String, String> adminArTranslations = <String, String>{
   "contentSettings.autoDelete.daysHelp":
       "مثلا إذا أدخلت 30 فسيحذف النظام الأخبار الموجودة في السلة لأكثر من 30 يوما نهائيا.",
   "contentSettings.autoDelete.posts": "سجلات السلة",
+  "contentSettings.maintenance.title": "وضع صيانة الموقع",
+  "contentSettings.maintenance.help":
+      "عند تفعيل وضع الصيانة تظهر شاشة الصيانة في الصفحة الرئيسية Astro فقط. تعود الصفحة الرئيسية تلقائيا عند انتهاء المدة المحددة.",
+  "contentSettings.maintenance.status": "الحالة",
+  "contentSettings.maintenance.duration": "المدة",
   "contentSettings.option.slugUrls":
       "استخدام Slug في الروابط (domain.com/slug)",
   "contentSettings.option.idUrls": "استخدام ID في الروابط",
@@ -753,6 +760,10 @@ const Map<String, String> adminArTranslations = <String, String>{
   "contentSettings.option.publishDate": "تاريخ النشر",
   "contentSettings.option.deleteAllPosts": "تنظيف كل سجلات السلة",
   "contentSettings.option.deleteDraftPosts": "تنظيف سجلات المسودات فقط",
+  "contentSettings.option.maintenance10Minutes": "10 دقائق",
+  "contentSettings.option.maintenance30Minutes": "30 دقيقة",
+  "contentSettings.option.maintenance60Minutes": "ساعة واحدة",
+  "contentSettings.option.maintenanceIndefinite": "بدون مدة محددة",
   "fontSettings.title": "إعدادات الخطوط",
   "fontSettings.saveChanges": "حفظ التغييرات",
   "fontSettings.saveSuccess": "تم حفظ إعدادات الخطوط",

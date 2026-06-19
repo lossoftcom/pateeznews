@@ -827,7 +827,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
 
   return (
     <div
-      className="bg-white rounded-[5px] border border-palette-beige/30 shadow-[0_2px_20px_rgba(24,37,64,0.03)] transition-all duration-100 hover:shadow-[0_8px_30px_rgba(24,37,64,0.06)] hover:border-palette-red/10 cursor-pointer group/card relative"
+      className="public-news-card bg-white rounded-[5px] border border-palette-beige/30 shadow-[0_2px_20px_rgba(24,37,64,0.03)] transition-all duration-100 hover:shadow-[0_8px_30px_rgba(24,37,64,0.06)] hover:border-palette-red/10 cursor-pointer group/card relative"
     >
       <a
         href={detailHref}

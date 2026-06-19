@@ -23,6 +23,7 @@ class ContentSettingsScreen extends StatefulWidget {
     this.onUploadSettingsChanged,
     this.onFeaturedSettingsChanged,
     this.onTrashCleanupSettingsChanged,
+    this.onMaintenanceSettingsChanged,
   });
 
   final AdminSession session;
@@ -36,6 +37,8 @@ class ContentSettingsScreen extends StatefulWidget {
   final ValueChanged<ContentFeaturedSettingsData>? onFeaturedSettingsChanged;
   final ValueChanged<ContentTrashCleanupSettingsData>?
   onTrashCleanupSettingsChanged;
+  final ValueChanged<ContentMaintenanceSettingsData>?
+  onMaintenanceSettingsChanged;
 
   @override
   State<ContentSettingsScreen> createState() => _ContentSettingsScreenState();
@@ -72,6 +75,8 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   var _featuredSaving = false;
   var _trashCleanupLoading = true;
   var _trashCleanupSaving = false;
+  var _maintenanceLoading = true;
+  var _maintenanceSaving = false;
   String? _loadedLanguageCode;
   var _bulkPostUpload = true;
   var _deleteImagesAlongPost = false;
@@ -89,6 +94,8 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
   var _featuredSortingLogic = _ContentSettingOptions.sliderOrder;
   var _featuredShowNewsInfo = false;
   var _autoDeletePosts = _ContentSettingOptions.deleteAllPosts;
+  var _maintenanceMode = false;
+  var _maintenanceDuration = _ContentSettingOptions.maintenance30Minutes;
   var _postFormats = {
     for (final key in _ContentSettingOptions.postFormatKeys) key: true,
   };
@@ -113,6 +120,7 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     unawaited(_loadUploadSettings(languageCode));
     unawaited(_loadFeaturedSettings(languageCode));
     unawaited(_loadTrashCleanupSettings(languageCode));
+    unawaited(_loadMaintenanceSettings(languageCode));
   }
 
   @override
@@ -165,12 +173,14 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     _applyUploadSettings(settings.upload);
     _applyFeaturedSettings(settings.featured);
     _applyTrashCleanupSettings(settings.trashCleanup);
+    _applyMaintenanceSettings(settings.maintenance);
     _generalLoading = false;
     _postSettingsLoading = false;
     _postFormatsLoading = false;
     _fileUploadLoading = false;
     _featuredLoading = false;
     _trashCleanupLoading = false;
+    _maintenanceLoading = false;
   }
 
   void _applyGeneralSettings(ContentGeneralSettingsData settings) {
@@ -225,6 +235,11 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     _autoPostDeletion = settings.enabled;
     _autoDeleteDaysController.text = settings.days.toString();
     _autoDeletePosts = _trashScopeOption(settings.scope);
+  }
+
+  void _applyMaintenanceSettings(ContentMaintenanceSettingsData settings) {
+    _maintenanceMode = settings.enabled;
+    _maintenanceDuration = _maintenanceDurationOption(settings.durationMinutes);
   }
 
   Future<void> _loadGeneralSettings(String languageCode) async {
@@ -578,6 +593,56 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
     }
   }
 
+  Future<void> _loadMaintenanceSettings(String languageCode) async {
+    setState(() => _maintenanceLoading = true);
+    try {
+      final settings = await widget.repository.fetchMaintenanceSettings(
+        languageCode,
+      );
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() {
+        _applyMaintenanceSettings(settings);
+        _maintenanceLoading = false;
+      });
+      widget.onMaintenanceSettingsChanged?.call(settings);
+    } catch (error) {
+      if (!mounted || _loadedLanguageCode != languageCode) return;
+      setState(() => _maintenanceLoading = false);
+      _showErrorMessage(error);
+    }
+  }
+
+  Future<void> _saveMaintenanceSettings() async {
+    if (_maintenanceSaving) return;
+    final languageCode =
+        _loadedLanguageCode ??
+        AdminLocalizationScope.maybeOf(context)?.code ??
+        'tr';
+    setState(() => _maintenanceSaving = true);
+    try {
+      final saved = await widget.repository.saveMaintenanceSettings(
+        session: widget.session,
+        settings: ContentMaintenanceSettingsData(
+          languageCode: languageCode,
+          enabled: _maintenanceMode,
+          durationMinutes: _maintenanceDurationValue(_maintenanceDuration),
+          startedAt: null,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _applyMaintenanceSettings(saved);
+        _maintenanceSaving = false;
+      });
+      widget.onMaintenanceSettingsChanged?.call(saved);
+      _showSavedMessage();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _maintenanceSaving = false);
+      _showErrorMessage(error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -713,19 +778,38 @@ class _ContentSettingsScreenState extends State<ContentSettingsScreen> {
                     ),
                   ],
                 ),
-                right: _AutoPostDeletionCard(
-                  enabled: _autoPostDeletion,
-                  loading: _trashCleanupLoading,
-                  saving: _trashCleanupSaving,
-                  daysController: _autoDeleteDaysController,
-                  postsValue: _autoDeletePosts,
-                  onEnabledChanged: (value) =>
-                      setState(() => _autoPostDeletion = value),
-                  onPostsChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _autoDeletePosts = value);
-                  },
-                  onSave: _saveTrashCleanupSettings,
+                right: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _AutoPostDeletionCard(
+                      enabled: _autoPostDeletion,
+                      loading: _trashCleanupLoading,
+                      saving: _trashCleanupSaving,
+                      daysController: _autoDeleteDaysController,
+                      postsValue: _autoDeletePosts,
+                      onEnabledChanged: (value) =>
+                          setState(() => _autoPostDeletion = value),
+                      onPostsChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _autoDeletePosts = value);
+                      },
+                      onSave: _saveTrashCleanupSettings,
+                    ),
+                    const SizedBox(height: 18),
+                    _MaintenanceModeCard(
+                      enabled: _maintenanceMode,
+                      loading: _maintenanceLoading,
+                      saving: _maintenanceSaving,
+                      durationValue: _maintenanceDuration,
+                      onEnabledChanged: (value) =>
+                          setState(() => _maintenanceMode = value),
+                      onDurationChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _maintenanceDuration = value);
+                      },
+                      onSave: _saveMaintenanceSettings,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -801,6 +885,24 @@ String _trashScopeOption(String value) {
   return value == 'draft'
       ? _ContentSettingOptions.deleteDraftPosts
       : _ContentSettingOptions.deleteAllPosts;
+}
+
+int? _maintenanceDurationValue(String option) {
+  return switch (option) {
+    _ContentSettingOptions.maintenance10Minutes => 10,
+    _ContentSettingOptions.maintenance30Minutes => 30,
+    _ContentSettingOptions.maintenance60Minutes => 60,
+    _ => null,
+  };
+}
+
+String _maintenanceDurationOption(int? value) {
+  return switch (value) {
+    10 => _ContentSettingOptions.maintenance10Minutes,
+    60 => _ContentSettingOptions.maintenance60Minutes,
+    null => _ContentSettingOptions.maintenanceIndefinite,
+    _ => _ContentSettingOptions.maintenance30Minutes,
+  };
 }
 
 String _normalizeLanguageCode(String value) {
@@ -1515,6 +1617,111 @@ class _AutoPostDeletionCard extends StatelessWidget {
   }
 }
 
+class _MaintenanceModeCard extends StatelessWidget {
+  const _MaintenanceModeCard({
+    required this.enabled,
+    required this.loading,
+    required this.saving,
+    required this.durationValue,
+    required this.onEnabledChanged,
+    required this.onDurationChanged,
+    required this.onSave,
+  });
+
+  final bool enabled;
+  final bool loading;
+  final bool saving;
+  final String durationValue;
+  final ValueChanged<bool> onEnabledChanged;
+  final ValueChanged<String?> onDurationChanged;
+  final Future<void> Function() onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ContentCard(
+      title: 'contentSettings.maintenance.title',
+      minHeight: 292,
+      child: loading
+          ? const _SettingsLoadingPanel(height: 200)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: enabled
+                        ? AppColors.actionRed.withValues(alpha: 0.07)
+                        : AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                    border: Border.all(
+                      color: enabled
+                          ? AppColors.actionRed.withValues(alpha: 0.24)
+                          : AppColors.softLine,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: enabled ? AppColors.actionRed : Colors.white,
+                          borderRadius: BorderRadius.circular(AppRadius.value),
+                          border: Border.all(
+                            color: enabled
+                                ? AppColors.actionRed
+                                : AppColors.line,
+                          ),
+                        ),
+                        child: SymbolIcon(
+                          enabled ? Symbols.building_line : Symbols.home,
+                          color: enabled ? Colors.white : AppColors.iconMuted,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          context.t('contentSettings.maintenance.help'),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppColors.deepOcean,
+                                fontWeight: FontWeight.w600,
+                                height: 1.45,
+                                letterSpacing: 0,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _InlineSwitchControl(
+                  label: 'contentSettings.maintenance.status',
+                  value: enabled,
+                  valueLabel: enabled
+                      ? 'contentSettings.value.active'
+                      : 'contentSettings.value.passive',
+                  onChanged: saving ? (_) {} : onEnabledChanged,
+                ),
+                const SizedBox(height: 18),
+                _FullSelectField(
+                  label: 'contentSettings.maintenance.duration',
+                  value: durationValue,
+                  options: _ContentSettingOptions.maintenanceDurationOptions,
+                  onChanged: saving ? (_) {} : onDurationChanged,
+                  isRequired: true,
+                ),
+                const SizedBox(height: 20),
+                _SaveRow(onPressed: saving ? null : () => unawaited(onSave())),
+              ],
+            ),
+    );
+  }
+}
+
 class _SwitchLine extends StatelessWidget {
   const _SwitchLine({
     required this.label,
@@ -2213,11 +2420,25 @@ class _ContentSettingOptions {
   static const publishDate = 'contentSettings.option.publishDate';
   static const deleteAllPosts = 'contentSettings.option.deleteAllPosts';
   static const deleteDraftPosts = 'contentSettings.option.deleteDraftPosts';
+  static const maintenance10Minutes =
+      'contentSettings.option.maintenance10Minutes';
+  static const maintenance30Minutes =
+      'contentSettings.option.maintenance30Minutes';
+  static const maintenance60Minutes =
+      'contentSettings.option.maintenance60Minutes';
+  static const maintenanceIndefinite =
+      'contentSettings.option.maintenanceIndefinite';
 
   static const postUrlOptions = [slugUrls, idUrls];
   static const contentSourceOptions = [manualSelection, latestPosts];
   static const sortingOptions = [sliderOrder, publishDate];
   static const autoDeletePostOptions = [deleteAllPosts, deleteDraftPosts];
+  static const maintenanceDurationOptions = [
+    maintenance10Minutes,
+    maintenance30Minutes,
+    maintenance60Minutes,
+    maintenanceIndefinite,
+  ];
   static const imageFormats = ['WEBP', 'JPEG', 'PNG'];
   static const postFormatKeys = contentPostFormatKeys;
   static const postFormatLabels = {

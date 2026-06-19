@@ -282,6 +282,9 @@ const SITE_PUBLIC_COLUMNS = [
     'content_redirect_rss_posts',
     'content_popular_post_limit',
     'content_related_post_limit',
+    'content_maintenance_enabled',
+    'content_maintenance_duration_minutes',
+    'content_maintenance_started_at',
 ].join(',');
 
 const withCache = async (key: string, ttl: number, fetcher: () => Promise<any>) => {

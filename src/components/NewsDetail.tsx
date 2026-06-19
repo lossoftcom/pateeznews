@@ -1583,7 +1583,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   ];
 
   return (
-    <div ref={articleProgressRef} className="animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
+    <div ref={articleProgressRef} className="public-news-detail animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
 
       {/* Reading Progress Bar */}
       <div className="fixed top-[var(--public-nav-height)] left-0 w-full h-1 z-[997] bg-gray-100/70 backdrop-blur-sm" aria-hidden="true">

@@ -235,6 +235,9 @@ const SITE_SETTINGS_SELECT = [
     'content_redirect_rss_posts',
     'content_popular_post_limit',
     'content_related_post_limit',
+    'content_maintenance_enabled',
+    'content_maintenance_duration_minutes',
+    'content_maintenance_started_at',
 ].join(', ');
 
 const POST_FEED_SELECT = `

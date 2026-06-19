@@ -89,6 +89,33 @@ const initialLang = {
 const title = siteSettings?.home_title || siteSettings?.site_name || "Pateez";
 const description = siteSettings?.meta_description || "";
 const ogImage = siteSettings?.og_image_url || "";
+const maintenanceDurationMinutes =
+  siteSettings?.content_maintenance_duration_minutes == null
+    ? null
+    : Number(siteSettings.content_maintenance_duration_minutes);
+const maintenanceStartedAt = siteSettings?.content_maintenance_started_at
+  ? new Date(String(siteSettings.content_maintenance_started_at)).getTime()
+  : null;
+const maintenanceExpiresAt =
+  maintenanceDurationMinutes == null || maintenanceStartedAt == null
+    ? null
+    : maintenanceStartedAt + maintenanceDurationMinutes * 60_000;
+const maintenanceActive =
+  siteSettings?.content_maintenance_enabled === true &&
+  (maintenanceExpiresAt == null || maintenanceExpiresAt > Date.now());
+const maintenanceUntilLabel = maintenanceExpiresAt
+  ? new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : lang === 'ar' ? 'ar' : 'tr-TR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Istanbul',
+    }).format(new Date(maintenanceExpiresAt))
+  : null;
+
+if (maintenanceActive) {
+  Astro.response.headers.set('Cache-Control', 'no-store, max-age=0');
+  Astro.response.headers.set('CDN-Cache-Control', 'no-store');
+  Astro.response.headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
+}
 
 const canonicalBase = String(siteSettings?.canonical_url || Astro.url.origin).trim();
 const TEXT_ENTITY_MAP: Record<string, string> = {
@@ -143,16 +170,120 @@ const itemListLd = {
   initialLang={initialLang}
   seoAlternates={seoAlternates}
 >
-  <HomePage 
-    client:load 
-    initialLang={initialLang} 
-    initialTranslations={initialTranslations}
-    siteSettings={siteSettings}
-    navigationItems={navigationItems}
-    newsItems={newsItems}
-    sidebarSnapshot={sidebarSnapshot}
-    adSettings={adSettings}
-    selectedCategory={selectedCategory}
-    isInitialHome={true}
-  />
+  {maintenanceActive ? (
+    <section class="maintenance-home" aria-labelledby="maintenance-title">
+      <div class="maintenance-home__mark">P</div>
+      <p class="maintenance-home__eyebrow">Pateez.com</p>
+      <h1 id="maintenance-title">Ana sayfa bakıma alındı</h1>
+      <p class="maintenance-home__body">
+        Daha iyi bir yayın deneyimi için kısa bir bakım yapıyoruz.
+        {maintenanceUntilLabel ? ` Ana sayfa ${maintenanceUntilLabel} itibarıyla yeniden açılacak.` : ' Ana sayfa kısa süre içinde yeniden açılacak.'}
+      </p>
+      <a class="maintenance-home__link" href="/?refresh=1">Tekrar dene</a>
+    </section>
+  ) : (
+    <HomePage
+      client:load
+      initialLang={initialLang}
+      initialTranslations={initialTranslations}
+      siteSettings={siteSettings}
+      navigationItems={navigationItems}
+      newsItems={newsItems}
+      sidebarSnapshot={sidebarSnapshot}
+      adSettings={adSettings}
+      selectedCategory={selectedCategory}
+      isInitialHome={true}
+    />
+  )}
 </Layout>
+
+<style>
+  .maintenance-home {
+    min-height: calc(100vh - 180px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 72px 20px;
+    text-align: center;
+    background: #f8f9fa;
+  }
+
+  .maintenance-home__mark {
+    width: 72px;
+    height: 72px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    background: #f24336;
+    color: #fff;
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 18px 42px rgba(242, 67, 54, 0.18);
+  }
+
+  .maintenance-home__eyebrow {
+    margin: 0 0 10px;
+    color: #f24336;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .maintenance-home h1 {
+    max-width: 720px;
+    margin: 0;
+    color: #26384b;
+    font-size: 52px;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1.05;
+  }
+
+  .maintenance-home__body {
+    max-width: 620px;
+    margin: 18px auto 0;
+    color: #637083;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.65;
+    letter-spacing: 0;
+  }
+
+  .maintenance-home__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    margin-top: 28px;
+    padding: 0 18px;
+    border-radius: 8px;
+    background: #26384b;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-decoration: none;
+  }
+
+  @media (max-width: 640px) {
+    .maintenance-home {
+      min-height: calc(100vh - 140px);
+      padding: 56px 18px;
+    }
+
+    .maintenance-home__mark {
+      width: 62px;
+      height: 62px;
+      border-radius: 8px;
+      font-size: 30px;
+    }
+
+    .maintenance-home h1 {
+      font-size: 36px;
+    }
+  }
+</style>

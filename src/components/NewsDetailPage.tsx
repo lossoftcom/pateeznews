@@ -35,7 +35,7 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
 
                     {/* Navbar is Global */}
 
-                    <main className="max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
+                    <main className="public-page-main public-detail-page-main max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
                         <section className="flex-1 min-w-0 pb-10 flex justify-center xl:justify-end w-full">
                             <div className="w-full max-w-[840px] xl:max-w-[880px]">
                                 <NewsDetail
