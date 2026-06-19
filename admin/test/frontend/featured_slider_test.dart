@@ -28,7 +28,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: FeaturedSlider(items: [item])),
+        home: Scaffold(body: FeaturedSlider(items: [item], showNewsInfo: true)),
       ),
     );
     await tester.pump();
@@ -67,6 +67,7 @@ void main() {
         home: Scaffold(
           body: FeaturedSlider(
             items: [item],
+            showNewsInfo: true,
             onOpen: (news) => openedIds.add(news.id),
           ),
         ),
@@ -106,7 +107,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: FeaturedSlider(items: items)),
+        home: Scaffold(body: FeaturedSlider(items: items, showNewsInfo: true)),
       ),
     );
     await tester.pump();

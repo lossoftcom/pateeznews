@@ -18,6 +18,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/adaptive_headline.dart';
 import '../../../../shared/widgets/cached_image.dart';
 import '../../../../shared/widgets/frontend_toast.dart';
+import '../../../../shared/widgets/pinch_zoom_surface.dart';
 import '../../../../shared/widgets/social_action.dart';
 import '../../../../shared/widgets/verified_badge.dart';
 import '../../../account/data/frontend_auth_repository.dart';
@@ -2599,9 +2600,17 @@ class _MediaStage extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (article.sliderImages.isNotEmpty)
-              _MediaSlider(images: article.sliderImages)
+              _MediaSlider(
+                images: article.sliderImages,
+                onExpand: (index) =>
+                    _openImageFullscreen(context, article.sliderImages, index),
+              )
             else
-              _CoverImage(imageUrl: article.imageUrl),
+              _CoverImage(
+                imageUrl: article.imageUrl,
+                onExpand: () =>
+                    _openImageFullscreen(context, [article.imageUrl], 0),
+              ),
             if (showHeader) ...[
               const Positioned(
                 top: 0,
@@ -2695,6 +2704,51 @@ class _MediaStage extends StatelessWidget {
 
   void _handleFullscreenVideoExit(NewsVideoFeedItem _) {
     onFullscreenVideoExit?.call();
+  }
+
+  /// Görsele (tek ya da slider) basılınca, videolarla birebir aynı siyah tam
+  /// ekranı açar; alttaki yazar+başlık+aksiyon şeridi haberin kendi verisinden
+  /// beslenir.
+  void _openImageFullscreen(
+    BuildContext context,
+    List<String> images,
+    int index,
+  ) {
+    showNewsImageFullscreen(
+      context,
+      images: images,
+      initialIndex: index,
+      item: _imageFullscreenItem(images),
+      authState: authState,
+      postActionRepository: postActionRepository,
+      onAuthRequired: onAuthRequired,
+      onAuthorTap: onAuthorTap,
+    );
+  }
+
+  NewsVideoFeedItem _imageFullscreenItem(List<String> images) {
+    final identity = images.isNotEmpty ? images.first : article.imageUrl;
+    return NewsVideoFeedItem(
+      postId: article.id,
+      url: identity,
+      poster: article.imageUrl,
+      slug: article.slug,
+      publishedAt: article.publishedAt,
+      title: article.title,
+      author: article.author,
+      region: article.region,
+      category: article.category,
+      categoryTrail: categoryTrail,
+      likes: article.likes,
+      dislikes: article.dislikes,
+      comments: article.comments,
+      shares: article.shares,
+      saves: article.saves,
+      userLiked: article.userLiked,
+      userDisliked: article.userDisliked,
+      userSaved: article.userSaved,
+      fullscreenLogoUrl: _fullscreenLogoUrl,
+    );
   }
 
   List<String> _fallbackCategoryTrail(NewsArticle item) {
@@ -2999,12 +3053,14 @@ class _ReviewHero extends StatelessWidget {
               decoration: const BoxDecoration(color: AppColors.surfaceInk),
               child: imageUrl.isEmpty
                   ? imageFallback
-                  : CachedImage(
-                      url: imageUrl,
-                      fit: BoxFit.contain,
-                      memCacheWidth: _imageCacheWidth(context),
-                      placeholderColor: AppColors.surfaceInk,
-                      errorWidget: imageFallback,
+                  : PinchZoomSurface(
+                      child: CachedImage(
+                        url: imageUrl,
+                        fit: BoxFit.contain,
+                        memCacheWidth: _imageCacheWidth(context),
+                        placeholderColor: AppColors.surfaceInk,
+                        errorWidget: imageFallback,
+                      ),
                     ),
             ),
             Positioned(
@@ -3637,12 +3693,14 @@ class _PollCover extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            CachedImage(
-              url: imageUrl,
-              fit: BoxFit.contain,
-              memCacheWidth: _imageCacheWidth(context),
-              placeholderColor: AppColors.surfaceInk,
-              errorWidget: const _PollImageFallback(),
+            PinchZoomSurface(
+              child: CachedImage(
+                url: imageUrl,
+                fit: BoxFit.contain,
+                memCacheWidth: _imageCacheWidth(context),
+                placeholderColor: AppColors.surfaceInk,
+                errorWidget: const _PollImageFallback(),
+              ),
             ),
             const Positioned(
               left: 0,
@@ -4534,12 +4592,14 @@ class _VsCover extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            CachedImage(
-              url: imageUrl,
-              fit: BoxFit.contain,
-              memCacheWidth: _imageCacheWidth(context),
-              placeholderColor: AppColors.surfaceInk,
-              errorWidget: const _PollImageFallback(),
+            PinchZoomSurface(
+              child: CachedImage(
+                url: imageUrl,
+                fit: BoxFit.contain,
+                memCacheWidth: _imageCacheWidth(context),
+                placeholderColor: AppColors.surfaceInk,
+                errorWidget: const _PollImageFallback(),
+              ),
             ),
             const Positioned(
               left: 0,
@@ -5471,7 +5531,9 @@ class _FlipFace extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        CachedImage(url: image, fit: BoxFit.cover),
+        PinchZoomSurface(
+          child: CachedImage(url: image, fit: BoxFit.cover),
+        ),
         // Görseli boğmayan, yalnızca alt şeridi yumuşatan ince gradyan.
         const DecoratedBox(
           decoration: BoxDecoration(
@@ -6195,9 +6257,10 @@ class _SlideChevronsPainter extends CustomPainter {
 }
 
 class _CoverImage extends StatelessWidget {
-  const _CoverImage({required this.imageUrl});
+  const _CoverImage({required this.imageUrl, this.onExpand});
 
   final String imageUrl;
+  final VoidCallback? onExpand;
 
   @override
   Widget build(BuildContext context) {
@@ -6211,19 +6274,34 @@ class _CoverImage extends StatelessWidget {
       ),
     );
     if (imageUrl.trim().isEmpty) return fallback;
-    return CachedImage(
-      url: imageUrl,
-      fit: BoxFit.contain,
-      memCacheWidth: _imageCacheWidth(context),
-      errorWidget: Container(
-        color: AppColors.surfaceInk,
-        alignment: Alignment.center,
-        child: const Icon(
-          Symbols.image_outlined,
-          color: AppColors.support,
-          size: 32,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PinchZoomSurface(
+          child: CachedImage(
+            url: imageUrl,
+            fit: BoxFit.contain,
+            memCacheWidth: _imageCacheWidth(context),
+            errorWidget: Container(
+              color: AppColors.surfaceInk,
+              alignment: Alignment.center,
+              child: const Icon(
+                Symbols.image_outlined,
+                color: AppColors.support,
+                size: 32,
+              ),
+            ),
+          ),
         ),
-      ),
+        // Videolardaki "büyüt" düğmesinin aynısı: basınca aynı siyah tam ekran
+        // önizleme açılır.
+        if (onExpand != null)
+          Positioned(
+            right: 8,
+            bottom: 10,
+            child: NewsFullscreenExpandButton(onTap: onExpand!),
+          ),
+      ],
     );
   }
 }
@@ -6233,9 +6311,10 @@ class _CoverImage extends StatelessWidget {
 /// genişlikte ve tam görünür; yükseklik kartın en-boy oranından gelir. Altta
 /// animasyonlu, şık bir sayfa göstergesi (nokta) bulunur.
 class _MediaSlider extends StatefulWidget {
-  const _MediaSlider({required this.images});
+  const _MediaSlider({required this.images, this.onExpand});
 
   final List<String> images;
+  final ValueChanged<int>? onExpand;
 
   @override
   State<_MediaSlider> createState() => _MediaSliderState();
@@ -6275,17 +6354,19 @@ class _MediaSliderState extends State<_MediaSlider> {
           onPageChanged: (i) {
             if (mounted) setState(() => _index = i);
           },
-          itemBuilder: (context, i) => CachedImage(
-            url: images[i],
-            fit: BoxFit.contain,
-            memCacheWidth: _imageCacheWidth(context),
-            errorWidget: Container(
-              color: AppColors.surfaceInk,
-              alignment: Alignment.center,
-              child: const Icon(
-                Symbols.image_outlined,
-                color: AppColors.support,
-                size: 32,
+          itemBuilder: (context, i) => PinchZoomSurface(
+            child: CachedImage(
+              url: images[i],
+              fit: BoxFit.contain,
+              memCacheWidth: _imageCacheWidth(context),
+              errorWidget: Container(
+                color: AppColors.surfaceInk,
+                alignment: Alignment.center,
+                child: const Icon(
+                  Symbols.image_outlined,
+                  color: AppColors.support,
+                  size: 32,
+                ),
               ),
             ),
           ),
@@ -6327,6 +6408,16 @@ class _MediaSliderState extends State<_MediaSlider> {
               ),
             ),
           ),
+        // Videolarla aynı "büyüt" düğmesi: basınca açık olan görselden
+        // başlayarak aynı siyah tam ekran slider'ı açar.
+        if (widget.onExpand != null)
+          Positioned(
+            right: 8,
+            bottom: 10,
+            child: NewsFullscreenExpandButton(
+              onTap: () => widget.onExpand!(_index),
+            ),
+          ),
       ],
     );
   }
@@ -6359,8 +6450,8 @@ class _SliderArrowButton extends StatelessWidget {
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                 child: Container(
-                  width: 30,
-                  height: 30,
+                  width: 26,
+                  height: 26,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: AppColors.inkStrong.withValues(alpha: 0.32),
@@ -6376,7 +6467,7 @@ class _SliderArrowButton extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Icon(icon, size: 17, color: Colors.white),
+                  child: Icon(icon, size: 15, color: Colors.white),
                 ),
               ),
             ),

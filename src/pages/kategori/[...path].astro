@@ -7,6 +7,7 @@ import { setPublicHtmlCache } from '@/lib/server/publicCache';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getPostPathSegment } from '@/utils/postUrl';
+import { getPublicAdSettings } from '@/lib/server/publicAds';
 
 export const prerender = false;
 setPublicHtmlCache(Astro.response);
@@ -47,10 +48,11 @@ const lang = resolveLangCode({
 
 const langMeta = seoAlternates.find((entry) => entry.code === lang);
 
-const [initialTranslations, siteSettings, navigationItems] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, adSettings] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
-  dataService.getNavigationItems(lang)
+  dataService.getNavigationItems(lang),
+  getPublicAdSettings('web')
 ]);
 
 const initialLang = {
@@ -193,6 +195,7 @@ const itemListLd = {
   canonical={canonicalUrl}
   jsonLd={[breadcrumbLd, itemListLd]}
   siteSettings={siteSettings}
+  adSettings={adSettings}
   navigationItems={navigationItems}
   initialTranslations={initialTranslations}
   initialLang={initialLang}
@@ -202,6 +205,7 @@ const itemListLd = {
     initialLang={initialLang}
     initialTranslations={initialTranslations}
     siteSettings={siteSettings}
+    adSettings={adSettings}
     navigationItems={navigationItems}
     newsItems={newsItems}
     categoryPagination={{

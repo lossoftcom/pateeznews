@@ -3467,6 +3467,58 @@ Future<TestGesture> _hoverAdminSidebar(WidgetTester tester) async {
   return gesture;
 }
 
+Finder _adminSidebarText(String text) {
+  return find.descendant(
+    of: find.byKey(const ValueKey('admin-sidebar')),
+    matching: find.text(text),
+  );
+}
+
+Future<void> _ensureAdminSidebarTextVisible(
+  WidgetTester tester,
+  String text,
+) async {
+  final sidebar = find.byKey(const ValueKey('admin-sidebar'));
+  final scrollable = find.descendant(
+    of: sidebar,
+    matching: find.byType(Scrollable),
+  );
+  final item = _adminSidebarText(text);
+
+  bool isVisible() {
+    final elements = item.evaluate();
+    if (elements.isEmpty) return false;
+    final top = tester.getTopLeft(item.first).dy;
+    final bottom = tester.getBottomRight(item.first).dy;
+    final height =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    return top >= 0 && bottom <= height;
+  }
+
+  for (var i = 0; i < 16 && !isVisible(); i++) {
+    final elements = item.evaluate();
+    final dy = elements.isEmpty
+        ? -140.0
+        : tester.getBottomRight(item.first).dy >
+              tester.view.physicalSize.height / tester.view.devicePixelRatio
+        ? -100.0
+        : 100.0;
+    await tester.drag(scrollable.first, Offset(0, dy));
+    await tester.pumpAndSettle();
+  }
+
+  for (var i = 0; i < 16 && !isVisible(); i++) {
+    await tester.drag(scrollable.first, const Offset(0, 140));
+    await tester.pumpAndSettle();
+  }
+}
+
+Future<void> _tapAdminSidebarText(WidgetTester tester, String text) async {
+  await _ensureAdminSidebarTextVisible(tester, text);
+  await tester.tap(_adminSidebarText(text).first);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -3695,7 +3747,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ana Sayfa'), findsWidgets);
-    expect(find.text('Ayarlar'), findsOneWidget);
+    await _ensureAdminSidebarTextVisible(tester, 'Ayarlar');
+    expect(_adminSidebarText('Ayarlar'), findsOneWidget);
     expect(find.text('Ana Sayfa Menüsü'), findsNothing);
     expect(find.text('Dil Ayarları'), findsNothing);
     expect(find.text('Yayın akışı'), findsOneWidget);
@@ -3721,11 +3774,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Root Navigator'a gerçek bir diyalog (modal) aç.
-      await tester.tap(find.text('Ayarlar'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Dil Ayarları'));
-      await tester.tap(find.text('Dil Ayarları'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Ayarlar');
+      await _tapAdminSidebarText(tester, 'Dil Ayarları');
       await tester.tap(find.text('Çevirileri Düzenle').first);
       await tester.pumpAndSettle();
 
@@ -3759,7 +3809,8 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
-    expect(find.text('Ayarlar'), findsOneWidget);
+    await _ensureAdminSidebarTextVisible(tester, 'Ayarlar');
+    expect(_adminSidebarText('Ayarlar'), findsOneWidget);
 
     // 25 dk sonra (henüz dolmadı) yan etkisiz fare hareketi → sayaç sıfırlanır.
     await tester.pump(const Duration(minutes: 25));
@@ -3772,7 +3823,8 @@ void main() {
     // Sıfırlamadan 25 dk sonra (toplam 50 dk) hâlâ oturum açık olmalı.
     await tester.pump(const Duration(minutes: 25));
     await tester.pumpAndSettle();
-    expect(find.text('Ayarlar'), findsOneWidget);
+    await _ensureAdminSidebarTextVisible(tester, 'Ayarlar');
+    expect(_adminSidebarText('Ayarlar'), findsOneWidget);
     expect(find.text('Giriş yap'), findsNothing);
 
     // Etkileşim olmadan 30 dk geçince çıkış yapılır.
@@ -3800,13 +3852,11 @@ void main() {
       await tester.tap(find.text('Giriş yap'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Ayarlar'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Ayarlar');
       expect(find.text('Genel Ayarlar'), findsOneWidget);
       expect(find.text('Dil Ayarları'), findsOneWidget);
 
-      await tester.tap(find.text('Modüller'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Modüller');
       expect(find.text('Depo'), findsOneWidget);
       expect(find.text('Google News'), findsOneWidget);
       expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
@@ -3824,17 +3874,13 @@ void main() {
       expect(find.text('Google News'), findsNothing);
       expect(find.text('Yapay Zeka Ayarları'), findsNothing);
 
-      await tester.tap(find.text('Ayarlar'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Dil Ayarları'));
-      await tester.tap(find.text('Dil Ayarları'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Ayarlar');
+      await _tapAdminSidebarText(tester, 'Dil Ayarları');
       expect(find.text('Dil Ayarları'), findsOneWidget);
 
       final hoverGesture = await _hoverAdminSidebar(tester);
       expect(find.text('Dil Ayarları'), findsNWidgets(2));
-      await tester.tap(find.text('Modüller'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Modüller');
       expect(find.text('Depo'), findsOneWidget);
       expect(find.text('Google News'), findsOneWidget);
       expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
@@ -5344,11 +5390,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Dil Ayarları'));
-    await tester.tap(find.text('Dil Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Ayarlar');
+    await _tapAdminSidebarText(tester, 'Dil Ayarları');
 
     expect(find.text('Dil Ayarları'), findsOneWidget);
     expect(find.text('Listeyi Yazdır'), findsOneWidget);
@@ -5422,11 +5465,8 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Dil Ayarları'));
-    await tester.tap(find.text('Dil Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Ayarlar');
+    await _tapAdminSidebarText(tester, 'Dil Ayarları');
 
     await tester.tap(find.text('Dil Ekle'));
     await tester.pumpAndSettle();
@@ -5544,12 +5584,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Genel Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Genel Ayarlar'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Ayarlar');
+    await _tapAdminSidebarText(tester, 'Genel Ayarlar');
 
     expect(find.text('Genel Ayarlar'), findsOneWidget);
     expect(find.text('Ayarları Dili'), findsOneWidget);
@@ -5651,11 +5687,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Güvenlik Ayarları'));
-    await tester.tap(find.text('Güvenlik Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Ayarlar');
+    await _tapAdminSidebarText(tester, 'Güvenlik Ayarları');
 
     expect(find.text('Güvenlik Ayarları'), findsOneWidget);
     expect(find.text('Giriş güvenliği'), findsOneWidget);
@@ -5686,11 +5719,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('İçerik Ayarları'));
-    await tester.tap(find.text('İçerik Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Ayarlar');
+    await _tapAdminSidebarText(tester, 'İçerik Ayarları');
 
     expect(find.text('İçerik Ayarları'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Genel'), findsOneWidget);
@@ -5740,11 +5770,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Font Ayarları'));
-    await tester.tap(find.text('Font Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Ayarlar');
+    await _tapAdminSidebarText(tester, 'Font Ayarları');
 
     expect(find.text('Font Ayarları'), findsOneWidget);
     expect(find.text('Site Fontu'), findsOneWidget);
@@ -5807,12 +5834,10 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Modüller'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Modüller');
     expect(_isTextAbove(tester, 'Google News', 'Yapay Zeka Ayarları'), isTrue);
 
-    await tester.tap(find.text('Google News'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Google News');
 
     expect(find.text('Google News'), findsWidgets);
     expect(find.text('Ayarlar'), findsWidgets);
@@ -5868,13 +5893,11 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Modüller'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Modüller');
     expect(_isTextAbove(tester, 'Depo', 'Google News'), isTrue);
     expect(_isTextAbove(tester, 'Google News', 'Yapay Zeka Ayarları'), isTrue);
 
-    await tester.tap(find.text('Depo'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Depo');
 
     expect(find.text('Depo'), findsWidgets);
     expect(find.text('Aktif Depo'), findsOneWidget);
@@ -5928,13 +5951,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Modüller'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Yapay Zeka Ayarları'));
-    await tester.drag(find.byType(ListView).first, const Offset(0, -80));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Yapay Zeka Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Modüller');
+    await _tapAdminSidebarText(tester, 'Yapay Zeka Ayarları');
 
     expect(find.text('Yapay Zeka Ayarları'), findsOneWidget);
     expect(find.text('Ayarları Dili'), findsNothing);
@@ -6110,13 +6128,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Modüller'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Nöbetçi Eczane Ayarları'));
-    await tester.drag(find.byType(ListView).first, const Offset(0, -80));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Nöbetçi Eczane Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Modüller');
+    await _tapAdminSidebarText(tester, 'Nöbetçi Eczane Ayarları');
 
     expect(find.text('Nöbetçi Eczane Ayarları'), findsOneWidget);
     expect(find.text('Ayarları Dili'), findsNothing);
@@ -6207,11 +6220,8 @@ void main() {
       await tester.tap(find.text('Giriş yap'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Modüller'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Hava Durumu Ayarları'));
-      await tester.tap(find.text('Hava Durumu Ayarları'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Modüller');
+      await _tapAdminSidebarText(tester, 'Hava Durumu Ayarları');
 
       expect(find.text('Hava Durumu Ayarları'), findsOneWidget);
       expect(find.text('Ayarları Dili'), findsNothing);
@@ -6305,12 +6315,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Modüller'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Namaz Vakitleri Ayarları'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Namaz Vakitleri Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Modüller');
+    await _tapAdminSidebarText(tester, 'Namaz Vakitleri Ayarları');
 
     expect(tester.takeException(), isNull);
     expect(find.text('Namaz Vakitleri Ayarları'), findsOneWidget);
@@ -6353,15 +6359,8 @@ void main() {
       await tester.tap(find.text('Giriş yap'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Modüller'));
-      await tester.pumpAndSettle();
-      await tester.drag(
-        find.byKey(const ValueKey('admin-sidebar')),
-        const Offset(0, -90),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Ölüm İlanları Ayarı'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Modüller');
+      await _tapAdminSidebarText(tester, 'Ölüm İlanları Ayarı');
 
       expect(find.text('Ölüm İlanları Ayarı'), findsOneWidget);
       expect(find.text('Ayarları Dili'), findsNothing);
@@ -6464,16 +6463,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Modüller'));
-    await tester.pumpAndSettle();
-    await tester.drag(
-      find.byKey(const ValueKey('admin-sidebar')),
-      const Offset(0, -260),
-    );
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Duyuru Ayarları'));
-    await tester.tap(find.text('Duyuru Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Modüller');
+    await _tapAdminSidebarText(tester, 'Duyuru Ayarları');
 
     await tester.tap(find.widgetWithText(TextButton, 'Canlı Önizleme'));
     await tester.pumpAndSettle();
@@ -6609,11 +6600,8 @@ void main() {
       await tester.tap(find.text('Giriş yap'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Ayarlar'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Dil Ayarları'));
-      await tester.tap(find.text('Dil Ayarları'));
-      await tester.pumpAndSettle();
+      await _tapAdminSidebarText(tester, 'Ayarlar');
+      await _tapAdminSidebarText(tester, 'Dil Ayarları');
 
       // Click "Çevirileri Düzenle" on the first row
       await tester.tap(find.text('Çevirileri Düzenle').first);
@@ -6679,11 +6667,8 @@ void main() {
     await tester.tap(find.text('Giriş yap'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ayarlar'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Dil Ayarları'));
-    await tester.tap(find.text('Dil Ayarları'));
-    await tester.pumpAndSettle();
+    await _tapAdminSidebarText(tester, 'Ayarlar');
+    await _tapAdminSidebarText(tester, 'Dil Ayarları');
 
     // Click "İçe Aktar" in toolbar
     await tester.tap(find.text('İçe Aktar'));

@@ -5,6 +5,7 @@ import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import '../../account/data/frontend_auth_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
@@ -83,35 +84,50 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
           SliverList.builder(
             itemCount: videos.length,
             itemBuilder: (context, index) {
+              final card = KeyedSubtree(
+                key: _keyFor(videos[index]),
+                child: NewsCard(
+                  article: videos[index],
+                  onTap: () => _openDetail(context, videos, index),
+                  categoryTrail: videoCategoryTrail(
+                    videos[index],
+                    widget.navigationItems,
+                  ),
+                  videoFeedArticles: videos,
+                  shellSettings: widget.shellSettings,
+                  commentsEnabled: widget.contentSettings.commentSystem,
+                  commentApprovalEnabled:
+                      widget.contentSettings.commentApprovalSystem,
+                  emojiReactionsEnabled: widget.contentSettings.emojiReactions,
+                  authState: widget.authState,
+                  postActionRepository: widget.postActionRepository,
+                  onAuthRequired: widget.onAuthRequired,
+                  onAuthorTap: widget.onAuthorTap,
+                  onFullscreenVideoExit: widget.onFullscreenVideoExit,
+                ),
+              );
+              final body = (index + 1) % 4 == 0
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        card,
+                        const SizedBox(height: AppSpacing.xxl),
+                        const FrontendAdSlot(
+                          slotKey: 'mobile_video_feed_inline',
+                          margin: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.pageHorizontal,
+                          ),
+                        ),
+                      ],
+                    )
+                  : card;
               return Padding(
                 padding: EdgeInsets.only(
                   bottom: index < videos.length - 1
                       ? AppSpacing.xxl
                       : AppSpacing.xl,
                 ),
-                child: KeyedSubtree(
-                  key: _keyFor(videos[index]),
-                  child: NewsCard(
-                    article: videos[index],
-                    onTap: () => _openDetail(context, videos, index),
-                    categoryTrail: videoCategoryTrail(
-                      videos[index],
-                      widget.navigationItems,
-                    ),
-                    videoFeedArticles: videos,
-                    shellSettings: widget.shellSettings,
-                    commentsEnabled: widget.contentSettings.commentSystem,
-                    commentApprovalEnabled:
-                        widget.contentSettings.commentApprovalSystem,
-                    emojiReactionsEnabled:
-                        widget.contentSettings.emojiReactions,
-                    authState: widget.authState,
-                    postActionRepository: widget.postActionRepository,
-                    onAuthRequired: widget.onAuthRequired,
-                    onAuthorTap: widget.onAuthorTap,
-                    onFullscreenVideoExit: widget.onFullscreenVideoExit,
-                  ),
-                ),
+                child: body,
               );
             },
           ),

@@ -4,7 +4,7 @@ import NewsDetail from './NewsDetail';
 import RightSidebar from './RightSidebar';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
-import type { SiteSettings, NavigationItem, NewsItem } from '@/types';
+import type { SiteSettings, NavigationItem, NewsItem, PublicAdSettings } from '@/types';
 
 interface NewsDetailPageProps {
     initialLang: any;
@@ -14,6 +14,7 @@ interface NewsDetailPageProps {
     newsItem: NewsItem;
     newsItems: NewsItem[];
     sidebarSnapshot?: any;
+    adSettings?: PublicAdSettings | null;
 }
 
 const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
@@ -23,7 +24,8 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
     navigationItems,
     newsItem,
     newsItems,
-    sidebarSnapshot
+    sidebarSnapshot,
+    adSettings
 }) => {
     // 🚀 NO MORE DELAYS (2026 LIGHT-SPEED) - Page is visible instantly
     return (
@@ -40,6 +42,7 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
                                     data={newsItem as any}
                                     navItems={navigationItems}
                                     siteSettings={siteSettings}
+                                    adSettings={adSettings}
                                     onBack={() => window.history.back()}
                                     loading={!newsItem}
                                 />
@@ -47,7 +50,7 @@ const NewsDetailPage: React.FC<NewsDetailPageProps> = ({
                         </section>
 
                         <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8 sticky top-[88px]">
-                            <RightSidebar newsData={newsItems} loading={newsItems.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} />
+                            <RightSidebar newsData={newsItems} loading={newsItems.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} adSettings={adSettings} adSlotKey="web_article_sidebar" />
                         </aside>
                     </main>
                 </div>

@@ -360,6 +360,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
           ),
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
+            mouseCursor: SystemMouseCursors.click,
             icon: const SymbolIcon(
               Symbols.close,
               color: AppColors.iconMuted,
@@ -456,6 +457,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
     final selected = _type == type;
     return Expanded(
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         borderRadius: BorderRadius.circular(AppRadius.value),
         onTap: () => setState(() => _type = type),
         child: Container(
@@ -522,6 +524,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
       bh = math.max(6, size.height * scale);
     }
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(AppRadius.value),
       onTap: () => _applyPreset(size),
       child: Container(
@@ -719,6 +722,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
+          mouseCursor: SystemMouseCursors.click,
           borderRadius: BorderRadius.circular(AppRadius.value),
           onTap: _pickImage,
           child: Container(
@@ -846,6 +850,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
             ),
             Expanded(
               child: Slider(
+                mouseCursor: SystemMouseCursors.click,
                 value: _weight.toDouble(),
                 min: 1,
                 max: 10,
@@ -962,6 +967,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
 
   Widget _scaleButton(String label, bool selected, VoidCallback onTap) {
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(AppRadius.value),
       onTap: onTap,
       child: Container(
@@ -990,43 +996,81 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).maybePop(),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.deepOcean,
-                minimumSize: const Size.fromHeight(46),
-                side: const BorderSide(color: AppColors.line),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-              ),
-              child: const Text(
-                'İptal',
-                style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0),
-              ),
-            ),
+          _DialogTextButton(
+            label: 'İptal',
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: FilledButton(
-              onPressed: _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.deepOcean,
-                minimumSize: const Size.fromHeight(46),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
+          _DialogPrimaryButton(label: 'Kaydet', onPressed: _save),
+        ],
+      ),
+    );
+  }
+}
+
+class _DialogTextButton extends StatelessWidget {
+  const _DialogTextButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style:
+          TextButton.styleFrom(
+            foregroundColor: AppColors.deepOcean,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            minimumSize: const Size(64, 38),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0,
+            ),
+          ).copyWith(
+            mouseCursor: const WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+      child: Text(label),
+    );
+  }
+}
+
+class _DialogPrimaryButton extends StatelessWidget {
+  const _DialogPrimaryButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: TextButton(
+        onPressed: onPressed,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: AppColors.deepOcean,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              minimumSize: const Size(104, 38),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
               ),
-              child: const Text(
-                'Kaydet',
-                style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
               ),
             ),
-          ),
-        ],
+        child: Text(label),
       ),
     );
   }

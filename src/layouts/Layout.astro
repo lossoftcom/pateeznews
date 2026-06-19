@@ -1,7 +1,7 @@
 ---
 import '@/styles/index.css';
 import { ClientRouter } from 'astro:transitions';
-import type { NavigationItem, SiteFont, SiteSettings } from '@/types';
+import type { NavigationItem, PublicAdSettings, SiteFont, SiteSettings } from '@/types';
 import { dataService } from '@/services/dataService.server';
 
 type SeoAlternate = {
@@ -27,6 +27,7 @@ interface Props {
   dir?: string;
   favicon?: string;
 	siteSettings?: SiteSettings | null;
+	adSettings?: PublicAdSettings | null;
 	navigationItems?: NavigationItem[];
 	initialTranslations?: Record<string, string>;
 	initialLang?: any;
@@ -47,6 +48,7 @@ const {
   dir = "ltr",
   favicon = "",
   siteSettings,
+  adSettings = null,
   navigationItems = [],
   initialTranslations = {},
   initialLang = { code: 'tr', name: 'Türkçe', direction: 'ltr', status: 'active', flag_code: 'tr', is_default: true },
@@ -203,6 +205,9 @@ const bingVerificationRaw = String(siteSettings?.bing_verification_code || '').t
 const yandexVerificationRaw = String(siteSettings?.yandex_verification_code || '').trim();
 const headerCustomCodes = String(siteSettings?.header_custom_codes || '').trim();
 const footerCustomCodes = String(siteSettings?.footer_custom_codes || '').trim();
+const adsenseClientId = adSettings?.masterEnabled && adSettings.adsenseConnected
+	? String(adSettings.adsensePublisherId || '').trim()
+	: '';
 
 const preconnectOrigins = (() => {
 	const origins = new Set<string>();
@@ -674,6 +679,14 @@ const fontPreloadHrefs = Array.from(new Set(
 					gtag('config', '${siteSettings.google_analytics_id}');
 				`}</script>
 			</>
+		)}
+
+		{adsenseClientId && (
+			<script
+				async
+				src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClientId}`}
+				crossorigin="anonymous"
+			></script>
 		)}
 
 		{headerCustomCodes && <Fragment set:html={headerCustomCodes} />}

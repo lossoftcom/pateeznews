@@ -15,9 +15,11 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/services/article_share_service.dart';
 import '../../../shared/services/frontend_link_launcher.dart';
 import '../../../shared/widgets/cached_image.dart';
+import '../../../shared/widgets/pinch_zoom_surface.dart';
 import '../../../shared/widgets/frontend_toast.dart';
 import '../../../shared/widgets/social_action.dart';
 import '../../account/data/frontend_auth_repository.dart';
+import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../home/data/home_repository.dart';
 import '../../home/data/post_action_repository.dart';
 import '../../home/presentation/widgets/news_card.dart';
@@ -761,6 +763,7 @@ class _DetailArticleSection extends StatelessWidget {
               duration: 340.ms,
               curve: Curves.easeOutCubic,
             ),
+        const FrontendAdSlot(slotKey: 'mobile_detail_after_media'),
         _DetailItemsSection(
               article: article,
               categoryTrail: categoryTrail,
@@ -783,6 +786,7 @@ class _DetailArticleSection extends StatelessWidget {
             ),
         _DetailFaqSection(items: article.faqData),
         _DetailTagsSection(tags: article.tags),
+        const FrontendAdSlot(slotKey: 'mobile_detail_end'),
         if (contentSettings.emojiReactions)
           DetailReactionsStrip(
             postId: article.id,
@@ -810,6 +814,8 @@ class _DetailArticleSection extends StatelessWidget {
           onAuthorTap: onAuthorTap,
           onFullscreenVideoExit: onFullscreenVideoExit,
         ),
+        if (!isLast)
+          const FrontendAdSlot(slotKey: 'mobile_detail_between_articles'),
         if (!isLast) const _RelatedSectionDivider(),
       ],
     );
@@ -968,18 +974,20 @@ class _HeroImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth = (MediaQuery.sizeOf(context).width * dpr).round();
-    return CachedImage(
-      url: url,
-      fit: BoxFit.contain,
-      memCacheWidth: cacheWidth,
-      placeholderColor: AppColors.surfaceInk,
-      errorWidget: Container(
-        color: AppColors.surfaceInk,
-        alignment: Alignment.center,
-        child: const Icon(
-          Symbols.image_outlined,
-          color: AppColors.support,
-          size: 36,
+    return PinchZoomSurface(
+      child: CachedImage(
+        url: url,
+        fit: BoxFit.contain,
+        memCacheWidth: cacheWidth,
+        placeholderColor: AppColors.surfaceInk,
+        errorWidget: Container(
+          color: AppColors.surfaceInk,
+          alignment: Alignment.center,
+          child: const Icon(
+            Symbols.image_outlined,
+            color: AppColors.support,
+            size: 36,
+          ),
         ),
       ),
     );
@@ -1238,9 +1246,10 @@ class _DetailItemsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (items.isEmpty)
-            _DetailTextInset(child: _TextDetailBlock(text: article.summary))
-          else
+          if (items.isEmpty) ...[
+            _DetailTextInset(child: _TextDetailBlock(text: article.summary)),
+            const FrontendAdSlot(slotKey: 'mobile_detail_incontent'),
+          ] else
             for (var i = 0; i < items.length; i++) ...[
               _DetailItemBlock(
                 article: article,
@@ -1254,6 +1263,10 @@ class _DetailItemsSection extends StatelessWidget {
                 onAuthorTap: onAuthorTap,
                 onFullscreenVideoExit: onFullscreenVideoExit,
               ),
+              if (i == 0)
+                const FrontendAdSlot(slotKey: 'mobile_detail_incontent'),
+              if (i == 2)
+                const FrontendAdSlot(slotKey: 'mobile_detail_midcontent'),
               if (i != items.length - 1) const SizedBox(height: AppSpacing.xxl),
             ],
         ],

@@ -8,6 +8,7 @@ import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getSpecialContentConfig } from '@/utils/specialContent';
 import { getPostPathSegment } from '@/utils/postUrl';
+import { getPublicAdSettings } from '@/lib/server/publicAds';
 
 setPublicHtmlCache(Astro.response);
 
@@ -49,12 +50,13 @@ const getNewsItemsForInitialLoad = async () => {
     return dataService.getNewsItems(lang);
 };
 
-const [initialTranslations, siteSettings, navigationItems, newsItems, sidebarSnapshot] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, newsItems, sidebarSnapshot, adSettings] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
   dataService.getNavigationItems(lang),
   getNewsItemsForInitialLoad(),
-  dataService.getSidebarSnapshot(lang)
+  dataService.getSidebarSnapshot(lang),
+  getPublicAdSettings('web')
 ]);
 
 // Determine selectedCategory for the UI
@@ -135,6 +137,7 @@ const itemListLd = {
   lang={lang}
   dir={initialLang.direction}
   siteSettings={siteSettings}
+  adSettings={adSettings}
   navigationItems={navigationItems}
   initialTranslations={initialTranslations}
   initialLang={initialLang}
@@ -148,6 +151,7 @@ const itemListLd = {
     navigationItems={navigationItems}
     newsItems={newsItems}
     sidebarSnapshot={sidebarSnapshot}
+    adSettings={adSettings}
     selectedCategory={selectedCategory}
     isInitialHome={true}
   />

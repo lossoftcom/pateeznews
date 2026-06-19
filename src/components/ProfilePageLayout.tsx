@@ -1,17 +1,20 @@
 import React from 'react';
-import type { NavigationItem } from '@/types';
+import type { NavigationItem, PublicAdSettings } from '@/types';
 import Sidebar from '@/components/Sidebar';
+import AdSlot from '@/components/ads/AdSlot';
 
 interface ProfilePageLayoutProps {
   navigationItems: NavigationItem[];
   children: React.ReactNode;
   contentClassName?: string;
+  adSettings?: PublicAdSettings | null;
 }
 
 const ProfilePageLayout: React.FC<ProfilePageLayoutProps> = ({
   navigationItems,
   children,
   contentClassName = 'max-w-[940px]',
+  adSettings,
 }) => (
   <>
     <style>{`
@@ -27,6 +30,7 @@ const ProfilePageLayout: React.FC<ProfilePageLayoutProps> = ({
           activeCategory={null}
           loading={navigationItems.length === 0}
         />
+        <AdSlot settings={adSettings} slotKey="web_profile_sidebar" className="mt-6" />
       </aside>
 
       <section className="flex-1 min-w-0 pb-10 flex justify-center w-full">

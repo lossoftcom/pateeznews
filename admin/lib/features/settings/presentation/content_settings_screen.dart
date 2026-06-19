@@ -2124,40 +2124,6 @@ class _FullTextField extends StatelessWidget {
   }
 }
 
-class _TwoFieldRow extends StatelessWidget {
-  const _TwoFieldRow({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 620) {
-          return Column(
-            children: [
-              for (var index = 0; index < children.length; index++) ...[
-                if (index > 0) const SizedBox(height: 18),
-                children[index],
-              ],
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var index = 0; index < children.length; index++) ...[
-              if (index > 0) const SizedBox(width: 16),
-              Expanded(child: children[index]),
-            ],
-          ],
-        );
-      },
-    );
-  }
-}
-
 class _SaveRow extends StatelessWidget {
   const _SaveRow({required this.onPressed});
 

@@ -20,6 +20,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/cached_image.dart';
 import '../../../../shared/widgets/frontend_toast.dart';
+import '../../../../shared/widgets/pinch_zoom_surface.dart';
 import '../../../../shared/widgets/verified_badge.dart';
 import '../../../account/data/frontend_auth_repository.dart';
 import '../../data/post_action_repository.dart';
@@ -814,62 +815,64 @@ class _FileVideoViewState extends State<_FileVideoView> {
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
       onAuthorTap: widget.onAuthorTap,
-      child: ColoredBox(
-        color: Colors.black,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (!initialized) _PosterOrPlaceholder(poster: widget.poster),
-            if (initialized) VideoPlayer(controller!),
-            if (initialized)
-              ValueListenableBuilder<VideoPlayerValue>(
-                valueListenable: controller!,
-                builder: (context, value, _) => Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (!value.isPlaying || value.isBuffering)
-                      _PosterOrPlaceholder(poster: widget.poster),
-                    _VideoControls(
-                      isPlaying: value.isPlaying,
-                      isMuted: value.volume == 0,
-                      isBuffering: value.isBuffering,
-                      position: value.position,
-                      duration: value.duration,
-                      topOverlay: null,
-                      showCenterWhilePlaying: true,
-                      fullscreen: true,
-                      playbackSpeed: _playbackSpeed,
-                      showFullscreenButton: false,
-                      onTogglePlay: _togglePlay,
-                      onToggleMute: _toggleMute,
-                      onToggleSpeed: _togglePlaybackSpeed,
-                      onToggleFullscreen: _toggleFullscreen,
-                      onSeek: _seek,
-                      onSeekRelative: _seekRelative,
-                    ),
-                  ],
+      child: PinchZoomSurface(
+        child: ColoredBox(
+          color: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (!initialized) _PosterOrPlaceholder(poster: widget.poster),
+              if (initialized) VideoPlayer(controller!),
+              if (initialized)
+                ValueListenableBuilder<VideoPlayerValue>(
+                  valueListenable: controller!,
+                  builder: (context, value, _) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (!value.isPlaying || value.isBuffering)
+                        _PosterOrPlaceholder(poster: widget.poster),
+                      _VideoControls(
+                        isPlaying: value.isPlaying,
+                        isMuted: value.volume == 0,
+                        isBuffering: value.isBuffering,
+                        position: value.position,
+                        duration: value.duration,
+                        topOverlay: null,
+                        showCenterWhilePlaying: true,
+                        fullscreen: true,
+                        playbackSpeed: _playbackSpeed,
+                        showFullscreenButton: false,
+                        onTogglePlay: _togglePlay,
+                        onToggleMute: _toggleMute,
+                        onToggleSpeed: _togglePlaybackSpeed,
+                        onToggleFullscreen: _toggleFullscreen,
+                        onSeek: _seek,
+                        onSeekRelative: _seekRelative,
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _VideoControls(
+                  isPlaying: false,
+                  isMuted: _lastVideoMuted,
+                  isBuffering: !_initFailed,
+                  position: Duration.zero,
+                  duration: Duration.zero,
+                  topOverlay: null,
+                  showCenterWhilePlaying: true,
+                  fullscreen: true,
+                  playbackSpeed: _playbackSpeed,
+                  showFullscreenButton: false,
+                  onTogglePlay: _togglePlay,
+                  onToggleMute: _toggleMute,
+                  onToggleSpeed: _togglePlaybackSpeed,
+                  onToggleFullscreen: _toggleFullscreen,
+                  onSeek: _seek,
+                  onSeekRelative: _seekRelative,
                 ),
-              )
-            else
-              _VideoControls(
-                isPlaying: false,
-                isMuted: _lastVideoMuted,
-                isBuffering: !_initFailed,
-                position: Duration.zero,
-                duration: Duration.zero,
-                topOverlay: null,
-                showCenterWhilePlaying: true,
-                fullscreen: true,
-                playbackSpeed: _playbackSpeed,
-                showFullscreenButton: false,
-                onTogglePlay: _togglePlay,
-                onToggleMute: _toggleMute,
-                onToggleSpeed: _togglePlaybackSpeed,
-                onToggleFullscreen: _toggleFullscreen,
-                onSeek: _seek,
-                onSeekRelative: _seekRelative,
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -929,63 +932,65 @@ class _FileVideoViewState extends State<_FileVideoView> {
       onVisibilityChanged: _onVisibilityChanged,
       child: AspectRatio(
         aspectRatio: ratio,
-        child: ColoredBox(
-          color: Colors.black,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (_fullscreenActive || !initialized)
-                _PosterOrPlaceholder(poster: widget.poster),
-              if (!_fullscreenActive && initialized) VideoPlayer(controller!),
-              if (!_fullscreenActive && initialized)
-                ValueListenableBuilder<VideoPlayerValue>(
-                  valueListenable: controller!,
-                  builder: (context, value, _) => Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (!value.isPlaying || value.isBuffering)
-                        _PosterOrPlaceholder(poster: widget.poster),
-                      _VideoControls(
-                        isPlaying: value.isPlaying,
-                        isMuted: value.volume == 0,
-                        isBuffering: value.isBuffering,
-                        position: value.position,
-                        duration: value.duration,
-                        topOverlay: widget.topOverlay,
-                        showCenterWhilePlaying: true,
-                        fullscreen: false,
-                        playbackSpeed: _playbackSpeed,
-                        showFullscreenButton: widget.showFullscreenButton,
-                        onTogglePlay: _togglePlay,
-                        onToggleMute: _toggleMute,
-                        onToggleSpeed: _togglePlaybackSpeed,
-                        onToggleFullscreen: _toggleFullscreen,
-                        onSeek: _seek,
-                        onSeekRelative: _seekRelative,
-                      ),
-                    ],
+        child: PinchZoomSurface(
+          child: ColoredBox(
+            color: Colors.black,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (_fullscreenActive || !initialized)
+                  _PosterOrPlaceholder(poster: widget.poster),
+                if (!_fullscreenActive && initialized) VideoPlayer(controller!),
+                if (!_fullscreenActive && initialized)
+                  ValueListenableBuilder<VideoPlayerValue>(
+                    valueListenable: controller!,
+                    builder: (context, value, _) => Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (!value.isPlaying || value.isBuffering)
+                          _PosterOrPlaceholder(poster: widget.poster),
+                        _VideoControls(
+                          isPlaying: value.isPlaying,
+                          isMuted: value.volume == 0,
+                          isBuffering: value.isBuffering,
+                          position: value.position,
+                          duration: value.duration,
+                          topOverlay: widget.topOverlay,
+                          showCenterWhilePlaying: true,
+                          fullscreen: false,
+                          playbackSpeed: _playbackSpeed,
+                          showFullscreenButton: widget.showFullscreenButton,
+                          onTogglePlay: _togglePlay,
+                          onToggleMute: _toggleMute,
+                          onToggleSpeed: _togglePlaybackSpeed,
+                          onToggleFullscreen: _toggleFullscreen,
+                          onSeek: _seek,
+                          onSeekRelative: _seekRelative,
+                        ),
+                      ],
+                    ),
+                  )
+                else if (!_fullscreenActive)
+                  _VideoControls(
+                    isPlaying: false,
+                    isMuted: _lastVideoMuted,
+                    isBuffering: !_initFailed,
+                    position: Duration.zero,
+                    duration: Duration.zero,
+                    topOverlay: widget.topOverlay,
+                    showCenterWhilePlaying: true,
+                    fullscreen: false,
+                    playbackSpeed: _playbackSpeed,
+                    showFullscreenButton: widget.showFullscreenButton,
+                    onTogglePlay: _togglePlay,
+                    onToggleMute: _toggleMute,
+                    onToggleSpeed: _togglePlaybackSpeed,
+                    onToggleFullscreen: _toggleFullscreen,
+                    onSeek: _seek,
+                    onSeekRelative: _seekRelative,
                   ),
-                )
-              else if (!_fullscreenActive)
-                _VideoControls(
-                  isPlaying: false,
-                  isMuted: _lastVideoMuted,
-                  isBuffering: !_initFailed,
-                  position: Duration.zero,
-                  duration: Duration.zero,
-                  topOverlay: widget.topOverlay,
-                  showCenterWhilePlaying: true,
-                  fullscreen: false,
-                  playbackSpeed: _playbackSpeed,
-                  showFullscreenButton: widget.showFullscreenButton,
-                  onTogglePlay: _togglePlay,
-                  onToggleMute: _toggleMute,
-                  onToggleSpeed: _togglePlaybackSpeed,
-                  onToggleFullscreen: _toggleFullscreen,
-                  onSeek: _seek,
-                  onSeekRelative: _seekRelative,
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1479,49 +1484,51 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
       postActionRepository: widget.postActionRepository,
       onAuthRequired: widget.onAuthRequired,
       onAuthorTap: widget.onAuthorTap,
-      child: ClipRect(
-        child: ColoredBox(
-          color: Colors.black,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (_webViewReady && _controller != null)
-                WebViewWidget(controller: _controller!.webViewController),
-              ValueListenableBuilder<_VideoUi>(
-                valueListenable: _ui,
-                builder: (context, ui, _) {
-                  final showPoster =
-                      !ui.isPlaying ||
-                      ui.isBuffering ||
-                      !_hasRenderedVideoFrame;
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (showPoster)
-                        _PosterOrPlaceholder(poster: widget.poster),
-                      _VideoControls(
-                        isPlaying: ui.isPlaying,
-                        isMuted: ui.muted,
-                        isBuffering: ui.isBuffering,
-                        position: ui.position,
-                        duration: ui.duration,
-                        topOverlay: null,
-                        showCenterWhilePlaying: false,
-                        fullscreen: true,
-                        playbackSpeed: _playbackSpeed,
-                        showFullscreenButton: false,
-                        onTogglePlay: _togglePlay,
-                        onToggleMute: _toggleMute,
-                        onToggleSpeed: _togglePlaybackSpeed,
-                        onToggleFullscreen: _toggleFullscreen,
-                        onSeek: _seek,
-                        onSeekRelative: _seekRelative,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
+      child: PinchZoomSurface(
+        child: ClipRect(
+          child: ColoredBox(
+            color: Colors.black,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (_webViewReady && _controller != null)
+                  WebViewWidget(controller: _controller!.webViewController),
+                ValueListenableBuilder<_VideoUi>(
+                  valueListenable: _ui,
+                  builder: (context, ui, _) {
+                    final showPoster =
+                        !ui.isPlaying ||
+                        ui.isBuffering ||
+                        !_hasRenderedVideoFrame;
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (showPoster)
+                          _PosterOrPlaceholder(poster: widget.poster),
+                        _VideoControls(
+                          isPlaying: ui.isPlaying,
+                          isMuted: ui.muted,
+                          isBuffering: ui.isBuffering,
+                          position: ui.position,
+                          duration: ui.duration,
+                          topOverlay: null,
+                          showCenterWhilePlaying: false,
+                          fullscreen: true,
+                          playbackSpeed: _playbackSpeed,
+                          showFullscreenButton: false,
+                          onTogglePlay: _togglePlay,
+                          onToggleMute: _toggleMute,
+                          onToggleSpeed: _togglePlaybackSpeed,
+                          onToggleFullscreen: _toggleFullscreen,
+                          onSeek: _seek,
+                          onSeekRelative: _seekRelative,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1627,52 +1634,54 @@ class _YoutubeVideoViewState extends State<_YoutubeVideoView> {
       onVisibilityChanged: _onVisibilityChanged,
       child: AspectRatio(
         aspectRatio: ratio,
-        child: ClipRect(
-          child: ColoredBox(
-            color: Colors.black,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (_fullscreenActive)
-                  _PosterOrPlaceholder(poster: widget.poster),
-                if (attachInlineWebView)
-                  WebViewWidget(controller: controller.webViewController),
-                if (!_fullscreenActive)
-                  ValueListenableBuilder<_VideoUi>(
-                    valueListenable: _ui,
-                    builder: (context, ui, _) {
-                      final showPoster =
-                          !ui.isPlaying ||
-                          ui.isBuffering ||
-                          !_hasRenderedVideoFrame;
-                      return Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if (showPoster)
-                            _PosterOrPlaceholder(poster: widget.poster),
-                          _VideoControls(
-                            isPlaying: ui.isPlaying,
-                            isMuted: ui.muted,
-                            isBuffering: ui.isBuffering,
-                            position: ui.position,
-                            duration: ui.duration,
-                            topOverlay: widget.topOverlay,
-                            showCenterWhilePlaying: false,
-                            fullscreen: false,
-                            playbackSpeed: _playbackSpeed,
-                            showFullscreenButton: widget.showFullscreenButton,
-                            onTogglePlay: _togglePlay,
-                            onToggleMute: _toggleMute,
-                            onToggleSpeed: _togglePlaybackSpeed,
-                            onToggleFullscreen: _toggleFullscreen,
-                            onSeek: _seek,
-                            onSeekRelative: _seekRelative,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-              ],
+        child: PinchZoomSurface(
+          child: ClipRect(
+            child: ColoredBox(
+              color: Colors.black,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_fullscreenActive)
+                    _PosterOrPlaceholder(poster: widget.poster),
+                  if (attachInlineWebView)
+                    WebViewWidget(controller: controller.webViewController),
+                  if (!_fullscreenActive)
+                    ValueListenableBuilder<_VideoUi>(
+                      valueListenable: _ui,
+                      builder: (context, ui, _) {
+                        final showPoster =
+                            !ui.isPlaying ||
+                            ui.isBuffering ||
+                            !_hasRenderedVideoFrame;
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (showPoster)
+                              _PosterOrPlaceholder(poster: widget.poster),
+                            _VideoControls(
+                              isPlaying: ui.isPlaying,
+                              isMuted: ui.muted,
+                              isBuffering: ui.isBuffering,
+                              position: ui.position,
+                              duration: ui.duration,
+                              topOverlay: widget.topOverlay,
+                              showCenterWhilePlaying: false,
+                              fullscreen: false,
+                              playbackSpeed: _playbackSpeed,
+                              showFullscreenButton: widget.showFullscreenButton,
+                              onTogglePlay: _togglePlay,
+                              onToggleMute: _toggleMute,
+                              onToggleSpeed: _togglePlaybackSpeed,
+                              onToggleFullscreen: _toggleFullscreen,
+                              onSeek: _seek,
+                              onSeekRelative: _seekRelative,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -2109,7 +2118,10 @@ class _FullscreenScaffold extends StatelessWidget {
     this.showTopBar = true,
   });
 
-  final double aspectRatio;
+  /// Videolarda oranı bilinen medya için doldurulur. Görsel tam ekranında ise
+  /// medya alanı tüm dikdörtgeni kaplasın (görseller içeride [BoxFit.contain]
+  /// ile ortalanır) diye `null` geçilir.
+  final double? aspectRatio;
   final NewsVideoFeedItem item;
   final VoidCallback onExit;
   final Widget child;
@@ -2121,7 +2133,8 @@ class _FullscreenScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = aspectRatio > 0 && aspectRatio < 1;
+    final ratio = aspectRatio;
+    final compact = ratio != null && ratio > 0 && ratio < 1;
     final infoHeight = item.hasArticleInfo ? (compact ? 168.0 : 178.0) : 0.0;
     return Column(
       children: [
@@ -2133,9 +2146,11 @@ class _FullscreenScaffold extends StatelessWidget {
             children: [
               Positioned.fill(
                 bottom: infoHeight,
-                child: Center(
-                  child: AspectRatio(aspectRatio: aspectRatio, child: child),
-                ),
+                child: ratio == null
+                    ? child
+                    : Center(
+                        child: AspectRatio(aspectRatio: ratio, child: child),
+                      ),
               ),
               if (item.hasArticleInfo)
                 Positioned(
@@ -4085,4 +4100,425 @@ class _FullscreenPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _FullscreenPainter old) =>
       old.active != active || old.color != color;
+}
+
+// ---------------------------------------------------------------------------
+// Görsel tam ekran — videolarla AYNI "siyah tam ekran" dili
+// ---------------------------------------------------------------------------
+//
+// Ana sayfa kartındaki bir görsele basıldığında, videolardaki "büyüt"
+// deneyiminin görsel ikizini açar:
+//   • Tek görsel  → tek büyük, parmakla yakınlaştırılabilen önizleme.
+//   • Çok görsel  → sağa/sola kayan slider (ok düğmeleri + noktalı gösterge +
+//     açılışta beliren kaydırma kılavuzu).
+// Üst bar (arama + logo + geri) videolarla birebir aynı bileşeni kullanır;
+// böylece iki deneyim tek bir görsel dil konuşur.
+
+/// Görsel(ler)i videolarla **birebir aynı** siyah tam ekran deneyiminde açar:
+/// üstte arama + logo + geri barı, ortada görsel (tek ya da sağa/sola kayan
+/// slider), altta yazar satırı + başlık + beğen/beğenme/yorum/kaydet/paylaş
+/// şeridi. Tüm bu çerçeve videoların kullandığı [_FullscreenScaffold] ile
+/// üretilir; tek fark ortadaki medyanın görsel olmasıdır.
+///
+/// [item] alttaki bilgi/aksiyon şeridini ve üst bardaki logoyu besler;
+/// [initialIndex] slider'da hangi görselin açık olduğunu korur. Boş/whitespace
+/// adresler ayıklanır; hiç geçerli görsel yoksa hiçbir şey açılmaz.
+Future<void> showNewsImageFullscreen(
+  BuildContext context, {
+  required List<String> images,
+  required NewsVideoFeedItem item,
+  int initialIndex = 0,
+  FrontendAuthState? authState,
+  PostActionRepository postActionRepository = const PostActionRepository(),
+  VoidCallback? onAuthRequired,
+  ValueChanged<NewsAuthor>? onAuthorTap,
+}) {
+  final clean = <String>[
+    for (final image in images)
+      if (image.trim().isNotEmpty) image.trim(),
+  ];
+  if (clean.isEmpty) return Future<void>.value();
+  final start = clean.length == 1
+      ? 0
+      : initialIndex.clamp(0, clean.length - 1).toInt();
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    PageRouteBuilder<void>(
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 170),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          _NewsFullscreenImagePage(
+            images: clean,
+            initialIndex: start,
+            item: item,
+            authState: authState,
+            postActionRepository: postActionRepository,
+            onAuthRequired: onAuthRequired,
+            onAuthorTap: onAuthorTap,
+          ),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(opacity: animation, child: child),
+    ),
+  );
+}
+
+/// Videolardaki "büyüt" düğmesinin birebir görsel ikizi: aynı cam yuvarlak
+/// düğme + köşe-oklu tam ekran ikonu. Görsel kartlarında kullanılır.
+class NewsFullscreenExpandButton extends StatelessWidget {
+  const NewsFullscreenExpandButton({
+    super.key,
+    required this.onTap,
+    this.size = 32,
+  });
+
+  final VoidCallback onTap;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Tam ekran',
+      button: true,
+      child: _RoundGlassButton(
+        size: size,
+        onTap: onTap,
+        child: CustomPaint(
+          size: const Size(18, 18),
+          painter: _FullscreenPainter(active: false, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsFullscreenImagePage extends StatefulWidget {
+  const _NewsFullscreenImagePage({
+    required this.images,
+    required this.initialIndex,
+    required this.item,
+    required this.authState,
+    required this.postActionRepository,
+    required this.onAuthRequired,
+    required this.onAuthorTap,
+  });
+
+  final List<String> images;
+  final int initialIndex;
+  final NewsVideoFeedItem item;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
+
+  @override
+  State<_NewsFullscreenImagePage> createState() =>
+      _NewsFullscreenImagePageState();
+}
+
+class _NewsFullscreenImagePageState extends State<_NewsFullscreenImagePage> {
+  late final PageController _pageController;
+  late int _index;
+  Timer? _hintTimer;
+  Timer? _hintRepeat;
+  bool _showHint = false;
+
+  bool get _multi => widget.images.length > 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _pageController = PageController(initialPage: _index);
+    if (_multi) {
+      _showHint = true;
+      _hintTimer = Timer(_kCoachOpenDuration, _hideHint);
+      _hintRepeat = Timer.periodic(_kCoachRepeatInterval, (_) => _pulseHint());
+    }
+  }
+
+  void _hideHint() {
+    if (mounted && _showHint) setState(() => _showHint = false);
+  }
+
+  void _pulseHint() {
+    if (!mounted || !_multi) return;
+    setState(() => _showHint = true);
+    _hintTimer?.cancel();
+    _hintTimer = Timer(_kCoachPulseDuration, _hideHint);
+  }
+
+  void _goToSlide(int delta) {
+    if (!_multi) return;
+    final count = widget.images.length;
+    final target = (_index + delta + count) % count;
+    _pageController.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _exit() => Navigator.of(context).maybePop();
+
+  @override
+  void dispose() {
+    _hintTimer?.cancel();
+    _hintRepeat?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Videolarla BİREBİR aynı çerçeve: üst bar (arama+logo+geri) ve alttaki
+    // yazar+başlık+aksiyon şeridi (_FullscreenArticleInfo) buradan gelir.
+    // aspectRatio: null → medya alanı tüm dikdörtgeni kaplar; görseller
+    // [BoxFit.contain] ile ortalanır.
+    return Material(
+      color: Colors.black,
+      child: SafeArea(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              top: _kFullscreenTopBarHeight,
+              child: _FullscreenScaffold(
+                aspectRatio: null,
+                item: widget.item,
+                onExit: _exit,
+                showTopBar: false,
+                authState: widget.authState,
+                postActionRepository: widget.postActionRepository,
+                onAuthRequired: widget.onAuthRequired,
+                onAuthorTap: widget.onAuthorTap,
+                child: _buildMedia(),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: _FullscreenTopBar(
+                logoUrl: widget.item.fullscreenLogoUrl,
+                onExit: _exit,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMedia() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          controller: _pageController,
+          physics: const PageScrollPhysics(parent: BouncingScrollPhysics()),
+          itemCount: widget.images.length,
+          onPageChanged: (index) {
+            setState(() => _index = index);
+            _pulseHint();
+          },
+          itemBuilder: (context, index) =>
+              _FullscreenImageItem(url: widget.images[index]),
+        ),
+        if (_multi) ...[
+          Positioned(
+            left: 12,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: _FullscreenImageArrow(
+                icon: Symbols.arrow_left_line,
+                label: 'Önceki görsel',
+                onTap: () => _goToSlide(-1),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 12,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: _FullscreenImageArrow(
+                icon: Symbols.arrow_forward,
+                label: 'Sonraki görsel',
+                onTap: () => _goToSlide(1),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 16,
+            child: IgnorePointer(
+              child: Center(
+                child: _FullscreenImageDots(
+                  count: widget.images.length,
+                  index: _index,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 10,
+            child: IgnorePointer(
+              child: _CoachReveal(
+                visible: _showHint,
+                child: const Center(child: _FullscreenImageSwipeHint()),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FullscreenImageItem extends StatelessWidget {
+  const _FullscreenImageItem({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: PinchZoomSurface(
+        child: Center(
+          child: CachedImage(
+            url: url,
+            fit: BoxFit.contain,
+            placeholderColor: Colors.black,
+            errorWidget: const Center(
+              child: Icon(
+                Symbols.image_outlined,
+                color: Colors.white24,
+                size: 40,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tam ekran slider'da sol/sağ gezinme oku — kart slider'ındaki düğmenin
+/// aynı cam görsel dilini taşır.
+class _FullscreenImageArrow extends StatelessWidget {
+  const _FullscreenImageArrow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: ClipOval(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.38),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Icon(icon, size: 20, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FullscreenImageDots extends StatelessWidget {
+  const _FullscreenImageDots({required this.count, required this.index});
+
+  final int count;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.36),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < count; i++) ...[
+            if (i > 0) const SizedBox(width: 5),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              width: i == index ? 20 : 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: i == index
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FullscreenImageSwipeHint extends StatelessWidget {
+  const _FullscreenImageSwipeHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _GlassPanel(
+      radius: 999,
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Symbols.arrow_left_line, color: Colors.white, size: 18),
+          SizedBox(width: 8),
+          Text(
+            'Görseller arasında kaydırın',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              height: 1,
+              letterSpacing: 0.1,
+            ),
+          ),
+          SizedBox(width: 8),
+          Icon(Symbols.arrow_forward, color: Colors.white, size: 18),
+        ],
+      ),
+    );
+  }
 }

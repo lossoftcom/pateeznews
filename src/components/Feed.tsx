@@ -2,12 +2,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import MansetSlider from './MansetSlider';
 import NewsCard, { NewsCardSkeleton } from './NewsCard';
-import { type NewsItem, type SiteSettings, type NavigationItem } from '@/types';
+import { type NewsItem, type SiteSettings, type NavigationItem, type PublicAdSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import Skeleton from './ui/Skeleton';
 import RemixIcon from './ui/RemixIcon';
 import { dataService } from '@/services/dataService';
 import { filterOutOpinionColumns } from '@/utils/opinionColumns';
+import AdSlot from './ads/AdSlot';
 
 interface FeedProps {
   newsData: NewsItem[];
@@ -16,6 +17,7 @@ interface FeedProps {
   onSourceClick?: (news: NewsItem) => void;
   siteSettings?: SiteSettings | null;
   navItems?: NavigationItem[];
+  adSettings?: PublicAdSettings | null;
   selectedCategory?: string;
   loading?: boolean;
   hideOpinionColumns?: boolean;
@@ -41,7 +43,7 @@ const getPopularityScore = (news: NewsItem) => {
   return freshness + views + likes + comments + shares + saves + pinned - dislikes;
 };
 
-const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClick, siteSettings, navItems, selectedCategory, loading, hideOpinionColumns = false }) => {
+const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClick, siteSettings, navItems, adSettings, selectedCategory, loading, hideOpinionColumns = false }) => {
   const visibleNewsData = useMemo(
     () => hideOpinionColumns ? filterOutOpinionColumns(newsData) : newsData,
     [hideOpinionColumns, newsData]
@@ -103,6 +105,10 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
 
   return (
     <div className="flex flex-col gap-6 pb-4">
+      {!resolvedTitle && (
+        <AdSlot settings={adSettings} slotKey="web_home_top" className="px-1" />
+      )}
+
       {!resolvedTitle && mansetItems.length > 0 && (
         <div className="px-1">
           <MansetSlider
@@ -111,6 +117,10 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
             onNewsSelect={onNewsSelect}
           />
         </div>
+      )}
+
+      {!resolvedTitle && (
+        <AdSlot settings={adSettings} slotKey="web_home_below_hero" className="px-1" />
       )}
 
       <div className="px-1 mt-1 mb-2">
@@ -175,15 +185,25 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
           </>
         ) : (
           <>
-            {displayData.map((news) => (
-              <NewsCard
-                key={news.id}
-                data={news}
-                onSourceClick={() => onSourceClick?.(news)}
-                siteSettings={siteSettings}
-                navItems={navItems}
-              />
-            ))}
+            {displayData.map((news, index) => {
+              const slotKey = resolvedTitle ? 'web_category_feed_inline' : 'web_home_feed_inline';
+              return (
+                <React.Fragment key={news.id}>
+                  <NewsCard
+                    data={news}
+                    onSourceClick={() => onSourceClick?.(news)}
+                    siteSettings={siteSettings}
+                    navItems={navItems}
+                  />
+                  {(index + 1) % (resolvedTitle ? 5 : 4) === 0 && (
+                    <AdSlot settings={adSettings} slotKey={slotKey} />
+                  )}
+                  {!resolvedTitle && index === 9 && (
+                    <AdSlot settings={adSettings} slotKey="web_home_section_break" />
+                  )}
+                </React.Fragment>
+              );
+            })}
             {displayData.length === 0 && (
               <div className="text-center py-20 bg-palette-beige/5 rounded-[5px] border border-dashed border-palette-beige/40">
                 <span className="text-palette-tan font-bold tracking-widest text-xs uppercase">{t('feed.empty')}</span>

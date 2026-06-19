@@ -6,7 +6,7 @@ import Feed from './Feed';
 import RightSidebar from './RightSidebar';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
-import type { SiteSettings, NavigationItem, NewsItem } from '@/types';
+import type { SiteSettings, NavigationItem, NewsItem, PublicAdSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
 import { navigateImmediately, updateUrlImmediately } from '@/utils/immediateNavigation';
 
@@ -35,6 +35,7 @@ interface HomePageProps {
     navigationItems: NavigationItem[];
     newsItems: NewsItem[];
     sidebarSnapshot?: any;
+    adSettings?: PublicAdSettings | null;
     categoryPagination?: {
         category: string;
         limit: number;
@@ -55,6 +56,7 @@ const HomePage: React.FC<HomePageProps> = ({
     navigationItems,
     newsItems: initialNews,
     sidebarSnapshot,
+    adSettings,
     categoryPagination,
     selectedCategory: initialCategory,
     isInitialHome = true
@@ -262,6 +264,7 @@ const HomePage: React.FC<HomePageProps> = ({
                                             navItems={navigationItems}
                                             pagination={categoryPagination}
                                             siteSettings={siteSettings}
+                                            adSettings={adSettings}
                                             onNewsSelect={handleNewsSelect}
                                             onProfileSelect={handleProfileSelect}
                                             onBack={() => void navigateImmediately('/')}
@@ -270,6 +273,7 @@ const HomePage: React.FC<HomePageProps> = ({
                                         <Feed
                                             newsData={displayNews}
                                             siteSettings={siteSettings}
+                                            adSettings={adSettings}
                                             navItems={navigationItems}
                                             selectedCategory={activeCat || undefined}
                                             title={categoryTitleKey}
@@ -309,7 +313,7 @@ const HomePage: React.FC<HomePageProps> = ({
 
                         {activeView === 'feed' && !isCategoryDetailView && (
                             <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8">
-                                <RightSidebar newsData={displayNews} loading={initialNews.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} />
+                                <RightSidebar newsData={displayNews} loading={initialNews.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} adSettings={adSettings} adSlotKey="web_home_sidebar" />
                             </aside>
                         )}
                     </main>

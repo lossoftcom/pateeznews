@@ -192,6 +192,46 @@ export interface SiteFont {
   sort_order: number;
 }
 
+// --- PUBLIC ADS ---
+export type PublicAdPlatform = 'web' | 'mobile';
+export type PublicAdCreativeType = 'adsense' | 'image' | 'html';
+
+export interface PublicAdCreative {
+  id: string;
+  name: string;
+  type: PublicAdCreativeType;
+  width: number;
+  height: number;
+  responsive: boolean;
+  imageUrl?: string;
+  linkUrl?: string;
+  htmlCode?: string;
+  adsenseSlotId?: string;
+  publisherId?: string;
+  weight: number;
+}
+
+export interface PublicAdSlot {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  platform: PublicAdPlatform;
+  width: number;
+  height: number;
+  responsive: boolean;
+  fullscreen: boolean;
+  creatives: PublicAdCreative[];
+}
+
+export interface PublicAdSettings {
+  masterEnabled: boolean;
+  adsenseConnected: boolean;
+  adsensePublisherId: string;
+  localEnabled: boolean;
+  slots: PublicAdSlot[];
+}
+
 // --- SITE SETTINGS ---
 export interface SiteSettings {
   id: string;

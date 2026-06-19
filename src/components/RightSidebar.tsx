@@ -11,12 +11,16 @@ import { isOpinionColumn } from '@/utils/opinionColumns';
 import { getProfileHref } from '@/utils/profileUrl';
 import RemixIcon from './ui/RemixIcon';
 import PublisherFollowButton from './PublisherFollowButton';
+import AdSlot from './ads/AdSlot';
+import type { PublicAdSettings } from '@/types';
 
 interface RightSidebarProps {
    newsData?: NewsItem[];
    loading?: boolean;
    siteSettings?: SiteSettings | null;
    initialSidebarData?: any;
+   adSettings?: PublicAdSettings | null;
+   adSlotKey?: string;
 }
 
 type ForecastItem = { day: string; icon: string; temp: string };
@@ -294,7 +298,7 @@ const WeatherMotionIcon: React.FC<{ code?: number; isDay?: boolean | number; lab
    );
 };
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSettings, initialSidebarData }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSettings, initialSidebarData, adSettings, adSlotKey = 'web_home_sidebar' }) => {
    const { t, currentLang } = useLanguage();
    const { showToast } = useToast();
    const [liveSidebar, setLiveSidebar] = useState<any>(initialSidebarData || null);
@@ -987,6 +991,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                </button>
             </div>
          )}
+
+         <AdSlot settings={adSettings} slotKey={adSlotKey} className="order-first" />
 
          {/* 3. Gündem (Trending) */}
          <div className="order-first bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden">

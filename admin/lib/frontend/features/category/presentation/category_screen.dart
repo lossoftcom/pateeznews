@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/data_unavailable_state.dart';
 import '../../account/data/frontend_auth_repository.dart';
+import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../home/data/feed_ranking.dart';
 import '../../home/data/home_repository.dart';
 import '../../home/presentation/widgets/feed_filter_tabs.dart';
@@ -243,6 +244,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                 ),
                       ),
                     ),
+                    const SliverToBoxAdapter(
+                      child: FrontendAdSlot(
+                        slotKey: 'mobile_category_after_masthead',
+                      ),
+                    ),
                     SliverToBoxAdapter(
                       child: _FeedSectionHeader(
                         filter: _filter,
@@ -295,6 +301,21 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                   duration: 320.ms,
                                   curve: Curves.easeOutCubic,
                                 );
+                          }
+                          if ((index + 1) % 5 == 0) {
+                            card = Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                card,
+                                const SizedBox(height: AppSpacing.xxl),
+                                const FrontendAdSlot(
+                                  slotKey: 'mobile_category_feed_inline',
+                                  margin: EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.pageHorizontal,
+                                  ),
+                                ),
+                              ],
+                            );
                           }
                           return Padding(
                             padding: EdgeInsets.only(

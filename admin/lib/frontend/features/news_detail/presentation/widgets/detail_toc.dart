@@ -7,6 +7,7 @@ import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/cached_image.dart';
+import '../../../../shared/widgets/pinch_zoom_surface.dart';
 
 const double _tocCornerRadius = 4;
 
@@ -550,10 +551,12 @@ class _TocSectionImage extends StatelessWidget {
             color: AppColors.surfaceSoft,
             child: AspectRatio(
               aspectRatio: 16 / 9,
-              child: CachedImage(
-                url: item.imageUrl,
-                fit: BoxFit.contain,
-                memCacheWidth: 900,
+              child: PinchZoomSurface(
+                child: CachedImage(
+                  url: item.imageUrl,
+                  fit: BoxFit.contain,
+                  memCacheWidth: 900,
+                ),
               ),
             ),
           ),

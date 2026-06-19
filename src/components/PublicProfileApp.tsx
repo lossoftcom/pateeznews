@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import type { NavigationItem, SiteSettings } from '@/types';
+import type { NavigationItem, PublicAdSettings, SiteSettings } from '@/types';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import UserProfile from '@/components/UserProfile';
@@ -14,6 +14,7 @@ interface PublicProfileAppProps {
   profileId: string;
   profileName: string;
   initialProfile?: Record<string, any> | null;
+  adSettings?: PublicAdSettings | null;
 }
 
 const PublicProfileApp: React.FC<PublicProfileAppProps> = ({
@@ -24,6 +25,7 @@ const PublicProfileApp: React.FC<PublicProfileAppProps> = ({
   profileId,
   profileName,
   initialProfile = null,
+  adSettings = null,
 }) => {
   const goHome = useCallback(() => {
     void navigateImmediately('/');
@@ -40,7 +42,7 @@ const PublicProfileApp: React.FC<PublicProfileAppProps> = ({
   return (
     <LanguageProvider initialLang={initialLang} initialTranslations={initialTranslations}>
       <ToastProvider>
-        <ProfilePageLayout navigationItems={navigationItems}>
+        <ProfilePageLayout navigationItems={navigationItems} adSettings={adSettings}>
           <UserProfile
             userId={profileId}
             name={profileName}

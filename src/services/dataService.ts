@@ -654,8 +654,6 @@ export const dataService = {
                 if (homepageType === NewsType.VS && homepageMediaUrl) {
                     merged.thumbnail = homepageMediaUrl;
                 }
-            } else if (homepageDescription.trim()) {
-                merged.summary = homepageDescription;
             }
 
             if (homepageType === NewsType.VIDEO || homepageType === NewsType.AUDIO || homepageType === NewsType.EMBED) {

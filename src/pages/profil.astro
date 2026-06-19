@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import ProfileApp from '@/components/ProfileApp';
 import { dataService } from '@/services/dataService.server';
+import { getPublicAdSettings } from '@/lib/server/publicAds';
 import { loadLocaleData } from '@/lib/locales';
 import { resolveLangCode } from '@/utils/lang';
 
@@ -23,10 +24,11 @@ const lang = resolveLangCode({
 });
 const langMeta = seoAlternates.find((entry) => entry.code === lang);
 
-const [initialTranslations, siteSettings, navigationItems] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, adSettings] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
-  dataService.getNavigationItems(lang)
+  dataService.getNavigationItems(lang),
+  getPublicAdSettings('web'),
 ]);
 
 const initialLang = {
@@ -49,6 +51,7 @@ const title = `Profil | ${siteSettings?.site_name || 'Pateez'}`;
   navigationItems={navigationItems}
   initialTranslations={initialTranslations}
   initialLang={initialLang}
+  adSettings={adSettings}
 >
   <ProfileApp
     client:load
@@ -56,5 +59,6 @@ const title = `Profil | ${siteSettings?.site_name || 'Pateez'}`;
     initialTranslations={initialTranslations}
     siteSettings={siteSettings}
     navigationItems={navigationItems}
+    adSettings={adSettings}
   />
 </Layout>

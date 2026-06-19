@@ -11,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/frontend_toast.dart';
 import '../../account/data/frontend_auth_repository.dart';
+import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../home/data/home_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
 import '../../shell/data/app_shell_repository.dart';
@@ -495,7 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           curve: Curves.easeOutCubic,
                         );
                   }
-                  return Padding(
+                  final postTile = Padding(
                     padding: EdgeInsets.fromLTRB(
                       AppSpacing.pageHorizontal,
                       0,
@@ -503,6 +504,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       index < posts.length - 1 ? AppSpacing.md : 0,
                     ),
                     child: card,
+                  );
+                  if ((index + 1) % 5 != 0) return postTile;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      postTile,
+                      const FrontendAdSlot(
+                        slotKey: 'mobile_profile_feed_inline',
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.pageHorizontal,
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),

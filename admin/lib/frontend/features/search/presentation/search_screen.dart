@@ -14,6 +14,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/back_circle_button.dart';
 import '../../../shared/widgets/cached_image.dart';
 import '../../account/data/frontend_auth_repository.dart';
+import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../apps/data/app_item.dart';
 import '../../home/data/home_repository.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
@@ -346,10 +347,25 @@ class _SearchScreenState extends State<SearchScreen> {
         if (_data.posts.isNotEmpty)
           SliverList.builder(
             itemCount: _data.posts.length,
-            itemBuilder: (context, index) => _PostResultTile(
-              article: _data.posts[index],
-              onTap: () => _openArticle(index),
-            ),
+            itemBuilder: (context, index) {
+              final tile = _PostResultTile(
+                article: _data.posts[index],
+                onTap: () => _openArticle(index),
+              );
+              if ((index + 1) % 5 != 0) return tile;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  tile,
+                  const FrontendAdSlot(
+                    slotKey: 'mobile_search_results_inline',
+                    margin: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.pageHorizontal,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         if (_data.profiles.isNotEmpty)
           SliverToBoxAdapter(

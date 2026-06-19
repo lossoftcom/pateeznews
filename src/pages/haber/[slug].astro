@@ -7,6 +7,7 @@ import { setPublicHtmlCache } from '@/lib/server/publicCache';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getPostPathSegment } from '@/utils/postUrl';
+import { getPublicAdSettings } from '@/lib/server/publicAds';
 
 export const prerender = false;
 setPublicHtmlCache(Astro.response);
@@ -29,12 +30,14 @@ const lang = resolveLangCode({
 
 const langMeta = seoAlternates.find((entry) => entry.code === lang);
 
-const [initialTranslations, siteSettings, navigationItems, newsItem, sidebarSnapshot] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, newsItem, newsItems, sidebarSnapshot, adSettings] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
   dataService.getNavigationItems(lang),
   dataService.getNewsBySlug(slug as string),
-  dataService.getSidebarSnapshot(lang)
+  dataService.getNewsItems(lang),
+  dataService.getSidebarSnapshot(lang),
+  getPublicAdSettings('web')
 ]);
 
 const initialLang = {
@@ -305,6 +308,7 @@ const jsonLdItems = [articleLd, breadcrumbLd, recipeLd, eventLd, videoLd, quizLd
   lang={lang}
   dir={initialLang.direction}
   siteSettings={siteSettings}
+  adSettings={adSettings}
   navigationItems={navigationItems}
   initialTranslations={initialTranslations}
   initialLang={initialLang}
@@ -317,7 +321,8 @@ const jsonLdItems = [articleLd, breadcrumbLd, recipeLd, eventLd, videoLd, quizLd
     siteSettings={siteSettings}
     navigationItems={navigationItems}
     newsItem={newsItem as any}
-    newsItems={[]}
+    newsItems={newsItems}
     sidebarSnapshot={sidebarSnapshot}
+    adSettings={adSettings}
   />
 </Layout>

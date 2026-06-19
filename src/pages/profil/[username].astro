@@ -5,6 +5,7 @@ import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
 import { resolveLangCode } from '@/utils/lang';
 import { setPublicHtmlCache } from '@/lib/server/publicCache';
+import { getPublicAdSettings } from '@/lib/server/publicAds';
 import { withTransaction } from '@/lib/server/appDb';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { loadProfile } from '@/pages/api/app/profile';
@@ -42,10 +43,11 @@ const lang = resolveLangCode({
 });
 const langMeta = seoAlternates.find((entry) => entry.code === lang);
 
-const [initialTranslations, siteSettings, navigationItems] = await Promise.all([
+const [initialTranslations, siteSettings, navigationItems, adSettings] = await Promise.all([
   loadLocaleData(lang),
   dataService.getSiteSettings(lang),
   dataService.getNavigationItems(lang),
+  getPublicAdSettings('web'),
 ]);
 
 const initialLang = {
@@ -190,6 +192,7 @@ const personLd = {
   navigationItems={navigationItems}
   initialTranslations={initialTranslations}
   initialLang={initialLang}
+  adSettings={adSettings}
 >
   <PublicProfileApp
     client:load
@@ -200,5 +203,6 @@ const personLd = {
     profileId={String(profile.id || '')}
     profileName={profileName}
     initialProfile={profile}
+    adSettings={adSettings}
   />
 </Layout>

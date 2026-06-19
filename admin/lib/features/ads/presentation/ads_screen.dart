@@ -494,13 +494,18 @@ class _AdsScreenState extends State<AdsScreen> {
           const SizedBox(height: 12),
           OutlinedButton(
             onPressed: _addSlot,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.deepOcean,
-              side: const BorderSide(color: AppColors.line),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-            ),
+            style:
+                OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.deepOcean,
+                  side: const BorderSide(color: AppColors.line),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                  ),
+                ).copyWith(
+                  mouseCursor: const WidgetStatePropertyAll(
+                    SystemMouseCursors.click,
+                  ),
+                ),
             child: const Text(
               'Reklam alanı ekle',
               style: TextStyle(letterSpacing: 0),
@@ -512,93 +517,16 @@ class _AdsScreenState extends State<AdsScreen> {
   }
 
   Future<void> _showAdsenseEditor(AdSettingsData data) async {
-    final controller = TextEditingController(text: data.adsensePublisherId);
-    var connected = data.adsenseConnected;
-    final result = await showDialog<bool>(
+    final result = await showDialog<_AdsenseSettingsResult>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setLocal) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-              title: const Text(
-                'Google AdSense',
-                style: TextStyle(
-                  color: AppColors.deepOcean,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 17,
-                  letterSpacing: 0,
-                ),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: controller,
-                    style: const TextStyle(
-                      color: AppColors.deepOcean,
-                      fontSize: 13,
-                      letterSpacing: 0,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Yayıncı kimliği',
-                      hintText: 'ca-pub-XXXXXXXXXXXXXXXX',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'AdSense bağlı',
-                          style: TextStyle(
-                            color: AppColors.deepOcean,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ),
-                      _PzSwitch(
-                        value: connected,
-                        onChanged: (v) => setLocal(() => connected = v),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('İptal'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.actionRed,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.value),
-                    ),
-                  ),
-                  child: const Text('Kaydet'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (context) => _AdsenseSettingsDialog(data: data),
     );
-    if (result == true) {
+    if (result != null) {
       setState(() {
-        data.adsensePublisherId = controller.text.trim();
-        data.adsenseConnected = connected;
+        data.adsensePublisherId = result.publisherId;
+        data.adsenseConnected = result.connected;
       });
     }
-    controller.dispose();
   }
 
   Future<AdSlot?> _showSlotEditor({AdSlot? existing}) {
@@ -664,6 +592,276 @@ class _PzSwitch extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdsenseSettingsResult {
+  const _AdsenseSettingsResult({
+    required this.publisherId,
+    required this.connected,
+  });
+
+  final String publisherId;
+  final bool connected;
+}
+
+class _AdsenseSettingsDialog extends StatefulWidget {
+  const _AdsenseSettingsDialog({required this.data});
+
+  final AdSettingsData data;
+
+  @override
+  State<_AdsenseSettingsDialog> createState() => _AdsenseSettingsDialogState();
+}
+
+class _AdsenseSettingsDialogState extends State<_AdsenseSettingsDialog> {
+  late final TextEditingController _publisherController;
+  late bool _connected;
+
+  @override
+  void initState() {
+    super.initState();
+    _publisherController = TextEditingController(
+      text: widget.data.adsensePublisherId,
+    )..addListener(_refreshSnippet);
+    _connected = widget.data.adsenseConnected;
+  }
+
+  @override
+  void dispose() {
+    _publisherController.removeListener(_refreshSnippet);
+    _publisherController.dispose();
+    super.dispose();
+  }
+
+  void _refreshSnippet() {
+    setState(() {});
+  }
+
+  String get _publisherId => _publisherController.text.trim();
+
+  String get _adsenseCode {
+    final publisherId = _publisherId.isEmpty
+        ? 'ca-pub-XXXXXXXXXXXXXXXX'
+        : _publisherId;
+    return '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=$publisherId" crossorigin="anonymous"></script>';
+  }
+
+  void _save() {
+    Navigator.of(context).pop(
+      _AdsenseSettingsResult(publisherId: _publisherId, connected: _connected),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 540, maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 18, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SymbolIcon(
+                    Symbols.google_fill,
+                    color: AppColors.actionRed,
+                    size: 21,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Google AdSense',
+                          style: TextStyle(
+                            color: AppColors.deepOcean,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Pateez.com yayıncı ve site kodu ayarları',
+                          style: TextStyle(
+                            color: AppColors.inkSoft,
+                            fontSize: 12,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    mouseCursor: SystemMouseCursors.click,
+                    visualDensity: VisualDensity.compact,
+                    icon: const SymbolIcon(
+                      Symbols.close,
+                      color: AppColors.inkSoft,
+                      size: 18,
+                    ),
+                    tooltip: 'Kapat',
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: AppColors.line),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _publisherController,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontSize: 13,
+                        letterSpacing: 0,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Yayıncı kimliği',
+                        hintText: 'ca-pub-XXXXXXXXXXXXXXXX',
+                        prefixIcon: Padding(
+                          padding: EdgeInsets.only(left: 12, right: 8),
+                          child: SymbolIcon(
+                            Symbols.verified_outlined,
+                            color: AppColors.iconMuted,
+                            size: 18,
+                          ),
+                        ),
+                        prefixIconConstraints: BoxConstraints(
+                          minWidth: 38,
+                          minHeight: 38,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                        border: Border.all(color: AppColors.line),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'AdSense bağlı',
+                                  style: TextStyle(
+                                    color: AppColors.deepOcean,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Hesap bağlıysa reklam alanlarında AdSense kreatifleri aktif kalır.',
+                                  style: TextStyle(
+                                    color: AppColors.inkSoft,
+                                    fontSize: 11.5,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _PzSwitch(
+                            value: _connected,
+                            onChanged: (value) {
+                              setState(() => _connected = value);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Site kodu',
+                      style: TextStyle(
+                        color: AppColors.deepOcean,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.softLine,
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                        border: Border.all(color: AppColors.line),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SymbolIcon(
+                            Symbols.code_outlined,
+                            color: AppColors.iconMuted,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: SelectableText(
+                              _adsenseCode,
+                              style: const TextStyle(
+                                color: AppColors.deepOcean,
+                                fontSize: 11,
+                                height: 1.35,
+                                letterSpacing: 0,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1, color: AppColors.line),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _DialogTextButton(
+                    label: 'İptal',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(width: 10),
+                  _DialogPrimaryButton(label: 'Kaydet', onPressed: _save),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -748,15 +946,20 @@ class _ServiceCard extends StatelessWidget {
               const Spacer(),
               OutlinedButton(
                 onPressed: onEdit,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.deepOcean,
-                  side: const BorderSide(color: AppColors.line),
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                  ),
-                ),
+                style:
+                    OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.deepOcean,
+                      side: const BorderSide(color: AppColors.line),
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                      ),
+                    ).copyWith(
+                      mouseCursor: const WidgetStatePropertyAll(
+                        SystemMouseCursors.click,
+                      ),
+                    ),
                 child: Text(
                   editLabel,
                   style: const TextStyle(
@@ -878,6 +1081,7 @@ class _PlatformSegment extends StatelessWidget {
     VoidCallback onTap,
   ) {
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(AppRadius.value),
       onTap: onTap,
       child: Container(
@@ -962,6 +1166,7 @@ class _SlotCard extends StatelessWidget {
       child: Column(
         children: [
           InkWell(
+            mouseCursor: SystemMouseCursors.click,
             borderRadius: BorderRadius.circular(AppRadius.value),
             onTap: onToggleExpand,
             child: Padding(
@@ -1269,6 +1474,7 @@ class _CreativeRow extends StatelessWidget {
           const SizedBox(width: 8),
           IconButton(
             onPressed: onEdit,
+            mouseCursor: SystemMouseCursors.click,
             visualDensity: VisualDensity.compact,
             tooltip: 'Düzenle',
             icon: const SymbolIcon(
@@ -1279,6 +1485,7 @@ class _CreativeRow extends StatelessWidget {
           ),
           IconButton(
             onPressed: onDelete,
+            mouseCursor: SystemMouseCursors.click,
             visualDensity: VisualDensity.compact,
             tooltip: 'Sil',
             icon: const SymbolIcon(
@@ -1547,6 +1754,8 @@ class _SlotEditorDialogState extends State<_SlotEditorDialog> {
                 child: DropdownButton<AdSize>(
                   value: sizes.contains(_size) ? _size : sizes.first,
                   isExpanded: true,
+                  mouseCursor: SystemMouseCursors.click,
+                  dropdownMenuItemMouseCursor: SystemMouseCursors.click,
                   icon: const SymbolIcon(
                     Symbols.keyboard_arrow_down,
                     color: AppColors.iconMuted,
@@ -1577,20 +1786,11 @@ class _SlotEditorDialogState extends State<_SlotEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        _DialogTextButton(
+          label: 'İptal',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('İptal'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.actionRed,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.value),
-            ),
-          ),
-          child: Text(widget.existing == null ? 'Ekle' : 'Kaydet'),
-        ),
+        _DialogPrimaryButton(label: 'Kaydet', onPressed: _submit),
       ],
     );
   }
@@ -1599,6 +1799,7 @@ class _SlotEditorDialogState extends State<_SlotEditorDialog> {
     final selected = _platform == platform;
     return Expanded(
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         borderRadius: BorderRadius.circular(AppRadius.value),
         onTap: () => setState(() {
           _platform = platform;
@@ -1624,6 +1825,72 @@ class _SlotEditorDialogState extends State<_SlotEditorDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DialogTextButton extends StatelessWidget {
+  const _DialogTextButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style:
+          TextButton.styleFrom(
+            foregroundColor: AppColors.deepOcean,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            minimumSize: const Size(64, 38),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0,
+            ),
+          ).copyWith(
+            mouseCursor: const WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+      child: Text(label),
+    );
+  }
+}
+
+class _DialogPrimaryButton extends StatelessWidget {
+  const _DialogPrimaryButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: TextButton(
+        onPressed: onPressed,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: AppColors.deepOcean,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              minimumSize: const Size(104, 38),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: Text(label),
       ),
     );
   }

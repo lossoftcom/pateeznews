@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { NavigationItem, SiteSettings } from '@/types';
+import type { NavigationItem, PublicAdSettings, SiteSettings } from '@/types';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
@@ -15,9 +15,10 @@ interface ProfileAppProps {
   initialTranslations: Record<string, string>;
   siteSettings: SiteSettings | null;
   navigationItems: NavigationItem[];
+  adSettings?: PublicAdSettings | null;
 }
 
-const ProfileApp: React.FC<ProfileAppProps> = ({ initialLang, initialTranslations, siteSettings, navigationItems }) => {
+const ProfileApp: React.FC<ProfileAppProps> = ({ initialLang, initialTranslations, siteSettings, navigationItems, adSettings = null }) => {
   const { user, profile, loading } = useSupabaseSession();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
@@ -54,7 +55,7 @@ const ProfileApp: React.FC<ProfileAppProps> = ({ initialLang, initialTranslation
     <LanguageProvider initialLang={initialLang} initialTranslations={initialTranslations}>
       <ToastProvider>
 
-        <ProfilePageLayout navigationItems={navigationItems}>
+        <ProfilePageLayout navigationItems={navigationItems} adSettings={adSettings}>
           {loading ? (
             <div className="h-40" />
           ) : user ? (

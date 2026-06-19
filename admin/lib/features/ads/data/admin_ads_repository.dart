@@ -225,11 +225,13 @@ class AdCreative {
     this.imageUrl = '',
     this.linkUrl = '',
     this.htmlCode = '',
-    this.adsenseSlotId = '',
+    String adsenseSlotId = '',
     this.weight = 1,
     this.active = true,
     this.accentColor,
-  });
+  }) : adsenseSlotId = adsenseSlotId.isNotEmpty
+           ? adsenseSlotId
+           : _defaultAdsenseSlotId(id);
 
   String id;
   String name;
@@ -327,6 +329,87 @@ class AdCreative {
       if (accentColor != null) 'accentColor': accentColor,
     };
   }
+}
+
+const _pateezLeaderboardImageUrl =
+    '/local-upload/image/2026-06-19/pateez_728x90_reklam.gif';
+const _pateezRectangleImageUrl =
+    '/local-upload/image/2026-06-19/pateez_336x280_reklam.gif';
+const _pateezAdTargetUrl = 'https://pateez.com/';
+
+String _defaultAdsenseSlotId(String creativeId) {
+  return switch (creativeId) {
+    'ad_web_home_top_adsense' => '8185130828',
+    'ad_web_home_below_hero_adsense' => '1636300275',
+    'ad_web_home_feed_inline_adsense' => '8508830384',
+    'ad_web_category_feed_inline_adsense' => '5076851834',
+    'ad_web_home_sidebar_adsense' => '4569585377',
+    'ad_web_home_left_rail_adsense' => '1137606820',
+    'ad_web_side_rail_left_adsense' => '5004699646',
+    'ad_web_side_rail_right_adsense' => '9630340369',
+    'ad_web_article_top_adsense' => '8338429672',
+    'ad_web_news_incontent_adsense' => '4399184665',
+    'ad_web_article_end_adsense' => '7722096397',
+    'ad_web_home_billboard_adsense' => '8146857980',
+    'ad_web_home_section_break_adsense' => '7511443480',
+    'ad_web_article_after_media_adsense' => '2757810259',
+    'ad_web_article_midcontent_adsense' => '6039569394',
+    'ad_web_article_sidebar_adsense' => '7955286290',
+    'ad_web_article_related_before_adsense' => '8975734240',
+    'ad_web_video_feed_inline_adsense' => '4016041280',
+    'ad_web_search_results_inline_adsense' => '6505483578',
+    'ad_web_profile_sidebar_adsense' => '5095933052',
+    'ad_mobile_home_after_market_adsense' => '3723407568',
+    'ad_mobile_feed_inline_adsense' => '2549660768',
+    'ad_mobile_feed_rectangle_adsense' => '7591334532',
+    'ad_mobile_detail_incontent_adsense' => '7380571228',
+    'ad_mobile_detail_between_articles_adsense' => '5722619013',
+    'ad_mobile_video_feed_inline_adsense' => '2339007854',
+    'ad_mobile_anchor_adsense' => '1156688044',
+    'ad_mobile_home_after_hero_adsense' => '4754407887',
+    'ad_mobile_category_after_masthead_adsense' => '8441381779',
+    'ad_mobile_category_feed_inline_adsense' => '1783374006',
+    'ad_mobile_detail_after_media_adsense' => '7128300101',
+    'ad_mobile_detail_midcontent_adsense' => '8843606373',
+    'ad_mobile_detail_end_adsense' => '7934115317',
+    'ad_mobile_video_feed_rectangle_adsense' => '4502136769',
+    'ad_mobile_search_results_inline_adsense' => '9595671028',
+    'ad_mobile_profile_feed_inline_adsense' => '3189055096',
+    _ => '',
+  };
+}
+
+AdCreative _pateezLeaderboardCreative(String slotKey, {int weight = 10}) {
+  return AdCreative(
+    id: 'ad_${slotKey}_pateez_728',
+    name: 'Pateez tanıtım bannerı',
+    type: AdCreativeType.image,
+    width: 728,
+    height: 90,
+    imageUrl: _pateezLeaderboardImageUrl,
+    linkUrl: _pateezAdTargetUrl,
+    weight: weight,
+    accentColor: 0xFFEF3E4A,
+  );
+}
+
+AdCreative _pateezRectangleCreative(
+  String slotKey, {
+  required int width,
+  required int height,
+  int weight = 10,
+}) {
+  return AdCreative(
+    id: 'ad_${slotKey}_pateez_rect',
+    name: 'Pateez tanıtım dikdörtgeni',
+    type: AdCreativeType.image,
+    width: width,
+    height: height,
+    imageUrl: _pateezRectangleImageUrl,
+    linkUrl: _pateezAdTargetUrl,
+    weight: weight,
+    accentColor: 0xFFEF3E4A,
+  );
 }
 
 /// Önyüzde sabit bir konum. İçine istenildiği kadar reklam eklenebilir; önyüz
@@ -469,12 +552,12 @@ class AdSettingsData {
     );
   }
 
-  /// İlk açılışta gösterilecek örnek yapılandırma (gerçek veriler bağlanana dek).
+  /// İlk açılışta kullanılacak varsayılan reklam yapılandırması.
   factory AdSettingsData.seed() {
     return AdSettingsData(
       masterEnabled: true,
       adsenseConnected: true,
-      adsensePublisherId: 'ca-pub-7421000000000093',
+      adsensePublisherId: 'ca-pub-6674987005803282',
       localEnabled: true,
       slots: [
         AdSlot(
@@ -486,24 +569,7 @@ class AdSettingsData {
           width: 728,
           height: 90,
           creatives: [
-            AdCreative(
-              id: 'ad_web_home_top_premium',
-              name: 'Premium üyelik kampanyası',
-              type: AdCreativeType.image,
-              width: 728,
-              height: 90,
-              weight: 5,
-              accentColor: 0xFF2C3E50,
-            ),
-            AdCreative(
-              id: 'ad_web_home_top_local',
-              name: 'Demirören Optik — bahar',
-              type: AdCreativeType.image,
-              width: 728,
-              height: 90,
-              weight: 3,
-              accentColor: 0xFFF39C12,
-            ),
+            _pateezLeaderboardCreative('web_home_top'),
             AdCreative(
               id: 'ad_web_home_top_adsense',
               name: 'AdSense otomatik reklam',
@@ -544,6 +610,11 @@ class AdSettingsData {
           width: 336,
           height: 280,
           creatives: [
+            _pateezRectangleCreative(
+              'web_home_feed_inline',
+              width: 336,
+              height: 280,
+            ),
             AdCreative(
               id: 'ad_web_home_feed_inline_adsense',
               name: 'AdSense akış içi dikdörtgen',
@@ -563,6 +634,11 @@ class AdSettingsData {
           width: 336,
           height: 280,
           creatives: [
+            _pateezRectangleCreative(
+              'web_category_feed_inline',
+              width: 336,
+              height: 280,
+            ),
             AdCreative(
               id: 'ad_web_category_feed_inline_adsense',
               name: 'AdSense kategori içi',
@@ -582,15 +658,6 @@ class AdSettingsData {
           width: 300,
           height: 600,
           creatives: [
-            AdCreative(
-              id: 'ad_web_home_sidebar_local',
-              name: 'Yerel emlak ofisi',
-              type: AdCreativeType.image,
-              width: 300,
-              height: 600,
-              weight: 1,
-              accentColor: 0xFF1D9E75,
-            ),
             AdCreative(
               id: 'ad_web_home_sidebar_adsense',
               name: 'AdSense yarım sayfa',
@@ -667,6 +734,7 @@ class AdSettingsData {
           width: 728,
           height: 90,
           creatives: [
+            _pateezLeaderboardCreative('web_article_top'),
             AdCreative(
               id: 'ad_web_article_top_adsense',
               name: 'AdSense haber üstü',
@@ -686,6 +754,11 @@ class AdSettingsData {
           width: 300,
           height: 250,
           creatives: [
+            _pateezRectangleCreative(
+              'web_news_incontent',
+              width: 300,
+              height: 250,
+            ),
             AdCreative(
               id: 'ad_web_news_incontent_adsense',
               name: 'AdSense içerik reklamı',
@@ -705,12 +778,240 @@ class AdSettingsData {
           width: 336,
           height: 280,
           creatives: [
+            _pateezRectangleCreative(
+              'web_article_end',
+              width: 336,
+              height: 280,
+            ),
             AdCreative(
               id: 'ad_web_article_end_adsense',
               name: 'AdSense yazı sonu',
               type: AdCreativeType.adsense,
               width: 336,
               height: 280,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_home_billboard',
+          key: 'web_home_billboard',
+          name: 'Anasayfa — Billboard',
+          description: 'Manşet üstü · geniş ekran yüksek görünürlük',
+          platform: AdPlatform.web,
+          width: 970,
+          height: 250,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_home_billboard_adsense',
+              name: 'AdSense geniş billboard',
+              type: AdCreativeType.adsense,
+              width: 970,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_home_section_break',
+          key: 'web_home_section_break',
+          name: 'Anasayfa — Bölüm Arası',
+          description: 'Kategori blokları arası · doğal mola',
+          platform: AdPlatform.web,
+          width: 728,
+          height: 90,
+          creatives: [
+            _pateezLeaderboardCreative('web_home_section_break'),
+            AdCreative(
+              id: 'ad_web_home_section_break_adsense',
+              name: 'AdSense bölüm arası',
+              type: AdCreativeType.adsense,
+              width: 728,
+              height: 90,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_article_after_media',
+          key: 'web_article_after_media',
+          name: 'Haber Detay — Medya Altı',
+          description: 'Kapak/video sonrası · metin başlamadan',
+          platform: AdPlatform.web,
+          width: 728,
+          height: 90,
+          creatives: [
+            _pateezLeaderboardCreative('web_article_after_media'),
+            AdCreative(
+              id: 'ad_web_article_after_media_adsense',
+              name: 'AdSense medya altı',
+              type: AdCreativeType.adsense,
+              width: 728,
+              height: 90,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_article_midcontent',
+          key: 'web_article_midcontent',
+          name: 'Haber Detay — Orta İçerik',
+          description: '4.-5. içerik bloğu sonrası · okuma molası',
+          platform: AdPlatform.web,
+          width: 336,
+          height: 280,
+          creatives: [
+            _pateezRectangleCreative(
+              'web_article_midcontent',
+              width: 336,
+              height: 280,
+            ),
+            AdCreative(
+              id: 'ad_web_article_midcontent_adsense',
+              name: 'AdSense orta içerik',
+              type: AdCreativeType.adsense,
+              width: 336,
+              height: 280,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_article_sidebar',
+          key: 'web_article_sidebar',
+          name: 'Haber Detay — Sağ Sidebar',
+          description: 'Detay sağ sütun · scroll boyunca görünür',
+          platform: AdPlatform.web,
+          width: 300,
+          height: 600,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_article_sidebar_adsense',
+              name: 'AdSense detay yarım sayfa',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 600,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_article_related_before',
+          key: 'web_article_related_before',
+          name: 'Haber Detay — Önerilenler Öncesi',
+          description: 'Yorumlar/ilgili haberler öncesi · doğal mola',
+          platform: AdPlatform.web,
+          width: 336,
+          height: 280,
+          creatives: [
+            _pateezRectangleCreative(
+              'web_article_related_before',
+              width: 336,
+              height: 280,
+            ),
+            AdCreative(
+              id: 'ad_web_article_related_before_adsense',
+              name: 'AdSense önerilenler öncesi',
+              type: AdCreativeType.adsense,
+              width: 336,
+              height: 280,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_video_feed_inline',
+          key: 'web_video_feed_inline',
+          name: 'Web — Video Akışı Arası',
+          description: 'Video listesi · her 4 kartta bir',
+          platform: AdPlatform.web,
+          width: 336,
+          height: 280,
+          creatives: [
+            _pateezRectangleCreative(
+              'web_video_feed_inline',
+              width: 336,
+              height: 280,
+            ),
+            AdCreative(
+              id: 'ad_web_video_feed_inline_adsense',
+              name: 'AdSense web video akışı',
+              type: AdCreativeType.adsense,
+              width: 336,
+              height: 280,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_story_between',
+          key: 'web_story_between',
+          name: 'Web Hikaye — Geçiş Arası',
+          description: 'Hikaye geçişi · kullanıcı aksiyonu sonrası',
+          platform: AdPlatform.web,
+          width: 300,
+          height: 250,
+          active: false,
+          creatives: [
+            _pateezRectangleCreative(
+              'web_story_between',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_web_story_between_adsense',
+              name: 'AdSense hikaye geçişi',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_search_results_inline',
+          key: 'web_search_results_inline',
+          name: 'Web Arama — Sonuç Arası',
+          description: 'Arama sonuçları · her 6 sonuçta bir',
+          platform: AdPlatform.web,
+          width: 336,
+          height: 280,
+          creatives: [
+            _pateezRectangleCreative(
+              'web_search_results_inline',
+              width: 336,
+              height: 280,
+            ),
+            AdCreative(
+              id: 'ad_web_search_results_inline_adsense',
+              name: 'AdSense arama sonuç arası',
+              type: AdCreativeType.adsense,
+              width: 336,
+              height: 280,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_profile_sidebar',
+          key: 'web_profile_sidebar',
+          name: 'Profil — Sağ Sidebar',
+          description: 'Yazar/profil sayfası sağ sütun',
+          platform: AdPlatform.web,
+          width: 300,
+          height: 250,
+          creatives: [
+            _pateezRectangleCreative(
+              'web_profile_sidebar',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_web_profile_sidebar_adsense',
+              name: 'AdSense profil sidebar',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
               weight: 1,
             ),
           ],
@@ -744,15 +1045,6 @@ class AdSettingsData {
           height: 100,
           creatives: [
             AdCreative(
-              id: 'ad_mobile_feed_inline_local',
-              name: 'Uygulama içi kampanya',
-              type: AdCreativeType.image,
-              width: 320,
-              height: 100,
-              weight: 2,
-              accentColor: 0xFFEA4335,
-            ),
-            AdCreative(
               id: 'ad_mobile_feed_inline_adsense',
               name: 'AdSense mobil banner',
               type: AdCreativeType.adsense,
@@ -771,6 +1063,11 @@ class AdSettingsData {
           width: 300,
           height: 250,
           creatives: [
+            _pateezRectangleCreative(
+              'mobile_feed_rectangle',
+              width: 300,
+              height: 250,
+            ),
             AdCreative(
               id: 'ad_mobile_feed_rectangle_adsense',
               name: 'AdSense mobil dikdörtgen',
@@ -790,6 +1087,11 @@ class AdSettingsData {
           width: 300,
           height: 250,
           creatives: [
+            _pateezRectangleCreative(
+              'mobile_detail_incontent',
+              width: 300,
+              height: 250,
+            ),
             AdCreative(
               id: 'ad_mobile_detail_incontent_adsense',
               name: 'AdSense haber içi',
@@ -879,6 +1181,227 @@ class AdSettingsData {
             ),
           ],
         ),
+        AdSlot(
+          id: 'slot_mobile_home_after_hero',
+          key: 'mobile_home_after_hero',
+          name: 'Mobil — Manşet Altı',
+          description: 'Manşet slider sonrası · akış başlamadan',
+          platform: AdPlatform.mobile,
+          width: 320,
+          height: 100,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_home_after_hero_adsense',
+              name: 'AdSense mobil manşet altı',
+              type: AdCreativeType.adsense,
+              width: 320,
+              height: 100,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_category_after_masthead',
+          key: 'mobile_category_after_masthead',
+          name: 'Mobil — Kategori Üstü',
+          description: 'Kategori masthead sonrası · liste başlamadan',
+          platform: AdPlatform.mobile,
+          width: 320,
+          height: 100,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_category_after_masthead_adsense',
+              name: 'AdSense kategori üstü',
+              type: AdCreativeType.adsense,
+              width: 320,
+              height: 100,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_category_feed_inline',
+          key: 'mobile_category_feed_inline',
+          name: 'Mobil — Kategori Akış İçi',
+          description: 'Kategori listesi · her 6 kartta bir',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          creatives: [
+            _pateezRectangleCreative(
+              'mobile_category_feed_inline',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_mobile_category_feed_inline_adsense',
+              name: 'AdSense kategori akış içi',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_detail_after_media',
+          key: 'mobile_detail_after_media',
+          name: 'Mobil — Detay Medya Altı',
+          description: 'Kapak/video sonrası · metin öncesi',
+          platform: AdPlatform.mobile,
+          width: 320,
+          height: 100,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_detail_after_media_adsense',
+              name: 'AdSense detay medya altı',
+              type: AdCreativeType.adsense,
+              width: 320,
+              height: 100,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_detail_midcontent',
+          key: 'mobile_detail_midcontent',
+          name: 'Mobil — Detay Orta İçerik',
+          description: '4.-5. içerik bloğu sonrası · okuma molası',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          creatives: [
+            _pateezRectangleCreative(
+              'mobile_detail_midcontent',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_mobile_detail_midcontent_adsense',
+              name: 'AdSense mobil orta içerik',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_detail_end',
+          key: 'mobile_detail_end',
+          name: 'Mobil — Detay Yazı Sonu',
+          description: 'Tepkiler/yorumlar öncesi · doğal mola',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          creatives: [
+            _pateezRectangleCreative(
+              'mobile_detail_end',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_mobile_detail_end_adsense',
+              name: 'AdSense mobil yazı sonu',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_video_feed_rectangle',
+          key: 'mobile_video_feed_rectangle',
+          name: 'Mobil — Video Dikdörtgen',
+          description: 'Video akışı · her 5 video kartında bir',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          creatives: [
+            _pateezRectangleCreative(
+              'mobile_video_feed_rectangle',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_mobile_video_feed_rectangle_adsense',
+              name: 'AdSense mobil video dikdörtgen',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_search_results_inline',
+          key: 'mobile_search_results_inline',
+          name: 'Mobil — Arama Sonuç Arası',
+          description: 'Arama sonuçları · her 6 sonuçta bir',
+          platform: AdPlatform.mobile,
+          width: 320,
+          height: 100,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_search_results_inline_adsense',
+              name: 'AdSense mobil arama sonuç arası',
+              type: AdCreativeType.adsense,
+              width: 320,
+              height: 100,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_profile_feed_inline',
+          key: 'mobile_profile_feed_inline',
+          name: 'Mobil Profil — Akış Arası',
+          description: 'Profil haber listesi · her 6 kartta bir',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          creatives: [
+            _pateezRectangleCreative(
+              'mobile_profile_feed_inline',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_mobile_profile_feed_inline_adsense',
+              name: 'AdSense mobil profil akışı',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_story_between',
+          key: 'mobile_story_between',
+          name: 'Mobil Hikaye — Geçiş Arası',
+          description: 'Hikaye geçişi · kullanıcı ilerletince',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          active: false,
+          creatives: [
+            _pateezRectangleCreative(
+              'mobile_story_between',
+              width: 300,
+              height: 250,
+            ),
+            AdCreative(
+              id: 'ad_mobile_story_between_adsense',
+              name: 'AdSense mobil hikaye geçişi',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -890,7 +1413,7 @@ abstract class AdminAdsRepository {
   Future<AdSettingsData> saveSettings(AdSettingsData settings);
 }
 
-/// Varsayılan repository — örnek verilerle çalışır ve değişiklikleri oturum
+/// Varsayılan repository — varsayılan verilerle çalışır ve değişiklikleri oturum
 /// boyunca bellekte tutar. Sunucu uç noktası hazır olduğunda
 /// [SupabaseAdminAdsRepository] ile değiştirilebilir.
 class LocalAdminAdsRepository implements AdminAdsRepository {

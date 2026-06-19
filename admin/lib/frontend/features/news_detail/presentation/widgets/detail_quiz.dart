@@ -8,6 +8,7 @@ import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/cached_image.dart';
+import '../../../../shared/widgets/pinch_zoom_surface.dart';
 
 const Color _correctGreen = Color(0xFF1F9B6D);
 const Color _wrongWarm = AppColors.warmHorizon;
@@ -1850,12 +1851,14 @@ class _QuizAutoRatioImageState extends State<_QuizAutoRatioImage> {
           aspectRatio: ratio.toDouble(),
           child: ColoredBox(
             color: widget.backgroundColor,
-            child: CachedImage(
-              url: widget.imageUrl,
-              fit: BoxFit.contain,
-              memCacheWidth: widget.memCacheWidth,
-              placeholderColor: widget.backgroundColor,
-              errorWidget: const _QuizImageFallback(),
+            child: PinchZoomSurface(
+              child: CachedImage(
+                url: widget.imageUrl,
+                fit: BoxFit.contain,
+                memCacheWidth: widget.memCacheWidth,
+                placeholderColor: widget.backgroundColor,
+                errorWidget: const _QuizImageFallback(),
+              ),
             ),
           ),
         ),

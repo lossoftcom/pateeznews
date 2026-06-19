@@ -6,8 +6,9 @@ void main() {
     final data = AdSettingsData.seed();
     final keys = data.slots.map((slot) => slot.key).toSet();
 
-    expect(data.slotsFor(AdPlatform.web), hasLength(11));
-    expect(data.slotsFor(AdPlatform.mobile), hasLength(8));
+    expect(data.slotsFor(AdPlatform.web), hasLength(21));
+    expect(data.slotsFor(AdPlatform.mobile), hasLength(18));
+    expect(data.adsensePublisherId, 'ca-pub-6674987005803282');
     expect(
       keys,
       containsAll([
@@ -22,6 +23,16 @@ void main() {
         'web_article_top',
         'web_news_incontent',
         'web_article_end',
+        'web_home_billboard',
+        'web_home_section_break',
+        'web_article_after_media',
+        'web_article_midcontent',
+        'web_article_sidebar',
+        'web_article_related_before',
+        'web_video_feed_inline',
+        'web_story_between',
+        'web_search_results_inline',
+        'web_profile_sidebar',
         'mobile_home_after_market',
         'mobile_feed_inline',
         'mobile_feed_rectangle',
@@ -30,6 +41,16 @@ void main() {
         'mobile_video_feed_inline',
         'mobile_anchor',
         'mobile_interstitial',
+        'mobile_home_after_hero',
+        'mobile_category_after_masthead',
+        'mobile_category_feed_inline',
+        'mobile_detail_after_media',
+        'mobile_detail_midcontent',
+        'mobile_detail_end',
+        'mobile_video_feed_rectangle',
+        'mobile_search_results_inline',
+        'mobile_profile_feed_inline',
+        'mobile_story_between',
       ]),
     );
 
@@ -38,6 +59,44 @@ void main() {
     );
     expect(interstitial.active, isFalse);
     expect(interstitial.fullscreen, isTrue);
+
+    final mobileStory = data.slots.firstWhere(
+      (slot) => slot.key == 'mobile_story_between',
+    );
+    expect(mobileStory.active, isFalse);
+
+    final homeTop = data.slots.firstWhere((slot) => slot.key == 'web_home_top');
+    expect(
+      homeTop.creatives.first.imageUrl,
+      '/local-upload/image/2026-06-19/pateez_728x90_reklam.gif',
+    );
+
+    final mobileRectangle = data.slots.firstWhere(
+      (slot) => slot.key == 'mobile_feed_rectangle',
+    );
+    expect(
+      mobileRectangle.creatives.first.imageUrl,
+      '/local-upload/image/2026-06-19/pateez_336x280_reklam.gif',
+    );
+
+    final homeTopAdsense = homeTop.creatives.firstWhere(
+      (creative) => creative.id == 'ad_web_home_top_adsense',
+    );
+    expect(homeTopAdsense.adsenseSlotId, '8185130828');
+
+    final mobileFeedAdsense = data.slots
+        .firstWhere((slot) => slot.key == 'mobile_feed_inline')
+        .creatives
+        .firstWhere(
+          (creative) => creative.id == 'ad_mobile_feed_inline_adsense',
+        );
+    expect(mobileFeedAdsense.adsenseSlotId, '2549660768');
+
+    final inactiveInterstitial = data.slots.firstWhere(
+      (slot) => slot.key == 'mobile_interstitial',
+    );
+    expect(inactiveInterstitial.active, isFalse);
+    expect(inactiveInterstitial.creatives.first.adsenseSlotId, isEmpty);
   });
 
   test('fromJson preserves existing slots and appends missing defaults', () {
@@ -77,7 +136,7 @@ void main() {
     expect(homeTop.active, isFalse);
 
     expect(
-      data.slots.any((slot) => slot.key == 'mobile_detail_incontent'),
+      data.slots.any((slot) => slot.key == 'mobile_detail_midcontent'),
       true,
     );
     expect(data.slots.last.key, 'web_custom_partner');

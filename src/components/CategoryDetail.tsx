@@ -1,13 +1,14 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Zap, Filter, TrendingUp } from 'lucide-react';
-import { type NavigationItem, type NewsItem, type SiteSettings } from '@/types';
+import { type NavigationItem, type NewsItem, type SiteSettings, type PublicAdSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { subscribeNewsletter } from '@/services/appActions';
 import { useToast } from '@/context/ToastContext';
 import { formatPostDateParts, slugify } from '@/utils/helpers';
 import RemixIcon from './ui/RemixIcon';
 import PublisherFollowButton from './PublisherFollowButton';
+import AdSlot from './ads/AdSlot';
 
 const CATEGORY_TYPE_ALIASES: Record<string, string[]> = {
   anket: ['poll'],
@@ -273,6 +274,7 @@ interface CategoryDetailProps {
   onNewsSelect: (id: string) => void;
   onProfileSelect?: (news: NewsItem) => void;
   siteSettings?: SiteSettings | null;
+  adSettings?: PublicAdSettings | null;
   newsItems?: NewsItem[];
   navItems?: NavigationItem[];
   pagination?: {
@@ -286,7 +288,7 @@ interface CategoryDetailProps {
   };
 }
 
-const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNewsSelect, onProfileSelect, newsItems, navItems, pagination }) => {
+const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNewsSelect, onProfileSelect, newsItems, navItems, pagination, adSettings }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -1568,11 +1570,13 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           </section>
         )}
 
+        <AdSlot settings={adSettings} slotKey="web_category_feed_inline" className="mb-6" />
+
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_260px] gap-4 lg:gap-5 items-start">
           <section className="min-w-0">
             {categoryNews.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
-                {categoryNews.map(news => {
+                {categoryNews.map((news, index) => {
                   const image = getNewsImage(news);
                   const title = stripHtml(news.seoTitle || news.title);
                   const description = stripHtml(news.summary || news.seoDescription);
@@ -1584,60 +1588,64 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                   const metricLang = currentLang.code || 'tr';
 
                   return (
-                    <button
-                      key={news.id}
-                      type="button"
-                      onClick={() => onNewsSelect(news.id)}
-                      className={`category-news-list-item group grid grid-cols-1 ${image ? 'sm:grid-cols-[150px_minmax(0,1fr)] lg:grid-cols-[156px_minmax(0,1fr)]' : 'sm:grid-cols-1'} items-center overflow-hidden rounded-[4px] border border-gray-100 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-palette-accent/20 hover:shadow-md active:scale-[0.995]`}
-                    >
-                      {image && (
-                        <div className="category-news-list-media overflow-hidden bg-gray-50 sm:self-center" style={imageFrameStyle}>
-                          <img
-                            src={image}
-                            alt={news.thumbnailAlt || title}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-contain"
-                          />
+                    <React.Fragment key={news.id}>
+                      <button
+                        type="button"
+                        onClick={() => onNewsSelect(news.id)}
+                        className={`category-news-list-item group grid grid-cols-1 ${image ? 'sm:grid-cols-[150px_minmax(0,1fr)] lg:grid-cols-[156px_minmax(0,1fr)]' : 'sm:grid-cols-1'} items-center overflow-hidden rounded-[4px] border border-gray-100 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-palette-accent/20 hover:shadow-md active:scale-[0.995]`}
+                      >
+                        {image && (
+                          <div className="category-news-list-media overflow-hidden bg-gray-50 sm:self-center" style={imageFrameStyle}>
+                            <img
+                              src={image}
+                              alt={news.thumbnailAlt || title}
+                              loading="lazy"
+                              decoding="async"
+                              className="h-full w-full object-contain"
+                            />
+                          </div>
+                        )}
+                        <div className="category-news-list-content flex min-w-0 flex-col justify-between p-4 sm:min-h-[118px] md:p-4">
+                          <div className="min-w-0">
+                            <h3 className="category-news-list-title news-title-font text-gray-800 tracking-normal transition-colors group-hover:text-palette-red">
+                              {title}
+                            </h3>
+                            {description && (
+                              <p className="category-news-list-summary news-subtitle-font mt-2 text-gray-600">
+                                {description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="category-news-list-meta mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-palette-beige/20 pt-2.5 text-[11px] font-semibold text-palette-tan/45">
+                            {publishedAt.date && (
+                              <span className="inline-flex min-w-0 items-center gap-1.5 normal-case tracking-normal">
+                                <RemixIcon name="ri-calendar-line" size={13} className="opacity-80" />
+                                <time dateTime={publishedAt.iso || undefined}>{publishedAt.date}</time>
+                              </span>
+                            )}
+                            {publishedAt.time && (
+                              <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
+                                <RemixIcon name="ri-time-line" size={13} className="opacity-80" />
+                                <time dateTime={publishedAt.iso || undefined}>{publishedAt.time}</time>
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1.5">
+                              <RemixIcon name="ri-thumb-up-line" size={13} className="opacity-80" />
+                              <span>{formatFullMetric(news.likes, metricLang)}</span>
+                              <span>{getCategoryMetricLabel('likes', metricLang)}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <RemixIcon name="ri-chat-3-line" size={13} className="opacity-80" />
+                              <span>{formatFullMetric(news.comments, metricLang)}</span>
+                              <span>{getCategoryMetricLabel('comments', metricLang)}</span>
+                            </span>
+                          </div>
                         </div>
+                      </button>
+                      {(index + 1) % 5 === 0 && (
+                        <AdSlot settings={adSettings} slotKey="web_category_feed_inline" />
                       )}
-                      <div className="category-news-list-content flex min-w-0 flex-col justify-between p-4 sm:min-h-[118px] md:p-4">
-                        <div className="min-w-0">
-                          <h3 className="category-news-list-title news-title-font text-gray-800 tracking-normal transition-colors group-hover:text-palette-red">
-                            {title}
-                          </h3>
-                          {description && (
-                            <p className="category-news-list-summary news-subtitle-font mt-2 text-gray-600">
-                              {description}
-                            </p>
-                          )}
-                        </div>
-                        <div className="category-news-list-meta mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-palette-beige/20 pt-2.5 text-[11px] font-semibold text-palette-tan/45">
-                          {publishedAt.date && (
-                            <span className="inline-flex min-w-0 items-center gap-1.5 normal-case tracking-normal">
-                              <RemixIcon name="ri-calendar-line" size={13} className="opacity-80" />
-                              <time dateTime={publishedAt.iso || undefined}>{publishedAt.date}</time>
-                            </span>
-                          )}
-                          {publishedAt.time && (
-                            <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
-                              <RemixIcon name="ri-time-line" size={13} className="opacity-80" />
-                              <time dateTime={publishedAt.iso || undefined}>{publishedAt.time}</time>
-                            </span>
-                          )}
-                          <span className="inline-flex items-center gap-1.5">
-                            <RemixIcon name="ri-thumb-up-line" size={13} className="opacity-80" />
-                            <span>{formatFullMetric(news.likes, metricLang)}</span>
-                            <span>{getCategoryMetricLabel('likes', metricLang)}</span>
-                          </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <RemixIcon name="ri-chat-3-line" size={13} className="opacity-80" />
-                            <span>{formatFullMetric(news.comments, metricLang)}</span>
-                            <span>{getCategoryMetricLabel('comments', metricLang)}</span>
-                          </span>
-                        </div>
-                      </div>
-                    </button>
+                    </React.Fragment>
                   );
                 })}
                 {(hasMore || isLoadingMore || loadMoreError) && (

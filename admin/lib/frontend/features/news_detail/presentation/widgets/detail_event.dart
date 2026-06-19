@@ -5,6 +5,7 @@ import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/cached_image.dart';
+import '../../../../shared/widgets/pinch_zoom_surface.dart';
 
 const double _eventCornerRadius = 4;
 const Color _eventBlue = Color(0xFF2563EB);
@@ -643,10 +644,12 @@ class _EventScheduleCard extends StatelessWidget {
                       aspectRatio: 16 / 10,
                       child: ColoredBox(
                         color: AppColors.surfaceSoft,
-                        child: CachedImage(
-                          url: imageUrl,
-                          fit: BoxFit.contain,
-                          placeholderColor: AppColors.surfaceSoft,
+                        child: PinchZoomSurface(
+                          child: CachedImage(
+                            url: imageUrl,
+                            fit: BoxFit.contain,
+                            placeholderColor: AppColors.surfaceSoft,
+                          ),
                         ),
                       ),
                     ),

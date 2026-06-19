@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { type NewsItem, NewsType, type NavigationItem, type SiteSettings } from '@/types';
+import { type NewsItem, NewsType, type NavigationItem, type SiteSettings, type PublicAdSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import Skeleton from '@/components/ui/Skeleton';
@@ -34,12 +34,14 @@ import VSCard from './cards/VSCard';
 import ParagraphCard from './cards/ParagraphCard';
 import InlineCardComments from './InlineCardComments';
 import PublisherFollowButton from './PublisherFollowButton';
+import AdSlot from './ads/AdSlot';
 
 interface NewsDetailProps {
   data: NewsItem;
   onBack: () => void;
   navItems: NavigationItem[];
   siteSettings?: SiteSettings | null;
+  adSettings?: PublicAdSettings | null;
   loading?: boolean;
 }
 
@@ -1145,7 +1147,7 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
   );
 };
 
-const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSettings, loading }) => {
+const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSettings, adSettings, loading }) => {
   const articleProgressRef = useRef<HTMLDivElement | null>(null);
   const articleProgressEndRef = useRef<HTMLDivElement | null>(null);
   const shareMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1816,13 +1818,18 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
         {/* MAIN BODY CONTENT */}
         <article className={`flex-1 min-w-0 px-6 md:px-12 ${data.title || data.summary ? 'pt-6' : 'pt-2'} pb-8 max-w-full md:mx-0 overflow-hidden`}>
 
+          <AdSlot settings={adSettings} slotKey="web_article_top" className="mb-6" />
+
           {/* Main Media (Video, Poll, Gallery etc.) */}
           {(() => {
             const mediaContent = renderMedia();
             return mediaContent ? (
-              <div className="mb-6 overflow-hidden max-w-full">
-                {mediaContent}
-              </div>
+              <>
+                <div className="mb-6 overflow-hidden max-w-full">
+                  {mediaContent}
+                </div>
+                <AdSlot settings={adSettings} slotKey="web_article_after_media" className="mb-8" />
+              </>
             ) : null;
           })()}
 
@@ -1831,6 +1838,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
             {data.items && data.items.length > 0 ? (
               data.items.map((item: any, index: number) => {
                 const isLastItem = index === (data.items?.length || 0) - 1;
+                const content = (() => {
                 switch (item.type) {
                   case 'text':
                     return (
@@ -1890,7 +1898,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                   case 'slider':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <GalleryCard data={{ ...data, mediaList: item.mediaUrls } as any} />
+                      <GalleryCard data={{ ...data, summary: '', mediaList: item.mediaUrls } as any} />
                     </div>;
                   case 'poll':
                     return (
@@ -1924,44 +1932,56 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
 	                  case 'vs':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <VSCard data={{ ...data, title: item.title, options: item.options } as any} />
+                      <VSCard data={{ ...data, title: item.title, summary: item.description || '', options: item.options } as any} />
                     </div>;
                   case 'beforeafter':
                     return <div key={item.id} className="space-y-4 pt-2">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <BeforeAfterCard data={{ ...data, beforeAfterData: item.beforeAfterData } as any} />
+                      <BeforeAfterCard data={{ ...data, summary: item.description || '', beforeAfterData: item.beforeAfterData } as any} />
                     </div>;
                   case 'flipcard':
                     return <div key={item.id} className="space-y-4 pt-2">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <FlipCard data={{ ...data, flipData: item.flipData } as any} />
+                      <FlipCard data={{ ...data, summary: item.description || '', flipData: item.flipData } as any} />
                     </div>;
                   case 'review':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <ReviewCard data={{ ...data, reviewData: item.reviewData } as any} />
+                      <ReviewCard data={{ ...data, summary: item.description || '', reviewData: item.reviewData } as any} />
                     </div>;
                   case 'video':
                     // Prevent duplicate video rendering at the end of the article if it matches the main media
                     if (data.type === NewsType.VIDEO && (item.mediaUrl === data.mediaUrl || item.mediaUrl === (data as any).videoUrl)) return null;
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <VideoCard data={{ ...data, mediaUrl: item.mediaUrl } as any} />
+                      <VideoCard data={{ ...data, summary: item.description || '', mediaUrl: item.mediaUrl } as any} />
                     </div>;
                   case 'audio':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <AudioCard data={{ ...data, mediaUrl: item.mediaUrl } as any} allowDownload={siteSettings?.content_audio_download_enabled !== false} />
+                      <AudioCard data={{ ...data, summary: item.description || '', mediaUrl: item.mediaUrl } as any} allowDownload={siteSettings?.content_audio_download_enabled !== false} />
                     </div>;
                   case 'social':
                   case 'iframe':
                     return <div key={item.id} className="space-y-4">
                       {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <EmbedCard data={{ ...data, mediaUrl: item.mediaUrl } as any} />
+                      <EmbedCard data={{ ...data, title: item.title || data.title, summary: item.description || '', mediaUrl: item.mediaUrl } as any} />
                     </div>;
                   default:
                     return null;
                 }
+                })();
+                return (
+                  <React.Fragment key={item.id || index}>
+                    {content}
+                    {index === 1 && (
+                      <AdSlot settings={adSettings} slotKey="web_news_incontent" />
+                    )}
+                    {index === 3 && (
+                      <AdSlot settings={adSettings} slotKey="web_article_midcontent" />
+                    )}
+                  </React.Fragment>
+                );
               })
             ) : (
               <div
@@ -2033,6 +2053,8 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
               )}
             </div>
           )}
+
+          <AdSlot settings={adSettings} slotKey="web_article_end" className="mt-8" />
 
           {/* Emoji Reactions Section */}
           <div className="mt-0 py-5">

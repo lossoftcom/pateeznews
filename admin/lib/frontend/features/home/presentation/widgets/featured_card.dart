@@ -4,6 +4,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../../core/mock/home_mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/cached_image.dart';
+import '../../../../shared/widgets/pinch_zoom_surface.dart';
 
 /// Featured slider kartı — yalnızca görsel taşır.
 ///
@@ -36,17 +37,19 @@ class _Cover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CachedImage(
-      url: imageUrl,
-      fit: BoxFit.contain,
-      memCacheWidth: _cacheWidthFor(context),
-      errorWidget: Container(
-        color: AppColors.surfaceInk,
-        alignment: Alignment.center,
-        child: const Icon(
-          Symbols.image_outlined,
-          color: AppColors.support,
-          size: 36,
+    return PinchZoomSurface(
+      child: CachedImage(
+        url: imageUrl,
+        fit: BoxFit.contain,
+        memCacheWidth: _cacheWidthFor(context),
+        errorWidget: Container(
+          color: AppColors.surfaceInk,
+          alignment: Alignment.center,
+          child: const Icon(
+            Symbols.image_outlined,
+            color: AppColors.support,
+            size: 36,
+          ),
         ),
       ),
     );

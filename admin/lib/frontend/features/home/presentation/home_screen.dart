@@ -6,6 +6,7 @@ import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../account/data/frontend_auth_repository.dart';
+import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../etkinlik/data/etkinlik_mock.dart';
 import '../data/feed_ranking.dart';
 import '../data/home_repository.dart';
@@ -329,6 +330,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                       ),
                     ),
+                  const SliverToBoxAdapter(
+                    child: FrontendAdSlot(slotKey: 'mobile_home_after_hero'),
+                  ),
                   // Manşetin hemen ardından: yatay kayan piyasa şeridi.
                   SliverToBoxAdapter(
                     child:
@@ -349,6 +353,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               duration: 360.ms,
                               curve: Curves.easeOutCubic,
                             ),
+                  ),
+                  const SliverToBoxAdapter(
+                    child: FrontendAdSlot(slotKey: 'mobile_home_after_market'),
                   ),
                   SliverToBoxAdapter(
                     child: SectionHeader(
@@ -439,6 +446,21 @@ class _HomeScreenState extends State<HomeScreen> {
                               onArticleTap: (article) =>
                                   _openDetail(<NewsArticle>[article], 0),
                               onAuthorTap: widget.onAuthorTap,
+                            ),
+                          ],
+                        );
+                      }
+                      if ((index + 1) % 6 == 0) {
+                        body = Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            body,
+                            const SizedBox(height: AppSpacing.xxl),
+                            const FrontendAdSlot(
+                              slotKey: 'mobile_feed_rectangle',
+                              margin: EdgeInsets.symmetric(
+                                horizontal: AppSpacing.pageHorizontal,
+                              ),
                             ),
                           ],
                         );
