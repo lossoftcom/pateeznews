@@ -8,6 +8,7 @@ export default function PushNotificationBootstrap() {
 
     async function sync(authToken?: string) {
       if (disposed) return;
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
       try {
         await requestAndRegisterBrowserPush({
           authToken,

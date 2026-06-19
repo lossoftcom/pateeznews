@@ -1,11 +1,6 @@
-import React, { useMemo, useRef } from 'react';
-import gsap from 'gsap';
-import { useGSAP } from '@gsap/react';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import React, { useEffect, useMemo, useRef } from 'react';
 import type { SiteSettings } from '@/types';
 import RemixIcon from './ui/RemixIcon';
-
-gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 type FooterPage = {
   id: string;
@@ -181,27 +176,46 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ siteSettings, pages }) => {
     return baseItems;
   }, [siteSettings]);
 
-  useGSAP(() => {
+  useEffect(() => {
     const root = footerRef.current;
     if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const revealItems = root.querySelectorAll<HTMLElement>('[data-footer-reveal]');
-    gsap.set(revealItems, { autoAlpha: 0, y: 18, willChange: 'transform, opacity' });
+    if (revealItems.length === 0) return;
 
-    gsap.timeline({
-      defaults: { duration: 0.58, ease: 'power3.out' },
-      scrollTrigger: {
-        trigger: root,
-        start: 'top 88%',
-        once: true,
-      },
-    }).to(revealItems, {
-      autoAlpha: 1,
-      y: 0,
-      stagger: 0.07,
-      clearProps: 'willChange',
+    let cancelled = false;
+    let context: { revert: () => void } | undefined;
+
+    void Promise.all([
+      import('gsap'),
+      import('gsap/ScrollTrigger'),
+    ]).then(([{ default: gsap }, { ScrollTrigger }]) => {
+      if (cancelled) return;
+
+      gsap.registerPlugin(ScrollTrigger);
+      context = gsap.context(() => {
+        gsap.set(revealItems, { autoAlpha: 0, y: 18, willChange: 'transform, opacity' });
+        gsap.timeline({
+          defaults: { duration: 0.58, ease: 'power3.out' },
+          scrollTrigger: {
+            trigger: root,
+            start: 'top 88%',
+            once: true,
+          },
+        }).to(revealItems, {
+          autoAlpha: 1,
+          y: 0,
+          stagger: 0.07,
+          clearProps: 'willChange',
+        });
+      }, root);
     });
-  }, { scope: footerRef });
+
+    return () => {
+      cancelled = true;
+      context?.revert();
+    };
+  }, []);
 
   return (
     <footer

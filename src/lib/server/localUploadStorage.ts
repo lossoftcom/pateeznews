@@ -7,24 +7,59 @@ import { readRuntimeEnv } from './runtimeEnv';
 export const LOCAL_STATIC_PREFIX = '/local-upload/';
 export const LOCAL_STATIC_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
 
+function safeProcessCwd() {
+  try {
+    return typeof process.cwd === 'function' ? process.cwd() : '';
+  } catch {
+    return '';
+  }
+}
+
+function safeModuleRoot() {
+  const metaUrl = (import.meta as ImportMeta & { url?: unknown }).url;
+  if (typeof metaUrl !== 'string' || !metaUrl) return '';
+  try {
+    return path.resolve(path.dirname(fileURLToPath(metaUrl)), '../../..');
+  } catch {
+    return '';
+  }
+}
+
+function pathExists(targetPath: string) {
+  try {
+    return fs.existsSync(targetPath);
+  } catch {
+    return false;
+  }
+}
+
+function fileStat(targetPath: string) {
+  try {
+    return fs.statSync(targetPath);
+  } catch {
+    return null;
+  }
+}
+
 function resolveProjectRoot() {
-  const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+  const moduleRoot = safeModuleRoot();
+  const cwd = safeProcessCwd();
   const candidates = [
     readRuntimeEnv('PATEEZNEWS_PROJECT_ROOT'),
     readRuntimeEnv('INIT_CWD'),
     readRuntimeEnv('PWD'),
     moduleRoot,
     '/Users/nasip/Desktop/pateeznews',
-    process.cwd(),
+    cwd,
   ].filter(Boolean) as string[];
 
   for (const candidate of candidates) {
     const root = path.resolve(candidate);
-    if (fs.existsSync(path.join(root, 'public', 'local-upload'))) return root;
-    if (fs.existsSync(path.join(root, 'package.json')) && fs.existsSync(path.join(root, 'public'))) return root;
+    if (pathExists(path.join(root, 'public', 'local-upload'))) return root;
+    if (pathExists(path.join(root, 'package.json')) && pathExists(path.join(root, 'public'))) return root;
   }
 
-  return process.cwd();
+  return cwd || '.';
 }
 
 export const LOCAL_UPLOAD_ROOT = path.resolve(resolveProjectRoot(), 'public', 'local-upload');
@@ -132,8 +167,9 @@ function resolveLocalObjectPath(objectPath: string) {
 
 export function exactLocalStaticPath(objectPath: string) {
   const resolved = resolveLocalObjectPath(objectPath);
-  if (!resolved || !fs.existsSync(resolved.absolutePath)) return null;
-  const stat = fs.statSync(resolved.absolutePath);
+  if (!resolved || !pathExists(resolved.absolutePath)) return null;
+  const stat = fileStat(resolved.absolutePath);
+  if (!stat) return null;
   if (!stat.isFile()) return null;
   return `${LOCAL_STATIC_PREFIX}${resolved.objectPath}`;
 }
@@ -206,8 +242,13 @@ function isVideoThumb(relativeId: string) {
 }
 
 function walkFiles(baseDir: string, currentDir = baseDir): string[] {
-  if (!fs.existsSync(currentDir)) return [];
-  const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  if (!pathExists(currentDir)) return [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
   return entries.flatMap((entry) => {
     const fullPath = path.join(currentDir, entry.name);
     if (entry.isDirectory()) return walkFiles(baseDir, fullPath);
@@ -220,7 +261,7 @@ function videoThumbFor(type: StorageType, relativeId: string) {
   if (type !== 'video') return relativeId;
   for (const thumbId of videoThumbRelativeIds(relativeId)) {
     const resolved = resolveLocalUploadPath(type, thumbId);
-    if (resolved && fs.existsSync(resolved.absolutePath)) return thumbId;
+    if (resolved && pathExists(resolved.absolutePath)) return thumbId;
   }
   return relativeId;
 }
@@ -236,7 +277,8 @@ export function localUploadItemsForType(type: StorageType): LocalUploadItem[] {
     .map((relativeId) => {
       const resolved = resolveLocalUploadPath(type, relativeId);
       if (!resolved) return null;
-      const stat = fs.statSync(resolved.absolutePath);
+      const stat = fileStat(resolved.absolutePath);
+      if (!stat) return null;
       const parsed = path.posix.parse(relativeId);
       const thumbId = videoThumbFor(type, relativeId);
       const src = localApiPath(type, relativeId);

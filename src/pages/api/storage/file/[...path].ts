@@ -107,18 +107,8 @@ function localImageVariantRedirect(objectPath: string, staticPath: string, url: 
   return null;
 }
 
-function remoteImageResizeRedirect(objectPath: string, url: URL) {
-  const options = imageVariantOptions(url);
-  if (!options || isLocalDevHost(url)) return null;
-  const extension = objectExtension(objectPath);
-  if (!TRANSFORMABLE_IMAGE_EXTENSIONS.has(extension)) return null;
-  return redirect(
-    new URL(
-      cloudflareImageResizePath(`/api/storage/file/${objectPath}`, options.width, options.quality),
-      url.origin,
-    ),
-    IMAGE_VARIANT_CACHE,
-  );
+function remoteImageResizeRedirect(_objectPath: string, _url: URL) {
+  return null;
 }
 
 function localStorageRedirectIfAvailable(objectPath: string, url: URL, options: { force?: boolean } = {}) {
