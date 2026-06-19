@@ -2,8 +2,15 @@ import { ensureAppSchema } from './appDb';
 import { dbQuery } from './supabaseDb';
 
 const FETCH_TIMEOUT_MS = 8500;
-const REFRESH_LOCK_MS = 12000;
 const MIN_REFRESH_SECONDS = 15;
+// Sert üst sınır: tek tek fetch'ler AbortSignal.timeout ile sınırlı olsa da bazı
+// runtime'larda (örn. workerd dev) abort her zaman tetiklenmeyebilir; bu durumda
+// uç sonsuza takılıp istemcide TimeoutException'a yol açıyordu. Bu yarış (race)
+// sınırı, sağlayıcı yavaş/engelliyse bile yanıtın daima dönmesini garantiler.
+const FRESH_TOTAL_TIMEOUT_MS = 9000;
+// Başarısız/zaman aşımına uğramış yanıtları kısa süre cache'le: sağlayıcı toparlayınca
+// hızlı yeniden denenir ama her istekte tekrar takılma/hammer yaşanmaz.
+const ERROR_CACHE_MS = 15000;
 const DEFAULT_CURRENCY_SYMBOLS = [
   'USD',
   'EUR',
@@ -111,10 +118,6 @@ type CachedPayload = {
 
 let schemaReady: Promise<void> | null = null;
 const memoryCache = new Map<string, CachedPayload>();
-const refreshInFlight = new Map<
-  string,
-  { startedAt: number; promise: Promise<MarketsPayload> }
->();
 
 const CURRENCY_META: Record<string, { symbol: string; name: string }> = {
   USD: { symbol: 'USD', name: 'Amerikan Doları' },
@@ -210,6 +213,22 @@ const ALTINAPI_GOLD: Record<string, string> = {
   AYAR22: 'AYAR22',
 };
 
+const FRANKFURTER_CURRENCIES = new Set([
+  'AUD', 'BGN', 'BRL', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'EUR', 'GBP',
+  'HKD', 'HUF', 'IDR', 'ILS', 'INR', 'ISK', 'JPY', 'KRW', 'MXN', 'MYR',
+  'NOK', 'NZD', 'PHP', 'PLN', 'RON', 'SEK', 'SGD', 'THB', 'TRY', 'USD',
+  'ZAR',
+]);
+
+const TROY_OUNCE_GRAMS = 31.1034768;
+const GOLD_SPOT_FACTORS: Record<string, number> = {
+  HAS: 1,
+  GRAM: 1,
+  AYAR22: 22 / 24,
+  AYAR18: 18 / 24,
+  AYAR14: 14 / 24,
+};
+
 export const ensureMarketSettingsSchema = async () => {
   if (schemaReady) return schemaReady;
   schemaReady = (async () => {
@@ -264,7 +283,7 @@ export const ensureMarketSettingsSchema = async () => {
 
 export const getMarketSettings = async (languageCode: string): Promise<MarketSettings> => {
   try {
-    await ensureMarketSettingsSchema();
+    await ensureAppSchema();
     const selectSql = `
       SELECT
         market_enabled,
@@ -384,17 +403,75 @@ export const fetchMarketsPayload = async (
     return withCacheInfo(stored.payload, true, false, 'database', intervalMs, forceRefresh);
   }
 
-  const active = refreshInFlight.get(key);
-  if (active && now - active.startedAt < REFRESH_LOCK_MS) return active.promise;
+  // ASIL KÖK NEDEN: workerd/Cloudflare Workers, bir isteğin context'inde oluşturulan
+  // promise'i başka bir istekte sürdüremez ("cross-request promise resolution" →
+  // continuation iptal edilir). Eski refreshInFlight, bir isteğin promise'ini saklayıp
+  // başka isteklere döndürdüğü için o istekler SONSUZA kilitleniyor ve istemcide 18sn
+  // TimeoutException oluşuyordu. Çözüm: istekler-arası promise paylaşımını kaldır — her
+  // istek taze veriyi kendi context'inde çeker; tekrarlı sağlayıcı çağrısını zaten
+  // cache (memory + DB) önler, üst-zaman sınırı da takılmayı engeller.
+  const payload = await withHardTimeout(
+    fetchMarketsFresh(settings, stored?.payload),
+    FRESH_TOTAL_TIMEOUT_MS,
+    () => timeoutFallbackPayload(settings, stored?.payload)
+  );
+  // Başarılı yanıt tam aralık kadar, hatalı/zaman aşımı yanıtı kısa süre cache'lenir.
+  writeCacheLater(key, payload, payload.error ? ERROR_CACHE_MS : intervalMs);
+  return payload;
+};
 
-  const promise = fetchMarketsFresh(settings, stored?.payload)
-    .then((payload) => {
-      writeCacheLater(key, payload, intervalMs);
-      return payload;
-    })
-    .finally(() => refreshInFlight.delete(key));
-  refreshInFlight.set(key, { startedAt: now, promise });
-  return promise;
+// fetchMarketsFresh hiçbir zaman reject etmez (içeride yakalar); yine de güvenli
+// olması için reject'i de zaman aşımı yedeğine düşürürüz. Zamanlayıcı dolarsa
+// arkadaki fetch arka planda bitebilir, ama istek bloke olmadan yanıt döner.
+const withHardTimeout = <T>(
+  promise: Promise<T>,
+  ms: number,
+  onTimeout: () => T
+): Promise<T> =>
+  new Promise<T>((resolve) => {
+    let settled = false;
+    const finish = (value: T) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(onTimeout()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        finish(value);
+      },
+      () => {
+        clearTimeout(timer);
+        finish(onTimeout());
+      }
+    );
+  });
+
+const timeoutFallbackPayload = (
+  settings: MarketSettings,
+  stalePayload?: MarketsPayload
+): MarketsPayload => {
+  const reason = 'Piyasa verisi zaman aşımına uğradı';
+  if (stalePayload) {
+    return {
+      ...stalePayload,
+      cache: {
+        ...(stalePayload.cache || {}),
+        hit: true,
+        stale: true,
+        refreshFailed: reason,
+      },
+    };
+  }
+  return {
+    ...buildPayload(settings, settings.provider, [], [], {
+      hit: false,
+      stale: true,
+      source: 'none',
+    }),
+    error: reason,
+  };
 };
 
 const fetchMarketsFresh = async (
@@ -436,6 +513,21 @@ const fetchMarketsFresh = async (
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
+  }
+
+  try {
+    const fallback = await fetchPublicMarketFallback(settings);
+    if (fallback.currencies.length || fallback.gold.length) {
+      return buildPayload(settings, settings.provider, fallback.currencies, fallback.gold, {
+        hit: false,
+        stale: false,
+        source: fallback.source,
+        fallback: true,
+        failedProvider: lastError || undefined,
+      });
+    }
+  } catch (error) {
+    lastError = error instanceof Error ? error.message : String(error);
   }
 
   if (stalePayload) {
@@ -591,6 +683,148 @@ const fetchBitcoinTry = async () => {
   }
 };
 
+const fetchPublicMarketFallback = async (settings: MarketSettings) => {
+  const wantsBitcoin = settings.currencySymbols.some((symbol) => symbol === 'BTC');
+  const [fiatResult, bitcoin] = await Promise.all([
+    fetchFrankfurterTryRates(settings.currencySymbols),
+    wantsBitcoin ? fetchBitcoinTry() : Promise.resolve(null),
+  ]);
+  const [xau, xag] = await Promise.all([
+    fetchGoldApiPrice('XAU', 3500).catch(() => null),
+    fetchGoldApiPrice('XAG', 2200).catch(() => null),
+  ]);
+  const currencies = orderCurrencyRates(settings.currencySymbols, [
+    ...fiatResult.currencies,
+    ...(bitcoin ? [bitcoin] : []),
+  ]);
+  const gold = orderGoldRates(settings.goldSymbols, buildGoldFallbackRates(
+    settings.goldSymbols,
+    fiatResult.usdTry,
+    xau,
+    xag
+  ));
+  if (!currencies.length && !gold.length) {
+    throw new Error('Fallback market sources returned no usable rates');
+  }
+  const sources = ['Frankfurter'];
+  if (xau) sources.push('Gold API');
+  if (bitcoin) sources.push('BTC');
+  return { source: sources.join(' + '), currencies, gold };
+};
+
+const fetchFrankfurterTryRates = async (symbols: string[]) => {
+  const fiatSymbols = Array.from(new Set(
+    symbols
+      .filter((symbol) => symbol !== 'BTC')
+      .filter((symbol) => symbol === 'USD' || FRANKFURTER_CURRENCIES.has(symbol))
+  ));
+  const toSymbols = Array.from(new Set([
+    'TRY',
+    ...fiatSymbols.filter((symbol) => symbol !== 'USD' && symbol !== 'TRY'),
+  ]));
+  const url = new URL('https://api.frankfurter.app/latest');
+  url.searchParams.set('from', 'USD');
+  url.searchParams.set('to', toSymbols.join(','));
+  const response = await fetchWithTimeoutMs(url.toString(), {
+    headers: { Accept: 'application/json' },
+  }, 3500);
+  if (!response.ok) throw new Error(`Frankfurter ${response.status}`);
+  const decoded: any = await response.json();
+  const rates = decoded?.rates || {};
+  const usdTry = asNumber(rates.TRY, 0);
+  if (!usdTry) throw new Error('Frankfurter missing TRY rate');
+  const timestamp = dateTimestamp(decoded?.date);
+  const currencies = fiatSymbols.flatMap((symbol) => {
+    const ask = symbol === 'USD'
+      ? usdTry
+      : usdTry / asNumber(rates[symbol], 0);
+    if (!Number.isFinite(ask) || ask <= 0) return [];
+    return [marketRate({
+      canonical: symbol,
+      sourceSymbol: `${symbol}TRY`,
+      kind: 'currency',
+      bid: ask,
+      ask,
+      changeAmount: null,
+      changePercent: null,
+      isUp: true,
+      currencyCode: 'TRY',
+      timestamp,
+    })];
+  });
+  return { usdTry, currencies };
+};
+
+const fetchGoldApiPrice = async (symbol: 'XAU' | 'XAG', timeoutMs: number) => {
+  const response = await fetchWithTimeoutMs(`https://api.gold-api.com/price/${symbol}`, {
+    headers: { Accept: 'application/json' },
+  }, timeoutMs);
+  if (!response.ok) throw new Error(`Gold API ${symbol} ${response.status}`);
+  const decoded: any = await response.json();
+  const price = asNumber(decoded?.price, 0);
+  if (!price) throw new Error(`Gold API ${symbol} missing price`);
+  return {
+    price,
+    timestamp: timestampFrom(decoded?.updatedAt),
+  };
+};
+
+const buildGoldFallbackRates = (
+  symbols: string[],
+  usdTry: number,
+  xau: { price: number; timestamp: string } | null,
+  xag: { price: number; timestamp: string } | null
+) => {
+  if (!xau?.price || !usdTry) return [];
+  const gramTry = xau.price * usdTry / TROY_OUNCE_GRAMS;
+  return symbols.flatMap((symbol) => {
+    if (symbol === 'ONS') {
+      return [marketRate({
+        canonical: symbol,
+        sourceSymbol: 'XAUUSD',
+        kind: 'gold',
+        bid: xau.price,
+        ask: xau.price,
+        changeAmount: null,
+        changePercent: null,
+        isUp: true,
+        currencyCode: 'USD',
+        timestamp: xau.timestamp,
+      })];
+    }
+    if (symbol === 'GUMUS' && xag?.price) {
+      const silverGramTry = xag.price * usdTry / TROY_OUNCE_GRAMS;
+      return [marketRate({
+        canonical: symbol,
+        sourceSymbol: 'XAGTRY',
+        kind: 'gold',
+        bid: silverGramTry,
+        ask: silverGramTry,
+        changeAmount: null,
+        changePercent: null,
+        isUp: true,
+        currencyCode: 'TRY',
+        timestamp: xag.timestamp,
+      })];
+    }
+    const factor = GOLD_SPOT_FACTORS[symbol];
+    if (!factor) return [];
+    const ask = gramTry * factor;
+    return [marketRate({
+      canonical: symbol,
+      sourceSymbol: symbol === 'GRAM' ? 'XAUTRYG' : `XAUTRYG:${symbol}`,
+      kind: 'gold',
+      bid: ask,
+      ask,
+      changeAmount: null,
+      changePercent: null,
+      isUp: true,
+      currencyCode: 'TRY',
+      timestamp: xau.timestamp,
+    })];
+  });
+};
+
 const normalizeAltinApiRows = (
   canonicalSymbols: string[],
   rows: any[],
@@ -699,6 +933,19 @@ const orderCurrencyRates = (
 ) => {
   const byCanonical = new Map(
     rates.map((rate) => [rate.id.replace(/^currency:/, ''), rate])
+  );
+  return symbols.flatMap((symbol) => {
+    const rate = byCanonical.get(symbol);
+    return rate ? [rate] : [];
+  });
+};
+
+const orderGoldRates = (
+  symbols: string[],
+  rates: MarketRatePayload[]
+) => {
+  const byCanonical = new Map(
+    rates.map((rate) => [rate.id.replace(/^gold:/, ''), rate])
   );
   return symbols.flatMap((symbol) => {
     const rate = byCanonical.get(symbol);
@@ -923,7 +1170,10 @@ const providerSymbols = (
 );
 
 const fetchWithTimeout = async (url: string, init: RequestInit) =>
-  fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  fetchWithTimeoutMs(url, init, FETCH_TIMEOUT_MS);
+
+const fetchWithTimeoutMs = async (url: string, init: RequestInit, timeoutMs: number) =>
+  fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
 
 const ensureTrailingSlash = (value: string) => {
   const text = asString(value);
@@ -945,7 +1195,15 @@ const localDateLabel = () =>
 const timestampFrom = (value: unknown) => {
   const numeric = Number(value);
   if (Number.isFinite(numeric) && numeric > 0) return new Date(numeric).toISOString();
+  const parsed = Date.parse(String(value || ''));
+  if (Number.isFinite(parsed)) return new Date(parsed).toISOString();
   return new Date().toISOString();
+};
+
+const dateTimestamp = (value: unknown) => {
+  const text = asString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return new Date().toISOString();
+  return new Date(`${text}T12:00:00.000Z`).toISOString();
 };
 
 const goldCurrency = (canonical: string) => canonical === 'ONS' ? 'USD' : 'TRY';

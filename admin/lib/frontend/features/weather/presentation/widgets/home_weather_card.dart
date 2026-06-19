@@ -104,19 +104,41 @@ class _Header extends StatelessWidget {
         children: [
           Icon(weatherIcon(view.code, view.isDay), size: 19, color: tint),
           const SizedBox(width: 8),
-          Text(view.location, style: AppTypography.titleL),
-          const SizedBox(width: 7),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 1),
-            child: Text(
-              'Bugün',
-              style: AppTypography.titleL.copyWith(
-                color: AppColors.support,
-                fontWeight: FontWeight.w500,
-              ),
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    view.location,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.titleM.copyWith(
+                      color: AppColors.inkStrong,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: Text(
+                      'Bugün',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleM.copyWith(
+                        color: AppColors.support,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -125,19 +147,23 @@ class _Header extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       'Hava Durumu',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: AppTypography.meta.copyWith(
-                        color: AppColors.deepOcean,
+                        color: AppColors.support,
                         fontWeight: FontWeight.w700,
+                        fontSize: 11,
                       ),
                     ),
                     const SizedBox(width: 2),
                     const Icon(
                       Symbols.arrow_forward_rounded,
-                      size: 14,
-                      color: AppColors.deepOcean,
+                      size: 13,
+                      color: AppColors.support,
                     ),
                   ],
                 ),
@@ -293,7 +319,11 @@ class _MiniStats extends StatelessWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.icon, required this.color, required this.value});
+  const _MiniStat({
+    required this.icon,
+    required this.color,
+    required this.value,
+  });
 
   final IconData icon;
   final Color color;
@@ -514,7 +544,14 @@ class _WxView {
     code: 0,
     isDay: true,
     hours: <_WxHour>[
-      _WxHour(label: 'Şimdi', code: 0, isDay: true, temp: 25, precip: 0, isNow: true),
+      _WxHour(
+        label: 'Şimdi',
+        code: 0,
+        isDay: true,
+        temp: 25,
+        precip: 0,
+        isNow: true,
+      ),
       _WxHour(label: '12:00', code: 0, isDay: true, temp: 26, precip: 0),
       _WxHour(label: '13:00', code: 2, isDay: true, temp: 27, precip: 0),
       _WxHour(label: '14:00', code: 2, isDay: true, temp: 27, precip: 3),

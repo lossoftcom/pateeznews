@@ -27,7 +27,7 @@ class ProfileHeader extends StatelessWidget {
   final bool followBusy;
 
   static const double _coverHeight = 176;
-  static const double _avatarSize = 136;
+  static const double _avatarSize = 112;
   static const double _avatarOverlap = _avatarSize / 2;
 
   @override
@@ -158,33 +158,37 @@ class _Avatar extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.deepOcean.withValues(alpha: 0.18),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ClipOval(
-              child: ColoredBox(
-                color: AppColors.surfaceInk,
-                child: CachedImage(
-                  url: url,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 240,
-                  placeholderColor: AppColors.surfaceInk,
-                  errorWidget: const ColoredBox(
-                    color: AppColors.surfaceInk,
-                    child: Icon(
-                      Symbols.person_rounded,
-                      color: AppColors.support,
-                      size: 46,
+          // Beyaz çerçeveli daire her zaman tam boyutta dolar; görsel olsun
+          // (BoxFit.cover) ya da olmasın (ortalı kişi ikonu) avatar aynı çapta
+          // görünür. Positioned.fill, çerçeveyi içeriğe göre küçülmekten korur.
+          Positioned.fill(
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.deepOcean.withValues(alpha: 0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: ColoredBox(
+                  color: AppColors.surfaceInk,
+                  child: CachedImage(
+                    url: url,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 240,
+                    placeholderColor: AppColors.surfaceInk,
+                    errorWidget: const Center(
+                      child: Icon(
+                        Symbols.person_rounded,
+                        color: AppColors.support,
+                        size: 44,
+                      ),
                     ),
                   ),
                 ),

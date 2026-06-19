@@ -877,13 +877,14 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
                     <RemixIcon name="ri-verified-badge-fill" size={16} className="text-palette-red" />
                   </div>
 
-                  {/* FOLLOW BUTTON - Color changed from red to professional blue */}
-                  <button
-                    onClick={handleFollow}
-                    className={`tracking-normal text-[9px] font-[800] px-2 py-0.5 rounded-full transition-all ${isFollowing ? 'text-gray-400 bg-gray-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white'}`}
-                  >
-                    {isFollowing ? t('common.following') : t('common.follow')}
-                  </button>
+                  {userId && publisherId && publisherId !== userId && (
+                    <button
+                      onClick={handleFollow}
+                      className={`tracking-normal text-[9px] font-[800] px-2 py-0.5 rounded-full transition-all ${isFollowing ? 'text-gray-400 bg-gray-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white'}`}
+                    >
+                      {isFollowing ? t('common.following') : t('common.follow')}
+                    </button>
+                  )}
                 </div>
               )}
 

@@ -8,6 +8,7 @@ export default {
   "nav.login": "Giriş Yap",
   "nav.panel": "Yönetim Paneli",
   "brand.news": " HABER",
+  "navbar.admin_panel": "Admin Paneli",
   "navbar.my_profile": "Profilim",
   "navbar.edit_profile": "Profili Düzenle",
   "navbar.profile_alt": "Profil Kartı",

@@ -72,6 +72,8 @@ void main() {
               'publishedAt': '2026-06-08T13:08:00.000Z',
               'source': 'Pateez Ekonomi',
               'sourceAvatar': 'http://localhost:4321/local-upload/avatar.jpg',
+              'publisherBio': 'Ekonomi gündemini takip eder.',
+              'publisherExpertise': 'Ekonomi yazarı',
               'slug': 'canli-haber-basligi',
               'likes': 12,
               'dislikes': 1,
@@ -395,6 +397,8 @@ void main() {
     expect(data.feed.single.title, 'Canlı haber başlığı');
     expect(data.feed.single.region, isEmpty);
     expect(data.feed.single.views, 138);
+    expect(data.feed.single.author.bio, 'Ekonomi gündemini takip eder.');
+    expect(data.feed.single.author.expertise, 'Ekonomi yazarı');
     expect(data.feed.single.readMinutes, 4);
     expect(data.feed.single.saves, 5);
     expect(data.feed.single.userLiked, isTrue);

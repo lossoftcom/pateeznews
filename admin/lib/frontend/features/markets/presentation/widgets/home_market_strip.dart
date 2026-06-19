@@ -4,6 +4,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../data/markets_repository.dart';
 
 /// Ana sayfada manşetin hemen altında duran "Piyasa" şeridi.
 ///
@@ -12,16 +13,21 @@ import '../../../../core/theme/app_typography.dart';
 /// Her kalem markasına özgü renkli bir ikon çipi, kalın fiyatı, yön rozeti ve
 /// minik bir trend grafiği (sparkline) taşır.
 ///
-/// Şu an sunum amaçlı örnek verilerle çalışır; backend (GenelPara `MarketsData`)
-/// bağlanınca [items] listesi canlı kurdan beslenir, sunum katmanı aynı kalır.
+/// Canlı veri varsa [MarketsData] üzerinden beslenir; eksik kalemlerde aynı
+/// kart sırasını korumak için yalnızca ilgili kalem fallback değerde kalır.
 class HomeMarketStrip extends StatelessWidget {
-  const HomeMarketStrip({super.key, this.onSeeAll});
+  const HomeMarketStrip({
+    super.key,
+    this.marketsData = const MarketsData.empty(),
+    this.onSeeAll,
+  });
 
+  final MarketsData marketsData;
   final VoidCallback? onSeeAll;
 
   @override
   Widget build(BuildContext context) {
-    final items = _MarketTile.sample;
+    final items = _MarketTile.fromMarkets(marketsData);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,19 +74,41 @@ class _StripHeader extends StatelessWidget {
         children: [
           const _LivePulse(),
           const SizedBox(width: 8),
-          Text('Piyasa', style: AppTypography.titleL),
-          const SizedBox(width: 7),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 1),
-            child: Text(
-              'Serbest',
-              style: AppTypography.titleL.copyWith(
-                color: AppColors.support,
-                fontWeight: FontWeight.w500,
-              ),
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    'Piyasa',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.titleM.copyWith(
+                      color: AppColors.inkStrong,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: Text(
+                      'Serbest',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleM.copyWith(
+                        color: AppColors.support,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           _SeeAllLink(onTap: onSeeAll),
         ],
       ),
@@ -127,19 +155,23 @@ class _SeeAllLink extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Döviz & Altın',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: AppTypography.meta.copyWith(
-                  color: AppColors.deepOcean,
+                  color: AppColors.support,
                   fontWeight: FontWeight.w700,
+                  fontSize: 11,
                 ),
               ),
               const SizedBox(width: 2),
               const Icon(
                 Symbols.arrow_forward_rounded,
-                size: 14,
-                color: AppColors.deepOcean,
+                size: 13,
+                color: AppColors.support,
               ),
             ],
           ),
@@ -340,10 +372,7 @@ class _SparkPainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            color.withValues(alpha: 0.22),
-            color.withValues(alpha: 0.0),
-          ],
+          colors: [color.withValues(alpha: 0.22), color.withValues(alpha: 0.0)],
         ).createShader(Offset.zero & size),
     );
 
@@ -388,6 +417,47 @@ class _MarketTile {
   final IconData icon;
   final Color color;
   final List<double> spark;
+
+  static List<_MarketTile> fromMarkets(MarketsData data) {
+    if (!data.hasMarkets) return sample;
+
+    final live = <_MarketTile>[];
+    _MarketTile addFromRate(_MarketTile fallback, MarketRate? rate) {
+      if (rate == null) return fallback;
+      return fallback.copyWith(
+        price: rate.price,
+        changePct: rate.changePct,
+        up: rate.up,
+        spark: rate.spark,
+      );
+    }
+
+    live.add(addFromRate(sample[0], _findRate(data.currencies, 'USD')));
+    live.add(addFromRate(sample[1], _findRate(data.currencies, 'EUR')));
+    live.add(sample[2]);
+    live.add(addFromRate(sample[3], _findRate(data.gold, 'GRAM')));
+    live.add(addFromRate(sample[4], _findRate(data.gold, 'CEYREK')));
+    live.add(addFromRate(sample[5], _findRate(data.currencies, 'BTC')));
+    return live;
+  }
+
+  _MarketTile copyWith({
+    String? price,
+    String? changePct,
+    bool? up,
+    List<double>? spark,
+  }) {
+    return _MarketTile(
+      code: code,
+      name: name,
+      price: price ?? this.price,
+      changePct: changePct ?? this.changePct,
+      up: up ?? this.up,
+      icon: icon,
+      color: color,
+      spark: spark ?? this.spark,
+    );
+  }
 
   /// Sunum amaçlı örnek piyasa (Haziran 2026). Sıra kullanıcının istediği gibi:
   /// Dolar → Euro → Borsa → Gram Altın → Çeyrek Altın → Bitcoin.
@@ -453,4 +523,18 @@ class _MarketTile {
       spark: [6.0, 6.2, 6.05, 5.7, 5.85, 5.5, 5.3],
     ),
   ];
+}
+
+MarketRate? _findRate(List<MarketRate> rates, String key) {
+  final normalized = key.trim().toUpperCase();
+  for (final rate in rates) {
+    final id = rate.id.toUpperCase();
+    final symbol = rate.symbol.toUpperCase();
+    if (symbol == normalized ||
+        id == normalized ||
+        id.endsWith(':$normalized')) {
+      return rate;
+    }
+  }
+  return null;
 }

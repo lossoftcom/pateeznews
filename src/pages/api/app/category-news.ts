@@ -14,6 +14,11 @@ const trendValues = new Set([
   'weekly_reads',
 ]);
 
+const isOpinionCategory = (category: string, value: string) => {
+  const key = `${category} ${value}`.toLocaleLowerCase('tr-TR');
+  return key.includes('köşe') || key.includes('kose') || key.includes('opinion');
+};
+
 const numberParam = (
   value: string | null,
   fallback: number,
@@ -82,7 +87,7 @@ export const GET: APIRoute = async ({ url, request }) => {
           offset,
         )
       : await dataService.getCategoryNewsPage(lang, category, limit, offset, {
-          includeTypeAliases: false,
+          includeTypeAliases: isOpinionCategory(category, value),
         });
     const origin = new URL(url).origin;
     const session = await getSessionFromRequest(request);

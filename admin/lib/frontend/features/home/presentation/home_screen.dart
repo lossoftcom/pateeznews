@@ -12,6 +12,7 @@ import '../data/home_repository.dart';
 import '../../pharmacy/data/pharmacy_repository.dart';
 import '../../prayer_times/data/prayer_times_repository.dart';
 import '../../shell/data/app_shell_repository.dart';
+import '../../markets/data/markets_repository.dart';
 import '../../markets/presentation/markets_screen.dart';
 import '../../markets/presentation/widgets/home_market_strip.dart';
 import '../../news_detail/presentation/news_detail_screen.dart';
@@ -40,8 +41,10 @@ class HomeScreen extends StatefulWidget {
     this.shellSettings = const AppShellSettings.empty(),
     this.dutyPharmacyData = const DutyPharmacyData.empty(),
     this.weatherData = const WeatherData.empty(),
+    this.marketsData = const MarketsData.empty(),
     this.prayerTimesData = const PrayerTimesData.empty(),
     this.events = const [],
+    this.opinionItems = const [],
     this.navigationItems = const [],
     this.contentSettings = const HomeContentSettings.defaults(),
     this.featuredItems = const [],
@@ -55,14 +58,17 @@ class HomeScreen extends StatefulWidget {
     this.onSearch,
     this.onAuthRequired,
     this.onAuthorTap,
+    this.onOpinionAuthorsTap,
     this.onFullscreenVideoExit,
   });
 
   final AppShellSettings shellSettings;
   final DutyPharmacyData dutyPharmacyData;
   final WeatherData weatherData;
+  final MarketsData marketsData;
   final PrayerTimesData prayerTimesData;
   final List<EtkinlikEvent> events;
+  final List<NewsArticle> opinionItems;
   final List<AppShellNavigationItem> navigationItems;
   final HomeContentSettings contentSettings;
   final List<FeaturedNews> featuredItems;
@@ -76,6 +82,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onSearch;
   final VoidCallback? onAuthRequired;
   final ValueChanged<NewsAuthor>? onAuthorTap;
+  final VoidCallback? onOpinionAuthorsTap;
   final VoidCallback? onFullscreenVideoExit;
 
   @override
@@ -182,13 +189,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openMarkets() {
-    _pushFeature((_) => MarketsScreen(onSearch: widget.onSearch));
+    _pushFeature(
+      (_) => MarketsScreen(
+        initialData: widget.marketsData,
+        onSearch: widget.onSearch,
+      ),
+    );
   }
 
   void _openWeather() {
     _pushFeature(
-      (_) =>
-          WeatherScreen(initialData: widget.weatherData, onSearch: widget.onSearch),
+      (_) => WeatherScreen(
+        initialData: widget.weatherData,
+        onSearch: widget.onSearch,
+      ),
     );
   }
 
@@ -317,20 +331,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   // Manşetin hemen ardından: yatay kayan piyasa şeridi.
                   SliverToBoxAdapter(
-                    child: HomeMarketStrip(onSeeAll: _openMarkets)
-                        .animate()
-                        .fadeIn(
-                          delay: 160.ms,
-                          duration: 360.ms,
-                          curve: Curves.easeOutCubic,
-                        )
-                        .slideY(
-                          begin: 0.05,
-                          end: 0,
-                          delay: 160.ms,
-                          duration: 360.ms,
-                          curve: Curves.easeOutCubic,
-                        ),
+                    child:
+                        HomeMarketStrip(
+                              marketsData: widget.marketsData,
+                              onSeeAll: _openMarkets,
+                            )
+                            .animate()
+                            .fadeIn(
+                              delay: 160.ms,
+                              duration: 360.ms,
+                              curve: Curves.easeOutCubic,
+                            )
+                            .slideY(
+                              begin: 0.05,
+                              end: 0,
+                              delay: 160.ms,
+                              duration: 360.ms,
+                              curve: Curves.easeOutCubic,
+                            ),
                   ),
                   SliverToBoxAdapter(
                     child: SectionHeader(
@@ -415,7 +433,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             card,
                             const SizedBox(height: AppSpacing.xxl),
-                            const HomeColumnistStrip(),
+                            HomeColumnistStrip(
+                              articles: widget.opinionItems,
+                              onSeeAll: widget.onOpinionAuthorsTap,
+                              onArticleTap: (article) =>
+                                  _openDetail(<NewsArticle>[article], 0),
+                              onAuthorTap: widget.onAuthorTap,
+                            ),
                           ],
                         );
                       }

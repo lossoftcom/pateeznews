@@ -7,6 +7,7 @@ import { subscribeNewsletter } from '@/services/appActions';
 import { useToast } from '@/context/ToastContext';
 import { formatPostDateParts, slugify } from '@/utils/helpers';
 import RemixIcon from './ui/RemixIcon';
+import PublisherFollowButton from './PublisherFollowButton';
 
 const CATEGORY_TYPE_ALIASES: Record<string, string[]> = {
   anket: ['poll'],
@@ -888,6 +889,12 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-[14px] font-black leading-tight text-gray-900">{featuredOpinionAuthor}</span>
                         <RemixIcon name="ri-verified-badge-fill" size={14} className="text-palette-red" />
+                        <PublisherFollowButton
+                          as="span"
+                          publisherId={featuredOpinion.publisherId}
+                          postId={featuredOpinion.id}
+                          initialFollowing={featuredOpinion.isFollowingPublisher}
+                        />
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-palette-tan/50">
                         {featuredOpinion.publisherHandle && <span>@{featuredOpinion.publisherHandle}</span>}
@@ -957,6 +964,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <h3 className="break-words text-[16px] font-black leading-tight text-gray-900">{author.name}</h3>
                                 <RemixIcon name="ri-verified-badge-fill" size={14} className="shrink-0 text-palette-red" />
+                                <PublisherFollowButton
+                                  publisherId={author.latestPost.publisherId}
+                                  postId={author.latestPost.id}
+                                  initialFollowing={author.latestPost.isFollowingPublisher}
+                                />
                               </div>
                               {author.handle && (
                                 <span className="mt-1 block break-words text-[11px] font-bold text-palette-tan/55">@{author.handle}</span>
@@ -1027,6 +1039,12 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
                             >
                               <span>{author}</span>
                               <RemixIcon name="ri-verified-badge-fill" size={13} />
+                              <PublisherFollowButton
+                                as="span"
+                                publisherId={news.publisherId}
+                                postId={news.id}
+                                initialFollowing={news.isFollowingPublisher}
+                              />
                             </div>
                             <h3 className="opinion-list-title mt-1 text-[20px] font-black leading-tight text-gray-900 transition-colors group-hover:text-palette-red">
                               {title}

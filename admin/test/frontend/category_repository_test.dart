@@ -34,6 +34,8 @@ void main() {
                 'publishedAt': '2026-06-10T09:15:00.000Z',
                 'source': 'Pateez Yaşam',
                 'sourceAvatar': 'http://localhost:4321/local-upload/avatar.jpg',
+                'publisherBio': 'Yaşam gündemi yazarı',
+                'publisherExpertise': 'Yerel yaşam',
                 'slug': 'canli-kategori-haberi',
                 'likes': 8,
                 'dislikes': 1,
@@ -91,6 +93,8 @@ void main() {
     expect(data.items.single.likes, 8);
     expect(data.items.single.comments, 2);
     expect(data.items.single.views, 144);
+    expect(data.items.single.author.bio, 'Yaşam gündemi yazarı');
+    expect(data.items.single.author.expertise, 'Yerel yaşam');
     expect(data.items.single.userLiked, isTrue);
     expect(data.items.single.userSaved, isTrue);
     expect(data.items.single.previewComments.single.body, 'Temiz haber.');

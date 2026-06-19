@@ -62,6 +62,16 @@ const CATEGORY_TYPE_ALIASES: Record<string, string[]> = {
     etkinlikler: ['event'],
     event: ['event'],
     events: ['event'],
+    'kose-yazisi': ['opinion'],
+    'kose-yazilari': ['opinion'],
+    'köşe-yazısı': ['opinion'],
+    'köşe-yazıları': ['opinion'],
+    'kose yazisi': ['opinion'],
+    'kose yazilari': ['opinion'],
+    'köşe yazısı': ['opinion'],
+    'köşe yazıları': ['opinion'],
+    opinion: ['opinion'],
+    opinions: ['opinion'],
     'yemek-tarifi': ['recipe'],
     'yemek tarifi': ['recipe'],
     yemek: ['recipe'],
@@ -264,7 +274,9 @@ const POST_FEED_SELECT = `
                 'username', pr.username,
                 'full_name', pr.full_name,
                 'avatar_url', pr.avatar_url,
-                'role', pr.role
+                'role', pr.role,
+                'about_me', pr.about_me,
+                'expertise', pr.expertise
             ) AS profiles`;
 
 const POST_DETAIL_SELECT = `
@@ -540,7 +552,9 @@ const getLiveCategoryNewsPage = async (
                 'username', pr.username,
                 'full_name', pr.full_name,
                 'avatar_url', pr.avatar_url,
-                'role', pr.role
+                'role', pr.role,
+                'about_me', pr.about_me,
+                'expertise', pr.expertise
             ) AS profiles
          FROM public.posts p
          LEFT JOIN public.profiles pr ON pr.id = p.publisher_id

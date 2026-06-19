@@ -33,6 +33,7 @@ import PollCard from './cards/PollCard';
 import VSCard from './cards/VSCard';
 import ParagraphCard from './cards/ParagraphCard';
 import InlineCardComments from './InlineCardComments';
+import PublisherFollowButton from './PublisherFollowButton';
 
 interface NewsDetailProps {
   data: NewsItem;
@@ -1648,6 +1649,11 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                     <span className="text-[15px] font-[800] tracking-tight text-gray-900">{displayAuthorName || data.author}</span>
                   )}
                   <RemixIcon name="ri-verified-badge-fill" size={16} className="text-palette-red" />
+                  <PublisherFollowButton
+                    publisherId={data.publisherId}
+                    postId={data.id}
+                    initialFollowing={data.isFollowingPublisher}
+                  />
                 </div>
               )}
               <div className="flex items-center gap-2 text-[10px] text-palette-tan/45 font-bold leading-none mt-1">

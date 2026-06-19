@@ -7,6 +7,7 @@ export default {
   "nav.search": "بحث عن أخبار...",
   "nav.login": "دخول",
   "nav.panel": "لوحة التحكم",
+  "navbar.admin_panel": "لوحة التحكم",
   "nav.mail": "البريد",
   "nav.mail.inbox": "صندوق الوارد",
   "nav.mail.send": "إرسال بريد",

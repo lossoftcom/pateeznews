@@ -61,6 +61,8 @@ class NewsAuthor {
     required this.name,
     required this.avatarUrl,
     this.handle,
+    this.bio = '',
+    this.expertise = '',
     this.isVerified = false,
     this.isOfficial = false,
   });
@@ -69,6 +71,8 @@ class NewsAuthor {
   final String name;
   final String avatarUrl;
   final String? handle;
+  final String bio;
+  final String expertise;
   final bool isVerified;
   final bool isOfficial;
 }

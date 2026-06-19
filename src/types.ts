@@ -95,6 +95,8 @@ export interface NewsItem {
   items?: any[];
   sourceAvatar?: string;
   publisherHandle?: string;
+  publisherBio?: string;
+  publisherExpertise?: string;
   isPinned?: boolean;
   isManset?: boolean;
   // User specific interaction states (pre-fetched for speed)

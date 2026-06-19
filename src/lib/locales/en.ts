@@ -676,6 +676,7 @@ export default {
   "nav.login": "Login",
   "nav.panel": "Admin Panel",
   "brand.news": " NEWS",
+  "navbar.admin_panel": "Admin Panel",
   "navbar.my_profile": "My Profile",
   "navbar.edit_profile": "Edit Profile",
   "navbar.profile_alt": "Profile Avatar",

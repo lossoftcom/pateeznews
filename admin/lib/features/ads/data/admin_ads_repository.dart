@@ -423,7 +423,7 @@ class AdSettingsData {
 
   factory AdSettingsData.fromJson(Map<dynamic, dynamic> json) {
     final rawSlots = json['slots'];
-    return AdSettingsData(
+    final settings = AdSettingsData(
       masterEnabled: json['masterEnabled'] != false,
       adsenseConnected: json['adsenseConnected'] == true,
       adsensePublisherId: json['adsensePublisherId']?.toString() ?? '',
@@ -432,6 +432,7 @@ class AdSettingsData {
           ? rawSlots.whereType<Map>().map(AdSlot.fromJson).toList()
           : <AdSlot>[],
     );
+    return settings.withDefaultSlots();
   }
 
   Map<String, Object?> toJson() {
@@ -446,6 +447,28 @@ class AdSettingsData {
 
   AdSettingsData clone() => AdSettingsData.fromJson(toJson());
 
+  AdSettingsData withDefaultSlots() {
+    final defaults = AdSettingsData.seed();
+    final existingByKey = <String, AdSlot>{
+      for (final slot in slots)
+        if (slot.key.trim().isNotEmpty) slot.key.trim(): slot,
+    };
+    final defaultKeys = defaults.slots.map((slot) => slot.key).toSet();
+    final merged = <AdSlot>[
+      for (final defaultSlot in defaults.slots)
+        existingByKey[defaultSlot.key] ?? defaultSlot,
+      for (final slot in slots)
+        if (!defaultKeys.contains(slot.key)) slot,
+    ];
+    return AdSettingsData(
+      masterEnabled: masterEnabled,
+      adsenseConnected: adsenseConnected,
+      adsensePublisherId: adsensePublisherId,
+      localEnabled: localEnabled,
+      slots: merged,
+    );
+  }
+
   /// İlk açılışta gösterilecek örnek yapılandırma (gerçek veriler bağlanana dek).
   factory AdSettingsData.seed() {
     return AdSettingsData(
@@ -455,7 +478,7 @@ class AdSettingsData {
       localEnabled: true,
       slots: [
         AdSlot(
-          id: _generateId('slot'),
+          id: 'slot_web_home_top',
           key: 'web_home_top',
           name: 'Anasayfa — Üst Banner',
           description: 'Manşetin üstü · sayfa başı',
@@ -464,7 +487,7 @@ class AdSettingsData {
           height: 90,
           creatives: [
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_web_home_top_premium',
               name: 'Premium üyelik kampanyası',
               type: AdCreativeType.image,
               width: 728,
@@ -473,7 +496,7 @@ class AdSettingsData {
               accentColor: 0xFF2C3E50,
             ),
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_web_home_top_local',
               name: 'Demirören Optik — bahar',
               type: AdCreativeType.image,
               width: 728,
@@ -482,7 +505,7 @@ class AdSettingsData {
               accentColor: 0xFFF39C12,
             ),
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_web_home_top_adsense',
               name: 'AdSense otomatik reklam',
               type: AdCreativeType.adsense,
               width: 728,
@@ -492,16 +515,75 @@ class AdSettingsData {
           ],
         ),
         AdSlot(
-          id: _generateId('slot'),
+          id: 'slot_web_home_below_hero',
+          key: 'web_home_below_hero',
+          name: 'Anasayfa — Manşet Altı',
+          description: 'Manşet sonrası · akış başlamadan',
+          platform: AdPlatform.web,
+          width: 0,
+          height: 0,
+          responsive: true,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_home_below_hero_adsense',
+              name: 'AdSense duyarlı manşet altı',
+              type: AdCreativeType.adsense,
+              width: 0,
+              height: 0,
+              responsive: true,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_home_feed_inline',
+          key: 'web_home_feed_inline',
+          name: 'Anasayfa — Akış İçi',
+          description: 'Haber akışı · her 4 kartta bir',
+          platform: AdPlatform.web,
+          width: 336,
+          height: 280,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_home_feed_inline_adsense',
+              name: 'AdSense akış içi dikdörtgen',
+              type: AdCreativeType.adsense,
+              width: 336,
+              height: 280,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_category_feed_inline',
+          key: 'web_category_feed_inline',
+          name: 'Kategori — Akış İçi',
+          description: 'Kategori listesi · her 5 kartta bir',
+          platform: AdPlatform.web,
+          width: 336,
+          height: 280,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_category_feed_inline_adsense',
+              name: 'AdSense kategori içi',
+              type: AdCreativeType.adsense,
+              width: 336,
+              height: 280,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_home_sidebar',
           key: 'web_home_sidebar',
-          name: 'Anasayfa — Kenar Çubuğu',
-          description: 'Sağ sütun · sabit',
+          name: 'Anasayfa — Sağ Kenar Çubuğu',
+          description: 'Sağ sütun · scroll boyunca görünür',
           platform: AdPlatform.web,
           width: 300,
           height: 600,
           creatives: [
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_web_home_sidebar_local',
               name: 'Yerel emlak ofisi',
               type: AdCreativeType.image,
               width: 300,
@@ -510,7 +592,7 @@ class AdSettingsData {
               accentColor: 0xFF1D9E75,
             ),
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_web_home_sidebar_adsense',
               name: 'AdSense yarım sayfa',
               type: AdCreativeType.adsense,
               width: 300,
@@ -520,16 +602,92 @@ class AdSettingsData {
           ],
         ),
         AdSlot(
-          id: _generateId('slot'),
+          id: 'slot_web_home_left_rail',
+          key: 'web_home_left_rail',
+          name: 'Anasayfa — Sol Kenar Çubuğu',
+          description: 'Sol menü altı · scroll ile sabit',
+          platform: AdPlatform.web,
+          width: 160,
+          height: 600,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_home_left_rail_adsense',
+              name: 'AdSense sol gökdelen',
+              type: AdCreativeType.adsense,
+              width: 160,
+              height: 600,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_side_rail_left',
+          key: 'web_side_rail_left',
+          name: 'Web — Sol Dış Ray',
+          description: 'Geniş ekran · içerik dışı sticky',
+          platform: AdPlatform.web,
+          width: 160,
+          height: 600,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_side_rail_left_adsense',
+              name: 'AdSense sol dış ray',
+              type: AdCreativeType.adsense,
+              width: 160,
+              height: 600,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_side_rail_right',
+          key: 'web_side_rail_right',
+          name: 'Web — Sağ Dış Ray',
+          description: 'Geniş ekran · içerik dışı sticky',
+          platform: AdPlatform.web,
+          width: 160,
+          height: 600,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_side_rail_right_adsense',
+              name: 'AdSense sağ dış ray',
+              type: AdCreativeType.adsense,
+              width: 160,
+              height: 600,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_article_top',
+          key: 'web_article_top',
+          name: 'Haber Detay — Üst Banner',
+          description: 'Başlık altı · ana medya öncesi',
+          platform: AdPlatform.web,
+          width: 728,
+          height: 90,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_article_top_adsense',
+              name: 'AdSense haber üstü',
+              type: AdCreativeType.adsense,
+              width: 728,
+              height: 90,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_web_news_incontent',
           key: 'web_news_incontent',
           name: 'Haber Detay — İçerik Arası',
-          description: 'Paragraf arası · akış içi',
+          description: 'Paragraf arası · 2. bloktan sonra',
           platform: AdPlatform.web,
           width: 300,
           height: 250,
           creatives: [
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_web_news_incontent_adsense',
               name: 'AdSense içerik reklamı',
               type: AdCreativeType.adsense,
               width: 300,
@@ -539,17 +697,45 @@ class AdSettingsData {
           ],
         ),
         AdSlot(
-          id: _generateId('slot'),
-          key: 'web_home_below_hero',
-          name: 'Anasayfa — Manşet Altı',
-          description: 'Manşet bloğunun altı',
+          id: 'slot_web_article_end',
+          key: 'web_article_end',
+          name: 'Haber Detay — Yazı Sonu',
+          description: 'Yorumlar/tepkiler öncesi · doğal mola',
           platform: AdPlatform.web,
-          width: 0,
-          height: 0,
-          responsive: true,
+          width: 336,
+          height: 280,
+          creatives: [
+            AdCreative(
+              id: 'ad_web_article_end_adsense',
+              name: 'AdSense yazı sonu',
+              type: AdCreativeType.adsense,
+              width: 336,
+              height: 280,
+              weight: 1,
+            ),
+          ],
         ),
         AdSlot(
-          id: _generateId('slot'),
+          id: 'slot_mobile_home_after_market',
+          key: 'mobile_home_after_market',
+          name: 'Mobil — Piyasa Altı',
+          description: 'Manşet/piyasa sonrası · akış öncesi',
+          platform: AdPlatform.mobile,
+          width: 320,
+          height: 100,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_home_after_market_adsense',
+              name: 'AdSense piyasa altı',
+              type: AdCreativeType.adsense,
+              width: 320,
+              height: 100,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_feed_inline',
           key: 'mobile_feed_inline',
           name: 'Mobil — Liste Arası',
           description: 'Haber akışı · her 5 kartta bir',
@@ -558,7 +744,7 @@ class AdSettingsData {
           height: 100,
           creatives: [
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_mobile_feed_inline_local',
               name: 'Uygulama içi kampanya',
               type: AdCreativeType.image,
               width: 320,
@@ -567,7 +753,7 @@ class AdSettingsData {
               accentColor: 0xFFEA4335,
             ),
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_mobile_feed_inline_adsense',
               name: 'AdSense mobil banner',
               type: AdCreativeType.adsense,
               width: 320,
@@ -577,16 +763,92 @@ class AdSettingsData {
           ],
         ),
         AdSlot(
-          id: _generateId('slot'),
+          id: 'slot_mobile_feed_rectangle',
+          key: 'mobile_feed_rectangle',
+          name: 'Mobil — Akış Dikdörtgen',
+          description: 'Haber akışı · her 8 kartta bir',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_feed_rectangle_adsense',
+              name: 'AdSense mobil dikdörtgen',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_detail_incontent',
+          key: 'mobile_detail_incontent',
+          name: 'Mobil — Haber İçi',
+          description: 'Detay içeriği · 2. bloktan sonra',
+          platform: AdPlatform.mobile,
+          width: 300,
+          height: 250,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_detail_incontent_adsense',
+              name: 'AdSense haber içi',
+              type: AdCreativeType.adsense,
+              width: 300,
+              height: 250,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_detail_between_articles',
+          key: 'mobile_detail_between_articles',
+          name: 'Mobil — Haberler Arası',
+          description: 'Detay scroll · sonraki haber öncesi',
+          platform: AdPlatform.mobile,
+          width: 320,
+          height: 100,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_detail_between_articles_adsense',
+              name: 'AdSense haberler arası',
+              type: AdCreativeType.adsense,
+              width: 320,
+              height: 100,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_video_feed_inline',
+          key: 'mobile_video_feed_inline',
+          name: 'Mobil — Video Akışı Arası',
+          description: 'Video sekmesi · her 3 video kartında bir',
+          platform: AdPlatform.mobile,
+          width: 320,
+          height: 100,
+          creatives: [
+            AdCreative(
+              id: 'ad_mobile_video_feed_inline_adsense',
+              name: 'AdSense video akışı',
+              type: AdCreativeType.adsense,
+              width: 320,
+              height: 100,
+              weight: 1,
+            ),
+          ],
+        ),
+        AdSlot(
+          id: 'slot_mobile_anchor',
           key: 'mobile_anchor',
           name: 'Mobil — Alt Sabit (Anchor)',
-          description: 'Ekran altı · sabit yapışkan',
+          description: 'Bottom nav üstü · güvenli alan içinde',
           platform: AdPlatform.mobile,
           width: 320,
           height: 50,
           creatives: [
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_mobile_anchor_adsense',
               name: 'AdSense alt banner',
               type: AdCreativeType.adsense,
               width: 320,
@@ -596,10 +858,10 @@ class AdSettingsData {
           ],
         ),
         AdSlot(
-          id: _generateId('slot'),
+          id: 'slot_mobile_interstitial',
           key: 'mobile_interstitial',
-          name: 'Mobil — Haber Açılışı (Tam Ekran)',
-          description: 'Geçiş reklamı · interstitial',
+          name: 'Mobil — Doğal Geçiş (Tam Ekran)',
+          description: 'Bölüm/haber geçişi · frekans kontrollü',
           platform: AdPlatform.mobile,
           width: 0,
           height: 0,
@@ -607,7 +869,7 @@ class AdSettingsData {
           active: false,
           creatives: [
             AdCreative(
-              id: _generateId('ad'),
+              id: 'ad_mobile_interstitial_adsense',
               name: 'AdSense geçiş reklamı',
               type: AdCreativeType.adsense,
               width: 0,

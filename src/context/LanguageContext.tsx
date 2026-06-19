@@ -39,6 +39,7 @@ const STATIC_TR: Record<string, string> = {
   "nav.special": "Eğlence",
   "nav.search": "Haber ara...",
   "nav.login": "Giriş Yap",
+  "navbar.admin_panel": "Admin Paneli",
   "sidebar.publishers": "Yayıncılar",
   "sidebar.categories": "Kategoriler",
   "feed.title_prefix": "Sizin İçin",

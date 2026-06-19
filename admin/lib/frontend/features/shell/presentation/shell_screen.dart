@@ -20,6 +20,8 @@ import '../../apps/data/app_item.dart';
 import '../../apps/presentation/app_feature_screen.dart';
 import '../../apps/presentation/apps_sheet.dart';
 import '../../category/presentation/category_screen.dart';
+import '../../category/presentation/opinion_screen.dart';
+import '../../category/data/opinion_summary.dart';
 import '../../corporate/presentation/corporate_pages_screen.dart';
 import '../../etkinlik/data/etkinlik_mock.dart';
 import '../../etkinlik/presentation/etkinlik_screen.dart';
@@ -68,6 +70,9 @@ class ShellScreen extends StatefulWidget {
     this.contentSettings = const HomeContentSettings.defaults(),
     this.featuredItems = const [],
     this.homeFeedItems = const [],
+    this.opinionItems = const [],
+    this.opinionTotal,
+    this.opinionTotalViews,
     this.onRefreshHome,
     this.authState,
     this.profileData,
@@ -96,6 +101,9 @@ class ShellScreen extends StatefulWidget {
   final HomeContentSettings contentSettings;
   final List<FeaturedNews> featuredItems;
   final List<NewsArticle> homeFeedItems;
+  final List<NewsArticle> opinionItems;
+  final int? opinionTotal;
+  final int? opinionTotalViews;
   final Future<void> Function()? onRefreshHome;
   final FrontendAuthState? authState;
   final ProfileData? profileData;
@@ -792,6 +800,11 @@ class _ShellScreenState extends State<ShellScreen>
   }
 
   void _openCategory(AppShellNavigationItem item) {
+    if (isOpinionNavigationItem(label: item.label, value: item.value)) {
+      _openOpinion(item, initialView: OpinionScreenView.articles);
+      return;
+    }
+
     Navigator.of(context).push<void>(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 360),
@@ -826,6 +839,69 @@ class _ShellScreenState extends State<ShellScreen>
         },
       ),
     );
+  }
+
+  void _openOpinion(
+    AppShellNavigationItem item, {
+    required OpinionScreenView initialView,
+  }) {
+    Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
+        pageBuilder: (_, _, _) => OpinionScreen(
+          categoryName: item.label,
+          categoryType: item.type,
+          categoryValue: item.value,
+          initialItems: widget.opinionItems.isEmpty
+              ? null
+              : widget.opinionItems,
+          initialTotal: widget.opinionTotal,
+          initialTotalViews: widget.opinionTotalViews,
+          initialView: initialView,
+          shellSettings: widget.shellData.siteSettings,
+          navigationItems: widget.shellData.navigationItems,
+          contentSettings: widget.contentSettings,
+          authState: widget.authState,
+          onAuthRequired: _openAccountForRequiredAuth,
+          onAuthorTap: _openAuthorProfile,
+          onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
+          onSearch: _openSearchRoute,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openOpinionAuthors() {
+    final item = _opinionNavigationItem();
+    if (item == null) {
+      _showMessage('Köşe yazarları sayfası bulunamadı.');
+      return;
+    }
+    _openOpinion(item, initialView: OpinionScreenView.authors);
+  }
+
+  AppShellNavigationItem? _opinionNavigationItem() {
+    for (final item in widget.shellData.navigationItems) {
+      if (isOpinionNavigationItem(label: item.label, value: item.value)) {
+        return item;
+      }
+    }
+    return null;
   }
 
   void _openCorporatePages(AppShellNavigationItem? root) {
@@ -1141,8 +1217,10 @@ class _ShellScreenState extends State<ShellScreen>
                   shellSettings: widget.shellData.siteSettings,
                   dutyPharmacyData: widget.dutyPharmacyData,
                   weatherData: widget.weatherData,
+                  marketsData: widget.marketsData,
                   prayerTimesData: widget.prayerTimesData,
                   events: widget.eventItems,
+                  opinionItems: widget.opinionItems,
                   navigationItems: widget.shellData.navigationItems,
                   contentSettings: widget.contentSettings,
                   featuredItems: widget.featuredItems,
@@ -1156,6 +1234,7 @@ class _ShellScreenState extends State<ShellScreen>
                   onSearch: _openSearchRoute,
                   onAuthRequired: _openAccountForRequiredAuth,
                   onAuthorTap: _openAuthorProfile,
+                  onOpinionAuthorsTap: _openOpinionAuthors,
                   onFullscreenVideoExit: _returnHomeFromFullscreenVideo,
                 ),
                 _index == 1

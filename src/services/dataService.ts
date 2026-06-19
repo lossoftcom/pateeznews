@@ -479,7 +479,7 @@ export const dataService = {
         const fetchNewsItems = async () => {
             const isHomeFeed = !category || category === 'home';
             const publishedAtLimit = new Date().toISOString();
-            const selectColumns = `id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, views_count, saves_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, show_in_manset, fact_checked, schema_type, card_data, items, faq_data, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
+            const selectColumns = `id, created_at, published_at, updated_at, publisher_id, title, summary, category, type, thumbnail_url, thumbnail_alt, media_url, likes_count, dislikes_count, comments_count, shares_count, views_count, saves_count, slug, status, seo_title, seo_description, keywords, language_code, is_pinned, show_in_manset, fact_checked, schema_type, card_data, items, faq_data, profiles:publisher_id (id, username, full_name, avatar_url, role, about_me, expertise)`;
             const createPublishedQuery = () => supabase
                 .from('posts')
                 .select(selectColumns)
@@ -544,7 +544,7 @@ export const dataService = {
         const normalized = String(slugOrId || '').trim();
         if (!normalized) return null;
 
-        const selectClause = `*, profiles:publisher_id (id, username, full_name, avatar_url, role)`;
+        const selectClause = `*, profiles:publisher_id (id, username, full_name, avatar_url, role, about_me, expertise)`;
 
         // 1) Try by slug
         const slugRes = await supabase
@@ -621,6 +621,8 @@ export const dataService = {
             isManset: post?.show_in_manset ?? (cardData as any)?.isManset ?? false,
             publisherId: post?.publisher_id ?? (cardData as any)?.publisherId,
             publisherHandle: post?.profiles?.username ?? (cardData as any)?.publisherHandle,
+            publisherBio: post?.profiles?.about_me ?? (cardData as any)?.publisherBio,
+            publisherExpertise: post?.profiles?.expertise ?? (cardData as any)?.publisherExpertise,
         };
 
         const items = Array.isArray(merged.items) ? merged.items : [];

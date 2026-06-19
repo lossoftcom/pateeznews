@@ -10,6 +10,7 @@ import { navigateImmediately } from '@/utils/immediateNavigation';
 import { isOpinionColumn } from '@/utils/opinionColumns';
 import { getProfileHref } from '@/utils/profileUrl';
 import RemixIcon from './ui/RemixIcon';
+import PublisherFollowButton from './PublisherFollowButton';
 
 interface RightSidebarProps {
    newsData?: NewsItem[];
@@ -44,6 +45,8 @@ type ColumnistItem = {
    dateLabel: string;
    href: string;
    profileHref: string;
+   publisherId: string;
+   isFollowingPublisher: boolean;
 };
 type SidebarSocialItem = {
    key: string;
@@ -519,6 +522,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                dateLabel,
                href: getPostHref(item, siteSettings),
                profileHref: getProfileHref(handle),
+               publisherId: String(item.publisherId || ''),
+               isFollowingPublisher: item.isFollowingPublisher === true,
             };
          });
    }, [currentLang.code, newsData, siteSettings]);
@@ -911,7 +916,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                         type="button"
                         onClick={() => openHref(item.href)}
                         onMouseEnter={() => item.href && prefetch(item.href)}
-                        className="group w-full rounded-[5px] bg-[linear-gradient(135deg,#fffaf2_0%,#ffffff_46%,#f8fafc_100%)] px-1 py-1 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-white"
+                        className="group w-full rounded-[5px] bg-white px-1 py-1 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-white"
                      >
                         <h4 className="break-words text-[18px] font-[900] leading-[1.16] tracking-normal text-gray-950 transition-colors group-hover:text-palette-red" style={{ fontFamily: 'var(--site-font-title, var(--site-font-primary, inherit))' }}>
                            {item.title}
@@ -922,16 +927,22 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                            </p>
                         )}
 
-                        <div className="mt-4 flex items-end justify-between gap-3">
+                        <div className="mt-3 flex items-end justify-between gap-3">
                            <div
                               onClick={(event) => openNestedHref(event, item.profileHref)}
                               className="min-w-0 flex-1 cursor-pointer"
                            >
                               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                                 <span className="break-words text-[12px] font-black leading-tight text-[#2f6f9f]">
+                                 <span className="break-words text-[11px] font-semibold leading-tight text-gray-700">
                                     {item.author}
                                  </span>
                                  <RemixIcon name="ri-verified-badge-fill" size={13} className="shrink-0 text-palette-red" />
+                                 <PublisherFollowButton
+                                    as="span"
+                                    publisherId={item.publisherId}
+                                    postId={item.id}
+                                    initialFollowing={item.isFollowingPublisher}
+                                 />
                               </div>
                               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium leading-tight text-palette-tan/60">
                                  {item.handle && <span className="break-words">@{item.handle}</span>}
@@ -946,7 +957,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
 
                            <div
                               onClick={(event) => openNestedHref(event, item.profileHref)}
-                              className="relative h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-full bg-white p-[2px] shadow-[0_8px_22px_rgba(24,37,64,0.10)]"
+                              className="relative h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-full border border-palette-beige/35 bg-white p-[2px]"
                            >
                               {item.avatar ? (
                                  <img

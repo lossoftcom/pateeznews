@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, MessageSquare, Share2, Calendar, Settings2, Sparkles, User as UserIcon, Mail, Link as LinkIcon, Globe, Users, FileText, Eye, Heart } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { ArrowLeft, MessageSquare, Share2, Calendar, User as UserIcon, Mail, Link as LinkIcon, Globe, Users, FileText, Eye, Heart } from 'lucide-react';
 import { NewsType, type NewsItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
+import { formatPostDateParts } from '@/utils/helpers';
 
 interface UserProfileProps {
   userId?: string;
@@ -41,6 +41,17 @@ const TEXT_ENTITY_MAP: Record<string, string> = {
   Uuml: 'Ü',
   uuml: 'ü',
 };
+
+const AUTH_STORAGE_KEYS = ['pateeznews-supabase-auth', 'supabase-auth-token'];
+const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+interface ProfilePreview {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  initials: string;
+}
 
 const decodeTextCodePoint = (value: string, radix: number, fallback: string) => {
   const codePoint = Number.parseInt(value, radix);
@@ -90,10 +101,112 @@ const parseProfileSocialLinks = (value: unknown) => {
   return {};
 };
 
-const joinedDateLabel = (value: unknown) => {
+const readStoredProfileAccessToken = () => {
+  if (typeof window === 'undefined') return '';
+  for (const key of AUTH_STORAGE_KEYS) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      const token =
+        parsed?.access_token ||
+        parsed?.currentSession?.access_token ||
+        parsed?.session?.access_token;
+      if (token) return String(token);
+    } catch {
+      // Ignore invalid legacy auth payloads and keep checking known keys.
+    }
+  }
+  return '';
+};
+
+const readStoredProfileUserId = () => {
+  if (typeof window === 'undefined') return '';
+  for (const key of AUTH_STORAGE_KEYS) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      const userId =
+        parsed?.user?.id ||
+        parsed?.currentSession?.user?.id ||
+        parsed?.session?.user?.id;
+      if (userId) return String(userId);
+    } catch {
+      // Ignore invalid legacy auth payloads and keep checking known keys.
+    }
+  }
+  return '';
+};
+
+const profileIdFrom = (profile: Record<string, any> | null | undefined, fallbackId?: string) => (
+  String(profile?.id || fallbackId || '').trim()
+);
+
+const isStoredOwnProfile = (profile: Record<string, any> | null | undefined, fallbackId?: string) => {
+  const targetId = profileIdFrom(profile, fallbackId).toLowerCase();
+  const storedUserId = readStoredProfileUserId().toLowerCase();
+  return Boolean(targetId && storedUserId && targetId === storedUserId);
+};
+
+const hasFullProfilePayload = (profile: Record<string, any> | null | undefined) => (
+  Boolean(profile?.stats && Array.isArray(profile?.posts))
+);
+
+const joinedDateLabel = (value: unknown, lang = 'tr') => (
+  formatPostDateParts(String(value || ''), lang).date
+);
+
+const joinedYearLabel = (value: unknown, lang = 'tr') => {
   const date = new Date(String(value || ''));
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+    year: 'numeric',
+    timeZone: 'Europe/Istanbul',
+  }).format(date);
+};
+
+const profileInitials = (name: string) => {
+  const initials = name
+    .split(/\s+/)
+    .map((part) => part.trim()[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toLocaleUpperCase('tr-TR');
+  return initials || 'P';
+};
+
+const mapProfilePreview = (row: any, fallbackAvatar = ''): ProfilePreview => {
+  const username = normalizeStoredPlainText(row?.username);
+  const name = normalizeStoredPlainText(row?.full_name || username || 'Profil');
+  return {
+    id: String(row?.id || username || fallbackAvatar || name),
+    name,
+    username,
+    avatar: normalizeProfileMediaUrl(row?.avatar_url || fallbackAvatar),
+    initials: profileInitials(name),
+  };
+};
+
+const mapProfilePreviewList = (profiles: unknown, avatarUrls: unknown) => {
+  const rows = Array.isArray(profiles) ? profiles : [];
+  const avatars = Array.isArray(avatarUrls) ? avatarUrls : [];
+  const length = Math.max(rows.length, avatars.length);
+  return Array.from({ length }, (_item, index) => mapProfilePreview(rows[index] || {}, String(avatars[index] || '')))
+    .filter((profile) => profile.avatar || profile.name);
+};
+
+const formatCount = (value: unknown, lang = 'tr') => (
+  Math.max(0, Number(value) || 0).toLocaleString(lang || 'tr')
+);
+
+const socialUrl = (value: unknown) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (/^https?:\/\//i.test(text)) return text;
+  if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(text)) return `https://${text}`;
+  return text;
 };
 
 const mapProfileToViewData = (
@@ -101,12 +214,16 @@ const mapProfileToViewData = (
   showEmail: boolean,
   fallbackUserLabel: string,
   fallbackCategoryLabel: string,
+  lang = 'tr',
 ) => {
   const socialLinks = parseProfileSocialLinks(profile.social_links);
   const stats = profile.stats && typeof profile.stats === 'object' ? profile.stats : {};
   const shouldShowEmail = showEmail && profile.show_email !== false;
   const role = String(profile.role || '').toLowerCase();
-  const joinedDate = joinedDateLabel(profile.created_at);
+  const joinedDate = joinedDateLabel(profile.created_at, lang);
+  const followersCount = Number(stats.followers ?? profile.followers ?? 0);
+  const followingCount = Number(stats.following ?? profile.following ?? 0);
+  const postsCount = Number(stats.posts ?? profile.posts_count ?? 0);
 
   return {
     id: profile.id,
@@ -115,14 +232,21 @@ const mapProfileToViewData = (
     category: normalizeStoredPlainText(profile.expertise || fallbackCategoryLabel),
     description: normalizeStoredPlainText(profile.about_me),
     email: shouldShowEmail ? (profile.email || '') : '',
+    website: normalizeStoredPlainText(profile.website),
     avatar: normalizeProfileMediaUrl(profile.avatar_url),
     cover: normalizeProfileMediaUrl(profile.cover_url || (socialLinks as any)?.cover_url),
-    followers: String(stats.followers ?? profile.followers ?? 0),
-    following: String(stats.following ?? profile.following ?? 0),
-    postsCount: String(stats.posts ?? profile.posts_count ?? 0),
+    followers: formatCount(followersCount, lang),
+    following: formatCount(followingCount, lang),
+    postsCount: formatCount(postsCount, lang),
+    followersCount,
+    followingCount,
+    postsCountRaw: postsCount,
     joinedDate,
+    joinedYear: joinedYearLabel(profile.created_at, lang),
     verified: role === 'admin' || role === 'editor',
-    social_links: socialLinks
+    social_links: socialLinks,
+    followerProfiles: mapProfilePreviewList(profile.follower_profiles, profile.follower_avatars),
+    followingProfiles: mapProfilePreviewList(profile.following_profiles, profile.following_avatars),
   };
 };
 
@@ -147,30 +271,54 @@ const mapProfilePosts = (profile: Record<string, any>): NewsItem[] => {
     sourceAvatar: item.sourceAvatar || profile.avatar_url || '',
     publisherId: item.publisherId || profile.id || '',
     publisherHandle: item.publisherHandle || profile.username || '',
-  }));
-};
-
-const getProfileAccessToken = async () => {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    return String(session?.access_token || '').trim();
-  } catch {
-    return '';
-  }
+    seoTitle: normalizeStoredPlainText(item.seoTitle),
+    seoDescription: normalizeStoredPlainText(item.seoDescription),
+    thumbnailAlt: normalizeStoredPlainText(item.thumbnailAlt),
+    ...(Number((item as any).imageAspectRatio || 0) > 0
+      ? { imageAspectRatio: Number((item as any).imageAspectRatio) }
+      : {}),
+  } as NewsItem & { imageAspectRatio?: number }));
 };
 
 const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsSelect, onEditClick, siteSettings, showEmail = true, initialProfile = null }) => {
   const { t, currentLang } = useLanguage();
+  const langCode = currentLang?.code || 'tr';
 
   const [isFollowing, setIsFollowing] = useState(Boolean(initialProfile?.viewer_following));
   const [userData, setUserData] = useState<any>(() => (
-    initialProfile ? mapProfileToViewData(initialProfile, showEmail, t('common.user'), t('users_list.default_description')) : null
+    initialProfile ? mapProfileToViewData(initialProfile, showEmail, t('common.user'), t('users_list.default_description'), langCode) : null
   ));
   const [userNews, setUserNews] = useState<NewsItem[]>(() => (
     initialProfile ? mapProfilePosts(initialProfile) : []
   ));
   const [loading, setLoading] = useState(!initialProfile);
   const [isOwnProfile, setIsOwnProfile] = useState(Boolean(initialProfile?.is_own_profile));
+  const [isProfileActionReady, setIsProfileActionReady] = useState(Boolean(initialProfile?.is_own_profile));
+  const socialEntries = useMemo(() => {
+    const links = userData?.social_links || {};
+    const platforms = ['x', 'facebook', 'instagram', 'tiktok', 'youtube', 'discord', 'linkedin', 'telegram', 'whatsapp', 'pinterest'];
+    const entries = platforms
+      .map((key) => ({ key, href: socialUrl(links[key]) }))
+      .filter((entry) => Boolean(entry.href));
+    const website = socialUrl(userData?.website || links.personal_website_url);
+    return website ? [...entries, { key: 'website', href: website }] : entries;
+  }, [userData?.social_links, userData?.website]);
+
+  useBrowserLayoutEffect(() => {
+    if (!initialProfile) {
+      setIsProfileActionReady(false);
+      return;
+    }
+
+    const localOwnProfile = Boolean(initialProfile.is_own_profile) || isStoredOwnProfile(initialProfile, userId);
+    if (localOwnProfile) {
+      setIsOwnProfile(true);
+      setIsProfileActionReady(true);
+      return;
+    }
+
+    setIsProfileActionReady(!readStoredProfileAccessToken());
+  }, [initialProfile, userId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -183,18 +331,27 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
         return;
       }
 
+      const token = readStoredProfileAccessToken();
+      if (initialProfile && hasFullProfilePayload(initialProfile) && !token) {
+        setIsProfileActionReady(true);
+        setLoading(false);
+        return;
+      }
+
       try {
         if (!initialProfile) setLoading(true);
+        if (token && !isStoredOwnProfile(initialProfile, userId)) {
+          setIsProfileActionReady(false);
+        }
 
         const url = new URL('/api/app/profile', window.location.origin);
-        url.searchParams.set('lang', currentLang?.code || 'tr');
+        url.searchParams.set('lang', langCode);
         if (queryUserId) {
           url.searchParams.set('userId', queryUserId);
         } else {
           url.searchParams.set('username', queryUsername);
         }
 
-        const token = await getProfileAccessToken();
         const response = await fetch(url, {
           headers: {
             Accept: 'application/json',
@@ -209,11 +366,13 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
         if (!isMounted) return;
         const profile = payload.profile as Record<string, any>;
         setIsOwnProfile(profile.is_own_profile === true);
+        setIsProfileActionReady(true);
         setIsFollowing(profile.viewer_following === true);
-        setUserData(mapProfileToViewData(profile, showEmail, t('common.user'), t('users_list.default_description')));
+        setUserData(mapProfileToViewData(profile, showEmail, t('common.user'), t('users_list.default_description'), langCode));
         setUserNews(mapProfilePosts(profile));
       } catch (err) {
         console.error('Error fetching user profile:', err);
+        if (isMounted) setIsProfileActionReady(true);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -223,7 +382,39 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
     return () => {
       isMounted = false;
     };
-  }, [currentLang?.code, initialProfile, name, showEmail, t, userId]);
+  }, [initialProfile, langCode, name, showEmail, t, userId]);
+
+  const renderProfileStack = (profiles: ProfilePreview[], totalCount: number, emptyLabel: string) => {
+    const visibleProfiles = profiles.slice(0, 5);
+    const remaining = Math.max(0, totalCount - visibleProfiles.length);
+
+    if (visibleProfiles.length === 0) {
+      return <p className="text-xs font-semibold text-gray-400">{emptyLabel}</p>;
+    }
+
+    return (
+      <div className="flex -space-x-3">
+        {visibleProfiles.map((profile) => (
+          <div
+            key={profile.id}
+            title={profile.username ? `${profile.name} (@${profile.username})` : profile.name}
+            className="w-10 h-10 rounded-full border-[3px] border-white shadow-md overflow-hidden bg-gray-100 flex items-center justify-center text-[11px] font-black text-gray-500"
+          >
+            {profile.avatar ? (
+              <img src={profile.avatar} className="w-full h-full object-cover" alt={profile.name} loading="lazy" decoding="async" />
+            ) : (
+              <span>{profile.initials}</span>
+            )}
+          </div>
+        ))}
+        {remaining > 0 && (
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-[3px] border-white flex items-center justify-center text-xs font-bold text-gray-600 shadow-md">
+            +{remaining}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (loading) return (
     <div className="flex justify-center items-center min-h-[400px]">
@@ -239,91 +430,161 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
   );
 
   return (
-    <div className="bg-gradient-to-b from-gray-50 to-white min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
+      <style>{`
+        .profile-news-list-item {
+          position: relative;
+          isolation: isolate;
+        }
 
-      {/* HEADER: Cover with Modern Gradient Overlay */}
-      <div className="relative w-full h-48 md:h-64 overflow-hidden">
+        .profile-news-list-item::before {
+          content: "";
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 3px;
+          background: linear-gradient(180deg, #EA4335 0%, #F39C12 100%);
+          opacity: 0;
+          transition: opacity 180ms ease;
+          z-index: 1;
+        }
+
+        .profile-news-list-item:hover::before {
+          opacity: 1;
+        }
+
+        .profile-news-list .profile-news-list-media {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          aspect-ratio: var(--profile-list-image-ratio, 4 / 3);
+        }
+
+        .profile-news-list .profile-news-list-media img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          object-position: center;
+        }
+
+        .profile-news-list .profile-news-list-title {
+          font-size: var(--web-category-card-title-size, 19px) !important;
+          font-weight: var(--web-category-card-title-weight, 700) !important;
+          line-height: 1.2;
+          overflow-wrap: anywhere;
+        }
+
+        .profile-news-list .profile-news-list-summary {
+          font-size: var(--web-category-card-summary-size, 13px) !important;
+          font-weight: var(--web-category-card-summary-weight, 400) !important;
+          line-height: 1.52;
+          overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 760px) {
+          .profile-news-list .profile-news-list-title {
+            font-size: var(--web-category-card-title-size, 19px) !important;
+          }
+        }
+      `}</style>
+
+      {/* HEADER: Cover with editorial profile strip */}
+      <div className="relative w-full h-48 md:h-56 overflow-hidden rounded-[4px] border border-gray-100 bg-white shadow-sm">
         {userData.cover ? (
-          <img src={userData.cover} className="w-full h-full object-cover" alt={t('user_edit_profile.cover_alt')} />
+          <img
+            src={userData.cover}
+            className="w-full h-full object-cover"
+            alt={t('user_edit_profile.cover_alt')}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+          />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-            <UserIcon className="text-gray-300" size={80} strokeWidth={1.5} />
+          <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+            <UserIcon className="text-gray-300" size={64} strokeWidth={1.5} />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/0 to-black/10" />
 
         {/* Navigation Buttons */}
-        <div className="absolute top-6 left-6 right-6 flex justify-between z-30">
+        <div className="absolute top-5 left-5 right-5 flex justify-between z-30">
           <button
             onClick={onBack}
-            className="p-3 bg-white/90 backdrop-blur-xl rounded-[5px] text-gray-900 hover:bg-white transition-all shadow-2xl hover:scale-105 active:scale-95"
+            className="flex h-10 w-10 items-center justify-center bg-white/90 backdrop-blur-xl rounded-[4px] text-gray-900 hover:bg-white transition-all shadow-sm active:scale-95"
+            aria-label={t('admin.post.go_back')}
           >
-            <ArrowLeft size={20} strokeWidth={2.5} />
+            <ArrowLeft size={18} strokeWidth={2.4} />
           </button>
-          <button className="p-3 bg-white/90 backdrop-blur-xl rounded-[5px] text-gray-900 hover:bg-white transition-all shadow-2xl hover:scale-105 active:scale-95">
-            <Share2 size={20} strokeWidth={2.5} />
+          <button
+            className="flex h-10 w-10 items-center justify-center bg-white/90 backdrop-blur-xl rounded-[4px] text-gray-900 hover:bg-white transition-all shadow-sm active:scale-95"
+            aria-label={t('common.share')}
+          >
+            <Share2 size={18} strokeWidth={2.4} />
           </button>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 relative">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 relative">
 
-        {/* Profile Identity Bar with Modern Card Design */}
-        <div className="flex flex-col md:flex-row items-center md:items-end gap-6 -mt-16 relative z-20 pb-8">
+        {/* Profile Identity Bar */}
+        <div className="grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_auto] items-center gap-4 md:gap-5 -mt-9 relative z-20 mb-8 rounded-[4px] border border-gray-100 bg-white/95 px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
 
-          {/* Avatar with Ring Animation */}
+          {/* Avatar */}
           <div className="relative">
-            <div className="w-36 h-36 rounded-[5px] border-4 border-white shadow-2xl overflow-hidden bg-white">
+            <div className="w-24 h-24 md:w-28 md:h-28 rounded-full border-[3px] border-white shadow-[0_10px_24px_rgba(15,23,42,0.14)] overflow-hidden bg-white">
               {userData.avatar ? (
-                <img src={userData.avatar} className="w-full h-full object-cover" alt={t('user_edit_profile.avatar_alt')} />
+                <img
+                  src={userData.avatar}
+                  className="w-full h-full object-cover"
+                  alt={t('user_edit_profile.avatar_alt')}
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                  <UserIcon className="text-gray-400" size={56} strokeWidth={1.5} />
+                  <UserIcon className="text-gray-400" size={42} strokeWidth={1.5} />
                 </div>
               )}
             </div>
-            {userData.verified && (
-              <div className="absolute -bottom-2 -right-2 bg-blue-500 rounded-full p-2 shadow-lg border-4 border-white">
-                <CheckCircle2 size={20} className="text-white" strokeWidth={3} />
-              </div>
-            )}
           </div>
 
-          <div className="flex-1 text-center md:text-left md:pb-2">
-            <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-              <h1 className={`text-3xl font-bold ${userData.cover ? 'text-white' : 'text-gray-900'}`} style={{ textShadow: userData.cover ? '0 2px 10px rgba(0,0,0,0.5)' : 'none' }}>
+          <div className="min-w-0">
+            <div className="mb-1.5 flex min-w-0 items-center gap-3">
+              <h1 className="truncate text-[22px] md:text-[28px] font-bold leading-tight text-gray-900">
                 {userData.name}
               </h1>
             </div>
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-3 gap-y-1.5 mb-3">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-sm">
               <span className="text-sm font-semibold text-gray-600">{userData.handle}</span>
-              <span className="w-1.5 h-1.5 bg-gray-300 rounded-full hidden md:inline" />
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">
-                <Sparkles size={12} />
+              <span className="hidden h-1 w-1 rounded-full bg-gray-300 md:inline-block" />
+              <span className="inline-flex items-center rounded-full border border-palette-red/15 bg-palette-red/5 px-2.5 py-1 text-xs font-semibold text-palette-red">
                 {userData.category}
               </span>
-            </div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-[5px]">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              {t('user_profile.online')}
+              <span className="hidden h-1 w-1 rounded-full bg-gray-300 md:inline-block" />
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-palette-accent">
+                <span className="h-1.5 w-1.5 rounded-full bg-palette-accent" />
+                {t('user_profile.online')}
+              </span>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="md:pb-2">
-            {isOwnProfile ? (
+          <div className="col-span-2 justify-self-start md:col-span-1 md:justify-self-end">
+            {!isProfileActionReady ? (
+              <div className="h-10 min-w-[118px] rounded-[4px] border border-gray-100 bg-gray-100/90 shadow-sm" aria-hidden="true" />
+            ) : isOwnProfile ? (
               <button
                 onClick={onEditClick}
-                className="px-5 py-2 bg-gray-900 text-white rounded-[5px] font-semibold text-xs transition-all hover:bg-gray-800 shadow-md hover:shadow-lg active:scale-95"
+                className="h-10 rounded-[4px] bg-gray-900 px-4 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(15,23,42,0.16)] transition-all hover:bg-gray-800 active:scale-95"
               >
                 {t('user_profile.edit_profile')}
               </button>
             ) : (
               <button
                 onClick={() => setIsFollowing(!isFollowing)}
-                className={`px-8 py-3.5 rounded-[5px] font-bold text-sm transition-all active:scale-95 shadow-lg hover:shadow-xl ${isFollowing
-                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  : 'bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600'
+                className={`h-10 min-w-[108px] rounded-[4px] px-4 text-xs font-semibold transition-all active:scale-95 ${isFollowing
+                  ? 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  : 'bg-palette-accent text-white shadow-[0_8px_20px_rgba(243,156,18,0.24)] hover:bg-[#e08d0c]'
                   }`}
               >
                 {isFollowing ? t('common.following') : t('common.follow')}
@@ -339,36 +600,36 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
               <div className="p-2 bg-blue-50 rounded-[5px]">
                 <FileText size={20} className="text-blue-600" strokeWidth={2} />
               </div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('user_profile.stats.news')}</p>
+              <p className="text-xs font-semibold text-gray-500 tracking-normal">{t('user_profile.stats.news')}</p>
             </div>
             <p className="text-2xl font-bold text-gray-900">{userData.postsCount}</p>
           </div>
           <div className="bg-white rounded-[5px] p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-50 rounded-[5px]">
-                <Users size={20} className="text-purple-600" strokeWidth={2} />
+              <div className="p-2 bg-palette-accent/10 rounded-[5px]">
+                <Users size={20} className="text-palette-accent" strokeWidth={2} />
               </div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('users_list.followers')}</p>
+              <p className="text-xs font-semibold text-gray-500 tracking-normal">{t('users_list.followers')}</p>
             </div>
             <p className="text-2xl font-bold text-gray-900">{userData.followers}</p>
           </div>
           <div className="bg-white rounded-[5px] p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-emerald-50 rounded-[5px]">
-                <Users size={20} className="text-emerald-600" strokeWidth={2} />
+              <div className="p-2 bg-palette-red/5 rounded-[5px]">
+                <Users size={20} className="text-palette-red" strokeWidth={2} />
               </div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('user_profile.stats.following')}</p>
+              <p className="text-xs font-semibold text-gray-500 tracking-normal">{t('user_profile.stats.following')}</p>
             </div>
             <p className="text-2xl font-bold text-gray-900">{userData.following || '0'}</p>
           </div>
           <div className="bg-white rounded-[5px] p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-pink-50 rounded-[5px]">
-                <Calendar size={20} className="text-pink-600" strokeWidth={2} />
+              <div className="p-2 bg-gray-100 rounded-[5px]">
+                <Calendar size={20} className="text-gray-600" strokeWidth={2} />
               </div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('user_profile.stats.joined')}</p>
+              <p className="text-xs font-semibold text-gray-500 tracking-normal">{t('user_profile.stats.joined')}</p>
             </div>
-            <p className="text-sm font-semibold text-gray-700">{userData.joinedDate?.split(' ')[2] || '-'}</p>
+            <p className="text-sm font-semibold text-gray-700">{userData.joinedYear || '-'}</p>
           </div>
         </div>
 
@@ -389,7 +650,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
                 {userData.joinedDate && (
                   <div className="flex items-center gap-3 text-sm text-gray-600">
                     <Calendar size={16} className="text-gray-400" strokeWidth={2} />
-                    <span>{t('user_profile.joined_date').replace('{date}', userData.joinedDate)}</span>
+                    <span>
+                      <span className="font-semibold text-gray-700">{t('user_profile.joined_date')}:</span>{' '}
+                      {userData.joinedDate}
+                    </span>
                   </div>
                 )}
                 {userData.email && (
@@ -405,68 +669,33 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
             <div className="bg-white rounded-[5px] p-6 shadow-sm border border-gray-100">
               <h3 className="text-sm font-bold text-gray-900 mb-4">{t('user_profile.social_links_title')}</h3>
               <div className="flex flex-wrap gap-2">
-                {['facebook', 'twitter', 'instagram', 'tiktok', 'youtube', 'discord', 'linkedin'].map((key) => {
-                  const link = userData.social_links[key];
-                  if (!link) return null;
-                  return (
-                    <a
-                      key={key}
-                      href={link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 min-w-[40px] h-11 rounded-[5px] bg-gray-50 text-gray-600 flex items-center justify-center hover:bg-gradient-to-br hover:from-palette-red hover:to-red-600 hover:text-white transition-all hover:shadow-md hover:scale-105 active:scale-95"
-                    >
-                      <Globe size={18} strokeWidth={2} />
-                    </a>
-                  );
-                })}
-                {userData.social_links.personal_website_url && (
+                {socialEntries.length > 0 ? socialEntries.map((entry) => (
                   <a
-                    href={userData.social_links.personal_website_url}
+                    key={entry.key}
+                    href={entry.href}
                     target="_blank"
                     rel="noopener noreferrer"
+                    aria-label={entry.key}
                     className="flex-1 min-w-[40px] h-11 rounded-[5px] bg-gray-50 text-gray-600 flex items-center justify-center hover:bg-gradient-to-br hover:from-palette-red hover:to-red-600 hover:text-white transition-all hover:shadow-md hover:scale-105 active:scale-95"
                   >
-                    <LinkIcon size={18} strokeWidth={2} />
+                    {entry.key === 'website' ? <LinkIcon size={18} strokeWidth={2} /> : <Globe size={18} strokeWidth={2} />}
                   </a>
+                )) : (
+                  <p className="text-xs font-semibold text-gray-400">{t('user_profile.about_empty')}</p>
                 )}
               </div>
             </div>
 
             {/* Following Preview Card */}
             <div className="bg-white rounded-[5px] p-6 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-900 mb-4">Takip Edilen (12)</h3>
-              <div className="flex -space-x-3">
-                {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-10 h-10 rounded-full border-3 border-white shadow-md overflow-hidden bg-gray-100 hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    <img src={`https://picsum.photos/seed/p${i}/100`} className="w-full h-full object-cover" alt="" />
-                  </div>
-                ))}
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-3 border-white flex items-center justify-center text-xs font-bold text-gray-600 shadow-md hover:scale-110 transition-transform cursor-pointer">
-                  +7
-                </div>
-              </div>
+              <h3 className="text-sm font-bold text-gray-900 mb-4">Takip Edilen ({userData.following})</h3>
+              {renderProfileStack(userData.followingProfiles || [], userData.followingCount || 0, 'Henüz takip edilen yok')}
             </div>
 
             {/* Followers Preview Card */}
             <div className="bg-white rounded-[5px] p-6 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-900 mb-4">{t('user_profile.followers_title').replace('{count}', userData.followers)}</h3>
-              <div className="flex -space-x-3">
-                {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-10 h-10 rounded-full border-3 border-white shadow-md overflow-hidden bg-gray-100 hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    <img src={`https://picsum.photos/seed/f${i}/100`} className="w-full h-full object-cover" alt="" />
-                  </div>
-                ))}
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-3 border-white flex items-center justify-center text-xs font-bold text-gray-600 shadow-md hover:scale-110 transition-transform cursor-pointer">
-                  +5
-                </div>
-              </div>
+              <h3 className="text-sm font-bold text-gray-900 mb-4">{t('user_profile.followers_title')} ({userData.followers})</h3>
+              {renderProfileStack(userData.followerProfiles || [], userData.followersCount || 0, 'Henüz takipçi yok')}
             </div>
 
           </div>
@@ -474,61 +703,80 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
           {/* Right Column: News */}
           <div className="col-span-12 md:col-span-8 lg:col-span-9">
 
-            {/* News Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* News List */}
+            <div className="profile-news-list grid grid-cols-1 gap-4">
               {userNews.length > 0 ? (
-                userNews.map((news) => (
-                  <div
-                    key={news.id}
-                    className="group cursor-pointer bg-white rounded-[5px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    onClick={() => onNewsSelect(news.id)}
-                  >
-                    <div className="relative aspect-video overflow-hidden bg-gray-100">
-                      <img
-                        src={news.thumbnail}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                        alt={news.title}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-gradient-to-r from-palette-red to-red-600 text-white text-[10px] font-bold rounded-[5px] shadow-lg">
-                        {news.category}
-                      </div>
-                    </div>
-                    <div className="p-5">
-                      <h3 className="news-title-font text-lg font-bold text-gray-900 leading-snug mb-2 group-hover:text-palette-red transition-colors line-clamp-2">
-                        {news.title}
-                      </h3>
-                      {news.summary && (
-                        <p className="news-subtitle-font text-sm text-gray-600 leading-relaxed mb-3 line-clamp-2">
-                          {news.summary}
-                        </p>
+                userNews.map((news) => {
+                  const image = news.thumbnail || news.mediaUrl;
+                  const title = normalizeStoredPlainText(news.seoTitle || news.title);
+                  const summary = normalizeStoredPlainText(news.summary || news.seoDescription);
+                  const publishedAt = formatPostDateParts(news.timestamp, langCode);
+                  const imageAspectRatio = Number((news as any).imageAspectRatio || 0);
+                  const imageFrameStyle = imageAspectRatio > 0
+                    ? { '--profile-list-image-ratio': `${imageAspectRatio}` } as React.CSSProperties
+                    : undefined;
+
+                  return (
+                    <button
+                      key={news.id}
+                      type="button"
+                      onClick={() => onNewsSelect(news.id)}
+                      className={`profile-news-list-item group grid grid-cols-1 ${image ? 'sm:grid-cols-[150px_minmax(0,1fr)] lg:grid-cols-[156px_minmax(0,1fr)]' : 'sm:grid-cols-1'} items-center overflow-hidden rounded-[4px] border border-gray-100 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-palette-accent/20 hover:shadow-md active:scale-[0.995]`}
+                    >
+                      {image && (
+                        <div className="profile-news-list-media overflow-hidden bg-gray-50 sm:self-center" style={imageFrameStyle}>
+                          <img
+                            src={image}
+                            className="h-full w-full object-contain"
+                            alt={news.thumbnailAlt || title}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </div>
                       )}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 text-xs font-semibold text-gray-500">
-                          <span>{news.author}</span>
-                          <span className="w-1 h-1 bg-gray-300 rounded-full" />
-                          <span>{news.timestamp}</span>
+                      <div className="flex min-w-0 flex-col justify-between p-4 sm:min-h-[118px] md:p-4">
+                        <div className="min-w-0">
+                          <h3 className="profile-news-list-title news-title-font text-gray-800 tracking-normal transition-colors group-hover:text-palette-red">
+                            {title}
+                          </h3>
+                          {summary && (
+                            <p className="profile-news-list-summary news-subtitle-font mt-2 text-gray-600">
+                              {summary}
+                            </p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Eye size={14} strokeWidth={2} />
-                            <span className="font-semibold">{news.views || 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <MessageSquare size={14} strokeWidth={2} />
-                            <span className="font-semibold">{news.comments || 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Heart size={14} strokeWidth={2} />
-                            <span className="font-semibold">{news.likes || 0}</span>
-                          </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-palette-beige/20 pt-2.5 text-[11px] font-semibold text-palette-tan/45">
+                          {publishedAt.date && (
+                            <span className="inline-flex min-w-0 items-center gap-1.5 normal-case tracking-normal">
+                              <Calendar size={13} className="opacity-80" strokeWidth={2} />
+                              <time dateTime={publishedAt.iso || undefined}>{publishedAt.date}</time>
+                            </span>
+                          )}
+                          {publishedAt.time && (
+                            <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
+                              <span className="h-1 w-1 rounded-full bg-current opacity-50" />
+                              <time dateTime={publishedAt.iso || undefined}>{publishedAt.time}</time>
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1.5">
+                            <Eye size={13} className="opacity-80" strokeWidth={2} />
+                            <span>{formatCount(news.views, langCode)}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <MessageSquare size={13} className="opacity-80" strokeWidth={2} />
+                            <span>{formatCount(news.comments, langCode)}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Heart size={13} className="opacity-80" strokeWidth={2} />
+                            <span>{formatCount(news.likes, langCode)}</span>
+                          </span>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))
+                    </button>
+                  );
+                })
               ) : (
-                <div className="col-span-2 text-center py-20 bg-white rounded-[5px] border-2 border-dashed border-gray-200">
+                <div className="text-center py-20 bg-white rounded-[5px] border-2 border-dashed border-gray-200">
                   <div className="w-16 h-16 bg-gray-100 rounded-[5px] flex items-center justify-center mx-auto mb-4">
                     <FileText size={32} className="text-gray-400" strokeWidth={1.5} />
                   </div>

@@ -477,13 +477,16 @@ const Navbar: React.FC<NavbarProps> = ({
                       onProfileClick?.();
                     }
                   }}
-                  className={`flex items-center justify-center w-11 h-11 rounded-full transition-all duration-200 group/profile active:scale-95 ${isLoggedIn
+                  className={`flex items-center justify-center rounded-full transition-all duration-200 group/profile active:scale-95 ${isLoggedIn
+                    ? 'w-12 h-12'
+                    : 'w-11 h-11'
+                    } ${isLoggedIn
                     ? 'bg-palette-beige/5 border border-palette-beige/20 hover:border-palette-tan/30'
                     : 'hover:bg-palette-beige/10'
                     }`}
                 >
                   <div className={`flex items-center justify-center transition-all duration-150 ${isLoggedIn
-                    ? 'w-9 h-9 rounded-full bg-white p-[2px] border border-palette-beige/70 overflow-hidden shadow-[0_6px_18px_rgba(24,37,64,0.07)]'
+                    ? 'w-10 h-10 rounded-full bg-white p-[2px] border border-palette-beige/70 overflow-hidden shadow-[0_6px_18px_rgba(24,37,64,0.07)]'
                     : 'w-7 h-7'
                     }`}>
                     {isLoggedIn ? (
@@ -549,12 +552,20 @@ const Navbar: React.FC<NavbarProps> = ({
                     <p className="text-[11px] font-black text-gray-900 truncate">
                       {user?.user_metadata?.full_name || user?.email?.split('@')[0]}
                     </p>
-                    <p className="text-[9px] font-bold text-palette-tan/60 truncate uppercase tracking-tighter">
-                      {user?.email}
+                    <p className="text-[9px] font-bold text-palette-tan/60 truncate tracking-tighter">
+                      {String(user?.email || '').toLowerCase()}
                     </p>
                   </div>
 
                   <div className="px-1.5 space-y-0.5">
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group"
+                    >
+                      <RemixIcon name="ri-dashboard-line" size={20} className="opacity-60 group-hover:opacity-100" />
+                      <span className="text-[12px] font-bold tracking-tight">{t('navbar.admin_panel')}</span>
+                    </button>
+
                     {onProfileViewClick && (
                       <button
                         onClick={() => { onProfileViewClick(); setShowUserMenu(false); }}

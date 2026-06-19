@@ -1662,6 +1662,8 @@ const mapFeedItem = (
     isPinned?: boolean;
     publisherId?: string;
     publisherHandle?: string;
+    publisherBio?: string;
+    publisherExpertise?: string;
     isOfficial?: boolean;
     isVerified?: boolean;
     region?: string;
@@ -1859,6 +1861,8 @@ const mapFeedItem = (
     readMinutes: calculateReadingMinutes(item),
     publisherId: String(raw.publisherId || ""),
     publisherHandle: String(raw.publisherHandle || ""),
+    publisherBio: String(raw.publisherBio || ""),
+    publisherExpertise: String(raw.publisherExpertise || ""),
     isPinned: raw.isPinned === true,
     isManset: item.isManset === true,
     isOfficial: raw.isOfficial === true,

@@ -234,7 +234,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ siteSettings, pages }) => {
 
           {pageGroups.corporate.length > 0 && (
             <section data-footer-reveal>
-              <h2 className="mb-4 flex items-center gap-2 text-[12px] font-black uppercase tracking-normal text-gray-950">
+              <h2 className="mb-4 flex items-center gap-2 text-[12px] font-extrabold tracking-normal text-gray-950">
                 <span className="h-3.5 w-1 rounded-full bg-palette-red" aria-hidden="true"></span>
                 Kurumsal
               </h2>
@@ -244,7 +244,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ siteSettings, pages }) => {
 
           {pageGroups.legal.length > 0 && (
             <section data-footer-reveal>
-              <h2 className="mb-4 flex items-center gap-2 text-[12px] font-black uppercase tracking-normal text-gray-950">
+              <h2 className="mb-4 flex items-center gap-2 text-[12px] font-extrabold tracking-normal text-gray-950">
                 <span className="h-3.5 w-1 rounded-full bg-palette-accent" aria-hidden="true"></span>
                 Yasal
               </h2>
@@ -253,7 +253,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ siteSettings, pages }) => {
           )}
 
           <section data-footer-reveal>
-            <h2 className="mb-4 flex items-center gap-2 text-[12px] font-black uppercase tracking-normal text-gray-950">
+            <h2 className="mb-4 flex items-center gap-2 text-[12px] font-extrabold tracking-normal text-gray-950">
               <span className="h-3.5 w-1 rounded-full bg-palette-maroon" aria-hidden="true"></span>
               İletişim
             </h2>
@@ -303,7 +303,7 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ siteSettings, pages }) => {
             {pageGroups.contact && (
               <a
                 href={pageHref(pageGroups.contact.slug)}
-                className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-[5px] bg-palette-red px-4 text-[12px] font-black uppercase tracking-normal text-white shadow-[0_12px_28px_rgba(234,67,53,0.18)] transition-all hover:-translate-y-0.5 hover:bg-red-600"
+                className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-[5px] bg-palette-red px-4 text-[12px] font-bold tracking-normal text-white shadow-[0_12px_28px_rgba(234,67,53,0.18)] transition-all hover:-translate-y-0.5 hover:bg-red-600"
               >
                 <span>{pageGroups.contact.label}</span>
                 <RemixIcon name="ri-arrow-right-s-line" size={15} />

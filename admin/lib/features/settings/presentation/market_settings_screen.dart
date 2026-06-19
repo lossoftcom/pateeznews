@@ -68,11 +68,9 @@ class _MarketSettingsScreenState extends State<MarketSettingsScreen> {
     });
     try {
       final settings = await widget.repository.fetchMarketSettings('tr');
-      final preview = await widget.repository.fetchMarketPreview();
       if (!mounted) return;
       setState(() {
         _settings = settings;
-        _preview = preview;
         _applyControllers(settings);
         _loading = false;
       });
@@ -82,33 +80,53 @@ class _MarketSettingsScreenState extends State<MarketSettingsScreen> {
         _error = error.toString();
         _loading = false;
       });
+      return;
+    }
+    // Canlı önizleme, ayar formundan BAĞIMSIZ yüklenir: piyasa servisi yavaş ya
+    // da erişilemez olsa bile ayarlar düzenlenebilir/kaydedilebilir kalır.
+    // Önizleme başarısız olursa yalnızca önizleme sekmesi boş kalır; orada zaten
+    // "tekrar dene" sunan hata kutusu var.
+    unawaited(_loadPreview());
+  }
+
+  Future<void> _loadPreview({bool forceRefresh = false}) async {
+    try {
+      final preview = await widget.repository.fetchMarketPreview(
+        forceRefresh: forceRefresh,
+      );
+      if (!mounted) return;
+      setState(() => _preview = preview);
+    } catch (_) {
+      // Önizleme alınamadı (servis yavaş/erişilemez). Ayar ekranı bozulmaz;
+      // önizleme sekmesi boş kalır ve kullanıcı "Veriyi Yenile" ile tekrar dener.
     }
   }
 
   Future<void> _save() async {
     if (_saving) return;
     setState(() => _saving = true);
+    final MarketSettingsData saved;
     try {
-      final saved = await widget.repository.saveMarketSettings(
+      saved = await widget.repository.saveMarketSettings(
         session: widget.session,
         settings: _settingsFromForm(),
       );
-      final preview = await widget.repository.fetchMarketPreview(
-        forceRefresh: true,
-      );
-      if (!mounted) return;
-      setState(() {
-        _settings = saved;
-        _preview = preview;
-        _applyControllers(saved);
-        _saving = false;
-      });
-      _showMessage('Piyasa ayarları kaydedildi');
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
       _showMessage('Piyasa ayarları kaydedilemedi: $error');
+      return;
     }
+    if (!mounted) return;
+    setState(() {
+      _settings = saved;
+      _applyControllers(saved);
+      _saving = false;
+    });
+    _showMessage('Piyasa ayarları kaydedildi');
+    // Kaydetme başarılı; canlı önizlemeyi tazelemeyi dene ama önizleme uzak
+    // servise bağlı olduğu için takılırsa kaydetmeyi başarısız gösterme.
+    unawaited(_loadPreview(forceRefresh: true));
   }
 
   Future<void> _refreshPreview() async {

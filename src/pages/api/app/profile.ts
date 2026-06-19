@@ -57,6 +57,10 @@ function cleanUsername(value: unknown) {
   return cleanText(value).replace(/^@+/, '');
 }
 
+function cleanPhone(value: unknown) {
+  return cleanText(value).replace(/[^\d+]/g, '').slice(0, 40);
+}
+
 function cleanUuid(value: unknown) {
   const text = cleanText(value);
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
@@ -177,30 +181,42 @@ export async function loadProfile(client: any, userId: string, origin: string, v
   if (!profile) return null;
 
   const [
-    postsCount,
-    followerCount,
-    followingCount,
+    profileStats,
     followerAvatars,
     followingAvatars,
-    likedPostsCount,
-    commentsWrittenCount,
     viewerFollow,
     postRows,
   ] = await Promise.all([
     client.query(
-      `SELECT COUNT(*)::int AS count
-         FROM public.posts
-        WHERE publisher_id = $1::uuid
-          AND status = 'published'
-          AND (published_at <= now() OR published_at IS NULL)`,
-      [userId],
-    ),
-    client.query(
-      'SELECT COUNT(*)::int AS count FROM public.publisher_follows WHERE publisher_id = $1::uuid',
-      [userId],
-    ),
-    client.query(
-      'SELECT COUNT(*)::int AS count FROM public.publisher_follows WHERE user_id = $1::uuid',
+      `SELECT
+          (
+            SELECT COUNT(*)::int
+              FROM public.posts
+             WHERE publisher_id = $1::uuid
+               AND status = 'published'
+               AND (published_at <= now() OR published_at IS NULL)
+          ) AS posts,
+          (
+            SELECT COUNT(*)::int
+              FROM public.publisher_follows
+             WHERE publisher_id = $1::uuid
+          ) AS followers,
+          (
+            SELECT COUNT(*)::int
+              FROM public.publisher_follows
+             WHERE user_id = $1::uuid
+          ) AS following,
+          (
+            SELECT COUNT(*)::int
+              FROM public.post_likes
+             WHERE user_id = $1::uuid
+          ) AS liked_posts,
+          (
+            SELECT COUNT(*)::int
+              FROM public.comments
+             WHERE user_id = $1::uuid
+               AND status = 'approved'
+          ) AS comments`,
       [userId],
     ),
     client.query(
@@ -219,17 +235,6 @@ export async function loadProfile(client: any, userId: string, origin: string, v
         WHERE f.user_id = $1::uuid
         ORDER BY f.created_at DESC NULLS LAST
        LIMIT 5`,
-      [userId],
-    ),
-    client.query(
-      'SELECT COUNT(*)::int AS count FROM public.post_likes WHERE user_id = $1::uuid',
-      [userId],
-    ),
-    client.query(
-      `SELECT COUNT(*)::int AS count
-         FROM public.comments
-        WHERE user_id = $1::uuid
-          AND status = 'approved'`,
       [userId],
     ),
     viewerId && viewerId !== userId
@@ -260,17 +265,18 @@ export async function loadProfile(client: any, userId: string, origin: string, v
 
   const newsItems = postRows.rows.map((row: any) => dataService.mapPost(row));
   const posts = await mapAppFeedItems(newsItems, origin, viewerId);
+  const statsRow = profileStats.rows[0] || {};
 
   return {
     ...profile,
     is_own_profile: Boolean(viewerId && viewerId === userId),
     viewer_following: viewerFollow.rows[0]?.following === true,
     stats: {
-      posts: Number(postsCount.rows[0]?.count || 0),
-      followers: Number(followerCount.rows[0]?.count || 0),
-      following: Number(followingCount.rows[0]?.count || 0),
-      liked_posts: Number(likedPostsCount.rows[0]?.count || 0),
-      comments: Number(commentsWrittenCount.rows[0]?.count || 0),
+      posts: Number(statsRow.posts || 0),
+      followers: Number(statsRow.followers || 0),
+      following: Number(statsRow.following || 0),
+      liked_posts: Number(statsRow.liked_posts || 0),
+      comments: Number(statsRow.comments || 0),
     },
     follower_avatars: followerAvatars.rows.map((row: any) => row.avatar_url).filter(Boolean),
     following_avatars: followingAvatars.rows.map((row: any) => row.avatar_url).filter(Boolean),
@@ -318,7 +324,7 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const action = cleanText(body.action);
-    if (action !== 'update-profile') {
+    if (action !== 'update-profile' && action !== 'check-profile-fields') {
       return json({ error: { message: 'Unsupported profile action' } }, 400);
     }
 
@@ -326,6 +332,47 @@ export const POST: APIRoute = async ({ request }) => {
     if (!session?.user?.id) return json({ error: { message: 'Auth required' } }, 401);
 
     const userId = session.user.id;
+
+    if (action === 'check-profile-fields') {
+      const username = cleanUsername(body.username).slice(0, 80);
+      const email = cleanEmail(body.email);
+      const phone = cleanPhone(body.phone);
+      const conflicts = await withTransaction(async (client) => {
+        const result = await client.query(
+          `SELECT
+              EXISTS(
+                SELECT 1
+                  FROM public.profiles
+                 WHERE id <> $1::uuid
+                   AND $2 <> ''
+                   AND lower(username) = lower($2)
+              ) AS username,
+              EXISTS(
+                SELECT 1
+                  FROM public.profiles
+                 WHERE id <> $1::uuid
+                   AND $3 <> ''
+                   AND lower(email) = lower($3)
+              ) AS email,
+              EXISTS(
+                SELECT 1
+                  FROM public.profiles
+                 WHERE id <> $1::uuid
+                   AND $4 <> ''
+                   AND regexp_replace(COALESCE(phone, ''), '[^0-9+]', '', 'g') = $4
+              ) AS phone`,
+          [userId, username, email, phone],
+        );
+        const row = result.rows[0] || {};
+        return {
+          username: row.username === true,
+          email: row.email === true,
+          phone: row.phone === true,
+        };
+      });
+      return json({ ok: true, conflicts });
+    }
+
     const fullName = cleanText(body.fullName || body.full_name).slice(0, 160);
     const username = cleanUsername(body.username).slice(0, 80);
     const email = cleanEmail(body.email);

@@ -193,6 +193,8 @@ class HomeRepository {
         name: source,
         avatarUrl: _str(json['sourceAvatar']),
         handle: _nullableStr(json['publisherHandle']),
+        bio: _str(json['publisherBio']),
+        expertise: _str(json['publisherExpertise']),
         isVerified: _bool(json['isVerified']),
         isOfficial: _bool(json['isOfficial']),
       ),

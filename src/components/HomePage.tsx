@@ -23,6 +23,11 @@ const NORMAL_CATEGORY_LABELS: Record<string, string> = {
     spor: 'Spor',
 };
 
+const isOpinionCategorySlug = (value: unknown) => {
+    const slug = slugify(String(value || '').trim());
+    return slug === 'kose-yazisi' || slug === 'kose-yazilari' || slug === 'opinion';
+};
+
 interface HomePageProps {
     initialLang: any;
     initialTranslations: Record<string, string>;
@@ -174,6 +179,10 @@ const HomePage: React.FC<HomePageProps> = ({
 
         const applySpecialFilter = (value?: string | null) => {
             const rawValue = value ?? new URLSearchParams(window.location.search).get('kategori');
+            if (isOpinionCategorySlug(rawValue)) {
+                void navigateImmediately('/kategori/kose-yazisi');
+                return;
+            }
             const specialContent = getSpecialContentConfig(rawValue);
             if (!specialContent) return;
             setActiveView('feed');

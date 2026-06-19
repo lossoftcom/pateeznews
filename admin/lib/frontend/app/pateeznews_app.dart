@@ -17,6 +17,7 @@ import '../core/theme/app_typography.dart';
 import '../core/theme/frontend_font_settings.dart';
 import '../features/account/data/frontend_auth_repository.dart';
 import '../features/announcements/data/announcements_repository.dart';
+import '../features/category/data/category_repository.dart';
 import '../features/etkinlik/data/etkinlik_mock.dart';
 import '../features/etkinlik/data/etkinlik_repository.dart';
 import '../features/home/data/home_repository.dart';
@@ -44,6 +45,7 @@ class PateeznewsApp extends StatefulWidget {
     this.prayerTimesRepository = const PrayerTimesRepository(),
     this.etkinlikRepository = const EtkinlikRepository(),
     this.announcementsRepository = const AnnouncementsRepository(),
+    this.categoryRepository = const CategoryRepository(),
     this.homeRepository = const HomeRepository(),
     this.authRepository = const FrontendAuthRepository(),
     this.profileRepository = const ProfileRepository(),
@@ -61,6 +63,7 @@ class PateeznewsApp extends StatefulWidget {
   final PrayerTimesRepository prayerTimesRepository;
   final EtkinlikRepository etkinlikRepository;
   final AnnouncementsRepository announcementsRepository;
+  final CategoryRepository categoryRepository;
   final HomeRepository homeRepository;
   final FrontendAuthRepository authRepository;
   final ProfileRepository profileRepository;
@@ -85,6 +88,9 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   var _contentSettings = const HomeContentSettings.defaults();
   List<FeaturedNews> _featuredItems = const [];
   List<NewsArticle> _homeFeedItems = const [];
+  List<NewsArticle> _opinionItems = const [];
+  int _opinionTotal = 0;
+  int _opinionTotalViews = 0;
   FrontendAuthState? _authState;
   ProfileData? _profileData;
   var _authLoading = true;
@@ -96,10 +102,6 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   /// Splash en az bu kadar görünür kalır (animasyon okunabilsin). Yüklemeler
   /// bundan önce biterse aradaki fark kadar beklenir.
   static const _minSplash = Duration(milliseconds: 700);
-
-  /// Ağ yavaşsa splash en fazla bu kadar bekler, sonra güvenli fallback'lerle
-  /// asıl ekrana geçilir. Repo timeout'ları ayrıca devrededir.
-  static const _maxSplash = Duration(milliseconds: 3000);
 
   @override
   void initState() {
@@ -117,27 +119,32 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     super.dispose();
   }
 
-  /// Açılış akışı yalnızca ilk ekran için kritik verileri bekler. Yan widget
-  /// verileri shell açıldıktan sonra yüklenir; bu, manşet/home görselleriyle
-  /// aynı anda yarışan gereksiz istekleri azaltır.
+  /// Açılış akışı Shell açılmadan önce home ve uygulama verilerini doldurur.
+  /// Repo timeout'ları her isteği kendi içinde sınırlar; Shell boş initialData
+  /// ile açılmaz.
   Future<void> _bootstrap() async {
     final started = DateTime.now();
 
     // Diskteki son feed'i anında göster (ağ beklemeden). Ağ verisi gelince
     // güncellenir; gelmezse kullanıcı boş ekran yerine son haberleri görür.
-    unawaited(_loadCachedHomeSnapshot());
-
     try {
       await Future.wait([
+        _loadCachedHomeSnapshot(),
         _loadFontSettings(),
         _loadShellData(),
         // Home isteği _restoreAuthState içinde, oturum/token belli olduktan
         // sonra TEK kez atılır (anonimse anında, girişliyse doğru token ile).
         _restoreAuthState(),
-      ]).timeout(_maxSplash);
+      ]);
     } catch (_) {
-      // Timeout ya da bir yükleme hatası olsa da açılışı bloklamayız; ilgili
-      // repo'lar güvenli boş değere düşer.
+      // İlgili repo'lar güvenli boş değere düşer; kalan startup verileri yine
+      // denenir.
+    }
+
+    try {
+      await _loadSecondaryStartupData();
+    } catch (_) {
+      // Uygulama modülü verileri repo fallback'leriyle çalışmaya devam eder.
     }
 
     final elapsed = DateTime.now().difference(started);
@@ -147,11 +154,10 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
 
     if (!mounted) return;
     setState(() => _ready = true);
-    unawaited(_loadSecondaryStartupData());
   }
 
-  /// Diskteki son başarılı home anlık görüntüsünü (snapshot) açılışta hemen
-  /// gösterir. Ağ verisi henüz gelmediyse devreye girer; geldiyse dokunmaz.
+  /// Diskteki son başarılı home anlık görüntüsünü (snapshot) açılışta gösterir.
+  /// Ağ verisi henüz gelmediyse devreye girer; geldiyse dokunmaz.
   Future<void> _loadCachedHomeSnapshot() async {
     final cached = await widget.homeRepository.loadCachedHome();
     if (cached == null || !mounted) return;
@@ -173,9 +179,10 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
         _loadPrayerTimesData(),
         _loadEventData(),
         _loadAnnouncementData(),
+        _loadOpinionData(),
       ]);
     } catch (_) {
-      // Yan widget verileri boş fallback ile çalışmaya devam eder.
+      // Uygulama verileri boş fallback ile çalışmaya devam eder.
     }
   }
 
@@ -232,6 +239,29 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     final data = await widget.announcementsRepository.fetch();
     if (!mounted) return;
     setState(() => _announcementData = data);
+  }
+
+  Future<void> _loadOpinionData() async {
+    final token = _authState?.session.accessToken.trim() ?? '';
+    final data = await widget.categoryRepository.fetchCategory(
+      category: 'Köşe Yazısı',
+      type: 'category',
+      value: 'kose-yazisi',
+      limit: _contentSettings.homePageSize,
+      token: token.isEmpty ? null : token,
+    );
+    if (!mounted) return;
+    setState(() {
+      _opinionItems = data.items;
+      _opinionTotal = data.total > 0 ? data.total : data.items.length;
+      _opinionTotalViews = data.totalViews > 0
+          ? data.totalViews
+          : data.items.fold<int>(0, (sum, article) => sum + article.views);
+    });
+  }
+
+  Future<void> _refreshHomeData() async {
+    await Future.wait([_loadHomeData(), _loadOpinionData()]);
   }
 
   Future<void> _loadHomeData() async {
@@ -330,8 +360,8 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
 
     // Home isteği burada TEK kez atılır: anonimse token'sız, girişliyse doğru
     // token ile. Eski akıştaki anonim + girişli çift istek böylece kalkar.
-    unawaited(_loadHomeData());
     unawaited(_syncPushNotifications(authState));
+    await _loadHomeData();
 
     // Giriş varsa profili arka planda tazele (home'u bloklamaz).
     if (authState != null) {
@@ -368,6 +398,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
       setState(() => _authState = authState);
       unawaited(_refreshProfileData(authState));
       unawaited(_loadHomeData());
+      unawaited(_loadOpinionData());
       unawaited(_syncPushNotifications(authState));
     }
     return authState;
@@ -391,6 +422,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
       setState(() => _authState = authState);
       unawaited(_refreshProfileData(authState));
       unawaited(_loadHomeData());
+      unawaited(_loadOpinionData());
       unawaited(_syncPushNotifications(authState));
     }
     return authState;
@@ -407,6 +439,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
       setState(() => _authState = authState);
       unawaited(_refreshProfileData(authState));
       unawaited(_loadHomeData());
+      unawaited(_loadOpinionData());
       unawaited(_syncPushNotifications(authState));
     }
     return authState;
@@ -444,6 +477,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
       _profileData = null;
     });
     unawaited(_loadHomeData());
+    unawaited(_loadOpinionData());
   }
 
   Future<void> _syncPushNotifications(FrontendAuthState? authState) {
@@ -526,7 +560,10 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
                 contentSettings: _contentSettings,
                 featuredItems: _featuredItems,
                 homeFeedItems: _homeFeedItems,
-                onRefreshHome: _loadHomeData,
+                opinionItems: _opinionItems,
+                opinionTotal: _opinionTotal,
+                opinionTotalViews: _opinionTotalViews,
+                onRefreshHome: _refreshHomeData,
                 authState: _authState,
                 profileData: _profileData,
                 profileRepository: widget.profileRepository,

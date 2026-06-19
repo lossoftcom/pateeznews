@@ -7,8 +7,8 @@ import { supabase } from '@/lib/supabase';
 import { navigateImmediately } from '@/utils/immediateNavigation';
 // import Navbar from '@/components/Navbar'; // Removed - Global
 import Login from '@/components/auth/Login';
-import MainLoading from '@/components/MainLoading';
 import UserEditProfile from '@/components/UserEditProfile';
+import ProfilePageLayout from '@/components/ProfilePageLayout';
 
 interface ProfileEditAppProps {
   initialLang: any;
@@ -50,21 +50,17 @@ const ProfileEditApp: React.FC<ProfileEditAppProps> = ({ initialLang, initialTra
     <LanguageProvider initialLang={initialLang} initialTranslations={initialTranslations}>
       <ToastProvider>
 
-        <main className="max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
-          <section className="flex-1 min-w-0 pb-10 flex justify-center w-full">
-            <div className="w-full">
-              {loading ? (
-                <div className="h-40" />
-              ) : user ? (
-                <UserEditProfile
-                  userId={user.id}
-                  name={profileName}
-                  onBack={goProfile}
-                />
-              ) : null}
-            </div>
-          </section>
-        </main>
+        <ProfilePageLayout navigationItems={navigationItems}>
+          {loading ? (
+            <div className="h-40" />
+          ) : user ? (
+            <UserEditProfile
+              userId={user.id}
+              name={profileName}
+              onBack={goProfile}
+            />
+          ) : null}
+        </ProfilePageLayout>
 
         {isLoginOpen && (
           <Login
