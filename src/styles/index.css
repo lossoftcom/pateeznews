@@ -2013,16 +2013,20 @@ h5.news-title-font {
     body.public-route .home-mobile-market {
         overflow: hidden;
         background: #F2F4F7;
-        padding-bottom: 0;
+        padding-bottom: 7px;
+    }
+
+    body.public-route .home-mobile-market .home-mobile-strip-header {
+        padding: 9px 22px 6px;
     }
 
     body.public-route .home-mobile-market-list {
         display: flex;
-        height: 80px;
-        gap: 6px;
+        height: 58px;
+        gap: 5px;
         overflow-x: auto;
         overflow-y: hidden;
-        padding: 0 22px 0 39px;
+        padding: 0 22px;
         scroll-snap-type: x proximity;
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
@@ -2036,17 +2040,17 @@ h5.news-title-font {
 
     body.public-route .home-mobile-market-card {
         display: flex;
-        width: 96px;
-        min-width: 96px;
-        height: 74px;
+        width: 82px;
+        min-width: 82px;
+        height: 54px;
         flex-direction: column;
         justify-content: space-between;
         scroll-snap-align: start;
         border: 1px solid #E6ECEE;
-        border-radius: 10px;
-        background: #FFFFFF;
-        padding: 6px;
-        box-shadow: 0 3px 8px rgba(44, 62, 80, 0.035);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.76);
+        padding: 5px 6px;
+        box-shadow: 0 2px 5px rgba(44, 62, 80, 0.025);
     }
 
     body.public-route .home-mobile-market-top,
@@ -2054,20 +2058,25 @@ h5.news-title-font {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 6px;
+        gap: 4px;
         min-width: 0;
     }
 
     body.public-route .home-mobile-market-icon {
         display: inline-flex;
-        width: 21px;
-        height: 21px;
-        flex: 0 0 21px;
+        width: 17px;
+        height: 17px;
+        flex: 0 0 17px;
         align-items: center;
         justify-content: center;
-        border-radius: 7px;
-        background: color-mix(in srgb, var(--market-accent) 10%, transparent);
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--market-accent) 8%, #FFFFFF);
         color: var(--market-accent);
+    }
+
+    body.public-route .home-mobile-market-icon i {
+        font-size: 10px !important;
+        line-height: 1;
     }
 
     body.public-route .home-mobile-market-change {
@@ -2075,28 +2084,36 @@ h5.news-title-font {
         min-width: 0;
         align-items: center;
         gap: 1px;
-        border-radius: 6px;
-        padding: 2px 4px 2px 3px;
-        font-size: 8px;
+        border-radius: 999px;
+        padding: 1.5px 3.5px 1.5px 3px;
+        font-size: 7px;
         font-weight: 800;
         line-height: 1;
         white-space: nowrap;
     }
 
     body.public-route .home-mobile-market-change.is-up {
-        background: rgba(22, 163, 74, 0.11);
+        background: rgba(22, 163, 74, 0.09);
         color: #16A34A;
     }
 
     body.public-route .home-mobile-market-change.is-down {
-        background: rgba(229, 72, 77, 0.11);
+        background: rgba(229, 72, 77, 0.09);
         color: #E5484D;
+    }
+
+    body.public-route .home-mobile-market-label {
+        display: flex;
+        min-width: 0;
+        align-items: baseline;
+        gap: 3px;
     }
 
     body.public-route .home-mobile-market-name {
         overflow: hidden;
+        flex: 0 1 auto;
         color: #2C3E50;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 800;
         line-height: 1.08;
         text-overflow: ellipsis;
@@ -2105,19 +2122,19 @@ h5.news-title-font {
 
     body.public-route .home-mobile-market-subtitle {
         overflow: hidden;
+        flex: 0 0 auto;
         color: #8A949B;
-        font-size: 7.8px;
+        font-size: 6.4px;
         font-weight: 700;
         line-height: 1;
         text-overflow: ellipsis;
-        text-transform: uppercase;
         white-space: nowrap;
     }
 
     body.public-route .home-mobile-market-bottom strong {
         overflow: hidden;
         color: #0F1B26;
-        font-size: 10.5px;
+        font-size: 9.2px;
         font-weight: 900;
         line-height: 1.02;
         text-overflow: ellipsis;
@@ -2125,19 +2142,21 @@ h5.news-title-font {
     }
 
     body.public-route .home-mobile-market-spark {
-        width: 21px;
-        height: 12px;
-        flex: 0 0 21px;
+        width: 16px;
+        height: 9px;
+        flex: 0 0 16px;
+        opacity: 0.72;
     }
 
     body.public-route .home-mobile-weather {
         overflow: hidden;
         background: linear-gradient(180deg, #F2F4F7 0%, color-mix(in srgb, #F39C12 11%, #F2F4F7) 50%, #F2F4F7 100%);
+        padding: 6px 0 8px;
     }
 
     body.public-route .home-mobile-weather-header {
-        padding-top: 2px;
-        padding-bottom: 6px;
+        padding-top: 0;
+        padding-bottom: 9px;
     }
 
     body.public-route .home-mobile-weather-scroll {
@@ -3693,7 +3712,7 @@ h5.news-title-font {
     }
 
     body.public-route .public-home-feed .public-feed-list {
-        gap: 10px !important;
+        gap: 14px !important;
         background: #F2F4F7 !important;
     }
 

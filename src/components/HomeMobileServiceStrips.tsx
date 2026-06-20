@@ -328,6 +328,12 @@ const resolveWeather = (payload: WeatherPayload | null): WeatherView => {
 
 const cleanText = (value: unknown, fallback = '') => String(value || '').trim() || fallback;
 
+const formatMarketSubtitle = (value: string) => value
+  .toLocaleLowerCase('tr-TR')
+  .replace(/(^|[\s/])(\p{L})/gu, (_match, separator: string, letter: string) =>
+    `${separator}${letter.toLocaleUpperCase('tr-TR')}`,
+  );
+
 const formatColumnDate = (timestamp: string) => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '';
@@ -441,8 +447,10 @@ export const HomeMarketStrip: React.FC = () => {
                 {card.change}
               </span>
             </div>
-            <div className="home-mobile-market-name">{card.title}</div>
-            <div className="home-mobile-market-subtitle">{card.subtitle}</div>
+            <div className="home-mobile-market-label">
+              <span className="home-mobile-market-name">{card.title}</span>
+              <span className="home-mobile-market-subtitle">{formatMarketSubtitle(card.subtitle)}</span>
+            </div>
             <div className="home-mobile-market-bottom">
               <strong>{card.price}</strong>
               <Sparkline values={card.spark} up={card.isUp} />
