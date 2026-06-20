@@ -9,7 +9,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/adaptive_headline.dart';
+import '../../../account/data/frontend_auth_repository.dart';
 import 'featured_card.dart';
+import 'news_video_player.dart';
 
 /// PageView tabanlı featured haber kaydırıcısı.
 ///
@@ -25,11 +27,19 @@ class FeaturedSlider extends StatefulWidget {
     super.key,
     required this.items,
     this.showNewsInfo = false,
+    this.fullscreenLogoUrl = '',
+    this.authState,
+    this.onAuthRequired,
+    this.onAuthorTap,
     this.onOpen,
   });
 
   final List<FeaturedNews> items;
   final bool showNewsInfo;
+  final String fullscreenLogoUrl;
+  final FrontendAuthState? authState;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
   final ValueChanged<FeaturedNews>? onOpen;
 
   @override
@@ -92,6 +102,55 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
     final velocity = details.primaryVelocity ?? 0;
     if (velocity.abs() < 180 || widget.items.length < 2) return;
     _goToSlide(velocity < 0 ? _index + 1 : _index - 1);
+  }
+
+  void _openImageFullscreen(BuildContext context, FeaturedNews item) {
+    final imageUrl = item.imageUrl.trim();
+    if (imageUrl.isEmpty) return;
+    showNewsImageFullscreen(
+      context,
+      images: [imageUrl],
+      item: _fullscreenItemFor(item, imageUrl),
+      authState: widget.authState,
+      onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
+    );
+  }
+
+  NewsVideoFeedItem _fullscreenItemFor(FeaturedNews item, String imageUrl) {
+    final article = item.article;
+    final source = item.source.trim();
+    final category = item.category.trim();
+    final categoryTrail = article?.categoryTrail.isNotEmpty == true
+        ? article!.categoryTrail
+        : category.isEmpty
+        ? const <String>[]
+        : <String>[category];
+    return NewsVideoFeedItem(
+      postId: article?.id ?? item.id,
+      url: imageUrl,
+      poster: imageUrl,
+      slug: article?.slug ?? item.slug,
+      publishedAt: article?.publishedAt ?? item.publishedAt,
+      title: article?.title ?? item.title,
+      author:
+          article?.author ??
+          (source.isEmpty
+              ? null
+              : NewsAuthor(name: source, avatarUrl: '', handle: null)),
+      region: article?.region ?? '',
+      category: article?.category ?? category,
+      categoryTrail: categoryTrail,
+      likes: article?.likes ?? 0,
+      dislikes: article?.dislikes ?? 0,
+      comments: article?.comments ?? 0,
+      shares: article?.shares ?? 0,
+      saves: article?.saves ?? 0,
+      userLiked: article?.userLiked ?? false,
+      userDisliked: article?.userDisliked ?? false,
+      userSaved: article?.userSaved ?? false,
+      fullscreenLogoUrl: widget.fullscreenLogoUrl,
+    );
   }
 
   void _resolveImageAspectRatios(List<FeaturedNews> items) {
@@ -184,6 +243,9 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
         final sliderHeight = widget.showNewsInfo
             ? imageHeight + contentPanelHeight - _contentPanelOverlap
             : imageHeight;
+        final expandButtonTop = widget.showNewsInfo
+            ? (contentPanelTop > 50 ? contentPanelTop - 42 : 8.0)
+            : (imageHeight > 50 ? imageHeight - 42 : 8.0);
 
         return SizedBox(
           height: sliderHeight,
@@ -262,6 +324,14 @@ class _FeaturedSliderState extends State<FeaturedSlider> {
                   onOpen: () => widget.onOpen?.call(active),
                 ),
               ),
+              if (active.imageUrl.trim().isNotEmpty)
+                Positioned(
+                  right: 8,
+                  top: expandButtonTop,
+                  child: NewsFullscreenExpandButton(
+                    onTap: () => _openImageFullscreen(context, active),
+                  ),
+                ),
             ],
           ),
         );

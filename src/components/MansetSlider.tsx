@@ -146,6 +146,15 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
     const activeSlide = slides[activeIndex];
     const activeAspectRatio = activeSlide ? slideRatios[activeSlide.id] || 16 / 9 : 16 / 9;
 
+    const storeSlideRatio = useCallback((slideId: string, width: number, height: number) => {
+        if (width <= 0 || height <= 0) return;
+        const ratio = width / height;
+        setSlideRatios((current) => {
+            if (Math.abs((current[slideId] || 0) - ratio) < 0.001) return current;
+            return { ...current, [slideId]: ratio };
+        });
+    }, []);
+
     useEffect(() => {
         if (activeIndex >= slides.length) {
             setActiveIndex(0);
@@ -169,13 +178,33 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
 
     const handleSlideImageLoad = useCallback((slideId: string, event: React.SyntheticEvent<HTMLImageElement>) => {
         const image = event.currentTarget;
-        if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
-        const ratio = image.naturalWidth / image.naturalHeight;
-        setSlideRatios((current) => {
-            if (Math.abs((current[slideId] || 0) - ratio) < 0.001) return current;
-            return { ...current, [slideId]: ratio };
-        });
-    }, []);
+        storeSlideRatio(slideId, image.naturalWidth, image.naturalHeight);
+    }, [storeSlideRatio]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || slides.length === 0) return undefined;
+        let cancelled = false;
+        const probes = slides
+            .filter((slide) => !slideRatios[slide.id])
+            .map((slide, index) => {
+                const image = new window.Image();
+                image.onload = () => {
+                    if (!cancelled) storeSlideRatio(slide.id, image.naturalWidth, image.naturalHeight);
+                };
+                image.src = withLocalImageVariant(slide.image, index === 0 ? 1600 : 1200);
+                if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+                    storeSlideRatio(slide.id, image.naturalWidth, image.naturalHeight);
+                }
+                return image;
+            });
+
+        return () => {
+            cancelled = true;
+            probes.forEach((image) => {
+                image.onload = null;
+            });
+        };
+    }, [slides, slideRatios, storeSlideRatio]);
 
     const resetSwipeClickGuard = useCallback(() => {
         window.setTimeout(() => {

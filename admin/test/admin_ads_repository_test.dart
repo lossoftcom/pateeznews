@@ -7,7 +7,7 @@ void main() {
     final keys = data.slots.map((slot) => slot.key).toSet();
 
     expect(data.slotsFor(AdPlatform.web), hasLength(21));
-    expect(data.slotsFor(AdPlatform.mobile), hasLength(18));
+    expect(data.slotsFor(AdPlatform.mobile), hasLength(19));
     expect(data.adsensePublisherId, 'ca-pub-6674987005803282');
     expect(
       keys,
@@ -33,6 +33,7 @@ void main() {
         'web_story_between',
         'web_search_results_inline',
         'web_profile_sidebar',
+        'mobile_home_top',
         'mobile_home_after_market',
         'mobile_feed_inline',
         'mobile_feed_rectangle',
@@ -77,6 +78,14 @@ void main() {
     expect(
       mobileRectangle.creatives.first.imageUrl,
       '/local-upload/image/2026-06-19/pateez_336x280_reklam.gif',
+    );
+
+    final mobileHomeTop = data.slots.firstWhere(
+      (slot) => slot.key == 'mobile_home_top',
+    );
+    expect(
+      mobileHomeTop.creatives.first.imageUrl,
+      '/local-upload/image/2026-06-19/pateez_728x90_reklam.gif',
     );
 
     final homeTopAdsense = homeTop.creatives.firstWhere(

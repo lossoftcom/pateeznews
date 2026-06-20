@@ -321,7 +321,7 @@ const InlineCardComments: React.FC<InlineCardCommentsProps> = ({
         )}
 
         {sessionReady && !user && (
-          <div className="mb-2 grid grid-cols-2 gap-2 max-[420px]:grid-cols-1">
+          <div className="mb-2 grid grid-cols-2 gap-2">
             <InlineGuestInput
               icon="ri-user-3-line"
               placeholder="Ad soyad"

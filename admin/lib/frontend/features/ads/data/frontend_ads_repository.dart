@@ -51,12 +51,44 @@ class FrontendAdSettings {
   FrontendAdSlotData? slotByKey(String key) {
     final cleanKey = key.trim();
     if (cleanKey.isEmpty || !masterEnabled) return null;
+    final exactSlot = _findSlotByKey(cleanKey);
+    final fallbackKey = _slotFallbackKeys[cleanKey];
+    final fallbackSlot = fallbackKey == null
+        ? null
+        : _findSlotByKey(fallbackKey);
+    if (exactSlot != null) {
+      return exactSlot.withFallbackImagesFrom(fallbackSlot);
+    }
+    if (fallbackSlot != null) return fallbackSlot;
+    return null;
+  }
+
+  FrontendAdSlotData? _findSlotByKey(String key) {
     for (final slot in slots) {
-      if (slot.key == cleanKey) return slot;
+      if (slot.key == key) return slot;
     }
     return null;
   }
 }
+
+const _slotFallbackKeys = <String, String>{
+  'mobile_home_top': 'web_home_top',
+  'mobile_home_after_hero': 'web_home_top',
+  'mobile_home_after_market': 'web_home_section_break',
+  'mobile_feed_inline': 'web_home_feed_inline',
+  'mobile_feed_rectangle': 'web_home_feed_inline',
+  'mobile_detail_incontent': 'web_news_incontent',
+  'mobile_detail_between_articles': 'web_article_related_before',
+  'mobile_video_feed_inline': 'web_video_feed_inline',
+  'mobile_video_feed_rectangle': 'web_video_feed_inline',
+  'mobile_category_after_masthead': 'web_category_feed_inline',
+  'mobile_category_feed_inline': 'web_category_feed_inline',
+  'mobile_detail_after_media': 'web_article_after_media',
+  'mobile_detail_midcontent': 'web_article_midcontent',
+  'mobile_detail_end': 'web_article_end',
+  'mobile_search_results_inline': 'web_search_results_inline',
+  'mobile_profile_feed_inline': 'web_profile_sidebar',
+};
 
 class FrontendAdSlotData {
   const FrontendAdSlotData({
@@ -86,7 +118,7 @@ class FrontendAdSlotData {
                   (creative) =>
                       FrontendAdCreative.fromJson(creative, resolveUrl),
                 )
-                .where((creative) => creative.isRenderableImage)
+                .where((creative) => creative.isRenderable)
                 .toList(growable: false)
           : const [],
     );
@@ -98,6 +130,24 @@ class FrontendAdSlotData {
   final int height;
   final bool responsive;
   final List<FrontendAdCreative> creatives;
+
+  FrontendAdSlotData withFallbackImagesFrom(FrontendAdSlotData? fallback) {
+    if (fallback == null || creatives.any((creative) => creative.isImage)) {
+      return this;
+    }
+    final fallbackImages = fallback.creatives
+        .where((creative) => creative.isImage)
+        .toList(growable: false);
+    if (fallbackImages.isEmpty) return this;
+    return FrontendAdSlotData(
+      id: id,
+      key: key,
+      width: width > 0 ? width : fallback.width,
+      height: height > 0 ? height : fallback.height,
+      responsive: responsive,
+      creatives: [...creatives, ...fallbackImages],
+    );
+  }
 }
 
 class FrontendAdCreative {
@@ -107,8 +157,12 @@ class FrontendAdCreative {
     required this.type,
     required this.width,
     required this.height,
+    required this.responsive,
     required this.imageUrl,
     required this.linkUrl,
+    required this.htmlCode,
+    required this.adsenseSlotId,
+    required this.publisherId,
     required this.weight,
   });
 
@@ -123,8 +177,12 @@ class FrontendAdCreative {
       type: type.isEmpty ? 'image' : type,
       width: _int(json['width']),
       height: _int(json['height']),
+      responsive: json['responsive'] == true,
       imageUrl: resolveUrl(_str(json['imageUrl'])),
       linkUrl: resolveUrl(_str(json['linkUrl'])),
+      htmlCode: _str(json['htmlCode']),
+      adsenseSlotId: _str(json['adsenseSlotId']),
+      publisherId: _str(json['publisherId']),
       weight: _int(json['weight'], fallback: 1).clamp(1, 100).toInt(),
     );
   }
@@ -134,11 +192,19 @@ class FrontendAdCreative {
   final String type;
   final int width;
   final int height;
+  final bool responsive;
   final String imageUrl;
   final String linkUrl;
+  final String htmlCode;
+  final String adsenseSlotId;
+  final String publisherId;
   final int weight;
 
-  bool get isRenderableImage => type == 'image' && imageUrl.isNotEmpty;
+  bool get isImage => type == 'image' && imageUrl.isNotEmpty;
+  bool get isHtml => type == 'html' && htmlCode.isNotEmpty;
+  bool get isAdsense =>
+      type == 'adsense' && publisherId.isNotEmpty && adsenseSlotId.isNotEmpty;
+  bool get isRenderable => isImage || isHtml || isAdsense;
 }
 
 class FrontendAdsRepository {
@@ -172,9 +238,7 @@ class FrontendAdsRepository {
   }
 
   Future<FrontendAdSettings> _fetchMobileAds() async {
-    final uri = _uri(
-      '/api/app/ads',
-    ).replace(queryParameters: const {'platform': 'mobile'});
+    final uri = _uri('/api/app/ads');
     final client = httpClient ?? sharedFrontendClient;
     try {
       final response = await client

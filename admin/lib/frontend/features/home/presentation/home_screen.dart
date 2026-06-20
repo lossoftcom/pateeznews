@@ -298,6 +298,15 @@ class _HomeScreenState extends State<HomeScreen> {
                               curve: Curves.easeOutCubic,
                             ),
                   ),
+                  const SliverToBoxAdapter(
+                    child: FrontendAdSlot(
+                      slotKey: 'mobile_home_top',
+                      margin: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.pageHorizontal,
+                        vertical: AppSpacing.sm,
+                      ),
+                    ),
+                  ),
                   if (widget.featuredItems.isNotEmpty)
                     SliverToBoxAdapter(
                       child: Padding(
@@ -312,6 +321,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                     showNewsInfo: widget
                                         .contentSettings
                                         .featuredShowNewsInfo,
+                                    fullscreenLogoUrl:
+                                        widget.shellSettings.displayLogoUrl,
+                                    authState: widget.authState,
+                                    onAuthRequired: widget.onAuthRequired,
+                                    onAuthorTap: widget.onAuthorTap,
                                     onOpen: _openFeatured,
                                   ),
                                 )
@@ -450,15 +464,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         );
                       }
-                      if ((index + 1) % 6 == 0) {
+                      final feedAdSlotKey = _feedAdSlotKey(index);
+                      if (feedAdSlotKey != null) {
                         body = Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             body,
                             const SizedBox(height: AppSpacing.xxl),
-                            const FrontendAdSlot(
-                              slotKey: 'mobile_feed_rectangle',
-                              margin: EdgeInsets.symmetric(
+                            FrontendAdSlot(
+                              slotKey: feedAdSlotKey,
+                              margin: const EdgeInsets.symmetric(
                                 horizontal: AppSpacing.pageHorizontal,
                               ),
                             ),
@@ -483,6 +498,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  String? _feedAdSlotKey(int index) {
+    final itemNumber = index + 1;
+    if (itemNumber % 8 == 0) return 'mobile_feed_rectangle';
+    if (itemNumber % 5 == 0) return 'mobile_feed_inline';
+    return null;
   }
 
   List<NewsArticle> _sortedFeed(List<NewsArticle> items) {

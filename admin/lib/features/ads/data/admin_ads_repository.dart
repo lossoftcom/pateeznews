@@ -1017,6 +1017,16 @@ class AdSettingsData {
           ],
         ),
         AdSlot(
+          id: 'slot_mobile_home_top',
+          key: 'mobile_home_top',
+          name: 'Mobil — Anasayfa Üst Banner',
+          description: 'Manşet üstü · yerel tanıtım bannerı',
+          platform: AdPlatform.mobile,
+          width: 728,
+          height: 90,
+          creatives: [_pateezLeaderboardCreative('mobile_home_top')],
+        ),
+        AdSlot(
           id: 'slot_mobile_home_after_market',
           key: 'mobile_home_after_market',
           name: 'Mobil — Piyasa Altı',

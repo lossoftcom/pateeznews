@@ -23,6 +23,7 @@ import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../home/data/home_repository.dart';
 import '../../home/data/post_action_repository.dart';
 import '../../home/presentation/widgets/news_card.dart';
+import '../../home/presentation/widgets/news_video_player.dart';
 import '../../home/presentation/widgets/social_embed_stage.dart';
 import '../../shell/data/app_shell_repository.dart';
 import 'widgets/detail_app_bar.dart';
@@ -742,12 +743,18 @@ class _DetailArticleSection extends StatelessWidget {
         _DetailHero(
           article: article,
           isFirst: isFirst,
+          categoryTrail: categoryTrail,
+          shellSettings: shellSettings,
           actionState: actionStateFor(article),
           onLike: () => onLike(article),
           onDislike: () => onDislike(article),
           onComment: onComment,
           onSave: () => onSave(article),
           onShare: () => onShare(article),
+          authState: authState,
+          postActionRepository: postActionRepository,
+          onAuthRequired: onAuthRequired,
+          onAuthorTap: onAuthorTap,
         ),
         DetailLede(
               article: article,
@@ -826,22 +833,34 @@ class _DetailHero extends StatefulWidget {
   const _DetailHero({
     required this.article,
     required this.isFirst,
+    required this.categoryTrail,
+    required this.shellSettings,
     required this.actionState,
     required this.onLike,
     required this.onDislike,
     required this.onComment,
     required this.onSave,
     required this.onShare,
+    required this.authState,
+    required this.postActionRepository,
+    required this.onAuthRequired,
+    required this.onAuthorTap,
   });
 
   final NewsArticle article;
   final bool isFirst;
+  final List<String> categoryTrail;
+  final AppShellSettings shellSettings;
   final _DetailActionState actionState;
   final VoidCallback onLike;
   final VoidCallback onDislike;
   final VoidCallback onComment;
   final VoidCallback onSave;
   final VoidCallback onShare;
+  final FrontendAuthState? authState;
+  final PostActionRepository postActionRepository;
+  final VoidCallback? onAuthRequired;
+  final ValueChanged<NewsAuthor>? onAuthorTap;
 
   @override
   State<_DetailHero> createState() => _DetailHeroState();
@@ -920,6 +939,48 @@ class _DetailHeroState extends State<_DetailHero> {
     _pendingImageListener = null;
   }
 
+  void _openImageFullscreen() {
+    final imageUrl = widget.article.imageUrl.trim();
+    if (imageUrl.isEmpty) return;
+    showNewsImageFullscreen(
+      context,
+      images: [imageUrl],
+      item: _fullscreenItem(imageUrl),
+      authState: widget.authState,
+      postActionRepository: widget.postActionRepository,
+      onAuthRequired: widget.onAuthRequired,
+      onAuthorTap: widget.onAuthorTap,
+    );
+  }
+
+  NewsVideoFeedItem _fullscreenItem(String imageUrl) {
+    final article = widget.article;
+    final categoryTrail = widget.categoryTrail.isNotEmpty
+        ? widget.categoryTrail
+        : article.categoryTrail;
+    return NewsVideoFeedItem(
+      postId: article.id,
+      url: imageUrl,
+      poster: article.imageUrl,
+      slug: article.slug,
+      publishedAt: article.publishedAt,
+      title: article.title,
+      author: article.author,
+      region: article.region,
+      category: article.category,
+      categoryTrail: categoryTrail,
+      likes: article.likes,
+      dislikes: article.dislikes,
+      comments: article.comments,
+      shares: article.shares,
+      saves: article.saves,
+      userLiked: article.userLiked,
+      userDisliked: article.userDisliked,
+      userSaved: article.userSaved,
+      fullscreenLogoUrl: widget.shellSettings.displayLogoUrl,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
@@ -957,6 +1018,14 @@ class _DetailHeroState extends State<_DetailHero> {
                   onShare: widget.onShare,
                 ),
               ),
+              if (widget.article.imageUrl.trim().isNotEmpty)
+                Positioned(
+                  right: AppSpacing.sm,
+                  top: AppSpacing.sm,
+                  child: NewsFullscreenExpandButton(
+                    onTap: _openImageFullscreen,
+                  ),
+                ),
             ],
           ),
         ),

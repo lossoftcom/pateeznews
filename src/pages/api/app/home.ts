@@ -11,6 +11,7 @@ import {
   variantObjectPath,
 } from "@/lib/server/imageVariants";
 import type { NewsItem, OptimizedImage } from "@/types";
+import { isOpinionColumn } from "@/utils/opinionColumns";
 
 export const prerender = false;
 
@@ -1895,11 +1896,13 @@ export const GET: APIRoute = async ({ url, request }) => {
     const origin = new URL(request.url).origin;
     const session = await getSessionFromRequest(request);
     const userId = session?.user?.id || null;
-    const items = await dataService.getNewsItems(
-      lang,
-      "home",
-      Math.max(50, feedLimit + limit + 20),
-    );
+    const items = (
+      await dataService.getNewsItems(
+        lang,
+        "home",
+        Math.max(50, feedLimit + limit + 20),
+      )
+    ).filter((item: NewsItem) => !isOpinionColumn(item));
 
     const mansetItems = settings.showFeaturedSection
       ? items

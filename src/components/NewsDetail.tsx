@@ -2034,7 +2034,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
             loading="eager"
             decoding="async"
             fetchPriority="high"
-            className="w-full h-auto object-cover max-h-[600px]"
+            className="w-full h-auto object-contain"
           />
         </div>
       );
@@ -2067,7 +2067,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
               loading="eager"
               decoding="async"
               fetchPriority="high"
-              className="w-full h-auto object-cover max-h-[600px]"
+              className="w-full h-auto object-contain"
             />
           </div>
         );

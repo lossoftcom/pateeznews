@@ -106,15 +106,16 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
                   onFullscreenVideoExit: widget.onFullscreenVideoExit,
                 ),
               );
-              final body = (index + 1) % 4 == 0
+              final adSlotKey = _videoFeedAdSlotKey(index);
+              final body = adSlotKey != null
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         card,
                         const SizedBox(height: AppSpacing.xxl),
-                        const FrontendAdSlot(
-                          slotKey: 'mobile_video_feed_inline',
-                          margin: EdgeInsets.symmetric(
+                        FrontendAdSlot(
+                          slotKey: adSlotKey,
+                          margin: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.pageHorizontal,
                           ),
                         ),
@@ -244,6 +245,13 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
         },
       ),
     );
+  }
+
+  String? _videoFeedAdSlotKey(int index) {
+    final itemNumber = index + 1;
+    if (itemNumber % 5 == 0) return 'mobile_video_feed_rectangle';
+    if (itemNumber % 3 == 0) return 'mobile_video_feed_inline';
+    return null;
   }
 }
 

@@ -499,20 +499,20 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
       {/* Post Comment Input */}
       <div className="flex flex-col gap-3 mt-4">
         {!user && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-1">
             <input
               type="text"
               placeholder={t('comments.form.name_placeholder')}
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
-              className="w-full h-10 px-4 rounded-[5px] bg-white border border-palette-beige/60 focus:border-palette-red/40 text-[13px] font-medium text-palette-maroon placeholder:text-palette-tan/30 focus:outline-none focus:ring-4 focus:ring-palette-red/5 transition-all shadow-sm"
+              className="min-w-0 w-full h-10 px-4 rounded-[5px] bg-white border border-palette-beige/60 focus:border-palette-red/40 text-[13px] font-medium text-palette-maroon placeholder:text-palette-tan/30 focus:outline-none focus:ring-4 focus:ring-palette-red/5 transition-all shadow-sm"
             />
             <input
               type="email"
               placeholder={t('comments.form.email_placeholder')}
               value={guestEmail}
               onChange={(e) => setGuestEmail(e.target.value)}
-              className="w-full h-10 px-4 rounded-[5px] bg-white border border-palette-beige/60 focus:border-palette-red/40 text-[13px] font-medium text-palette-maroon placeholder:text-palette-tan/30 focus:outline-none focus:ring-4 focus:ring-palette-red/5 transition-all shadow-sm"
+              className="min-w-0 w-full h-10 px-4 rounded-[5px] bg-white border border-palette-beige/60 focus:border-palette-red/40 text-[13px] font-medium text-palette-maroon placeholder:text-palette-tan/30 focus:outline-none focus:ring-4 focus:ring-palette-red/5 transition-all shadow-sm"
             />
           </div>
         )}
