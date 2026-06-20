@@ -112,6 +112,6 @@ export const getSpecialContentRank = (item?: NavigationItem | null) => (
 
 export const getSpecialContentUrl = (value: string) => {
   const config = getSpecialContentConfig(value);
-  const queryValue = config?.value || slugify(value);
-  return `/?kategori=${encodeURIComponent(queryValue)}`;
+  const routeValue = config?.value || slugify(value);
+  return `/kategori/${encodeURIComponent(routeValue)}`;
 };

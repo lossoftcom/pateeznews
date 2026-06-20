@@ -1,6 +1,6 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MessageSquare, Share2, Calendar, User as UserIcon, Mail, Link as LinkIcon, Globe, Users, FileText, Eye, Heart } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Share2, Calendar, User as UserIcon, Mail, Link as LinkIcon, Globe, Users, FileText, Eye, Heart, MapPin, AtSign, Edit3, Clock3 } from 'lucide-react';
 import { NewsType, type NewsItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { formatPostDateParts } from '@/utils/helpers';
@@ -243,6 +243,9 @@ const mapProfileToViewData = (
     postsCountRaw: postsCount,
     joinedDate,
     joinedYear: joinedYearLabel(profile.created_at, lang),
+    city: normalizeStoredPlainText(profile.city),
+    likedPosts: formatCount(stats.liked_posts ?? 0, lang),
+    commentsCount: formatCount(stats.comments ?? 0, lang),
     verified: role === 'admin' || role === 'editor',
     social_links: socialLinks,
     followerProfiles: mapProfilePreviewList(profile.follower_profiles, profile.follower_avatars),
@@ -294,6 +297,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
   const [loading, setLoading] = useState(!initialProfile);
   const [isOwnProfile, setIsOwnProfile] = useState(Boolean(initialProfile?.is_own_profile));
   const [isProfileActionReady, setIsProfileActionReady] = useState(Boolean(initialProfile?.is_own_profile));
+  const [isMobileProfileAppbarVisible, setIsMobileProfileAppbarVisible] = useState(false);
   const socialEntries = useMemo(() => {
     const links = userData?.social_links || {};
     const platforms = ['x', 'facebook', 'instagram', 'tiktok', 'youtube', 'discord', 'linkedin', 'telegram', 'whatsapp', 'pinterest'];
@@ -384,6 +388,21 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
     };
   }, [initialProfile, langCode, name, showEmail, t, userId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncAppbar = () => {
+      const isMobile = window.matchMedia('(max-width: 767px)').matches;
+      setIsMobileProfileAppbarVisible(isMobile && window.scrollY >= 126);
+    };
+    syncAppbar();
+    window.addEventListener('scroll', syncAppbar, { passive: true });
+    window.addEventListener('resize', syncAppbar);
+    return () => {
+      window.removeEventListener('scroll', syncAppbar);
+      window.removeEventListener('resize', syncAppbar);
+    };
+  }, []);
+
   const renderProfileStack = (profiles: ProfilePreview[], totalCount: number, emptyLabel: string) => {
     const visibleProfiles = profiles.slice(0, 5);
     const remaining = Math.max(0, totalCount - visibleProfiles.length);
@@ -416,6 +435,30 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
     );
   };
 
+  const renderMobileProfileStack = (profiles: ProfilePreview[], totalCount: number, emptyLabel: string) => {
+    const visibleProfiles = profiles.slice(0, 5);
+    const remaining = Math.max(0, totalCount - visibleProfiles.length);
+
+    if (visibleProfiles.length === 0) {
+      return <p className="profile-mobile-follow-empty">{emptyLabel}</p>;
+    }
+
+    return (
+      <div className="profile-mobile-follow-avatars">
+        {visibleProfiles.map((profile) => (
+          <span key={profile.id} className="profile-mobile-follow-avatar" title={profile.username ? `${profile.name} (@${profile.username})` : profile.name}>
+            {profile.avatar ? (
+              <img src={profile.avatar} alt={profile.name} loading="lazy" decoding="async" />
+            ) : (
+              profile.initials
+            )}
+          </span>
+        ))}
+        {remaining > 0 && <span className="profile-mobile-follow-avatar">+{remaining}</span>}
+      </div>
+    );
+  };
+
   if (loading) return (
     <div className="flex justify-center items-center min-h-[400px]">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-palette-red"></div>
@@ -430,7 +473,213 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
   );
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <>
+    <div className="profile-mobile-shell">
+      <header className={`profile-mobile-sticky-appbar${isMobileProfileAppbarVisible ? ' is-visible' : ''}`} aria-hidden={!isMobileProfileAppbarVisible}>
+        <div>
+          <span aria-hidden="true" />
+          <strong>{userData.name}</strong>
+        </div>
+        <button type="button" onClick={onBack} aria-label={t('admin.post.go_back')}>
+          <ArrowLeft size={20} strokeWidth={2.2} />
+        </button>
+      </header>
+
+      <section className="profile-mobile-cover">
+        {userData.cover ? (
+          <img
+            src={userData.cover}
+            alt={t('user_edit_profile.cover_alt')}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+          />
+        ) : (
+          <div className="profile-mobile-cover-empty">
+            <UserIcon size={52} strokeWidth={1.5} />
+          </div>
+        )}
+        <div className="profile-mobile-cover-shade" />
+        <button
+          type="button"
+          className="profile-mobile-back"
+          onClick={onBack}
+          aria-label={t('admin.post.go_back')}
+        >
+          <ArrowLeft size={20} strokeWidth={2.2} />
+        </button>
+      </section>
+
+      <section className="profile-mobile-identity">
+        <div className="profile-mobile-avatar">
+          {userData.avatar ? (
+            <img
+              src={userData.avatar}
+              alt={t('user_edit_profile.avatar_alt')}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+            />
+          ) : (
+            <UserIcon size={44} strokeWidth={1.5} />
+          )}
+          {userData.verified && <span className="profile-mobile-verified" aria-hidden="true">✓</span>}
+        </div>
+
+        <div className="profile-mobile-edit-wrap">
+          {!isProfileActionReady ? (
+            <span className="profile-mobile-action-skeleton" aria-hidden="true" />
+          ) : isOwnProfile ? (
+            <button type="button" className="profile-mobile-edit-button" onClick={onEditClick}>
+              <Edit3 size={14} strokeWidth={2} />
+              <span>{t('user_profile.edit_profile')}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={`profile-mobile-edit-button${isFollowing ? ' is-following' : ''}`}
+              onClick={() => setIsFollowing(!isFollowing)}
+            >
+              <Users size={14} strokeWidth={2} />
+              <span>{isFollowing ? t('common.following') : t('common.follow')}</span>
+            </button>
+          )}
+        </div>
+
+        <h1>{userData.name}</h1>
+        <div className="profile-mobile-meta">
+          {userData.handle && <span>{userData.handle}</span>}
+          {userData.category && <b>{userData.category}</b>}
+          <em>{t('user_profile.online')}</em>
+        </div>
+      </section>
+
+      <section className="profile-mobile-stats" aria-label="Profil istatistikleri">
+        <div>
+          <strong>{userData.postsCount}</strong>
+          <span>{t('user_profile.stats.news').toLocaleUpperCase('tr-TR')}</span>
+        </div>
+        <div>
+          <strong>{userData.followers}</strong>
+          <span>{t('users_list.followers').toLocaleUpperCase('tr-TR')}</span>
+        </div>
+        <div>
+          <strong>{userData.following || '0'}</strong>
+          <span>{t('user_profile.stats.following').toLocaleUpperCase('tr-TR')}</span>
+        </div>
+        <div>
+          <strong>{userData.joinedYear || '-'}</strong>
+          <span>{t('user_profile.stats.joined').toLocaleUpperCase('tr-TR')}</span>
+        </div>
+      </section>
+
+      <section className="profile-mobile-card">
+        <h2>{t('user_profile.about_title')}</h2>
+        <p>{userData.description || t('user_profile.about_empty')}</p>
+        <div className="profile-mobile-info-list">
+          {userData.joinedDate && (
+            <span><Calendar size={15} strokeWidth={2} />{userData.joinedDate} tarihinde katıldı</span>
+          )}
+          {userData.city && (
+            <span><MapPin size={15} strokeWidth={2} />{userData.city}</span>
+          )}
+          {userData.email && (
+            <span><AtSign size={15} strokeWidth={2} />{userData.email}</span>
+          )}
+        </div>
+      </section>
+
+      <section className="profile-mobile-card">
+        <h2>{t('user_profile.social_links_title')}</h2>
+        {socialEntries.length > 0 ? (
+          <div className="profile-mobile-socials">
+            {socialEntries.map((entry) => (
+              <a key={entry.key} href={entry.href} target="_blank" rel="noopener noreferrer" aria-label={entry.key}>
+                {entry.key === 'website' ? <LinkIcon size={18} strokeWidth={2} /> : <Globe size={18} strokeWidth={2} />}
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p>{t('user_profile.about_empty')}</p>
+        )}
+      </section>
+
+      <section className="profile-mobile-card">
+        <h2>Aktivite</h2>
+        <div className="profile-mobile-activity">
+          <div>
+            <Heart size={18} strokeWidth={2} />
+            <strong>{userData.likedPosts}</strong>
+            <span>Beğendiği haberler</span>
+          </div>
+          <div>
+            <MessageSquare size={18} strokeWidth={2} />
+            <strong>{userData.commentsCount}</strong>
+            <span>Yaptığı yorumlar</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="profile-mobile-card profile-mobile-follows">
+        <div className="profile-mobile-follow-block">
+          <h2>Takipçiler <small>({userData.followers})</small></h2>
+          {renderMobileProfileStack(userData.followerProfiles || [], userData.followersCount || 0, 'Henüz kimse yok.')}
+        </div>
+        <div className="profile-mobile-follow-divider" />
+        <div className="profile-mobile-follow-block">
+          <h2>Takip Edilen <small>({userData.following || '0'})</small></h2>
+          {renderMobileProfileStack(userData.followingProfiles || [], userData.followingCount || 0, 'Henüz kimse yok.')}
+        </div>
+      </section>
+
+      {userNews.length > 0 && (
+        <section className="profile-mobile-posts">
+          <div className="profile-mobile-section-title">
+            <span aria-hidden="true" />
+            <h2>Gönderiler</h2>
+            <small>{userData.postsCount} haber</small>
+          </div>
+          <div className="profile-mobile-post-list">
+            {userNews.slice(0, 8).map((news) => {
+              const image = news.thumbnail || news.mediaUrl;
+              const title = normalizeStoredPlainText(news.seoTitle || news.title);
+              const publishedAt = formatPostDateParts(news.timestamp, langCode);
+              return (
+                <button key={news.id} type="button" onClick={() => onNewsSelect(news.id)} className="profile-mobile-post-card">
+                  <span className="profile-mobile-post-thumb">
+                    {image ? (
+                      <img src={image} alt={news.thumbnailAlt || title} loading="lazy" decoding="async" />
+                    ) : (
+                      <FileText size={24} strokeWidth={1.5} />
+                    )}
+                    {news.category && <em>{news.category}</em>}
+                  </span>
+                  <span className="profile-mobile-post-body">
+                    <strong>{title}</strong>
+                    <span className="profile-mobile-post-date">
+                      {publishedAt.date && <time dateTime={publishedAt.iso || undefined}>{publishedAt.date}</time>}
+                      {publishedAt.time && (
+                        <>
+                          <Clock3 size={12} strokeWidth={2.2} />
+                          <time dateTime={publishedAt.iso || undefined}>{publishedAt.time}</time>
+                        </>
+                      )}
+                    </span>
+                    <span className="profile-mobile-post-meta">
+                      <span><Eye size={13} strokeWidth={2} />{formatCount(news.views, langCode)}</span>
+                      <span><MessageSquare size={13} strokeWidth={2} />{formatCount(news.comments, langCode)}</span>
+                      <span><Heart size={13} strokeWidth={2} />{formatCount(news.likes, langCode)}</span>
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </div>
+
+    <div className="profile-desktop-shell bg-gray-50 min-h-screen">
       <style>{`
         .profile-news-list-item {
           position: relative;
@@ -792,6 +1041,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
       </div>
 
     </div>
+    </>
   );
 };
 

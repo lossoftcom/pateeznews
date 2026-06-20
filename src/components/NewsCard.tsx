@@ -842,7 +842,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
 
       <div className="relative pointer-events-none [&_button]:pointer-events-auto [&_input]:pointer-events-auto [&_textarea]:pointer-events-auto [&_select]:pointer-events-auto [&_a]:pointer-events-auto [&_.video-interact-area]:pointer-events-auto [&_.card-interact-area]:pointer-events-auto">
         {/* HEADER */}
-        <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+        <div className="public-news-card-header px-6 pt-6 pb-2 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             {showPostAuthor && (
               <div
@@ -923,7 +923,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
         </div>
 
         {/* CONTENT Title */}
-        <div className="px-6 pt-2 pb-0.5">
+        <div className="public-news-card-title px-6 pt-2 pb-0.5">
           {data.type !== NewsType.EMBED && (
             <h3 className={`news-title-font text-[38px] font-[800] leading-[1.08] tracking-[-0.025em] text-gray-900 transition-colors ${isSourceHovering ? '' : 'group-hover/card:text-palette-red'}`}>
               {data.title}
@@ -932,7 +932,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ data, onSourceClick, siteSettings, 
         </div>
 
         {/* MEDIA CONTENT */}
-        <div className="px-6 pb-2 rounded-[5px] overflow-hidden">{renderContent()}</div>
+        <div className="public-news-card-media px-6 pb-2 rounded-[5px] overflow-hidden">{renderContent()}</div>
 
         {/* INTERACTION BAR */}
         <div className="mt-0.5 border-t border-palette-beige/20 bg-white relative z-[100]">

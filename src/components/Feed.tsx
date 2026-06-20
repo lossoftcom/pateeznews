@@ -9,6 +9,7 @@ import RemixIcon from './ui/RemixIcon';
 import { dataService } from '@/services/dataService';
 import { filterOutOpinionColumns } from '@/utils/opinionColumns';
 import AdSlot from './ads/AdSlot';
+import { HomeColumnistStrip, HomeMarketStrip, HomeWeatherCard } from './HomeMobileServiceStrips';
 
 interface FeedProps {
   newsData: NewsItem[];
@@ -54,6 +55,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
   const { t, currentLang } = useLanguage();
 
   const resolvedTitle = title ? t(title) : undefined;
+  const showHomeMobileServices = !resolvedTitle;
 
   useEffect(() => {
     setLiveNewsData(visibleNewsData);
@@ -104,13 +106,13 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
   }, [liveNewsData, hiddenMansetIds, activeFilter]);
 
   return (
-    <div className="public-feed flex flex-col gap-6 pb-4">
+    <div className={`public-feed ${showHomeMobileServices ? 'public-home-feed' : ''} flex flex-col gap-6 pb-4`}>
       {!resolvedTitle && (
         <AdSlot settings={adSettings} slotKey="web_home_top" className="px-1" />
       )}
 
       {!resolvedTitle && mansetItems.length > 0 && (
-        <div className="px-1">
+        <div className="public-feed-manset-wrap px-1">
           <MansetSlider
             slides={mansetItems}
             showNewsInfo={siteSettings?.content_featured_show_news_info === true}
@@ -123,10 +125,12 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
         <AdSlot settings={adSettings} slotKey="web_home_below_hero" className="px-1" />
       )}
 
-      <div className="px-1 mt-1 mb-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1 overflow-hidden">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight leading-none font-display whitespace-nowrap overflow-hidden text-ellipsis">
+      {showHomeMobileServices && <HomeMarketStrip />}
+
+      <div className="public-feed-section-header px-1 mt-1 mb-2">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          <div className="min-w-0 flex-1 space-y-1 overflow-hidden sm:flex-none">
+            <h2 className="truncate text-[17px] min-[390px]:text-[18px] sm:text-2xl font-bold text-gray-900 tracking-tight leading-tight sm:leading-none font-display">
               {resolvedTitle ? (
                 (() => {
                   const words = resolvedTitle.split(' ');
@@ -150,11 +154,11 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
             </h2>
           </div>
 
-          <div className="flex p-1 bg-palette-beige/10 rounded-[5px] border border-palette-beige/20 backdrop-blur-sm self-start sm:self-auto shadow-inner">
+          <div className="flex shrink-0 sm:shrink p-1 bg-palette-beige/10 rounded-[5px] border border-palette-beige/20 backdrop-blur-sm shadow-inner">
             <button
               onClick={() => void handleFilterChange('latest')}
               disabled={filterLoading && activeFilter === 'latest'}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[5px] text-[11px] font-bold tracking-tight transition-all duration-75 ${activeFilter === 'latest'
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-[5px] text-[10px] sm:text-[11px] font-bold tracking-tight transition-all duration-75 ${activeFilter === 'latest'
                 ? 'bg-palette-red text-white shadow-lg shadow-palette-red/20'
                 : 'text-palette-tan hover:text-palette-red'
                 }`}
@@ -166,7 +170,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
             <button
               onClick={() => void handleFilterChange('popular')}
               disabled={filterLoading && activeFilter === 'popular'}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[5px] text-[11px] font-bold tracking-tight transition-all duration-75 ${activeFilter === 'popular'
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-[5px] text-[10px] sm:text-[11px] font-bold tracking-tight transition-all duration-75 ${activeFilter === 'popular'
                 ? 'bg-palette-red text-white shadow-lg shadow-palette-red/20'
                 : 'text-palette-tan hover:text-palette-red'
                 }`}
@@ -178,7 +182,7 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
         </div>
       </div>
 
-      <div className="flex flex-col gap-8">
+      <div className="public-feed-list flex flex-col gap-8">
         {loading ? (
           <>
             {[1, 2, 3].map(i => <NewsCardSkeleton key={i} />)}
@@ -195,6 +199,12 @@ const Feed: React.FC<FeedProps> = ({ newsData, title, onNewsSelect, onSourceClic
                     siteSettings={siteSettings}
                     navItems={navItems}
                   />
+                  {showHomeMobileServices && index === 0 && (
+                    <HomeWeatherCard />
+                  )}
+                  {showHomeMobileServices && index === 2 && (
+                    <HomeColumnistStrip articles={newsData} onNewsSelect={onNewsSelect} />
+                  )}
                   {(index + 1) % (resolvedTitle ? 5 : 4) === 0 && (
                     <AdSlot settings={adSettings} slotKey={slotKey} />
                   )}

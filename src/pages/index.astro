@@ -6,7 +6,7 @@ import { loadLocaleData } from '@/lib/locales';
 import { setPublicHtmlCache } from '@/lib/server/publicCache';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
-import { getSpecialContentConfig } from '@/utils/specialContent';
+import { getSpecialContentConfig, getSpecialContentUrl } from '@/utils/specialContent';
 import { getPostPathSegment } from '@/utils/postUrl';
 import { getPublicAdSettings } from '@/lib/server/publicAds';
 
@@ -20,6 +20,10 @@ const acceptLanguageHeader = Astro.request.headers.get('accept-language');
 const urlLang = Astro.url.searchParams.get('lang');
 const urlCategory = Astro.url.searchParams.get('kategori');
 const specialUrlCategory = getSpecialContentConfig(urlCategory);
+
+if (specialUrlCategory) {
+  return Astro.redirect(getSpecialContentUrl(specialUrlCategory.value), 302);
+}
 
 // Get SEO alternates first to resolve language
 const seoAlternates = await dataService.getSeoAlternates();

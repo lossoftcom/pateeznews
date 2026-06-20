@@ -9,6 +9,7 @@ import { formatPostDateParts, slugify } from '@/utils/helpers';
 import RemixIcon from './ui/RemixIcon';
 import PublisherFollowButton from './PublisherFollowButton';
 import AdSlot from './ads/AdSlot';
+import NewsCard from './NewsCard';
 
 const CATEGORY_TYPE_ALIASES: Record<string, string[]> = {
   anket: ['poll'],
@@ -191,6 +192,53 @@ const isOpinionCategoryValue = (value: unknown) => {
   return slug === 'kose-yazisi' || slug === 'kose-yazilari' || slug === 'opinion' || slug === 'opinion-column';
 };
 
+const categoryKindLabel = (type?: string) => {
+  const normalized = String(type || '').trim().toLocaleLowerCase('tr-TR');
+  if (normalized === 'district') return 'İLÇE';
+  if (normalized === 'trends') return 'TREND';
+  if (normalized === 'category' || normalized === 'dropdown' || normalized === 'link') return 'KATEGORİ';
+  return 'BÖLÜM';
+};
+
+const categoryTitleForMobile = (value: string) => {
+  const title = formatTitleLabel(value);
+  const slug = slugify(title);
+  const aliases: Record<string, string> = {
+    anketler: 'Anket',
+    testler: 'Test',
+    videolar: 'Video',
+    'yemek-tarifi': 'Tarif',
+    tarifler: 'Tarif',
+    etkinlikler: 'Etkinlik',
+    icerikler: 'İçindekiler',
+    icindekiler: 'İçindekiler',
+  };
+  return aliases[slug] || title;
+};
+
+const categoryDescriptionForMobile = (title: string, type?: string, value?: string) => {
+  const normalizedType = String(type || '').trim().toLocaleLowerCase('tr-TR');
+  const normalizedValue = String(value || '').trim().toLocaleLowerCase('tr-TR');
+  if (normalizedType === 'district') {
+    return `${title} bölgesinden son dakika haberleri, yerel gündem ve gelişmeler tek akışta.`;
+  }
+  if (normalizedType === 'trends' || normalizedValue.startsWith('weekly_')) {
+    return `Bu hafta en çok konuşulan başlıklar ve yükselen gündem ${title} akışında.`;
+  }
+  return `${title} başlığındaki en güncel haberler, analizler ve öne çıkan gelişmeler.`;
+};
+
+const compareNewsByMobilePopularity = (a: NewsItem, b: NewsItem) => {
+  const score = (item: NewsItem) => (
+    (Number(item.views) || 0) +
+    ((Number(item.likes) || 0) * 8) +
+    ((Number(item.comments) || 0) * 12) +
+    ((Number(item.shares) || 0) * 10)
+  );
+  const diff = score(b) - score(a);
+  return diff !== 0 ? diff : getNewsTime(b) - getNewsTime(a);
+};
+
 const getOpinionAuthorName = (news: NewsItem) => (
   formatTitleLabel(news.author || news.source || 'Pateez') || 'Pateez'
 );
@@ -288,11 +336,13 @@ interface CategoryDetailProps {
   };
 }
 
-const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNewsSelect, onProfileSelect, newsItems, navItems, pagination, adSettings }) => {
+const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNewsSelect, onProfileSelect, siteSettings, newsItems, navItems, pagination, adSettings }) => {
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterLoading, setNewsletterLoading] = useState(false);
+  const [mobileFilter, setMobileFilter] = useState<'latest' | 'popular'>('latest');
+  const [opinionMobileView, setOpinionMobileView] = useState<'articles' | 'authors'>('articles');
   const [pagedNews, setPagedNews] = useState<NewsItem[]>(() => newsItems || []);
   const [nextOffset, setNextOffset] = useState(() => pagination?.nextOffset ?? (newsItems?.length || 0));
   const [hasMore, setHasMore] = useState(() => pagination?.hasMore ?? false);
@@ -723,6 +773,19 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
     }
   };
 
+  const mobileCategoryTitle = categoryTitleForMobile(displayCategory);
+  const mobileCategoryDescription = categoryDescriptionForMobile(
+    mobileCategoryTitle,
+    activeCategoryItem?.type,
+    String((activeCategoryItem as any)?.value || category)
+  );
+  const mobileKindLabel = categoryKindLabel(activeCategoryItem?.type);
+  const mobileCategoryNews = useMemo(() => (
+    mobileFilter === 'popular'
+      ? [...categoryNews].sort(compareNewsByMobilePopularity)
+      : sortNewsNewest(categoryNews)
+  ), [categoryNews, mobileFilter]);
+
   if (isOpinionCategory) {
     const metricLang = currentLang.code || 'tr';
     const featuredImage = featuredOpinion ? getNewsImage(featuredOpinion) : '';
@@ -783,6 +846,154 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
           }
         `}</style>
 
+        <div className="category-mobile-shell opinion-mobile-shell">
+          <header className="category-mobile-appbar opinion-mobile-appbar">
+            <button type="button" className="category-mobile-icon-button" aria-label="Bu kategoride ara">
+              <RemixIcon name="ri-search-line" size={25} />
+            </button>
+            <div className="category-mobile-appbar-spacer" />
+            <button type="button" className="category-mobile-back-button" onClick={onBack} aria-label="Geri">
+              <RemixIcon name="ri-arrow-left-line" size={22} />
+            </button>
+          </header>
+
+          <section className="opinion-mobile-masthead">
+            <div className="opinion-mobile-eyebrow">
+              <RemixIcon name="ri-edit-2-line" size={15} />
+              <span>Köşe yazıları</span>
+            </div>
+            <h1>
+              <span aria-hidden="true" />
+              {displayCategory}
+            </h1>
+            <p>Yazarların güncel yorumları, gündem notları ve kişisel bakış açıları.</p>
+            <div className="opinion-mobile-stats">
+              <div>
+                <strong>{formatCompactMetric(categoryStats.newsCount)}</strong>
+                <span>Yazı</span>
+              </div>
+              <div>
+                <strong>{formatCompactMetric(opinionAuthors.length)}</strong>
+                <span>Yazar</span>
+              </div>
+              <div>
+                <strong>{formatCompactMetric(categoryStats.totalViews)}</strong>
+                <span>Okunma</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="opinion-mobile-switcher">
+            <div className="opinion-mobile-view-tabs" aria-label="Köşe yazısı görünümü">
+              <button
+                type="button"
+                className={opinionMobileView === 'articles' ? 'is-active' : undefined}
+                onClick={() => setOpinionMobileView('articles')}
+              >
+                Yazılar
+              </button>
+              <button
+                type="button"
+                className={opinionMobileView === 'authors' ? 'is-active' : undefined}
+                onClick={() => setOpinionMobileView('authors')}
+              >
+                Yazarlar
+              </button>
+            </div>
+
+            {opinionMobileView === 'articles' && (
+              <div className="category-mobile-filter-tabs opinion-mobile-filter-tabs" aria-label="Sıralama">
+                <button
+                  type="button"
+                  className={mobileFilter === 'latest' ? 'is-active' : undefined}
+                  onClick={() => setMobileFilter('latest')}
+                >
+                  <RemixIcon name="ri-time-line" size={13} />
+                  En yeni
+                </button>
+                <button
+                  type="button"
+                  className={mobileFilter === 'popular' ? 'is-active' : undefined}
+                  onClick={() => setMobileFilter('popular')}
+                >
+                  <RemixIcon name="ri-fire-line" size={13} />
+                  Popüler
+                </button>
+              </div>
+            )}
+          </section>
+
+          {opinionMobileView === 'authors' ? (
+            <section className="opinion-mobile-authors-list">
+              {opinionAuthors.length > 0 ? (
+                opinionAuthors.map((author) => {
+                  const latestTitle = stripHtml(author.latestPost.seoTitle || author.latestPost.title);
+                  const latestInfo = stripHtml(author.latestPost.summary || author.latestPost.seoDescription);
+
+                  return (
+                    <article key={author.key} className="opinion-mobile-author-card">
+                      <button
+                        type="button"
+                        className="opinion-mobile-author-head"
+                        onClick={(event) => handleProfileClick(event, author.latestPost)}
+                      >
+                        <span className="opinion-mobile-author-avatar">
+                          {author.avatar ? (
+                            <img src={author.avatar} alt={author.name} loading="lazy" decoding="async" />
+                          ) : (
+                            author.initials
+                          )}
+                        </span>
+                        <span className="opinion-mobile-author-main">
+                          <span className="opinion-mobile-author-name">
+                            {author.name}
+                            <RemixIcon name="ri-verified-badge-fill" size={15} />
+                          </span>
+                          {author.handle && <span className="opinion-mobile-author-handle">@{author.handle}</span>}
+                        </span>
+                      </button>
+                      {latestInfo && <p>{latestInfo}</p>}
+                      <button
+                        type="button"
+                        className="opinion-mobile-latest-card"
+                        onClick={() => onNewsSelect(author.latestPost.id)}
+                      >
+                        <strong>{latestTitle}</strong>
+                        <span>{formatCompactMetric(author.postCount)} yazı · {formatCompactMetric(author.totalViews)} okunma</span>
+                      </button>
+                    </article>
+                  );
+                })
+              ) : (
+                <div className="category-mobile-empty">
+                  <strong>{t('category_detail.empty_title')}</strong>
+                  <p>{t('category_detail.empty_description')}</p>
+                </div>
+              )}
+            </section>
+          ) : (
+            <section className="category-mobile-feed-list opinion-mobile-feed-list">
+              {mobileCategoryNews.length > 0 ? (
+                mobileCategoryNews.map((news) => (
+                  <NewsCard
+                    key={news.id}
+                    data={news}
+                    siteSettings={siteSettings}
+                    navItems={navItems}
+                    onSourceClick={() => onProfileSelect?.(news)}
+                  />
+                ))
+              ) : (
+                <div className="category-mobile-empty">
+                  <strong>{t('category_detail.empty_title')}</strong>
+                  <p>{t('category_detail.empty_description')}</p>
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+
+        <div className="opinion-desktop-shell">
         <div className="opinion-hero border-b border-gray-100 px-5 py-6 md:px-8 md:py-8">
           <div className="mb-7 flex items-center justify-between gap-3">
             <button
@@ -1133,6 +1344,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
             </aside>
           </div>
         </div>
+        </div>
       </div>
     );
   }
@@ -1396,6 +1608,91 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
         }
       `}</style>
 
+      <div className="category-mobile-shell">
+        <header className="category-mobile-appbar">
+          <button type="button" className="category-mobile-icon-button" aria-label="Bu kategoride ara">
+            <RemixIcon name="ri-search-line" size={25} />
+          </button>
+          <div className="category-mobile-appbar-spacer" />
+          <button type="button" className="category-mobile-back-button" onClick={onBack} aria-label="Geri">
+            <RemixIcon name="ri-arrow-left-line" size={22} />
+          </button>
+        </header>
+
+        <section className="category-mobile-masthead">
+          <div className="category-mobile-eyebrow">
+            <RemixIcon name={activeCategoryItem?.type === 'district' ? 'ri-map-pin-line' : 'ri-grid-fill'} size={14} />
+            <span>{mobileKindLabel}</span>
+          </div>
+          <h1>
+            <span aria-hidden="true" />
+            {mobileCategoryTitle}
+          </h1>
+          <p>{mobileCategoryDescription}</p>
+          <div className="category-mobile-stats">
+            <span>
+              <RemixIcon name="ri-eye-line" size={14} />
+              <strong>{formatCompactMetric(categoryStats.totalViews)} okunma</strong>
+            </span>
+            <i aria-hidden="true" />
+            <span>
+              <RemixIcon name="ri-newspaper-line" size={14} />
+              {formatCompactMetric(categoryStats.newsCount)} haber
+            </span>
+            <i aria-hidden="true" />
+            <span>
+              <RemixIcon name="ri-time-line" size={14} />
+              Günlük güncellenir
+            </span>
+          </div>
+        </section>
+
+        <section className="category-mobile-feed-head">
+          <div className="category-mobile-feed-title">
+            <strong>Sizin İçin</strong>
+            <span>Seçtiklerimiz</span>
+          </div>
+          <div className="category-mobile-filter-tabs" aria-label="Sıralama">
+            <button
+              type="button"
+              className={mobileFilter === 'latest' ? 'is-active' : undefined}
+              onClick={() => setMobileFilter('latest')}
+            >
+              <RemixIcon name="ri-time-line" size={13} />
+              En yeni
+            </button>
+            <button
+              type="button"
+              className={mobileFilter === 'popular' ? 'is-active' : undefined}
+              onClick={() => setMobileFilter('popular')}
+            >
+              <RemixIcon name="ri-fire-line" size={13} />
+              Popüler
+            </button>
+          </div>
+        </section>
+
+        <section className="category-mobile-feed-list">
+          {mobileCategoryNews.length > 0 ? (
+            mobileCategoryNews.map((news) => (
+              <NewsCard
+                key={news.id}
+                data={news}
+                siteSettings={siteSettings}
+                navItems={navItems}
+                onSourceClick={() => onProfileSelect?.(news)}
+              />
+            ))
+          ) : (
+            <div className="category-mobile-empty">
+              <strong>{t('category_detail.empty_title')}</strong>
+              <p>{t('category_detail.empty_description')}</p>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <div className="category-desktop-shell">
       {/* Header Section */}
       <div className={`${categoryImageUrl ? 'px-6 pt-6 pb-3 md:px-8 md:pt-8 md:pb-3' : 'p-6 md:p-8'} border-b border-gray-50 bg-gray-50/30`}>
         <div className="flex items-center justify-between mb-6">
@@ -1707,6 +2004,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
         </div>
       </div>
 
+      </div>
     </div>
   );
 };

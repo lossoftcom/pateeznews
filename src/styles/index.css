@@ -24,6 +24,15 @@ body.public-route {
     font-size: var(--fs-base, 15px);
 }
 
+body.public-route .home-mobile-service {
+    display: none;
+}
+
+body.public-route .profile-mobile-shell,
+body.public-route .profile-edit-mobile-shell {
+    display: none;
+}
+
 /* Scaleflex UI poppers (used by Filerobot) are portaled to #SfxPopper.
    Our admin modals use very high z-index, so ensure poppers render above them. */
 #SfxPopper .SfxPopper-wrapper {
@@ -1613,22 +1622,176 @@ h5.news-title-font {
         color: #2C3E50;
     }
 
+    body.public-route .mobile-shell-bottom-nav i {
+        font-weight: 400 !important;
+        font-synthesis-weight: none;
+    }
+
     body.public-route .mobile-shell-bottom-nav span {
         max-width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         font-size: 11.5px;
-        font-weight: 800;
+        font-weight: 600;
         letter-spacing: 0;
+        line-height: 1.2;
+    }
+
+    body.public-route .mobile-shell-bottom-avatar {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 28px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid #E6ECEE;
+        border-radius: 999px;
+        background: #F7F8FA;
+        color: #2C3E50;
+        font-size: 10.5px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-shell-bottom-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.public-route .mobile-shell-bottom-nav button.is-active .mobile-shell-bottom-avatar {
+        border-color: #2C3E50;
+    }
+
+    body.public-route .mobile-shell-account-hit-area {
+        position: fixed;
+        inset: 0;
+        z-index: 979;
+        border: 0;
+        background: transparent;
+    }
+
+    body.public-route .mobile-shell-account-menu {
+        position: fixed;
+        right: 10px;
+        bottom: calc(var(--mobile-shell-bottom-nav) + var(--mobile-shell-safe-bottom) + 10px);
+        z-index: 982;
+        width: min(230px, calc(100vw - 20px));
+        border: 1px solid #F0F3F4;
+        border-radius: 5px;
+        background: #FFFFFF;
+        padding: 8px;
+        box-shadow: 0 18px 28px rgba(44, 62, 80, 0.16);
+    }
+
+    body.public-route .mobile-shell-account-head {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 8px 9px;
+    }
+
+    body.public-route .mobile-shell-account-avatar {
+        display: flex;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid #E6ECEE;
+        border-radius: 999px;
+        background: #F7F8FA;
+        color: #2C3E50;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-shell-account-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.public-route .mobile-shell-account-id {
+        display: block;
+        min-width: 0;
+    }
+
+    body.public-route .mobile-shell-account-id strong,
+    body.public-route .mobile-shell-account-id small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        letter-spacing: 0;
+    }
+
+    body.public-route .mobile-shell-account-id strong {
+        color: #0F1B26;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    body.public-route .mobile-shell-account-id small {
+        margin-top: 2px;
+        color: #8A949B;
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    body.public-route .mobile-shell-account-action {
+        display: flex;
+        width: 100%;
+        height: 40px;
+        align-items: center;
+        gap: 10px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        padding: 0 10px;
+        color: #2C3E50;
+        font: inherit;
+        text-align: left;
+    }
+
+    body.public-route .mobile-shell-account-action i {
+        color: rgba(44, 62, 80, 0.78);
+        font-weight: 400 !important;
+        font-synthesis-weight: none;
+    }
+
+    body.public-route .mobile-shell-account-action span {
+        color: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-shell-account-action:active {
+        background: #F7F8FA;
+        transform: scale(0.98);
+    }
+
+    body.public-route .mobile-shell-account-action.is-danger {
+        color: #EA4335;
+    }
+
+    body.public-route .mobile-shell-account-action.is-danger i {
+        color: rgba(234, 67, 53, 0.78);
     }
 
     body.public-route .mobile-shell-sheet-backdrop {
         position: fixed;
         inset: 0;
         z-index: 978;
-        background: rgba(15, 27, 38, 0.28);
-        backdrop-filter: blur(2px);
+        background: rgba(0, 0, 0, 0.45);
     }
 
     body.public-route .mobile-shell-apps-sheet {
@@ -1637,109 +1800,620 @@ h5.news-title-font {
         right: 0;
         bottom: calc(var(--mobile-shell-bottom-nav) + var(--mobile-shell-safe-bottom));
         z-index: 979;
-        max-height: min(68vh, 520px);
+        max-height: min(72vh, 520px);
         overflow-y: auto;
-        border: 1px solid #E6ECEE;
-        border-bottom: 0;
-        border-radius: 8px 8px 0 0;
+        border: 0;
+        border-radius: 20px 20px 0 0;
         background: #FFFFFF;
-        padding: 8px 14px 16px;
-        box-shadow: 0 -24px 60px rgba(16, 24, 40, 0.2);
+        padding: 12px 20px 8px;
+        box-shadow: 0 -10px 32px rgba(44, 62, 80, 0.14);
     }
 
     body.public-route .mobile-shell-sheet-handle {
-        width: 38px;
-        height: 4px;
-        margin: 2px auto 12px;
+        width: 40px;
+        height: 5px;
+        margin: 0 auto 12px;
         border-radius: 999px;
-        background: #D9DEE2;
+        background: #E6ECEE;
     }
 
     body.public-route .mobile-shell-sheet-head {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #F0F3F4;
+        justify-content: flex-start;
+        gap: 10px;
+        margin-bottom: 12px;
     }
 
     body.public-route .mobile-shell-sheet-head p {
         margin: 0;
         color: #0F1B26;
-        font-size: 16px;
-        font-weight: 900;
-        line-height: 1.1;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 20px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: 0;
     }
 
-    body.public-route .mobile-shell-sheet-head span {
+    body.public-route .mobile-shell-sheet-head > span {
         display: block;
-        margin-top: 3px;
-        color: #8A949B;
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    body.public-route .mobile-shell-sheet-head button {
-        display: flex;
-        width: 36px;
-        height: 36px;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #F0F3F4;
-        border-radius: 4px;
-        background: #F7F8FA;
-        color: #536270;
+        width: 3px;
+        height: 18px;
+        flex: 0 0 3px;
+        border-radius: 2px;
+        background: #EA4335;
     }
 
     body.public-route .mobile-shell-app-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        padding-top: 14px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        column-gap: 12px;
+        row-gap: 8px;
+        padding: 0;
     }
 
     body.public-route .mobile-shell-app-grid button {
-        display: grid;
-        min-height: 70px;
-        grid-template-columns: 36px minmax(0, 1fr);
+        display: flex;
+        min-width: 0;
+        min-height: 106px;
+        flex-direction: column;
         align-items: center;
-        gap: 10px;
-        border: 1px solid #F0F3F4;
-        border-radius: 8px;
-        background: #FFFFFF;
-        padding: 12px;
-        text-align: left;
+        justify-content: flex-start;
+        gap: 4px;
+        border: 0;
+        border-radius: 14px;
+        background: transparent;
+        padding: 0;
+        text-align: center;
         color: #1B2A37;
-        box-shadow: 0 8px 22px rgba(16, 24, 40, 0.05);
+        box-shadow: none;
     }
 
-    body.public-route .mobile-shell-app-grid button > span {
+    body.public-route .mobile-shell-app-icon {
+        position: relative;
         display: flex;
-        width: 36px;
-        height: 36px;
+        width: 62px;
+        height: 62px;
+        flex: 0 0 62px;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
-        background: #F7F8FA;
-        color: #EA4335;
+        overflow: hidden;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--mobile-app-accent-start) 0%, var(--mobile-app-accent) 55%, var(--mobile-app-accent-end) 100%);
+        color: #FFFFFF;
+        box-shadow: 0 7px 14px rgba(var(--mobile-app-accent-rgb), 0.30);
+    }
+
+    body.public-route .mobile-shell-app-icon::before,
+    body.public-route .mobile-shell-app-icon::after {
+        position: absolute;
+        content: "";
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        pointer-events: none;
+    }
+
+    body.public-route .mobile-shell-app-icon::before {
+        top: -14px;
+        right: -12px;
+        width: 36px;
+        height: 36px;
+    }
+
+    body.public-route .mobile-shell-app-icon::after {
+        bottom: -16px;
+        left: -10px;
+        width: 30px;
+        height: 30px;
+        opacity: 0.67;
+    }
+
+    body.public-route .mobile-shell-app-icon i {
+        position: relative;
+        z-index: 1;
+        font-weight: 400 !important;
+        font-synthesis-weight: none;
     }
 
     body.public-route .mobile-shell-app-grid strong {
         min-width: 0;
         overflow: hidden;
         color: inherit;
+        display: -webkit-box;
+        max-width: 100%;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        font-size: 11.5px;
+        font-weight: 600;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+    }
+
+    body.public-route .home-mobile-service {
+        display: block;
+        font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        letter-spacing: 0;
+    }
+
+    body.public-route .public-feed > .home-mobile-service {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    body.public-route .home-mobile-feed-service {
+        margin-left: -12px;
+        margin-right: -12px;
+    }
+
+    body.public-route .home-mobile-strip-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding: 12px 22px 8px;
+    }
+
+    body.public-route .home-mobile-live-dot {
+        width: 9px;
+        height: 9px;
+        flex: 0 0 9px;
+        border-radius: 999px;
+        background: #16A34A;
+        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+    }
+
+    body.public-route .home-mobile-strip-title {
+        display: flex;
+        min-width: 0;
+        flex: 1 1 auto;
+        align-items: baseline;
+        gap: 7px;
+    }
+
+    body.public-route .home-mobile-strip-title strong,
+    body.public-route .home-mobile-columnist-title strong {
+        min-width: 0;
+        overflow: hidden;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.16;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-strip-title span {
+        overflow: hidden;
+        color: #8A949B;
         font-size: 13px;
-        font-weight: 900;
+        font-weight: 500;
         line-height: 1.2;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
 
-    body.public-route .mobile-shell-app-grid button.is-active {
-        border-color: rgba(234, 67, 53, 0.22);
-        color: #EA4335;
-        background: rgba(234, 67, 53, 0.04);
+    body.public-route .home-mobile-strip-link {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 2px;
+        border: 0;
+        background: transparent;
+        padding: 4px;
+        color: #8A949B;
+        font: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-market {
+        overflow: hidden;
+        background: #F2F4F7;
+        padding-bottom: 0;
+    }
+
+    body.public-route .home-mobile-market-list {
+        display: flex;
+        height: 80px;
+        gap: 6px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 22px 0 39px;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    body.public-route .home-mobile-market-list::-webkit-scrollbar,
+    body.public-route .home-mobile-weather-scroll::-webkit-scrollbar,
+    body.public-route .home-mobile-columnist-list::-webkit-scrollbar {
+        display: none;
+    }
+
+    body.public-route .home-mobile-market-card {
+        display: flex;
+        width: 96px;
+        min-width: 96px;
+        height: 74px;
+        flex-direction: column;
+        justify-content: space-between;
+        scroll-snap-align: start;
+        border: 1px solid #E6ECEE;
+        border-radius: 10px;
+        background: #FFFFFF;
+        padding: 6px;
+        box-shadow: 0 3px 8px rgba(44, 62, 80, 0.035);
+    }
+
+    body.public-route .home-mobile-market-top,
+    body.public-route .home-mobile-market-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    body.public-route .home-mobile-market-icon {
+        display: inline-flex;
+        width: 21px;
+        height: 21px;
+        flex: 0 0 21px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 7px;
+        background: color-mix(in srgb, var(--market-accent) 10%, transparent);
+        color: var(--market-accent);
+    }
+
+    body.public-route .home-mobile-market-change {
+        display: inline-flex;
+        min-width: 0;
+        align-items: center;
+        gap: 1px;
+        border-radius: 6px;
+        padding: 2px 4px 2px 3px;
+        font-size: 8px;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-market-change.is-up {
+        background: rgba(22, 163, 74, 0.11);
+        color: #16A34A;
+    }
+
+    body.public-route .home-mobile-market-change.is-down {
+        background: rgba(229, 72, 77, 0.11);
+        color: #E5484D;
+    }
+
+    body.public-route .home-mobile-market-name {
+        overflow: hidden;
+        color: #2C3E50;
+        font-size: 10px;
+        font-weight: 800;
+        line-height: 1.08;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-market-subtitle {
+        overflow: hidden;
+        color: #8A949B;
+        font-size: 7.8px;
+        font-weight: 700;
+        line-height: 1;
+        text-overflow: ellipsis;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-market-bottom strong {
+        overflow: hidden;
+        color: #0F1B26;
+        font-size: 10.5px;
+        font-weight: 900;
+        line-height: 1.02;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-market-spark {
+        width: 21px;
+        height: 12px;
+        flex: 0 0 21px;
+    }
+
+    body.public-route .home-mobile-weather {
+        overflow: hidden;
+        background: linear-gradient(180deg, #F2F4F7 0%, color-mix(in srgb, #F39C12 11%, #F2F4F7) 50%, #F2F4F7 100%);
+    }
+
+    body.public-route .home-mobile-weather-header {
+        padding-top: 2px;
+        padding-bottom: 6px;
+    }
+
+    body.public-route .home-mobile-weather-scroll {
+        display: flex;
+        height: 88px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 22px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    body.public-route .home-mobile-weather-now {
+        display: flex;
+        flex: 0 0 calc(100vw - 96px);
+        max-width: 336px;
+        flex-direction: column;
+        justify-content: center;
+        padding-right: 10px;
+    }
+
+    body.public-route .home-mobile-weather-main {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    body.public-route .home-mobile-weather-temp {
+        display: flex;
+        align-items: flex-start;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 29px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+    }
+
+    body.public-route .home-mobile-weather-temp span {
+        margin: 3px 0 0 1px;
+        color: #8A949B;
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1;
+    }
+
+    body.public-route .home-mobile-weather-main strong {
+        display: block;
+        overflow: hidden;
+        color: #1B2A37;
+        font-size: 11.5px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-weather-main p {
+        margin: 1px 0 0;
+        color: #8A949B;
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    body.public-route .home-mobile-weather-glyph {
+        display: inline-flex;
+        width: 36px;
+        height: 36px;
+        flex: 0 0 36px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--weather-tint) 10%, transparent);
+        color: var(--weather-tint);
+    }
+
+    body.public-route .home-mobile-weather-stats {
+        display: grid;
+        grid-template-columns: repeat(4, max-content);
+        justify-content: space-between;
+        gap: 6px;
+        margin-top: 7px;
+    }
+
+    body.public-route .home-mobile-weather-stats span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: #2C3E50;
+        font-size: 10.5px;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-weather-stats .is-humidity i,
+    body.public-route .home-mobile-weather-stats .is-rain i,
+    body.public-route .home-mobile-hour-tile small {
+        color: #2F80ED;
+    }
+
+    body.public-route .home-mobile-weather-stats .is-wind i {
+        color: #8A949B;
+    }
+
+    body.public-route .home-mobile-weather-stats .is-temp i {
+        color: #F39C12;
+    }
+
+    body.public-route .home-mobile-hours-divider {
+        width: 1px;
+        height: 58px;
+        flex: 0 0 1px;
+        align-self: center;
+        background: rgba(230, 236, 238, 0.9);
+    }
+
+    body.public-route .home-mobile-hour-tile {
+        display: flex;
+        width: 42px;
+        min-width: 42px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        color: #8A949B;
+        text-align: center;
+    }
+
+    body.public-route .home-mobile-hour-tile span {
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 9px;
+        font-weight: 700;
+        line-height: 1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-hour-tile strong {
+        color: #0F1B26;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .home-mobile-hour-tile small {
+        font-size: 8.5px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .home-mobile-columnist-header {
+        padding-top: 2px;
+        padding-bottom: 6px;
+    }
+
+    body.public-route .home-mobile-columnist-title {
+        display: flex;
+        min-width: 0;
+        flex: 1 1 auto;
+        align-items: center;
+        gap: 9px;
+    }
+
+    body.public-route .home-mobile-columnist-title > span {
+        width: 3px;
+        height: 17px;
+        flex: 0 0 3px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .home-mobile-columnist-list {
+        display: flex;
+        height: 122px;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 2px 22px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    body.public-route .home-mobile-columnist-card {
+        display: flex;
+        width: 206px;
+        min-width: 206px;
+        height: 114px;
+        flex-direction: column;
+        border: 1px solid #E6ECEE;
+        border-radius: 11px;
+        background: #FFFFFF;
+        padding: 10px;
+        color: #2C3E50;
+        text-align: left;
+        box-shadow: 0 4px 10px rgba(44, 62, 80, 0.035);
+    }
+
+    body.public-route .home-mobile-columnist-card > strong {
+        display: -webkit-box;
+        overflow: hidden;
+        color: #2C3E50;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.22;
+    }
+
+    body.public-route .home-mobile-columnist-card > p {
+        display: -webkit-box;
+        overflow: hidden;
+        margin: 6px 0 0;
+        color: #8A949B;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        font-size: 10.5px;
+        font-weight: 500;
+        line-height: 1.35;
+    }
+
+    body.public-route .home-mobile-columnist-author {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        margin-top: auto;
+    }
+
+    body.public-route .home-mobile-columnist-author img,
+    body.public-route .home-mobile-columnist-avatar {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 28px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid rgba(124, 58, 237, 0.22);
+        border-radius: 999px;
+        background: rgba(124, 58, 237, 0.12);
+        color: #7C3AED;
+        font-size: 10px;
+        font-weight: 700;
+        object-fit: cover;
+    }
+
+    body.public-route .home-mobile-columnist-author > span:last-child {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    body.public-route .home-mobile-columnist-author b {
+        overflow: hidden;
+        color: #2C3E50;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.15;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .home-mobile-columnist-author small {
+        overflow: hidden;
+        color: #8A949B;
+        font-size: 9.5px;
+        font-weight: 500;
+        line-height: 1.15;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     body.public-route .public-page-main,
@@ -1769,6 +2443,1169 @@ h5.news-title-font {
         max-width: none !important;
     }
 
+    body.public-route:has(.profile-mobile-shell),
+    body.public-route:has(.profile-edit-mobile-shell) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.profile-mobile-shell) .public-site-header,
+    body.public-route:has(.profile-mobile-shell) .mobile-shell-bottom-nav,
+    body.public-route:has(.profile-edit-mobile-shell) .public-site-header,
+    body.public-route:has(.profile-edit-mobile-shell) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route:has(.profile-mobile-shell) .public-page-main,
+    body.public-route:has(.profile-mobile-shell) main,
+    body.public-route:has(.profile-edit-mobile-shell) .public-page-main,
+    body.public-route:has(.profile-edit-mobile-shell) main {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route:has(.profile-mobile-shell) .public-profile-page-main > section,
+    body.public-route:has(.profile-mobile-shell) .public-profile-page-main > section > div,
+    body.public-route:has(.profile-edit-mobile-shell) .public-profile-page-main > section,
+    body.public-route:has(.profile-edit-mobile-shell) .public-profile-page-main > section > div {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 !important;
+    }
+
+    body.public-route .profile-desktop-shell,
+    body.public-route .profile-edit-desktop-shell {
+        display: none !important;
+    }
+
+    body.public-route .profile-mobile-shell,
+    body.public-route .profile-edit-mobile-shell {
+        display: block;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: #F2F4F7;
+        color: #0F1B26;
+        font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        letter-spacing: 0;
+    }
+
+    body.public-route .profile-mobile-sticky-appbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 30;
+        display: grid;
+        grid-template-columns: 50px minmax(0, 1fr) 50px;
+        height: calc(56px + env(safe-area-inset-top, 0px));
+        align-items: center;
+        padding: env(safe-area-inset-top, 0px) 10px 0;
+        border-bottom: 1px solid rgba(230, 236, 238, 0.72);
+        background: rgba(255, 255, 255, 0.98);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-10px);
+        transition: opacity 150ms ease, transform 150ms ease;
+    }
+
+    body.public-route .profile-mobile-sticky-appbar.is-visible {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+    }
+
+    body.public-route .profile-mobile-sticky-appbar > div {
+        display: inline-flex;
+        min-width: 0;
+        grid-column: 2;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    body.public-route .profile-mobile-sticky-appbar > div span {
+        width: 3px;
+        height: 16px;
+        flex: 0 0 3px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .profile-mobile-sticky-appbar strong {
+        overflow: hidden;
+        color: #0F1B26;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.15;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .profile-mobile-sticky-appbar button {
+        display: inline-flex;
+        width: 36px;
+        height: 36px;
+        grid-column: 3;
+        align-items: center;
+        justify-content: center;
+        justify-self: end;
+        border: 1px solid #E6ECEE;
+        border-radius: 50%;
+        background: #F7F8FA;
+        color: #536270;
+    }
+
+    body.public-route .profile-mobile-cover {
+        position: relative;
+        height: 176px;
+        overflow: hidden;
+        background: #2C3E50;
+    }
+
+    body.public-route .profile-mobile-cover img,
+    body.public-route .profile-mobile-cover-empty {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.public-route .profile-mobile-cover-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.55);
+    }
+
+    body.public-route .profile-mobile-cover-shade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0) 44%, rgba(0, 0, 0, 0.12) 100%);
+    }
+
+    body.public-route .profile-mobile-back {
+        position: absolute;
+        top: calc(env(safe-area-inset-top, 0px) + 16px);
+        right: 16px;
+        z-index: 2;
+        display: inline-flex;
+        width: 40px;
+        height: 40px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #E6ECEE;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.92);
+        color: #2C3E50;
+        box-shadow: 0 5px 14px rgba(16, 24, 40, 0.10);
+    }
+
+    body.public-route .profile-mobile-identity {
+        position: relative;
+        padding: 0 20px;
+        margin-top: -56px;
+    }
+
+    body.public-route .profile-mobile-avatar {
+        position: relative;
+        display: flex;
+        width: 112px;
+        height: 112px;
+        align-items: center;
+        justify-content: center;
+        overflow: visible;
+        border: 4px solid #FFFFFF;
+        border-radius: 50%;
+        background: #F7F8FA;
+        color: #8A949B;
+        box-shadow: 0 8px 18px rgba(44, 62, 80, 0.18);
+    }
+
+    body.public-route .profile-mobile-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    body.public-route .profile-mobile-verified {
+        position: absolute;
+        right: -3px;
+        bottom: -3px;
+        display: flex;
+        width: 24px;
+        height: 24px;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid #FFFFFF;
+        border-radius: 50%;
+        background: #F39C12;
+        color: #FFFFFF;
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    body.public-route .profile-mobile-edit-wrap {
+        position: absolute;
+        top: 66px;
+        right: 20px;
+    }
+
+    body.public-route .profile-mobile-edit-button,
+    body.public-route .profile-mobile-action-skeleton {
+        display: inline-flex;
+        height: 34px;
+        min-width: 138px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        border: 0;
+        border-radius: 4px;
+        background: #2C3E50;
+        padding: 0 13px;
+        color: #FFFFFF;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    body.public-route .profile-mobile-edit-button.is-following {
+        border: 1px solid #E6ECEE;
+        background: #FFFFFF;
+        color: #536270;
+    }
+
+    body.public-route .profile-mobile-action-skeleton {
+        background: #E6ECEE;
+    }
+
+    body.public-route .profile-mobile-identity h1 {
+        margin: 12px 0 0;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 26px;
+        font-weight: 900;
+        line-height: 1.1;
+        letter-spacing: 0;
+    }
+
+    body.public-route .profile-mobile-meta {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+
+    body.public-route .profile-mobile-meta span {
+        color: #536270;
+        font-size: 13.5px;
+        font-weight: 700;
+    }
+
+    body.public-route .profile-mobile-meta b {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 4px;
+        background: rgba(243, 156, 18, 0.12);
+        padding: 4px 9px;
+        color: #0F1B26;
+        font-size: 10.5px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .profile-mobile-meta b::before {
+        content: "✦";
+        color: #F39C12;
+        font-size: 11px;
+    }
+
+    body.public-route .profile-mobile-meta em {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        border-radius: 4px;
+        background: #DFF7EA;
+        padding: 6px 10px;
+        color: #22A565;
+        font-size: 11px;
+        font-style: normal;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .profile-mobile-meta em::before {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        content: "";
+    }
+
+    body.public-route .profile-mobile-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin: 22px 20px 0;
+        border: 1px solid #E6ECEE;
+        border-radius: 4px;
+        background: #FFFFFF;
+        padding: 17px 0;
+    }
+
+    body.public-route .profile-mobile-stats div {
+        min-width: 0;
+        border-right: 1px solid #E6ECEE;
+        text-align: center;
+    }
+
+    body.public-route .profile-mobile-stats div:last-child {
+        border-right: 0;
+    }
+
+    body.public-route .profile-mobile-stats strong,
+    body.public-route .profile-mobile-stats span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .profile-mobile-stats strong {
+        color: #0F1B26;
+        font-size: 19px;
+        font-weight: 900;
+        line-height: 1.1;
+    }
+
+    body.public-route .profile-mobile-stats span {
+        margin-top: 4px;
+        color: #8A949B;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        line-height: 1.1;
+    }
+
+    body.public-route .profile-mobile-card,
+    body.public-route .profile-mobile-posts {
+        margin: 16px 20px 0;
+        border: 1px solid #E6ECEE;
+        border-radius: 4px;
+        background: #FFFFFF;
+        padding: 16px;
+    }
+
+    body.public-route .profile-mobile-card h2,
+    body.public-route .profile-mobile-section-title h2 {
+        margin: 0;
+        color: #0F1B26;
+        font-size: 15px;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
+    body.public-route .profile-mobile-card p {
+        margin: 14px 0 0;
+        color: #8A949B;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.45;
+    }
+
+    body.public-route .profile-mobile-info-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid #F0F3F4;
+    }
+
+    body.public-route .profile-mobile-info-list span {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 10px;
+        color: #536270;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    body.public-route .profile-mobile-info-list svg {
+        flex: 0 0 auto;
+        color: #8A949B;
+    }
+
+    body.public-route .profile-mobile-socials {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    body.public-route .profile-mobile-socials a {
+        display: inline-flex;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        background: #0A0A0A;
+        color: #FFFFFF;
+    }
+
+    body.public-route .profile-mobile-activity {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    body.public-route .profile-mobile-activity div {
+        min-width: 0;
+        border: 1px solid #F0F3F4;
+        border-radius: 4px;
+        background: #F7F8FA;
+        padding: 13px;
+    }
+
+    body.public-route .profile-mobile-activity svg {
+        color: #EA4335;
+    }
+
+    body.public-route .profile-mobile-activity strong,
+    body.public-route .profile-mobile-activity span {
+        display: block;
+    }
+
+    body.public-route .profile-mobile-activity strong {
+        margin-top: 8px;
+        color: #0F1B26;
+        font-size: 18px;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    body.public-route .profile-mobile-activity span {
+        margin-top: 5px;
+        color: #8A949B;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    body.public-route .profile-mobile-follows {
+        padding-bottom: 16px;
+    }
+
+    body.public-route .profile-mobile-follow-block h2 {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+    }
+
+    body.public-route .profile-mobile-follow-block small {
+        color: #8A949B;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    body.public-route .profile-mobile-follow-avatars {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    body.public-route .profile-mobile-follow-avatar {
+        display: inline-flex;
+        width: 32px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 50%;
+        background: #F0F3F4;
+        color: #536270;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .profile-mobile-follow-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.public-route .profile-mobile-follow-empty {
+        margin: 14px 0 0;
+        color: #8A949B;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+
+    body.public-route .profile-mobile-follow-divider {
+        height: 1px;
+        margin: 18px 0;
+        background: #F0F3F4;
+    }
+
+    body.public-route .profile-mobile-section-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    body.public-route .profile-mobile-section-title > span {
+        width: 3px;
+        height: 18px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .profile-mobile-section-title small {
+        margin-left: auto;
+        color: #8A949B;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    body.public-route .profile-mobile-post-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    body.public-route .profile-mobile-posts {
+        border: 0;
+        background: transparent;
+        padding: 0;
+    }
+
+    body.public-route .profile-mobile-post-card {
+        display: grid;
+        width: 100%;
+        min-height: 132px;
+        grid-template-columns: 112px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        overflow: hidden;
+        border: 1px solid #E6ECEE;
+        border-radius: 4px;
+        background: #FFFFFF;
+        padding: 10px;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+    }
+
+    body.public-route .profile-mobile-post-thumb {
+        position: relative;
+        display: flex;
+        width: 112px;
+        height: 112px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 4px;
+        background: #F7F8FA;
+        color: #8A949B;
+    }
+
+    body.public-route .profile-mobile-post-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    body.public-route .profile-mobile-post-thumb em {
+        position: absolute;
+        left: 5px;
+        bottom: 5px;
+        display: inline-flex;
+        max-width: 92px;
+        min-height: 18px;
+        align-items: center;
+        border-radius: 3px;
+        background: #EA4335;
+        padding: 2px 6px;
+        color: #FFFFFF;
+        font-size: 9px;
+        font-style: normal;
+        font-weight: 800;
+        line-height: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .profile-mobile-post-body {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    body.public-route .profile-mobile-post-card strong {
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 14.5px;
+        font-weight: 800;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+    }
+
+    body.public-route .profile-mobile-post-date {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        align-items: center;
+        gap: 5px;
+        margin-top: 8px;
+        overflow: hidden;
+        color: #536270;
+        font-size: 10.8px;
+        font-weight: 600;
+        line-height: 1.1;
+        white-space: nowrap;
+    }
+
+    body.public-route .profile-mobile-post-date time:first-child {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    body.public-route .profile-mobile-post-date svg,
+    body.public-route .profile-mobile-post-meta svg {
+        flex: 0 0 auto;
+        color: #A1AAAD;
+    }
+
+    body.public-route .profile-mobile-post-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 7px;
+        color: #8A949B;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1;
+    }
+
+    body.public-route .profile-mobile-post-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    body.public-route .profile-edit-mobile-appbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: 82px minmax(0, 1fr) 50px;
+        height: calc(56px + env(safe-area-inset-top, 0px));
+        align-items: center;
+        padding: env(safe-area-inset-top, 0px) 10px 0 14px;
+        border-bottom: 1px solid #F0F3F4;
+        background: #FFFFFF;
+    }
+
+    body.public-route .profile-edit-mobile-appbar button {
+        display: inline-flex;
+        align-items: center;
+        border: 0;
+        background: transparent;
+        color: #2C3E50;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .profile-edit-mobile-appbar button:first-child {
+        justify-content: flex-start;
+    }
+
+    body.public-route .profile-edit-mobile-appbar button:last-child {
+        width: 36px;
+        height: 36px;
+        justify-content: center;
+        justify-self: end;
+        border: 1px solid #E6ECEE;
+        border-radius: 50%;
+        background: #F7F8FA;
+        color: #536270;
+    }
+
+    body.public-route .profile-edit-mobile-appbar strong {
+        overflow: hidden;
+        color: #0F1B26;
+        font-size: 17px;
+        font-weight: 900;
+        line-height: 1;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .profile-edit-mobile-content {
+        padding: 16px 20px calc(112px + env(safe-area-inset-bottom, 0px));
+        scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    }
+
+    body.public-route .profile-edit-mobile-card {
+        margin: 0 0 14px;
+        border: 1px solid #E6ECEE;
+        border-radius: 4px;
+        background: #FFFFFF;
+        padding: 16px;
+    }
+
+    body.public-route .profile-edit-mobile-card h2 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 14px;
+        color: #0F1B26;
+        font-size: 15px;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
+    body.public-route .profile-edit-mobile-card h2 span {
+        width: 3px;
+        height: 17px;
+        flex: 0 0 3px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .profile-edit-mobile-cover {
+        position: relative;
+        height: 112px;
+        overflow: hidden;
+        border-radius: 4px;
+        background: #F0F3F4;
+    }
+
+    body.public-route .profile-edit-mobile-cover > img,
+    body.public-route .profile-edit-mobile-cover > div {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.public-route .profile-edit-mobile-cover > div {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #8A949B;
+    }
+
+    body.public-route .profile-edit-mobile-cover button,
+    body.public-route .profile-edit-mobile-photo-row button {
+        display: inline-flex;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border: 0;
+        border-radius: 3px;
+        background: #2C3E50;
+        padding: 0 10px;
+        color: #FFFFFF;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    body.public-route .profile-edit-mobile-cover button {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+    }
+
+    body.public-route .profile-edit-mobile-photo-row {
+        display: grid;
+        grid-template-columns: 64px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    body.public-route .profile-edit-mobile-avatar {
+        display: flex;
+        width: 64px;
+        height: 64px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 3px solid #FFFFFF;
+        border-radius: 50%;
+        background: #F7F8FA;
+        color: #8A949B;
+        box-shadow: 0 6px 16px rgba(44, 62, 80, 0.16);
+    }
+
+    body.public-route .profile-edit-mobile-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.public-route .profile-edit-mobile-photo-row strong,
+    body.public-route .profile-edit-mobile-photo-row span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    body.public-route .profile-edit-mobile-photo-row strong {
+        color: #0F1B26;
+        font-size: 13px;
+        font-weight: 900;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    body.public-route .profile-edit-mobile-photo-row span {
+        margin-top: 3px;
+        color: #8A949B;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    body.public-route .profile-edit-mobile-field {
+        position: relative;
+        display: block;
+        margin-bottom: 12px;
+    }
+
+    body.public-route .profile-edit-mobile-field:last-child {
+        margin-bottom: 0;
+    }
+
+    body.public-route .profile-edit-mobile-field > span {
+        position: absolute;
+        top: -7px;
+        left: 13px;
+        z-index: 1;
+        background: #FFFFFF;
+        padding: 0 5px;
+        color: #A1AAAD;
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 1;
+    }
+
+    body.public-route .profile-edit-mobile-field > div {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        min-height: 48px;
+        align-items: center;
+        border: 1px solid #E6ECEE;
+        border-radius: 4px;
+        background: #FFFFFF;
+    }
+
+    body.public-route .profile-edit-mobile-field > div.profile-edit-mobile-select-field {
+        grid-template-columns: 34px minmax(0, 1fr) 34px;
+    }
+
+    body.public-route .profile-edit-mobile-field > div.is-textarea {
+        align-items: start;
+        padding-top: 13px;
+    }
+
+    body.public-route .profile-edit-mobile-field svg,
+    body.public-route .profile-edit-mobile-field > div > i,
+    body.public-route .profile-edit-mobile-field b {
+        justify-self: center;
+        color: #8A949B;
+        font-size: 17px;
+        font-weight: 700;
+    }
+
+    body.public-route .profile-edit-mobile-field input,
+    body.public-route .profile-edit-mobile-field select,
+    body.public-route .profile-edit-mobile-field textarea {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        padding: 0 12px 0 0;
+        color: #0F1B26;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.25;
+        outline: none;
+    }
+
+    body.public-route .profile-edit-mobile-field select {
+        appearance: none;
+        padding-right: 0;
+    }
+
+    body.public-route .profile-edit-mobile-field textarea {
+        min-height: 86px;
+        padding-top: 0;
+        resize: vertical;
+    }
+
+    body.public-route .profile-edit-mobile-field p {
+        margin: 5px 0 0;
+        color: #EA4335;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    body.public-route .profile-edit-mobile-social-fields {
+        display: grid;
+        gap: 12px;
+    }
+
+    body.public-route .profile-edit-mobile-social-fields .profile-edit-mobile-field > span {
+        display: none;
+    }
+
+    body.public-route .profile-edit-mobile-social-fields .profile-edit-mobile-field.has-value > span {
+        display: block;
+    }
+
+    body.public-route .profile-edit-mobile-social-fields .profile-edit-mobile-field input {
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    body.public-route .profile-edit-mobile-social-fields .profile-edit-mobile-field input::placeholder {
+        color: #8A949B;
+        opacity: 1;
+    }
+
+    body.public-route .profile-edit-mobile-toggle {
+        position: relative;
+        display: flex;
+        min-height: 52px;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #F0F3F4;
+        gap: 14px;
+        color: #1B2A37;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    body.public-route .profile-edit-mobile-toggle:last-child {
+        border-bottom: 0;
+    }
+
+    body.public-route .profile-edit-mobile-toggle input {
+        position: absolute;
+        right: 0;
+        width: 52px;
+        height: 32px;
+        margin: 0;
+        opacity: 0;
+    }
+
+    body.public-route .profile-edit-mobile-toggle i {
+        position: relative;
+        display: block;
+        width: 52px;
+        height: 32px;
+        flex: 0 0 52px;
+        border-radius: 999px;
+        background: #B6BFC4;
+        transition: background-color 160ms ease;
+    }
+
+    body.public-route .profile-edit-mobile-toggle i::after {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #FFFFFF;
+        box-shadow: 0 1px 3px rgba(15, 27, 38, 0.16);
+        content: "";
+        transition: transform 160ms ease;
+    }
+
+    body.public-route .profile-edit-mobile-toggle input:checked + i {
+        background: #EA4335;
+    }
+
+    body.public-route .profile-edit-mobile-toggle input:checked + i::after {
+        transform: translateX(20px);
+    }
+
+    body.public-route .profile-edit-mobile-password-field > div {
+        grid-template-columns: 34px minmax(0, 1fr) 38px;
+    }
+
+    body.public-route .profile-edit-mobile-password-field input {
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    body.public-route .profile-edit-mobile-password-field input::placeholder {
+        color: #A1AAAD;
+        opacity: 1;
+    }
+
+    body.public-route .profile-edit-mobile-password-field button {
+        display: inline-flex;
+        width: 38px;
+        height: 46px;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        color: #8A949B;
+    }
+
+    body.public-route .profile-edit-mobile-password-field button svg {
+        justify-self: auto;
+        color: #8A949B;
+    }
+
+    body.public-route .profile-edit-mobile-save,
+    body.public-route .profile-edit-mobile-secondary,
+    body.public-route .profile-edit-mobile-danger button {
+        display: flex;
+        width: 100%;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 4px;
+        background: #EA4335;
+        color: #FFFFFF;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    body.public-route .profile-edit-mobile-save {
+        margin: 0 0 20px;
+        height: 50px;
+        font-size: 15px;
+        font-weight: 800;
+        box-shadow: 0 12px 24px rgba(234, 67, 53, 0.18);
+    }
+
+    body.public-route .profile-edit-mobile-save.is-success {
+        background: #22A565;
+    }
+
+    body.public-route .profile-edit-mobile-secondary {
+        gap: 8px;
+        margin-top: 14px;
+        height: 46px;
+        background: #F1F3F5;
+        color: #2C3E50;
+        font-size: 13.5px;
+        font-weight: 800;
+    }
+
+    body.public-route .profile-edit-mobile-secondary svg {
+        color: #2C3E50;
+    }
+
+    body.public-route .profile-edit-mobile-message {
+        margin: 0 0 12px;
+        border: 1px solid rgba(234, 67, 53, 0.16);
+        border-radius: 4px;
+        background: rgba(234, 67, 53, 0.06);
+        padding: 10px 12px;
+        color: #EA4335;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.3;
+    }
+
+    body.public-route .profile-edit-mobile-danger {
+        border: 1px solid rgba(234, 67, 53, 0.30);
+        border-radius: 4px;
+        background: rgba(234, 67, 53, 0.04);
+        padding: 16px;
+    }
+
+    body.public-route .profile-edit-mobile-danger h2 {
+        margin: 0;
+        color: #B42318;
+        font-size: 15px;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    body.public-route .profile-edit-mobile-danger p {
+        margin: 8px 0 12px;
+        color: #536270;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.45;
+    }
+
+    body.public-route .profile-edit-mobile-danger input {
+        width: 100%;
+        height: 42px;
+        border: 1px solid rgba(234, 67, 53, 0.24);
+        border-radius: 4px;
+        background: #FFFFFF;
+        padding: 0 12px;
+        color: #0F1B26;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        outline: none;
+    }
+
+    body.public-route .profile-edit-mobile-danger button {
+        width: auto;
+        height: auto;
+        gap: 8px;
+        margin-top: 2px;
+        border: 1px solid #EA4335;
+        background: transparent;
+        padding: 10px 16px;
+        color: #EA4335;
+        font-size: 13.5px;
+        font-weight: 800;
+    }
+
+    body.public-route .profile-edit-mobile-danger button svg {
+        color: #EA4335;
+    }
+
     body.public-route .min-h-screen {
         background: #F2F4F7 !important;
     }
@@ -1783,10 +3620,15 @@ h5.news-title-font {
         padding-right: 12px !important;
     }
 
-    body.public-route .public-feed > div:first-child,
-    body.public-route .public-feed > div:nth-child(3) {
+    body.public-route .public-feed > div:first-child:not(.public-feed-section-header),
+    body.public-route .public-feed > div:nth-child(3):not(.public-feed-section-header) {
         padding-left: 0 !important;
         padding-right: 0 !important;
+    }
+
+    body.public-route .public-feed > .public-feed-section-header {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
     }
 
     body.public-route .manset-slider {
@@ -1833,6 +3675,123 @@ h5.news-title-font {
         height: 44px !important;
     }
 
+    body.public-route .public-home-feed {
+        width: 100% !important;
+        gap: 10px !important;
+        padding-bottom: 8px !important;
+    }
+
+    body.public-route .public-home-feed > .public-feed-manset-wrap,
+    body.public-route .public-home-feed > .public-feed-list {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    body.public-route .public-home-feed > .public-feed-section-header {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    body.public-route .public-home-feed .public-feed-list {
+        gap: 10px !important;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route .public-home-feed .manset-slider {
+        width: 100% !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    body.public-route .public-home-feed .manset-slider img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card {
+        width: 100% !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        border-right: 0 !important;
+        border-left: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-header {
+        padding: 14px 20px 6px !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-title {
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+        padding: 14px 20px 7px !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-title:has(h3.news-title-font)::before {
+        content: "";
+        width: 3px;
+        height: 22px;
+        flex: 0 0 3px;
+        margin-top: 4px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .public-home-feed .public-news-card h3.news-title-font {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 28px !important;
+        line-height: 1.08 !important;
+        letter-spacing: 0 !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-media {
+        overflow: visible !important;
+        padding: 0 0 8px !important;
+        border-radius: 0 !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-media > div {
+        margin-top: 0 !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-media > div > div:first-child {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+        margin-bottom: 10px !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-media > div > div:not(:first-child) {
+        width: 100% !important;
+        max-width: none !important;
+        border-right: 0 !important;
+        border-left: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-media .video-interact-area,
+    body.public-route .public-home-feed .public-news-card-media .card-interact-area {
+        border-right: 0 !important;
+        border-left: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-media img,
+    body.public-route .public-home-feed .public-news-card-media video,
+    body.public-route .public-home-feed .public-news-card-media iframe {
+        max-width: 100% !important;
+    }
+
+    body.public-route .public-home-feed .public-news-card-media > div > div:not(:first-child) > img,
+    body.public-route .public-home-feed .public-news-card-media > div > div:not(:first-child) > video,
+    body.public-route .public-home-feed .public-news-card-media > div > div:not(:first-child) > iframe {
+        width: 100% !important;
+    }
+
     body.public-route .public-news-detail {
         min-height: auto !important;
         margin: 0 10px 14px !important;
@@ -1857,9 +3816,603 @@ h5.news-title-font {
         line-height: 1.55 !important;
     }
 
+    body.public-route:has(.news-detail-mobile-shell) .public-site-header {
+        display: none !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .public-search-panel {
+        top: 0 !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .public-page-main,
+    body.public-route:has(.news-detail-mobile-shell) main {
+        padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+        background: #FFFFFF !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .min-h-screen {
+        background: #FFFFFF !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .public-news-detail {
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #FFFFFF !important;
+        box-shadow: none !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .public-news-detail > .fixed {
+        display: none !important;
+    }
+
+    body.public-route .news-detail-mobile-shell {
+        display: block;
+        overflow: hidden;
+        background: #FFFFFF;
+        color: #0F1B26;
+        font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        letter-spacing: 0;
+    }
+
+    body.public-route .mobile-detail-hero {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+        background: #0F1B26;
+    }
+
+    body.public-route .mobile-detail-hero::after {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 36%;
+        content: "";
+        background: linear-gradient(180deg, rgba(15, 27, 38, 0) 0%, rgba(15, 27, 38, 0.52) 58%, rgba(15, 27, 38, 0.82) 100%);
+        pointer-events: none;
+    }
+
+    body.public-route .mobile-detail-hero img {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 76vh;
+        object-fit: contain;
+        background: #0F1B26;
+    }
+
+    body.public-route .mobile-detail-hero-empty {
+        display: flex;
+        min-height: 280px;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.62);
+    }
+
+    body.public-route .mobile-detail-back-button {
+        position: absolute;
+        top: calc(env(safe-area-inset-top, 0px) + 14px);
+        right: 14px;
+        z-index: 4;
+        display: inline-flex;
+        width: 38px;
+        height: 38px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(230, 236, 238, 0.92);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #2C3E50;
+        box-shadow: 0 8px 22px rgba(15, 27, 38, 0.16);
+        backdrop-filter: blur(12px);
+    }
+
+    body.public-route .news-detail-mobile-shell i,
+    body.public-route .mobile-detail-share-rail i {
+        font-weight: 400 !important;
+        font-synthesis-weight: none;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    body.public-route .mobile-detail-hero-overlay {
+        position: absolute;
+        right: 18px;
+        bottom: 11px;
+        left: 18px;
+        z-index: 3;
+        color: #FFFFFF;
+    }
+
+    body.public-route .mobile-detail-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        color: #FFFFFF;
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.46);
+    }
+
+    body.public-route .mobile-detail-hero-actions button {
+        display: inline-flex;
+        min-width: 0;
+        align-items: center;
+        gap: 3px;
+        border: 0;
+        background: transparent;
+        padding: 2px 0;
+        color: rgba(255, 255, 255, 0.95);
+        font-size: 10.5px;
+        font-weight: 600;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-detail-hero-actions button.is-active {
+        color: #FFFFFF;
+    }
+
+    body.public-route .mobile-detail-hero-actions button.is-danger {
+        color: #FFE9E5;
+    }
+
+    body.public-route .mobile-detail-hero-actions .mobile-detail-save {
+        margin-left: auto;
+    }
+
+    body.public-route .mobile-detail-hero-date {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 11.5px;
+        font-weight: 500;
+        line-height: 1;
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.42);
+    }
+
+    body.public-route .mobile-detail-hero-date span {
+        padding-left: 6px;
+        border-left: 1px solid rgba(255, 255, 255, 0.38);
+    }
+
+    body.public-route .mobile-detail-sticky-title {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 245;
+        display: flex;
+        box-sizing: border-box;
+        height: calc(var(--public-nav-height) + env(safe-area-inset-top, 0px));
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid #F0F3F4;
+        background: rgba(255, 255, 255, 0.96);
+        padding: env(safe-area-inset-top, 0px) 12px 0;
+        opacity: var(--mobile-detail-appbar-progress, 0);
+        backdrop-filter: blur(14px);
+        transform: translateY(var(--mobile-detail-appbar-offset, -6px));
+        transition: opacity 120ms linear, transform 120ms linear;
+    }
+
+    body.public-route .mobile-detail-sticky-title > span {
+        width: 3px;
+        height: 18px;
+        flex: 0 0 3px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .mobile-detail-sticky-title strong {
+        min-width: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
+        color: #0F1B26;
+        font-size: 12.5px;
+        font-weight: 750;
+        line-height: 1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .mobile-detail-sticky-title button {
+        display: inline-flex;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #E6ECEE;
+        border-radius: 999px;
+        background: #F7F8FA;
+        color: #2C3E50;
+    }
+
+    body.public-route .mobile-detail-sticky-title > i {
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        height: 2px;
+        border-radius: 0 999px 999px 0;
+        background: linear-gradient(90deg, #EA4335 0%, #FF5A3D 62%, #F39C12 100%);
+        transition: width 100ms linear;
+    }
+
+    body.public-route .mobile-detail-share-row {
+        position: fixed;
+        top: calc(env(safe-area-inset-top, 0px) + 64px);
+        right: 12px;
+        z-index: 244;
+        display: flex;
+        height: auto;
+        justify-content: flex-end;
+        padding: 0;
+        opacity: var(--mobile-detail-dock-progress, 0);
+        transform: translateX(var(--mobile-detail-dock-offset, 18px));
+        transition: opacity 120ms linear, transform 120ms linear;
+    }
+
+    body.public-route .mobile-detail-share-pill {
+        display: inline-flex;
+        height: 31px;
+        align-items: center;
+        gap: 5px;
+        border: 0;
+        border-radius: 999px;
+        background: #EA4335;
+        color: #FFFFFF;
+        padding: 0 11px;
+        font-size: 10px;
+        font-weight: 850;
+        line-height: 1;
+        letter-spacing: 0.08em;
+        box-shadow: 0 10px 20px rgba(234, 67, 53, 0.28);
+        pointer-events: auto;
+    }
+
+    body.public-route .mobile-detail-share-rail {
+        position: fixed;
+        top: calc(env(safe-area-inset-top, 0px) + 64px);
+        right: 14px;
+        z-index: 260;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 9px;
+        opacity: var(--mobile-detail-dock-progress, 0);
+        transform: translateX(var(--mobile-detail-dock-offset, 18px));
+        transition: opacity 120ms linear, transform 120ms linear;
+    }
+
+    body.public-route .mobile-detail-share-count {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        color: #2C3E50;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-detail-share-count strong {
+        font-size: 16px;
+        font-weight: 850;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-detail-share-count span {
+        color: #8A949B;
+        font-size: 7.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-detail-share-rail button:not(.mobile-detail-share-close) {
+        position: relative;
+        display: inline-flex;
+        width: 32px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #E6ECEE;
+        border-radius: 999px;
+        background: #FFFFFF;
+        box-shadow: 0 6px 15px rgba(15, 27, 38, 0.13);
+    }
+
+    body.public-route .mobile-detail-share-rail .is-instagram {
+        color: #E1306C;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-facebook {
+        color: #1877F2;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-x {
+        color: #0F1419;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-whatsapp {
+        color: #25D366;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-like {
+        color: #2C3E50;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-like.is-active {
+        color: #FFFFFF;
+        background: #2C3E50;
+        border-color: #2C3E50;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-dislike {
+        color: #EA4335;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-dislike.is-active {
+        color: #FFFFFF;
+        background: #EA4335;
+        border-color: #EA4335;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-save {
+        color: #F39C12;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-save.is-active {
+        color: #FFFFFF;
+        background: #F39C12;
+        border-color: #F39C12;
+    }
+
+    body.public-route .mobile-detail-share-rail .is-like span {
+        position: absolute;
+        top: -5px;
+        right: -4px;
+        min-width: 15px;
+        height: 15px;
+        border: 1px solid #FFFFFF;
+        border-radius: 999px;
+        background: #2C3E50;
+        color: #FFFFFF;
+        padding: 0 3px;
+        font-size: 8px;
+        font-weight: 800;
+        line-height: 13px;
+        text-align: center;
+    }
+
+    body.public-route .mobile-detail-share-close {
+        border: 0;
+        background: transparent;
+        color: #8A949B;
+        padding: 0;
+        font-size: 8px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    body.public-route .mobile-detail-lede {
+        background: #FFFFFF;
+        padding: 16px 20px 24px;
+    }
+
+    body.public-route .mobile-detail-author-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+    }
+
+    body.public-route .mobile-detail-author-avatar {
+        position: relative;
+        display: inline-flex;
+        width: 46px;
+        height: 46px;
+        flex: 0 0 46px;
+        align-items: center;
+        justify-content: center;
+        border: 1.2px solid rgba(44, 62, 80, 0.24);
+        border-radius: 999px;
+        background: #FFFFFF;
+        padding: 2px;
+        box-shadow: 0 7px 18px rgba(15, 27, 38, 0.08);
+    }
+
+    body.public-route .mobile-detail-author-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 999px;
+        object-fit: cover;
+    }
+
+    body.public-route .mobile-detail-author-avatar > span {
+        position: absolute;
+        right: 1px;
+        bottom: 1px;
+        width: 12px;
+        height: 12px;
+        border: 2px solid #FFFFFF;
+        border-radius: 999px;
+        background: #EA4335;
+    }
+
+    body.public-route .mobile-detail-author-copy {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    body.public-route .mobile-detail-author-name {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 4px;
+        color: #0F1B26;
+        font-size: 14.5px;
+        font-weight: 700;
+        line-height: 1.1;
+    }
+
+    body.public-route .mobile-detail-author-name a,
+    body.public-route .mobile-detail-author-name span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .mobile-detail-author-name i {
+        flex: 0 0 auto;
+        color: #EA4335;
+    }
+
+    body.public-route .mobile-detail-author-copy p {
+        overflow: hidden;
+        margin: 3px 0 0;
+        color: #536270;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: 0.03em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .mobile-detail-follow {
+        flex: 0 0 auto;
+        border: 0 !important;
+        background: transparent !important;
+        color: #F39C12 !important;
+        padding: 0 !important;
+        font-size: 11px !important;
+        font-weight: 900 !important;
+        letter-spacing: 0.02em !important;
+        box-shadow: none !important;
+        white-space: nowrap;
+    }
+
+    body.public-route .mobile-detail-follow::before {
+        content: "+ ";
+    }
+
+    body.public-route .mobile-detail-read-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+        color: #8A949B;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1;
+    }
+
+    body.public-route .mobile-detail-read-row span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    body.public-route .mobile-detail-title {
+        display: flex;
+        gap: 11px;
+        margin: 18px 0 0;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 29px;
+        font-weight: 900;
+        line-height: 1.14;
+        letter-spacing: 0;
+    }
+
+    body.public-route .mobile-detail-title > span {
+        width: 3px;
+        min-width: 3px;
+        height: 28px;
+        margin-top: 5px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .mobile-detail-summary {
+        margin-top: 14px;
+        color: #536270;
+        font-size: 15px !important;
+        font-weight: 700;
+        line-height: 1.5 !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article {
+        padding: 0 20px 28px !important;
+        background: #FFFFFF;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-after-lede-ad {
+        margin: 0 0 24px !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-main-media:not(.hidden),
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-after-media-ad:not(.hidden) {
+        margin-bottom: 24px !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article > .space-y-12 > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 24px !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article .rich-text-content {
+        color: #536270;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.62;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article h3 {
+        color: #1B2A37 !important;
+        font-size: 18px !important;
+        font-weight: 800 !important;
+        line-height: 1.24 !important;
+        letter-spacing: 0 !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article img,
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article video,
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article iframe {
+        max-width: 100%;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article .news-detail-reaction-disk {
+        width: 52px !important;
+        height: 52px !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article .news-detail-reaction-image {
+        width: 40px !important;
+        height: 40px !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-comments {
+        margin-top: 14px !important;
+    }
+
     body.public-route .rich-text-content p {
         font-size: 16px !important;
         line-height: 1.72 !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .mobile-detail-summary p,
+    body.public-route:has(.news-detail-mobile-shell) .news-detail-body-article .rich-text-content p {
+        font-size: 15px !important;
+        line-height: 1.58 !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .mobile-detail-summary p {
+        margin: 0;
     }
 
     body.public-route .rich-text-content :where(ul, ol)>li {
@@ -1890,4 +4443,3998 @@ h5.news-title-font {
         --mobile-shell-drawer-width: 276px;
     }
 
+}
+
+body.public-route main.duty-pharmacy-mobile-page {
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 92px 16px 32px;
+    background: #F2F4F7;
+    color: #1B2A37;
+    font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.public-route .duty-pharmacy-mobile-page *,
+body.public-route .duty-pharmacy-mobile-page *::before,
+body.public-route .duty-pharmacy-mobile-page *::after {
+    box-sizing: border-box;
+}
+
+body.public-route .duty-pharmacy-shell {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    background: #F2F4F7;
+}
+
+body.public-route .duty-pharmacy-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    align-items: center;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid #F0F3F4;
+    background: #FFFFFF;
+}
+
+body.public-route .duty-pharmacy-icon-button,
+body.public-route .duty-pharmacy-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: #2C3E50;
+    font: inherit;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .duty-pharmacy-icon-button {
+    width: 44px;
+    height: 44px;
+    margin-left: 6px;
+}
+
+body.public-route .duty-pharmacy-back-button {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    justify-self: end;
+    border: 1px solid #E6ECEE;
+    border-radius: 50%;
+    background: #F7F8FA;
+    color: #536270;
+}
+
+body.public-route .duty-pharmacy-appbar-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+body.public-route .duty-pharmacy-appbar-title>span {
+    width: 3px;
+    height: 16px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+    background: #EA4335;
+}
+
+body.public-route .duty-pharmacy-appbar-title strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .duty-pharmacy-content {
+    padding: 16px 20px 40px;
+}
+
+body.public-route .duty-pharmacy-info-card {
+    display: flex;
+    min-height: 76px;
+    align-items: center;
+    gap: 13px;
+    padding: 14px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 6px 16px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .duty-pharmacy-logo-box {
+    display: flex;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border: 1px solid rgba(234, 67, 53, 0.28);
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 14px rgba(234, 67, 53, 0.08);
+}
+
+body.public-route .duty-pharmacy-logo-box img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+body.public-route .duty-pharmacy-info-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+body.public-route .duty-pharmacy-info-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+}
+
+body.public-route .duty-pharmacy-info-title span,
+body.public-route .duty-pharmacy-district-line span {
+    width: 5px;
+    height: 5px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: #EA4335;
+}
+
+body.public-route .duty-pharmacy-info-title strong {
+    overflow: hidden;
+    color: #1B2A37;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .duty-pharmacy-info-copy p {
+    margin: 5px 0 0;
+    overflow: hidden;
+    color: #95A5A6;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .duty-pharmacy-update-pill {
+    flex: 0 0 auto;
+    padding: 6px 9px;
+    border: 1px solid rgba(234, 67, 53, 0.18);
+    border-radius: 5px;
+    background: #FFF1F0;
+    color: #EA4335;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1;
+}
+
+body.public-route .duty-pharmacy-district-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 12px;
+}
+
+body.public-route .duty-pharmacy-district-grid button {
+    display: flex;
+    min-width: 0;
+    height: 31px;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 4px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    color: #95A5A6;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .duty-pharmacy-district-grid button.is-selected {
+    border-color: #2C3E50;
+    background: #2C3E50;
+    color: #FFFFFF;
+    box-shadow: 0 6px 12px rgba(44, 62, 80, 0.14);
+}
+
+body.public-route .duty-pharmacy-district-grid span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .duty-pharmacy-district-grid small {
+    color: currentColor;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    opacity: 0.7;
+}
+
+body.public-route .duty-pharmacy-list {
+    display: grid;
+    gap: 14px;
+    margin-top: 14px;
+}
+
+body.public-route .duty-pharmacy-card,
+body.public-route .duty-pharmacy-empty {
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .duty-pharmacy-card {
+    padding: 15px 14px 14px;
+}
+
+body.public-route .duty-pharmacy-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+body.public-route .duty-pharmacy-card-head h2 {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: #1B2A37;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.14;
+}
+
+body.public-route .duty-pharmacy-district-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 0;
+    color: #EA4335;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+}
+
+body.public-route .duty-pharmacy-district-line span {
+    width: 4px;
+    height: 4px;
+}
+
+body.public-route .duty-pharmacy-card-mark {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(234, 67, 53, 0.18);
+    border-radius: 5px;
+    background: #FFF1F0;
+    color: #EA4335;
+}
+
+body.public-route .duty-pharmacy-note {
+    display: -webkit-box;
+    margin: 12px 0 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    padding: 9px 11px;
+    border: 1px solid rgba(234, 67, 53, 0.16);
+    border-radius: 5px;
+    background: #FFF1F0;
+    color: #EA4335;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1px;
+    line-height: 1.35;
+}
+
+body.public-route .duty-pharmacy-address {
+    display: -webkit-box;
+    margin: 12px 0 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    color: #95A5A6;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.45;
+}
+
+body.public-route .duty-pharmacy-actions {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 8px;
+    margin-top: 13px;
+}
+
+body.public-route .duty-pharmacy-actions a {
+    display: flex;
+    min-width: 0;
+    height: 37px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1;
+}
+
+body.public-route .duty-pharmacy-actions a[aria-disabled="true"] {
+    pointer-events: none;
+    opacity: 0.48;
+}
+
+body.public-route .duty-pharmacy-call {
+    border: 1px solid #E6ECEE;
+    background: #F7F8FA;
+    color: #2C3E50;
+}
+
+body.public-route .duty-pharmacy-route {
+    border: 1px solid #2C873A;
+    background: #2C873A;
+    color: #FFFFFF;
+    box-shadow: 0 7px 14px rgba(44, 135, 58, 0.24);
+}
+
+body.public-route .duty-pharmacy-empty {
+    padding: 18px 14px;
+    text-align: center;
+}
+
+body.public-route .duty-pharmacy-empty strong {
+    display: block;
+    color: #1B2A37;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+body.public-route .duty-pharmacy-empty p {
+    margin: 6px 0 0;
+    color: #95A5A6;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.duty-pharmacy-mobile-page) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.duty-pharmacy-mobile-page) .public-site-header,
+    body.public-route:has(.duty-pharmacy-mobile-page) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route main.duty-pharmacy-mobile-page {
+        display: block !important;
+        max-width: none !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route .duty-pharmacy-shell {
+        max-width: none;
+    }
+}
+
+@media (max-width: 359px) {
+    body.public-route .duty-pharmacy-content {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+}
+
+/* ===== Hava Durumu (mobil) — Flutter weather_screen.dart birebir ===== */
+body.public-route main.weather-mobile-page {
+    --weather-font-title: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 92px 16px 32px;
+    background: #F2F4F7;
+    color: #1B2A37;
+    font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.public-route .weather-mobile-page *,
+body.public-route .weather-mobile-page *::before,
+body.public-route .weather-mobile-page *::after {
+    box-sizing: border-box;
+}
+
+body.public-route .weather-shell {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    background: #F2F4F7;
+}
+
+body.public-route .weather-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    align-items: center;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid #F0F3F4;
+    background: #FFFFFF;
+}
+
+body.public-route .weather-icon-button,
+body.public-route .weather-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: #2C3E50;
+    font: inherit;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .weather-icon-button {
+    width: 44px;
+    height: 44px;
+    margin-left: 6px;
+}
+
+body.public-route .weather-back-button {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    justify-self: end;
+    border: 1px solid #E6ECEE;
+    border-radius: 50%;
+    background: #F7F8FA;
+    color: #536270;
+}
+
+body.public-route .weather-appbar-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+body.public-route .weather-appbar-title>span {
+    width: 3px;
+    height: 16px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+    background: #EA4335;
+}
+
+body.public-route .weather-appbar-title strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--weather-font-title);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-content {
+    padding: 16px 20px calc(40px + env(safe-area-inset-bottom, 0px));
+}
+
+body.public-route .weather-section-title {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+}
+
+body.public-route .weather-section-title>span {
+    width: 3px;
+    height: 18px;
+    flex: 0 0 auto;
+    margin-right: 10px;
+    border-radius: 2px;
+    background: #EA4335;
+}
+
+body.public-route .weather-section-title strong {
+    color: #0F1B26;
+    font-family: var(--weather-font-title);
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+body.public-route .weather-current-card {
+    padding: 22px;
+    border: 1px solid #EFE8DB;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 12px 22px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .weather-loc {
+    display: flex;
+    align-items: center;
+}
+
+body.public-route .weather-loc>span {
+    overflow: hidden;
+    margin-left: 7px;
+    color: #B7A27A;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-now-row {
+    display: flex;
+    align-items: center;
+    margin-top: 16px;
+}
+
+body.public-route .weather-now-lead {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+}
+
+body.public-route .weather-now-temp {
+    color: #1B2A37;
+    font-family: var(--weather-font-title);
+    font-size: 56px;
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+body.public-route .weather-now-text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    margin-left: 12px;
+}
+
+body.public-route .weather-now-text strong {
+    overflow: hidden;
+    color: #B7A27A;
+    font-family: var(--weather-font-title);
+    font-size: 14px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-now-text small {
+    overflow: hidden;
+    margin-top: 4px;
+    color: rgba(183, 162, 122, 0.58);
+    font-size: 11px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-now-glyph-box {
+    display: flex;
+    width: 64px;
+    height: 64px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    margin-left: 12px;
+    border: 1px solid #EFE8DB;
+    border-radius: 5px;
+    background: #FFFBF5;
+}
+
+body.public-route .weather-hero-metrics {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+}
+
+body.public-route .weather-hero-metric {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+}
+
+body.public-route .weather-hero-metric .lbl {
+    overflow: hidden;
+    color: rgba(183, 162, 122, 0.6);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-hero-metric .val {
+    overflow: hidden;
+    margin-top: 4px;
+    color: #0F1B26;
+    font-family: var(--weather-font-title);
+    font-size: 13px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-hero-divider {
+    width: 1px;
+    height: 30px;
+    flex: 0 0 auto;
+    margin: 0 7px;
+    background: #EFE8DB;
+}
+
+body.public-route .weather-hourly-card {
+    margin-top: 12px;
+    padding: 16px 0;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .weather-hourly-scroll {
+    display: flex;
+    gap: 20px;
+    height: 112px;
+    padding: 0 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+body.public-route .weather-hourly-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+body.public-route .weather-hour {
+    display: flex;
+    width: 48px;
+    height: 112px;
+    flex: 0 0 48px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+}
+
+body.public-route .weather-hour-label {
+    color: #8A949B;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+body.public-route .weather-hour-label.is-now {
+    color: #0F1B26;
+    font-weight: 800;
+}
+
+body.public-route .weather-hour-temp {
+    color: #0F1B26;
+    font-family: var(--weather-font-title);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+body.public-route .weather-precip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+body.public-route .weather-precip>span {
+    color: #8A949B;
+    font-size: 10.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+body.public-route .weather-precip .weather-precip-hour {
+    margin-left: 2px;
+}
+
+body.public-route .weather-weekly-card {
+    margin-top: 12px;
+    padding: 6px 16px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .weather-weekly-divider {
+    display: block;
+    height: 1px;
+    background: #F0F3F4;
+}
+
+body.public-route .weather-weekly-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+}
+
+body.public-route .weather-weekly-day {
+    width: 48px;
+    flex: 0 0 48px;
+    overflow: hidden;
+    color: #1B2A37;
+    font-family: var(--weather-font-title);
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-weekly-day.is-today {
+    color: #0F1B26;
+    font-weight: 800;
+}
+
+body.public-route .weather-weekly-row>i {
+    flex: 0 0 auto;
+    margin: 0 12px 0 8px;
+}
+
+body.public-route .weather-weekly-mid {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+body.public-route .weather-weekly-cond {
+    display: -webkit-box;
+    overflow: hidden;
+    color: #536270;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.15;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+body.public-route .weather-weekly-mid .weather-precip {
+    margin-top: 3px;
+}
+
+body.public-route .weather-weekly-min {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    color: #8A949B;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+body.public-route .weather-weekly-max {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    color: #0F1B26;
+    font-family: var(--weather-font-title);
+    font-size: 13px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+body.public-route .weather-range {
+    position: relative;
+    width: 58px;
+    height: 13px;
+    flex: 0 0 58px;
+    margin-left: 8px;
+}
+
+body.public-route .weather-range-track {
+    position: absolute;
+    top: 4px;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: #F1F3F5;
+}
+
+body.public-route .weather-range-fill {
+    position: absolute;
+    top: 4px;
+    height: 5px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #F39C12, #EA4335);
+}
+
+body.public-route .weather-details-grid {
+    display: grid;
+    margin-top: 12px;
+    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+}
+
+body.public-route .weather-detail-card {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .weather-detail-icon {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #EFE8DB;
+    border-radius: 5px;
+    background: #FFFBF5;
+}
+
+body.public-route .weather-detail-text {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    margin-left: 10px;
+}
+
+body.public-route .weather-detail-label {
+    overflow: hidden;
+    color: #8A949B;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .weather-detail-value {
+    overflow: hidden;
+    margin-top: 2px;
+    color: #0F1B26;
+    font-family: var(--weather-font-title);
+    font-size: 15px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Animasyonlu hava ikonu (WeatherMotionIcon) */
+body.public-route .weather-glyph {
+    position: relative;
+    display: inline-block;
+}
+
+body.public-route .weather-glyph>span {
+    position: absolute;
+}
+
+body.public-route .weather-glyph-sun {
+    animation: weather-spin 3.6s linear infinite;
+}
+
+body.public-route .weather-glyph-ray-layer {
+    position: absolute;
+    inset: 0;
+}
+
+body.public-route .weather-glyph-ray {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 3px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+}
+
+body.public-route .weather-glyph-sun-core {
+    position: absolute;
+    border-radius: 50%;
+}
+
+body.public-route .weather-glyph-moon {
+    display: inline-flex;
+    animation: weather-moon-pulse 3.6s ease-in-out infinite;
+}
+
+body.public-route .weather-glyph-cloud {
+    animation: weather-cloud-drift 3.6s ease-in-out infinite;
+}
+
+body.public-route .weather-glyph-cloud-base {
+    position: absolute;
+    bottom: 0;
+    border-radius: 999px;
+}
+
+body.public-route .weather-glyph-cloud-puff {
+    position: absolute;
+    border-radius: 50%;
+}
+
+body.public-route .weather-glyph-drop {
+    width: 3px;
+    height: 9px;
+    border-radius: 999px;
+    animation: weather-drop 3.6s linear infinite;
+}
+
+body.public-route .weather-glyph-fog {
+    height: 3px;
+    border-radius: 999px;
+    animation: weather-fog 3.6s ease-in-out infinite;
+}
+
+body.public-route .weather-spinner {
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(44, 62, 80, 0.2);
+    border-top-color: #2C3E50;
+    border-radius: 50%;
+    animation: weather-spin 0.9s linear infinite;
+}
+
+body.public-route .weather-empty {
+    display: flex;
+    min-height: 320px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+body.public-route .weather-empty strong {
+    margin-top: 16px;
+    color: #0F1B26;
+    font-family: var(--weather-font-title);
+    font-size: 18px;
+    font-weight: 800;
+}
+
+body.public-route .weather-empty p {
+    margin: 4px 0 0;
+    color: #536270;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+@keyframes weather-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes weather-cloud-drift {
+    0%, 100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(2.6px);
+    }
+
+    50% {
+        transform: translateX(0);
+    }
+
+    75% {
+        transform: translateX(-2.6px);
+    }
+}
+
+@keyframes weather-moon-pulse {
+    0%, 100% {
+        transform: scale(0.94);
+    }
+
+    50% {
+        transform: scale(1.01);
+    }
+}
+
+@keyframes weather-drop {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(var(--drop-travel, 9px));
+        opacity: 0;
+    }
+}
+
+@keyframes weather-fog {
+    0%, 100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(4px);
+    }
+
+    50% {
+        transform: translateX(0);
+    }
+
+    75% {
+        transform: translateX(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    body.public-route .weather-glyph-sun,
+    body.public-route .weather-glyph-cloud,
+    body.public-route .weather-glyph-moon,
+    body.public-route .weather-glyph-drop,
+    body.public-route .weather-glyph-fog,
+    body.public-route .weather-spinner {
+        animation: none !important;
+    }
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.weather-mobile-page) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.weather-mobile-page) .public-site-header,
+    body.public-route:has(.weather-mobile-page) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route main.weather-mobile-page {
+        display: block !important;
+        max-width: none !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route .weather-shell {
+        max-width: none;
+    }
+}
+
+@media (max-width: 359px) {
+    body.public-route .weather-content {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+}
+
+body.public-route main.announcements-mobile-page {
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 92px 16px 32px;
+    background: #F2F4F7;
+    color: #1B2A37;
+    font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.public-route .announcements-mobile-page *,
+body.public-route .announcements-mobile-page *::before,
+body.public-route .announcements-mobile-page *::after {
+    box-sizing: border-box;
+}
+
+body.public-route .announcements-shell {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    background: #F2F4F7;
+}
+
+body.public-route .announcements-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    align-items: center;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid #F0F3F4;
+    background: #FFFFFF;
+}
+
+body.public-route .announcements-icon-button,
+body.public-route .announcements-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: #2C3E50;
+    font: inherit;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .announcements-icon-button {
+    width: 44px;
+    height: 44px;
+    margin-left: 6px;
+}
+
+body.public-route .announcements-back-button {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    justify-self: end;
+    border: 1px solid #E6ECEE;
+    border-radius: 50%;
+    background: #F7F8FA;
+    color: #536270;
+}
+
+body.public-route .announcements-appbar-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+body.public-route .announcements-appbar-title>span {
+    width: 3px;
+    height: 16px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+    background: #EA4335;
+}
+
+body.public-route .announcements-appbar-title strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-content {
+    padding: 16px 20px 40px;
+}
+
+body.public-route .announcements-hero-card {
+    display: flex;
+    min-height: 91px;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 10px 20px rgba(44, 62, 80, 0.08);
+}
+
+body.public-route .announcements-hero-icon {
+    display: flex;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: rgba(44, 62, 80, 0.10);
+    color: #2C3E50;
+}
+
+body.public-route .announcements-hero-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+body.public-route .announcements-hero-copy p {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    overflow: hidden;
+    color: #8A949B;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-hero-copy p span {
+    width: 5px;
+    height: 5px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: #EA4335;
+}
+
+body.public-route .announcements-hero-copy h1 {
+    margin: 3px 0 2px;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-hero-copy small {
+    display: block;
+    overflow: hidden;
+    color: #536270;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-hero-card>button,
+body.public-route .announcements-filter-row button {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid #E6ECEE;
+    border-radius: 8px;
+    background: #FFFFFF;
+    color: #1B2A37;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .announcements-hero-card>button {
+    height: 39px;
+    flex: 0 0 auto;
+    padding: 0 14px;
+    border-color: #2C3E50;
+    background: #2C3E50;
+    color: #FFFFFF;
+}
+
+body.public-route .announcements-filter-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 16px;
+}
+
+body.public-route .announcements-filter-row button {
+    height: 36px;
+    padding: 0 8px;
+}
+
+body.public-route .announcements-filter-row button.is-selected {
+    border-color: #2C3E50;
+    background: #2C3E50;
+    color: #FFFFFF;
+}
+
+body.public-route .announcements-hero-card>button span,
+body.public-route .announcements-filter-row button span {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--announcement-chip-color);
+}
+
+body.public-route .announcements-filter-row button.is-selected span {
+    background: var(--announcement-chip-color);
+}
+
+body.public-route .announcements-hero-card>button strong,
+body.public-route .announcements-filter-row button strong {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-hero-card>button small,
+body.public-route .announcements-filter-row button small {
+    color: currentColor;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    opacity: 0.72;
+}
+
+body.public-route .announcements-date-strip {
+    margin-top: 16px;
+}
+
+body.public-route .announcements-date-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+body.public-route .announcements-date-head div {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    color: #2C3E50;
+}
+
+body.public-route .announcements-date-head strong {
+    color: #0F1B26;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+}
+
+body.public-route .announcements-date-head>span {
+    overflow: hidden;
+    color: #536270;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-day-list {
+    display: flex;
+    gap: 8px;
+    height: 64px;
+    margin-top: 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+body.public-route .announcements-day-list::-webkit-scrollbar {
+    display: none;
+}
+
+body.public-route .announcements-day-list button {
+    display: flex;
+    width: 50px;
+    height: 64px;
+    flex: 0 0 50px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #E6ECEE;
+    border-radius: 10px;
+    background: #FFFFFF;
+    color: #1B2A37;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .announcements-day-list button.is-selected {
+    border-color: #2C3E50;
+    background: #2C3E50;
+    color: #FFFFFF;
+}
+
+body.public-route .announcements-day-list button>span {
+    color: #8A949B;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    line-height: 1;
+}
+
+body.public-route .announcements-day-list button.is-selected>span {
+    color: rgba(255, 255, 255, 0.72);
+}
+
+body.public-route .announcements-day-list button strong {
+    margin-top: 5px;
+    color: currentColor;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+}
+
+body.public-route .announcements-day-list button small {
+    width: 4px;
+    height: 4px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: transparent;
+}
+
+body.public-route .announcements-day-list button small.is-today {
+    background: #EA4335;
+}
+
+body.public-route .announcements-day-list button.is-selected small.is-today {
+    background: #FFFFFF;
+}
+
+body.public-route .announcements-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+body.public-route .announcements-card {
+    overflow: hidden;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 7px 14px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .announcements-card-hit {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .announcements-card-line {
+    width: 4px;
+    flex: 0 0 4px;
+    background: var(--announcement-accent);
+}
+
+body.public-route .announcements-card-inner {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 12px;
+    padding: 13px 12px 13px 14px;
+}
+
+body.public-route .announcements-card-body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+body.public-route .announcements-card-top {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+}
+
+body.public-route .announcements-source-badge {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--announcement-accent) 10%, white);
+    color: var(--announcement-accent);
+}
+
+body.public-route .announcements-source-badge b {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-card-top time {
+    flex: 0 0 auto;
+    color: #8A949B;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+body.public-route .announcements-card h2 {
+    margin: 9px 0 0;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+}
+
+body.public-route .announcements-card-detail {
+    display: -webkit-box;
+    margin: 6px 0 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 8;
+    color: #536270;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
+body.public-route .announcements-info-line,
+body.public-route .announcements-meta p {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    margin: 9px 0 0;
+    color: #536270;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.35;
+}
+
+body.public-route .announcements-info-line i {
+    margin-top: 1.5px;
+    color: #8A949B;
+}
+
+body.public-route .announcements-info-line span,
+body.public-route .announcements-meta p span {
+    min-width: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+body.public-route .announcements-source-link {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    margin-top: 9px;
+    padding: 7px 9px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--announcement-accent) 8%, white);
+    color: var(--announcement-accent);
+    text-decoration: none;
+}
+
+body.public-route .announcements-source-link strong {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    font-size: 11.5px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-source-link span {
+    min-width: 0;
+    max-width: 44%;
+    overflow: hidden;
+    color: #8A949B;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-meta {
+    margin-top: 10px;
+}
+
+body.public-route .announcements-meta-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+body.public-route .announcements-meta-chip,
+body.public-route .announcements-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+body.public-route .announcements-meta-chip {
+    background: #F1F3F5;
+    color: #1B2A37;
+}
+
+body.public-route .announcements-status-chip {
+    border: 1px solid color-mix(in srgb, var(--announcement-status-color) 22%, transparent);
+    background: color-mix(in srgb, var(--announcement-status-color) 12%, white);
+    color: var(--announcement-status-color);
+    font-weight: 800;
+}
+
+body.public-route .announcements-status-chip i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--announcement-status-color);
+}
+
+body.public-route .announcements-meta p {
+    margin-top: 0;
+}
+
+body.public-route .announcements-meta p i {
+    margin-top: 1.5px;
+    color: var(--announcement-accent);
+}
+
+body.public-route .announcements-thumb {
+    position: relative;
+    display: block;
+    width: 78px;
+    height: 78px;
+    flex: 0 0 78px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .announcements-thumb img,
+body.public-route .announcements-viewer-visual img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+body.public-route .announcements-poster {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: linear-gradient(135deg,
+            color-mix(in srgb, var(--announcement-accent) 86%, white),
+            var(--announcement-accent) 55%,
+            color-mix(in srgb, var(--announcement-accent) 70%, black));
+    color: rgba(255, 255, 255, 0.92);
+}
+
+body.public-route .announcements-poster::before,
+body.public-route .announcements-poster::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+body.public-route .announcements-poster::before {
+    width: 54px;
+    height: 54px;
+    top: -16px;
+    right: -16px;
+}
+
+body.public-route .announcements-poster::after {
+    width: 42px;
+    height: 42px;
+    left: -14px;
+    bottom: -18px;
+}
+
+body.public-route .announcements-poster i {
+    position: relative;
+    z-index: 1;
+}
+
+body.public-route .announcements-thumb>span {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    display: inline-flex;
+    width: 17px;
+    height: 17px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.42);
+    color: #FFFFFF;
+}
+
+body.public-route .announcements-empty {
+    margin-top: 16px;
+    padding: 18px 14px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+    text-align: center;
+}
+
+body.public-route .announcements-empty strong {
+    display: block;
+    color: #1B2A37;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+body.public-route .announcements-empty p {
+    margin: 6px 0 0;
+    color: #95A5A6;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+body.public-route .announcements-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    color: #FFFFFF;
+}
+
+body.public-route .announcements-viewer-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.93);
+}
+
+body.public-route .announcements-viewer-head {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: 14px;
+    right: 14px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+body.public-route .announcements-viewer-head button {
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #FFFFFF;
+}
+
+body.public-route .announcements-viewer-head div {
+    min-width: 0;
+}
+
+body.public-route .announcements-viewer-head strong,
+body.public-route .announcements-viewer-head span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .announcements-viewer-head strong {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+body.public-route .announcements-viewer-head span {
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+body.public-route .announcements-viewer-visual {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    left: 22px;
+    right: 22px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 132px);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.public-route .announcements-viewer-visual img,
+body.public-route .announcements-viewer-visual .announcements-poster {
+    max-width: 440px;
+    max-height: 560px;
+    border-radius: 16px;
+    object-fit: contain;
+}
+
+body.public-route .announcements-viewer-copy {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 26px);
+    z-index: 1;
+}
+
+body.public-route .announcements-viewer-copy h2 {
+    margin: 0;
+    color: #FFFFFF;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+body.public-route .announcements-viewer-copy p {
+    display: -webkit-box;
+    margin: 7px 0 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+body.public-route .announcements-viewer-copy span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.announcements-mobile-page) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.announcements-mobile-page) .public-site-header,
+    body.public-route:has(.announcements-mobile-page) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route main.announcements-mobile-page {
+        display: block !important;
+        max-width: none !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route .announcements-shell {
+        max-width: none;
+    }
+}
+
+@media (max-width: 359px) {
+    body.public-route .announcements-content {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    body.public-route .announcements-card-inner {
+        gap: 10px;
+        padding-right: 10px;
+        padding-left: 12px;
+    }
+
+    body.public-route .announcements-thumb {
+        width: 68px;
+        height: 68px;
+        flex-basis: 68px;
+    }
+}
+
+body.public-route main.death-notices-mobile-page {
+    --death-font-title: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --death-memorial-black: #111214;
+    --death-memorial-panel: #16181B;
+    --death-memorial-border: #465568;
+    --death-memorial-gold: #A8864A;
+    --death-memorial-muted: #9298A1;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 92px 16px 32px;
+    background: #F2F4F7;
+    color: #1B2A37;
+    font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.public-route .death-notices-mobile-page *,
+body.public-route .death-notices-mobile-page *::before,
+body.public-route .death-notices-mobile-page *::after {
+    box-sizing: border-box;
+}
+
+body.public-route .death-notices-shell {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    background: #F2F4F7;
+}
+
+body.public-route .death-notices-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    align-items: center;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid #F0F3F4;
+    background: #FFFFFF;
+}
+
+body.public-route .death-notices-icon-button,
+body.public-route .death-notices-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: #2C3E50;
+    font: inherit;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .death-notices-icon-button {
+    width: 44px;
+    height: 44px;
+    margin-left: 6px;
+}
+
+body.public-route .death-notices-back-button {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    justify-self: end;
+    border: 1px solid #E6ECEE;
+    border-radius: 50%;
+    background: #F7F8FA;
+    color: #536270;
+}
+
+body.public-route .death-notices-appbar-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+body.public-route .death-notices-appbar-title>span {
+    width: 3px;
+    height: 16px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+    background: #EA4335;
+}
+
+body.public-route .death-notices-appbar-title strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--death-font-title);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .death-notices-content {
+    padding: 16px 20px calc(40px + env(safe-area-inset-bottom, 0px));
+}
+
+body.public-route .death-notices-header-card {
+    display: flex;
+    min-height: 78px;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid #000000;
+    border-radius: 5px;
+    background: var(--death-memorial-black);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+}
+
+body.public-route .death-notices-header-icon {
+    display: flex;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(168, 134, 74, 0.42);
+    border-radius: 50%;
+    background: rgba(168, 134, 74, 0.08);
+    color: var(--death-memorial-gold);
+}
+
+body.public-route .death-notices-header-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+body.public-route .death-notices-header-copy strong {
+    display: block;
+    overflow: hidden;
+    color: #FFFFFF;
+    font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .death-notices-header-copy p {
+    margin: 6px 0 0;
+    overflow: hidden;
+    color: var(--death-memorial-gold);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .death-notices-update-pill,
+body.public-route .death-notice-head>span {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--death-memorial-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+body.public-route .death-notices-update-pill {
+    padding: 6px 8px;
+}
+
+body.public-route .death-notices-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+body.public-route .death-notice-card {
+    padding: 16px;
+    border: 1px solid #000000;
+    border-radius: 5px;
+    background: var(--death-memorial-black);
+    box-shadow: 0 9px 18px rgba(0, 0, 0, 0.14);
+}
+
+body.public-route .death-notice-panel {
+    padding: 14px;
+    border: 1px solid var(--death-memorial-border);
+    border-radius: 5px;
+    background: var(--death-memorial-panel);
+}
+
+body.public-route .death-notice-head {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+body.public-route .death-notice-head h2 {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: #FFFFFF;
+    font-family: var(--death-font-title);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.16;
+}
+
+body.public-route .death-notice-head>span {
+    min-height: 25px;
+    max-width: 45%;
+    padding: 5px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.public-route .death-notice-route {
+    margin: 7px 0 0;
+    overflow: hidden;
+    color: var(--death-memorial-gold);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+body.public-route .death-notice-description {
+    display: -webkit-box;
+    margin: 12px 0 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    color: var(--death-memorial-muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.48;
+}
+
+body.public-route .death-notice-condolence-button {
+    display: flex;
+    width: 100%;
+    height: 39px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 13px;
+    border: 1px solid var(--death-memorial-border);
+    border-radius: 5px;
+    background: transparent;
+    color: #FFFFFF;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .death-notice-condolence-button i {
+    color: var(--death-memorial-gold);
+}
+
+body.public-route .death-notice-condolence-button span {
+    color: #FFFFFF;
+    font-family: var(--death-font-title);
+    font-size: 12.5px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1;
+}
+
+body.public-route .death-notice-condolence-button:disabled {
+    cursor: default;
+    opacity: 1;
+}
+
+body.public-route .death-notice-footer {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+body.public-route .death-notice-footer span,
+body.public-route .death-notice-footer time {
+    color: var(--death-memorial-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.3;
+}
+
+body.public-route .death-notice-footer span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .death-notice-footer time {
+    flex: 0 0 auto;
+}
+
+body.public-route .death-notices-empty {
+    margin-top: 16px;
+    padding: 18px 14px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+    text-align: center;
+}
+
+body.public-route .death-notices-empty strong {
+    display: block;
+    color: #1B2A37;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+body.public-route .death-notices-empty p {
+    margin: 6px 0 0;
+    color: #95A5A6;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.death-notices-mobile-page) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.death-notices-mobile-page) .public-site-header,
+    body.public-route:has(.death-notices-mobile-page) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route main.death-notices-mobile-page {
+        display: block !important;
+        max-width: none !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route .death-notices-shell {
+        max-width: none;
+    }
+}
+
+@media (max-width: 359px) {
+    body.public-route .death-notices-content {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    body.public-route .death-notice-card {
+        padding: 14px;
+    }
+
+    body.public-route .death-notice-panel {
+        padding: 13px;
+    }
+}
+
+body.public-route main.prayer-times-mobile-page {
+    --prayer-accent: #12A18C;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 92px 16px 32px;
+    background: #F2F4F7;
+    color: #1B2A37;
+    font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.public-route .prayer-times-mobile-page *,
+body.public-route .prayer-times-mobile-page *::before,
+body.public-route .prayer-times-mobile-page *::after {
+    box-sizing: border-box;
+}
+
+body.public-route .prayer-times-shell {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    background: #F2F4F7;
+}
+
+body.public-route .prayer-times-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    align-items: center;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid #F0F3F4;
+    background: #FFFFFF;
+}
+
+body.public-route .prayer-times-icon-button,
+body.public-route .prayer-times-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: #2C3E50;
+    font: inherit;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .prayer-times-icon-button {
+    width: 44px;
+    height: 44px;
+    margin-left: 6px;
+}
+
+body.public-route .prayer-times-back-button {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    justify-self: end;
+    border: 1px solid #E6ECEE;
+    border-radius: 50%;
+    background: #F7F8FA;
+    color: #536270;
+}
+
+body.public-route .prayer-times-appbar-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+body.public-route .prayer-times-appbar-title>span {
+    width: 3px;
+    height: 16px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+    background: #EA4335;
+}
+
+body.public-route .prayer-times-appbar-title strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-times-content {
+    padding: 16px 20px 44px;
+}
+
+body.public-route .prayer-times-header-card,
+body.public-route .prayer-countdown-card,
+body.public-route .prayer-info-grid>div,
+body.public-route .prayer-times-empty {
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+}
+
+body.public-route .prayer-times-header-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    box-shadow: 0 10px 20px rgba(18, 161, 140, 0.10);
+}
+
+body.public-route .prayer-times-header-icon {
+    display: flex;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: rgba(18, 161, 140, 0.10);
+    color: var(--prayer-accent);
+}
+
+body.public-route .prayer-times-header-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+body.public-route .prayer-times-header-copy p {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    overflow: hidden;
+    color: #95A5A6;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-times-header-copy h1 {
+    margin: 3px 0 2px;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-times-header-copy small {
+    display: block;
+    overflow: hidden;
+    color: #536270;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-countdown-card {
+    margin-top: 12px;
+    padding: 26px 0;
+    box-shadow: 0 12px 22px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .prayer-ring {
+    position: relative;
+    width: 246px;
+    height: 246px;
+    margin: 0 auto;
+}
+
+body.public-route .prayer-ring>span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1px;
+    height: 6px;
+    margin-top: -3px;
+    margin-left: -0.5px;
+    border-radius: 999px;
+    background: rgba(149, 165, 166, 0.16);
+    transform-origin: center center;
+}
+
+body.public-route .prayer-ring>span.is-major {
+    width: 2px;
+    height: 11px;
+    margin-top: -5.5px;
+    margin-left: -1px;
+    background: rgba(149, 165, 166, 0.38);
+}
+
+body.public-route .prayer-ring-track,
+body.public-route .prayer-ring-progress {
+    position: absolute;
+    inset: 24px;
+    border-radius: 50%;
+}
+
+body.public-route .prayer-ring-track {
+    border: 9px solid rgba(18, 161, 140, 0.10);
+}
+
+body.public-route .prayer-ring-progress {
+    background: conic-gradient(from -90deg,
+            rgba(18, 161, 140, 0.45) 0deg,
+            #12A18C var(--prayer-progress),
+            transparent var(--prayer-progress),
+            transparent 360deg);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+}
+
+body.public-route .prayer-ring-dot {
+    position: absolute;
+    z-index: 2;
+    width: 13px;
+    height: 13px;
+    border: 2.5px solid #FFFFFF;
+    border-radius: 50%;
+    background: var(--prayer-accent);
+    transform: translate(-50%, -50%);
+}
+
+body.public-route .prayer-ring-copy {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+body.public-route .prayer-ring-copy strong {
+    color: var(--prayer-accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    line-height: 1.2;
+}
+
+body.public-route .prayer-ring-copy time {
+    display: block;
+    margin-top: 8px;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 33px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+body.public-route .prayer-ring-copy small {
+    margin-top: 6px;
+    color: #95A5A6;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+body.public-route .prayer-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+body.public-route .prayer-section-title>span {
+    width: 3px;
+    height: 18px;
+    flex: 0 0 3px;
+    border-radius: 2px;
+    background: var(--prayer-accent);
+}
+
+body.public-route .prayer-section-title h2 {
+    margin: 0;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+}
+
+body.public-route .prayer-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+body.public-route .prayer-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 13px;
+    padding: 14px 16px;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+    box-shadow: 0 6px 10px rgba(16, 24, 40, 0.08);
+    color: #0F1B26;
+}
+
+body.public-route .prayer-row.is-next {
+    border-color: rgba(18, 161, 140, 0.45);
+    background: rgba(18, 161, 140, 0.07);
+    box-shadow: 0 6px 16px rgba(18, 161, 140, 0.14);
+    color: var(--prayer-accent);
+}
+
+body.public-route .prayer-row.is-passed {
+    color: #95A5A6;
+}
+
+body.public-route .prayer-row-dot {
+    position: relative;
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    align-items: center;
+    justify-content: center;
+    border: 1.6px solid #E6ECEE;
+    border-radius: 50%;
+    background: transparent;
+}
+
+body.public-route .prayer-row.is-passed .prayer-row-dot {
+    background: #F7F8FA;
+}
+
+body.public-route .prayer-row.is-current .prayer-row-dot {
+    border-color: rgba(18, 161, 140, 0.55);
+    background: rgba(18, 161, 140, 0.10);
+}
+
+body.public-route .prayer-row.is-next .prayer-row-dot {
+    border-color: var(--prayer-accent);
+    background: rgba(18, 161, 140, 0.16);
+}
+
+body.public-route .prayer-row.is-passed .prayer-row-dot::before,
+body.public-route .prayer-row.is-current .prayer-row-dot::before {
+    content: "";
+    width: 8px;
+    height: 5px;
+    border-bottom: 1.8px solid currentColor;
+    border-left: 1.8px solid currentColor;
+    transform: rotate(-45deg) translateY(-1px);
+}
+
+body.public-route .prayer-row.is-next .prayer-row-dot::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--prayer-accent);
+}
+
+body.public-route .prayer-row strong {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: currentColor;
+    font-size: 15.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-row.is-next strong {
+    font-weight: 800;
+}
+
+body.public-route .prayer-row em {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--prayer-accent);
+    color: #FFFFFF;
+    font-size: 9.5px;
+    font-style: normal;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    line-height: 1;
+}
+
+body.public-route .prayer-row time {
+    flex: 0 0 auto;
+    color: currentColor;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+body.public-route .prayer-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+body.public-route .prayer-info-grid>div {
+    display: flex;
+    min-width: 0;
+    min-height: 78px;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    box-shadow: 0 5px 10px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .prayer-info-grid span {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: rgba(18, 161, 140, 0.10);
+    color: var(--prayer-accent);
+}
+
+body.public-route .prayer-info-grid p {
+    margin: 0;
+    overflow: hidden;
+    color: #95A5A6;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-info-grid strong {
+    display: block;
+    min-width: 0;
+    margin-top: 2px;
+    overflow: hidden;
+    color: #0F1B26;
+    font-size: 14.5px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-info-grid small {
+    display: block;
+    margin-top: 1px;
+    overflow: hidden;
+    color: #95A5A6;
+    font-size: 10.5px;
+    font-weight: 800;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .prayer-ayah-card {
+    margin-top: 12px;
+    padding: 20px;
+    border: 1px solid rgba(18, 161, 140, 0.20);
+    border-radius: 5px;
+    background: linear-gradient(135deg, rgba(18, 161, 140, 0.10), rgba(18, 161, 140, 0.03));
+}
+
+body.public-route .prayer-ayah-card>i {
+    color: rgba(18, 161, 140, 0.85);
+}
+
+body.public-route .prayer-ayah-card p {
+    margin: 12px 0 0;
+    color: #0F1B26;
+    letter-spacing: 0;
+}
+
+body.public-route .prayer-ayah-arabic {
+    text-align: right;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.7;
+}
+
+body.public-route .prayer-ayah-translation,
+body.public-route .prayer-ayah-empty {
+    font-size: 15.5px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+body.public-route .prayer-ayah-card strong {
+    display: block;
+    margin-top: 12px;
+    color: var(--prayer-accent);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    line-height: 1.2;
+}
+
+body.public-route .prayer-times-empty {
+    margin-top: 16px;
+    padding: 18px 14px;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+    text-align: center;
+}
+
+body.public-route .prayer-times-empty strong {
+    display: block;
+    color: #1B2A37;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+body.public-route .prayer-times-empty p {
+    margin: 6px 0 0;
+    color: #95A5A6;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.prayer-times-mobile-page) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.prayer-times-mobile-page) .public-site-header,
+    body.public-route:has(.prayer-times-mobile-page) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route main.prayer-times-mobile-page {
+        display: block !important;
+        max-width: none !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route .prayer-times-shell {
+        max-width: none;
+    }
+}
+
+@media (max-width: 359px) {
+    body.public-route .prayer-times-content {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+}
+
+body.public-route main.market-rates-mobile-page {
+    --market-accent: #2C3E50;
+    --market-up: #22A565;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 92px 16px 32px;
+    background: #F2F4F7;
+    color: #1B2A37;
+    font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.public-route .market-rates-mobile-page *,
+body.public-route .market-rates-mobile-page *::before,
+body.public-route .market-rates-mobile-page *::after {
+    box-sizing: border-box;
+}
+
+body.public-route .market-rates-shell {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    background: #F2F4F7;
+}
+
+body.public-route .market-rates-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    align-items: center;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid #F0F3F4;
+    background: #FFFFFF;
+}
+
+body.public-route .market-rates-icon-button,
+body.public-route .market-rates-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: #2C3E50;
+    font: inherit;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .market-rates-icon-button {
+    width: 44px;
+    height: 44px;
+    margin-left: 6px;
+}
+
+body.public-route .market-rates-back-button {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    justify-self: end;
+    border: 1px solid #E6ECEE;
+    border-radius: 50%;
+    background: #F7F8FA;
+    color: #536270;
+}
+
+body.public-route .market-rates-appbar-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+body.public-route .market-rates-appbar-title>span {
+    width: 3px;
+    height: 16px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+    background: #EA4335;
+}
+
+body.public-route .market-rates-appbar-title strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .market-rates-content {
+    padding: 16px 20px 44px;
+}
+
+body.public-route .market-rates-hero-card,
+body.public-route .market-rate-card,
+body.public-route .market-rates-empty {
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: #FFFFFF;
+}
+
+body.public-route .market-rates-hero-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 91px;
+    padding: 16px;
+    box-shadow: 0 10px 20px rgba(44, 62, 80, 0.08);
+}
+
+body.public-route .market-rates-hero-icon {
+    display: flex;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: rgba(44, 62, 80, 0.10);
+    color: var(--market-accent);
+}
+
+body.public-route .market-rates-hero-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+body.public-route .market-rates-hero-copy p {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    overflow: hidden;
+    color: #8A949B;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .market-rates-hero-copy p span {
+    width: 5px;
+    height: 5px;
+    flex: 0 0 5px;
+    border-radius: 50%;
+    background: var(--market-up);
+}
+
+body.public-route .market-rates-hero-copy h1 {
+    margin: 3px 0 2px;
+    overflow: hidden;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .market-rates-hero-copy small {
+    display: block;
+    overflow: hidden;
+    color: #536270;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .market-rates-live-badge {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 9px;
+    border-radius: 6px;
+    background: rgba(34, 165, 101, 0.12);
+    color: var(--market-up);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    line-height: 1;
+}
+
+body.public-route .market-rates-live-badge i {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
+    border-radius: 50%;
+    background: var(--market-up);
+}
+
+body.public-route .market-rates-segment {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin-top: 16px;
+    padding: 4px;
+    border-radius: 10px;
+    background: #F1F3F5;
+}
+
+body.public-route .market-rates-segment button {
+    display: flex;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #536270;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.public-route .market-rates-segment button.is-active {
+    background: #FFFFFF;
+    color: #0F1B26;
+    font-weight: 800;
+    box-shadow: 0 2px 8px rgba(44, 62, 80, 0.10);
+}
+
+body.public-route .market-rates-table-head {
+    display: grid;
+    grid-template-columns: 4fr 3.5fr 3.5fr;
+    gap: 10px;
+    align-items: center;
+    margin-top: 16px;
+    padding: 0 14px;
+}
+
+body.public-route .market-rates-table-head strong {
+    color: #8A949B;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: right;
+}
+
+body.public-route .market-rates-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 7px;
+}
+
+body.public-route .market-rate-card {
+    display: grid;
+    grid-template-columns: 4fr 3.5fr 3.5fr;
+    gap: 10px;
+    align-items: center;
+    min-height: 56px;
+    padding: 12px 14px;
+    box-shadow: 0 6px 12px rgba(16, 24, 40, 0.08);
+}
+
+body.public-route .market-rate-name {
+    min-width: 0;
+}
+
+body.public-route .market-rate-name h2 {
+    margin: 0;
+    overflow: visible;
+    color: #0F1B26;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleText")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.08;
+}
+
+body.public-route .market-rate-name p {
+    margin: 2px 0 0;
+    overflow: visible;
+    color: #8A949B;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.12;
+}
+
+body.public-route .market-rate-name small {
+    display: block;
+    margin-top: 4px;
+    overflow: hidden;
+    color: var(--market-accent);
+    font-size: 10.8px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .market-rate-price {
+    min-width: 0;
+    text-align: right;
+}
+
+body.public-route .market-rate-price strong {
+    display: block;
+    overflow: hidden;
+    color: #0F1B26;
+    font-size: 12.6px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .market-rate-price em {
+    display: block;
+    margin-top: 3px;
+    overflow: hidden;
+    font-size: 10.5px;
+    font-style: normal;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.public-route .market-rate-price em.is-up {
+    color: var(--market-up);
+}
+
+body.public-route .market-rate-price em.is-down {
+    color: #EA4335;
+}
+
+body.public-route .market-rates-empty {
+    margin-top: 16px;
+    padding: 18px 14px;
+    box-shadow: 0 8px 14px rgba(16, 24, 40, 0.08);
+    text-align: center;
+}
+
+body.public-route .market-rates-empty.is-inline {
+    margin-top: 0;
+}
+
+body.public-route .market-rates-empty strong {
+    display: block;
+    color: #1B2A37;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+body.public-route .market-rates-empty p {
+    margin: 6px 0 0;
+    color: #95A5A6;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.market-rates-mobile-page) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.market-rates-mobile-page) .public-site-header,
+    body.public-route:has(.market-rates-mobile-page) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route main.market-rates-mobile-page {
+        display: block !important;
+        max-width: none !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route .market-rates-shell {
+        max-width: none;
+    }
+}
+
+@media (max-width: 359px) {
+    body.public-route .market-rates-content {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    body.public-route .market-rate-card,
+    body.public-route .market-rates-table-head {
+        gap: 8px;
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
+    body.public-route .market-rate-price strong {
+        font-size: 12px;
+    }
+}
+
+body.public-route .category-mobile-shell {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.category-mobile-shell) {
+        padding-bottom: 0;
+        background: #F2F4F7 !important;
+    }
+
+    body.public-route:has(.category-mobile-shell) .public-site-header,
+    body.public-route:has(.category-mobile-shell) .mobile-shell-bottom-nav {
+        display: none !important;
+    }
+
+    body.public-route:has(.category-mobile-shell) .public-page-main,
+    body.public-route:has(.category-mobile-shell) main {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    body.public-route:has(.category-mobile-shell) main>section,
+    body.public-route:has(.category-mobile-shell) main>section>div {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 !important;
+    }
+
+    body.public-route:has(.category-mobile-shell) .category-detail-compact {
+        margin: 0 !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #F2F4F7 !important;
+        box-shadow: none !important;
+    }
+
+    body.public-route .category-desktop-shell,
+    body.public-route .opinion-desktop-shell {
+        display: none !important;
+    }
+
+    body.public-route .category-mobile-shell {
+        display: block;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: #F2F4F7;
+        color: #1B2A37;
+        font-family: var(--site-font-primary, "PateezAppleText"), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body.public-route .category-mobile-shell *,
+    body.public-route .category-mobile-shell *::before,
+    body.public-route .category-mobile-shell *::after {
+        box-sizing: border-box;
+    }
+
+    body.public-route .category-mobile-appbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: 56px minmax(0, 1fr) 56px;
+        align-items: center;
+        height: calc(56px + env(safe-area-inset-top, 0px));
+        padding-top: env(safe-area-inset-top, 0px);
+        border-bottom: 1px solid #F0F3F4;
+        background: #FFFFFF;
+    }
+
+    body.public-route .category-mobile-icon-button,
+    body.public-route .category-mobile-back-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: transparent;
+        color: #2C3E50;
+        font: inherit;
+        line-height: 1;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body.public-route .category-mobile-icon-button {
+        width: 44px;
+        height: 44px;
+        margin-left: 6px;
+    }
+
+    body.public-route .category-mobile-back-button {
+        width: 36px;
+        height: 36px;
+        margin-right: 10px;
+        justify-self: end;
+        border: 1px solid #E6ECEE;
+        border-radius: 50%;
+        background: #F7F8FA;
+        color: #536270;
+    }
+
+    body.public-route .category-mobile-masthead {
+        padding: 16px 20px 16px;
+        background: #FFFFFF;
+    }
+
+    body.public-route .category-mobile-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #EA4335;
+    }
+
+    body.public-route .category-mobile-eyebrow span {
+        color: #8A949B;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        line-height: 1.2;
+    }
+
+    body.public-route .category-mobile-masthead h1 {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin: 12px 0 0;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: 0;
+        line-height: 1.05;
+    }
+
+    body.public-route .category-mobile-masthead h1>span {
+        width: 4px;
+        height: 30px;
+        flex: 0 0 4px;
+        margin-top: 4px;
+        border-radius: 2px;
+        background: #EA4335;
+    }
+
+    body.public-route .category-mobile-masthead p {
+        margin: 10px 0 0;
+        color: #536270;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.5;
+    }
+
+    body.public-route .category-mobile-stats {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
+        overflow: hidden;
+        color: #8A949B;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    body.public-route .category-mobile-stats span {
+        display: inline-flex;
+        min-width: 0;
+        align-items: center;
+        gap: 6px;
+    }
+
+    body.public-route .category-mobile-stats strong {
+        color: #536270;
+        font-weight: 700;
+    }
+
+    body.public-route .category-mobile-stats i {
+        width: 2.5px;
+        height: 2.5px;
+        flex: 0 0 2.5px;
+        border-radius: 50%;
+        background: #8A949B;
+    }
+
+    body.public-route .category-mobile-feed-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding: 18px 20px 13px;
+        background: #F2F4F7;
+    }
+
+    body.public-route .category-mobile-feed-title {
+        display: flex;
+        min-width: 0;
+        flex: 1 1 auto;
+        align-items: baseline;
+        gap: 5px;
+    }
+
+    body.public-route .category-mobile-feed-title strong {
+        overflow: hidden;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 18px;
+        font-weight: 800;
+        line-height: 1.15;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .category-mobile-feed-title span {
+        overflow: hidden;
+        color: #8A949B;
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 1.15;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .category-mobile-filter-tabs {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 6px;
+    }
+
+    body.public-route .category-mobile-filter-tabs button {
+        display: inline-flex;
+        height: 34px;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        border: 1px solid #E6ECEE;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.42);
+        padding: 0 11px;
+        color: #8A949B;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body.public-route .category-mobile-filter-tabs button.is-active {
+        border-color: #EA4335;
+        background: #EA4335;
+        color: #FFFFFF;
+        box-shadow: 0 10px 20px rgba(234, 67, 53, 0.20);
+    }
+
+    body.public-route .category-mobile-feed-list {
+        display: grid;
+        gap: 14px;
+        padding: 0 0 24px;
+        background: #F2F4F7;
+    }
+
+    body.public-route .category-mobile-feed-list .public-news-card {
+        margin: 0 !important;
+        border-right: 0 !important;
+        border-left: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    body.public-route .category-mobile-feed-list .public-news-card>div>div:first-child {
+        padding-top: 14px !important;
+    }
+
+    body.public-route .category-mobile-empty {
+        margin: 0 20px;
+        padding: 32px 18px;
+        border: 1px solid #E6ECEE;
+        border-radius: 5px;
+        background: #FFFFFF;
+        text-align: center;
+    }
+
+    body.public-route .category-mobile-empty strong {
+        display: block;
+        color: #0F1B26;
+        font-size: 16px;
+        font-weight: 800;
+    }
+
+    body.public-route .category-mobile-empty p {
+        margin: 7px 0 0;
+        color: #8A949B;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.45;
+    }
+
+    body.public-route .opinion-mobile-shell {
+        background: #F2F4F7;
+    }
+
+    body.public-route .opinion-mobile-masthead {
+        padding: 16px 20px 20px;
+        background: #FFFFFF;
+        border-bottom: 1px solid #F0F3F4;
+    }
+
+    body.public-route .opinion-mobile-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #EA4335;
+    }
+
+    body.public-route .opinion-mobile-eyebrow span {
+        color: #8A949B;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.1px;
+        line-height: 1.2;
+    }
+
+    body.public-route .opinion-mobile-masthead h1 {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin: 12px 0 0;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 30px;
+        font-weight: 900;
+        letter-spacing: 0;
+        line-height: 1.05;
+    }
+
+    body.public-route .opinion-mobile-masthead h1>span {
+        width: 4px;
+        height: 30px;
+        flex: 0 0 4px;
+        margin-top: 4px;
+        border-radius: 4px;
+        background: #EA4335;
+    }
+
+    body.public-route .opinion-mobile-masthead p {
+        margin: 10px 0 0;
+        color: #536270;
+        font-size: 15px;
+        font-weight: 400;
+        line-height: 1.5;
+    }
+
+    body.public-route .opinion-mobile-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 20px;
+        border: 1px solid #E6ECEE;
+        background: #F7F8FA;
+    }
+
+    body.public-route .opinion-mobile-stats div {
+        min-width: 0;
+        padding: 13px 8px;
+        border-right: 1px solid #E6ECEE;
+    }
+
+    body.public-route .opinion-mobile-stats div:last-child {
+        border-right: 0;
+    }
+
+    body.public-route .opinion-mobile-stats strong,
+    body.public-route .opinion-mobile-stats span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .opinion-mobile-stats strong {
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 18px;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    body.public-route .opinion-mobile-stats span {
+        margin-top: 3px;
+        color: #8A949B;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1.25;
+    }
+
+    body.public-route .opinion-mobile-switcher {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 8px;
+        padding: 20px 20px 14px;
+        background: #F2F4F7;
+    }
+
+    body.public-route .opinion-mobile-view-tabs {
+        display: inline-flex;
+        flex: 0 0 auto;
+        gap: 6px;
+    }
+
+    body.public-route .opinion-mobile-view-tabs button {
+        display: inline-flex;
+        min-width: 0;
+        height: 34px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #E6ECEE;
+        border-radius: 4px;
+        background: #FFFFFF;
+        padding: 0 12px;
+        color: #536270;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body.public-route .opinion-mobile-view-tabs button.is-active {
+        border-color: #EA4335;
+        background: #EA4335;
+        color: #FFFFFF;
+        box-shadow: 0 8px 18px rgba(234, 67, 53, 0.16);
+    }
+
+    body.public-route .opinion-mobile-filter-tabs {
+        margin-left: auto;
+    }
+
+    body.public-route .opinion-mobile-feed-list {
+        padding-bottom: 32px;
+    }
+
+    body.public-route .opinion-mobile-authors-list {
+        display: grid;
+        gap: 12px;
+        padding: 0 20px 32px;
+        background: #F2F4F7;
+    }
+
+    body.public-route .opinion-mobile-author-card {
+        display: block;
+        min-width: 0;
+        border: 1px solid #E6ECEE;
+        border-radius: 5px;
+        background: #FFFFFF;
+        padding: 12px;
+        box-shadow: 0 4px 10px rgba(16, 24, 40, 0.035);
+    }
+
+    body.public-route .opinion-mobile-author-head {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        align-items: center;
+        gap: 12px;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body.public-route .opinion-mobile-author-avatar {
+        display: inline-flex;
+        width: 58px;
+        height: 58px;
+        flex: 0 0 58px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid #E6ECEE;
+        border-radius: 50%;
+        background: #F1F3F5;
+        color: #2C3E50;
+        font-size: 16px;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    body.public-route .opinion-mobile-author-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.public-route .opinion-mobile-author-main {
+        display: block;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    body.public-route .opinion-mobile-author-name {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 5px;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 18px;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
+    body.public-route .opinion-mobile-author-name svg,
+    body.public-route .opinion-mobile-author-name i {
+        flex: 0 0 auto;
+        color: #EA4335;
+    }
+
+    body.public-route .opinion-mobile-author-handle {
+        display: block;
+        overflow: hidden;
+        margin-top: 2px;
+        color: #8A949B;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.3;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.public-route .opinion-mobile-author-card p {
+        display: -webkit-box;
+        margin: 12px 0 0;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        color: #536270;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.45;
+    }
+
+    body.public-route .opinion-mobile-latest-card {
+        display: block;
+        width: 100%;
+        margin-top: 12px;
+        border: 1px solid #F0F3F4;
+        border-radius: 4px;
+        background: #F7F8FA;
+        padding: 12px;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body.public-route .opinion-mobile-latest-card strong {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        color: #0F1B26;
+        font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.25;
+    }
+
+    body.public-route .opinion-mobile-latest-card span {
+        display: block;
+        margin-top: 5px;
+        color: #8A949B;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+}
+
+@media (max-width: 374px) {
+    body.public-route .category-mobile-feed-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    body.public-route .category-mobile-filter-tabs {
+        justify-content: flex-start;
+    }
+
+    body.public-route .category-mobile-filter-tabs button {
+        height: 32px;
+    }
 }

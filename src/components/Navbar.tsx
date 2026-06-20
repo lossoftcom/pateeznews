@@ -5,7 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { type NavigationItem, type SiteSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
 import { getPostHref } from '@/utils/postUrl';
-import { navigateImmediately, updateUrlImmediately } from '@/utils/immediateNavigation';
+import { navigateImmediately } from '@/utils/immediateNavigation';
 import RemixIcon from './ui/RemixIcon';
 import {
   SPECIAL_CONTENT_FILTERS,
@@ -56,6 +56,93 @@ const REMIX_ICON_BY_MATERIAL: Record<string, string> = {
   format_list_numbered: 'ri-file-list-3-line',
   restaurant: 'ri-restaurant-2-line',
   calendar_month: 'ri-calendar-event-line',
+};
+
+type MobileAppItem = {
+  id: string;
+  label: string;
+  icon: string;
+  accent: string;
+  accentRgb: string;
+  accentStart: string;
+  accentEnd: string;
+  specialValue?: string;
+};
+
+const MOBILE_APP_ITEMS: MobileAppItem[] = [
+  {
+    id: 'nobetci-eczane',
+    label: 'Nöbetçi Eczane',
+    icon: 'ri-capsule-fill',
+    accent: '#E30613',
+    accentRgb: '227, 6, 19',
+    accentStart: '#E72E39',
+    accentEnd: '#A3040E',
+  },
+  {
+    id: 'etkinlik',
+    label: 'Etkinlik',
+    icon: 'ri-calendar-event-line',
+    accent: '#6C5CE7',
+    accentRgb: '108, 92, 231',
+    accentStart: '#8476EB',
+    accentEnd: '#4E42A6',
+    specialValue: 'etkinlik',
+  },
+  {
+    id: 'duyurular',
+    label: 'Duyurular',
+    icon: 'ri-notification-fill',
+    accent: '#F39C12',
+    accentRgb: '243, 156, 18',
+    accentStart: '#F5AC38',
+    accentEnd: '#AF700D',
+  },
+  {
+    id: 'olum-ilanlari',
+    label: 'Ölüm İlanları',
+    icon: 'ri-leaf-line',
+    accent: '#2C3E50',
+    accentRgb: '44, 62, 80',
+    accentStart: '#4E5D6C',
+    accentEnd: '#202D3A',
+  },
+  {
+    id: 'hava-durumu',
+    label: 'Hava Durumu',
+    icon: 'ri-sun-line',
+    accent: '#2D9CDB',
+    accentRgb: '45, 156, 219',
+    accentStart: '#4FACE1',
+    accentEnd: '#20709E',
+  },
+  {
+    id: 'namaz-vakitleri',
+    label: 'Namaz Vakitleri',
+    icon: 'ri-moon-clear-fill',
+    accent: '#12A18C',
+    accentRgb: '18, 161, 140',
+    accentStart: '#38B09E',
+    accentEnd: '#0D7465',
+  },
+  {
+    id: 'doviz-altin',
+    label: 'Döviz & Altın',
+    icon: 'ri-coins-fill',
+    accent: '#1FA971',
+    accentRgb: '31, 169, 113',
+    accentStart: '#43B788',
+    accentEnd: '#167A51',
+  },
+];
+
+const MOBILE_APP_ROUTES: Record<string, string> = {
+  'nobetci-eczane': '/nobetci-eczane',
+  'duyurular': '/duyurular',
+  'olum-ilanlari': '/olum-ilanlari',
+  'hava-durumu': '/hava-durumu',
+  'namaz-vakitleri': '/namaz-vakitleri',
+  'doviz-altin': '/doviz-altin',
 };
 
 const remixIconFor = (icon?: string) => {
@@ -136,6 +223,44 @@ const readCurrentLocation = () => {
   };
 };
 
+const profileFromUser = (user: any) => user?.profile || {};
+
+const accountDisplayName = (user: any) => {
+  const profile = profileFromUser(user);
+  return String(
+    profile.full_name ||
+    profile.username ||
+    user?.user_metadata?.full_name ||
+    user?.email?.split('@')[0] ||
+    'Pateez'
+  ).trim();
+};
+
+const accountSubtitle = (user: any) => {
+  const profile = profileFromUser(user);
+  const username = String(profile.username || '').trim().replace(/^@+/, '');
+  if (username) return `@${username}`;
+  const email = String(profile.email || user?.email || '').trim().toLowerCase();
+  return email || '@pateez';
+};
+
+const accountAvatarUrl = (user: any) => {
+  const profile = profileFromUser(user);
+  return String(profile.avatar_url || user?.user_metadata?.avatar_url || '').trim();
+};
+
+const accountInitials = (user: any) => {
+  const name = accountDisplayName(user);
+  const initials = name
+    .split(/\s+/)
+    .map((part) => part.trim()[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toLocaleUpperCase('tr-TR');
+  return initials || 'P';
+};
+
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
   onProfileClick,
@@ -162,6 +287,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const [currentLocation, setCurrentLocation] = useState({ pathname: '', search: '' });
   const langMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const mobileAccountMenuRef = useRef<HTMLDivElement>(null);
 
   const explicitTopNavItems = React.useMemo(
     () => navItems.filter((item) => item.menu_code === 'top_navbar'),
@@ -246,6 +372,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const closeMobileOverlays = () => {
     setIsMobileDrawerOpen(false);
     setIsMobileAppsOpen(false);
+    setShowUserMenu(false);
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
       setIsSearchOpen(false);
     }
@@ -274,12 +401,6 @@ const Navbar: React.FC<NavbarProps> = ({
   const navigateSpecialContent = (config: SpecialContentConfig) => {
     const href = getSpecialContentUrl(config.value);
     closeMobileOverlays();
-    if (typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '')) {
-      updateUrlImmediately(href);
-      setCurrentLocation(readCurrentLocation());
-      window.dispatchEvent(new CustomEvent('pateez:content-filter', { detail: { category: config.value } }));
-      return;
-    }
     void navigateImmediately(href);
   };
 
@@ -304,7 +425,8 @@ const Navbar: React.FC<NavbarProps> = ({
         setShowLangMenu(false);
       }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setShowUserMenu(false);
+        const isInMobileAccountMenu = mobileAccountMenuRef.current?.contains(event.target as Node);
+        if (!isInMobileAccountMenu) setShowUserMenu(false);
       }
     };
     if (showLangMenu || showUserMenu) document.addEventListener('mousedown', handleClickOutside);
@@ -455,10 +577,15 @@ const Navbar: React.FC<NavbarProps> = ({
   };
 
   const videoConfig = getSpecialContentConfig('video');
-  const isMobileOverlayActive = isMobileAppsOpen || isSearchOpen;
+  const isMobileOverlayActive = isMobileAppsOpen || isSearchOpen || showUserMenu;
   const isHomeActive = !isMobileOverlayActive && activePath === '/' && !activeQueryCategory;
   const isVideoActive = !isMobileOverlayActive && videoConfig ? isSpecialActive(videoConfig) : false;
-  const isAccountActive = !isMobileOverlayActive && (activePath === '/profil' || activePath === '/profil-duzenle' || activePath.startsWith('/profil/'));
+  const isAccountRouteActive = activePath === '/profil' || activePath === '/profil-duzenle' || activePath.startsWith('/profil/');
+  const isAccountActive = showUserMenu || (!isMobileOverlayActive && isAccountRouteActive);
+  const accountName = accountDisplayName(user);
+  const accountSubline = accountSubtitle(user);
+  const accountAvatar = accountAvatarUrl(user);
+  const accountLetters = accountInitials(user);
 
   const openMobileApps = () => {
     setIsMobileDrawerOpen(false);
@@ -478,11 +605,45 @@ const Navbar: React.FC<NavbarProps> = ({
     setIsMobileDrawerOpen(false);
     setIsMobileAppsOpen(false);
     setIsSearchOpen(false);
-    if (isLoggedIn && onProfileViewClick) {
-      onProfileViewClick();
+    if (authLoading) return;
+    if (isLoggedIn) {
+      setShowUserMenu((value) => !value);
       return;
     }
+    setShowUserMenu(false);
     onProfileClick?.();
+  };
+
+  const openAdminPanel = () => {
+    setShowUserMenu(false);
+    void navigateImmediately('/admin');
+  };
+
+  const openProfileFromAccountMenu = () => {
+    setShowUserMenu(false);
+    onProfileViewClick?.();
+  };
+
+  const logoutFromAccountMenu = () => {
+    setShowUserMenu(false);
+    onLogout?.();
+  };
+
+  const handleMobileAppSelect = (item: MobileAppItem) => {
+    const appRoute = MOBILE_APP_ROUTES[item.id];
+    if (appRoute) {
+      closeMobileOverlays();
+      void navigateImmediately(appRoute);
+      return;
+    }
+    if (item.specialValue) {
+      const config = getSpecialContentConfig(item.specialValue);
+      if (config) {
+        navigateSpecialContent(config);
+        return;
+      }
+    }
+    setIsMobileAppsOpen(false);
   };
 
   const openMobileDrawer = () => {
@@ -1017,54 +1178,103 @@ const Navbar: React.FC<NavbarProps> = ({
           <div className="mobile-shell-apps-sheet lg:hidden" role="dialog" aria-label="Uygulamalar">
             <div className="mobile-shell-sheet-handle" />
             <div className="mobile-shell-sheet-head">
-              <div>
-                <p>Uygulamalar</p>
-                <span>Haber tipleri ve bölümler</span>
-              </div>
-              <button type="button" onClick={() => setIsMobileAppsOpen(false)} aria-label="Kapat">
-                <RemixIcon name="ri-close-line" size={20} />
-              </button>
+              <span aria-hidden="true" />
+              <p>Uygulamalar</p>
             </div>
             <div className="mobile-shell-app-grid">
-              {specialHeaderItems.map((item) => {
-                const active = isSpecialActive(item.config);
-                return (
-                  <button
-                    key={`mobile-special-${item.id}`}
-                    type="button"
-                    onClick={() => navigateSpecialContent(item.config)}
-                    className={active ? 'is-active' : undefined}
-                  >
-                    <span><RemixIcon name={remixIconFor(item.icon)} size={20} /></span>
-                    <strong>{t(item.label)}</strong>
-                  </button>
-                );
-              })}
-              {headerItems.map((item) => {
-                const active = isHeaderItemActive(item);
-                return (
-                  <button
-                    key={`mobile-header-${item.id}`}
-                    type="button"
-                    onClick={() => {
-                      setIsMobileAppsOpen(false);
-                      navigateHeaderItem(item);
-                    }}
-                    className={active ? 'is-active' : undefined}
-                  >
-                    <span><RemixIcon name={remixIconFor(item.icon || 'chevron_right')} size={20} /></span>
-                    <strong>{t(item.label)}</strong>
-                  </button>
-                );
-              })}
+              {MOBILE_APP_ITEMS.map((item) => (
+                <button
+                  key={`mobile-app-${item.id}`}
+                  type="button"
+                  onClick={() => handleMobileAppSelect(item)}
+                  style={{
+                    '--mobile-app-accent': item.accent,
+                    '--mobile-app-accent-rgb': item.accentRgb,
+                    '--mobile-app-accent-start': item.accentStart,
+                    '--mobile-app-accent-end': item.accentEnd,
+                  } as React.CSSProperties}
+                >
+                  <span className="mobile-shell-app-icon">
+                    <RemixIcon name={item.icon} size={30} />
+                  </span>
+                  <strong>{item.label}</strong>
+                </button>
+              ))}
             </div>
+          </div>
+        </>
+      )}
+
+      {isLoggedIn && showUserMenu && (
+        <>
+          <button
+            type="button"
+            className="mobile-shell-account-hit-area lg:hidden"
+            onClick={() => setShowUserMenu(false)}
+            aria-label="Hesap menüsünü kapat"
+          />
+          <div
+            className="mobile-shell-account-menu lg:hidden"
+            ref={mobileAccountMenuRef}
+            role="menu"
+            aria-label="Hesap menüsü"
+          >
+            <div className="mobile-shell-account-head">
+              <span className="mobile-shell-account-avatar">
+                {accountAvatar ? (
+                  <img src={accountAvatar} alt={accountName} loading="eager" decoding="async" />
+                ) : (
+                  accountLetters
+                )}
+              </span>
+              <span className="mobile-shell-account-id">
+                <strong>{accountName}</strong>
+                <small>{accountSubline}</small>
+              </span>
+            </div>
+
+            {isLoggedIn && (
+              <button
+                type="button"
+                className="mobile-shell-account-action"
+                onClick={openAdminPanel}
+                role="menuitem"
+              >
+                <RemixIcon name="ri-external-link-line" size={18} />
+                <span>Admin panel</span>
+              </button>
+            )}
+
+            {onProfileViewClick && (
+              <button
+                type="button"
+                className="mobile-shell-account-action"
+                onClick={openProfileFromAccountMenu}
+                role="menuitem"
+              >
+                <RemixIcon name="ri-user-3-fill" size={18} />
+                <span>Profilim</span>
+              </button>
+            )}
+
+            {onLogout && (
+              <button
+                type="button"
+                className="mobile-shell-account-action is-danger"
+                onClick={logoutFromAccountMenu}
+                role="menuitem"
+              >
+                <RemixIcon name="ri-logout-box-r-line" size={18} />
+                <span>Çıkış yap</span>
+              </button>
+            )}
           </div>
         </>
       )}
 
       <nav className="mobile-shell-bottom-nav lg:hidden" aria-label="Mobil ana gezinme">
         <button type="button" onClick={goHome} className={isHomeActive ? 'is-active' : undefined}>
-          <RemixIcon name={isHomeActive ? 'ri-home-5-fill' : 'ri-home-5-line'} size={22} />
+          <RemixIcon name={isHomeActive ? 'ri-home-5-fill' : 'ri-home-5-line'} size={isHomeActive ? 22 : 21} />
           <span>Anasayfa</span>
         </button>
         <button
@@ -1072,19 +1282,29 @@ const Navbar: React.FC<NavbarProps> = ({
           onClick={() => videoConfig && navigateSpecialContent(videoConfig)}
           className={isVideoActive ? 'is-active' : undefined}
         >
-          <RemixIcon name={isVideoActive ? 'ri-play-circle-fill' : 'ri-play-circle-line'} size={22} />
+          <RemixIcon name={isVideoActive ? 'ri-play-circle-fill' : 'ri-play-circle-line'} size={isVideoActive ? 22 : 21} />
           <span>Video</span>
         </button>
         <button type="button" onClick={openMobileApps} className={isMobileAppsOpen ? 'is-active' : undefined}>
-          <RemixIcon name={isMobileAppsOpen ? 'ri-apps-fill' : 'ri-apps-line'} size={22} />
+          <RemixIcon name={isMobileAppsOpen ? 'ri-apps-fill' : 'ri-apps-line'} size={isMobileAppsOpen ? 22 : 21} />
           <span>Uygulamalar</span>
         </button>
         <button type="button" onClick={openMobileSearch} className={isSearchOpen ? 'is-active' : undefined}>
-          <RemixIcon name={isSearchOpen ? 'ri-search-fill' : 'ri-search-line'} size={22} />
+          <RemixIcon name={isSearchOpen ? 'ri-search-fill' : 'ri-search-line'} size={isSearchOpen ? 22 : 21} />
           <span>Arama</span>
         </button>
         <button type="button" onClick={openMobileAccount} className={isAccountActive ? 'is-active' : undefined}>
-          <RemixIcon name={isAccountActive ? 'ri-user-3-fill' : 'ri-user-3-line'} size={22} />
+          {isLoggedIn ? (
+            <span className="mobile-shell-bottom-avatar" aria-hidden="true">
+              {accountAvatar ? (
+                <img src={accountAvatar} alt="" loading="eager" decoding="async" />
+              ) : (
+                accountLetters
+              )}
+            </span>
+          ) : (
+            <RemixIcon name={isAccountActive ? 'ri-user-3-fill' : 'ri-user-3-line'} size={isAccountActive ? 22 : 21} />
+          )}
           <span>Hesap</span>
         </button>
       </nav>

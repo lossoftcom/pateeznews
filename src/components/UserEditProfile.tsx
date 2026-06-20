@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Camera, Check, Globe, Link as LinkIcon, Save, Sparkles, User, Mail, MapPin, Briefcase, Calendar, Shield, Lock, Trash2, Smartphone } from 'lucide-react';
+import { ArrowLeft, Camera, Check, ChevronDown, Eye, EyeOff, Globe, Link as LinkIcon, Save, Sparkles, User, Mail, MapPin, Briefcase, Calendar, Shield, Lock, Trash2, Smartphone } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import { accountAction } from '@/services/appActions';
+import RemixIcon from '@/components/ui/RemixIcon';
 
 interface UserEditProfileProps {
   userId?: string;
@@ -27,6 +28,43 @@ const roleLabelFor = (role: unknown) => {
   if (key === 'publisher') return 'Yayıncı';
   if (key === 'member' || key === 'user') return 'Üye';
   return '';
+};
+
+const TURKEY_CITY_OPTIONS = [
+  'Adana', 'Adıyaman', 'Afyonkarahisar', 'Ağrı', 'Amasya', 'Ankara', 'Antalya', 'Artvin', 'Aydın',
+  'Balıkesir', 'Bilecik', 'Bingöl', 'Bitlis', 'Bolu', 'Burdur', 'Bursa', 'Çanakkale', 'Çankırı',
+  'Çorum', 'Denizli', 'Diyarbakır', 'Edirne', 'Elazığ', 'Erzincan', 'Erzurum', 'Eskişehir',
+  'Gaziantep', 'Giresun', 'Gümüşhane', 'Hakkari', 'Hatay', 'Isparta', 'Mersin', 'İstanbul',
+  'İzmir', 'Kars', 'Kastamonu', 'Kayseri', 'Kırklareli', 'Kırşehir', 'Kocaeli', 'Konya',
+  'Kütahya', 'Malatya', 'Manisa', 'Kahramanmaraş', 'Mardin', 'Muğla', 'Muş', 'Nevşehir',
+  'Niğde', 'Ordu', 'Rize', 'Sakarya', 'Samsun', 'Siirt', 'Sinop', 'Sivas', 'Tekirdağ',
+  'Tokat', 'Trabzon', 'Tunceli', 'Şanlıurfa', 'Uşak', 'Van', 'Yozgat', 'Zonguldak',
+  'Aksaray', 'Bayburt', 'Karaman', 'Kırıkkale', 'Batman', 'Şırnak', 'Bartın', 'Ardahan',
+  'Iğdır', 'Yalova', 'Karabük', 'Kilis', 'Osmaniye', 'Düzce',
+];
+
+const MOBILE_SOCIAL_PLATFORMS = [
+  'twitter', 'instagram', 'facebook', 'youtube', 'whatsapp', 'linkedin', 'tiktok',
+  'pinterest', 'snapchat', 'telegram', 'discord', 'reddit', 'bluesky', 'twitch',
+  'personal_website_url',
+];
+
+const MOBILE_SOCIAL_META: Record<string, { label: string; icon: string; color: string }> = {
+  twitter: { label: 'X (Twitter)', icon: 'ri-twitter-x-fill', color: '#000000' },
+  instagram: { label: 'Instagram', icon: 'ri-instagram-fill', color: '#E4405F' },
+  facebook: { label: 'Facebook', icon: 'ri-facebook-fill', color: '#1877F2' },
+  youtube: { label: 'YouTube', icon: 'ri-youtube-fill', color: '#FF0000' },
+  whatsapp: { label: 'WhatsApp', icon: 'ri-whatsapp-fill', color: '#25D366' },
+  linkedin: { label: 'LinkedIn', icon: 'ri-linkedin-fill', color: '#0A66C2' },
+  tiktok: { label: 'TikTok', icon: 'ri-tiktok-fill', color: '#000000' },
+  pinterest: { label: 'Pinterest', icon: 'ri-pinterest-fill', color: '#E60023' },
+  snapchat: { label: 'Snapchat', icon: 'ri-snapchat-fill', color: '#FFC400' },
+  telegram: { label: 'Telegram', icon: 'ri-telegram-fill', color: '#26A5E4' },
+  discord: { label: 'Discord', icon: 'ri-discord-fill', color: '#5865F2' },
+  reddit: { label: 'Reddit', icon: 'ri-reddit-fill', color: '#FF4500' },
+  bluesky: { label: 'Bluesky', icon: 'ri-bluesky-fill', color: '#1185FE' },
+  twitch: { label: 'Twitch', icon: 'ri-twitch-fill', color: '#9146FF' },
+  personal_website_url: { label: 'Personal Website URL', icon: 'ri-global-line', color: '#8A949B' },
 };
 
 const identityConflictMessage: Record<IdentityField, string> = {
@@ -88,6 +126,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success'>('idle');
   const [uploadingImage, setUploadingImage] = useState<'avatar' | 'cover' | null>(null);
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+  const [visiblePasswords, setVisiblePasswords] = useState({ current: false, next: false, confirm: false });
   const [deletePassword, setDeletePassword] = useState('');
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [identityValidation, setIdentityValidation] = useState<ReturnType<typeof emptyIdentityValidation>>(emptyIdentityValidation);
@@ -347,6 +386,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
         canonical_url: formData.canonical_url,
         avatar_url: normalizeProfileMediaUrl(formData.avatar_url),
         cover_url: normalizeProfileMediaUrl(formData.cover_url),
+        city: formData.city || 'Niğde',
         updated_at: new Date().toISOString()
       };
 
@@ -393,7 +433,8 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
   };
 
   const handleDeleteAccount = async () => {
-    if (!deletePassword) {
+    const confirmedPassword = deletePassword || window.prompt(t('profile.enter_password_confirm')) || '';
+    if (!confirmedPassword) {
       setFormMessage(t('profile.enter_password_confirm'));
       return;
     }
@@ -402,7 +443,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
     setSaving(true);
     setFormMessage(null);
     try {
-      await accountAction('delete-self', { currentPassword: deletePassword });
+      await accountAction('delete-self', { currentPassword: confirmedPassword });
       await supabase.auth.signOut();
       window.location.href = '/';
     } catch (error: any) {
@@ -419,7 +460,6 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
     { id: 'change_password', label: t('profile.tab.password'), icon: <Lock size={18} /> },
     { id: 'delete_account', label: t('profile.tab.delete'), icon: <Trash2 size={18} /> }
   ];
-
   if (loading) return (
     <div className="flex justify-center items-center min-h-[400px]">
       <div className="animate-spin rounded-[5px] h-12 w-12 border-b-2 border-blue-600"></div>
@@ -427,8 +467,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
   );
 
   return (
-    <div className="animate-in bg-white rounded-[4px] border border-gray-200 shadow-sm overflow-hidden mb-10">
-
+    <>
       {/* Hidden Inputs */}
       <input
         type="file"
@@ -444,6 +483,299 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
         accept="image/*"
         onChange={(e) => handleImageUpload(e, 'cover')}
       />
+
+      <div className="profile-edit-mobile-shell">
+        <header className="profile-edit-mobile-appbar">
+          <button type="button" onClick={handleSave} disabled={saving}>
+            {saving ? t('common.saving') : 'Kaydet'}
+          </button>
+          <strong>Profili Düzenle</strong>
+          <button type="button" onClick={onBack} aria-label={t('admin.post.go_back')}>
+            <ArrowLeft size={20} strokeWidth={2.2} />
+          </button>
+        </header>
+
+        <main className="profile-edit-mobile-content">
+          <section className="profile-edit-mobile-card">
+            <h2><span aria-hidden="true" />Fotoğraflar</h2>
+            <div className="profile-edit-mobile-cover">
+              {formData.cover_url ? (
+                <img src={formData.cover_url} alt={t('user_edit_profile.cover_alt')} loading="eager" decoding="async" />
+              ) : (
+                <div><Sparkles size={34} /></div>
+              )}
+              <button
+                type="button"
+                onClick={() => coverInputRef.current?.click()}
+                disabled={uploadingImage === 'cover'}
+              >
+                <Camera size={14} />
+                <span>{uploadingImage === 'cover' ? 'Yükleniyor' : 'Kapak'}</span>
+              </button>
+            </div>
+
+            <div className="profile-edit-mobile-photo-row">
+              <div className="profile-edit-mobile-avatar">
+                {formData.avatar_url ? (
+                  <img src={formData.avatar_url} alt={t('user_edit_profile.avatar_alt')} loading="eager" decoding="async" />
+                ) : (
+                  <User size={30} />
+                )}
+              </div>
+              <div>
+                <strong>Profil fotoğrafı</strong>
+                <span>JPG veya PNG · en fazla 5 MB</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingImage === 'avatar'}
+              >
+                <Camera size={14} />
+                <span>{uploadingImage === 'avatar' ? 'Yükleniyor' : 'Değiştir'}</span>
+              </button>
+            </div>
+          </section>
+
+          <section className="profile-edit-mobile-card">
+            <h2><span aria-hidden="true" />Hesap Bilgileri</h2>
+            <label className="profile-edit-mobile-field">
+              <span>Ad Soyad</span>
+              <div>
+                <User size={17} />
+                <input
+                  type="text"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                />
+              </div>
+            </label>
+            <label className="profile-edit-mobile-field">
+              <span>Kullanıcı Adı</span>
+              <div>
+                <b>@</b>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                />
+              </div>
+              {fieldError('username')}
+            </label>
+            <label className="profile-edit-mobile-field">
+              <span>E-posta</span>
+              <div>
+                <Mail size={17} />
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+              {fieldError('email')}
+            </label>
+          </section>
+
+          <section className="profile-edit-mobile-card">
+            <h2><span aria-hidden="true" />Profil</h2>
+            <label className="profile-edit-mobile-field">
+              <span>Uzmanlık / Unvan</span>
+              <div>
+                <Sparkles size={17} />
+                <input
+                  type="text"
+                  value={formData.role_label || roleLabelFor(formData.role) || formData.expertise}
+                  readOnly
+                  aria-readonly="true"
+                />
+              </div>
+            </label>
+            <label className="profile-edit-mobile-field">
+              <span>Şehir</span>
+              <div className="profile-edit-mobile-select-field">
+                <MapPin size={17} />
+                <select
+                  value={formData.city || 'Niğde'}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                >
+                  {TURKEY_CITY_OPTIONS.map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+                <ChevronDown size={17} />
+              </div>
+            </label>
+            <label className="profile-edit-mobile-field">
+              <span>Hakkında</span>
+              <div className="is-textarea">
+                <Briefcase size={17} />
+                <textarea
+                  value={formData.about_me}
+                  onChange={(e) => setFormData({ ...formData, about_me: e.target.value })}
+                  rows={4}
+                />
+              </div>
+            </label>
+            <label className="profile-edit-mobile-field">
+              <span>Adres</span>
+              <div>
+                <MapPin size={17} />
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                />
+              </div>
+            </label>
+          </section>
+
+          <section className="profile-edit-mobile-card">
+            <h2><span aria-hidden="true" />Sosyal Bağlantılar</h2>
+            <div className="profile-edit-mobile-social-fields">
+              {MOBILE_SOCIAL_PLATFORMS.map((platformKey) => {
+                const meta = MOBILE_SOCIAL_META[platformKey];
+                const value = platformKey === 'personal_website_url'
+                  ? formData.website || ''
+                  : formData.social_links[platformKey] || '';
+
+                return (
+                <label key={platformKey} className={`profile-edit-mobile-field${value ? ' has-value' : ''}`}>
+                  <span>{meta.label}</span>
+                  <div>
+                    <RemixIcon name={meta.icon} size={18} style={{ color: meta.color }} />
+                    <input
+                      type="text"
+                      placeholder={meta.label}
+                      value={value}
+                      onChange={(e) => {
+                        if (platformKey === 'personal_website_url') {
+                          setFormData({ ...formData, website: e.target.value });
+                          return;
+                        }
+                        setFormData({
+                          ...formData,
+                          social_links: {
+                            ...formData.social_links,
+                            [platformKey]: e.target.value
+                          }
+                        });
+                      }}
+                    />
+                  </div>
+                </label>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="profile-edit-mobile-card">
+            <h2><span aria-hidden="true" />Tercihler</h2>
+            <label className="profile-edit-mobile-toggle">
+              <span>E-postamı profilimde göster</span>
+              <input
+                type="checkbox"
+                checked={formData.show_email === true}
+                onChange={(e) => setFormData({ ...formData, show_email: e.target.checked })}
+              />
+              <i aria-hidden="true" />
+            </label>
+            <label className="profile-edit-mobile-toggle">
+              <span>RSS akışlarına izin ver</span>
+              <input
+                type="checkbox"
+                checked={formData.rss_feeds === true}
+                onChange={(e) => setFormData({ ...formData, rss_feeds: e.target.checked })}
+              />
+              <i aria-hidden="true" />
+            </label>
+          </section>
+
+          <button
+            type="button"
+            className={`profile-edit-mobile-save${saveStatus === 'success' ? ' is-success' : ''}`}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? `${t('common.saving')}...` : saveStatus === 'success' ? t('profile.saved_success') : t('common.save_changes')}
+          </button>
+
+          <section className="profile-edit-mobile-card">
+            <h2><span aria-hidden="true" />Şifre Değiştir</h2>
+            {formMessage && (
+              <p className="profile-edit-mobile-message">{formMessage}</p>
+            )}
+            <label className="profile-edit-mobile-field profile-edit-mobile-password-field">
+              <div>
+                <Lock size={17} />
+                <input
+                  type={visiblePasswords.current ? 'text' : 'password'}
+                  value={passwords.current}
+                  onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                  placeholder={t('user_edit_profile.password.current')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setVisiblePasswords((prev) => ({ ...prev, current: !prev.current }))}
+                  aria-label={t('user_edit_profile.password.current')}
+                >
+                  {visiblePasswords.current ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+            </label>
+            <label className="profile-edit-mobile-field profile-edit-mobile-password-field">
+              <div>
+                <Lock size={17} />
+                <input
+                  type={visiblePasswords.next ? 'text' : 'password'}
+                  value={passwords.next}
+                  onChange={(e) => setPasswords({ ...passwords, next: e.target.value })}
+                  placeholder={t('user_edit_profile.password.new')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setVisiblePasswords((prev) => ({ ...prev, next: !prev.next }))}
+                  aria-label={t('user_edit_profile.password.new')}
+                >
+                  {visiblePasswords.next ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+            </label>
+            <label className="profile-edit-mobile-field profile-edit-mobile-password-field">
+              <div>
+                <Lock size={17} />
+                <input
+                  type={visiblePasswords.confirm ? 'text' : 'password'}
+                  value={passwords.confirm}
+                  onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                  placeholder={t('user_edit_profile.password.confirm')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setVisiblePasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                  aria-label={t('user_edit_profile.password.confirm')}
+                >
+                  {visiblePasswords.confirm ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+            </label>
+            <button type="button" className="profile-edit-mobile-secondary" onClick={handleUpdatePassword} disabled={saving}>
+              <Lock size={17} />
+              {t('profile.update_password')}
+            </button>
+          </section>
+
+          <section className="profile-edit-mobile-danger">
+            <h2>Tehlikeli Alan</h2>
+            <p>Hesabını silersen profilin, gönderilerin ve tüm verilerin kalıcı olarak kaldırılır.</p>
+            <button type="button" onClick={handleDeleteAccount} disabled={saving}>
+              <Trash2 size={16} />
+              Hesabı Sil
+            </button>
+          </section>
+        </main>
+      </div>
+
+    <div className="profile-edit-desktop-shell animate-in bg-white rounded-[4px] border border-gray-200 shadow-sm overflow-hidden mb-10">
 
       {/* HEADER: Cover */}
       <div
@@ -885,6 +1217,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
       </div>
 
     </div>
+    </>
   );
 };
 

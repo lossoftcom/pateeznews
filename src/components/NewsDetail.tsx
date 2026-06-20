@@ -1157,6 +1157,8 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showMobileShareRail, setShowMobileShareRail] = useState(false);
+  const [detailScrollOffset, setDetailScrollOffset] = useState(0);
   const [detailCounts, setDetailCounts] = useState({
     likes: data.likes || 0,
     dislikes: data.dislikes || 0,
@@ -1468,6 +1470,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
         : Math.max(startY + 1, document.documentElement.scrollHeight - window.innerHeight);
       const progress = Math.min(100, Math.max(0, ((window.scrollY - startY) / (endY - startY)) * 100));
       setScrollProgress(progress);
+      setDetailScrollOffset(Math.max(0, window.scrollY - startY));
     };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -1581,6 +1584,31 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     { key: 'tiktok', label: t('share.tiktok'), icon: 'ri-tiktok-fill', iconClass: 'text-[#0F1419]', hoverClass: 'hover:bg-black/5', onClick: shareToTikTok },
     { key: 'nsosyal', label: t('share.nsosyal'), icon: 'ri-global-line', iconClass: 'text-palette-red', hoverClass: 'hover:bg-palette-red/5', onClick: handleNativeShare },
   ];
+  const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
+  const mobileHeroRawSrc = coverOptimized?.src || (data as any).coverThumbnail || data.thumbnail || data.mediaUrl || '';
+  const mobileHeroSrc = withImageVariant(mobileHeroRawSrc, 1600);
+  const mobileHeroSize = imageSizeAttrs(coverOptimized);
+  const categoryLine = breadcrumbs
+    .map((crumb) => titleCaseText(t(crumb.label) || crumb.label))
+    .filter(Boolean)
+    .join(' / ');
+  const hideMobilePrimaryMedia = data.type === NewsType.STANDARD || data.type === NewsType.IMAGE;
+  const scrollToComments = () => {
+    document.getElementById('news-detail-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+  const mobileAppBarProgress = clamp01((detailScrollOffset - 60) / 160);
+  const mobileDockProgress = clamp01((detailScrollOffset - 90) / 140);
+  const mobileAppBarStyle = {
+    '--mobile-detail-appbar-progress': mobileAppBarProgress,
+    '--mobile-detail-appbar-offset': `${(1 - mobileAppBarProgress) * -6}px`,
+    pointerEvents: mobileAppBarProgress > 0.08 ? 'auto' : 'none',
+  } as React.CSSProperties;
+  const mobileDockStyle = {
+    '--mobile-detail-dock-progress': mobileDockProgress,
+    '--mobile-detail-dock-offset': `${(1 - mobileDockProgress) * 18}px`,
+    pointerEvents: mobileDockProgress >= 0.4 ? 'auto' : 'none',
+  } as React.CSSProperties;
 
   return (
     <div ref={articleProgressRef} className="public-news-detail animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
@@ -1593,8 +1621,165 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
         />
       </div>
 
+      <section className="news-detail-mobile-shell md:hidden" aria-label="Haber detayı">
+        <div className="mobile-detail-hero">
+          <button type="button" onClick={onBack} className="mobile-detail-back-button" aria-label="Geri dön">
+            <RemixIcon name="ri-arrow-left-line" size={21} />
+          </button>
+          {mobileHeroSrc ? (
+            <img
+              src={mobileHeroSrc}
+              alt={data.thumbnailAlt || data.seoTitle || data.title}
+              title={data.thumbnailAlt || data.seoTitle || data.title}
+              width={mobileHeroSize.width}
+              height={mobileHeroSize.height}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+            />
+          ) : (
+            <div className="mobile-detail-hero-empty">
+              <RemixIcon name="ri-image-line" size={34} />
+            </div>
+          )}
+          <div className="mobile-detail-hero-overlay">
+            <div className="mobile-detail-hero-actions">
+              <button type="button" onClick={toggleDetailLike} className={detailState.liked ? 'is-active' : undefined} aria-label="Beğen">
+                <RemixIcon name={detailState.liked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'} size={20} />
+                <span>{detailCounts.likes.toLocaleString()}</span>
+              </button>
+              <button type="button" onClick={toggleDetailDislike} className={detailState.disliked ? 'is-active is-danger' : undefined} aria-label="Beğenme">
+                <RemixIcon name={detailState.disliked ? 'ri-thumb-down-fill' : 'ri-thumb-down-line'} size={20} />
+                <span>{detailCounts.dislikes.toLocaleString()}</span>
+              </button>
+              <button type="button" onClick={scrollToComments} aria-label="Yorumlar">
+                <RemixIcon name="ri-chat-3-line" size={22} />
+                <span>{(data.comments || 0).toLocaleString()}</span>
+              </button>
+              <button type="button" onClick={() => void handleNativeShare()} aria-label="Paylaş">
+                <RemixIcon name="ri-share-forward-line" size={22} />
+                <span>{detailCounts.shares.toLocaleString()}</span>
+              </button>
+              <button type="button" onClick={toggleDetailSave} className={`mobile-detail-save ${detailState.saved ? 'is-active' : ''}`} aria-label="Kaydet">
+                <RemixIcon name={detailState.saved ? 'ri-bookmark-fill' : 'ri-bookmark-line'} size={25} />
+              </button>
+            </div>
+            {showPostDate && (
+              <time className="mobile-detail-hero-date" dateTime={publishedAt.iso || undefined}>
+                <RemixIcon name="ri-time-line" size={12} />
+                {publishedAt.date ? publishedAt.date.replace(/\s+(Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi|Pazar)$/i, '') : data.timestamp}
+                {publishedAt.time && <span>{publishedAt.time}</span>}
+              </time>
+            )}
+          </div>
+        </div>
+
+        <div className="mobile-detail-sticky-title" style={mobileAppBarStyle}>
+          <span aria-hidden="true" />
+          <strong>{data.title}</strong>
+          <button type="button" onClick={onBack} aria-label="Geri dön">
+            <RemixIcon name="ri-arrow-left-line" size={20} />
+          </button>
+          <i style={{ width: `${scrollProgress}%` }} aria-hidden="true" />
+        </div>
+
+        <div className="mobile-detail-share-row" style={mobileDockStyle}>
+          {!showMobileShareRail && (
+            <button type="button" onClick={() => setShowMobileShareRail(true)} className="mobile-detail-share-pill">
+              <RemixIcon name="ri-share-forward-line" size={12} />
+              PAYLAŞ
+            </button>
+          )}
+        </div>
+
+        {showMobileShareRail && (
+          <aside className="mobile-detail-share-rail" style={mobileDockStyle} aria-label="Paylaşım seçenekleri">
+            <div className="mobile-detail-share-count">
+              <strong>{detailCounts.shares.toLocaleString()}</strong>
+              <span>PAYLAŞIM</span>
+            </div>
+            <button type="button" onClick={() => { void shareToInstagram(); setShowMobileShareRail(false); }} className="is-instagram" aria-label="Instagram'da paylaş">
+              <RemixIcon name="ri-instagram-fill" size={18} />
+            </button>
+            <button type="button" onClick={() => { shareToFacebook(); setShowMobileShareRail(false); }} className="is-facebook" aria-label="Facebook'ta paylaş">
+              <RemixIcon name="ri-facebook-fill" size={18} />
+            </button>
+            <button type="button" onClick={() => { shareToTwitter(); setShowMobileShareRail(false); }} className="is-x" aria-label="X'te paylaş">
+              <RemixIcon name="ri-twitter-x-fill" size={17} />
+            </button>
+            <button type="button" onClick={() => { shareToWhatsApp(); setShowMobileShareRail(false); }} className="is-whatsapp" aria-label="WhatsApp'ta paylaş">
+              <RemixIcon name="ri-whatsapp-fill" size={18} />
+            </button>
+            <button type="button" onClick={() => void toggleDetailLike()} className={detailState.liked ? 'is-like is-active' : 'is-like'} aria-label="Beğen" aria-pressed={detailState.liked}>
+              <RemixIcon name={detailState.liked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'} size={17} />
+              {detailCounts.likes > 0 && <span>{detailCounts.likes.toLocaleString()}</span>}
+            </button>
+            <button type="button" onClick={() => void toggleDetailDislike()} className={detailState.disliked ? 'is-dislike is-active' : 'is-dislike'} aria-label="Beğenme" aria-pressed={detailState.disliked}>
+              <RemixIcon name={detailState.disliked ? 'ri-thumb-down-fill' : 'ri-thumb-down-line'} size={17} />
+            </button>
+            <button type="button" onClick={() => void toggleDetailSave()} className={detailState.saved ? 'is-save is-active' : 'is-save'} aria-label="Kaydet" aria-pressed={detailState.saved}>
+              <RemixIcon name={detailState.saved ? 'ri-bookmark-fill' : 'ri-bookmark-line'} size={17} />
+            </button>
+            <button type="button" onClick={() => setShowMobileShareRail(false)} className="mobile-detail-share-close" aria-label="Paylaşımı kapat">
+              × KAPAT
+            </button>
+          </aside>
+        )}
+
+        <section className="mobile-detail-lede">
+          <div className="mobile-detail-author-row">
+            {showPostAuthor && (
+              authorUrl ? (
+                <a href={authorUrl} className="mobile-detail-author-avatar">
+                  <img src={withImageVariant(data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`, 180)} alt={displayAuthorName || data.author} width={92} height={92} loading="lazy" decoding="async" />
+                  <span aria-hidden="true" />
+                </a>
+              ) : (
+                <span className="mobile-detail-author-avatar">
+                  <img src={withImageVariant(data.sourceAvatar || `https://picsum.photos/seed/auth${data.id}/100`, 180)} alt={displayAuthorName || data.author} width={92} height={92} loading="lazy" decoding="async" />
+                  <span aria-hidden="true" />
+                </span>
+              )
+            )}
+            <div className="mobile-detail-author-copy">
+              {showPostAuthor && (
+                <div className="mobile-detail-author-name">
+                  {authorUrl ? <a href={authorUrl}>{displayAuthorName || data.author}</a> : <span>{displayAuthorName || data.author}</span>}
+                  <RemixIcon name="ri-verified-badge-fill" size={15} />
+                </div>
+              )}
+              {categoryLine && <p>{categoryLine}</p>}
+            </div>
+            <PublisherFollowButton
+              publisherId={data.publisherId}
+              postId={data.id}
+              initialFollowing={data.isFollowingPublisher}
+              className="mobile-detail-follow"
+            />
+          </div>
+
+          <div className="mobile-detail-read-row">
+            <span><RemixIcon name="ri-book-open-line" size={13} /> {readingTime} dk okuma</span>
+            {showPostViewCount && <span><RemixIcon name="ri-eye-line" size={13} /> {detailCounts.views.toLocaleString()} görüntüleme</span>}
+          </div>
+
+          {data.title && (
+            <h1 className="mobile-detail-title">
+              <span aria-hidden="true" />
+              {data.title}
+            </h1>
+          )}
+          {data.summary && (
+            <div
+              dangerouslySetInnerHTML={{ __html: data.summary }}
+              className="mobile-detail-summary rich-text-content"
+            />
+          )}
+        </section>
+      </section>
+
       {/* TOP HEADER - FULL WIDTH AREA */}
-      <div className={`px-6 md:px-10 pt-8 ${data.title || data.summary ? 'pb-6' : 'pb-4'} border-b border-gray-50 bg-gray-50/30 rounded-t-[5px]`}>
+      <div className={`hidden md:block px-6 md:px-10 pt-8 ${data.title || data.summary ? 'pb-6' : 'pb-4'} border-b border-gray-50 bg-gray-50/30 rounded-t-[5px]`}>
         {/* Breadcrumbs */}
         <nav className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-400 capitalize tracking-widest mb-6">
           <button onClick={onBack} className="flex items-center gap-1.5 hover:text-palette-red transition-colors">
@@ -1816,19 +2001,19 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
         </aside>
 
         {/* MAIN BODY CONTENT */}
-        <article className={`flex-1 min-w-0 px-6 md:px-12 ${data.title || data.summary ? 'pt-6' : 'pt-2'} pb-8 max-w-full md:mx-0 overflow-hidden`}>
+        <article className={`news-detail-body-article flex-1 min-w-0 px-6 md:px-12 ${data.title || data.summary ? 'pt-6' : 'pt-2'} pb-8 max-w-full md:mx-0 overflow-hidden`}>
 
-          <AdSlot settings={adSettings} slotKey="web_article_top" className="mb-6" />
+          <AdSlot settings={adSettings} slotKey="web_article_top" className="news-detail-after-lede-ad mb-6" />
 
           {/* Main Media (Video, Poll, Gallery etc.) */}
           {(() => {
             const mediaContent = renderMedia();
             return mediaContent ? (
               <>
-                <div className="mb-6 overflow-hidden max-w-full">
+                <div className={`news-detail-main-media mb-6 overflow-hidden max-w-full ${hideMobilePrimaryMedia ? 'hidden md:block' : ''}`}>
                   {mediaContent}
                 </div>
-                <AdSlot settings={adSettings} slotKey="web_article_after_media" className="mb-8" />
+                <AdSlot settings={adSettings} slotKey="web_article_after_media" className={`news-detail-after-media-ad mb-8 ${hideMobilePrimaryMedia ? 'hidden md:block' : ''}`} />
               </>
             ) : null;
           })()}
@@ -2135,7 +2320,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
           <div ref={articleProgressEndRef} aria-hidden="true" />
 
           {commentsEnabled && (
-            <div className="mt-4">
+            <div id="news-detail-comments" className="news-detail-comments mt-4">
               <InlineCardComments
                 postId={data.id}
                 publisherId={data.publisherId}
@@ -2154,7 +2339,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       {/* Back to Top */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className={`fixed bottom-8 right-8 p-4 bg-white border border-gray-200 rounded-[5px] shadow-xl text-gray-400 hover:text-palette-red transition-all z-50 ${scrollProgress > 20 ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}
+        className={`hidden md:block fixed bottom-8 right-8 p-4 bg-white border border-gray-200 rounded-[5px] shadow-xl text-gray-400 hover:text-palette-red transition-all z-50 ${scrollProgress > 20 ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}
       >
         <RemixIcon name="ri-arrow-right-s-line" size={20} className="-rotate-90" />
       </button>

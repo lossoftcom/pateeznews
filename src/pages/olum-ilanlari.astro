@@ -1,0 +1,67 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import DeathNoticesPage from '@/components/DeathNoticesPage';
+import { dataService } from '@/services/dataService.server';
+import { loadLocaleData } from '@/lib/locales';
+import { setPublicHtmlCache } from '@/lib/server/publicCache';
+import { resolveLangCode } from '@/utils/lang';
+import { getPublicAdSettings } from '@/lib/server/publicAds';
+
+export const prerender = false;
+setPublicHtmlCache(Astro.response);
+
+const cookies = Astro.request.headers.get('cookie') || '';
+const cookieLang = cookies.match(/pateez_lang=([^;]+)/)?.[1];
+const acceptLanguageHeader = Astro.request.headers.get('accept-language');
+const urlLang = Astro.url.searchParams.get('lang');
+
+const seoAlternates = await dataService.getSeoAlternates();
+const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
+const lang = resolveLangCode({
+  urlLang,
+  cookieLang,
+  acceptLanguageHeader,
+  supported: seoAlternates.map((entry) => ({ code: entry.code, isDefault: entry.isDefault })),
+  fallback: defaultLangCode,
+});
+
+const langMeta = seoAlternates.find((entry) => entry.code === lang);
+
+const [initialTranslations, siteSettings, navigationItems, adSettings] = await Promise.all([
+  loadLocaleData(lang),
+  dataService.getSiteSettings(lang),
+  dataService.getNavigationItems(lang),
+  getPublicAdSettings('web'),
+]);
+
+const initialLang = {
+  code: lang,
+  name: langMeta?.name || lang.toUpperCase(),
+  direction: langMeta?.direction || 'ltr',
+  status: 'active',
+  flag_code: langMeta?.flagCode || lang,
+  is_default: langMeta?.isDefault || lang === defaultLangCode,
+};
+
+const title = `Ölüm İlanları | ${siteSettings?.site_name || 'Pateez'}`;
+const description = 'Niğde ölüm ilanları ve vefat duyuruları.';
+const canonicalBase = String(siteSettings?.canonical_url || Astro.url.origin).trim();
+const canonical = new URL('/olum-ilanlari', canonicalBase).toString();
+---
+
+<Layout
+  title={title}
+  description={description}
+  canonical={canonical}
+  favicon={siteSettings?.favicon_url}
+  lang={lang}
+  dir={initialLang.direction}
+  siteSettings={siteSettings}
+  adSettings={adSettings}
+  navigationItems={navigationItems}
+  initialTranslations={initialTranslations}
+  initialLang={initialLang}
+  seoAlternates={seoAlternates}
+>
+  <DeathNoticesPage client:load />
+</Layout>

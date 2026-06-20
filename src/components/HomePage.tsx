@@ -8,14 +8,14 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import type { SiteSettings, NavigationItem, NewsItem, PublicAdSettings } from '@/types';
 import { slugify } from '@/utils/helpers';
-import { navigateImmediately, updateUrlImmediately } from '@/utils/immediateNavigation';
+import { navigateImmediately } from '@/utils/immediateNavigation';
 
 import { dataService } from '@/services/dataService';
 import CategoriesList from './CategoriesList';
 import CategoryDetail from './CategoryDetail';
 import DistrictsList from './DistrictsList';
 import TrendsList from './TrendsList';
-import { getSpecialContentConfig } from '@/utils/specialContent';
+import { getSpecialContentConfig, getSpecialContentUrl } from '@/utils/specialContent';
 import { getPostHref } from '@/utils/postUrl';
 import { getProfileHref } from '@/utils/profileUrl';
 
@@ -90,7 +90,7 @@ const HomePage: React.FC<HomePageProps> = ({
     const isRootCategoryActive = Boolean(activeNavItem && (!activeNavItem.parent_id || activeNavItem.parent_id === 'root'));
     const hideOpinionColumnsInFeed = !activeCat || isRootCategoryActive;
 
-    const isCategoryDetailView = activeView === 'feed' && !isInitialHome && !!activeCat && !activeSpecialContent;
+    const isCategoryDetailView = activeView === 'feed' && !isInitialHome && !!activeCat;
 
     const handleCategoryNavigation = useCallback(async (category: string | null) => {
         const normalize = (value: string | null) => {
@@ -120,19 +120,8 @@ const HomePage: React.FC<HomePageProps> = ({
             try {
                 document.cookie = `pateez_active_cat=${encodeURIComponent(specialContent.value)}; path=/; max-age=31536000; SameSite=Lax`;
 
-                const targetUrl = `/?kategori=${encodeURIComponent(specialContent.value)}`;
-                if (window.location.pathname !== '/' && window.location.pathname !== '') {
-                    void navigateImmediately(targetUrl);
-                    return;
-                }
-
-                updateUrlImmediately(targetUrl);
-
-                const langCode = typeof initialLang === 'object' && initialLang !== null ? initialLang.code : initialLang;
-                const news = await dataService.getNewsItems(langCode, specialContent.value);
-
-                setDisplayNews(news);
-                setActiveCat(navItem?.value || navItem?.label || specialContent.value);
+                void navigateImmediately(getSpecialContentUrl(specialContent.value));
+                return;
             } catch (err) {
                 console.error('Special content filtering error:', err);
                 setActiveCat(null);
