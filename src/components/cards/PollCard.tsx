@@ -37,12 +37,7 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
 
       {/* MAIN POLL CONTAINER */}
       <div
-        className="card-interact-area relative bg-gradient-to-br from-palette-beige/10 via-white to-palette-beige/5 rounded-[4px] border border-palette-beige/40 overflow-hidden shadow-sm"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
+        className="relative bg-gradient-to-br from-palette-beige/10 via-white to-palette-beige/5 rounded-[4px] border border-palette-beige/40 overflow-hidden shadow-sm"
       >
 
         {/* IMAGE SECTION */}
@@ -98,7 +93,14 @@ const PollCard: React.FC<PollCardProps> = ({ data }) => {
 
         {/* OPTIONS GRID */}
         {hasPollOptions && (
-          <div className={`px-6 pb-6 ${(data as any).blockTitle ? 'pt-0' : 'pt-6'}`}>
+          <div
+            className={`card-interact-area px-6 pb-6 ${(data as any).blockTitle ? 'pt-0' : 'pt-6'}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <div className={`grid ${columnClass} gap-3`}>
               {pollOptions.map((option, index) => {
               const isSelected = votedOption === option.id;

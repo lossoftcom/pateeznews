@@ -45,6 +45,10 @@ export interface NewsItem {
   modifiedAt?: string;
   mediaUrl: string;
   mediaList?: string[];
+  videoUrl?: string;
+  videoUrls?: string[];
+  videoThumbUrl?: string;
+  videoThumbUrls?: string[];
   thumbnail: string;
   thumbnailAlt?: string;
   mansetImageUrl?: string;
@@ -97,6 +101,9 @@ export interface NewsItem {
   publisherHandle?: string;
   publisherBio?: string;
   publisherExpertise?: string;
+  region?: string;
+  isVerified?: boolean;
+  isOfficial?: boolean;
   isPinned?: boolean;
   isManset?: boolean;
   // User specific interaction states (pre-fetched for speed)

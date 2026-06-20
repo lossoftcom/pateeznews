@@ -4,9 +4,9 @@ import { type NewsItem, NewsType, type NavigationItem, type SiteSettings, type P
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import Skeleton from '@/components/ui/Skeleton';
-import { postAction } from '@/services/appActions';
+import { hasPostActionSession, postAction } from '@/services/appActions';
 import { getPostHref, getPostPathSegment } from '@/utils/postUrl';
-import { formatPostDateParts } from '@/utils/helpers';
+import { formatPostDateParts, isPostId } from '@/utils/helpers';
 import {
   buildFacebookShareUrl,
   buildShareHashtags,
@@ -35,6 +35,9 @@ import ParagraphCard from './cards/ParagraphCard';
 import InlineCardComments from './InlineCardComments';
 import PublisherFollowButton from './PublisherFollowButton';
 import AdSlot from './ads/AdSlot';
+import MobileVideoFeedOverlay from './MobileVideoFeedOverlay';
+
+const MOBILE_VIDEO_FEED_EVENT = 'pateez:open-video-feed';
 
 interface NewsDetailProps {
   data: NewsItem;
@@ -44,6 +47,20 @@ interface NewsDetailProps {
   adSettings?: PublicAdSettings | null;
   loading?: boolean;
 }
+
+type ShareMenuItem = {
+  key: string;
+  label: string;
+  hoverClass: string;
+  onClick: () => void | Promise<void>;
+  icon?: string;
+  iconClass?: string;
+  imageSrc?: string;
+  imageClass?: string;
+  customIcon?: 'tiktok';
+};
+
+const NSOSYAL_ICON_SRC = '/images/nsosyal-icon.png';
 
 const TEXT_ENTITY_MAP: Record<string, string> = {
   amp: '&',
@@ -262,10 +279,11 @@ const QuizQuestionImage: React.FC<{ src: string; alt: string }> = ({ src, alt })
 const QuizAnswerImage: React.FC<{
   src: string;
   alt: string;
+  answerIndex: number;
   hasPortraitInGroup: boolean;
   isMarked: boolean;
   onOrientation: (orientation: LoadedQuizImageOrientation) => void;
-}> = ({ src, alt, hasPortraitInGroup, isMarked, onOrientation }) => {
+}> = ({ src, alt, answerIndex, hasPortraitInGroup, isMarked, onOrientation }) => {
   const [orientation, setOrientation] = useState<QuizImageOrientation>('unknown');
 
   useEffect(() => {
@@ -301,9 +319,276 @@ const QuizAnswerImage: React.FC<{
         }}
         className={imageClass}
       />
-      <span className={`absolute top-2 right-2 w-7 h-7 rounded-full border bg-white/90 backdrop-blur flex items-center justify-center shadow-sm ${isMarked ? 'border-current text-current' : 'border-gray-200 text-transparent'}`}>
+      <span className="detail-quiz-image-answer-badge hidden">
+        {String.fromCharCode(65 + (answerIndex % 26))}
+      </span>
+      <span className={`detail-quiz-answer-check absolute top-2 right-2 w-7 h-7 rounded-full border bg-white/90 backdrop-blur flex items-center justify-center shadow-sm ${isMarked ? 'border-current text-current' : 'border-gray-200 text-transparent'}`}>
         {isMarked && <RemixIcon name="ri-check-line" size={15} />}
       </span>
+    </div>
+  );
+};
+
+const compactCount = (value: unknown) => {
+  const number = Number(value);
+  const safe = Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0;
+  try {
+    return new Intl.NumberFormat('tr-TR', {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(safe);
+  } catch {
+    return String(safe);
+  }
+};
+
+const normalizedOptionImage = (option: any) => String(
+  option?.image || option?.imageUrl || option?.mediaUrl || option?.thumbnail || ''
+).trim();
+
+const normalizedOptionText = (option: any, fallback: string) => String(
+  option?.text || option?.label || option?.title || fallback
+).trim();
+
+const normalizedOptionVotes = (option: any) => {
+  const votes = Number(option?.votes ?? option?.voteCount ?? option?.count ?? 0);
+  return Number.isFinite(votes) ? Math.max(0, Math.round(votes)) : 0;
+};
+
+const pollPercent = (votes: number, totalVotes: number) => {
+  if (totalVotes <= 0 || votes <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((votes / totalVotes) * 100)));
+};
+
+const DetailPollItemBlock: React.FC<{ item: any }> = ({ item }) => {
+  const rawOptions = Array.isArray(item?.options)
+    ? item.options
+    : Array.isArray(item?.pollData?.options)
+      ? item.pollData.options
+      : [];
+  const options = rawOptions.map((option: any, index: number) => ({
+    id: String(option?.id || `detail-poll-option-${index}`),
+    text: normalizedOptionText(option, `${index + 1}. seçenek`),
+    image: normalizedOptionImage(option),
+    votes: normalizedOptionVotes(option),
+  }));
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedOptionId(null);
+  }, [item?.id]);
+
+  const baseTotalVotes = Number(item?.totalVotes ?? item?.pollData?.totalVotes);
+  const resolvedBaseTotal = Number.isFinite(baseTotalVotes)
+    ? Math.max(0, Math.round(baseTotalVotes))
+    : options.reduce((total: number, option: any) => total + option.votes, 0);
+  const hasVoted = selectedOptionId !== null;
+  const totalVotes = resolvedBaseTotal + (hasVoted ? 1 : 0);
+  const isImagePoll = Boolean(item?.isImagePoll || item?.pollData?.isImagePoll || options.some((option: any) => option.image));
+  const pollColumns = Number(item?.pollColumns || item?.pollData?.columns) === 3 ? 3 : 2;
+  const title = String(item?.title || item?.blockTitle || item?.pollData?.title || '').trim();
+  const question = String(item?.question || item?.questionTitle || item?.pollData?.question || '').trim();
+  const visibleQuestion = question && question !== title ? question : '';
+  const description = String(item?.description || item?.blockDescription || item?.pollData?.description || '').trim();
+
+  return (
+    <section className={`detail-poll-block ${isImagePoll ? 'detail-poll-block--image' : 'detail-poll-block--list'}`}>
+      <div className="detail-poll-header">
+        <span className="detail-poll-header-icon">
+          <RemixIcon name="ri-apps-2-fill" size={18} />
+        </span>
+        <span className="detail-poll-header-copy">
+          <strong>Anket</strong>
+          <small>{options.length} seçenek · {compactCount(totalVotes)} katılımcı</small>
+        </span>
+        <span className={`detail-poll-pill ${hasVoted ? 'is-complete' : ''}`}>{hasVoted ? 'Sonuçlar' : 'Oy ver'}</span>
+      </div>
+
+      {title && <h3 className="detail-poll-title">{title}</h3>}
+      {visibleQuestion && <h4 className="detail-poll-question">{visibleQuestion}</h4>}
+      {description && (
+        <div
+          className="detail-poll-description rich-text-content"
+          dangerouslySetInnerHTML={{ __html: description }}
+        />
+      )}
+
+      <div className="detail-poll-progress-panel">
+        <RemixIcon name={hasVoted ? 'ri-check-line' : 'ri-cursor-line'} size={15} />
+        <span>{hasVoted ? 'Sonuçlar oyunla birlikte açıldı' : 'Sonuçları görmek için bir seçeneğe oy ver'}</span>
+        <strong>{compactCount(totalVotes)} oy</strong>
+      </div>
+
+      {isImagePoll ? (
+        <div className={`detail-poll-image-grid detail-poll-image-grid--${pollColumns}`}>
+          {options.map((option: any, index: number) => {
+            const selected = selectedOptionId === option.id;
+            const optionVotes = option.votes + (selected && hasVoted ? 1 : 0);
+            const percent = pollPercent(optionVotes, totalVotes);
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={hasVoted}
+                onClick={() => setSelectedOptionId(option.id)}
+                className={`detail-poll-image-option ${selected ? 'is-selected' : ''} ${hasVoted && !selected ? 'is-muted' : ''}`}
+              >
+                <span className="detail-poll-option-visual">
+                  {option.image ? (
+                    <img src={option.image} alt={option.text} loading="lazy" decoding="async" />
+                  ) : (
+                    <span className="detail-poll-option-fallback">
+                      <RemixIcon name="ri-image-line" size={20} />
+                    </span>
+                  )}
+                  <span className="detail-poll-option-badge">{index + 1}</span>
+                  <span className="detail-poll-percent-badge">%{hasVoted ? percent : 0}</span>
+                </span>
+                <span className="detail-poll-image-label">{option.text}</span>
+                {hasVoted && (
+                  <span className="detail-poll-image-result">
+                    <i style={{ width: `${percent}%` }} />
+                    <small>{compactCount(optionVotes)} oy</small>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="detail-poll-list-options">
+          {options.map((option: any, index: number) => {
+            const selected = selectedOptionId === option.id;
+            const optionVotes = option.votes + (selected && hasVoted ? 1 : 0);
+            const percent = pollPercent(optionVotes, totalVotes);
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={hasVoted}
+                onClick={() => setSelectedOptionId(option.id)}
+                className={`detail-poll-list-option ${selected ? 'is-selected' : ''} ${hasVoted && !selected ? 'is-muted' : ''}`}
+              >
+                {hasVoted && <span className="detail-poll-list-progress" style={{ width: `${percent}%` }} />}
+                <span className="detail-poll-option-badge">{index + 1}</span>
+                <span className="detail-poll-list-label">{option.text}</span>
+                {hasVoted && (
+                  <span className="detail-poll-result-text">
+                    <strong>%{percent}</strong>
+                    <small>{compactCount(optionVotes)} oy</small>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+};
+
+const quizTypeLabel = (value: string) => {
+  switch (value.trim().toLowerCase()) {
+    case 'trivia':
+      return 'Bilgi yarışması';
+    case 'checklist':
+      return 'Kontrol listesi';
+    default:
+      return 'Kişilik testi';
+  }
+};
+
+const normalizedDetailItemType = (item: any) => String(item?.type || '').trim().toLowerCase();
+
+const detailItemTitleText = (item: any) => String(item?.title || '').trim();
+
+const detailItemDescriptionHtml = (item: any) => String(item?.description || '').trim();
+
+const shouldShowDetailItemTitle = (item: any) => {
+  const type = normalizedDetailItemType(item);
+  return !!detailItemTitleText(item) && type !== 'quote' && type !== 'paragraph' && type !== 'review';
+};
+
+const isDetailItemDescriptionInsideMedia = (item: any) => {
+  const type = normalizedDetailItemType(item);
+  return type === 'review' || type === 'quote';
+};
+
+const shouldShowDetailItemDescriptionBeforeMedia = (item: any) => (
+  !!detailItemDescriptionHtml(item) && !isDetailItemDescriptionInsideMedia(item)
+);
+
+const sourceText = (source: string, moreInfoUrl: string) => {
+  const cleanSource = source.trim();
+  const cleanUrl = moreInfoUrl.trim();
+  if (cleanSource && cleanUrl) return `${cleanSource} · Daha fazla bilgi`;
+  return cleanSource || cleanUrl;
+};
+
+const sourceHref = (value: string) => {
+  const raw = String(value || '').trim();
+  if (!raw || /\s/.test(raw)) return '';
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : '';
+  } catch {
+    if (raw.startsWith('www.') || /^[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(raw)) {
+      try {
+        return new URL(`https://${raw}`).toString();
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  }
+};
+
+const hasDetailItemExtraInfo = (item: any) => (
+  !!String(item?.altText || '').trim() ||
+  !!String(item?.source || '').trim() ||
+  !!String(item?.moreInfoUrl || '').trim()
+);
+
+const DetailMediaIntro: React.FC<{ item: any }> = ({ item }) => {
+  const title = shouldShowDetailItemTitle(item) ? detailItemTitleText(item) : '';
+  const description = shouldShowDetailItemDescriptionBeforeMedia(item)
+    ? detailItemDescriptionHtml(item)
+    : '';
+
+  if (!title && !description) return null;
+
+  return (
+    <div className="detail-media-intro">
+      {title && <h3 className="detail-media-title">{title}</h3>}
+      {description && (
+        <div
+          className="detail-media-description rich-text-content"
+          dangerouslySetInnerHTML={{ __html: description }}
+        />
+      )}
+    </div>
+  );
+};
+
+const DetailItemExtraInfo: React.FC<{ item: any }> = ({ item }) => {
+  if (!hasDetailItemExtraInfo(item)) return null;
+
+  const altText = String(item?.altText || '').trim();
+  const source = String(item?.source || '').trim();
+  const moreInfoUrl = String(item?.moreInfoUrl || '').trim();
+  const infoText = sourceText(source, moreInfoUrl);
+  const href = sourceHref(moreInfoUrl || source);
+
+  return (
+    <div className="detail-media-extra">
+      {altText && <p>{altText}</p>}
+      {infoText && (
+        href ? (
+          <a href={href} target="_blank" rel="noreferrer">{infoText}</a>
+        ) : (
+          <p>{infoText}</p>
+        )
+      )}
     </div>
   );
 };
@@ -397,7 +682,7 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
 
   if (questions.length === 0) {
     return (
-      <div key={item.id} className="space-y-5 p-6 md:p-8 rounded-[5px] border border-palette-beige/60 bg-palette-beige/10">
+      <div key={item.id} className="detail-quiz-empty space-y-5 p-6 md:p-8 rounded-[5px] border border-palette-beige/60 bg-palette-beige/10">
         {item.title && <h3 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">{item.title}</h3>}
         {item.description && <div className="rich-text-content text-sm font-bold text-palette-tan/70" dangerouslySetInnerHTML={{ __html: item.description }} />}
         <div className="grid gap-3">
@@ -415,17 +700,43 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
   }
 
   return (
-    <div key={item.id} className="space-y-7">
-      <div className="space-y-3 px-1">
+    <div key={item.id} className="detail-quiz-block space-y-7">
+      <div className="detail-quiz-header md:hidden">
+        <span className="detail-quiz-header-icon">
+          <RemixIcon name="ri-flashlight-fill" size={18} />
+        </span>
+        <span className="detail-quiz-header-copy">
+          <strong>Test</strong>
+          <small>{quizTypeLabel(quizType)} · {questions.length} soru · {results.length} sonuç</small>
+        </span>
+        <span className={`detail-quiz-pill ${canShowResult ? 'is-complete' : ''}`}>{canShowResult ? 'Sonuç hazır' : `${answeredCount}/${questions.length}`}</span>
+      </div>
+
+      <div className="detail-quiz-intro space-y-3 px-1">
         {item.title && <h3 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">{item.title}</h3>}
         {item.description && <div className="rich-text-content text-sm md:text-base font-bold text-palette-tan/75 leading-relaxed" dangerouslySetInnerHTML={{ __html: item.description }} />}
       </div>
 
-      <div className="space-y-6">
+      <div className="detail-quiz-progress-panel md:hidden">
+        <span>
+          <RemixIcon name={canShowResult ? 'ri-check-line' : 'ri-lock-line'} size={13} />
+        </span>
+        <strong>{canShowResult ? 'Tüm cevaplar tamamlandı' : 'Sonucu görmek için soruları cevapla'}</strong>
+        <small>%{questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0}</small>
+        <i>
+          {questions.map((question: any) => (
+            <b key={`progress-${question.id}`} className={(selectedAnswers[question.id] || []).length > 0 ? 'is-filled' : ''} />
+          ))}
+        </i>
+      </div>
+
+      <div className="detail-quiz-section-label md:hidden">Sorular</div>
+
+      <div className="detail-quiz-questions space-y-6">
         {questions.map((question: any, questionIndex: number) => {
           const selected = selectedAnswers[question.id] || [];
           const reveal = canShowResult && quizType === 'trivia';
-          const layout = question.layout === 'grid3' ? 'md:grid-cols-3' : question.layout === 'grid2' ? 'md:grid-cols-2' : 'grid-cols-1';
+          const layout = question.layout === 'grid3' ? 'grid-cols-3 md:grid-cols-3' : question.layout === 'grid2' ? 'grid-cols-2 md:grid-cols-2' : 'grid-cols-1';
           const hasPortraitAnswerImage = (question.answers || []).some((answer: any) => (
             !!answer.image && answerImageOrientations[`${question.id}:${answer.id}`] === 'portrait'
           ));
@@ -436,23 +747,23 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
               .filter((explanation: string) => explanation.length > 0)
             : [];
           return (
-            <div key={question.id} className="rounded-[5px] border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
+            <div key={question.id} className={`detail-quiz-question-card rounded-[5px] border border-gray-200 bg-white p-4 md:p-5 shadow-sm ${selected.length > 0 ? 'is-answered' : ''}`}>
               <div className="flex items-start gap-3 md:gap-4">
                 {quizData.questionSorting !== 'hidden' && (
-                  <span className="w-9 h-9 shrink-0 rounded-[5px] bg-gray-900 text-white flex items-center justify-center text-sm font-black">
+                  <span className="detail-quiz-question-number w-9 h-9 shrink-0 rounded-[5px] bg-gray-900 text-white flex items-center justify-center text-sm font-black">
                     {quizData.questionSorting === 'desc' ? questions.length - questionIndex : questionIndex + 1}
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-lg md:text-xl font-black text-gray-900 leading-snug">{question.title}</h4>
-                  {question.description && <div className="rich-text-content mt-2 text-sm font-medium text-gray-500" dangerouslySetInnerHTML={{ __html: question.description }} />}
+                  <h4 className="detail-quiz-question-title text-lg md:text-xl font-black text-gray-900 leading-snug">{question.title}</h4>
+                  {question.description && <div className="detail-quiz-question-description rich-text-content mt-2 text-sm font-medium text-gray-500" dangerouslySetInnerHTML={{ __html: question.description }} />}
                 </div>
               </div>
 
               {question.image && <QuizQuestionImage src={question.image} alt={stripHtmlToText(question.title || '')} />}
 
-              <div className={`mt-5 grid ${layout} gap-4`}>
-                {(question.answers || []).map((answer: any) => {
+              <div className={`detail-quiz-answer-grid mt-5 grid ${layout} gap-4`}>
+                {(question.answers || []).map((answer: any, answerIndex: number) => {
                   const isSelected = selected.includes(answer.id);
                   const hasImage = !!answer.image;
                   const correctnessClass = reveal && answer.isCorrect
@@ -463,8 +774,8 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
                         ? 'border-gray-900 bg-white text-gray-900 ring-2 ring-gray-900/10 shadow-md'
                         : 'border-palette-beige bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md';
                   const answerButtonClass = hasImage
-                    ? `group/answer relative overflow-hidden rounded-[4px] border p-1.5 text-left transition-all duration-200 hover:-translate-y-0.5 ${correctnessClass}`
-                    : `flex items-center gap-3 rounded-[4px] border px-4 py-3 text-left transition-all duration-200 ${correctnessClass}`;
+                    ? `detail-quiz-answer detail-quiz-answer--image group/answer relative overflow-hidden rounded-[4px] border p-1.5 text-left transition-all duration-200 hover:-translate-y-0.5 ${isSelected ? 'is-selected' : ''} ${correctnessClass}`
+                    : `detail-quiz-answer detail-quiz-answer--text flex items-center gap-3 rounded-[4px] border px-4 py-3 text-left transition-all duration-200 ${isSelected ? 'is-selected' : ''} ${correctnessClass}`;
 
                   return (
                     <button
@@ -475,12 +786,13 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
                     >
                       {hasImage ? (
                         <>
-                          <QuizAnswerImage
-                            src={answer.image}
-                            alt={stripHtmlToText(answer.text || '')}
-                            hasPortraitInGroup={hasPortraitAnswerImage}
-                            isMarked={isSelected || (reveal && answer.isCorrect)}
-                            onOrientation={(orientation) => registerAnswerImageOrientation(`${question.id}:${answer.id}`, orientation)}
+	                          <QuizAnswerImage
+	                            src={answer.image}
+	                            alt={stripHtmlToText(answer.text || '')}
+	                            answerIndex={answerIndex}
+	                            hasPortraitInGroup={hasPortraitAnswerImage}
+	                            isMarked={isSelected || (reveal && answer.isCorrect)}
+	                            onOrientation={(orientation) => registerAnswerImageOrientation(`${question.id}:${answer.id}`, orientation)}
                           />
                           <span className="block px-2.5 pt-3 pb-2 text-[13px] md:text-sm font-semibold leading-snug text-current">
                             {answer.text}
@@ -488,9 +800,9 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
                         </>
                       ) : (
                         <>
-                          <span className={`w-6 h-6 shrink-0 rounded-full border flex items-center justify-center ${isSelected || (reveal && answer.isCorrect) ? 'border-current' : 'border-gray-200'}`}>
-                            {(isSelected || (reveal && answer.isCorrect)) && <RemixIcon name="ri-check-line" size={14} />}
-                          </span>
+	                          <span data-letter={String.fromCharCode(65 + (answerIndex % 26))} className={`detail-quiz-answer-choice w-6 h-6 shrink-0 rounded-full border flex items-center justify-center ${isSelected || (reveal && answer.isCorrect) ? 'border-current' : 'border-gray-200'}`}>
+	                            {(isSelected || (reveal && answer.isCorrect)) && <RemixIcon name="ri-check-line" size={14} />}
+	                          </span>
                           <span className="text-sm font-semibold leading-snug">{answer.text}</span>
                         </>
                       )}
@@ -500,7 +812,7 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
               </div>
 
               {correctAnswerExplanations.length > 0 && (
-                <div className="mt-4 rounded-[4px] border border-palette-red/15 bg-palette-red/5 px-4 py-3">
+                <div className="detail-quiz-explanation mt-4 rounded-[4px] border border-palette-red/15 bg-palette-red/5 px-4 py-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-palette-red/70">Cevap sonrası açıklama</p>
                   <div className="mt-2 space-y-2">
                     {correctAnswerExplanations.map((explanation: string, explanationIndex: number) => (
@@ -519,7 +831,7 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
       </div>
 
       {showResults && (
-        <div className="rounded-[5px] border border-gray-200 bg-white p-5 md:p-6">
+        <div className="detail-quiz-result rounded-[5px] border border-gray-200 bg-white p-5 md:p-6">
           {canShowResult && selectedResult ? (
             <div className="grid gap-5 md:grid-cols-[180px_1fr] items-center">
               {selectedResult.image && <img src={selectedResult.image} alt={stripHtmlToText(selectedResult.title || '')} className="w-full max-h-[180px] rounded-[5px] object-cover bg-gray-50" />}
@@ -679,8 +991,8 @@ const TableOfContentsBlock: React.FC<{ item: any }> = ({ item }) => {
   if (items.length === 0) return null;
 
   return (
-    <section className="space-y-8">
-      <div className="rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
+    <section className="detail-toc-block space-y-8">
+      <div className="detail-structured-summary-card rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-3 border-b border-gray-200/70 pb-3">
           <h3 className="text-xl font-black text-gray-900">{t('admin.post.tab.contents')}</h3>
           {tocData.optionalUrl && (
@@ -781,8 +1093,19 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
   }
 
   return (
-    <section className="space-y-8">
-      <div className="rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
+    <section className="detail-recipe-block space-y-8">
+      {(item.title || item.description) && (
+        <div className="detail-structured-mobile-intro md:hidden">
+          {item.title && <h3>{item.title}</h3>}
+          {item.description && (
+            <div
+              className="rich-text-content"
+              dangerouslySetInnerHTML={{ __html: item.description }}
+            />
+          )}
+        </div>
+      )}
+      <div className="detail-structured-summary-card rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
         <div className="mb-4 flex flex-col gap-3 border-b border-gray-200/70 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 className="text-xl font-black text-gray-900">{t('news.recipe.title')}</h3>
@@ -981,8 +1304,19 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
   if (!hasContent) return null;
 
   return (
-    <section className="space-y-8">
-      <div className="rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
+    <section className="detail-event-block space-y-8">
+      {(item.title || item.description) && (
+        <div className="detail-structured-mobile-intro md:hidden">
+          {item.title && <h3>{item.title}</h3>}
+          {item.description && (
+            <div
+              className="rich-text-content"
+              dangerouslySetInnerHTML={{ __html: item.description }}
+            />
+          )}
+        </div>
+      )}
+      <div className="detail-structured-summary-card rounded-[5px] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
         <div className="mb-4 border-b border-gray-200/70 pb-4">
           <h3 className="text-xl font-black text-gray-900">{t('news.event.title')}</h3>
           <p className="mt-1 text-xs font-bold text-gray-500">{t('news.event.subtitle')}</p>
@@ -1151,13 +1485,18 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   const articleProgressRef = useRef<HTMLDivElement | null>(null);
   const articleProgressEndRef = useRef<HTMLDivElement | null>(null);
   const shareMenuRef = useRef<HTMLDivElement | null>(null);
+  const heroShareMenuRef = useRef<HTMLDivElement | null>(null);
   const selectedEmojisRef = useRef<string[]>([]);
   const reactionCountsRef = useRef<Record<string, number>>({});
   const [scrollProgress, setScrollProgress] = useState(0);
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showHeroShareMenu, setShowHeroShareMenu] = useState(false);
   const [showMobileShareRail, setShowMobileShareRail] = useState(false);
+  const [isMobileVideoFeedOpen, setIsMobileVideoFeedOpen] = useState(false);
+  const [mobileVideoFeedTarget, setMobileVideoFeedTarget] = useState<string | undefined>(undefined);
+  const [mobileVideoFeedTargetPostId, setMobileVideoFeedTargetPostId] = useState<string | undefined>(undefined);
   const [detailScrollOffset, setDetailScrollOffset] = useState(0);
   const [detailCounts, setDetailCounts] = useState({
     likes: data.likes || 0,
@@ -1166,7 +1505,12 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     saves: data.saves || 0,
     views: data.views || 0,
   });
-  const [detailState, setDetailState] = useState({ liked: false, disliked: false, saved: false });
+  const [detailState, setDetailState] = useState({
+    liked: !!data.userLiked,
+    disliked: !!data.userDisliked,
+    saved: !!data.userSaved,
+  });
+  const [detailActionBusy, setDetailActionBusy] = useState(false);
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
   const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
@@ -1306,6 +1650,16 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     setShowShareMenu((value) => !value);
   };
 
+  const closeHeroShareMenu = () => {
+    setShowHeroShareMenu(false);
+  };
+
+  const handleHeroShareMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setShowShareMenu(false);
+    setShowHeroShareMenu((value) => !value);
+  };
+
   // Emoji Reactions Config
   const MAX_REACTIONS = 3;
   const emojis = [
@@ -1326,7 +1680,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   };
 
   const showReactionLimitToast = () => {
-    showToast(`En fazla ${MAX_REACTIONS} kullanılabilir`, 'warning');
+    showToast(`En fazla ${MAX_REACTIONS} emoji tepkisi seçebilirsiniz.`, 'info');
   };
 
   const applyPostState = (result: any) => {
@@ -1354,6 +1708,102 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       });
     }
   };
+
+  const requireSignedInForDetailAction = (message: string) => {
+    if (!isPostId(data.id)) return false;
+    if (hasPostActionSession()) return true;
+    showToast(message, 'info');
+    return false;
+  };
+
+  const restoreDetailActionSnapshot = (
+    counts: typeof detailCounts,
+    state: typeof detailState
+  ) => {
+    setDetailCounts(counts);
+    setDetailState(state);
+  };
+
+  const runDetailAction = async ({
+    action,
+    signInMessage,
+    fallbackMessage,
+    optimistic,
+  }: {
+    action: 'toggle_like' | 'toggle_dislike' | 'toggle_save';
+    signInMessage: string;
+    fallbackMessage: string;
+    optimistic: (counts: typeof detailCounts, state: typeof detailState) => {
+      counts: typeof detailCounts;
+      state: typeof detailState;
+    };
+  }) => {
+    if (detailActionBusy) return;
+    if (!requireSignedInForDetailAction(signInMessage)) return;
+
+    const previousCounts = detailCounts;
+    const previousState = detailState;
+    const next = optimistic(previousCounts, previousState);
+
+    setDetailActionBusy(true);
+    setDetailCounts(next.counts);
+    setDetailState(next.state);
+
+    try {
+      applyPostState(await postAction(action, { postId: data.id, publisherId: data.publisherId }));
+    } catch (error: any) {
+      restoreDetailActionSnapshot(previousCounts, previousState);
+      const message = String(error?.message || '');
+      showToast(
+        message.toLocaleLowerCase('tr-TR').includes('auth required') ? signInMessage : fallbackMessage,
+        message.toLocaleLowerCase('tr-TR').includes('auth required') ? 'info' : 'error'
+      );
+    } finally {
+      setDetailActionBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    setDetailCounts({
+      likes: data.likes || 0,
+      dislikes: data.dislikes || 0,
+      shares: data.shares || 0,
+      saves: data.saves || 0,
+      views: data.views || 0,
+    });
+    setDetailState({
+      liked: !!data.userLiked,
+      disliked: !!data.userDisliked,
+      saved: !!data.userSaved,
+    });
+    setDetailActionBusy(false);
+
+    if (isPostId(data.id) && hasPostActionSession()) {
+      void postAction('state', { postId: data.id, publisherId: data.publisherId })
+        .then((result) => {
+          if (isMounted) applyPostState(result);
+        })
+        .catch(() => {
+          // Keep the server-rendered counts if viewer state cannot be refreshed.
+        });
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    data.id,
+    data.publisherId,
+    data.likes,
+    data.dislikes,
+    data.shares,
+    data.saves,
+    data.views,
+    data.userLiked,
+    data.userDisliked,
+    data.userSaved,
+  ]);
 
   const recordShare = async (platform: string) => {
     try {
@@ -1392,32 +1842,71 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
         showReactionLimitToast();
         return;
       }
-      showToast(t('auth.login_required_like'), 'info');
+      showToast(
+        message && message !== 'Request failed' ? message : 'Emoji tepkisi güncellenemedi.',
+        'error'
+      );
     }
   };
 
   const toggleDetailLike = async () => {
-    try {
-      applyPostState(await postAction('toggle_like', { postId: data.id, publisherId: data.publisherId }));
-    } catch {
-      showToast(t('auth.login_required_like'), 'info');
-    }
+    await runDetailAction({
+      action: 'toggle_like',
+      signInMessage: t('auth.login_required_like'),
+      fallbackMessage: t('common.like_failed'),
+      optimistic: (counts, state) => {
+        if (state.liked) {
+          return {
+            counts: { ...counts, likes: Math.max(0, counts.likes - 1) },
+            state: { ...state, liked: false },
+          };
+        }
+        return {
+          counts: {
+            ...counts,
+            likes: counts.likes + 1,
+            dislikes: state.disliked ? Math.max(0, counts.dislikes - 1) : counts.dislikes,
+          },
+          state: { liked: true, disliked: false, saved: state.saved },
+        };
+      },
+    });
   };
 
   const toggleDetailDislike = async () => {
-    try {
-      applyPostState(await postAction('toggle_dislike', { postId: data.id, publisherId: data.publisherId }));
-    } catch {
-      showToast(t('auth.login_required_dislike'), 'info');
-    }
+    await runDetailAction({
+      action: 'toggle_dislike',
+      signInMessage: t('auth.login_required_dislike'),
+      fallbackMessage: t('common.dislike_failed'),
+      optimistic: (counts, state) => {
+        if (state.disliked) {
+          return {
+            counts: { ...counts, dislikes: Math.max(0, counts.dislikes - 1) },
+            state: { ...state, disliked: false },
+          };
+        }
+        return {
+          counts: {
+            ...counts,
+            likes: state.liked ? Math.max(0, counts.likes - 1) : counts.likes,
+            dislikes: counts.dislikes + 1,
+          },
+          state: { liked: false, disliked: true, saved: state.saved },
+        };
+      },
+    });
   };
 
   const toggleDetailSave = async () => {
-    try {
-      applyPostState(await postAction('toggle_save', { postId: data.id, publisherId: data.publisherId }));
-    } catch {
-      showToast(t('auth.login_required_bookmark'), 'info');
-    }
+    await runDetailAction({
+      action: 'toggle_save',
+      signInMessage: t('auth.login_required_bookmark'),
+      fallbackMessage: t('common.action_failed'),
+      optimistic: (counts, state) => ({
+        counts: { ...counts, saves: Math.max(0, counts.saves + (state.saved ? -1 : 1)) },
+        state: { ...state, saved: !state.saved },
+      }),
+    });
   };
 
   const getBreadcrumbs = () => {
@@ -1440,6 +1929,19 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   }, [reactionCounts]);
 
   useEffect(() => {
+    const handleOpenVideoFeed = (event: Event) => {
+      event.preventDefault();
+      const detail = (event as CustomEvent<{ videoUrl?: string; postId?: string }>).detail;
+      setMobileVideoFeedTarget(typeof detail?.videoUrl === 'string' ? detail.videoUrl : undefined);
+      setMobileVideoFeedTargetPostId(typeof detail?.postId === 'string' ? detail.postId : undefined);
+      setIsMobileVideoFeedOpen(true);
+    };
+
+    window.addEventListener(MOBILE_VIDEO_FEED_EVENT, handleOpenVideoFeed);
+    return () => window.removeEventListener(MOBILE_VIDEO_FEED_EVENT, handleOpenVideoFeed);
+  }, []);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (shareMenuRef.current && !shareMenuRef.current.contains(event.target as Node)) {
         setShowShareMenu(false);
@@ -1454,6 +1956,22 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showShareMenu]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (heroShareMenuRef.current && !heroShareMenuRef.current.contains(event.target as Node)) {
+        setShowHeroShareMenu(false);
+      }
+    };
+
+    if (showHeroShareMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showHeroShareMenu]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1584,6 +2102,46 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     { key: 'tiktok', label: t('share.tiktok'), icon: 'ri-tiktok-fill', iconClass: 'text-[#0F1419]', hoverClass: 'hover:bg-black/5', onClick: shareToTikTok },
     { key: 'nsosyal', label: t('share.nsosyal'), icon: 'ri-global-line', iconClass: 'text-palette-red', hoverClass: 'hover:bg-palette-red/5', onClick: handleNativeShare },
   ];
+  const heroShareMenuItems: ShareMenuItem[] = [
+    { key: 'whatsapp', label: t('share.whatsapp'), icon: 'ri-whatsapp-fill', iconClass: 'text-[#25D366]', hoverClass: 'hover:bg-[#25D366]/10', onClick: () => { shareToWhatsApp(); closeHeroShareMenu(); } },
+    { key: 'telegram', label: t('share.telegram'), icon: 'ri-telegram-fill', iconClass: 'text-[#229ED9]', hoverClass: 'hover:bg-[#229ED9]/10', onClick: () => { shareToTelegram(); closeHeroShareMenu(); } },
+    { key: 'twitter', label: t('share.x_twitter'), icon: 'ri-twitter-x-fill', iconClass: 'text-[#0F1419]', hoverClass: 'hover:bg-black/5', onClick: () => { shareToTwitter(); closeHeroShareMenu(); } },
+    { key: 'facebook', label: t('share.facebook'), icon: 'ri-facebook-fill', iconClass: 'text-[#1877F2]', hoverClass: 'hover:bg-[#1877F2]/10', onClick: () => { shareToFacebook(); closeHeroShareMenu(); } },
+    { key: 'instagram', label: t('share.instagram'), icon: 'ri-instagram-fill', iconClass: 'bg-[radial-gradient(circle_at_30%_107%,#fdf497_0%,#fdf497_5%,#fd5949_45%,#d6249f_60%,#285AEB_90%)] bg-clip-text text-transparent', hoverClass: 'hover:bg-[#E1306C]/10', onClick: async () => { await shareToInstagram(); closeHeroShareMenu(); } },
+    { key: 'tiktok', label: t('share.tiktok'), customIcon: 'tiktok', hoverClass: 'hover:bg-[#FE2C55]/10', onClick: async () => { await shareToTikTok(); closeHeroShareMenu(); } },
+    { key: 'nsosyal', label: t('share.nsosyal'), imageSrc: NSOSYAL_ICON_SRC, imageClass: 'rounded-[4px]', hoverClass: 'hover:bg-[#2F5BFF]/10', onClick: async () => { await handleNativeShare(); closeHeroShareMenu(); } },
+  ];
+  const renderHeroShareMenuIcon = (item: ShareMenuItem) => {
+    if (item.customIcon === 'tiktok') {
+      return (
+        <span className="relative block h-[20px] w-[20px] transition-transform group-hover:scale-110">
+          <RemixIcon name="ri-tiktok-fill" size={20} className="absolute left-[1px] top-0 text-[#25F4EE]" />
+          <RemixIcon name="ri-tiktok-fill" size={20} className="absolute -left-[1px] top-0 text-[#FE2C55]" />
+          <RemixIcon name="ri-tiktok-fill" size={20} className="relative text-[#010101]" />
+        </span>
+      );
+    }
+
+    if (item.imageSrc) {
+      return (
+        <img
+          src={item.imageSrc}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={`h-[20px] w-[20px] object-contain transition-transform group-hover:scale-110 ${item.imageClass || ''}`}
+        />
+      );
+    }
+
+    return (
+      <RemixIcon
+        name={item.icon || ''}
+        size={20}
+        className={`${item.iconClass || ''} transition-transform group-hover:scale-110`}
+      />
+    );
+  };
   const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
   const mobileHeroRawSrc = coverOptimized?.src || (data as any).coverThumbnail || data.thumbnail || data.mediaUrl || '';
   const mobileHeroSrc = withImageVariant(mobileHeroRawSrc, 1600);
@@ -1612,6 +2170,15 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
 
   return (
     <div ref={articleProgressRef} className="public-news-detail animate-in bg-white rounded-[5px] border border-gray-200 shadow-sm relative min-h-screen mb-10 max-w-full mt-2 overflow-x-clip">
+      {isMobileVideoFeedOpen && (
+        <MobileVideoFeedOverlay
+          newsItems={[data]}
+          siteSettings={siteSettings}
+          initialVideoUrl={mobileVideoFeedTarget}
+          initialPostId={mobileVideoFeedTargetPostId}
+          onClose={() => setIsMobileVideoFeedOpen(false)}
+        />
+      )}
 
       {/* Reading Progress Bar */}
       <div className="fixed top-[var(--public-nav-height)] left-0 w-full h-1 z-[997] bg-gray-100/70 backdrop-blur-sm" aria-hidden="true">
@@ -1642,7 +2209,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
               <RemixIcon name="ri-image-line" size={34} />
             </div>
           )}
-          <div className="mobile-detail-hero-overlay">
+          <div className="mobile-detail-hero-overlay" ref={heroShareMenuRef}>
             <div className="mobile-detail-hero-actions">
               <button type="button" onClick={toggleDetailLike} className={detailState.liked ? 'is-active' : undefined} aria-label="Beğen">
                 <RemixIcon name={detailState.liked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'} size={20} />
@@ -1656,7 +2223,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                 <RemixIcon name="ri-chat-3-line" size={22} />
                 <span>{(data.comments || 0).toLocaleString()}</span>
               </button>
-              <button type="button" onClick={() => void handleNativeShare()} aria-label="Paylaş">
+              <button type="button" onClick={handleHeroShareMenu} aria-label="Paylaş" aria-expanded={showHeroShareMenu}>
                 <RemixIcon name="ri-share-forward-line" size={22} />
                 <span>{detailCounts.shares.toLocaleString()}</span>
               </button>
@@ -1664,6 +2231,41 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                 <RemixIcon name={detailState.saved ? 'ri-bookmark-fill' : 'ri-bookmark-line'} size={25} />
               </button>
             </div>
+            {showHeroShareMenu && (
+              <div
+                className="mobile-detail-hero-share-menu bg-white/95 backdrop-blur-xl rounded-[12px] shadow-[0_25px_60px_rgba(24,37,64,0.2)] border border-palette-beige/30 p-1.5 w-[220px] z-[99999] animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-300 pointer-events-auto"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="grid grid-cols-1 gap-0.5">
+                  {heroShareMenuItems.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={item.onClick}
+                      className={`w-full h-[38px] flex items-center gap-3 px-3 rounded-[8px] ${item.hoverClass} transition-all duration-300 group text-left`}
+                    >
+                      <span className="w-[20px] h-[20px] flex items-center justify-center">
+                        {renderHeroShareMenuIcon(item)}
+                      </span>
+                      <span className="text-[11px] font-bold text-gray-600 group-hover:text-gray-900 transition-colors">{item.label}</span>
+                    </button>
+                  ))}
+
+                  <div className="h-px bg-palette-beige/10 my-1 mx-2"></div>
+
+                  <button
+                    type="button"
+                    onClick={() => void copyLink(true, 'copy_link', true).finally(closeHeroShareMenu)}
+                    className="w-full h-[38px] flex items-center gap-3 px-3 rounded-[8px] hover:bg-palette-beige/10 transition-all duration-300 group text-left"
+                  >
+                    <span className="w-[20px] h-[20px] flex items-center justify-center text-palette-tan/60 group-hover:text-palette-tan transition-all">
+                      <RemixIcon name="ri-link" size={20} className="transition-transform group-hover:scale-110" />
+                    </span>
+                    <span className="text-[11px] font-bold text-gray-600 group-hover:text-gray-900 transition-colors">{t('share.copy_link')}</span>
+                  </button>
+                </div>
+              </div>
+            )}
             {showPostDate && (
               <time className="mobile-detail-hero-date" dateTime={publishedAt.iso || undefined}>
                 <RemixIcon name="ri-time-line" size={12} />
@@ -2022,7 +2624,6 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
           <div className="space-y-12 overflow-hidden">
             {data.items && data.items.length > 0 ? (
               data.items.map((item: any, index: number) => {
-                const isLastItem = index === (data.items?.length || 0) - 1;
                 const content = (() => {
                 switch (item.type) {
                   case 'text':
@@ -2039,8 +2640,8 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                       height: item.height || item.imageHeight,
                     });
                     return (
-                      <div key={item.id} className="space-y-4 max-w-full overflow-hidden">
-                        {item.title && <h3 className="text-2xl font-black text-gray-900 break-normal">{item.title}</h3>}
+                      <div key={item.id} className="detail-media-item detail-media-item--image max-w-full overflow-hidden">
+                        <DetailMediaIntro item={item} />
                         <div className="relative w-full bg-gray-50 rounded-[5px] overflow-hidden border border-gray-100 shadow-lg flex items-center justify-center max-h-[600px]">
                           <div
                             className="absolute inset-0 bg-center bg-no-repeat bg-cover blur-2xl opacity-10 scale-110"
@@ -2056,12 +2657,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                             className="relative z-10 w-full h-auto max-h-[600px] object-contain"
                           />
                         </div>
-                        {item.description && (
-                          <div
-                            dangerouslySetInnerHTML={{ __html: item.description }}
-                            className="rich-text-content text-sm text-gray-500 font-medium italic text-left px-0 leading-relaxed"
-                          />
-                        )}
+                        <DetailItemExtraInfo item={item} />
                       </div>
                     );
                   case 'paragraph':
@@ -2081,31 +2677,13 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                       </div>
                     );
                   case 'slider':
-                    return <div key={item.id} className="space-y-4">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
+                    return <div key={item.id} className="detail-media-item detail-media-item--slider">
+                      <DetailMediaIntro item={item} />
                       <GalleryCard data={{ ...data, summary: '', mediaList: item.mediaUrls } as any} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
-                  case 'poll':
-                    return (
-                      <div key={item.id} className="space-y-6 pt-12 border-t-2 border-palette-beige/30 mt-16 relative">
-                        {/* News End Indicator / Poll Start */}
-                        {isLastItem && (
-                          <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-white px-4 py-1 flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-palette-red" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-palette-tan">{t('news.end')}</span>
-                            <div className="w-2 h-2 rounded-full bg-palette-red" />
-                          </div>
-                        )}
-
-                        {item.title && (
-                          <h3 className="text-3xl md:text-4xl font-[1000] text-gray-900 leading-tight tracking-tighter">
-                            {item.title}
-                            {(!item.title.trim().endsWith('?') && !item.title.trim().endsWith('!')) ? '?' : ''}
-                          </h3>
-                        )}
-                        <PollCard data={{ ...data, title: item.title, summary: item.description, options: item.options, isImagePoll: item.isImagePoll, pollColumns: item.pollColumns } as any} />
-                      </div>
-                    );
+	                  case 'poll':
+	                    return <DetailPollItemBlock key={item.id} item={item} />;
 	                  case 'quiz':
 	                    return renderQuizBlock(item);
 	                  case 'toc':
@@ -2115,42 +2693,49 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
 	                  case 'event':
 	                    return <EventBlock key={item.id} item={item} />;
 	                  case 'vs':
-                    return <div key={item.id} className="space-y-4">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <VSCard data={{ ...data, title: item.title, summary: item.description || '', options: item.options } as any} />
+                    return <div key={item.id} className="detail-media-item detail-media-item--vs">
+                      <DetailMediaIntro item={item} />
+                      <VSCard data={{ ...data, title: '', summary: '', items: [], options: item.options } as any} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
                   case 'beforeafter':
-                    return <div key={item.id} className="space-y-4 pt-2">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <BeforeAfterCard data={{ ...data, summary: item.description || '', beforeAfterData: item.beforeAfterData } as any} />
+                    return <div key={item.id} className="detail-media-item detail-media-item--beforeafter">
+                      <DetailMediaIntro item={item} />
+                      <BeforeAfterCard data={{ ...data, summary: '', beforeAfterData: item.beforeAfterData } as any} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
                   case 'flipcard':
-                    return <div key={item.id} className="space-y-4 pt-2">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <FlipCard data={{ ...data, summary: item.description || '', flipData: item.flipData } as any} />
+                    return <div key={item.id} className="detail-media-item detail-media-item--flipcard">
+                      <DetailMediaIntro item={item} />
+                      <FlipCard data={{ ...data, summary: '', flipData: item.flipData } as any} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
                   case 'review':
-                    return <div key={item.id} className="space-y-4">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
+                    return <div key={item.id} className="detail-media-item detail-media-item--review">
                       <ReviewCard data={{ ...data, summary: item.description || '', reviewData: item.reviewData } as any} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
                   case 'video':
                     // Prevent duplicate video rendering at the end of the article if it matches the main media
                     if (data.type === NewsType.VIDEO && (item.mediaUrl === data.mediaUrl || item.mediaUrl === (data as any).videoUrl)) return null;
-                    return <div key={item.id} className="space-y-4">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <VideoCard data={{ ...data, summary: item.description || '', mediaUrl: item.mediaUrl } as any} />
+                    return <div key={item.id} className="detail-media-item detail-media-item--video">
+                      <DetailMediaIntro item={item} />
+                      <VideoCard data={{ ...data, summary: '', mediaUrl: item.mediaUrl, thumbnail: item.videoThumbUrl || item.thumbnail || data.thumbnail } as any} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
                   case 'audio':
-                    return <div key={item.id} className="space-y-4">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <AudioCard data={{ ...data, summary: item.description || '', mediaUrl: item.mediaUrl } as any} allowDownload={siteSettings?.content_audio_download_enabled !== false} />
+                    return <div key={item.id} className="detail-media-item detail-media-item--audio">
+                      <DetailMediaIntro item={item} />
+                      <AudioCard data={{ ...data, summary: '', mediaUrl: item.mediaUrl, thumbnail: item.thumbnail || data.thumbnail } as any} allowDownload={siteSettings?.content_audio_download_enabled !== false} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
                   case 'social':
                   case 'iframe':
-                    return <div key={item.id} className="space-y-4">
-                      {item.title && <h3 className="text-2xl font-black text-gray-900">{item.title}</h3>}
-                      <EmbedCard data={{ ...data, title: item.title || data.title, summary: item.description || '', mediaUrl: item.mediaUrl } as any} />
+                  case 'embed':
+                    return <div key={item.id} className="detail-media-item detail-media-item--embed">
+                      <DetailMediaIntro item={item} />
+                      <EmbedCard data={{ ...data, title: '', summary: '', mediaUrl: item.mediaUrl } as any} />
+                      <DetailItemExtraInfo item={item} />
                     </div>;
                   default:
                     return null;
@@ -2309,7 +2894,13 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                     <span className={`mt-2 text-[13.5px] font-extrabold leading-none ${isSelected ? '' : 'text-gray-600'}`} style={{ color: isSelected ? item.accent : undefined }}>
                       {item.count}
                     </span>
-                    <span className={`mt-1 block h-[14px] max-w-full truncate text-center text-[10.3px] font-semibold leading-none text-palette-tan/55 ${isSelected ? 'font-extrabold' : ''}`} style={{ color: isSelected ? item.accent : undefined }}>
+                    <span
+                      className={`mt-1 block min-h-[22px] w-full max-w-[58px] whitespace-normal text-center text-[9.4px] font-semibold leading-[1.08] text-palette-tan/55 sm:h-[14px] sm:min-h-0 sm:max-w-full sm:truncate sm:text-[10.3px] sm:leading-none ${isSelected ? 'font-extrabold' : ''}`}
+                      style={{
+                        color: isSelected ? item.accent : undefined,
+                        overflowWrap: 'break-word',
+                      }}
+                    >
                       {item.label}
                     </span>
                   </button>

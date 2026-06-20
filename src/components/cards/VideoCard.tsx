@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { NewsType, type NewsItem } from '@/types';
 import { formatTime } from '@/utils/helpers';
 import RemixIcon from '@/components/ui/RemixIcon';
@@ -24,6 +24,106 @@ const youtubeParser = (url: string) => {
     };
   }
   return null;
+};
+
+const FlutterSpeakerIcon: React.FC<{ muted: boolean }> = ({ muted }) => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <path
+      fill="currentColor"
+      d="M1.08 6.84a.54.54 0 0 1 .54-.54h1.8a.54.54 0 0 1 .54.54v4.32a.54.54 0 0 1-.54.54h-1.8a.54.54 0 0 1-.54-.54V6.84Zm2.88 0 4.68-3.96v12.24l-4.68-3.96V6.84Z"
+    />
+    {muted ? (
+      <path
+        d="M10.44 5.4 16.2 12.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.26"
+        strokeLinecap="round"
+      />
+    ) : (
+      <>
+        <path
+          d="M11.31 6.45a3.96 3.96 0 0 1 0 5.1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.26"
+          strokeLinecap="round"
+        />
+        <path
+          d="M12.96 5.06a6.12 6.12 0 0 1 0 7.88"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.26"
+          strokeLinecap="round"
+        />
+      </>
+    )}
+  </svg>
+);
+
+const FlutterFullscreenIcon: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <path
+      d="M2.88 7.2V2.88H7.2M10.8 2.88h4.32V7.2M2.88 10.8v4.32H7.2M10.8 15.12h4.32V10.8"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const VIDEO_NAVBAR_HEIGHT = 72;
+const VIDEO_VISIBLE_THRESHOLD = 0.99;
+const VIDEO_CENTER_BUTTON_DIAMETER = 66;
+const VIDEO_VISIBILITY_EPSILON = 1;
+const MOBILE_VIDEO_FEED_EVENT = 'pateez:open-video-feed';
+
+const shouldAutoPlayForRect = (rect: DOMRect, aspectRatio: number) => {
+  if (rect.width <= 0 || rect.height <= 0) return false;
+
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+
+  if (viewportWidth > 768) {
+    return (
+      rect.top >= VIDEO_NAVBAR_HEIGHT &&
+      rect.left >= 0 &&
+      rect.bottom <= viewportHeight &&
+      rect.right <= viewportWidth
+    );
+  }
+
+  const visibleLeft = Math.max(rect.left, 0);
+  const visibleRight = Math.min(rect.right, viewportWidth);
+  const visibleTop = Math.max(rect.top, VIDEO_NAVBAR_HEIGHT);
+  const visibleBottom = Math.min(rect.bottom, viewportHeight);
+
+  if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) return false;
+
+  const verticalVideo = aspectRatio > 0 && aspectRatio < 1;
+  if (!verticalVideo) {
+    const visibleArea = (visibleRight - visibleLeft) * (visibleBottom - visibleTop);
+    const totalArea = rect.width * rect.height;
+    return totalArea > 0 && visibleArea / totalArea >= VIDEO_VISIBLE_THRESHOLD;
+  }
+
+  const centerX = rect.width / 2;
+  const centerButtonHeight = Math.min(rect.height, VIDEO_CENTER_BUTTON_DIAMETER);
+  const centerTop = (rect.height - centerButtonHeight) / 2;
+  const centerBottom = centerTop + centerButtonHeight;
+  const localVisibleLeft = visibleLeft - rect.left;
+  const localVisibleRight = visibleRight - rect.left;
+  const localVisibleTop = visibleTop - rect.top;
+  const localVisibleBottom = visibleBottom - rect.top;
+
+  return (
+    localVisibleLeft <= centerX + VIDEO_VISIBILITY_EPSILON &&
+    localVisibleRight >= centerX - VIDEO_VISIBILITY_EPSILON &&
+    localVisibleTop <= centerTop + VIDEO_VISIBILITY_EPSILON &&
+    localVisibleBottom >= centerBottom - VIDEO_VISIBILITY_EPSILON
+  );
 };
 
 const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
@@ -59,6 +159,19 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
     ? { height: 500, width: directVideoAspectRatio ? Math.round(500 * directVideoAspectRatio) : 281.25, maxWidth: '100%' }
     : undefined;
 
+  const getPlaybackAspectRatio = useCallback(() => {
+    if (isYoutube) return ytInfo?.isShorts ? 9 / 16 : 16 / 9;
+    return directVideoAspectRatio && directVideoAspectRatio > 0 ? directVideoAspectRatio : 16 / 9;
+  }, [directVideoAspectRatio, isYoutube, ytInfo?.isShorts]);
+
+  const isVideoAutoPlayable = useCallback(() => {
+    if (!videoContainerRef.current) return false;
+    return shouldAutoPlayForRect(
+      videoContainerRef.current.getBoundingClientRect(),
+      getPlaybackAspectRatio(),
+    );
+  }, [getPlaybackAspectRatio]);
+
   const sendYoutubeCommand = (func: string, args: any = "") => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
@@ -86,18 +199,9 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
             "*"
           );
 
-          // Video tamamen görünürse otomatik başlat
+          // Flutter mobile ile aynı: yatayda %99 görünürlük, dikeyde orta play alanı.
           if (videoContainerRef.current && !userHasPaused.current) {
-            const rect = videoContainerRef.current.getBoundingClientRect();
-            // Navbar yüksekliği hesaba katılıyor (72px)
-            const navbarHeight = 72;
-            const isFullyVisible =
-              rect.top >= navbarHeight &&
-              rect.left >= 0 &&
-              rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-              rect.right <= (window.innerWidth || document.documentElement.clientWidth);
-
-            if (isFullyVisible) {
+            if (isVideoAutoPlayable()) {
               // Video başlamadan önce duration'ı kontrol et ve timeDisplay'i güncelle
               if (ytDurationRef.current > 0) {
                 setTimeDisplay(formatTime(ytDurationRef.current));
@@ -159,16 +263,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
 
     const checkAndPlayVideo = () => {
       if (videoRef.current && videoContainerRef.current && !userHasPaused.current) {
-        const rect = videoContainerRef.current.getBoundingClientRect();
-        // Navbar yüksekliği hesaba katılıyor (72px)
-        const navbarHeight = 72;
-        const isFullyVisible =
-          rect.top >= navbarHeight &&
-          rect.left >= 0 &&
-          rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-          rect.right <= (window.innerWidth || document.documentElement.clientWidth);
-
-        if (isFullyVisible && videoRef.current.paused) {
+        if (isVideoAutoPlayable() && videoRef.current.paused) {
           videoRef.current.muted = true;
           videoRef.current.play()
             .then(() => { setIsPlaying(true); setIsMuted(true); })
@@ -180,7 +275,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
     // Video yüklendikten sonra kontrol et
     const timer = setTimeout(checkAndPlayVideo, 50);
     return () => clearTimeout(timer);
-  }, [isYoutube]);
+  }, [isYoutube, isVideoAutoPlayable]);
 
   useEffect(() => {
     setIsDirectVerticalVideo(false);
@@ -318,26 +413,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
     return () => clearInterval(interval);
   }, [isYoutube, isPlaying]);
 
-  // Scroll Observer - Manuel görünürlük kontrolü (navbar hesaba katılıyor)
+  // Scroll Observer - Flutter mobile görünürlük kuralı ile manuel kontrol.
   useEffect(() => {
-    const NAVBAR_HEIGHT = 72; // Navbar yüksekliği
-
     const checkVisibility = () => {
       if (!videoContainerRef.current) return;
 
-      const rect = videoContainerRef.current.getBoundingClientRect();
-      const windowHeight = window.innerHeight || document.documentElement.clientHeight;
-      const windowWidth = window.innerWidth || document.documentElement.clientWidth;
-
-      // Video tamamen görünür mü? (navbar altında ve ekran içinde)
-      const isFullyVisible =
-        rect.top >= NAVBAR_HEIGHT &&
-        rect.left >= 0 &&
-        rect.bottom <= windowHeight &&
-        rect.right <= windowWidth;
-
-      if (isFullyVisible) {
-        // Video tamamen görünür - oynat
+      if (isVideoAutoPlayable()) {
+        // Video görünürlük kuralını sağlıyor - oynat
         if (!userHasPaused.current && !isPlaying) {
           if (isYoutube) {
             // Video başlamadan önce duration'ı kontrol et ve timeDisplay'i güncelle
@@ -370,7 +452,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
           }
         }
       } else {
-        // Video görünür değil - durdur
+        // Video görünürlük kuralını sağlamıyor - durdur
         if (isPlaying) {
           if (isYoutube) {
             sendYoutubeCommand("pauseVideo");
@@ -394,7 +476,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
       window.removeEventListener('scroll', checkVisibility);
       window.removeEventListener('resize', checkVisibility);
     };
-  }, [isYoutube, isPlaying]);
+  }, [isYoutube, isPlaying, isVideoAutoPlayable]);
 
   // Auto-unmute: 2 saniye sonra sesi açmayı dene.
   // Tarayıcı izin verirse ses açılır. Vermezse videoyu durdurmadan sessiz moda geri döner.
@@ -452,6 +534,24 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
     }
+  };
+
+  const openFullscreenFeed = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isYoutube) {
+      sendYoutubeCommand("pauseVideo");
+    } else if (videoRef.current) {
+      videoRef.current.pause();
+    }
+    setIsPlaying(false);
+    window.dispatchEvent(new CustomEvent(MOBILE_VIDEO_FEED_EVENT, {
+      cancelable: true,
+      detail: {
+        videoUrl: data.mediaUrl,
+        postId: data.id,
+      },
+    }));
   };
 
   const togglePlay = (e: React.MouseEvent) => {
@@ -550,17 +650,26 @@ const VideoCard: React.FC<VideoCardProps> = ({ data, layout = 'default' }) => {
           <span className="text-xs font-bold text-white tracking-wide font-mono min-w-[35px] text-left">{timeDisplay}</span>
         </div>
 
+        <button
+          type="button"
+          onClick={toggleMute}
+          className="absolute top-4 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/[0.36] border border-white/20 text-white z-30 overflow-hidden"
+          aria-label={isMuted ? 'Sesi aç' : 'Sessize al'}
+        >
+          <FlutterSpeakerIcon muted={isMuted} />
+        </button>
+
+        <button
+          type="button"
+          onClick={openFullscreenFeed}
+          className="absolute top-[56px] right-2 w-8 h-8 md:hidden flex items-center justify-center rounded-full bg-black/[0.36] border border-white/20 text-white z-30 overflow-hidden"
+          aria-label="Tam ekran aç"
+        >
+          <FlutterFullscreenIcon />
+        </button>
+
         {/* Overlay Controls */}
         <div className={`absolute inset-0 z-20 bg-black/10 transition-opacity duration-300 ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
-          <button
-            onClick={toggleMute}
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-[5px] bg-black/50 backdrop-blur-md border border-white/20 text-white z-20"
-          >
-            <RemixIcon name={isMuted ? 'ri-volume-mute-line' : 'ri-volume-up-line'} size={16} />
-          </button>
-
-
-
           <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
             <div className={`
               w-14 h-14 rounded-full bg-black/20 backdrop-blur-md border-2 border-white/40 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NewsItem } from '@/types';
 import RemixIcon from './ui/RemixIcon';
 
@@ -140,6 +140,11 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
     const slides = useMemo(() => newsSlides.map(mapNewsToSlide).filter(Boolean) as MansetSlide[], [newsSlides]);
     const [activeIndex, setActiveIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
+    const [slideRatios, setSlideRatios] = useState<Record<string, number>>({});
+    const swipeStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+    const ignoreClickRef = useRef(false);
+    const activeSlide = slides[activeIndex];
+    const activeAspectRatio = activeSlide ? slideRatios[activeSlide.id] || 16 / 9 : 16 / 9;
 
     useEffect(() => {
         if (activeIndex >= slides.length) {
@@ -162,6 +167,59 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
         setActiveIndex((current) => (current + 1) % slides.length);
     }, [slides.length]);
 
+    const handleSlideImageLoad = useCallback((slideId: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+        const image = event.currentTarget;
+        if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
+        const ratio = image.naturalWidth / image.naturalHeight;
+        setSlideRatios((current) => {
+            if (Math.abs((current[slideId] || 0) - ratio) < 0.001) return current;
+            return { ...current, [slideId]: ratio };
+        });
+    }, []);
+
+    const resetSwipeClickGuard = useCallback(() => {
+        window.setTimeout(() => {
+            ignoreClickRef.current = false;
+        }, 250);
+    }, []);
+
+    const handlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
+        if (slides.length < 2 || event.pointerType === 'mouse') return;
+        swipeStartRef.current = {
+            x: event.clientX,
+            y: event.clientY,
+            pointerId: event.pointerId,
+        };
+        ignoreClickRef.current = false;
+        setIsPaused(true);
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+    }, [slides.length]);
+
+    const handlePointerUp = useCallback((event: React.PointerEvent<HTMLElement>) => {
+        const start = swipeStartRef.current;
+        if (!start) return;
+        swipeStartRef.current = null;
+        setIsPaused(false);
+
+        const deltaX = event.clientX - start.x;
+        const deltaY = event.clientY - start.y;
+        if (Math.abs(deltaX) < 42 || Math.abs(deltaX) < Math.abs(deltaY) * 1.15) return;
+
+        event.preventDefault();
+        ignoreClickRef.current = true;
+        if (deltaX < 0) {
+            goToNext();
+        } else {
+            goToPrevious();
+        }
+        resetSwipeClickGuard();
+    }, [goToNext, goToPrevious, resetSwipeClickGuard]);
+
+    const handlePointerCancel = useCallback(() => {
+        swipeStartRef.current = null;
+        setIsPaused(false);
+    }, []);
+
     useEffect(() => {
         if (isPaused || slides.length < 2) return undefined;
 
@@ -176,9 +234,12 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
             className="manset-slider w-full relative rounded-[5px] overflow-hidden shadow-sm bg-gray-900 group cursor-pointer"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
             aria-label="Manşet haber sliderı"
         >
-            <div className="relative w-full aspect-[16/9]">
+            <div className="manset-slider-stage relative w-full aspect-[16/9]" style={{ aspectRatio: activeAspectRatio }}>
                 {slides.map((slide, index) => {
                     const isActive = index === activeIndex;
 
@@ -186,7 +247,13 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
                         <article
                             key={slide.id}
                             aria-hidden={!isActive}
-                            onClick={() => onNewsSelect?.(slide.id)}
+                            onClick={(event) => {
+                                if (ignoreClickRef.current) {
+                                    event.preventDefault();
+                                    return;
+                                }
+                                onNewsSelect?.(slide.id);
+                            }}
                             className={`absolute inset-0 overflow-hidden transition-opacity duration-700 ease-out ${
                                 isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
                             }`}
@@ -197,6 +264,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
                                 loading={index === 0 ? 'eager' : 'lazy'}
                                 decoding="async"
                                 fetchPriority={index === 0 ? 'high' : 'low'}
+                                onLoad={(event) => handleSlideImageLoad(slide.id, event)}
                                 className="w-full h-full object-contain bg-gray-950"
                             />
                             {showNewsInfo && (

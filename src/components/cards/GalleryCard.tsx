@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { NewsType, type NewsItem } from '@/types';
 
@@ -11,6 +11,9 @@ const GalleryCard: React.FC<GalleryCardProps> = ({ data }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [maxHeight, setMaxHeight] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const swipeStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const ignoreClickRef = useRef(false);
+  const slideCount = data.mediaList?.length || 0;
 
   // Tüm resimlerin boyutlarını yükle ve en yüksek olanı bul
   useEffect(() => {
@@ -57,27 +60,91 @@ const GalleryCard: React.FC<GalleryCardProps> = ({ data }) => {
 
   // Otomatik slider geçişi (4 saniye aralıkla)
   useEffect(() => {
-    if (!data.mediaList || data.mediaList.length <= 1) return;
+    if (slideCount <= 1) return;
 
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % data.mediaList!.length);
     }, 4000);
 
     return () => clearInterval(interval);
+  }, [data.mediaList, slideCount]);
+
+  const goToNextSlide = useCallback(() => {
+    if (data.mediaList) {
+      setCurrentSlide((prev) => (prev + 1) % data.mediaList!.length);
+    }
+  }, [data.mediaList]);
+
+  const goToPreviousSlide = useCallback(() => {
+    if (data.mediaList) {
+      setCurrentSlide((prev) => (prev - 1 + data.mediaList!.length) % data.mediaList!.length);
+    }
   }, [data.mediaList]);
 
   const nextSlide = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (data.mediaList) {
-      setCurrentSlide((prev) => (prev + 1) % data.mediaList!.length);
-    }
+    goToNextSlide();
   };
 
   const prevSlide = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (data.mediaList) {
-      setCurrentSlide((prev) => (prev - 1 + data.mediaList!.length) % data.mediaList!.length);
+    goToPreviousSlide();
+  };
+
+  const resetSwipeClickGuard = () => {
+    window.setTimeout(() => {
+      ignoreClickRef.current = false;
+    }, 250);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (slideCount <= 1 || event.pointerType === 'mouse') return;
+    swipeStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      pointerId: event.pointerId,
+    };
+    ignoreClickRef.current = false;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current;
+    if (!start) return;
+    swipeStartRef.current = null;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    if (Math.abs(deltaX) < 38 || Math.abs(deltaX) < Math.abs(deltaY) * 1.15) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    ignoreClickRef.current = true;
+    if (deltaX < 0) {
+      goToNextSlide();
+    } else {
+      goToPreviousSlide();
     }
+    resetSwipeClickGuard();
+  };
+
+  const handlePointerCancel = () => {
+    swipeStartRef.current = null;
+  };
+
+  const handleContainerClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (ignoreClickRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const card = event.currentTarget.closest('.public-news-card');
+    const link = card?.querySelector<HTMLAnchorElement>('a[aria-label]');
+    if (!link) return;
+    event.preventDefault();
+    event.stopPropagation();
+    link.click();
   };
 
   if (!data.mediaList || data.mediaList.length === 0) return null;
@@ -93,12 +160,17 @@ const GalleryCard: React.FC<GalleryCardProps> = ({ data }) => {
 
       <div
         ref={containerRef}
-        className="relative w-full overflow-hidden group select-none flex items-center justify-center"
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onClick={handleContainerClick}
+        className="gallery-interact-area relative w-full overflow-hidden group select-none flex items-center justify-center"
         style={{ height: maxHeight > 0 ? `${maxHeight}px` : 'auto' }}
       >
         <img
           src={data.mediaList[currentSlide]}
           alt={`Slide ${currentSlide}`}
+          draggable={false}
           className="max-w-full max-h-full object-contain transition-all duration-500"
         />
         <button

@@ -1,4 +1,5 @@
 const AUTH_STORAGE_KEYS = ['pateeznews-supabase-auth', 'supabase-auth-token'];
+const VIEWER_ID_STORAGE_KEY = 'pateeznews_web_viewer_id';
 
 function readAccessToken() {
   if (typeof window === 'undefined') return null;
@@ -17,6 +18,32 @@ function readAccessToken() {
     }
   }
   return null;
+}
+
+export function hasPostActionSession() {
+  return Boolean(readAccessToken());
+}
+
+function randomHex(bytes: number) {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const values = new Uint8Array(bytes);
+    crypto.getRandomValues(values);
+    return Array.from(values, (value) => value.toString(16).padStart(2, '0')).join('');
+  }
+  return Array.from({ length: bytes }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join('');
+}
+
+function readClientViewerId() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const existing = localStorage.getItem(VIEWER_ID_STORAGE_KEY)?.trim();
+    if (existing && existing.length >= 8) return existing;
+    const generated = `web-${Date.now()}-${randomHex(16)}`;
+    localStorage.setItem(VIEWER_ID_STORAGE_KEY, generated);
+    return generated;
+  } catch {
+    return null;
+  }
 }
 
 async function postJson<T>(url: string, payload: Record<string, any>): Promise<T> {
@@ -40,6 +67,7 @@ async function postJson<T>(url: string, payload: Record<string, any>): Promise<T
 export type PostAction =
   | 'state'
   | 'view'
+  | 'video_view'
   | 'share'
   | 'toggle_like'
   | 'toggle_dislike'
@@ -48,7 +76,14 @@ export type PostAction =
   | 'toggle_reaction';
 
 export function postAction<T = any>(action: PostAction, payload: Record<string, any>) {
-  return postJson<T>('/api/app/post-action', { action, ...payload });
+  const viewerId = ['state', 'view', 'video_view', 'toggle_reaction'].includes(action) && !payload.viewerId && !payload.clientViewerId
+    ? readClientViewerId()
+    : null;
+  return postJson<T>('/api/app/post-action', {
+    action,
+    ...payload,
+    ...(viewerId ? { viewerId } : {}),
+  });
 }
 
 export function commentAction<T = any>(action: string, payload: Record<string, any>) {

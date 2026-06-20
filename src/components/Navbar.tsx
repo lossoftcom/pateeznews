@@ -594,6 +594,21 @@ const Navbar: React.FC<NavbarProps> = ({
     setIsMobileAppsOpen((value) => !value);
   };
 
+  const openDutyPharmacyPage = () => {
+    closeMobileOverlays();
+    void navigateImmediately(MOBILE_APP_ROUTES['nobetci-eczane']);
+  };
+
+  const openMobileVideoFeed = () => {
+    closeMobileOverlays();
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('pateez:open-video-feed', { cancelable: true });
+      const handled = !window.dispatchEvent(event);
+      if (handled) return;
+    }
+    void navigateImmediately('/?openVideo=1');
+  };
+
   const openMobileSearch = () => {
     setIsMobileDrawerOpen(false);
     setIsMobileAppsOpen(false);
@@ -1005,10 +1020,9 @@ const Navbar: React.FC<NavbarProps> = ({
 
           <button
             type="button"
-            onClick={openMobileApps}
+            onClick={openDutyPharmacyPage}
             className="mobile-shell-top-button mobile-shell-pharmacy-button lg:hidden"
             aria-label="Nöbetçi eczane"
-            aria-expanded={isMobileAppsOpen}
           >
             <img
               src="/admin/assets/assets/images/nobetci_eczane.webp"
@@ -1279,7 +1293,7 @@ const Navbar: React.FC<NavbarProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => videoConfig && navigateSpecialContent(videoConfig)}
+          onClick={openMobileVideoFeed}
           className={isVideoActive ? 'is-active' : undefined}
         >
           <RemixIcon name={isVideoActive ? 'ri-play-circle-fill' : 'ri-play-circle-line'} size={isVideoActive ? 22 : 21} />

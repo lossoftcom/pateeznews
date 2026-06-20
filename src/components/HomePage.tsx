@@ -15,6 +15,7 @@ import CategoriesList from './CategoriesList';
 import CategoryDetail from './CategoryDetail';
 import DistrictsList from './DistrictsList';
 import TrendsList from './TrendsList';
+import MobileVideoFeedOverlay from './MobileVideoFeedOverlay';
 import { getSpecialContentConfig, getSpecialContentUrl } from '@/utils/specialContent';
 import { getPostHref } from '@/utils/postUrl';
 import { getProfileHref } from '@/utils/profileUrl';
@@ -22,6 +23,7 @@ import { getProfileHref } from '@/utils/profileUrl';
 const NORMAL_CATEGORY_LABELS: Record<string, string> = {
     spor: 'Spor',
 };
+const MOBILE_VIDEO_FEED_EVENT = 'pateez:open-video-feed';
 
 const isOpinionCategorySlug = (value: unknown) => {
     const slug = slugify(String(value || '').trim());
@@ -70,6 +72,9 @@ const HomePage: React.FC<HomePageProps> = ({
     const [activeCat, setActiveCat] = useState<string | null>(() => initialCategory || getInitialFilterFromUrl());
     const [isNewsLoading, setIsNewsLoading] = useState(false);
     const [activeView, setActiveView] = useState<'feed' | 'categories' | 'districts' | 'trends'>('feed');
+    const [isMobileVideoFeedOpen, setIsMobileVideoFeedOpen] = useState(false);
+    const [mobileVideoFeedTarget, setMobileVideoFeedTarget] = useState<string | undefined>(undefined);
+    const [mobileVideoFeedTargetPostId, setMobileVideoFeedTargetPostId] = useState<string | undefined>(undefined);
 
     const activeNavItem = useMemo(() => {
         if (!activeCat) return null;
@@ -168,6 +173,14 @@ const HomePage: React.FC<HomePageProps> = ({
     React.useEffect(() => {
         if (typeof window === 'undefined') return;
 
+        const openVideoFeed = (event?: Event) => {
+            event?.preventDefault();
+            const detail = (event as CustomEvent<{ videoUrl?: string; postId?: string }> | undefined)?.detail;
+            setMobileVideoFeedTarget(typeof detail?.videoUrl === 'string' ? detail.videoUrl : undefined);
+            setMobileVideoFeedTargetPostId(typeof detail?.postId === 'string' ? detail.postId : undefined);
+            setIsMobileVideoFeedOpen(true);
+        };
+        const handleOpenVideoFeed = (event: Event) => openVideoFeed(event);
         const applySpecialFilter = (value?: string | null) => {
             const rawValue = value ?? new URLSearchParams(window.location.search).get('kategori');
             if (isOpinionCategorySlug(rawValue)) {
@@ -188,10 +201,20 @@ const HomePage: React.FC<HomePageProps> = ({
         const handlePopState = () => applySpecialFilter();
 
         applySpecialFilter();
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('openVideo') === '1') {
+            openVideoFeed();
+            urlParams.delete('openVideo');
+            const cleanQuery = urlParams.toString();
+            const cleanUrl = `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ''}${window.location.hash || ''}`;
+            window.history.replaceState(window.history.state, '', cleanUrl);
+        }
+        window.addEventListener(MOBILE_VIDEO_FEED_EVENT, handleOpenVideoFeed);
         window.addEventListener('pateez:content-filter', handleFilterEvent as EventListener);
         window.addEventListener('popstate', handlePopState);
 
         return () => {
+            window.removeEventListener(MOBILE_VIDEO_FEED_EVENT, handleOpenVideoFeed);
             window.removeEventListener('pateez:content-filter', handleFilterEvent as EventListener);
             window.removeEventListener('popstate', handlePopState);
         };
@@ -226,6 +249,15 @@ const HomePage: React.FC<HomePageProps> = ({
         <LanguageProvider initialLang={initialLang} initialTranslations={initialTranslations}>
             <ToastProvider>
                 <div className="min-h-screen bg-gray-50 text-gray-900 transition-opacity duration-300 opacity-100">
+                    {isMobileVideoFeedOpen && (
+                        <MobileVideoFeedOverlay
+                            newsItems={initialNews}
+                            siteSettings={siteSettings}
+                            initialVideoUrl={mobileVideoFeedTarget}
+                            initialPostId={mobileVideoFeedTargetPostId}
+                            onClose={() => setIsMobileVideoFeedOpen(false)}
+                        />
+                    )}
 
                     <main className="public-page-main public-home-main max-w-[1280px] pt-[92px] gap-8 px-4 mx-auto flex justify-center items-start">
                         <aside className="hidden lg:block w-[260px] flex-shrink-0 sticky top-[92px] h-[calc(100vh-92px)] overflow-y-auto pb-8 no-scrollbar">
