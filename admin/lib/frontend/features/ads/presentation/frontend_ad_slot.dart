@@ -12,7 +12,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../shared/services/frontend_link_launcher.dart';
 import '../data/frontend_ads_repository.dart';
 
-class FrontendAdSlot extends StatelessWidget {
+class FrontendAdSlot extends StatefulWidget {
   const FrontendAdSlot({
     super.key,
     required this.slotKey,
@@ -30,11 +30,39 @@ class FrontendAdSlot extends StatelessWidget {
   final double? maxWidth;
 
   @override
+  State<FrontendAdSlot> createState() => _FrontendAdSlotState();
+}
+
+class _FrontendAdSlotState extends State<FrontendAdSlot> {
+  late Future<FrontendAdSettings> _future;
+  FrontendAdSettings? _initialData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAds();
+  }
+
+  @override
+  void didUpdateWidget(covariant FrontendAdSlot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      _loadAds();
+    }
+  }
+
+  void _loadAds() {
+    _initialData = widget.repository.cachedMobileAds;
+    _future = widget.repository.fetchMobileAds();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<FrontendAdSettings>(
-      future: repository.fetchMobileAds(),
+      future: _future,
+      initialData: _initialData,
       builder: (context, snapshot) {
-        final slot = snapshot.data?.slotByKey(slotKey);
+        final slot = snapshot.data?.slotByKey(widget.slotKey);
         if (slot == null || slot.creatives.isEmpty) {
           return const SizedBox.shrink();
         }
@@ -45,15 +73,15 @@ class FrontendAdSlot extends StatelessWidget {
             slot: slot,
             creative: creative,
             fallbackCreative: _firstImageCreative(slot),
-            margin: margin,
-            maxWidth: maxWidth,
+            margin: widget.margin,
+            maxWidth: widget.maxWidth,
           );
         }
         return _FrontendImageAd(
           slot: slot,
           creative: creative,
-          margin: margin,
-          maxWidth: maxWidth,
+          margin: widget.margin,
+          maxWidth: widget.maxWidth,
         );
       },
     );
@@ -440,8 +468,6 @@ String _buildAdsenseHtml(FrontendAdCreative creative) {
         post('filled');
       } else if (status === 'unfilled') {
         post('empty');
-      } else if (ad.children.length > 0 || ad.innerHTML.trim().length > 0) {
-        post('filled');
       }
     }
     try {

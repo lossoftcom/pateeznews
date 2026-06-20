@@ -221,11 +221,19 @@ class FrontendAdsRepository {
   final http.Client? httpClient;
   final String? apiBaseUrl;
 
-  Future<FrontendAdSettings> fetchMobileAds() {
+  FrontendAdSettings? get cachedMobileAds {
     final now = DateTime.now();
     final cached = _cache;
     final expiresAt = _cacheExpiresAt;
     if (cached != null && expiresAt != null && now.isBefore(expiresAt)) {
+      return cached;
+    }
+    return null;
+  }
+
+  Future<FrontendAdSettings> fetchMobileAds() {
+    final cached = cachedMobileAds;
+    if (cached != null) {
       return Future.value(cached);
     }
 
