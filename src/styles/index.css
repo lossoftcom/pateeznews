@@ -1229,6 +1229,350 @@ h5.news-title-font {
     border-right: 0;
 }
 
+@media (min-width: 768px) {
+.news-detail-body-article .detail-poll-block {
+    color: #0F1B26;
+}
+
+.news-detail-body-article .detail-poll-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.news-detail-body-article .detail-poll-header-icon {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(234, 67, 53, 0.12);
+    border-radius: 5px;
+    background: rgba(234, 67, 53, 0.08);
+    color: #EA4335;
+}
+
+.news-detail-body-article .detail-poll-header-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.news-detail-body-article .detail-poll-header-copy strong {
+    color: #0F1B26;
+    font-size: 12.5px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.news-detail-body-article .detail-poll-header-copy small {
+    overflow: hidden;
+    color: #95A5A6;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.news-detail-body-article .detail-poll-pill {
+    flex: 0 0 auto;
+    border-radius: 5px;
+    background: rgba(243, 156, 18, 0.1);
+    color: #F39C12;
+    padding: 5px 8px;
+    font-size: 10.5px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.news-detail-body-article .detail-poll-pill.is-complete {
+    background: rgba(31, 155, 109, 0.1);
+    color: #1F9B6D;
+}
+
+.news-detail-body-article .detail-poll-title {
+    margin: 12px 0 0 !important;
+    color: #0F1B26 !important;
+    font-family: var(--site-font-title, var(--site-font-primary, "PateezAppleDisplay")), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    font-size: 24px !important;
+    font-weight: 900 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
+}
+
+.news-detail-body-article .detail-poll-question {
+    margin: 12px 0 0;
+    color: #0F1B26;
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.16;
+    letter-spacing: 0;
+}
+
+.news-detail-body-article .detail-poll-description {
+    margin-top: 8px;
+    color: rgba(83, 98, 112, 0.86) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 1.5 !important;
+    letter-spacing: 0 !important;
+}
+
+.news-detail-body-article .detail-poll-progress-panel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    border: 1px solid #F0F3F4;
+    border-radius: 5px;
+    background: rgba(248, 249, 250, 0.78);
+    padding: 11px 12px;
+}
+
+.news-detail-body-article .detail-poll-progress-panel i {
+    color: #EA4335;
+}
+
+.news-detail-body-article .detail-poll-progress-panel span {
+    min-width: 0;
+    flex: 1 1 auto;
+    color: #0F1B26;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: 0;
+}
+
+.news-detail-body-article .detail-poll-progress-panel strong {
+    flex: 0 0 auto;
+    color: #95A5A6;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.news-detail-body-article .detail-poll-list-options,
+.news-detail-body-article .detail-poll-image-grid {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.news-detail-body-article .detail-poll-list-options {
+    grid-template-columns: 1fr;
+}
+
+.news-detail-body-article .detail-poll-image-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.news-detail-body-article .detail-poll-image-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.news-detail-body-article .detail-poll-list-option,
+.news-detail-body-article .detail-poll-image-option {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #E6ECEE;
+    border-radius: 5px;
+    background: rgba(248, 249, 250, 0.58);
+    color: #0F1B26;
+    text-align: left;
+    transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+}
+
+.news-detail-body-article .detail-poll-list-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 12px;
+}
+
+.news-detail-body-article .detail-poll-image-option {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+}
+
+.news-detail-body-article .detail-poll-list-option:not(:disabled),
+.news-detail-body-article .detail-poll-image-option:not(:disabled) {
+    cursor: pointer;
+}
+
+.news-detail-body-article .detail-poll-list-option:not(:disabled):hover,
+.news-detail-body-article .detail-poll-image-option:not(:disabled):hover {
+    border-color: rgba(243, 156, 18, 0.58);
+    background: rgba(243, 156, 18, 0.05);
+}
+
+.news-detail-body-article .detail-poll-list-option.is-selected,
+.news-detail-body-article .detail-poll-image-option.is-selected {
+    border-color: #F39C12;
+    background: rgba(243, 156, 18, 0.08);
+    box-shadow: 0 8px 18px rgba(243, 156, 18, 0.16);
+}
+
+.news-detail-body-article .detail-poll-list-option.is-muted,
+.news-detail-body-article .detail-poll-image-option.is-muted {
+    opacity: 0.68;
+}
+
+.news-detail-body-article .detail-poll-list-progress {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 0;
+    background: rgba(44, 62, 80, 0.06);
+    transition: width 720ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.news-detail-body-article .detail-poll-option-badge {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.78);
+    color: #FFFFFF;
+    font-size: 10.5px;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.34);
+}
+
+.news-detail-body-article .is-selected .detail-poll-option-badge {
+    background: rgba(243, 156, 18, 0.94);
+}
+
+.news-detail-body-article .detail-poll-list-label {
+    position: relative;
+    z-index: 2;
+    min-width: 0;
+    flex: 1 1 auto;
+    color: #0F1B26;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+.news-detail-body-article .detail-poll-result-text {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+}
+
+.news-detail-body-article .detail-poll-result-text strong {
+    color: #2C3E50;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.news-detail-body-article .detail-poll-result-text small,
+.news-detail-body-article .detail-poll-image-result small {
+    color: #95A5A6;
+    font-size: 10.5px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.news-detail-body-article .detail-poll-option-visual {
+    position: relative;
+    display: flex;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 5px;
+    background: #F8F9FA;
+}
+
+.news-detail-body-article .detail-poll-option-visual img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.news-detail-body-article .detail-poll-option-fallback {
+    display: inline-flex;
+    color: rgba(149, 165, 166, 0.62);
+}
+
+.news-detail-body-article .detail-poll-option-visual .detail-poll-option-badge {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+}
+
+.news-detail-body-article .detail-poll-percent-badge {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #0F1B26;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+}
+
+.news-detail-body-article .is-selected .detail-poll-percent-badge {
+    background: rgba(44, 62, 80, 0.92);
+    color: #FFFFFF;
+}
+
+.news-detail-body-article .detail-poll-image-label {
+    min-height: 48px;
+    padding-top: 9px;
+    color: #0F1B26;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.22;
+    letter-spacing: 0;
+}
+
+.news-detail-body-article .detail-poll-image-result {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 7px;
+}
+
+.news-detail-body-article .detail-poll-image-result i {
+    display: block;
+    height: 5px;
+    flex: 1 1 auto;
+    border-radius: 5px;
+    background: #F39C12;
+}
+}
+
 /* Public mobile web shell: mirrors the Flutter mobile surface without touching desktop. */
 @media (max-width: 767px) {
     :root {
