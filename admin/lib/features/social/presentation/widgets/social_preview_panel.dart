@@ -297,8 +297,8 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
                 if (widget.onEditCreative != null ||
                     widget.onOpenPlatformOptions != null)
                   Positioned(
-                    top: 12,
-                    right: 12,
+                    right: 14,
+                    bottom: 14,
                     child: _PreviewQuickActions(
                       onEditCreative: widget.onEditCreative,
                       onOpenPlatformOptions: widget.onOpenPlatformOptions,
@@ -1019,22 +1019,22 @@ class _PreviewQuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 162,
+      width: 168,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(AppRadius.value * 1.5),
+          color: Colors.white.withValues(alpha: 0.98),
+          borderRadius: BorderRadius.circular(AppRadius.value * 2),
           border: Border.all(color: AppColors.line),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.07),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(7),
+          padding: const EdgeInsets.all(6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1046,6 +1046,7 @@ class _PreviewQuickActions extends StatelessWidget {
                   tooltip:
                       'Seçili görseli açar; metin, sticker, çizim ve link görünümü tek görsele gömülür.',
                   onTap: onEditCreative,
+                  primary: true,
                 ),
               if (onEditCreative != null && onOpenPlatformOptions != null)
                 const SizedBox(height: 6),
@@ -1071,31 +1072,35 @@ class _PreviewActionButton extends StatelessWidget {
     required this.label,
     required this.tooltip,
     required this.onTap,
+    this.primary = false,
   });
 
   final IconData icon;
   final String label;
   final String tooltip;
   final VoidCallback? onTap;
+  final bool primary;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
       child: SizedBox(
-        width: 148,
-        height: 32,
+        width: 156,
+        height: 36,
         child: OutlinedButton.icon(
           onPressed: onTap,
           icon: Icon(icon, size: 15),
           label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.deepOcean,
-            backgroundColor: Colors.white,
-            side: const BorderSide(color: AppColors.line),
-            padding: const EdgeInsets.symmetric(horizontal: 9),
+            foregroundColor: primary ? Colors.white : AppColors.deepOcean,
+            backgroundColor: primary ? AppColors.deepOcean : Colors.white,
+            side: BorderSide(
+              color: primary ? AppColors.deepOcean : AppColors.line,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.value * 1.2),
+              borderRadius: BorderRadius.circular(AppRadius.value * 1.5),
             ),
             textStyle: const TextStyle(
               fontSize: 11,

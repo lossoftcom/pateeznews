@@ -115,8 +115,8 @@
         }, 220);
       };
 
-      const hideWhenFlutterViewExists = () => {
-        if (!document.querySelector('flutter-view, flt-glass-pane, flt-scene-host')) {
+      const hideWhenFlutterFrameExists = () => {
+        if (!document.querySelector('flutter-view flt-scene-host, flutter-view canvas, flt-scene-host, canvas')) {
           return false;
         }
         window.setTimeout(hide, 120);
@@ -125,14 +125,14 @@
 
       window.addEventListener('flutter-first-frame', hide, { once: true });
 
-      if (hideWhenFlutterViewExists()) return;
+      if (hideWhenFlutterFrameExists()) return;
 
       const observer = new MutationObserver(() => {
-        if (hideWhenFlutterViewExists()) observer.disconnect();
+        if (hideWhenFlutterFrameExists()) observer.disconnect();
       });
       observer.observe(document.body, { childList: true, subtree: true });
       poll = window.setInterval(() => {
-        if (hideWhenFlutterViewExists()) observer.disconnect();
+        if (hideWhenFlutterFrameExists()) observer.disconnect();
       }, 250);
       timeout = window.setTimeout(() => {
         observer.disconnect();
