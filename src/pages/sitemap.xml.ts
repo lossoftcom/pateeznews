@@ -88,17 +88,39 @@ export const GET: APIRoute = async ({ request }) => {
       return matches.length > 0 ? matches : seoAlternates;
     })();
 
+    const recentSinceIso = new Date(now - 48 * 60 * 60 * 1000).toISOString();
+    const recentUntilIso = new Date(now).toISOString();
+    const recentNewsLangCodes = entriesForHost.map((entry) => entry.code).filter(Boolean);
+    const recentNewsRes = recentNewsLangCodes.length > 0
+      ? await supabase
+        .from('posts')
+        .select('language_code')
+        .eq('status', 'published')
+        .in('language_code', recentNewsLangCodes)
+        .gte('published_at', recentSinceIso)
+        .lte('published_at', recentUntilIso)
+      : { data: [] };
+    const langsWithRecentNews = new Set(
+      (recentNewsRes.data || [])
+        .map((row: any) => String(row?.language_code || '').trim())
+        .filter(Boolean)
+    );
+
     const indexBaseUrl = toBaseUrl(requestOrigin, requestOrigin);
     const sitemapLocs = entriesForHost
       .filter((entry) => !!entry.code)
       .flatMap((entry) => {
         const loc = new URL('sitemap.xml', indexBaseUrl);
         loc.searchParams.set('lang', entry.code);
-        const newsLoc = new URL('news-sitemap.xml', indexBaseUrl);
-        newsLoc.searchParams.set('lang', entry.code);
         const imageLoc = new URL('image-sitemap.xml', indexBaseUrl);
         imageLoc.searchParams.set('lang', entry.code);
-        return [loc.toString(), newsLoc.toString(), imageLoc.toString()];
+        const locs = [loc.toString(), imageLoc.toString()];
+        if (langsWithRecentNews.has(entry.code)) {
+          const newsLoc = new URL('news-sitemap.xml', indexBaseUrl);
+          newsLoc.searchParams.set('lang', entry.code);
+          locs.splice(1, 0, newsLoc.toString());
+        }
+        return locs;
       });
 
     const body = [
