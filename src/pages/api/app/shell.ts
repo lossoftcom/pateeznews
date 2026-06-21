@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { socialClientConfig } from "@/lib/server/appAuth";
 import { dbQuery } from "@/lib/server/supabaseDb";
 import { dataService } from "@/services/dataService.server";
 import type { NavigationItem, SiteSettings } from "@/types";
@@ -26,6 +27,16 @@ const socialProviderEnabled = (
   siteEnabled: boolean | undefined,
   providerEnabled: boolean | undefined,
 ) => siteEnabled !== false && providerEnabled !== false;
+
+function getAppAuthProviderStatus(): AppAuthProviderStatus {
+  const config = socialClientConfig();
+  return {
+    googleEnabled: Boolean(config.googleWebClientId),
+    appleEnabled: Boolean(config.appleServiceId),
+    facebookEnabled: Boolean(config.facebookAppId),
+    xEnabled: Boolean(config.xClientId),
+  };
+}
 
 const defaultLogoPaths = {
   logoUrl: "/local-upload/logo/tr/pateezlogoson.png",
@@ -140,10 +151,11 @@ export const GET: APIRoute = async ({ url }) => {
       dataService.getNavigationItems(lang),
       getShellPages(lang),
     ]);
+    const authProviders = getAppAuthProviderStatus();
 
     return json({
       languageCode: lang,
-      siteSettings: siteSettingsPayload(settings, null),
+      siteSettings: siteSettingsPayload(settings, authProviders),
       navigationItems: navigationItems.map(navigationItemPayload),
       pages: pages.map(pagePayload),
     });

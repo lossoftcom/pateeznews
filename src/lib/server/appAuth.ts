@@ -316,7 +316,7 @@ export async function setPasswordForUser(
     `INSERT INTO public.profile_auth_credentials (
        user_id, password_hash, password_algorithm, migrated_from, updated_at
      )
-     VALUES ($1::uuid, crypt($2, gen_salt('bf')), 'pg_crypt_bf', NULL, now())
+     VALUES ($1::uuid, extensions.crypt($2::text, extensions.gen_salt('bf')), 'pg_crypt_bf', NULL, now())
      ON CONFLICT (user_id) DO UPDATE
      SET password_hash = EXCLUDED.password_hash,
          password_algorithm = EXCLUDED.password_algorithm,
@@ -332,7 +332,7 @@ export async function signInWithPassword(email: string, password: string) {
       `SELECT p.id, p.username, p.full_name, p.avatar_url, p.cover_url, p.phone,
               p.address, p.role, p.email, p.status, p.city, p.auth_provider,
               p.auth_providers,
-              (c.password_hash = crypt($2, c.password_hash)) AS password_ok
+              (c.password_hash = extensions.crypt($2::text, c.password_hash)) AS password_ok
          FROM public.profiles p
          JOIN public.profile_auth_credentials c ON c.user_id = p.id
         WHERE lower(p.email) = lower($1)

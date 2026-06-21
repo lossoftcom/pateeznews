@@ -50,6 +50,285 @@ SocialPlatform socialPlatformFromBundleType(String type) {
 /// Post format types.
 enum SocialPostType { feed, story, reels, thread, shortVideo }
 
+List<String> _splitOptionList(String value) {
+  return value
+      .split(RegExp(r'[,;\n]'))
+      .map((item) => item.trim().replaceFirst(RegExp(r'^@'), ''))
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+}
+
+Map<String, Object?> _cleanPayload(Map<String, Object?> payload) {
+  return {
+    for (final entry in payload.entries)
+      if (entry.value case final String value when value.trim().isNotEmpty)
+        entry.key: value.trim()
+      else if (entry.value case final List value when value.isNotEmpty)
+        entry.key: value
+      else if (entry.value case final Map value when value.isNotEmpty)
+        entry.key: value
+      else if (entry.value case final bool value)
+        entry.key: value
+      else if (entry.value case final num value)
+        entry.key: value,
+  };
+}
+
+class SocialInstagramPublishOptions {
+  const SocialInstagramPublishOptions({
+    this.altText = '',
+    this.thumbnailUrl = '',
+    this.locationId = '',
+    this.collaborators = '',
+    this.taggedUsers = '',
+    this.thumbnailOffsetMs,
+    this.shareToFeed = true,
+    this.autoFitImage = false,
+    this.autoCropImage = false,
+  });
+
+  final String altText;
+  final String thumbnailUrl;
+  final String locationId;
+  final String collaborators;
+  final String taggedUsers;
+  final int? thumbnailOffsetMs;
+  final bool shareToFeed;
+  final bool autoFitImage;
+  final bool autoCropImage;
+
+  SocialInstagramPublishOptions copyWith({
+    String? altText,
+    String? thumbnailUrl,
+    String? locationId,
+    String? collaborators,
+    String? taggedUsers,
+    int? thumbnailOffsetMs,
+    bool clearThumbnailOffset = false,
+    bool? shareToFeed,
+    bool? autoFitImage,
+    bool? autoCropImage,
+  }) {
+    return SocialInstagramPublishOptions(
+      altText: altText ?? this.altText,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      locationId: locationId ?? this.locationId,
+      collaborators: collaborators ?? this.collaborators,
+      taggedUsers: taggedUsers ?? this.taggedUsers,
+      thumbnailOffsetMs: clearThumbnailOffset
+          ? null
+          : thumbnailOffsetMs ?? this.thumbnailOffsetMs,
+      shareToFeed: shareToFeed ?? this.shareToFeed,
+      autoFitImage: autoFitImage ?? this.autoFitImage,
+      autoCropImage: autoCropImage ?? this.autoCropImage,
+    );
+  }
+
+  Map<String, Object?> toPayload() {
+    final tagged = _splitOptionList(taggedUsers)
+        .map((username) => <String, Object?>{'username': username})
+        .toList(growable: false);
+
+    return _cleanPayload({
+      'altText': altText,
+      'thumbnail': thumbnailUrl,
+      'locationId': locationId,
+      'collaborators': _splitOptionList(collaborators),
+      'tagged': tagged,
+      'thumbnailOffset': thumbnailOffsetMs,
+      if (!shareToFeed) 'shareToFeed': false,
+      if (autoFitImage) 'autoFitImage': true,
+      if (autoCropImage) 'autoCropImage': true,
+    });
+  }
+}
+
+class SocialFacebookPublishOptions {
+  const SocialFacebookPublishOptions({
+    this.altText = '',
+    this.thumbnailUrl = '',
+    this.nativeScheduleTime = '',
+  });
+
+  final String altText;
+  final String thumbnailUrl;
+  final String nativeScheduleTime;
+
+  SocialFacebookPublishOptions copyWith({
+    String? altText,
+    String? thumbnailUrl,
+    String? nativeScheduleTime,
+  }) {
+    return SocialFacebookPublishOptions(
+      altText: altText ?? this.altText,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      nativeScheduleTime: nativeScheduleTime ?? this.nativeScheduleTime,
+    );
+  }
+
+  Map<String, Object?> toPayload() {
+    return _cleanPayload({
+      'altText': altText,
+      'thumbnail': thumbnailUrl,
+      'nativeScheduleTime': nativeScheduleTime,
+    });
+  }
+}
+
+class SocialTiktokPublishOptions {
+  const SocialTiktokPublishOptions({
+    this.privacy = 'PUBLIC_TO_EVERYONE',
+    this.thumbnailUrl = '',
+    this.thumbnailOffsetMs,
+    this.photoCoverIndex,
+    this.musicSoundId = '',
+    this.disableComments = false,
+    this.disableDuet = false,
+    this.disableStitch = false,
+    this.isAiGenerated = false,
+    this.isBrandContent = false,
+    this.isOrganicBrandContent = false,
+    this.autoAddMusic = false,
+    this.autoScale = false,
+    this.uploadToDraft = false,
+  });
+
+  final String privacy;
+  final String thumbnailUrl;
+  final int? thumbnailOffsetMs;
+  final int? photoCoverIndex;
+  final String musicSoundId;
+  final bool disableComments;
+  final bool disableDuet;
+  final bool disableStitch;
+  final bool isAiGenerated;
+  final bool isBrandContent;
+  final bool isOrganicBrandContent;
+  final bool autoAddMusic;
+  final bool autoScale;
+  final bool uploadToDraft;
+
+  SocialTiktokPublishOptions copyWith({
+    String? privacy,
+    String? thumbnailUrl,
+    int? thumbnailOffsetMs,
+    bool clearThumbnailOffset = false,
+    int? photoCoverIndex,
+    bool clearPhotoCoverIndex = false,
+    String? musicSoundId,
+    bool? disableComments,
+    bool? disableDuet,
+    bool? disableStitch,
+    bool? isAiGenerated,
+    bool? isBrandContent,
+    bool? isOrganicBrandContent,
+    bool? autoAddMusic,
+    bool? autoScale,
+    bool? uploadToDraft,
+  }) {
+    return SocialTiktokPublishOptions(
+      privacy: privacy ?? this.privacy,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      thumbnailOffsetMs: clearThumbnailOffset
+          ? null
+          : thumbnailOffsetMs ?? this.thumbnailOffsetMs,
+      photoCoverIndex: clearPhotoCoverIndex
+          ? null
+          : photoCoverIndex ?? this.photoCoverIndex,
+      musicSoundId: musicSoundId ?? this.musicSoundId,
+      disableComments: disableComments ?? this.disableComments,
+      disableDuet: disableDuet ?? this.disableDuet,
+      disableStitch: disableStitch ?? this.disableStitch,
+      isAiGenerated: isAiGenerated ?? this.isAiGenerated,
+      isBrandContent: isBrandContent ?? this.isBrandContent,
+      isOrganicBrandContent:
+          isOrganicBrandContent ?? this.isOrganicBrandContent,
+      autoAddMusic: autoAddMusic ?? this.autoAddMusic,
+      autoScale: autoScale ?? this.autoScale,
+      uploadToDraft: uploadToDraft ?? this.uploadToDraft,
+    );
+  }
+
+  Map<String, Object?> toPayload() {
+    return _cleanPayload({
+      if (privacy != 'PUBLIC_TO_EVERYONE') 'privacy': privacy,
+      'thumbnail': thumbnailUrl,
+      'thumbnailOffset': thumbnailOffsetMs,
+      'photoCoverIndex': photoCoverIndex,
+      if (musicSoundId.trim().isNotEmpty)
+        'musicSoundInfo': {'musicSoundId': musicSoundId.trim()},
+      if (disableComments) 'disableComments': true,
+      if (disableDuet) 'disableDuet': true,
+      if (disableStitch) 'disableStitch': true,
+      if (isAiGenerated) 'isAiGenerated': true,
+      if (isBrandContent) 'isBrandContent': true,
+      if (isOrganicBrandContent) 'isOrganicBrandContent': true,
+      if (autoAddMusic) 'autoAddMusic': true,
+      if (autoScale) 'autoScale': true,
+      if (uploadToDraft) 'uploadToDraft': true,
+    });
+  }
+}
+
+class SocialTwitterPublishOptions {
+  const SocialTwitterPublishOptions({this.replySettings = 'EVERYONE'});
+
+  final String replySettings;
+
+  SocialTwitterPublishOptions copyWith({String? replySettings}) {
+    return SocialTwitterPublishOptions(
+      replySettings: replySettings ?? this.replySettings,
+    );
+  }
+
+  Map<String, Object?> toPayload() {
+    return _cleanPayload({
+      if (replySettings != 'EVERYONE') 'replySettings': replySettings,
+    });
+  }
+}
+
+class SocialPlatformPublishOptions {
+  const SocialPlatformPublishOptions({
+    this.instagram = const SocialInstagramPublishOptions(),
+    this.facebook = const SocialFacebookPublishOptions(),
+    this.tiktok = const SocialTiktokPublishOptions(),
+    this.twitter = const SocialTwitterPublishOptions(),
+  });
+
+  final SocialInstagramPublishOptions instagram;
+  final SocialFacebookPublishOptions facebook;
+  final SocialTiktokPublishOptions tiktok;
+  final SocialTwitterPublishOptions twitter;
+
+  SocialPlatformPublishOptions copyWith({
+    SocialInstagramPublishOptions? instagram,
+    SocialFacebookPublishOptions? facebook,
+    SocialTiktokPublishOptions? tiktok,
+    SocialTwitterPublishOptions? twitter,
+  }) {
+    return SocialPlatformPublishOptions(
+      instagram: instagram ?? this.instagram,
+      facebook: facebook ?? this.facebook,
+      tiktok: tiktok ?? this.tiktok,
+      twitter: twitter ?? this.twitter,
+    );
+  }
+
+  Map<String, Object?> toPayload() {
+    final instagramPayload = instagram.toPayload();
+    final facebookPayload = facebook.toPayload();
+    final tiktokPayload = tiktok.toPayload();
+    final twitterPayload = twitter.toPayload();
+    return {
+      if (instagramPayload.isNotEmpty) 'INSTAGRAM': instagramPayload,
+      if (facebookPayload.isNotEmpty) 'FACEBOOK': facebookPayload,
+      if (tiktokPayload.isNotEmpty) 'TIKTOK': tiktokPayload,
+      if (twitterPayload.isNotEmpty) 'TWITTER': twitterPayload,
+    };
+  }
+}
+
 /// Data holder for the social publish editor state.
 class SocialPublishData {
   const SocialPublishData({
@@ -68,6 +347,7 @@ class SocialPublishData {
     this.newsKeywords = '',
     this.newsCategory = '',
     this.newsType = '',
+    this.platformOptions = const SocialPlatformPublishOptions(),
   });
 
   final Set<SocialPlatform> selectedPlatforms;
@@ -85,6 +365,7 @@ class SocialPublishData {
   final String newsKeywords;
   final String newsCategory;
   final String newsType;
+  final SocialPlatformPublishOptions platformOptions;
 
   String get effectiveLink => manualLink.isNotEmpty ? manualLink : newsLink;
 
@@ -126,6 +407,7 @@ class SocialPublishData {
     String? newsKeywords,
     String? newsCategory,
     String? newsType,
+    SocialPlatformPublishOptions? platformOptions,
   }) {
     return SocialPublishData(
       selectedPlatforms: selectedPlatforms ?? this.selectedPlatforms,
@@ -144,6 +426,7 @@ class SocialPublishData {
       newsKeywords: newsKeywords ?? this.newsKeywords,
       newsCategory: newsCategory ?? this.newsCategory,
       newsType: newsType ?? this.newsType,
+      platformOptions: platformOptions ?? this.platformOptions,
     );
   }
 }

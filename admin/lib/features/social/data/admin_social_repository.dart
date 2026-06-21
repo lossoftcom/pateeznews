@@ -324,6 +324,7 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
         if (data.selectedPlatforms.contains(entry.key))
           entry.key.bundleSocialType: entry.value.toString(),
     };
+    final platformOptions = data.platformOptions.toPayload();
     final body = {
       'social_account_id': socialAccountId,
       'title': data.campaignName.trim().isEmpty
@@ -342,6 +343,7 @@ class SupabaseAdminSocialRepository implements AdminSocialRepository {
           .toList(growable: false),
       if (selectedAccountIds.isNotEmpty)
         'selected_connected_account_ids': selectedAccountIds,
+      if (platformOptions.isNotEmpty) 'platform_options': platformOptions,
     };
     final result = await _requestJson(
       'POST',

@@ -51,6 +51,35 @@ function normalizeSelectedConnectedAccountIds(value: unknown) {
   return selected;
 }
 
+type PlatformOptions = Record<string, Record<string, any>>;
+
+function normalizePlatformOptions(value: unknown): PlatformOptions {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const normalized: PlatformOptions = {};
+  for (const [key, rawValue] of Object.entries(value as Record<string, unknown>)) {
+    const platform = String(key || '').trim().toUpperCase();
+    if (!BUNDLE_TYPES.has(platform) || !rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) {
+      continue;
+    }
+    const cleaned: Record<string, any> = {};
+    for (const [optionKey, optionValue] of Object.entries(rawValue as Record<string, unknown>)) {
+      if (optionValue === null || optionValue === undefined) continue;
+      if (typeof optionValue === 'string' && optionValue.trim() === '') continue;
+      if (Array.isArray(optionValue) && optionValue.length === 0) continue;
+      if (
+        typeof optionValue === 'object' &&
+        !Array.isArray(optionValue) &&
+        Object.keys(optionValue as Record<string, unknown>).length === 0
+      ) {
+        continue;
+      }
+      cleaned[optionKey] = optionValue;
+    }
+    if (Object.keys(cleaned).length) normalized[platform] = cleaned;
+  }
+  return normalized;
+}
+
 function siteBaseUrl() {
   const env = import.meta.env as Record<string, string | undefined>;
   return String(process.env.PUBLIC_SITE_URL || process.env.SITE_URL || env.PUBLIC_SITE_URL || env.SITE_URL || 'https://pateeznews.com')
@@ -86,6 +115,73 @@ function connectionFor(rows: any[], platform: string, selectedIds: Record<string
   return rows.find((row) => String(row.platform_tipi || '').toUpperCase() === platform) || null;
 }
 
+function optionsFor(platformOptions: PlatformOptions, platform: string) {
+  return platformOptions[platform] || {};
+}
+
+function optionString(options: Record<string, any>, key: string) {
+  return String(options[key] || '').trim();
+}
+
+function optionNumber(options: Record<string, any>, key: string) {
+  const value = options[key];
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function optionBoolean(options: Record<string, any>, key: string) {
+  return typeof options[key] === 'boolean' ? options[key] : undefined;
+}
+
+function optionEnum(options: Record<string, any>, key: string, allowed: Set<string>) {
+  const value = optionString(options, key).toUpperCase();
+  return allowed.has(value) ? value : '';
+}
+
+function optionStringList(options: Record<string, any>, key: string) {
+  const value = options[key];
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  return String(value || '')
+    .split(/[,;\n]/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function optionTaggedUsers(options: Record<string, any>) {
+  const tagged = options.tagged;
+  if (!Array.isArray(tagged)) return [];
+  return tagged
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const record = item as Record<string, unknown>;
+      const username = String(record.username || '').replace(/^@/, '').trim();
+      if (!username) return null;
+      const x = Number(record.x);
+      const y = Number(record.y);
+      return {
+        username,
+        ...(Number.isFinite(x) ? { x } : {}),
+        ...(Number.isFinite(y) ? { y } : {}),
+      };
+    })
+    .filter(Boolean);
+}
+
+function optionMusicSoundInfo(options: Record<string, any>) {
+  const music = options.musicSoundInfo;
+  if (!music || typeof music !== 'object' || Array.isArray(music)) return null;
+  const record = music as Record<string, unknown>;
+  const musicSoundId = String(record.musicSoundId || '').trim();
+  if (!musicSoundId) return null;
+  return { musicSoundId };
+}
+
 function platformData(options: {
   platform: string;
   text: string;
@@ -95,38 +191,112 @@ function platformData(options: {
   link: string;
   connectedRows: any[];
   selectedConnectedAccountIds: Record<string, string>;
+  platformOptions: PlatformOptions;
 }) {
-  const { platform, text, title, postType, uploadIds, link, connectedRows, selectedConnectedAccountIds } = options;
+  const {
+    platform,
+    text,
+    title,
+    postType,
+    uploadIds,
+    link,
+    connectedRows,
+    selectedConnectedAccountIds,
+    platformOptions,
+  } = options;
   const connected = connectionFor(connectedRows, platform, selectedConnectedAccountIds);
   const channelId = String(connected?.channel_id || '').trim();
   const channelName = String(connected?.channel_name || connected?.username || '').trim();
   const common: Record<string, any> = { text };
   if (uploadIds.length) common.uploadIds = uploadIds;
+  const platformOption = optionsFor(platformOptions, platform);
 
   switch (platform) {
-    case 'FACEBOOK':
+    case 'FACEBOOK': {
+      const type = postTypeFor(platform, postType);
+      const altText = optionString(platformOption, 'altText');
+      const mediaItems =
+        uploadIds.length && altText
+          ? uploadIds.map((uploadId) => ({ uploadId, altText }))
+          : [];
       return {
-        type: postTypeFor(platform, postType),
+        type,
         text,
         ...(uploadIds.length ? { uploadIds } : {}),
-        ...(link ? { link } : {}),
+        ...(mediaItems.length ? { mediaItems } : {}),
+        ...(type === 'POST' && link ? { link } : {}),
+        ...(optionString(platformOption, 'thumbnail') ? { thumbnail: optionString(platformOption, 'thumbnail') } : {}),
+        ...(optionString(platformOption, 'nativeScheduleTime')
+          ? { nativeScheduleTime: optionString(platformOption, 'nativeScheduleTime') }
+          : {}),
         ...(title ? { mediaTitle: title } : {}),
       };
-    case 'INSTAGRAM':
+    }
+    case 'INSTAGRAM': {
+      const type = postTypeFor(platform, postType);
+      const shareToFeed = optionBoolean(platformOption, 'shareToFeed');
+      const collaborators = optionStringList(platformOption, 'collaborators');
+      const tagged = optionTaggedUsers(platformOption);
       return {
-        type: postTypeFor(platform, postType),
+        type,
         text,
         ...(uploadIds.length ? { uploadIds } : {}),
-        ...(postTypeFor(platform, postType) === 'REEL' ? { shareToFeed: true } : {}),
+        ...(type === 'POST' && optionString(platformOption, 'altText')
+          ? { altText: optionString(platformOption, 'altText') }
+          : {}),
+        ...(type === 'REEL' ? { shareToFeed: shareToFeed !== false } : {}),
+        ...(optionString(platformOption, 'thumbnail') ? { thumbnail: optionString(platformOption, 'thumbnail') } : {}),
+        ...(optionNumber(platformOption, 'thumbnailOffset') !== undefined
+          ? { thumbnailOffset: optionNumber(platformOption, 'thumbnailOffset') }
+          : {}),
+        ...(optionString(platformOption, 'locationId') ? { locationId: optionString(platformOption, 'locationId') } : {}),
+        ...(collaborators.length ? { collaborators } : {}),
+        ...(tagged.length ? { tagged } : {}),
+        ...(optionBoolean(platformOption, 'autoFitImage') === true ? { autoFitImage: true } : {}),
+        ...(optionBoolean(platformOption, 'autoCropImage') === true ? { autoCropImage: true } : {}),
       };
-    case 'TIKTOK':
+    }
+    case 'TIKTOK': {
       if (!uploadIds.length) throw new Error('TikTok gönderimi için medya yüklemesi gerekir.');
+      const privacy =
+        optionEnum(
+          platformOption,
+          'privacy',
+          new Set(['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY'])
+        ) || 'PUBLIC_TO_EVERYONE';
+      const musicSoundInfo = optionMusicSoundInfo(platformOption);
       return {
         type: 'VIDEO',
         text,
         uploadIds,
-        privacy: 'PUBLIC_TO_EVERYONE',
+        privacy,
+        ...(optionString(platformOption, 'thumbnail') ? { thumbnail: optionString(platformOption, 'thumbnail') } : {}),
+        ...(optionNumber(platformOption, 'thumbnailOffset') !== undefined
+          ? { thumbnailOffset: optionNumber(platformOption, 'thumbnailOffset') }
+          : {}),
+        ...(optionNumber(platformOption, 'photoCoverIndex') !== undefined
+          ? { photoCoverIndex: optionNumber(platformOption, 'photoCoverIndex') }
+          : {}),
+        ...(musicSoundInfo ? { musicSoundInfo } : {}),
+        ...(optionBoolean(platformOption, 'disableComments') === true ? { disableComments: true } : {}),
+        ...(optionBoolean(platformOption, 'disableDuet') === true ? { disableDuet: true } : {}),
+        ...(optionBoolean(platformOption, 'disableStitch') === true ? { disableStitch: true } : {}),
+        ...(optionBoolean(platformOption, 'isAiGenerated') === true ? { isAiGenerated: true } : {}),
+        ...(optionBoolean(platformOption, 'isBrandContent') === true ? { isBrandContent: true } : {}),
+        ...(optionBoolean(platformOption, 'isOrganicBrandContent') === true ? { isOrganicBrandContent: true } : {}),
+        ...(optionBoolean(platformOption, 'autoAddMusic') === true ? { autoAddMusic: true } : {}),
+        ...(optionBoolean(platformOption, 'autoScale') === true ? { autoScale: true } : {}),
+        ...(optionBoolean(platformOption, 'uploadToDraft') === true ? { uploadToDraft: true } : {}),
       };
+    }
+    case 'TWITTER': {
+      const replySettings = optionEnum(
+        platformOption,
+        'replySettings',
+        new Set(['EVERYONE', 'FOLLOWING', 'MENTIONED_USERS'])
+      );
+      return { ...common, ...(replySettings ? { replySettings } : {}) };
+    }
     case 'YOUTUBE':
       if (!uploadIds.length) throw new Error('YouTube gönderimi için video yüklemesi gerekir.');
       return {
@@ -195,6 +365,7 @@ export const POST: APIRoute = async ({ request }) => {
     const selectedConnectedAccountIds = normalizeSelectedConnectedAccountIds(
       body.selected_connected_account_ids || body.selectedConnectedAccountIds
     );
+    const platformOptions = normalizePlatformOptions(body.platform_options || body.platformOptions);
 
     const title = String(body.title || body.campaign_name || 'Pateez social post').trim();
     const text = String(body.text || body.caption || '').trim();
@@ -233,6 +404,7 @@ export const POST: APIRoute = async ({ request }) => {
         link,
         connectedRows: connected.rows,
         selectedConnectedAccountIds,
+        platformOptions,
       });
     }
 
@@ -248,7 +420,7 @@ export const POST: APIRoute = async ({ request }) => {
       socialAccountTypes,
       data,
     };
-    const storedRequestBody = { ...requestBody, selectedConnectedAccountIds };
+    const storedRequestBody = { ...requestBody, selectedConnectedAccountIds, platformOptions };
 
     const created = await createPost({
       apiKey,

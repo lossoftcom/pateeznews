@@ -11,9 +11,11 @@ import '../../news/data/admin_news_repository.dart';
 import '../data/admin_social_repository.dart';
 import 'social_platform_data.dart';
 import 'widgets/social_caption_editor.dart';
+import 'widgets/social_creative_studio.dart';
 import 'widgets/social_media_picker.dart';
 import 'widgets/social_hashtag_input.dart';
 import 'widgets/social_news_source_picker.dart';
+import 'widgets/social_platform_options_panel.dart';
 import 'widgets/social_preview_panel.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:pateeznews_admin/shared/widgets/media_library_dialog.dart';
@@ -571,10 +573,27 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
 
           const SizedBox(height: 22),
 
+          SocialCreativeStudio(
+            data: _data,
+            onMediaUrlsChanged: _replaceMediaUrls,
+            onPickImage: _pickImageFromLibrary,
+            onPickVideo: _pickVideoFromLibrary,
+          ),
+
+          const SizedBox(height: 22),
+
           // Hashtags
           SocialHashtagInput(
             hashtags: _data.hashtags,
             onChanged: (tags) => _updateData((d) => d.copyWith(hashtags: tags)),
+          ),
+
+          const SizedBox(height: 22),
+
+          SocialPlatformOptionsPanel(
+            data: _data,
+            onChanged: (options) =>
+                _updateData((d) => d.copyWith(platformOptions: options)),
           ),
 
           const SizedBox(height: 30),
@@ -654,6 +673,10 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
     final trimmed = value.trim();
     if (trimmed.isEmpty) return;
     final urls = List<String>.from(_data.mediaUrls)..add(trimmed);
+    _updateData((d) => d.copyWith(mediaUrls: urls));
+  }
+
+  void _replaceMediaUrls(List<String> urls) {
     _updateData((d) => d.copyWith(mediaUrls: urls));
   }
 }

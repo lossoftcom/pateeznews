@@ -3255,6 +3255,10 @@ class _FakeAdminModuleSettingsRepository
 }
 
 class _FakeAdminSocialRepository implements AdminSocialRepository {
+  SocialPublishData? publishedData;
+  int? publishedSocialAccountId;
+  DateTime? publishedScheduledAt;
+
   final settings = <AdminSocialAccount>[
     AdminSocialAccount(
       id: 7001,
@@ -3364,6 +3368,9 @@ class _FakeAdminSocialRepository implements AdminSocialRepository {
     required SocialPublishData data,
     DateTime? scheduledAt,
   }) async {
+    publishedSocialAccountId = socialAccountId;
+    publishedData = data;
+    publishedScheduledAt = scheduledAt;
     return const AdminSocialPublishResult(
       id: '1',
       bundlePostId: 'post_test',
@@ -5230,7 +5237,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await _pumpAdminApp(tester);
+    final socialRepository = _FakeAdminSocialRepository();
+    await _pumpAdminApp(tester, socialRepository: socialRepository);
 
     await tester.enterText(
       find.byType(TextFormField).at(0),
@@ -5248,7 +5256,61 @@ void main() {
     expect(find.text('Sosyal medya paylaşımı'), findsOneWidget);
     expect(find.text('Canli Instagram'), findsOneWidget);
     expect(find.text('Gönderi metni'), findsOneWidget);
+    expect(find.text('Yaratıcı stüdyo'), findsOneWidget);
+    expect(find.text('Platform ayarları'), findsOneWidget);
+    expect(
+      find.textContaining('Bağlantı etiketi görsele gömülür'),
+      findsOneWidget,
+    );
     expect(find.text('X'), findsWidgets);
+
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.maxLines == 6,
+      ),
+      'Test sosyal paylaşım metni',
+    );
+    await tester.ensureVisible(find.text('Konum ID'));
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Konum ID'),
+      '17840000',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Şimdi'));
+    await tester.pumpAndSettle();
+
+    expect(socialRepository.publishedSocialAccountId, 7001);
+    expect(
+      socialRepository.publishedData?.caption,
+      'Test sosyal paylaşım metni',
+    );
+    expect(
+      socialRepository.publishedData?.platformOptions.instagram.locationId,
+      '17840000',
+    );
+  });
+
+  test('Sosyal platform seçenekleri Bundle payload üretir', () {
+    final options = SocialPlatformPublishOptions(
+      instagram: const SocialInstagramPublishOptions(
+        locationId: '17840000',
+        collaborators: 'pateezcom, haber',
+        taggedUsers: 'nigde',
+        shareToFeed: false,
+      ),
+      tiktok: const SocialTiktokPublishOptions(
+        privacy: 'SELF_ONLY',
+        disableDuet: true,
+        isAiGenerated: true,
+        musicSoundId: 'music_123',
+      ),
+      twitter: const SocialTwitterPublishOptions(replySettings: 'FOLLOWING'),
+    ).toPayload();
+
+    expect(options['INSTAGRAM'], containsPair('locationId', '17840000'));
+    expect(options['INSTAGRAM'], containsPair('shareToFeed', false));
+    expect(options['TIKTOK'], containsPair('privacy', 'SELF_ONLY'));
+    expect(options['TIKTOK'], containsPair('disableDuet', true));
+    expect(options['TWITTER'], containsPair('replySettings', 'FOLLOWING'));
   });
 
   testWidgets('Sosyal medya ayarları menüsü ayar ekranını açar', (
