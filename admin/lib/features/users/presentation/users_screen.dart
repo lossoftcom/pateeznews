@@ -189,6 +189,9 @@ class _UsersScreenState extends State<UsersScreen> {
       user.email,
       user.authProvider,
       user.authProviderLabel,
+      user.ipAddress,
+      user.displaySignupCity,
+      user.loginStatusLabel,
       user.role,
       user.roleLabel,
     ].join(' ');

@@ -187,7 +187,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       filters.add({
         'type': 'or',
         'value':
-            'full_name.ilike.$pattern,username.ilike.$pattern,email.ilike.$pattern,auth_provider.ilike.$pattern',
+            'full_name.ilike.$pattern,username.ilike.$pattern,email.ilike.$pattern,auth_provider.ilike.$pattern,ip_address.ilike.$pattern,signup_city.ilike.$pattern,city.ilike.$pattern',
       });
     }
 
@@ -198,7 +198,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       'table': 'profiles',
       'method': 'select',
       'select':
-          'id,username,full_name,email,city,auth_provider,role,status,reward_system,avatar_url,created_at',
+          'id,username,full_name,email,city,auth_provider,role,status,reward_system,avatar_url,created_at,ip_address,signup_city,is_logged_in,last_login_at',
       'filters': filters,
       'orders': _userOrders(sortKey, sortAscending),
       'range': {'from': from, 'to': to},
@@ -342,6 +342,9 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       'user' => 'full_name',
       'role' => 'role',
       'authProvider' => 'auth_provider',
+      'ip' => 'ip_address',
+      'city' => 'signup_city',
+      'login' => 'is_logged_in',
       'reward' => 'reward_system',
       'status' => 'status',
       'id' || 'created' => 'created_at',
@@ -384,6 +387,10 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       rewardEnabled: item['reward_system'] == true,
       createdAt: DateTime.tryParse(item['created_at']?.toString() ?? ''),
       avatarUrl: item['avatar_url']?.toString() ?? '',
+      ipAddress: item['ip_address']?.toString() ?? '',
+      signupCity: item['signup_city']?.toString() ?? '',
+      isLoggedIn: item['is_logged_in'] == true,
+      lastLoginAt: DateTime.tryParse(item['last_login_at']?.toString() ?? ''),
     );
   }
 

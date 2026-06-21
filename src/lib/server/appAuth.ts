@@ -59,6 +59,11 @@ interface ProviderProfile {
   rawProfile: Record<string, any>;
 }
 
+export interface ProfileLoginLocation {
+  ipAddress?: string | null;
+  signupCity?: string | null;
+}
+
 type AppAuthGlobal = typeof globalThis & {
   __pateezGoogleJwks?: ReturnType<typeof createRemoteJWKSet>;
   __pateezAppleJwks?: ReturnType<typeof createRemoteJWKSet>;
@@ -85,6 +90,48 @@ function cleanText(value: unknown) {
 
 function cleanEmail(value: unknown) {
   return cleanText(value).toLowerCase();
+}
+
+function cleanIpAddress(value: unknown) {
+  return cleanText(value).slice(0, 64);
+}
+
+function cleanSignupCity(value: unknown) {
+  return cleanText(value).slice(0, 120);
+}
+
+export async function markProfileSignedIn(
+  userId: string,
+  location: ProfileLoginLocation = {},
+) {
+  const cleanUserId = cleanText(userId);
+  if (!cleanUserId) return;
+  await dbQuery(
+    `UPDATE public.profiles
+        SET is_logged_in = true,
+            last_login_at = now(),
+            ip_address = COALESCE(NULLIF(ip_address, ''), NULLIF($2::text, ''), ip_address),
+            signup_city = COALESCE(NULLIF(signup_city, ''), NULLIF($3::text, ''), signup_city),
+            updated_at = now()
+      WHERE id = $1::uuid`,
+    [
+      cleanUserId,
+      cleanIpAddress(location.ipAddress),
+      cleanSignupCity(location.signupCity),
+    ],
+  );
+}
+
+export async function markProfileSignedOut(userId: string) {
+  const cleanUserId = cleanText(userId);
+  if (!cleanUserId) return;
+  await dbQuery(
+    `UPDATE public.profiles
+        SET is_logged_in = false,
+            updated_at = now()
+      WHERE id = $1::uuid`,
+    [cleanUserId],
+  );
 }
 
 function splitEnvList(value: string) {
@@ -713,9 +760,15 @@ async function existingUserIdForProvider(client: DatabaseClient, profile: Provid
   return byEmail.rows[0]?.id || '';
 }
 
-async function upsertSocialProfile(client: DatabaseClient, providerProfile: ProviderProfile) {
+async function upsertSocialProfile(
+  client: DatabaseClient,
+  providerProfile: ProviderProfile,
+  location: ProfileLoginLocation = {},
+) {
   const existingUserId = await existingUserIdForProvider(client, providerProfile);
   const userId = existingUserId || crypto.randomUUID();
+  const ipAddress = cleanIpAddress(location.ipAddress);
+  const signupCity = cleanSignupCity(location.signupCity);
   const usernameBase = cleanSignupUsernameBase(
     providerProfile.username || providerProfile.displayName,
     providerProfile.email || `${providerProfile.provider}-${providerProfile.providerUserId}`,
@@ -731,12 +784,14 @@ async function upsertSocialProfile(client: DatabaseClient, providerProfile: Prov
   await client.query(
     `INSERT INTO public.profiles (
        id, username, slug, full_name, email, avatar_url, cover_url, phone,
-       address, city, role, status, auth_provider, auth_providers, updated_at
+       address, city, role, status, auth_provider, auth_providers,
+       ip_address, signup_city, is_logged_in, last_login_at, updated_at
      )
      VALUES (
        $1::uuid, $2, $2, $3, NULLIF($4, ''), NULLIF($5, ''),
        NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), $9, 'member',
-       'Aktif', $10, ARRAY[$10]::text[], now()
+       'Aktif', $10, ARRAY[$10]::text[], NULLIF($11, ''), NULLIF($12, ''),
+       true, now(), now()
      )
      ON CONFLICT (id) DO UPDATE
      SET username = COALESCE(NULLIF(public.profiles.username, ''), EXCLUDED.username),
@@ -748,6 +803,8 @@ async function upsertSocialProfile(client: DatabaseClient, providerProfile: Prov
          phone = COALESCE(NULLIF(public.profiles.phone, ''), EXCLUDED.phone),
          address = COALESCE(NULLIF(public.profiles.address, ''), EXCLUDED.address),
          city = COALESCE(NULLIF(public.profiles.city, ''), EXCLUDED.city),
+         ip_address = COALESCE(NULLIF(public.profiles.ip_address, ''), EXCLUDED.ip_address, ''),
+         signup_city = COALESCE(NULLIF(public.profiles.signup_city, ''), EXCLUDED.signup_city, ''),
          status = COALESCE(NULLIF(public.profiles.status, ''), 'Aktif'),
          auth_provider = EXCLUDED.auth_provider,
          auth_providers = (
@@ -756,10 +813,12 @@ async function upsertSocialProfile(client: DatabaseClient, providerProfile: Prov
                FROM unnest(
                  COALESCE(public.profiles.auth_providers, ARRAY[]::text[]) ||
                  EXCLUDED.auth_providers
-               ) AS providers(provider_value)
-              WHERE provider_value <> ''
+              ) AS providers(provider_value)
+             WHERE provider_value <> ''
            )
          ),
+         is_logged_in = true,
+         last_login_at = now(),
          updated_at = now()`,
     [
       userId,
@@ -772,6 +831,8 @@ async function upsertSocialProfile(client: DatabaseClient, providerProfile: Prov
       providerProfile.address,
       DEFAULT_CITY,
       providerProfile.provider,
+      ipAddress,
+      signupCity,
     ],
   );
 
@@ -826,12 +887,17 @@ export async function signInWithSocialToken(input: {
   accessToken?: unknown;
   fullName?: unknown;
   email?: unknown;
+  ipAddress?: unknown;
+  signupCity?: unknown;
 }) {
   const providerProfile = await providerProfileFromInput(input);
   const client = await connectDbClient();
   try {
     await client.query('BEGIN');
-    const profile = await upsertSocialProfile(client, providerProfile);
+    const profile = await upsertSocialProfile(client, providerProfile, {
+      ipAddress: input.ipAddress,
+      signupCity: input.signupCity,
+    });
     await client.query('COMMIT');
     const session = await createSession(profile);
     return { data: { user: session.user, session, profile }, error: null };

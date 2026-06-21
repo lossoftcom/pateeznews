@@ -572,6 +572,25 @@ class _UsersMobileCard extends StatelessWidget {
                 icon: Symbols.alternate_email_rounded,
                 color: AppColors.support,
               ),
+              if (user.ipAddress.trim().isNotEmpty)
+                AdminMobileChip(
+                  label: user.ipAddress,
+                  icon: Symbols.public_outlined,
+                  color: AppColors.support,
+                ),
+              if (user.displaySignupCity.trim().isNotEmpty)
+                AdminMobileChip(
+                  label: user.displaySignupCity,
+                  icon: Symbols.location_on_rounded,
+                  color: AppColors.deepOcean,
+                ),
+              AdminMobileChip(
+                label: user.loginStatusLabel,
+                icon: Symbols.login_outlined,
+                color: user.isLoggedIn
+                    ? const Color(0xFF198754)
+                    : AppColors.support,
+              ),
               if (user.rewardEnabled)
                 AdminMobileChip(
                   label: 'Ödül',
@@ -1149,12 +1168,15 @@ class _UsersDataTable extends StatelessWidget {
   final ValueChanged<ManagedUser> onDeleteUser;
   final ValueChanged<String> onSort;
 
-  static const double _minWidth = 1020;
+  static const double _minWidth = 1360;
   static const double _selectWidth = 42;
   static const double _idWidth = 64;
   static const double _authProviderWidth = 120;
+  static const double _ipWidth = 132;
+  static const double _signupCityWidth = 116;
   static const double _roleWidth = 130;
   static const double _rewardWidth = 130;
+  static const double _loginWidth = 126;
   static const double _statusWidth = 112;
   static const double _createdWidth = 160;
   static const double _menuWidth = 76;
@@ -1230,16 +1252,22 @@ class _UsersTableColumnLayout {
   const _UsersTableColumnLayout({
     required this.userWidth,
     required this.authProviderWidth,
+    required this.ipWidth,
+    required this.signupCityWidth,
     required this.roleWidth,
     required this.rewardWidth,
+    required this.loginWidth,
     required this.statusWidth,
     required this.createdWidth,
   });
 
   final double userWidth;
   final double authProviderWidth;
+  final double ipWidth;
+  final double signupCityWidth;
   final double roleWidth;
   final double rewardWidth;
+  final double loginWidth;
   final double statusWidth;
   final double createdWidth;
 
@@ -1248,8 +1276,11 @@ class _UsersTableColumnLayout {
         _UsersDataTable._selectWidth -
         _UsersDataTable._idWidth -
         _UsersDataTable._authProviderWidth -
+        _UsersDataTable._ipWidth -
+        _UsersDataTable._signupCityWidth -
         _UsersDataTable._roleWidth -
         _UsersDataTable._rewardWidth -
+        _UsersDataTable._loginWidth -
         _UsersDataTable._statusWidth -
         _UsersDataTable._createdWidth -
         _UsersDataTable._menuWidth -
@@ -1262,11 +1293,14 @@ class _UsersTableColumnLayout {
     return _UsersTableColumnLayout(
       userWidth: _baseUserWidth + (extraWidth * 0.18),
       authProviderWidth:
-          _UsersDataTable._authProviderWidth + (extraWidth * 0.14),
-      roleWidth: _UsersDataTable._roleWidth + (extraWidth * 0.18),
-      rewardWidth: _UsersDataTable._rewardWidth + (extraWidth * 0.20),
-      statusWidth: _UsersDataTable._statusWidth + (extraWidth * 0.14),
-      createdWidth: _UsersDataTable._createdWidth + (extraWidth * 0.16),
+          _UsersDataTable._authProviderWidth + (extraWidth * 0.10),
+      ipWidth: _UsersDataTable._ipWidth + (extraWidth * 0.10),
+      signupCityWidth: _UsersDataTable._signupCityWidth + (extraWidth * 0.09),
+      roleWidth: _UsersDataTable._roleWidth + (extraWidth * 0.12),
+      rewardWidth: _UsersDataTable._rewardWidth + (extraWidth * 0.13),
+      loginWidth: _UsersDataTable._loginWidth + (extraWidth * 0.10),
+      statusWidth: _UsersDataTable._statusWidth + (extraWidth * 0.08),
+      createdWidth: _UsersDataTable._createdWidth + (extraWidth * 0.10),
     );
   }
 }
@@ -1340,6 +1374,24 @@ class _UsersHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
+            width: layout.ipWidth,
+            child: SortableTableHeader(
+              label: 'IP',
+              sortKey: 'ip',
+              sortState: sortState,
+              onSort: onSort,
+            ),
+          ),
+          SizedBox(
+            width: layout.signupCityWidth,
+            child: SortableTableHeader(
+              label: 'Şehir',
+              sortKey: 'city',
+              sortState: sortState,
+              onSort: onSort,
+            ),
+          ),
+          SizedBox(
             width: layout.roleWidth,
             child: SortableTableHeader(
               label: 'Role',
@@ -1356,6 +1408,15 @@ class _UsersHeader extends StatelessWidget {
               sortState: sortState,
               onSort: onSort,
               mainAxisAlignment: MainAxisAlignment.center,
+            ),
+          ),
+          SizedBox(
+            width: layout.loginWidth,
+            child: SortableTableHeader(
+              label: 'Giriş',
+              sortKey: 'login',
+              sortState: sortState,
+              onSort: onSort,
             ),
           ),
           SizedBox(
@@ -1451,12 +1512,24 @@ class _UsersRow extends StatelessWidget {
             child: _AuthProviderCell(label: user.authProviderLabel),
           ),
           SizedBox(
+            width: layout.ipWidth,
+            child: _UserTextCell(value: user.ipAddress),
+          ),
+          SizedBox(
+            width: layout.signupCityWidth,
+            child: _UserTextCell(value: user.displaySignupCity),
+          ),
+          SizedBox(
             width: layout.roleWidth,
             child: _RoleCell(role: roleLabelFor(user.role, roles)),
           ),
           SizedBox(
             width: layout.rewardWidth,
             child: _RewardCell(enabled: user.rewardEnabled),
+          ),
+          SizedBox(
+            width: layout.loginWidth,
+            child: _LoginStatusBadge(active: user.isLoggedIn),
           ),
           SizedBox(
             width: layout.statusWidth,
@@ -1729,6 +1802,28 @@ class _AuthProviderCell extends StatelessWidget {
   }
 }
 
+class _UserTextCell extends StatelessWidget {
+  const _UserTextCell({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = value.trim().isEmpty ? '-' : value.trim();
+    return HighlightedText(
+      text,
+      query: _UsersSearchScope.of(context),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: AppColors.deepOcean,
+        fontWeight: FontWeight.w600,
+        fontSize: 12.5,
+      ),
+    );
+  }
+}
+
 class _RewardCell extends StatelessWidget {
   const _RewardCell({required this.enabled});
 
@@ -1742,6 +1837,57 @@ class _RewardCell extends StatelessWidget {
         enabled ? Symbols.verified : Symbols.visibility_off,
         color: AppColors.iconMuted,
         size: 20,
+      ),
+    );
+  }
+}
+
+class _LoginStatusBadge extends StatelessWidget {
+  const _LoginStatusBadge({required this.active});
+
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? const Color(0xFF198754) : AppColors.support;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        height: 28,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: AppColors.softLine.withValues(alpha: 0.9),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                active ? 'Açık' : 'Kapalı',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

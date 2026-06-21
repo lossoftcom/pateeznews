@@ -618,6 +618,15 @@ class FrontendAuthRepository {
   }
 
   Future<void> signOut() async {
+    final session = await store.readSession();
+    final token = session?.accessToken.trim() ?? '';
+    if (token.isNotEmpty) {
+      try {
+        await _postJson('/api/app/auth', {'action': 'signOut', 'token': token});
+      } catch (_) {
+        // Yerel çıkış, ağ hatası yüzünden engellenmemeli.
+      }
+    }
     await store.clearAuth();
   }
 

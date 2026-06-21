@@ -79,6 +79,14 @@ const _secureStorageChannel = MethodChannel(
 );
 final _secureStorageValues = <String, String>{};
 
+http.Response _jsonResponse(Map<String, Object?> body, int statusCode) {
+  return http.Response.bytes(
+    utf8.encode(jsonEncode(body)),
+    statusCode,
+    headers: {'Content-Type': 'application/json; charset=utf-8'},
+  );
+}
+
 Future<Object?> _handleSecureStorageCall(MethodCall call) async {
   final args = call.arguments is Map
       ? Map<Object?, Object?>.from(call.arguments as Map)
@@ -335,7 +343,10 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
           user.username.toLowerCase().contains(term) ||
           user.email.toLowerCase().contains(term) ||
           user.authProvider.toLowerCase().contains(term) ||
-          user.authProviderLabel.toLowerCase().contains(term);
+          user.authProviderLabel.toLowerCase().contains(term) ||
+          user.ipAddress.toLowerCase().contains(term) ||
+          user.displaySignupCity.toLowerCase().contains(term) ||
+          user.loginStatusLabel.toLowerCase().contains(term);
       final matchesRole = role == 'Tümü' || user.role == role;
       final matchesReward =
           reward == 'Tümü' ||
@@ -369,6 +380,16 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
       'authProvider' => a.authProviderLabel.toLowerCase().compareTo(
         b.authProviderLabel.toLowerCase(),
       ),
+      'ip' => a.ipAddress.toLowerCase().compareTo(b.ipAddress.toLowerCase()),
+      'city' => a.displaySignupCity.toLowerCase().compareTo(
+        b.displaySignupCity.toLowerCase(),
+      ),
+      'login' =>
+        a.isLoggedIn == b.isLoggedIn
+            ? 0
+            : a.isLoggedIn
+            ? -1
+            : 1,
       'reward' =>
         a.rewardEnabled == b.rewardEnabled
             ? 0
@@ -410,6 +431,10 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
       rewardEnabled: data.rewardEnabled,
       createdAt: current.createdAt,
       avatarUrl: current.avatarUrl,
+      ipAddress: current.ipAddress,
+      signupCity: current.signupCity,
+      isLoggedIn: current.isLoggedIn,
+      lastLoginAt: current.lastLoginAt,
     );
   }
 }
@@ -3613,7 +3638,7 @@ void main() {
     final client = SupabaseAuthClient(
       httpClient: MockClient((request) async {
         requestedUrls.add(request.url.toString());
-        if (request.url.path == '/api/supabase/auth') {
+        if (request.url.path == '/api/app/auth') {
           return http.Response(
             jsonEncode({
               'data': {'session': _testSession.toJson()},
@@ -3623,11 +3648,10 @@ void main() {
             headers: {'Content-Type': 'application/json'},
           );
         }
-        return http.Response(
-          jsonEncode({'data': _testProfile.toJson(), 'error': null}),
-          200,
-          headers: {'Content-Type': 'application/json'},
-        );
+        return _jsonResponse({
+          'data': _testProfile.toJson(),
+          'error': null,
+        }, 200);
       }),
     );
 
@@ -3640,7 +3664,7 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'http://127.0.0.1:4321/api/supabase/auth',
+        'http://127.0.0.1:4321/api/app/auth',
         'http://127.0.0.1:4321/api/admin/query',
       ]),
     );
@@ -3656,7 +3680,7 @@ void main() {
     final client = SupabaseAuthClient(
       httpClient: MockClient((request) async {
         requestedUrls.add(request.url.toString());
-        if (request.url.path == '/api/supabase/auth') {
+        if (request.url.path == '/api/app/auth') {
           return http.Response(
             jsonEncode({
               'data': {'session': _testSession.toJson()},
@@ -3666,11 +3690,10 @@ void main() {
             headers: {'Content-Type': 'application/json'},
           );
         }
-        return http.Response(
-          jsonEncode({'data': _testProfile.toJson(), 'error': null}),
-          200,
-          headers: {'Content-Type': 'application/json'},
-        );
+        return _jsonResponse({
+          'data': _testProfile.toJson(),
+          'error': null,
+        }, 200);
       }),
     );
 
@@ -3682,7 +3705,7 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'http://10.0.2.2:4321/api/supabase/auth',
+        'http://10.0.2.2:4321/api/app/auth',
         'http://10.0.2.2:4321/api/admin/query',
       ]),
     );
@@ -3701,7 +3724,7 @@ void main() {
         apiBaseUrl: 'https://example.com',
         httpClient: MockClient((request) async {
           requestedUrls.add(request.url.toString());
-          if (request.url.path == '/api/supabase/auth') {
+          if (request.url.path == '/api/app/auth') {
             return http.Response(
               jsonEncode({
                 'data': {'session': _testSession.toJson()},
@@ -3711,11 +3734,10 @@ void main() {
               headers: {'Content-Type': 'application/json'},
             );
           }
-          return http.Response(
-            jsonEncode({'data': _testProfile.toJson(), 'error': null}),
-            200,
-            headers: {'Content-Type': 'application/json'},
-          );
+          return _jsonResponse({
+            'data': _testProfile.toJson(),
+            'error': null,
+          }, 200);
         }),
       );
 
@@ -3727,7 +3749,7 @@ void main() {
       expect(
         requestedUrls,
         containsAllInOrder([
-          'https://example.com/api/supabase/auth',
+          'https://example.com/api/app/auth',
           'https://example.com/api/admin/query',
         ]),
       );

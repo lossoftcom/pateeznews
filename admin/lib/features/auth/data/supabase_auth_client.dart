@@ -40,7 +40,7 @@ class SupabaseAuthClient implements AdminAuthRepository {
       return null;
     }
 
-    final result = await _postJson('/api/supabase/auth', {
+    final result = await _postJson('/api/app/auth', {
       'action': 'getSession',
       'token': storedSession.accessToken,
     });
@@ -61,9 +61,9 @@ class SupabaseAuthClient implements AdminAuthRepository {
     required String email,
     required String password,
   }) async {
-    final result = await _postJson('/api/supabase/auth', {
+    final result = await _postJson('/api/app/auth', {
       'action': 'signInWithPassword',
-      'email': email.trim(),
+      'identifier': email.trim(),
       'password': password,
     });
 
@@ -80,6 +80,15 @@ class SupabaseAuthClient implements AdminAuthRepository {
 
   @override
   Future<void> signOut() async {
+    final session = await sessionStore.readSession();
+    final token = session?.accessToken.trim() ?? '';
+    if (token.isNotEmpty) {
+      try {
+        await _postJson('/api/app/auth', {'action': 'signOut', 'token': token});
+      } catch (_) {
+        // Yerel admin çıkışı ağ hatası yüzünden engellenmemeli.
+      }
+    }
     await sessionStore.clearAuth();
   }
 

@@ -212,7 +212,11 @@ function readStoredPateezSession(): Session | null {
   try {
     for (const key of getSupabaseAuthStorageKeys()) {
       const session = normalizeStoredSession(window.localStorage.getItem(key));
-      if (session?.access_token) return session;
+      if (session?.access_token) {
+        const storedSession = normalizedSessionForStorage(session);
+        saveFlutterAdminSession(storedSession);
+        return storedSession;
+      }
     }
   } catch {
     // localStorage can be unavailable in restricted browser modes.
@@ -255,6 +259,24 @@ function emitAuthChange(event: AuthEventName, session: Session | null) {
   }
 }
 
+async function notifyAppSignOut(session: Session | null) {
+  const token = String(session?.access_token || '').trim();
+  if (!token || typeof fetch === 'undefined') return;
+  try {
+    await fetch('/api/app/auth', {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify({ action: 'signOut', token }),
+    });
+  } catch {
+    // Local logout must not be blocked by a network failure.
+  }
+}
+
 const pateezAuth = {
   async getSession() {
     return { data: { session: readStoredPateezSession() }, error: null };
@@ -273,6 +295,8 @@ const pateezAuth = {
     return { data: { session, user: session.user || null }, error: null };
   },
   async signOut() {
+    const session = readStoredPateezSession();
+    await notifyAppSignOut(session);
     clearSupabaseAuthStorage();
     emitAuthChange('SIGNED_OUT', null);
     return { error: null };

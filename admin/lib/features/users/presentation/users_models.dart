@@ -35,6 +35,10 @@ class ManagedUser {
     required this.rewardEnabled,
     required this.createdAt,
     required this.avatarUrl,
+    this.ipAddress = '',
+    this.signupCity = '',
+    this.isLoggedIn = false,
+    this.lastLoginAt,
   });
 
   final String id;
@@ -50,6 +54,10 @@ class ManagedUser {
   final bool rewardEnabled;
   final DateTime? createdAt;
   final String avatarUrl;
+  final String ipAddress;
+  final String signupCity;
+  final bool isLoggedIn;
+  final DateTime? lastLoginAt;
 
   String get displayName {
     final value = fullName.trim();
@@ -93,6 +101,13 @@ class ManagedUser {
   bool get active => status == 'Aktif';
 
   String get authProviderLabel => authProviderLabelFor(authProvider);
+
+  String get displaySignupCity {
+    final value = signupCity.trim();
+    return value.isEmpty ? city.trim() : value;
+  }
+
+  String get loginStatusLabel => isLoggedIn ? 'Oturum açık' : 'Oturum kapalı';
 }
 
 String authProviderLabelFor(String provider) {

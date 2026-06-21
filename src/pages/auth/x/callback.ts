@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { signInWithSocialToken } from '@/lib/server/appAuth';
+import { getRequestLocation } from '@/lib/server/requestLocation';
 import { readRuntimeEnv } from '@/lib/server/runtimeEnv';
 
 export const prerender = false;
@@ -168,8 +169,9 @@ async function exchangeXCode(input: {
   return String(payload.access_token);
 }
 
-export const GET: APIRoute = async ({ request, url }) => {
+export const GET: APIRoute = async ({ request, url, clientAddress }) => {
   const requestOrigin = new URL(request.url).origin;
+  const location = getRequestLocation(request, clientAddress);
   const stateCookie = readStateCookie(request);
   const origin = stateCookie?.origin === requestOrigin ? stateCookie.origin : requestOrigin;
   const error = cleanText(url.searchParams.get('error_description') || url.searchParams.get('error'));
@@ -193,6 +195,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     const result = await signInWithSocialToken({
       provider: 'x',
       accessToken,
+      ipAddress: location.ip,
+      signupCity: location.city,
     });
     return socialResultResponse(stateCookie, origin, {
       session: result.data.session,

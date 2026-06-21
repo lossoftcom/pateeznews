@@ -39,7 +39,7 @@ void main() {
       sessionStore: store,
       httpClient: MockClient((request) async {
         requestedUrls.add(request.url.toString());
-        if (request.url.path == '/api/supabase/auth') {
+        if (request.url.path == '/api/app/auth') {
           return http.Response(
             jsonEncode({
               'data': {'session': _testSession.toJson()},
@@ -69,10 +69,54 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'https://api.test/api/supabase/auth',
+        'https://api.test/api/app/auth',
         'https://api.test/api/admin/query',
       ]),
     );
+  });
+
+  test('signInWithPassword public app auth endpointini kullanir', () async {
+    final requestBodies = <Map<String, Object?>>[];
+    final store = _MemoryAdminSessionStore(null);
+    final client = SupabaseAuthClient(
+      apiBaseUrl: 'https://api.test',
+      sessionStore: store,
+      httpClient: MockClient((request) async {
+        requestBodies.add(jsonDecode(request.body) as Map<String, Object?>);
+        if (request.url.path == '/api/app/auth') {
+          return http.Response(
+            jsonEncode({
+              'data': {'session': _testSession.toJson()},
+              'error': null,
+            }),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        if (request.url.path == '/api/admin/query') {
+          return http.Response(
+            jsonEncode({'data': _testProfile.toJson(), 'error': null}),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final authState = await client.signInWithPassword(
+      email: 'nasip@example.com',
+      password: 'secret',
+    );
+
+    expect(authState.session.accessToken, _testSession.accessToken);
+    expect(store.session?.accessToken, _testSession.accessToken);
+    expect(requestBodies.first, containsPair('action', 'signInWithPassword'));
+    expect(
+      requestBodies.first,
+      containsPair('identifier', 'nasip@example.com'),
+    );
+    expect(requestBodies.first, isNot(contains('email')));
   });
 }
 

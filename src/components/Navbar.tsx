@@ -15,6 +15,7 @@ import {
 } from '@/utils/specialContent';
 import { searchSite } from '@/services/appActions';
 import { getSiteSearchHref, openSiteSearch } from '@/utils/searchNavigation';
+import { supabase } from '@/lib/supabase';
 
 interface NavbarProps {
   onHomeClick?: () => void;
@@ -300,6 +301,32 @@ const Navbar: React.FC<NavbarProps> = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<{ posts: any[]; profiles: any[] }>({ posts: [], profiles: [] });
   const [currentLocation, setCurrentLocation] = useState({ pathname: '', search: '' });
+  const trimmedSearchTerm = searchTerm.trim();
+  const searchPanelCopy = React.useMemo(() => {
+    const lang = String(currentLang.code || 'tr').toLowerCase();
+    if (lang.startsWith('en')) {
+      return {
+        loading: 'Searching...',
+        results: 'Instant results',
+        openAll: 'Open full search',
+        empty: 'Search all content',
+      };
+    }
+    if (lang.startsWith('ar')) {
+      return {
+        loading: 'جار البحث...',
+        results: 'نتائج فورية',
+        openAll: 'افتح البحث الكامل',
+        empty: 'ابحث في كل المحتوى',
+      };
+    }
+    return {
+      loading: 'Aranıyor...',
+      results: 'Anlık sonuçlar',
+      openAll: 'Tüm aramada aç',
+      empty: 'Tüm içerikte ara',
+    };
+  }, [currentLang.code]);
   const langMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileAccountMenuRef = useRef<HTMLDivElement>(null);
@@ -517,15 +544,16 @@ const Navbar: React.FC<NavbarProps> = ({
   }, [isMobileDrawerOpen]);
 
   useEffect(() => {
-    if (!isSearchOpen || searchTerm.trim().length < 2) {
+    if (!isSearchOpen || trimmedSearchTerm.length < 2) {
       setSearchResults({ posts: [], profiles: [] });
+      setSearchLoading(false);
       return;
     }
 
     let isMounted = true;
     const timer = window.setTimeout(() => {
       setSearchLoading(true);
-      searchSite(searchTerm.trim(), currentLang.code || 'tr')
+      searchSite(trimmedSearchTerm, currentLang.code || 'tr')
         .then((result) => {
           if (isMounted) setSearchResults({ posts: result.posts || [], profiles: result.profiles || [] });
         })
@@ -541,7 +569,7 @@ const Navbar: React.FC<NavbarProps> = ({
       isMounted = false;
       window.clearTimeout(timer);
     };
-  }, [isSearchOpen, searchTerm, currentLang.code]);
+  }, [isSearchOpen, trimmedSearchTerm, currentLang.code]);
 
   const openSearchResult = (href: string) => {
     setIsSearchOpen(false);
@@ -561,7 +589,7 @@ const Navbar: React.FC<NavbarProps> = ({
       openSearchResult(`/profil/${encodeURIComponent(firstProfile.username || firstProfile.id)}`);
       return;
     }
-    if (searchTerm.trim()) openSearchResult(getSiteSearchHref(searchTerm.trim(), currentLang.code || 'tr'));
+    if (trimmedSearchTerm) openSearchResult(getSiteSearchHref(trimmedSearchTerm, currentLang.code || 'tr'));
   };
 
   const activeQueryCategory = new URLSearchParams(currentLocation.search).get('kategori');
@@ -637,7 +665,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
   const toggleHeaderSearch = () => {
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-      void openSiteSearch(searchTerm, currentLang.code || 'tr');
+      void openSiteSearch(trimmedSearchTerm, currentLang.code || 'tr');
       return;
     }
     setIsSearchOpen((value) => !value);
@@ -660,6 +688,7 @@ const Navbar: React.FC<NavbarProps> = ({
     setShowUserMenu(false);
     if (!showAdminPanelAction) return;
     if (typeof window === 'undefined') return;
+    void supabase.auth.getSession().catch(() => undefined);
     window.open('/admin', '_blank', 'noopener,noreferrer');
   };
 
@@ -1357,14 +1386,14 @@ const Navbar: React.FC<NavbarProps> = ({
       </nav>
 
       {/* SEARCH BAR */}
-      < div
-        className={`public-search-panel absolute top-[72px] left-0 w-full bg-white border-b border-palette-beige shadow-2xl transition-all duration-75 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[420px] opacity-100 py-3.5' : 'max-h-0 opacity-0 py-0'
+      <div
+        className={`public-search-panel absolute top-[72px] left-0 w-full border-b border-[#E4E9EC] bg-white/95 shadow-[0_26px_60px_rgba(23,35,47,0.14)] backdrop-blur-xl transition-all duration-100 ease-linear overflow-hidden z-[250] ${isSearchOpen ? 'max-h-[520px] opacity-100 py-4' : 'max-h-0 opacity-0 py-0'
           }`}
       >
-        <div className="max-w-[1280px] mx-auto px-4">
-          <form onSubmit={handleSearchSubmit} className="relative flex items-center">
-            <div className="absolute left-4 flex items-center justify-center z-10">
-              <RemixIcon name="ri-search-line" size={21} className="text-palette-tan/30" />
+        <div className="max-w-[980px] mx-auto px-4">
+          <form onSubmit={handleSearchSubmit} className="group relative flex h-[52px] items-center rounded-[6px] border border-[#DDE5E8] bg-[#F8FAFB] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors focus-within:border-palette-red/45 focus-within:bg-white">
+            <div className="absolute left-4 flex items-center justify-center z-10 text-palette-red">
+              <RemixIcon name="ri-search-line" size={21} />
             </div>
             <input
               type="text"
@@ -1372,65 +1401,97 @@ const Navbar: React.FC<NavbarProps> = ({
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder={t('nav.search')}
-              className="w-full h-11 bg-palette-beige/10 rounded-[5px] border border-palette-beige focus:border-palette-tan/30 text-sm font-bold text-gray-900 placeholder:text-palette-tan/20 outline-none pl-11 pr-11 transition-none"
+              className="h-full w-full bg-transparent rounded-[6px] border-0 text-[15px] font-black text-[#182631] placeholder:text-[#AEB8BE] outline-none pl-11 pr-28 transition-none"
             />
-            <div className="absolute right-3.5 flex items-center gap-2 z-10">
+            <div className="absolute right-3 flex items-center gap-2 z-10">
+              {trimmedSearchTerm.length >= 2 && (
+                <span className="hidden sm:inline-flex rounded-full border border-[#E6ECEF] bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#7B8A94]">
+                  {searchLoading ? searchPanelCopy.loading : searchPanelCopy.results}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => setIsSearchOpen(false)}
-                className="p-1 text-palette-tan/30 hover:text-palette-red"
+                aria-label="Aramayı kapat"
+                className="grid h-8 w-8 place-items-center rounded-full text-[#8B99A3] hover:bg-palette-red/10 hover:text-palette-red"
               >
                 <RemixIcon name="ri-close-line" size={18} />
               </button>
             </div>
           </form>
 
-          {(searchTerm.trim().length >= 2 || searchLoading) && (
-            <div className="mt-3 bg-white rounded-[5px] border border-palette-beige/60 shadow-sm overflow-hidden">
+          {(trimmedSearchTerm.length >= 2 || searchLoading) && (
+            <div className="mt-3 overflow-hidden rounded-[6px] border border-[#E1E8EB] bg-white shadow-[0_18px_45px_rgba(23,35,47,0.10)]" aria-live="polite">
               {searchLoading ? (
-                <div className="px-4 py-5 text-[11px] font-black text-palette-tan/40 uppercase tracking-widest">
-                  {t('comments.loading')}
+                <div className="grid gap-2 px-4 py-4">
+                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.09em] text-[#6D7C86]">
+                    <span className="h-2 w-2 rounded-full bg-palette-red shadow-[0_0_0_5px_rgba(227,6,19,0.09)]" />
+                    {searchPanelCopy.loading}
+                  </div>
+                  <span className="h-12 rounded-[5px] bg-gradient-to-r from-[#F1F4F5] via-white to-[#F1F4F5]" />
+                  <span className="h-12 rounded-[5px] bg-gradient-to-r from-[#F1F4F5] via-white to-[#F1F4F5]" />
                 </div>
               ) : searchResults.posts.length === 0 && searchResults.profiles.length === 0 ? (
                 <button
-                  onClick={() => openSearchResult(getSiteSearchHref(searchTerm.trim(), currentLang.code || 'tr'))}
-                  className="w-full px-4 py-5 text-left text-[12px] font-bold text-palette-tan hover:bg-palette-beige/10"
+                  type="button"
+                  onClick={() => openSearchResult(getSiteSearchHref(trimmedSearchTerm, currentLang.code || 'tr'))}
+                  className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left hover:bg-[#F8FAFB]"
                 >
-                  {searchTerm.trim()}
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.09em] text-palette-red">{searchPanelCopy.empty}</span>
+                    <span className="mt-1 block truncate text-[14px] font-black text-[#1D2B36]">{trimmedSearchTerm}</span>
+                  </span>
+                  <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-[#1F2D3A] text-white">
+                    <RemixIcon name="ri-arrow-right-s-line" size={20} />
+                  </span>
                 </button>
               ) : (
-                <div className="divide-y divide-palette-beige/40">
+                <div>
+                  <div className="flex items-center justify-between border-b border-[#EDF1F3] bg-[#F8FAFB] px-4 py-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.09em] text-[#7E8C96]">{searchPanelCopy.results}</span>
+                    <button
+                      type="button"
+                      onClick={() => openSearchResult(getSiteSearchHref(trimmedSearchTerm, currentLang.code || 'tr'))}
+                      className="text-[10px] font-black uppercase tracking-[0.08em] text-palette-red hover:text-[#9D0710]"
+                    >
+                      {searchPanelCopy.openAll}
+                    </button>
+                  </div>
+                  <div className="divide-y divide-[#EDF1F3]">
                   {searchResults.posts.map((post) => (
                     <button
                       key={`post-${post.id}`}
+                      type="button"
                       onClick={() => openSearchResult(getPostHref(post, siteSettings))}
                       onMouseEnter={() => prefetch(getPostHref(post, siteSettings))}
-                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-palette-beige/10 transition-colors"
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-[#FAFBFC] transition-colors"
                     >
-                      <div className="w-10 h-10 rounded-[5px] bg-palette-beige/20 overflow-hidden flex-shrink-0">
+                      <div className="w-12 h-12 rounded-[6px] bg-[#EEF2F4] overflow-hidden flex-shrink-0">
                         {post.thumbnail_url ? <img src={post.thumbnail_url} className="w-full h-full object-cover" alt={post.title} /> : null}
                       </div>
                       <div className="min-w-0">
-                        <p className="news-title-font text-[12px] font-black text-gray-900 truncate">{post.title}</p>
-                        <p className="text-[9px] font-bold text-palette-tan/40 uppercase tracking-widest truncate">{post.category}</p>
+                        <p className="news-title-font text-[13px] font-black text-[#172633] truncate">{post.title}</p>
+                        <p className="mt-1 text-[9px] font-black text-palette-red uppercase tracking-[0.09em] truncate">{post.category}</p>
                       </div>
                     </button>
                   ))}
                   {searchResults.profiles.map((profile) => (
                     <button
                       key={`profile-${profile.id}`}
+                      type="button"
                       onClick={() => openSearchResult(`/profil/${encodeURIComponent(profile.username || profile.id)}`)}
-                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-palette-beige/10 transition-colors"
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-[#FAFBFC] transition-colors"
                     >
-                      <div className="w-10 h-10 rounded-[5px] bg-palette-beige/20 overflow-hidden flex-shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-[#EEF2F4] overflow-hidden flex-shrink-0">
                         {profile.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.full_name || profile.username} /> : null}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[12px] font-black text-gray-900 truncate">{profile.full_name || profile.username}</p>
-                        <p className="text-[9px] font-bold text-palette-tan/40 uppercase tracking-widest truncate">@{profile.username || profile.role}</p>
+                        <p className="text-[13px] font-black text-[#172633] truncate">{profile.full_name || profile.username}</p>
+                        <p className="mt-1 text-[9px] font-black text-[#8A98A2] uppercase tracking-[0.09em] truncate">@{profile.username || profile.role}</p>
                       </div>
                     </button>
                   ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -4,10 +4,13 @@ import { getSessionFromRequest, json, withTransaction } from '@/lib/server/appDb
 import {
   adminCreateAuthUser,
   adminDeleteAuthUser,
+  markProfileSignedIn,
+  markProfileSignedOut,
   setPasswordForUser,
   signInWithPassword,
   signInWithSocialToken,
 } from '@/lib/server/appAuth';
+import { getRequestLocation } from '@/lib/server/requestLocation';
 import {
   clearLoginFailures,
   getLoginAttemptLock,
@@ -142,7 +145,10 @@ function firstMetadataText(metadata: Record<string, any>, keys: string[]) {
   return '';
 }
 
-async function completeOAuthProfile(session: NonNullable<Awaited<ReturnType<typeof getSessionFromRequest>>>) {
+async function completeOAuthProfile(
+  session: NonNullable<Awaited<ReturnType<typeof getSessionFromRequest>>>,
+  location: { ip: string | null; city: string | null },
+) {
   const user = session.user;
   const metadata = user.user_metadata || {};
   const appMetadata = user.app_metadata || {};
@@ -218,6 +224,10 @@ async function completeOAuthProfile(session: NonNullable<Awaited<ReturnType<type
       ],
     );
   });
+  await markProfileSignedIn(user.id, {
+    ipAddress: location.ip,
+    signupCity: location.city,
+  });
 }
 
 async function ensureSignupEmailAvailable(client: any, email: string) {
@@ -231,10 +241,11 @@ async function ensureSignupEmailAvailable(client: any, email: string) {
   if (result.rows[0]) throw new Error('E-posta zaten kullanılıyor');
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, clientAddress }) => {
   try {
     const body = await request.json();
     const action = cleanText(body.action);
+    const location = getRequestLocation(request, clientAddress);
 
     if (action === 'completeOAuthProfile') {
       const session = await getSessionFromRequest(request, body);
@@ -244,7 +255,7 @@ export const POST: APIRoute = async ({ request }) => {
           401,
         );
       }
-      await completeOAuthProfile(session);
+      await completeOAuthProfile(session, location);
       const profile = await profileForUser(session.user.id);
       return json({
         data: { session, profile: profileForClient(profile) },
@@ -259,6 +270,8 @@ export const POST: APIRoute = async ({ request }) => {
         accessToken: body.accessToken || body.access_token,
         fullName: body.fullName || body.full_name,
         email: body.email,
+        ipAddress: location.ip,
+        signupCity: location.city,
       });
       const profile = await profileForUser(result.data.session.user.id);
       return json({
@@ -273,6 +286,7 @@ export const POST: APIRoute = async ({ request }) => {
       const password = String(body.password || '');
       const passwordAgain = String(body.passwordAgain || body.password_again || '');
       const city = normalizeTurkeyCity(body.city);
+      const signupCity = location.city || city;
       const attemptIdentifier =
         email ||
         request.headers.get('cf-connecting-ip') ||
@@ -341,10 +355,14 @@ export const POST: APIRoute = async ({ request }) => {
           createdAuthUserId = created.id;
           await client.query(
             `INSERT INTO public.profiles (
-               id, full_name, username, email, role, status, city, slug, updated_at
+               id, full_name, username, email, role, status, city, slug,
+               ip_address, signup_city, is_logged_in, last_login_at, updated_at
              )
-             VALUES ($1::uuid, $2, $3, $4, 'member', 'Aktif', $5, $3, now())`,
-            [created.id, fullName, username, email, city],
+             VALUES (
+               $1::uuid, $2, $3, $4, 'member', 'Aktif', $5, $3,
+               NULLIF($6, ''), NULLIF($7, ''), true, now(), now()
+             )`,
+            [created.id, fullName, username, email, city, location.ip || '', signupCity || ''],
           );
           await setPasswordForUser(created.id, password, client);
           createdProfileId = created.id;
@@ -356,6 +374,10 @@ export const POST: APIRoute = async ({ request }) => {
           throw new Error(signInResult.error?.message || 'Kayıt oturumu oluşturulamadı');
         }
         await clearLoginFailures('app-signup', attemptIdentifier);
+        await markProfileSignedIn(authUser.id, {
+          ipAddress: location.ip,
+          signupCity,
+        });
         const profile = await profileForUser(authUser.id);
         return json({
           data: { ...signInResult.data, profile: profileForClient(profile) },
@@ -417,6 +439,10 @@ export const POST: APIRoute = async ({ request }) => {
           403
         );
       }
+      await markProfileSignedIn(result.data.session.user.id, {
+        ipAddress: location.ip,
+        signupCity: location.city,
+      });
 
       return json({
         data: { ...result.data, profile: profileForClient(profile) },
@@ -424,11 +450,23 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    if (action === 'signOut') {
+      const session = await getSessionFromRequest(request, body);
+      if (session?.user?.id) {
+        await markProfileSignedOut(session.user.id);
+      }
+      return json({ data: { session: null, profile: null }, error: null });
+    }
+
     if (action === 'getSession' || action === 'profile') {
       const session = await getSessionFromRequest(request, body);
       if (!session?.user?.id) {
         return json({ data: { session: null, profile: null }, error: null });
       }
+      await markProfileSignedIn(session.user.id, {
+        ipAddress: location.ip,
+        signupCity: location.city,
+      });
       const profile = await profileForUser(session.user.id);
       return json({
         data: { session, profile: profileForClient(profile) },
