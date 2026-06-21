@@ -40,14 +40,15 @@ const firstForwardedIp = (value: string) =>
     .map((part) => part.trim())
     .find(Boolean) || '';
 
-const normalizeClientIp = (value: string) => {
-  const ip = value.trim().slice(0, 64);
-  return ip && !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip)
-    ? ip
-    : null;
+const normalizeClientIp = (value: unknown) => {
+  if (!value) return null;
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
+  const ip = String(raw).trim().slice(0, 64);
+  return ip || null;
 };
 
-const getRequestLocation = (request: Request) => {
+const getRequestLocation = (request: Request, clientAddress?: string) => {
   const cf = (request as CloudflareRequest).cf || {};
   const city = normalizeDetectedCity(
     cf.city ||
@@ -59,19 +60,20 @@ const getRequestLocation = (request: Request) => {
     headerValue(request, 'cf-connecting-ip') ||
     headerValue(request, 'true-client-ip') ||
     headerValue(request, 'x-real-ip') ||
-    firstForwardedIp(headerValue(request, 'x-forwarded-for'))
+    firstForwardedIp(headerValue(request, 'x-forwarded-for')) ||
+    clientAddress
   );
 
   return { city, ip };
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, clientAddress }) => {
   try {
     const body = await request.json();
     const email = String(body.email || '').trim().toLowerCase();
     const languageCode = String(body.languageCode || 'tr').trim().slice(0, 10) || 'tr';
     const source = String(body.source || 'site').trim().slice(0, 60) || 'site';
-    const location = getRequestLocation(request);
+    const location = getRequestLocation(request, clientAddress);
 
     if (!EMAIL_RE.test(email)) {
       return json({ error: { message: 'Invalid email' } }, 400);
