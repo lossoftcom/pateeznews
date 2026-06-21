@@ -261,6 +261,20 @@ const accountInitials = (user: any) => {
   return initials || 'P';
 };
 
+const canOpenAdminPanel = (user: any) => {
+  const role = String(
+    user?.profile?.role ??
+    user?.role ??
+    ''
+  ).trim().toLowerCase();
+
+  return role === 'admin' ||
+    role === 'super_admin' ||
+    role === 'moderator' ||
+    role === 'editor' ||
+    role === 'writer';
+};
+
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
   onProfileClick,
@@ -288,6 +302,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const langMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileAccountMenuRef = useRef<HTMLDivElement>(null);
+  const showAdminPanelAction = Boolean(isLoggedIn && canOpenAdminPanel(user));
 
   const explicitTopNavItems = React.useMemo(
     () => navItems.filter((item) => item.menu_code === 'top_navbar'),
@@ -631,6 +646,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
   const openAdminPanel = () => {
     setShowUserMenu(false);
+    if (!showAdminPanelAction) return;
     if (typeof window === 'undefined') return;
     window.open('/admin', '_blank', 'noopener,noreferrer');
   };
@@ -965,14 +981,16 @@ const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div className="px-1.5 space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={openAdminPanel}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group"
-                    >
-                      <RemixIcon name="ri-dashboard-line" size={20} className="opacity-60 group-hover:opacity-100" />
-                      <span className="text-[12px] font-bold tracking-tight">{t('navbar.admin_panel')}</span>
-                    </button>
+                    {showAdminPanelAction && (
+                      <button
+                        type="button"
+                        onClick={openAdminPanel}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group"
+                      >
+                        <RemixIcon name="ri-dashboard-line" size={20} className="opacity-60 group-hover:opacity-100" />
+                        <span className="text-[12px] font-bold tracking-tight">{t('navbar.admin_panel')}</span>
+                      </button>
+                    )}
 
                     {onProfileViewClick && (
                       <button
@@ -1249,7 +1267,7 @@ const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
 
-            {isLoggedIn && (
+            {showAdminPanelAction && (
               <button
                 type="button"
                 className="mobile-shell-account-action"

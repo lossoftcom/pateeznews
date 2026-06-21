@@ -123,7 +123,11 @@ class FrontendProfile {
 
   bool get isAdmin {
     final value = role?.trim().toLowerCase() ?? '';
-    return value == 'admin' || value == 'super_admin';
+    return value == 'admin' ||
+        value == 'super_admin' ||
+        value == 'moderator' ||
+        value == 'editor' ||
+        value == 'writer';
   }
 
   String get displayName {
