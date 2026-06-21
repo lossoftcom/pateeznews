@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import {
+  createManualAnnouncementWithAi,
   deleteAnnouncement,
   deleteAnnouncements,
   listAdminAnnouncements,
@@ -48,6 +49,13 @@ export const POST: APIRoute = async ({ request, url }) => {
       if (!id) return adminJson({ data: null, error: { message: 'Duyuru id gerekli' } }, 400);
       return adminJson({
         data: withAbsoluteAnnouncementItem(await setAnnouncementActive(id, body?.isActive !== false), url.origin),
+        error: null,
+      });
+    }
+    if (action === 'createManualAi') {
+      const values = body?.values && typeof body.values === 'object' ? body.values : body;
+      return adminJson({
+        data: withAbsoluteAnnouncementItem(await createManualAnnouncementWithAi(values || {}), url.origin),
         error: null,
       });
     }

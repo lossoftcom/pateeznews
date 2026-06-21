@@ -14,6 +14,9 @@ import PublisherFollowButton from './PublisherFollowButton';
 import AdSlot from './ads/AdSlot';
 import type { PublicAdSettings } from '@/types';
 
+const NEWSLETTER_SUCCESS_MESSAGE =
+   'Bülten kaydın başarıyla kaydedildi. Pateez.com’un doğrulanmış haber özetleri artık e-postana gelecek.';
+
 interface RightSidebarProps {
    newsData?: NewsItem[];
    loading?: boolean;
@@ -705,7 +708,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
       try {
          await subscribeNewsletter(email, 'right-sidebar', currentLang.code || 'tr');
          setNewsletterEmail('');
-         showToast(t('common.success'), 'success');
+         showToast(NEWSLETTER_SUCCESS_MESSAGE, 'success');
       } catch (error: any) {
          showToast(error.message || t('common.action_failed'), 'error');
       } finally {

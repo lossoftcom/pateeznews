@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as parse5 from 'parse5';
-import { getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '../geminiModelFallback';
+import { geminiFastModelAttempts, getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '../geminiModelFallback';
 import { dbQuery } from './supabaseDb';
 
 const CITY = 'Niğde';
@@ -10,14 +10,18 @@ const DEFAULT_UPDATE_INTERVAL_MINUTES = 30;
 const SOURCE_FETCH_TIMEOUT_MS = 4500;
 const DETAIL_FETCH_TIMEOUT_MS = 6500;
 const GEMINI_TIMEOUT_MS = 12000;
+const MANUAL_GEMINI_TIMEOUT_MS = 30000;
 const AI_IMAGE_FETCH_TIMEOUT_MS = 4500;
 const MAX_AI_IMAGE_BYTES = 2_500_000;
+const MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_SOURCES_PER_RUN = 80;
 const MAX_CANDIDATES_PER_SOURCE = 10;
 const MAX_AI_CANDIDATES_PER_RUN = 40;
 const MAX_QUEUE_PER_SOURCE = 5;
 const MAX_PAYLOAD_SCAN_ROWS = 500;
 const USER_AGENT = 'Pateez-Announcements/1.0 (+https://www.pateez.com)';
+const MANUAL_ANNOUNCEMENT_SOURCE_KEY = 'manual-admin';
+const MANUAL_ANNOUNCEMENT_SOURCE_NAME = 'Manuel Duyuru';
 
 const DISTRICTS = ['MERKEZ', 'ALTUNHİSAR', 'BOR', 'ÇAMARDI', 'ÇİFTLİK', 'ULUKIŞLA'];
 const DISTRICT_LABELS: Record<string, string> = {
@@ -1996,7 +2000,7 @@ const parseCandidate = async (source: AnnouncementSource, url: string): Promise<
   if (!hasAnnouncementSignal(`${source.listUrl} ${title} ${summary} ${body}`)) return null;
 
   const canonicalUrl = linkHref(document, 'canonical', response.url) || response.url;
-  const imageUrl = toAbsoluteUrl(response.url, metaContent(document, 'og:image') || firstImage(document));
+  const imageUrl = announcementImageUrl(document, response.url);
   const publishedAt = extractDate(document, body);
   const category = categoryFor(source, title, body);
   const statusLabel = statusFor(title, body);
@@ -2038,10 +2042,102 @@ const firstParagraph = (document: any) => {
   return paragraphs[0] || '';
 };
 
-const firstImage = (document: any) => {
-  const img = findAll(document, (node) => node?.tagName === 'img')
-    .find((node) => normalizeText(getAttr(node, 'src')).length > 0);
-  return getAttr(img, 'src');
+const imageAttrText = (node: any) =>
+  [
+    getAttr(node, 'src'),
+    getAttr(node, 'data-src'),
+    getAttr(node, 'data-original'),
+    getAttr(node, 'data-lazy-src'),
+    getAttr(node, 'alt'),
+    getAttr(node, 'title'),
+    getAttr(node, 'class'),
+    getAttr(node, 'id'),
+  ].map(normalizeText).filter(Boolean).join(' ');
+
+const srcFromSet = (value: string) => {
+  const first = normalizeText(value).split(',')[0] || '';
+  return normalizeText(first.split(/\s+/)[0] || '');
+};
+
+const imageNodeUrl = (node: any, baseUrl: string) =>
+  toAbsoluteUrl(
+    baseUrl,
+    getAttr(node, 'src') ||
+      getAttr(node, 'data-src') ||
+      getAttr(node, 'data-original') ||
+      getAttr(node, 'data-lazy-src') ||
+      srcFromSet(getAttr(node, 'srcset')),
+  );
+
+const isUsableAnnouncementImageSize = (width: number | null, height: number | null) => {
+  if (!width || !height) return true;
+  if (width < MIN_ANNOUNCEMENT_IMAGE_WIDTH || height < MIN_ANNOUNCEMENT_IMAGE_HEIGHT) return false;
+  const ratio = width / height;
+  return ratio >= 0.35 && ratio <= 4.5;
+};
+
+const imageDimension = (node: any, name: string) => {
+  const value = normalizeText(getAttr(node, name)).replace(/[^\d.]/g, '');
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const hasLogoImageSignal = (value: string) => containsAnyTerm(value.replace(/[-_]+/g, ' '), LOGO_IMAGE_TERMS);
+
+const isLikelyAnnouncementImageUrl = (url: string, extra = '') => {
+  const cleanUrl = normalizeText(url);
+  if (!cleanUrl) return false;
+  const lower = trLower(`${cleanUrl} ${extra}`);
+  if (hasLogoImageSignal(lower)) return false;
+  try {
+    const pathname = trLower(decodeURIComponent(new URL(cleanUrl).pathname));
+    if (pathname.endsWith('.svg')) return false;
+    if (pathname.endsWith('.gif') && hasLogoImageSignal(pathname)) return false;
+  } catch {
+    return false;
+  }
+  return true;
+};
+
+const imageCandidateScore = (url: string, node: any) => {
+  const text = trLower(`${url} ${imageAttrText(node)}`);
+  let score = 0;
+  if (containsAnyTerm(text, ['duyuru', 'haber', 'etkinlik', 'ilan', 'upload', 'uploads', 'media', 'resim', 'image', 'photo', 'files', 'whatsapp'])) score += 3;
+  if (containsAnyTerm(text, ['content', 'gallery', 'galeri', 'slider'])) score += 1;
+  if (text.includes('.jpg') || text.includes('.jpeg') || text.includes('.png') || text.includes('.webp')) score += 1;
+  const width = imageDimension(node, 'width');
+  const height = imageDimension(node, 'height');
+  if (width && height && width >= 480 && height >= 240) score += 2;
+  return score;
+};
+
+const announcementImageUrl = (document: any, baseUrl: string) => {
+  const metaImage = toAbsoluteUrl(
+    baseUrl,
+    metaContent(document, 'og:image') || metaContent(document, 'twitter:image')
+  );
+  if (isLikelyAnnouncementImageUrl(metaImage)) return metaImage;
+
+  const candidates = findAll(document, (node) => node?.tagName === 'img')
+    .map((node) => {
+      const url = imageNodeUrl(node, baseUrl);
+      const width = imageDimension(node, 'width');
+      const height = imageDimension(node, 'height');
+      return {
+        node,
+        url,
+        width,
+        height,
+        score: imageCandidateScore(url, node),
+      };
+    })
+    .filter((candidate) =>
+      isLikelyAnnouncementImageUrl(candidate.url, imageAttrText(candidate.node)) &&
+      isUsableAnnouncementImageSize(candidate.width, candidate.height)
+    )
+    .sort((a, b) => b.score - a.score);
+
+  return candidates[0]?.url || '';
 };
 
 const summarize = (value: string, title: string) => {
@@ -2316,6 +2412,7 @@ const applyAi = (candidate: Candidate, ai: Record<string, any> | null): Candidat
   const category = ['official', 'power', 'road'].includes(ai.category) ? ai.category : candidate.category;
   const startsAt = aiDateIso(ai.startsAt);
   const endsAt = aiDateIso(ai.endsAt);
+  const aiImageUrl = toAbsoluteUrl(candidate.sourceUrl, normalizeText(ai.imageUrl));
   return {
     ...candidate,
     category,
@@ -2325,7 +2422,7 @@ const applyAi = (candidate: Candidate, ai: Record<string, any> | null): Candidat
     district: districtFromText(`${normalizeText(ai.place)} ${candidate.title} ${candidate.summary}`) || candidate.district,
     statusLabel: normalizeText(ai.statusLabel) || candidate.statusLabel,
     scheduleLabel: normalizeText(ai.scheduleLabel) || candidate.scheduleLabel,
-    imageUrl: toAbsoluteUrl(candidate.sourceUrl, normalizeText(ai.imageUrl)) || candidate.imageUrl,
+    imageUrl: isLikelyAnnouncementImageUrl(aiImageUrl) ? aiImageUrl : candidate.imageUrl,
     startsAt: startsAt || candidate.startsAt,
     endsAt: endsAt || candidate.endsAt,
     confidence: Math.max(candidate.confidence, Number(ai.confidence || 0) || 0),
@@ -2370,9 +2467,51 @@ const findExistingAnnouncementId = async (candidate: Candidate, contentHash: str
   return String(result.rows[0]?.id || '');
 };
 
+const writeAnnouncementImageBuffer = async (
+  buffer: Buffer,
+  contentHash: string,
+  publishedAt: string,
+) => {
+  const [{ default: sharp }, fs, path] = await Promise.all([
+    import('sharp'),
+    import('node:fs/promises'),
+    import('node:path'),
+  ]);
+  const metadata = await sharp(buffer, { failOn: 'none' }).metadata();
+  const originalWidth = metadata.width || null;
+  const originalHeight = metadata.height || null;
+  if (!isUsableAnnouncementImageSize(originalWidth, originalHeight)) {
+    return { url: '', width: null as number | null, height: null as number | null };
+  }
+
+  const dateKey = (publishedAt || new Date().toISOString()).slice(0, 10);
+  const relativeDir = `${IMAGE_OUTPUT_ROOT}/${dateKey}`;
+  const fileName = `${contentHash.slice(0, 20)}.webp`;
+  const outputDir = path.join(process.cwd(), 'public', relativeDir);
+  const outputPath = path.join(outputDir, fileName);
+  const publicUrl = `/${relativeDir}/${fileName}`;
+
+  await fs.mkdir(outputDir, { recursive: true });
+  try {
+    await fs.stat(outputPath);
+    return { url: publicUrl, width: originalWidth, height: originalHeight };
+  } catch {
+    // File is not present yet.
+  }
+
+  const result = await sharp(buffer, { failOn: 'none' })
+    .rotate()
+    .resize({ width: 960, withoutEnlargement: true })
+    .webp({ quality: 78, effort: 4 })
+    .toFile(outputPath);
+
+  return { url: publicUrl, width: result.width || null, height: result.height || null };
+};
+
 const optimizeAnnouncementImage = async (candidate: Candidate, contentHash: string) => {
   const originalUrl = normalizeText(candidate.imageUrl);
   if (!originalUrl) return { url: '', width: null as number | null, height: null as number | null };
+  if (!isLikelyAnnouncementImageUrl(originalUrl)) return { url: '', width: null, height: null };
 
   try {
     const response = await fetch(originalUrl, {
@@ -2382,48 +2521,22 @@ const optimizeAnnouncementImage = async (candidate: Candidate, contentHash: stri
         'User-Agent': USER_AGENT,
       },
     });
-    if (!response.ok) return { url: originalUrl, width: null, height: null };
+    if (!response.ok) return { url: '', width: null, height: null };
     const contentType = response.headers.get('content-type') || '';
-    if (!contentType.startsWith('image/')) return { url: originalUrl, width: null, height: null };
+    if (!contentType.startsWith('image/')) return { url: '', width: null, height: null };
     const arrayBuffer = await response.arrayBuffer();
-    if (arrayBuffer.byteLength > 12 * 1024 * 1024) return { url: originalUrl, width: null, height: null };
+    if (arrayBuffer.byteLength > 12 * 1024 * 1024) return { url: '', width: null, height: null };
 
-    const [{ default: sharp }, fs, path] = await Promise.all([
-      import('sharp'),
-      import('node:fs/promises'),
-      import('node:path'),
-    ]);
-    const dateKey = (candidate.publishedAt || new Date().toISOString()).slice(0, 10);
-    const relativeDir = `${IMAGE_OUTPUT_ROOT}/${dateKey}`;
-    const fileName = `${contentHash.slice(0, 20)}.webp`;
-    const outputDir = path.join(process.cwd(), 'public', relativeDir);
-    const outputPath = path.join(outputDir, fileName);
-    const publicUrl = `/${relativeDir}/${fileName}`;
-
-    await fs.mkdir(outputDir, { recursive: true });
-    try {
-      await fs.stat(outputPath);
-      return { url: publicUrl, width: null, height: null };
-    } catch {
-      // File is not present yet.
-    }
-
-    const result = await sharp(Buffer.from(arrayBuffer), { failOn: 'none' })
-      .rotate()
-      .resize({ width: 960, withoutEnlargement: true })
-      .webp({ quality: 78, effort: 4 })
-      .toFile(outputPath);
-
-    return { url: publicUrl, width: result.width || null, height: result.height || null };
+    return writeAnnouncementImageBuffer(Buffer.from(arrayBuffer), contentHash, candidate.publishedAt);
   } catch {
-    return { url: originalUrl, width: null, height: null };
+    return { url: '', width: null, height: null };
   }
 };
 
 const saveCandidate = async (candidate: Candidate) => {
   const contentHash = candidateHash(candidate);
   const image = await optimizeAnnouncementImage(candidate, contentHash);
-  const imageUrl = image.url || candidate.imageUrl;
+  const imageUrl = image.url;
   const existingId = await findExistingAnnouncementId(candidate, contentHash);
   const values = [
     candidate.source.id,
@@ -2973,6 +3086,395 @@ const nullablePostIdValue = (value: unknown) => {
   return parsed;
 };
 
+const manualAnnouncementSource = (name = ''): AnnouncementSource => ({
+  id: '',
+  sourceKey: MANUAL_ANNOUNCEMENT_SOURCE_KEY,
+  name: normalizeText(name) || MANUAL_ANNOUNCEMENT_SOURCE_NAME,
+  sourceType: 'other',
+  categoryHint: 'official',
+  district: 'merkez',
+  websiteUrl: '',
+  listUrl: '',
+  socialUrl: '',
+  facebookUrl: '',
+  instagramUrl: '',
+  crawlStrategy: 'auto',
+  selectorConfig: {},
+  isActive: true,
+  crawlIntervalMinutes: DEFAULT_UPDATE_INTERVAL_MINUTES,
+  lastCheckedAt: '',
+  lastSuccessAt: '',
+  lastError: '',
+  sortOrder: 0,
+});
+
+const MANUAL_ANNOUNCEMENT_AI_SCHEMA = {
+  type: 'object',
+  properties: {
+    isPublishable: { type: 'boolean' },
+    contentType: { type: 'string' },
+    rejectReason: { type: 'string' },
+    category: { type: 'string', enum: ['official', 'power', 'road'] },
+    sourceName: { type: 'string' },
+    title: { type: 'string' },
+    summary: { type: 'string' },
+    body: { type: 'string' },
+    place: { type: 'string' },
+    district: { type: 'string' },
+    statusLabel: { type: 'string' },
+    scheduleLabel: { type: 'string' },
+    startsAt: { type: 'string' },
+    endsAt: { type: 'string' },
+    confidence: { type: 'number' },
+  },
+  required: ['isPublishable', 'contentType', 'category', 'title', 'summary', 'body', 'district', 'confidence'],
+};
+
+const parseManualAnnouncementAiJson = (value: string) => {
+  const clean = normalizeText(value);
+  if (!clean) return null;
+  const candidates = [
+    clean,
+    clean.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''),
+  ];
+  const objectStart = clean.indexOf('{');
+  const objectEnd = clean.lastIndexOf('}');
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    candidates.push(clean.slice(objectStart, objectEnd + 1));
+  }
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object') return parsed as Record<string, any>;
+    } catch {
+      // Try the next normalized shape.
+    }
+  }
+  return null;
+};
+
+const decodeManualAnnouncementImage = (input: Record<string, any>) => {
+  const raw = normalizeText(input.imageBase64 ?? input.image_base64);
+  if (!raw) return null;
+  const fileName = normalizeText(input.imageFileName ?? input.image_file_name);
+  const mimeType = normalizeText(input.imageMimeType ?? input.image_mime_type).split(';')[0] || 'image/jpeg';
+  if (!mimeType.startsWith('image/')) throw new Error('Duyuru görseli geçerli bir resim değil');
+  if (hasLogoImageSignal(fileName)) throw new Error('Logo/ikon duyuru görseli olarak eklenemez');
+
+  const base64 = raw.includes(',') ? raw.split(',').pop() || '' : raw;
+  const buffer = Buffer.from(base64, 'base64');
+  if (!buffer.byteLength) throw new Error('Duyuru görseli okunamadı');
+  if (buffer.byteLength > MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES) {
+    throw new Error('Duyuru görseli çok büyük');
+  }
+  return { buffer, mimeType, fileName };
+};
+
+const manualAnnouncementAiImagePart = async (
+  image: ReturnType<typeof decodeManualAnnouncementImage>,
+) => {
+  if (!image) return null;
+  try {
+    let buffer = image.buffer;
+    let mimeType = image.mimeType;
+    if (buffer.byteLength > MAX_AI_IMAGE_BYTES || !/^image\/(?:jpeg|jpg|png|webp)$/i.test(mimeType)) {
+      const { default: sharp } = await import('sharp');
+      buffer = await sharp(buffer, { failOn: 'none' })
+        .rotate()
+        .resize({ width: 1280, withoutEnlargement: true })
+        .jpeg({ quality: 72, mozjpeg: true })
+        .toBuffer();
+      mimeType = 'image/jpeg';
+    }
+    if (buffer.byteLength > MAX_AI_IMAGE_BYTES) return null;
+    return {
+      inlineData: {
+        mimeType,
+        data: buffer.toString('base64'),
+      },
+    };
+  } catch {
+    return null;
+  }
+};
+
+const generateManualAnnouncementAi = async (
+  settings: AiSettings,
+  input: {
+    text: string;
+    notes: string;
+    selectedDistrict: string;
+    selectedSourceName: string;
+    image: ReturnType<typeof decodeManualAnnouncementImage>;
+  },
+) => {
+  if (!settings.active || !settings.apiKey) {
+    throw new Error('Google AI aktif değil veya API anahtarı eksik');
+  }
+
+  const prompt = `
+Niğde yerel duyuru editörüsün. Kullanıcının manuel verdiği metni ve varsa görseldeki yazıları OCR ile okuyup sadece kanıtlanan bilgiyle JSON'a çevir.
+Yeni bilgi uydurma. Metinde veya görselde yoksa alanı boş bırak. Kişi/kurum adı, tarih, mahalle, ilçe ve hizmet bilgisini tahmin etme.
+
+Yayın kararı çok sıkı olsun:
+- Elektrik kesintisi/arıza/bakım, su kesintisi, yol kapanması/trafik/güzergah, meteorolojik uyarı, valilik/kaymakamlık kamu düzeni kararı, belediye şehir hizmeti kesintisi, LGS/YKS/KPSS gibi şehir geneli sınav ulaşım/nüfus hizmeti, üreticiye resmi tarım uyarısı veya resmi hibe/son başvuru duyurusu varsa isPublishable true.
+- Üniversite görev talebi, kurum içi/personel duyurusu, genel etkinlik/tanıtım, bilimsel kongre, kurs/sergi haberi, kutlama, tebrik, anma, resmi ilan, ihale, personel/staj alımı, genel haber, liste/arşiv metni veya Niğde ilgisi kanıtlanmayan içerikte isPublishable false.
+- Kategori sadece official, power veya road olabilir.
+- road sadece yol kapanması, trafik, güzergah veya yol çalışması kanıtlıysa kullan.
+- power sadece elektrik kesintisi/arıza/bakım/trafo/şebeke bilgisi kanıtlıysa kullan.
+- Başlık kısa, açık ve duyurunun etkisini anlatan Türkçe bir başlık olsun.
+- Özet tek cümle veya iki kısa cümle olsun; kaynağın söylemediği sonucu ekleme.
+- Body alanı görsel/metindeki kanıtı korusun ama 900 karakteri geçmesin.
+
+Seçili ilçe: ${input.selectedDistrict || 'AI belirlesin'}
+Girilen kaynak/kurum: ${input.selectedSourceName || 'Belirtilmedi'}
+Ek not:
+${input.notes.slice(0, 1200) || '-'}
+
+Manuel metin:
+${input.text.slice(0, 5000) || '-'}
+
+JSON alanları:
+isPublishable, contentType, rejectReason, category, sourceName, title, summary, body, place, district, statusLabel, scheduleLabel, startsAt, endsAt, confidence
+  `;
+  const imagePart = await manualAnnouncementAiImagePart(input.image);
+  if (!input.text && input.image && !imagePart) {
+    throw new Error('Görsel AI tarafından okunacak boyuta indirilemedi');
+  }
+
+  const payload = {
+    contents: [{ parts: [{ text: prompt }, ...(imagePart ? [imagePart] : [])] }],
+    generationConfig: {
+      temperature: 0.05,
+      topK: 12,
+      topP: 0.7,
+      maxOutputTokens: 4096,
+      responseMimeType: 'application/json',
+      responseSchema: MANUAL_ANNOUNCEMENT_AI_SCHEMA,
+    },
+  };
+
+  const call = async (apiVersion: 'v1beta' | 'v1', modelId: string) => {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(settings.apiKey)}`,
+      {
+        method: 'POST',
+        signal: AbortSignal.timeout(MANUAL_GEMINI_TIMEOUT_MS),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.error) {
+      return {
+        ok: false as const,
+        status: response.status,
+        message: data?.error?.message || `Gemini HTTP ${response.status}`,
+      };
+    }
+    return { ok: true as const, data };
+  };
+
+  const queue = geminiFastModelAttempts(settings.model || 'gemini-2.5-flash');
+  let lastError = '';
+
+  for (const model of queue) {
+    let result = await call('v1beta', model);
+    if (!result.ok && result.status === 404) result = await call('v1', model);
+    if (result.ok) {
+      const candidate = result.data?.candidates?.[0];
+      const text = Array.isArray(candidate?.content?.parts)
+        ? candidate.content.parts.map((part: any) => String(part?.text || '')).join('')
+        : '';
+      const parsed = parseManualAnnouncementAiJson(text);
+      if (parsed) return parsed;
+      const finishReason = normalizeText(candidate?.finishReason);
+      lastError = finishReason
+        ? `Gemini cevabı tamamlanmadı veya JSON okunamadı (${finishReason})`
+        : 'Gemini boş veya okunamayan JSON döndürdü';
+      continue;
+    }
+    lastError = result.message;
+    if (!isGeminiFallbackWorthTrying(result.status, result.message)) break;
+  }
+
+  throw new Error(lastError ? `AI duyuruyu işleyemedi: ${lastError}` : 'AI duyuruyu işleyemedi');
+};
+
+const manualAnnouncementContentHash = (candidate: Candidate) =>
+  hash([
+    'manual',
+    trLower(candidate.source.name),
+    trLower(candidate.title),
+    trLower(candidate.summary),
+    trLower(candidate.body).slice(0, 1600),
+    candidate.startsAt.slice(0, 10),
+    candidate.endsAt.slice(0, 10),
+  ].join('|'));
+
+const upsertManualAnnouncementCandidate = async (
+  candidate: Candidate,
+  image: ReturnType<typeof decodeManualAnnouncementImage>,
+) => {
+  const contentHash = manualAnnouncementContentHash(candidate);
+  const existing = await dbQuery(
+    `SELECT id, image_url
+     FROM public.announcements
+     WHERE content_hash = $1
+     LIMIT 1`,
+    [contentHash],
+  );
+  const imageResult = image
+    ? await writeAnnouncementImageBuffer(image.buffer, contentHash, candidate.publishedAt)
+    : { url: '', width: null as number | null, height: null as number | null };
+  if (image && !imageResult.url) {
+    throw new Error('Duyuru görseli gerçek duyuru görseli olarak doğrulanamadı');
+  }
+  const imageUrl = imageResult.url;
+  const oldImageUrl = String(existing.rows[0]?.image_url || '');
+
+  const result = await dbQuery(
+    `INSERT INTO public.announcements
+       (source_id, source_key, source_name, category, district, title, summary, body, place,
+        time_label, published_at, starts_at, ends_at, status_label, schedule_label, image_url,
+        source_url, canonical_url, content_hash, raw_payload, ai_payload, confidence, is_active)
+     VALUES
+       (NULL, $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13, $14, $15,
+        '', '', $16, $17::jsonb, $18::jsonb, $19, TRUE)
+     ON CONFLICT (content_hash) DO UPDATE SET
+       source_name = EXCLUDED.source_name,
+       category = EXCLUDED.category,
+       district = EXCLUDED.district,
+       title = EXCLUDED.title,
+       summary = EXCLUDED.summary,
+       body = EXCLUDED.body,
+       place = EXCLUDED.place,
+       time_label = EXCLUDED.time_label,
+       published_at = EXCLUDED.published_at,
+       starts_at = EXCLUDED.starts_at,
+       ends_at = EXCLUDED.ends_at,
+       status_label = EXCLUDED.status_label,
+       schedule_label = EXCLUDED.schedule_label,
+       image_url = EXCLUDED.image_url,
+       raw_payload = EXCLUDED.raw_payload,
+       ai_payload = EXCLUDED.ai_payload,
+       confidence = EXCLUDED.confidence,
+       is_active = TRUE,
+       updated_at = now()
+     RETURNING id`,
+    [
+      candidate.source.sourceKey,
+      candidate.source.name,
+      candidate.category,
+      candidate.district,
+      candidate.title,
+      candidate.summary,
+      candidate.body,
+      candidate.place,
+      displayTimeLabel(candidate.publishedAt),
+      candidate.publishedAt,
+      nullableDateValue(candidate.startsAt),
+      nullableDateValue(candidate.endsAt),
+      candidate.statusLabel,
+      candidate.scheduleLabel,
+      imageUrl,
+      contentHash,
+      JSON.stringify(candidate.rawPayload),
+      JSON.stringify(candidate.aiPayload || {}),
+      candidate.confidence,
+    ],
+  );
+  const id = String(result.rows[0]?.id || '');
+  if (!id) throw new Error('Duyuru kaydedilemedi');
+  if (oldImageUrl && oldImageUrl !== imageUrl) {
+    await dbQuery(
+      `DELETE FROM public.announcement_media
+       WHERE announcement_id = $1 AND url = $2`,
+      [id, oldImageUrl],
+    );
+    await deleteLocalAnnouncementImageFiles([oldImageUrl]);
+  }
+  if (imageUrl) {
+    await dbQuery(
+      `INSERT INTO public.announcement_media (announcement_id, url, alt_text, source_url, width, height)
+       VALUES ($1, $2, $3, '', $4, $5)
+       ON CONFLICT (announcement_id, url) DO UPDATE SET
+         alt_text = EXCLUDED.alt_text,
+         width = EXCLUDED.width,
+         height = EXCLUDED.height`,
+      [id, imageUrl, candidate.title, imageResult.width, imageResult.height],
+    );
+  }
+  return id;
+};
+
+export async function createManualAnnouncementWithAi(input: Record<string, any>) {
+  const text = normalizeText(input.text ?? input.content ?? input.body);
+  const notes = normalizeText(input.notes);
+  const selectedDistrict = normalizeText(input.district);
+  const selectedSourceName = normalizeText(input.sourceName ?? input.source_name);
+  const image = decodeManualAnnouncementImage(input);
+  if (!text && !image) throw new Error('Duyuru metni veya görsel gerekli');
+
+  const settings = await fetchAiSettings();
+  const ai = await generateManualAnnouncementAi(settings, {
+    text,
+    notes,
+    selectedDistrict,
+    selectedSourceName,
+    image,
+  });
+  if (!ai) throw new Error('AI duyuruyu işleyemedi');
+  const rejectReason = aiRejectReason(ai);
+  if (rejectReason) throw new Error(`AI duyuruyu uygun bulmadı: ${rejectReason}`);
+
+  const publishedAt = new Date().toISOString();
+  const aiBody = normalizeText(ai.body) || text;
+  const body = text && !aiBody.includes(text) ? `${aiBody}\n\n${text}` : aiBody;
+  const title = normalizeText(ai.title);
+  if (!title) throw new Error('AI duyuru başlığı üretemedi');
+  const summary = summarize(normalizeText(ai.summary) || body, title);
+  const eventWindow = extractEventWindow(`${title} ${summary} ${body}`, publishedAt);
+  const startsAt = aiDateIso(ai.startsAt) || eventWindow.startsAt;
+  const endsAt = aiDateIso(ai.endsAt) || eventWindow.endsAt;
+  const sourceName = normalizeText(ai.sourceName) || selectedSourceName || MANUAL_ANNOUNCEMENT_SOURCE_NAME;
+  const district = districtFromText(`${normalizeText(ai.district)} ${normalizeText(ai.place)} ${title} ${summary} ${body}`) ||
+    normalizeDistrict(selectedDistrict || ai.district);
+  const candidate: Candidate = {
+    source: manualAnnouncementSource(sourceName),
+    title,
+    summary,
+    body,
+    place: normalizeText(ai.place) || districtLabel(district),
+    district,
+    publishedAt,
+    startsAt,
+    endsAt,
+    statusLabel: normalizeText(ai.statusLabel) || 'Yayında',
+    scheduleLabel: normalizeText(ai.scheduleLabel),
+    imageUrl: image ? 'manual-upload' : '',
+    sourceUrl: '',
+    canonicalUrl: '',
+    category: validCategory(ai.category),
+    confidence: Math.max(0.72, Math.min(1, Number(ai.confidence || 0) || 0)),
+    rawPayload: {
+      source: 'manual-admin',
+      text,
+      notes,
+      imageFileName: image?.fileName || '',
+    },
+    aiPayload: ai,
+  };
+
+  const decision = publicationDecision(candidate);
+  if (!decision.ok) throw new Error(`Duyuru şehir için uygun bulunmadı: ${decision.reason}`);
+  if (!isCandidateCurrent(candidate)) throw new Error('Duyuru tarihi güncel değil');
+
+  const id = await upsertManualAnnouncementCandidate(candidate, image);
+  return getAdminAnnouncementById(id);
+}
+
 export async function updateAnnouncement(input: Record<string, any>) {
   const id = normalizeText(input.id);
   if (!id) throw new Error('Duyuru id gerekli');
@@ -3035,24 +3537,117 @@ export async function setAnnouncementActive(id: string, isActive: boolean) {
   return getAdminAnnouncementById(String(result.rows[0].id || id));
 }
 
+const localAnnouncementObjectPathFromUrl = (value: string) => {
+  const clean = normalizeText(value);
+  if (!clean) return '';
+  let pathname = clean;
+  try {
+    const parsed = new URL(clean);
+    const host = parsed.hostname.replace(/^www\./, '');
+    const isLocalHost = ['pateez.com', 'localhost', '127.0.0.1'].includes(host);
+    const isLocalAnnouncementPath =
+      parsed.pathname.includes('/local-upload/announcements/') ||
+      parsed.pathname.includes('/api/storage/file/image/announcements/');
+    if (!isLocalHost && !isLocalAnnouncementPath) return '';
+    pathname = parsed.pathname;
+  } catch {
+    // Relative local paths are handled below.
+  }
+  let normalized = pathname.replace(/\\/g, '/').replace(/^\/+/, '');
+  try {
+    normalized = decodeURIComponent(normalized);
+  } catch {
+    // Keep the original normalized value when the URL is not decodable.
+  }
+  normalized = normalized
+    .replace(/^api\/storage\/file\/image\//, '')
+    .replace(/^local-upload\//, '');
+  if (!normalized.startsWith('announcements/')) return '';
+  if (normalized.split('/').includes('..')) return '';
+  return normalized;
+};
+
+const deleteLocalAnnouncementImageFiles = async (urls: string[]) => {
+  const objectPaths = [...new Set(urls.map(localAnnouncementObjectPathFromUrl).filter(Boolean))];
+  if (!objectPaths.length) return [] as string[];
+
+  const [fs, path] = await Promise.all([import('node:fs/promises'), import('node:path')]);
+  const uploadRoot = path.resolve(process.cwd(), 'public', 'local-upload');
+  const announcementRoot = path.resolve(uploadRoot, 'announcements');
+  const deleted: string[] = [];
+
+  const isInside = (base: string, target: string) => {
+    const relative = path.relative(base, target);
+    return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+  };
+
+  for (const objectPath of objectPaths) {
+    const absolutePath = path.resolve(uploadRoot, objectPath);
+    if (!isInside(announcementRoot, absolutePath)) continue;
+    try {
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isFile()) continue;
+      await fs.unlink(absolutePath);
+      deleted.push(`/local-upload/${objectPath}`);
+
+      let directory = path.dirname(absolutePath);
+      while (isInside(announcementRoot, directory) && directory !== announcementRoot) {
+        try {
+          await fs.rmdir(directory);
+          directory = path.dirname(directory);
+        } catch {
+          break;
+        }
+      }
+    } catch {
+      // Missing local files are already clean; remote URLs are ignored.
+    }
+  }
+
+  return deleted;
+};
+
 export async function deleteAnnouncement(id: string) {
-  const result = await dbQuery(`DELETE FROM public.announcements WHERE id = $1 RETURNING id`, [id]);
-  if (!result.rows[0]) throw new Error('Duyuru bulunamadı');
-  return { id: String(result.rows[0].id || id) };
+  const result = await deleteAnnouncements([id]);
+  if (!result.ids.length) throw new Error('Duyuru bulunamadı');
+  return { id: String(result.ids[0] || id) };
 }
 
 export async function deleteAnnouncements(ids: string[]) {
   const cleanIds = ids
     .map((id) => String(id || '').trim())
     .filter((id) => id.length > 0);
-  if (!cleanIds.length) return { count: 0, ids: [] as string[] };
-  const result = await dbQuery(
-    `DELETE FROM public.announcements WHERE id = ANY($1::uuid[]) RETURNING id`,
+  if (!cleanIds.length) return { count: 0, ids: [] as string[], mediaCount: 0, deletedFiles: 0 };
+  const mediaUrls = await dbQuery(
+    `SELECT image_url AS url
+     FROM public.announcements
+     WHERE id = ANY($1::uuid[]) AND NULLIF(image_url, '') IS NOT NULL
+     UNION
+     SELECT url
+     FROM public.announcement_media
+     WHERE announcement_id = ANY($1::uuid[]) AND NULLIF(url, '') IS NOT NULL`,
     [cleanIds],
   );
+  const deletedMedia = await dbQuery(
+    `DELETE FROM public.announcement_media
+     WHERE announcement_id = ANY($1::uuid[])
+     RETURNING url`,
+    [cleanIds],
+  );
+  const result = await dbQuery(
+    `DELETE FROM public.announcements WHERE id = ANY($1::uuid[]) RETURNING id, image_url`,
+    [cleanIds],
+  );
+  const deletedFiles = await deleteLocalAnnouncementImageFiles([
+    ...mediaUrls.rows.map((row) => String(row.url || '')),
+    ...deletedMedia.rows.map((row) => String(row.url || '')),
+    ...result.rows.map((row) => String(row.image_url || '')),
+  ]);
   return {
     count: Number(result.rowCount || 0),
     ids: result.rows.map((row) => String(row.id || '')),
+    mediaCount: Number(deletedMedia.rowCount || 0),
+    deletedFiles: deletedFiles.length,
   };
 }
 

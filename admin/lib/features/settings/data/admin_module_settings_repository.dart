@@ -1282,6 +1282,41 @@ class AnnouncementPreviewItem {
   }
 }
 
+class ManualAnnouncementAiRequest {
+  const ManualAnnouncementAiRequest({
+    required this.text,
+    required this.notes,
+    required this.district,
+    required this.sourceName,
+    this.imageBytes,
+    this.imageFileName = '',
+    this.imageMimeType = '',
+  });
+
+  final String text;
+  final String notes;
+  final String district;
+  final String sourceName;
+  final Uint8List? imageBytes;
+  final String imageFileName;
+  final String imageMimeType;
+
+  Map<String, Object?> toJson() {
+    final bytes = imageBytes;
+    return {
+      'text': text.trim(),
+      'notes': notes.trim(),
+      'district': district.trim(),
+      'sourceName': sourceName.trim(),
+      if (bytes != null && bytes.isNotEmpty) ...{
+        'imageBase64': base64Encode(bytes),
+        'imageFileName': imageFileName.trim(),
+        'imageMimeType': imageMimeType.trim(),
+      },
+    };
+  }
+}
+
 class AnnouncementRunData {
   const AnnouncementRunData({
     required this.id,
@@ -1426,6 +1461,11 @@ abstract class AdminModuleSettingsRepository {
     required AnnouncementPreviewItem announcement,
   });
 
+  Future<AnnouncementPreviewItem> createManualAnnouncementWithAi({
+    required AdminSession session,
+    required ManualAnnouncementAiRequest request,
+  });
+
   Future<AnnouncementPreviewItem> setAnnouncementActive({
     required AdminSession session,
     required String id,
@@ -1458,6 +1498,7 @@ class SupabaseAdminModuleSettingsRepository
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 18);
+  static const _manualAnnouncementAiTimeout = Duration(seconds: 60);
 
   final http.Client? httpClient;
   final String? apiBaseUrl;
@@ -1732,6 +1773,23 @@ class SupabaseAdminModuleSettingsRepository
   }
 
   @override
+  Future<AnnouncementPreviewItem> createManualAnnouncementWithAi({
+    required AdminSession session,
+    required ManualAnnouncementAiRequest request,
+  }) async {
+    final result = await _postJson('/api/admin/announcements/items', {
+      'action': 'createManualAi',
+      'values': request.toJson(),
+    }, timeout: _manualAnnouncementAiTimeout);
+    _throwIfApiError(result, fallbackMessage: 'Manuel duyuru eklenemedi');
+    final data = result['data'];
+    if (data is! Map) {
+      throw const AdminModuleSettingsException('Manuel duyuru alınamadı');
+    }
+    return AnnouncementPreviewItem.fromJson(_asStringKeyMap(data));
+  }
+
+  @override
   Future<AnnouncementPreviewItem> setAnnouncementActive({
     required AdminSession session,
     required String id,
@@ -1896,8 +1954,10 @@ class SupabaseAdminModuleSettingsRepository
 
   Future<Map<String, Object?>> _postJson(
     String path,
-    Map<String, Object?> body,
-  ) async {
+    Map<String, Object?> body, {
+    Duration? timeout,
+  }) async {
+    final effectiveTimeout = timeout ?? _requestTimeout;
     final response =
         await (httpClient?.post(
                   _uri(path),
@@ -1909,7 +1969,7 @@ class SupabaseAdminModuleSettingsRepository
                   headers: await adminJsonHeaders(),
                   body: jsonEncode(body),
                 ))
-            .timeout(_requestTimeout);
+            .timeout(effectiveTimeout);
     final decoded = response.body.isEmpty
         ? <String, Object?>{}
         : jsonDecode(response.body);

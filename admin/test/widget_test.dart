@@ -3178,6 +3178,40 @@ class _FakeAdminModuleSettingsRepository
   }
 
   @override
+  Future<AnnouncementPreviewItem> createManualAnnouncementWithAi({
+    required AdminSession session,
+    required ManualAnnouncementAiRequest request,
+  }) async {
+    final announcement = AnnouncementPreviewItem(
+      id: 'manual-ai',
+      category: 'official',
+      district: request.district.isEmpty ? 'merkez' : request.district,
+      source: request.sourceName.isEmpty ? 'Manuel Duyuru' : request.sourceName,
+      sourceKey: 'manual-admin',
+      title: 'Manuel duyuru',
+      summary: request.text,
+      body: request.text,
+      place: 'Niğde geneli',
+      timeLabel: 'Bugün',
+      statusLabel: 'Yayında',
+      scheduleLabel: '',
+      imageUrl: '',
+      sourceUrl: '',
+      canonicalUrl: '',
+      linkedPostId: '',
+      linkedPostTitle: '',
+      linkedPostSlug: '',
+      linkedPostThumbnailUrl: '',
+      publishedAt: '2026-06-21T00:00:00.000Z',
+      startsAt: '',
+      endsAt: '',
+      isActive: true,
+    );
+    savedAnnouncement = announcement;
+    return announcement;
+  }
+
+  @override
   Future<AnnouncementPreviewItem> setAnnouncementActive({
     required AdminSession session,
     required String id,

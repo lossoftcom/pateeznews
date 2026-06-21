@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
@@ -210,6 +212,38 @@ class _AnnouncementsSettingsScreenState
     }
   }
 
+  Future<void> _openManualAnnouncementAiDialog() async {
+    final saved = await showDialog<AnnouncementPreviewItem>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (context) => _ManualAnnouncementAiDialog(
+        onCreate: (request) => widget.repository.createManualAnnouncementWithAi(
+          session: widget.session,
+          request: request,
+        ),
+      ),
+    );
+    if (!mounted || saved == null) return;
+
+    setState(() => _saving = true);
+    try {
+      final announcements = await widget.repository.fetchAnnouncementPreview();
+      if (!mounted) return;
+      setState(() {
+        _preview = _preview.copyWith(
+          announcements: announcements.announcements,
+        );
+        _selectedAnnouncementIds.clear();
+        _saving = false;
+      });
+      _showMessage('Manuel duyuru AI ile eklendi');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showMessage('Manuel duyuru eklenemedi: $error');
+    }
+  }
+
   Future<void> _setAnnouncementActive(
     AnnouncementPreviewItem item,
     bool isActive,
@@ -323,11 +357,25 @@ class _AnnouncementsSettingsScreenState
 
   Widget _announcementTabTrailing() {
     if (_selectedAnnouncementIds.isEmpty) {
-      return _PrimaryButton(
-        label: _refreshing ? 'Taranıyor' : 'Veriyi Yenile',
-        icon: Symbols.schedule_send,
-        enabled: !_refreshing,
-        onPressed: _refresh,
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _PrimaryButton(
+            label: 'Duyuru ekle',
+            icon: Symbols.auto_awesome,
+            enabled: !_saving && !_refreshing,
+            onPressed: _openManualAnnouncementAiDialog,
+            backgroundColor: AppColors.warmHorizon,
+          ),
+          _PrimaryButton(
+            label: _refreshing ? 'Taranıyor' : 'Veriyi Yenile',
+            icon: Symbols.schedule_send,
+            enabled: !_refreshing,
+            onPressed: _refresh,
+          ),
+        ],
       );
     }
 
@@ -810,6 +858,22 @@ class _PreviewPanelState extends State<_PreviewPanel> {
   @override
   Widget build(BuildContext context) {
     final visible = _filteredAnnouncements();
+    final displayed = visible.take(120).toList(growable: false);
+    final displayedIds = displayed
+        .map((item) => item.id)
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    final selectedDisplayedCount = displayedIds
+        .where(widget.selectedIds.contains)
+        .length;
+    final allDisplayedSelected =
+        displayedIds.isNotEmpty &&
+        selectedDisplayedCount == displayedIds.length;
+    final selectAllValue = allDisplayedSelected
+        ? true
+        : selectedDisplayedCount > 0
+        ? null
+        : false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -882,7 +946,18 @@ class _PreviewPanelState extends State<_PreviewPanel> {
         else
           Column(
             children: [
-              for (final item in visible.take(120))
+              _PreviewSelectAllRow(
+                value: selectAllValue,
+                totalCount: displayedIds.length,
+                selectedCount: selectedDisplayedCount,
+                onChanged: (selected) {
+                  for (final id in displayedIds) {
+                    widget.onToggleSelection(id, selected);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              for (final item in displayed)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _PreviewAnnouncement(
@@ -946,6 +1021,936 @@ class _PreviewPanelState extends State<_PreviewPanel> {
       }
     });
   }
+}
+
+class _PreviewSelectAllRow extends StatelessWidget {
+  const _PreviewSelectAllRow({
+    required this.value,
+    required this.totalCount,
+    required this.selectedCount,
+    required this.onChanged,
+  });
+
+  final bool? value;
+  final int totalCount;
+  final int selectedCount;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            tristate: true,
+            value: value,
+            onChanged: totalCount == 0 ? null : (_) => onChanged(value != true),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Tümünü seç',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            selectedCount > 0
+                ? '$selectedCount / $totalCount seçildi'
+                : '$totalCount öğe',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.inkSoft,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualAnnouncementAiDialog extends StatefulWidget {
+  const _ManualAnnouncementAiDialog({required this.onCreate});
+
+  final Future<AnnouncementPreviewItem> Function(
+    ManualAnnouncementAiRequest request,
+  )
+  onCreate;
+
+  @override
+  State<_ManualAnnouncementAiDialog> createState() =>
+      _ManualAnnouncementAiDialogState();
+}
+
+class _ManualAnnouncementAiDialogState
+    extends State<_ManualAnnouncementAiDialog> {
+  static const _maxImageBytes = 8 * 1024 * 1024;
+
+  final _textController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _sourceController = TextEditingController();
+  var _district = '';
+  Uint8List? _imageBytes;
+  var _imageFileName = '';
+  var _imageMimeType = '';
+  var _working = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _notesController.dispose();
+    _sourceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    if (_working) return;
+    final file = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Duyuru görseli',
+          extensions: ['jpg', 'jpeg', 'png', 'webp'],
+        ),
+      ],
+    );
+    if (file == null) return;
+    final length = await file.length();
+    if (length > _maxImageBytes) {
+      setState(() => _error = 'Görsel 8 MB sınırını aşmamalı.');
+      return;
+    }
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _imageBytes = bytes;
+      _imageFileName = file.name;
+      _imageMimeType = _imageMimeTypeForName(file.name);
+      _error = null;
+    });
+  }
+
+  void _removeImage() {
+    if (_working) return;
+    setState(() {
+      _imageBytes = null;
+      _imageFileName = '';
+      _imageMimeType = '';
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_working) return;
+    final text = _textController.text.trim();
+    if (text.isEmpty && (_imageBytes == null || _imageBytes!.isEmpty)) {
+      setState(() => _error = 'Duyuru metni veya görsel eklenmeli.');
+      return;
+    }
+    setState(() {
+      _working = true;
+      _error = null;
+    });
+    try {
+      final saved = await widget.onCreate(
+        ManualAnnouncementAiRequest(
+          text: text,
+          notes: _notesController.text,
+          district: _district,
+          sourceName: _sourceController.text,
+          imageBytes: _imageBytes,
+          imageFileName: _imageFileName,
+          imageMimeType: _imageMimeType,
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(saved);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _working = false;
+        _error = error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final horizontalInset = size.width < 720 ? 16.0 : 48.0;
+    final verticalInset = size.height < 700 ? 16.0 : 42.0;
+    final availableWidth = size.width - (horizontalInset * 2);
+    final availableHeight = size.height - (verticalInset * 2);
+    final dialogWidth =
+        (size.width < 1060
+                ? availableWidth
+                : (size.width * 0.66).clamp(920.0, 1120.0))
+            .clamp(0.0, availableWidth)
+            .toDouble();
+    final dialogHeight =
+        (size.height < 700
+                ? availableHeight
+                : (size.height * 0.70).clamp(560.0, 640.0))
+            .clamp(0.0, availableHeight)
+            .toDouble();
+
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: horizontalInset,
+        vertical: verticalInset,
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SizedBox(
+        width: dialogWidth,
+        height: dialogHeight,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 30,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  _ManualAiHeader(
+                    onClose: _working
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final railLayout = constraints.maxWidth >= 860;
+                          final form = _buildForm();
+                          final side = _buildSidePanel();
+                          if (!railLayout) {
+                            return SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  form,
+                                  const SizedBox(height: 16),
+                                  side,
+                                ],
+                              ),
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(flex: 5, child: form),
+                              const SizedBox(width: 20),
+                              SizedBox(
+                                width: constraints.maxWidth < 1040 ? 330 : 360,
+                                child: side,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  if (_error != null) _ManualAiError(message: _error!),
+                  _ManualAiFooter(
+                    working: _working,
+                    onClose: _working
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    onSubmit: _working ? null : () => unawaited(_submit()),
+                  ),
+                ],
+              ),
+              if (_working) const _ManualAiOverlay(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 600;
+            final district = _ManualAiSelect(
+              label: 'Duyuru kapsamı',
+              icon: Symbols.location_on_rounded,
+              value: _district,
+              items: const [
+                DropdownMenuItem(value: '', child: Text('AI belirlesin')),
+                DropdownMenuItem(value: 'merkez', child: Text('Merkez')),
+                DropdownMenuItem(
+                  value: 'altunhisar',
+                  child: Text('Altunhisar'),
+                ),
+                DropdownMenuItem(value: 'bor', child: Text('Bor')),
+                DropdownMenuItem(value: 'camardi', child: Text('Çamardı')),
+                DropdownMenuItem(value: 'ciftlik', child: Text('Çiftlik')),
+                DropdownMenuItem(value: 'ulukisla', child: Text('Ulukışla')),
+              ],
+              onChanged: (value) => setState(() => _district = value ?? ''),
+            );
+            final source = _ManualAiTextField(
+              label: 'Kaynak / kurum',
+              icon: Symbols.article,
+              controller: _sourceController,
+              hintText: 'Örn: Niğde Belediyesi, Valilik, MEDAŞ...',
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [district, const SizedBox(height: 14), source],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: district),
+                const SizedBox(width: 18),
+                Expanded(child: source),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        _ManualAiTextField(
+          label: 'Duyuru metni',
+          icon: Symbols.auto_awesome,
+          controller: _textController,
+          hintText:
+              'Kesinti, yol kapanması, meteorolojik uyarı, valilik/belediye duyurusu gibi ham duyuru metnini buraya yazın...',
+          minLines: 8,
+          maxLines: 10,
+        ),
+        const SizedBox(height: 14),
+        _ManualAiTextField(
+          label: 'AI talimatları / notlar',
+          icon: Symbols.short_text,
+          controller: _notesController,
+          hintText:
+              'Örn: mahalle isimlerini özellikle koru, tarihleri olduğu gibi al, görseldeki metni de oku...',
+          minLines: 3,
+          maxLines: 3,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSidePanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ManualAiImagePanel(
+          imageBytes: _imageBytes,
+          imageFileName: _imageFileName,
+          onPick: _pickImage,
+          onRemove: _imageBytes == null ? null : _removeImage,
+        ),
+        const SizedBox(height: 14),
+        const _ManualAiRulePanel(),
+      ],
+    );
+  }
+}
+
+class _ManualAiHeader extends StatelessWidget {
+  const _ManualAiHeader({required this.onClose});
+
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(28, 18, 20, 18),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.line.withValues(alpha: 0.55)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: const SymbolIcon(
+              Symbols.auto_awesome,
+              size: 18,
+              color: AppColors.actionRed,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Yapay Zeka Duyuru Ekle',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const _ManualAiReadyBadge(),
+          const SizedBox(width: 12),
+          Tooltip(
+            message: 'Kapat',
+            child: InkWell(
+              onTap: onClose,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: SymbolIcon(
+                  Symbols.close,
+                  size: 20,
+                  color: onClose == null
+                      ? AppColors.iconMuted.withValues(alpha: 0.45)
+                      : AppColors.iconMuted,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualAiReadyBadge extends StatelessWidget {
+  const _ManualAiReadyBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE7F5EC),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: const Color(0xFFB7E1C2)),
+      ),
+      child: const Text(
+        'Google AI Ready',
+        style: TextStyle(
+          color: Color(0xFF1F8B3D),
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    );
+  }
+}
+
+class _ManualAiTextField extends StatelessWidget {
+  const _ManualAiTextField({
+    required this.label,
+    required this.icon,
+    required this.controller,
+    required this.hintText,
+    this.minLines,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final IconData icon;
+  final TextEditingController controller;
+  final String hintText;
+  final int? minLines;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ManualAiLabel(label: label, icon: icon),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.95)),
+          ),
+          child: TextField(
+            controller: controller,
+            minLines: minLines,
+            maxLines: maxLines,
+            cursorColor: AppColors.deepOcean,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0,
+            ),
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: const TextStyle(
+                color: AppColors.placeholder,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w400,
+                letterSpacing: 0,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualAiSelect extends StatelessWidget {
+  const _ManualAiSelect({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ManualAiLabel(label: label, icon: icon),
+        Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.95)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              icon: const SymbolIcon(
+                Symbols.keyboard_arrow_down,
+                size: 18,
+                color: AppColors.inkSoft,
+              ),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualAiLabel extends StatelessWidget {
+  const _ManualAiLabel({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 2),
+      child: Row(
+        children: [
+          SymbolIcon(icon, size: 13, color: AppColors.inkSoft),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.inkSoft,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualAiImagePanel extends StatelessWidget {
+  const _ManualAiImagePanel({
+    required this.imageBytes,
+    required this.imageFileName,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final Uint8List? imageBytes;
+  final String imageFileName;
+  final VoidCallback onPick;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = imageBytes;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _ManualAiLabel(
+          label: 'Duyuru görseli',
+          icon: Symbols.image_outlined,
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  child: Container(
+                    color: Colors.white,
+                    child: bytes == null
+                        ? const Center(
+                            child: SymbolIcon(
+                              Symbols.image_outlined,
+                              size: 34,
+                              color: AppColors.iconMuted,
+                            ),
+                          )
+                        : Image.memory(bytes, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                imageFileName.isEmpty ? 'Görsel seçilmedi' : imageFileName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _ManualAiSmallButton(
+                    label: bytes == null ? 'Resim Ekle' : 'Resmi Değiştir',
+                    icon: Symbols.upload,
+                    onTap: onPick,
+                    filled: true,
+                  ),
+                  if (bytes != null)
+                    _ManualAiSmallButton(
+                      label: 'Kaldır',
+                      icon: Symbols.close,
+                      onTap: onRemove,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualAiRulePanel extends StatelessWidget {
+  const _ManualAiRulePanel();
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['Şehir etkisi', 'Tarih/konum', 'Kategori', 'Logo engeli'];
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'AI kontrol alanları',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final label in labels)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                    border: Border.all(
+                      color: AppColors.line.withValues(alpha: 0.9),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SymbolIcon(
+                        Symbols.check,
+                        size: 14,
+                        color: Color(0xFF1F8B3D),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.deepOcean,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualAiSmallButton extends StatelessWidget {
+  const _ManualAiSmallButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: TextButton.icon(
+        onPressed: onTap,
+        icon: SymbolIcon(icon, size: 15),
+        label: Text(label),
+        style: TextButton.styleFrom(
+          backgroundColor: filled ? AppColors.deepOcean : Colors.white,
+          foregroundColor: filled ? Colors.white : AppColors.deepOcean,
+          side: BorderSide(color: AppColors.line.withValues(alpha: 0.9)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.value),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          textStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManualAiFooter extends StatelessWidget {
+  const _ManualAiFooter({
+    required this.working,
+    required this.onClose,
+    required this.onSubmit,
+  });
+
+  final bool working;
+  final VoidCallback? onClose;
+  final VoidCallback? onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(28, 16, 28, 18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          top: BorderSide(color: AppColors.line.withValues(alpha: 0.55)),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final close = _ManualAiSmallButton(
+            label: 'Kapat',
+            icon: Symbols.close,
+            onTap: onClose,
+          );
+          final submit = _ManualAiSmallButton(
+            label: working ? 'AI işliyor' : 'AI ile Duyuruyu Ekle',
+            icon: working ? Symbols.schedule : Symbols.auto_awesome,
+            onTap: onSubmit,
+            filled: true,
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [submit, const SizedBox(height: 10), close],
+            );
+          }
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [close, const SizedBox(width: 10), submit],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ManualAiError extends StatelessWidget {
+  const _ManualAiError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+      color: AppColors.actionRed.withValues(alpha: 0.08),
+      child: Text(
+        message,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.actionRed,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _ManualAiOverlay extends StatelessWidget {
+  const _ManualAiOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.white.withValues(alpha: 0.78),
+        child: Center(
+          child: Container(
+            width: 320,
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.deepOcean.withValues(alpha: 0.14),
+                  blurRadius: 28,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: AppColors.deepOcean,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'AI duyuruyu hazırlıyor',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _imageMimeTypeForName(String name) {
+  final clean = name.toLowerCase().split('?').first;
+  if (clean.endsWith('.png')) return 'image/png';
+  if (clean.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
 }
 
 class _AnnouncementFilters extends StatelessWidget {
@@ -2546,12 +3551,14 @@ class _PrimaryButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.enabled = true,
+    this.backgroundColor = AppColors.actionRed,
   });
 
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
   final bool enabled;
+  final Color backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -2560,7 +3567,7 @@ class _PrimaryButton extends StatelessWidget {
       icon: SymbolIcon(icon, size: 16),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.actionRed,
+        backgroundColor: backgroundColor,
         foregroundColor: Colors.white,
         minimumSize: const Size(0, 44),
         shape: RoundedRectangleBorder(

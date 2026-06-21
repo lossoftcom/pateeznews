@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { subscribeNewsletter } from '@/services/appActions';
+import { ToastProvider, useToast } from '@/context/ToastContext';
 import type { SiteSettings } from '@/types';
 
 type ConsentValue = 'granted' | 'denied';
@@ -28,6 +29,13 @@ declare global {
 
 const CONSENT_KEY = 'pateez_privacy_consent_v1';
 const NEWSLETTER_KEY = 'pateez_newsletter_modal_v1';
+const NEWSLETTER_MODAL_IMAGE = '/images/pateez-newsletter-visual.webp';
+const LEGACY_NEWSLETTER_DESCRIPTION =
+  'Niğde ve İç Anadolu gündeminden öne çıkanları e-postana taşıyalım.';
+const DEFAULT_NEWSLETTER_DESCRIPTION =
+  'Pateez.com ile haberleri anında e-postanda gör. Niğde’ye dair ne varsa; doğrulanmış bilgi, gerçek habercilik ve başka yerde kolay bulamayacağın özel içeriklerle sana gelsin.';
+const NEWSLETTER_SUCCESS_MESSAGE =
+  'Bülten kaydın başarıyla kaydedildi. Pateez.com’un doğrulanmış haber özetleri artık e-postana gelecek.';
 
 const defaultConsent = (granted = false): PrivacyConsent => ({
   necessary: true,
@@ -90,7 +98,8 @@ interface Props {
   lang?: string;
 }
 
-export default function PrivacyConsentExperience({ siteSettings, lang = 'tr' }: Props) {
+function PrivacyConsentExperienceContent({ siteSettings, lang = 'tr' }: Props) {
+  const { showToast } = useToast();
   const cookieEnabled = siteSettings?.cookie_banner_enabled !== false;
   const preferencesEnabled = siteSettings?.cookie_preferences_enabled !== false;
   const newsletterEnabled = siteSettings?.newsletter_popup_enabled !== false;
@@ -112,8 +121,12 @@ export default function PrivacyConsentExperience({ siteSettings, lang = 'tr' }: 
     cookiePolicyUrl: siteSettings?.cookie_policy_url?.trim() || '',
     newsletterTitle: siteSettings?.newsletter_popup_title?.trim() ||
       'Pateez bültenine katıl',
-    newsletterDescription: siteSettings?.newsletter_popup_description?.trim() ||
-      'Niğde ve İç Anadolu gündeminden öne çıkanları e-postana taşıyalım.',
+    newsletterDescription: (() => {
+      const value = siteSettings?.newsletter_popup_description?.trim() || '';
+      return value && value !== LEGACY_NEWSLETTER_DESCRIPTION
+        ? value
+        : DEFAULT_NEWSLETTER_DESCRIPTION;
+    })(),
     newsletterButton: siteSettings?.newsletter_popup_button_label?.trim() ||
       'Abone ol',
     newsletterDelay: clampNumber(
@@ -128,7 +141,6 @@ export default function PrivacyConsentExperience({ siteSettings, lang = 'tr' }: 
       1,
       365,
     ),
-    modalImage: siteSettings?.og_image_url?.trim() || siteSettings?.logo_url?.trim() || '',
     logo: siteSettings?.logo_url?.trim() || '',
   }), [siteSettings]);
 
@@ -212,7 +224,8 @@ export default function PrivacyConsentExperience({ siteSettings, lang = 'tr' }: 
     setNewsletterMessage('');
     try {
       await subscribeNewsletter(normalizedEmail, 'first-open-modal', lang || 'tr');
-      setNewsletterMessage('Aboneliğiniz alındı.');
+      showToast(NEWSLETTER_SUCCESS_MESSAGE, 'success');
+      setEmail('');
       dismissNewsletter(true);
     } catch {
       setNewsletterMessage('Abonelik kaydedilemedi. Lütfen tekrar deneyin.');
@@ -240,17 +253,16 @@ export default function PrivacyConsentExperience({ siteSettings, lang = 'tr' }: 
               <span className="material-symbols-rounded" aria-hidden="true">close</span>
             </button>
             <div className="pateez-newsletter-visual">
-              {settings.modalImage ? (
-                <img src={settings.modalImage} alt="" loading="lazy" />
-              ) : (
-                <div className="pateez-newsletter-mark">
-                  {settings.logo ? <img src={settings.logo} alt="" /> : <span>pateez</span>}
+              {settings.logo && (
+                <div className="pateez-newsletter-logo" aria-hidden="true">
+                  <img src={settings.logo} alt="" loading="eager" decoding="async" />
                 </div>
               )}
+              <img src={NEWSLETTER_MODAL_IMAGE} alt="" loading="eager" decoding="async" />
               <div className="pateez-newsletter-glow" aria-hidden="true" />
             </div>
             <form className="pateez-newsletter-content" onSubmit={handleNewsletterSubmit}>
-              <span className="pateez-newsletter-kicker">GUNDEM CEBINDE</span>
+              <span className="pateez-newsletter-kicker">Gündem Cebinde</span>
               <h2 id="pateez-newsletter-title">{settings.newsletterTitle}</h2>
               <p>{settings.newsletterDescription}</p>
               <label className="pateez-newsletter-input">
@@ -354,5 +366,13 @@ export default function PrivacyConsentExperience({ siteSettings, lang = 'tr' }: 
         </section>
       )}
     </>
+  );
+}
+
+export default function PrivacyConsentExperience(props: Props) {
+  return (
+    <ToastProvider>
+      <PrivacyConsentExperienceContent {...props} />
+    </ToastProvider>
   );
 }
