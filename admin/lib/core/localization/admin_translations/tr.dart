@@ -442,14 +442,13 @@ const Map<String, String> adminTrTranslations = <String, String>{
       "Belirli bir URL'nin aynı sitedeki diğer sayfalara göre önceliği.",
   "generalSettings.seo.sitemap.automaticallyCalculated": "Otomatik hesapla",
   "generalSettings.seo.sitemap.none": "Yok",
-  "generalSettings.seo.sitemap.generate": "Sitemap Oluştur",
-  "generalSettings.seo.sitemap.generatedTitle": "Oluşturulan Sitemapler",
+  "generalSettings.seo.sitemap.generate": "Sitemap'i Aç",
+  "generalSettings.seo.sitemap.generatedTitle": "Canlı Sitemapler",
   "generalSettings.seo.sitemap.fileName": "sitemap.xml",
   "generalSettings.seo.sitemap.infoTitle": "Sitemap",
   "generalSettings.seo.sitemap.infoDescription":
-      "Bir cron job oluşturarak sitemap dosyanızı şu URL ile otomatik güncelleyebilirsiniz:",
-  "generalSettings.seo.sitemap.cronUrl":
-      "https://www.pateez.com/service/cron/main?token=YOUR_TOKEN",
+      "Sitemap Astro endpoint'i ile canlı üretilir; ayrı cron job gerektirmez. Güncel dosya:",
+  "generalSettings.seo.sitemap.cronUrl": "https://www.pateez.com/sitemap.xml",
   "Time": "Saat",
   "Time Zone": "Saat Dilimi",
   "Shows only today’s notices; old cache is not used when the date changes.":

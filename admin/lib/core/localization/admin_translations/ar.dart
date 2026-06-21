@@ -439,14 +439,13 @@ const Map<String, String> adminArTranslations = <String, String>{
       "أولوية رابط معين مقارنة بالصفحات الأخرى في الموقع نفسه.",
   "generalSettings.seo.sitemap.automaticallyCalculated": "يحسب تلقائيا",
   "generalSettings.seo.sitemap.none": "لا شيء",
-  "generalSettings.seo.sitemap.generate": "إنشاء Sitemap",
-  "generalSettings.seo.sitemap.generatedTitle": "خرائط Sitemap المنشأة",
+  "generalSettings.seo.sitemap.generate": "فتح Sitemap",
+  "generalSettings.seo.sitemap.generatedTitle": "خرائط Sitemap المباشرة",
   "generalSettings.seo.sitemap.fileName": "sitemap.xml",
   "generalSettings.seo.sitemap.infoTitle": "Sitemap",
   "generalSettings.seo.sitemap.infoDescription":
-      "يمكنك إنشاء مهمة cron لتحديث ملف sitemap تلقائيا باستخدام هذا الرابط:",
-  "generalSettings.seo.sitemap.cronUrl":
-      "https://www.pateez.com/service/cron/main?token=YOUR_TOKEN",
+      "يتم إنشاء ملف sitemap مباشرة عبر نقطة نهاية Astro؛ لا حاجة إلى مهمة cron منفصلة. الملف الحالي:",
+  "generalSettings.seo.sitemap.cronUrl": "https://www.pateez.com/sitemap.xml",
   "Time": "الوقت",
   "Time Zone": "المنطقة الزمنية",
   "Shows only today’s notices; old cache is not used when the date changes.":

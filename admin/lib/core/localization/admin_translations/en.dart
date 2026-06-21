@@ -451,14 +451,13 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "generalSettings.seo.sitemap.automaticallyCalculated":
       "Automatically calculated",
   "generalSettings.seo.sitemap.none": "None",
-  "generalSettings.seo.sitemap.generate": "Generate Sitemap",
-  "generalSettings.seo.sitemap.generatedTitle": "Generated Sitemaps",
+  "generalSettings.seo.sitemap.generate": "Open Sitemap",
+  "generalSettings.seo.sitemap.generatedTitle": "Live Sitemaps",
   "generalSettings.seo.sitemap.fileName": "sitemap.xml",
   "generalSettings.seo.sitemap.infoTitle": "Sitemap",
   "generalSettings.seo.sitemap.infoDescription":
-      "By creating a cron job, you can automatically update your sitemap using this URL:",
-  "generalSettings.seo.sitemap.cronUrl":
-      "https://www.pateez.com/service/cron/main?token=YOUR_TOKEN",
+      "The sitemap is generated live by the Astro endpoint; no separate cron job is required. Current file:",
+  "generalSettings.seo.sitemap.cronUrl": "https://www.pateez.com/sitemap.xml",
   "Time": "Time",
   "Time Zone": "Time Zone",
   "Shows only today’s notices; old cache is not used when the date changes.":

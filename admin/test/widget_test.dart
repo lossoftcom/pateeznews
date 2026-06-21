@@ -5651,13 +5651,10 @@ void main() {
     expect(_findRichTextContaining('Son değişiklik'), findsOneWidget);
     expect(_findRichTextContaining('Öncelik'), findsOneWidget);
     expect(find.text('Otomatik hesapla'), findsNWidgets(3));
-    expect(find.text('Sitemap Oluştur'), findsOneWidget);
-    expect(find.text('Oluşturulan Sitemapler'), findsOneWidget);
+    expect(find.text("Sitemap'i Aç"), findsOneWidget);
+    expect(find.text('Canlı Sitemapler'), findsOneWidget);
     expect(find.text('sitemap.xml'), findsOneWidget);
-    expect(
-      find.text('https://www.pateez.com/service/cron/main?token=YOUR_TOKEN'),
-      findsOneWidget,
-    );
+    expect(find.text('https://www.pateez.com/sitemap.xml'), findsOneWidget);
 
     await tester.ensureVisible(
       find.widgetWithText(TextButton, 'Kurumsal (EEAT)'),
