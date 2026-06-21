@@ -669,6 +669,22 @@ class AdSettingsData {
           ],
         ),
         AdSlot(
+          id: 'slot_web_home_sidebar_end',
+          key: 'web_home_sidebar_end',
+          name: 'Anasayfa — Sağ Sidebar Sonu',
+          description: 'Sağ sütun en alt · scroll ile görünür dikdörtgen',
+          platform: AdPlatform.web,
+          width: 300,
+          height: 250,
+          creatives: [
+            _pateezRectangleCreative(
+              'web_home_sidebar_end',
+              width: 300,
+              height: 250,
+            ),
+          ],
+        ),
+        AdSlot(
           id: 'slot_web_home_left_rail',
           key: 'web_home_left_rail',
           name: 'Anasayfa — Sol Kenar Çubuğu',
@@ -1159,6 +1175,7 @@ class AdSettingsData {
           width: 320,
           height: 50,
           creatives: [
+            _pateezLeaderboardCreative('mobile_anchor'),
             AdCreative(
               id: 'ad_mobile_anchor_adsense',
               name: 'AdSense alt banner',

@@ -21,6 +21,7 @@ interface RightSidebarProps {
    initialSidebarData?: any;
    adSettings?: PublicAdSettings | null;
    adSlotKey?: string;
+   endAdSlotKey?: string;
 }
 
 type ForecastItem = { day: string; icon: string; temp: string };
@@ -298,7 +299,7 @@ const WeatherMotionIcon: React.FC<{ code?: number; isDay?: boolean | number; lab
    );
 };
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSettings, initialSidebarData, adSettings, adSlotKey = 'web_home_sidebar' }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSettings, initialSidebarData, adSettings, adSlotKey = 'web_home_sidebar', endAdSlotKey }) => {
    const { t, currentLang } = useLanguage();
    const { showToast } = useToast();
    const [liveSidebar, setLiveSidebar] = useState<any>(initialSidebarData || null);
@@ -717,7 +718,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
    }
 
    return (
-      <div className="flex flex-col gap-8 pt-0 pb-10">
+      <div className={`flex flex-col gap-8 pt-0 pb-10 ${endAdSlotKey ? 'min-h-full' : ''}`}>
 
          {/* 1. Duty Pharmacy Widget */}
          <div className="bg-[#FFFFFF] rounded-[5px] border border-gray-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.05)] overflow-hidden relative group">
@@ -1190,6 +1191,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ newsData, loading, siteSett
                </form>
             </div>
          </div>
+
+         {endAdSlotKey && (
+            <AdSlot
+               settings={adSettings}
+               slotKey={endAdSlotKey}
+               className="right-sidebar-end-ad mt-8"
+            />
+         )}
 
       </div>
    );

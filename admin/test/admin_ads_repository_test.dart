@@ -6,7 +6,7 @@ void main() {
     final data = AdSettingsData.seed();
     final keys = data.slots.map((slot) => slot.key).toSet();
 
-    expect(data.slotsFor(AdPlatform.web), hasLength(21));
+    expect(data.slotsFor(AdPlatform.web), hasLength(22));
     expect(data.slotsFor(AdPlatform.mobile), hasLength(19));
     expect(data.adsensePublisherId, 'ca-pub-6674987005803282');
     expect(
@@ -17,6 +17,7 @@ void main() {
         'web_home_feed_inline',
         'web_category_feed_inline',
         'web_home_sidebar',
+        'web_home_sidebar_end',
         'web_home_left_rail',
         'web_side_rail_left',
         'web_side_rail_right',

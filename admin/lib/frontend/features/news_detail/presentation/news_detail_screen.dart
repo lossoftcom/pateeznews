@@ -19,6 +19,7 @@ import '../../../shared/widgets/pinch_zoom_surface.dart';
 import '../../../shared/widgets/frontend_toast.dart';
 import '../../../shared/widgets/social_action.dart';
 import '../../account/data/frontend_auth_repository.dart';
+import '../../ads/presentation/frontend_anchor_ad_dock.dart';
 import '../../ads/presentation/frontend_ad_slot.dart';
 import '../../home/data/home_repository.dart';
 import '../../home/data/post_action_repository.dart';
@@ -74,6 +75,7 @@ class NewsDetailScreen extends StatefulWidget {
 }
 
 class _NewsDetailScreenState extends State<NewsDetailScreen> {
+  static const _anchorAdReserve = 74.0;
   late ScrollController _scrollController;
   late List<NewsArticle> _articleSequence;
   late List<GlobalKey> _articleKeys;
@@ -497,6 +499,12 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                 ),
               ),
             ),
+            const Positioned(
+              right: 0,
+              bottom: 0,
+              left: 0,
+              child: FrontendAnchorAdDock(),
+            ),
           ],
         ),
       ),
@@ -658,7 +666,12 @@ class _DetailContent extends StatelessWidget {
           itemCount: articles.length + 1,
           itemBuilder: (context, i) {
             if (i == articles.length) {
-              return SizedBox(height: AppSpacing.huge + bottomInset);
+              return SizedBox(
+                height:
+                    AppSpacing.huge +
+                    bottomInset +
+                    _NewsDetailScreenState._anchorAdReserve,
+              );
             }
             return _DetailArticleSection(
               sectionKey: articleKeys[i],

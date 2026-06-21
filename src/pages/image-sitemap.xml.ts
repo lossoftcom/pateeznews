@@ -12,6 +12,7 @@ const escapeXml = (value: string) => value
   .replace(/'/g, '&apos;');
 
 const normalizeBase = (value: string | null | undefined) => String(value || '').trim().replace(/\/$/, '');
+const IMAGE_FILE_PATTERN = /\.(?:avif|webp|png|jpe?g)(?:[?#].*)?$/i;
 
 const toBaseUrl = (value: string | null | undefined, fallbackOrigin: string) => {
   try {
@@ -29,7 +30,7 @@ const collectImageValues = (value: unknown, output: Set<string>) => {
   if (!value) return;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (/\.(?:avif|webp|png|jpe?g)(?:[?#].*)?$/i.test(trimmed) || trimmed.startsWith('/api/storage/file/') || trimmed.startsWith('/local-upload/')) {
+    if (IMAGE_FILE_PATTERN.test(trimmed)) {
       output.add(trimmed);
     }
     return;

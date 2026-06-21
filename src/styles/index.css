@@ -372,6 +372,13 @@ body.admin-scrollbar-visible::-webkit-scrollbar-thumb:hover {
     scrollbar-width: none;
 }
 
+.right-sidebar-end-ad {
+    position: sticky;
+    top: 92px;
+    z-index: 5;
+    align-self: flex-start;
+}
+
 /* Admin Font Wrapper */
 .admin-font {
     font-family: 'Roboto', sans-serif !important;
@@ -10332,8 +10339,473 @@ body.public-route .category-mobile-shell {
     }
 }
 
+body.public-route .mobile-anchor-ad-dock {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    body.public-route:has(.news-detail-mobile-shell),
+    body.public-route:has(.profile-mobile-shell),
+    body.public-route:has(.profile-edit-mobile-shell),
+    body.public-route:has(.duty-pharmacy-mobile-page),
+    body.public-route:has(.weather-mobile-page),
+    body.public-route:has(.announcements-mobile-page),
+    body.public-route:has(.death-notices-mobile-page),
+    body.public-route:has(.prayer-times-mobile-page),
+    body.public-route:has(.market-rates-mobile-page),
+    body.public-route:has(.category-mobile-shell) {
+        padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .public-page-main,
+    body.public-route:has(.news-detail-mobile-shell) main,
+    body.public-route:has(.profile-mobile-shell) .public-page-main,
+    body.public-route:has(.profile-mobile-shell) main,
+    body.public-route:has(.profile-edit-mobile-shell) .public-page-main,
+    body.public-route:has(.profile-edit-mobile-shell) main,
+    body.public-route:has(.duty-pharmacy-mobile-page) main,
+    body.public-route:has(.weather-mobile-page) main,
+    body.public-route:has(.announcements-mobile-page) main,
+    body.public-route:has(.death-notices-mobile-page) main,
+    body.public-route:has(.prayer-times-mobile-page) main,
+    body.public-route:has(.market-rates-mobile-page) main,
+    body.public-route:has(.category-mobile-shell) .public-page-main,
+    body.public-route:has(.category-mobile-shell) main {
+        scroll-padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    body.public-route:has(.news-detail-mobile-shell) .mobile-anchor-ad-dock,
+    body.public-route:has(.profile-mobile-shell) .mobile-anchor-ad-dock,
+    body.public-route:has(.profile-edit-mobile-shell) .mobile-anchor-ad-dock,
+    body.public-route:has(.duty-pharmacy-mobile-page) .mobile-anchor-ad-dock,
+    body.public-route:has(.weather-mobile-page) .mobile-anchor-ad-dock,
+    body.public-route:has(.announcements-mobile-page) .mobile-anchor-ad-dock,
+    body.public-route:has(.death-notices-mobile-page) .mobile-anchor-ad-dock,
+    body.public-route:has(.prayer-times-mobile-page) .mobile-anchor-ad-dock,
+    body.public-route:has(.market-rates-mobile-page) .mobile-anchor-ad-dock,
+    body.public-route:has(.category-mobile-shell) .mobile-anchor-ad-dock {
+        position: fixed;
+        right: 0;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+        left: 0;
+        z-index: 984;
+        display: flex;
+        justify-content: center;
+        padding: 0 12px;
+        pointer-events: none;
+    }
+
+    body.public-route .mobile-anchor-ad-dock__frame {
+        position: relative;
+        display: flex;
+        width: min(336px, calc(100vw - 28px));
+        min-height: 50px;
+        align-items: center;
+        justify-content: center;
+        overflow: visible;
+        border: 1px solid rgba(230, 236, 238, 0.92);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 12px 34px rgba(15, 27, 38, 0.16);
+        pointer-events: auto;
+    }
+
+    body.public-route .mobile-anchor-ad-dock__slot {
+        width: 100%;
+        min-height: 50px;
+        align-items: center;
+    }
+
+    body.public-route .mobile-anchor-ad-dock__slot img,
+    body.public-route .mobile-anchor-ad-dock__slot iframe,
+    body.public-route .mobile-anchor-ad-dock__slot ins {
+        max-height: 50px !important;
+    }
+
+    body.public-route .mobile-anchor-ad-dock__close {
+        position: absolute;
+        top: -11px;
+        right: -9px;
+        display: inline-flex;
+        width: 24px;
+        height: 24px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(230, 236, 238, 0.92);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.98);
+        color: #2C3E50;
+        box-shadow: 0 8px 18px rgba(15, 27, 38, 0.16);
+    }
+
+    body.public-route .mobile-anchor-ad-dock__close:active {
+        transform: scale(0.94);
+    }
+}
+
 @media (min-width: 768px) {
     body.public-route .mobile-video-feed-overlay {
         display: none !important;
+    }
+}
+
+body.public-route.pateez-newsletter-modal-open {
+    overflow: hidden;
+}
+
+body.public-route .pateez-newsletter-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 22px;
+    background: rgba(15, 27, 38, 0.56);
+    backdrop-filter: blur(10px);
+}
+
+body.public-route .pateez-newsletter-modal {
+    position: relative;
+    display: grid;
+    width: min(760px, calc(100vw - 28px));
+    min-height: 380px;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.68);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 26px 80px rgba(15, 27, 38, 0.34);
+}
+
+body.public-route .pateez-newsletter-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 2;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(149, 165, 166, 0.2);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--pateez-deep-ocean);
+    box-shadow: 0 10px 24px rgba(15, 27, 38, 0.12);
+}
+
+body.public-route .pateez-newsletter-close .material-symbols-rounded {
+    font-size: 20px;
+}
+
+body.public-route .pateez-newsletter-visual {
+    position: relative;
+    min-height: 380px;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 26% 28%, rgba(243, 156, 18, 0.7), transparent 28%),
+        linear-gradient(140deg, #111923 0%, #2c3e50 48%, #ea4335 100%);
+}
+
+body.public-route .pateez-newsletter-visual::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    background:
+        linear-gradient(0deg, rgba(15, 27, 38, 0.36), rgba(15, 27, 38, 0.04)),
+        repeating-linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.13) 0,
+            rgba(255, 255, 255, 0.13) 1px,
+            transparent 1px,
+            transparent 18px
+        );
+}
+
+body.public-route .pateez-newsletter-visual img {
+    width: 100%;
+    height: 100%;
+    min-height: 380px;
+    object-fit: cover;
+}
+
+body.public-route .pateez-newsletter-mark {
+    position: absolute;
+    inset: 32px;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 44px;
+    font-weight: 900;
+}
+
+body.public-route .pateez-newsletter-mark img {
+    width: min(220px, 70%);
+    height: auto;
+    min-height: 0;
+    object-fit: contain;
+}
+
+body.public-route .pateez-newsletter-glow {
+    position: absolute;
+    right: -72px;
+    bottom: -72px;
+    z-index: 1;
+    width: 190px;
+    height: 190px;
+    border-radius: 999px;
+    background: rgba(243, 156, 18, 0.45);
+    filter: blur(34px);
+}
+
+body.public-route .pateez-newsletter-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 58px 48px 46px;
+}
+
+body.public-route .pateez-newsletter-kicker {
+    color: var(--pateez-accent);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+}
+
+body.public-route .pateez-newsletter-content h2 {
+    margin: 14px 0 10px;
+    color: #111923;
+    font-size: clamp(28px, 4vw, 42px);
+    line-height: 1.02;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+body.public-route .pateez-newsletter-content p {
+    margin: 0;
+    color: #5b6873;
+    font-size: 15px;
+    line-height: 1.55;
+    font-weight: 600;
+}
+
+body.public-route .pateez-newsletter-input {
+    display: grid;
+    gap: 7px;
+    margin-top: 28px;
+}
+
+body.public-route .pateez-newsletter-input span {
+    color: #7c8994;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+body.public-route .pateez-newsletter-input input {
+    width: 100%;
+    height: 46px;
+    border: 0;
+    border-bottom: 2px solid rgba(44, 62, 80, 0.16);
+    border-radius: 0;
+    outline: none;
+    color: #111923;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+body.public-route .pateez-newsletter-input input:focus {
+    border-bottom-color: var(--pateez-action);
+}
+
+body.public-route .pateez-newsletter-message {
+    margin-top: 12px !important;
+    color: var(--pateez-action) !important;
+    font-size: 12px !important;
+}
+
+body.public-route .pateez-newsletter-content button[type="submit"] {
+    height: 52px;
+    margin-top: 22px;
+    border: 0;
+    border-radius: 6px;
+    background: #111923;
+    color: #ffffff;
+    box-shadow: 0 14px 30px rgba(15, 27, 38, 0.18);
+    font-size: 13px;
+    font-weight: 900;
+}
+
+body.public-route .pateez-newsletter-content button[type="submit"]:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+body.public-route .pateez-cookie-banner {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    left: 18px;
+    z-index: 996;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 18px;
+    border: 1px solid rgba(230, 236, 238, 0.94);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 20px 54px rgba(15, 27, 38, 0.16);
+}
+
+body.public-route .pateez-cookie-copy {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+body.public-route .pateez-cookie-copy > .material-symbols-rounded {
+    display: inline-grid;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(243, 156, 18, 0.14);
+    color: var(--pateez-accent);
+    font-size: 20px;
+}
+
+body.public-route .pateez-cookie-copy h2 {
+    margin: 0 0 5px;
+    color: #111923;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+body.public-route .pateez-cookie-copy p {
+    max-width: 760px;
+    margin: 0;
+    color: #5b6873;
+    font-size: 13px;
+    line-height: 1.48;
+    font-weight: 600;
+}
+
+body.public-route .pateez-cookie-copy a {
+    color: var(--pateez-action);
+    font-weight: 900;
+}
+
+body.public-route .pateez-cookie-preferences {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    padding-top: 2px;
+}
+
+body.public-route .pateez-cookie-preferences label {
+    display: inline-flex;
+    height: 36px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border: 1px solid rgba(230, 236, 238, 0.94);
+    border-radius: 999px;
+    background: var(--pateez-surface);
+    color: #2c3e50;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+body.public-route .pateez-cookie-preferences input {
+    accent-color: var(--pateez-action);
+}
+
+body.public-route .pateez-cookie-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+body.public-route .pateez-cookie-actions button {
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+body.public-route .pateez-cookie-secondary {
+    border: 1px solid rgba(230, 236, 238, 0.96);
+    background: #ffffff;
+    color: #2c3e50;
+}
+
+body.public-route .pateez-cookie-primary {
+    border: 1px solid #111923;
+    background: #111923;
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(15, 27, 38, 0.14);
+}
+
+@media (max-width: 760px) {
+    body.public-route .pateez-newsletter-overlay {
+        align-items: end;
+        padding: 14px;
+    }
+
+    body.public-route .pateez-newsletter-modal {
+        width: 100%;
+        min-height: 0;
+        grid-template-columns: 1fr;
+        max-height: min(92vh, 720px);
+        overflow-y: auto;
+    }
+
+    body.public-route .pateez-newsletter-visual {
+        min-height: 184px;
+    }
+
+    body.public-route .pateez-newsletter-visual img {
+        min-height: 184px;
+        max-height: 230px;
+    }
+
+    body.public-route .pateez-newsletter-content {
+        padding: 30px 22px 24px;
+    }
+
+    body.public-route .pateez-newsletter-content h2 {
+        font-size: 30px;
+    }
+
+    body.public-route .pateez-cookie-banner {
+        right: 10px;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+        left: 10px;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 14px;
+    }
+
+    body.public-route .pateez-cookie-copy p {
+        font-size: 12px;
+    }
+
+    body.public-route .pateez-cookie-actions {
+        justify-content: stretch;
+    }
+
+    body.public-route .pateez-cookie-actions button {
+        flex: 1 1 104px;
+        padding: 0 12px;
     }
 }

@@ -476,11 +476,22 @@ class _GeneralSettingsForm {
   final bingVerificationCode = TextEditingController();
   final yandexVerificationCode = TextEditingController();
   final indexNowKey = TextEditingController();
+  final cookieBannerTitle = TextEditingController();
+  final cookieBannerDescription = TextEditingController();
+  final cookiePolicyUrl = TextEditingController();
+  final newsletterPopupDelaySeconds = TextEditingController();
+  final newsletterPopupFrequencyDays = TextEditingController();
+  final newsletterPopupTitle = TextEditingController();
+  final newsletterPopupDescription = TextEditingController();
+  final newsletterPopupButtonLabel = TextEditingController();
   final socialAuthRedirectScheme = TextEditingController();
   final socialAuthRedirectHost = TextEditingController();
   final robotsTxt = TextEditingController();
   final headerCustomCodes = TextEditingController();
   final footerCustomCodes = TextEditingController();
+  var cookieBannerEnabled = true;
+  var cookiePreferencesEnabled = true;
+  var newsletterPopupEnabled = true;
   var socialAuthGoogleEnabled = true;
   var socialAuthAppleEnabled = true;
   var socialAuthFacebookEnabled = true;
@@ -526,6 +537,19 @@ class _GeneralSettingsForm {
     bingVerificationCode.text = settings.bingVerificationCode;
     yandexVerificationCode.text = settings.yandexVerificationCode;
     indexNowKey.text = settings.indexNowKey;
+    cookieBannerEnabled = settings.cookieBannerEnabled;
+    cookiePreferencesEnabled = settings.cookiePreferencesEnabled;
+    cookieBannerTitle.text = settings.cookieBannerTitle;
+    cookieBannerDescription.text = settings.cookieBannerDescription;
+    cookiePolicyUrl.text = settings.cookiePolicyUrl;
+    newsletterPopupEnabled = settings.newsletterPopupEnabled;
+    newsletterPopupDelaySeconds.text = settings.newsletterPopupDelaySeconds
+        .toString();
+    newsletterPopupFrequencyDays.text = settings.newsletterPopupFrequencyDays
+        .toString();
+    newsletterPopupTitle.text = settings.newsletterPopupTitle;
+    newsletterPopupDescription.text = settings.newsletterPopupDescription;
+    newsletterPopupButtonLabel.text = settings.newsletterPopupButtonLabel;
     socialAuthGoogleEnabled = settings.socialAuthGoogleEnabled;
     socialAuthAppleEnabled = settings.socialAuthAppleEnabled;
     socialAuthFacebookEnabled = settings.socialAuthFacebookEnabled;
@@ -614,6 +638,27 @@ class _GeneralSettingsForm {
       bingVerificationCode: bingVerificationCode.text,
       yandexVerificationCode: yandexVerificationCode.text,
       indexNowKey: indexNowKey.text,
+      cookieBannerEnabled: cookieBannerEnabled,
+      cookiePreferencesEnabled: cookiePreferencesEnabled,
+      cookieBannerTitle: cookieBannerTitle.text,
+      cookieBannerDescription: cookieBannerDescription.text,
+      cookiePolicyUrl: cookiePolicyUrl.text,
+      newsletterPopupEnabled: newsletterPopupEnabled,
+      newsletterPopupDelaySeconds: _boundedInt(
+        newsletterPopupDelaySeconds.text,
+        fallback: base.newsletterPopupDelaySeconds,
+        min: 0,
+        max: 60,
+      ),
+      newsletterPopupFrequencyDays: _boundedInt(
+        newsletterPopupFrequencyDays.text,
+        fallback: base.newsletterPopupFrequencyDays,
+        min: 1,
+        max: 365,
+      ),
+      newsletterPopupTitle: newsletterPopupTitle.text,
+      newsletterPopupDescription: newsletterPopupDescription.text,
+      newsletterPopupButtonLabel: newsletterPopupButtonLabel.text,
       socialAuthGoogleEnabled: socialAuthGoogleEnabled,
       socialAuthAppleEnabled: socialAuthAppleEnabled,
       socialAuthFacebookEnabled: socialAuthFacebookEnabled,
@@ -672,12 +717,30 @@ class _GeneralSettingsForm {
     bingVerificationCode.dispose();
     yandexVerificationCode.dispose();
     indexNowKey.dispose();
+    cookieBannerTitle.dispose();
+    cookieBannerDescription.dispose();
+    cookiePolicyUrl.dispose();
+    newsletterPopupDelaySeconds.dispose();
+    newsletterPopupFrequencyDays.dispose();
+    newsletterPopupTitle.dispose();
+    newsletterPopupDescription.dispose();
+    newsletterPopupButtonLabel.dispose();
     socialAuthRedirectScheme.dispose();
     socialAuthRedirectHost.dispose();
     robotsTxt.dispose();
     headerCustomCodes.dispose();
     footerCustomCodes.dispose();
   }
+}
+
+int _boundedInt(
+  String value, {
+  required int fallback,
+  required int min,
+  required int max,
+}) {
+  final parsed = int.tryParse(value.trim()) ?? fallback;
+  return parsed.clamp(min, max).toInt();
 }
 
 Future<void> _openPublicSitemap() async {
@@ -963,6 +1026,11 @@ class _GeneralSettingsTabView extends StatelessWidget {
         onSave: onSave,
       ),
       _GeneralSettingsTab.services => _ServicesSettings(
+        form: form,
+        saving: saving,
+        onSave: onSave,
+      ),
+      _GeneralSettingsTab.privacy => _PrivacyNewsletterSettings(
         form: form,
         saving: saving,
         onSave: onSave,
@@ -1619,6 +1687,207 @@ class _ServicesSettings extends StatelessWidget {
         const _FormDivider(),
         _SaveRow(saving: saving, onPressed: onSave),
       ],
+    );
+  }
+}
+
+class _PrivacyNewsletterSettings extends StatefulWidget {
+  const _PrivacyNewsletterSettings({
+    required this.form,
+    required this.saving,
+    required this.onSave,
+  });
+
+  final _GeneralSettingsForm form;
+  final bool saving;
+  final VoidCallback onSave;
+
+  @override
+  State<_PrivacyNewsletterSettings> createState() =>
+      _PrivacyNewsletterSettingsState();
+}
+
+class _PrivacyNewsletterSettingsState
+    extends State<_PrivacyNewsletterSettings> {
+  @override
+  Widget build(BuildContext context) {
+    final form = widget.form;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SubsectionHeader('Çerez bilgilendirmesi'),
+        const SizedBox(height: 14),
+        _PrivacyToggleRow(
+          items: [
+            _PrivacyToggleItem(
+              label: 'Çerez barı',
+              helper: 'Zorunlu dışı izinleri kullanıcı seçimine bağlar.',
+              value: form.cookieBannerEnabled,
+              onChanged: (value) =>
+                  setState(() => form.cookieBannerEnabled = value),
+            ),
+            _PrivacyToggleItem(
+              label: 'Tercih paneli',
+              helper: 'Analitik, reklam ve deneyim izinlerini ayrı gösterir.',
+              value: form.cookiePreferencesEnabled,
+              onChanged: (value) =>
+                  setState(() => form.cookiePreferencesEnabled = value),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _TextInputField(
+          label: 'Çerez Başlığı',
+          controller: form.cookieBannerTitle,
+        ),
+        const SizedBox(height: 18),
+        _TextAreaField(
+          label: 'Çerez Açıklaması',
+          minLines: 3,
+          controller: form.cookieBannerDescription,
+        ),
+        const SizedBox(height: 18),
+        _TextInputField(
+          label: 'Çerez / Gizlilik Politikası URL',
+          controller: form.cookiePolicyUrl,
+          hintText: '/kurumsal/gizlilik-politikasi',
+        ),
+        const SizedBox(height: 28),
+        const _SubsectionHeader('İlk açılış bülten modalı'),
+        const SizedBox(height: 14),
+        _PrivacyToggleRow(
+          items: [
+            _PrivacyToggleItem(
+              label: 'Bülten modalı',
+              helper: 'İlk açılışta abonelik formunu gösterir.',
+              value: form.newsletterPopupEnabled,
+              onChanged: (value) =>
+                  setState(() => form.newsletterPopupEnabled = value),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _TextInputField(
+              label: 'Gecikme (saniye)',
+              controller: form.newsletterPopupDelaySeconds,
+              hintText: '3',
+            ),
+            _TextInputField(
+              label: 'Tekrar Gösterme Aralığı (gün)',
+              controller: form.newsletterPopupFrequencyDays,
+              hintText: '14',
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _TextInputField(
+              label: 'Modal Başlığı',
+              controller: form.newsletterPopupTitle,
+            ),
+            _TextInputField(
+              label: 'Buton Metni',
+              controller: form.newsletterPopupButtonLabel,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _TextAreaField(
+          label: 'Modal Açıklaması',
+          minLines: 3,
+          controller: form.newsletterPopupDescription,
+        ),
+        const _FormDivider(),
+        _SaveRow(saving: widget.saving, onPressed: widget.onSave),
+      ],
+    );
+  }
+}
+
+class _PrivacyToggleRow extends StatelessWidget {
+  const _PrivacyToggleRow({required this.items});
+
+  final List<_PrivacyToggleItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 780 ? 2 : 1;
+        const spacing = 14.0;
+        final width =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final item in items) SizedBox(width: width, child: item),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PrivacyToggleItem extends StatelessWidget {
+  const _PrivacyToggleItem({
+    required this.label,
+    required this.helper,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String helper;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 76),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.86)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.t(label),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  context.t(helper),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.inkSoft,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _CompactToggle(value: value, onChanged: onChanged),
+        ],
+      ),
     );
   }
 }
@@ -3505,6 +3774,7 @@ enum _GeneralSettingsTab {
   corporate('Kurumsal (EEAT)'),
   socialAddresses('Sosyal Adresler'),
   services('Google & Servisler'),
+  privacy('Çerez & Bülten'),
   socialAuth('Sosyal Giriş'),
   customCode('Özel Kodlar'),
   robots('Robots & Teknik'),

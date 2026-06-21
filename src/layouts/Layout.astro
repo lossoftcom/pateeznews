@@ -60,6 +60,9 @@ const defaultFavicon = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/
 import GlobalNavigation from '@/components/GlobalNavigation';
 import PushNotificationBootstrap from '@/components/PushNotificationBootstrap';
 import PublicFooter from '@/components/PublicFooter';
+import MobileAnchorAd from '@/components/ads/MobileAnchorAd';
+import PrivacyConsentExperience from '@/components/privacy/PrivacyConsentExperience';
+import { getPublicAdSettings } from '@/lib/server/publicAds';
 
 const pathname = Astro.url.pathname;
 const normalizedPathname = pathname.replace(/\/$/, '');
@@ -70,12 +73,13 @@ const normalizeBase = (value: string) => String(value || '').trim().replace(/\/$
 const canonicalBase = normalizeBase(siteSettings?.canonical_url || '');
 const baseForUrls = canonicalBase || Astro.url.origin;
 
-const [seoAlternates, siteFonts, footerPages] = await Promise.all([
+const [seoAlternates, siteFonts, footerPages, mobileAdSettings] = await Promise.all([
 	Array.isArray(providedSeoAlternates) && providedSeoAlternates.length
 		? Promise.resolve(providedSeoAlternates)
 		: dataService.getSeoAlternates(),
 	dataService.getSiteFonts(),
 	dataService.getFooterPages(lang),
+	getPublicAdSettings('mobile'),
 ]);
 const defaultLangCode = seoAlternates.find((entry) => entry.isDefault)?.code || 'tr';
 const alternateBases = seoAlternates.map((entry) => normalizeBase(entry.canonicalUrl) || baseForUrls);
@@ -208,6 +212,44 @@ const footerCustomCodes = String(siteSettings?.footer_custom_codes || '').trim()
 const adsenseClientId = adSettings?.masterEnabled && adSettings.adsenseConnected
 	? String(adSettings.adsensePublisherId || '').trim()
 	: '';
+const consentFallback = siteSettings?.cookie_banner_enabled === false ? 'granted' : 'denied';
+const consentBootstrapScript = `
+(() => {
+	const fallback = ${JSON.stringify(consentFallback)};
+	let stored = null;
+	try {
+		stored = JSON.parse(window.localStorage.getItem('pateez_privacy_consent_v1') || 'null');
+	} catch (_) {
+		stored = null;
+	}
+	const consent = stored && stored.necessary
+		? stored
+		: {
+			necessary: true,
+			analytics: fallback === 'granted',
+			marketing: fallback === 'granted',
+			preferences: fallback === 'granted',
+			updatedAt: new Date().toISOString(),
+		};
+	const signal = (value) => value ? 'granted' : 'denied';
+	window.__pateezConsent = consent;
+	window.dataLayer = window.dataLayer || [];
+	window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+	window.gtag('consent', 'default', {
+		ad_storage: signal(consent.marketing),
+		ad_user_data: signal(consent.marketing),
+		ad_personalization: signal(consent.marketing),
+		analytics_storage: signal(consent.analytics),
+		functionality_storage: signal(consent.preferences),
+		personalization_storage: signal(consent.preferences),
+		security_storage: 'granted',
+	});
+	window.uetq = window.uetq || [];
+	window.uetq.push('consent', 'default', {
+		ad_storage: signal(consent.marketing),
+	});
+})();
+`;
 
 const preconnectOrigins = (() => {
 	const origins = new Set<string>();
@@ -674,14 +716,16 @@ const fontPreloadHrefs = Array.from(new Set(
 			: <meta name="yandex-verification" content={yandexVerificationRaw} />
 		)}
 
+		<script is:inline set:html={consentBootstrapScript}></script>
+
 		{siteSettings?.google_analytics_id && (
 			<>
 				<script async src={`https://www.googletagmanager.com/gtag/js?id=${siteSettings.google_analytics_id}`}></script>
 				<script is:inline>{`
 					window.dataLayer = window.dataLayer || [];
-					function gtag(){dataLayer.push(arguments);}
-					gtag('js', new Date());
-					gtag('config', '${siteSettings.google_analytics_id}');
+					window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+					window.gtag('js', new Date());
+					window.gtag('config', '${siteSettings.google_analytics_id}');
 				`}</script>
 			</>
 		)}
@@ -741,9 +785,11 @@ const fontPreloadHrefs = Array.from(new Set(
 				initialTranslations={initialTranslations}
 				siteSettings={siteSettings ?? null}
 				navigationItems={navigationItems}
-			/>
-			<PushNotificationBootstrap client:load />
+				/>
+				<PushNotificationBootstrap client:load />
 		</div>
+		<MobileAnchorAd client:media="(max-width: 767px)" adSettings={mobileAdSettings} />
+		<PrivacyConsentExperience client:load siteSettings={siteSettings ?? null} lang={lang} />
 		<slot />
 		<PublicFooter client:visible siteSettings={siteSettings ?? null} pages={footerPages} />
 		{footerCustomCodes && <Fragment set:html={footerCustomCodes} />}

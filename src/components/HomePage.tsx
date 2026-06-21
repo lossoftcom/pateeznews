@@ -333,8 +333,8 @@ const HomePage: React.FC<HomePageProps> = ({
                         </section>
 
                         {activeView === 'feed' && !isCategoryDetailView && (
-                            <aside className="hidden xl:block w-[320px] flex-shrink-0 pb-8">
-                                <RightSidebar newsData={displayNews} loading={initialNews.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} adSettings={adSettings} adSlotKey="web_home_sidebar" />
+                            <aside className="hidden xl:block w-[320px] flex-shrink-0 self-stretch pb-8">
+                                <RightSidebar newsData={displayNews} loading={initialNews.length === 0} siteSettings={siteSettings} initialSidebarData={sidebarSnapshot} adSettings={adSettings} adSlotKey="web_home_sidebar" endAdSlotKey="web_home_sidebar_end" />
                             </aside>
                         )}
                     </main>

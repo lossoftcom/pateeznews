@@ -161,6 +161,17 @@ class GeneralSettingsData {
     required this.bingVerificationCode,
     required this.yandexVerificationCode,
     required this.indexNowKey,
+    required this.cookieBannerEnabled,
+    required this.cookiePreferencesEnabled,
+    required this.cookieBannerTitle,
+    required this.cookieBannerDescription,
+    required this.cookiePolicyUrl,
+    required this.newsletterPopupEnabled,
+    required this.newsletterPopupDelaySeconds,
+    required this.newsletterPopupFrequencyDays,
+    required this.newsletterPopupTitle,
+    required this.newsletterPopupDescription,
+    required this.newsletterPopupButtonLabel,
     required this.socialAuthGoogleEnabled,
     required this.socialAuthAppleEnabled,
     required this.socialAuthFacebookEnabled,
@@ -220,6 +231,19 @@ class GeneralSettingsData {
       bingVerificationCode: '',
       yandexVerificationCode: '',
       indexNowKey: '',
+      cookieBannerEnabled: true,
+      cookiePreferencesEnabled: true,
+      cookieBannerTitle: 'Gizliliğinize önem veriyoruz',
+      cookieBannerDescription:
+          'Pateez, sitenin güvenli çalışması için zorunlu çerezleri kullanır. Onayınızla ölçüm, reklam ve deneyim iyileştirme çerezleri de etkinleşir.',
+      cookiePolicyUrl: '',
+      newsletterPopupEnabled: true,
+      newsletterPopupDelaySeconds: 3,
+      newsletterPopupFrequencyDays: 14,
+      newsletterPopupTitle: 'Pateez bültenine katıl',
+      newsletterPopupDescription:
+          'Niğde ve İç Anadolu gündeminden öne çıkanları e-postana taşıyalım.',
+      newsletterPopupButtonLabel: 'Abone ol',
       socialAuthGoogleEnabled: true,
       socialAuthAppleEnabled: true,
       socialAuthFacebookEnabled: true,
@@ -283,6 +307,46 @@ class GeneralSettingsData {
       bingVerificationCode: _string(json['bing_verification_code']),
       yandexVerificationCode: _string(json['yandex_verification_code']),
       indexNowKey: _string(json['indexnow_key']),
+      cookieBannerEnabled: _bool(json['cookie_banner_enabled'], fallback: true),
+      cookiePreferencesEnabled: _bool(
+        json['cookie_preferences_enabled'],
+        fallback: true,
+      ),
+      cookieBannerTitle: _string(
+        json['cookie_banner_title'],
+        fallback: 'Gizliliğinize önem veriyoruz',
+      ),
+      cookieBannerDescription: _string(
+        json['cookie_banner_description'],
+        fallback:
+            'Pateez, sitenin güvenli çalışması için zorunlu çerezleri kullanır. Onayınızla ölçüm, reklam ve deneyim iyileştirme çerezleri de etkinleşir.',
+      ),
+      cookiePolicyUrl: _string(json['cookie_policy_url']),
+      newsletterPopupEnabled: _bool(
+        json['newsletter_popup_enabled'],
+        fallback: true,
+      ),
+      newsletterPopupDelaySeconds: _int(
+        json['newsletter_popup_delay_seconds'],
+        fallback: 3,
+      ),
+      newsletterPopupFrequencyDays: _int(
+        json['newsletter_popup_frequency_days'],
+        fallback: 14,
+      ),
+      newsletterPopupTitle: _string(
+        json['newsletter_popup_title'],
+        fallback: 'Pateez bültenine katıl',
+      ),
+      newsletterPopupDescription: _string(
+        json['newsletter_popup_description'],
+        fallback:
+            'Niğde ve İç Anadolu gündeminden öne çıkanları e-postana taşıyalım.',
+      ),
+      newsletterPopupButtonLabel: _string(
+        json['newsletter_popup_button_label'],
+        fallback: 'Abone ol',
+      ),
       socialAuthGoogleEnabled: _bool(
         json['social_auth_google_enabled'],
         fallback: true,
@@ -356,6 +420,17 @@ class GeneralSettingsData {
   final String bingVerificationCode;
   final String yandexVerificationCode;
   final String indexNowKey;
+  final bool cookieBannerEnabled;
+  final bool cookiePreferencesEnabled;
+  final String cookieBannerTitle;
+  final String cookieBannerDescription;
+  final String cookiePolicyUrl;
+  final bool newsletterPopupEnabled;
+  final int newsletterPopupDelaySeconds;
+  final int newsletterPopupFrequencyDays;
+  final String newsletterPopupTitle;
+  final String newsletterPopupDescription;
+  final String newsletterPopupButtonLabel;
   final bool socialAuthGoogleEnabled;
   final bool socialAuthAppleEnabled;
   final bool socialAuthFacebookEnabled;
@@ -414,6 +489,23 @@ class GeneralSettingsData {
       'bing_verification_code': bingVerificationCode,
       'yandex_verification_code': yandexVerificationCode,
       'indexnow_key': indexNowKey,
+      'cookie_banner_enabled': cookieBannerEnabled,
+      'cookie_preferences_enabled': cookiePreferencesEnabled,
+      'cookie_banner_title': cookieBannerTitle,
+      'cookie_banner_description': cookieBannerDescription,
+      'cookie_policy_url': cookiePolicyUrl,
+      'newsletter_popup_enabled': newsletterPopupEnabled,
+      'newsletter_popup_delay_seconds': newsletterPopupDelaySeconds.clamp(
+        0,
+        60,
+      ),
+      'newsletter_popup_frequency_days': newsletterPopupFrequencyDays.clamp(
+        1,
+        365,
+      ),
+      'newsletter_popup_title': newsletterPopupTitle,
+      'newsletter_popup_description': newsletterPopupDescription,
+      'newsletter_popup_button_label': newsletterPopupButtonLabel,
       'social_auth_google_enabled': socialAuthGoogleEnabled,
       'social_auth_apple_enabled': socialAuthAppleEnabled,
       'social_auth_facebook_enabled': socialAuthFacebookEnabled,
@@ -489,6 +581,17 @@ class GeneralSettingsData {
     String? bingVerificationCode,
     String? yandexVerificationCode,
     String? indexNowKey,
+    bool? cookieBannerEnabled,
+    bool? cookiePreferencesEnabled,
+    String? cookieBannerTitle,
+    String? cookieBannerDescription,
+    String? cookiePolicyUrl,
+    bool? newsletterPopupEnabled,
+    int? newsletterPopupDelaySeconds,
+    int? newsletterPopupFrequencyDays,
+    String? newsletterPopupTitle,
+    String? newsletterPopupDescription,
+    String? newsletterPopupButtonLabel,
     bool? socialAuthGoogleEnabled,
     bool? socialAuthAppleEnabled,
     bool? socialAuthFacebookEnabled,
@@ -550,6 +653,24 @@ class GeneralSettingsData {
       yandexVerificationCode:
           yandexVerificationCode ?? this.yandexVerificationCode,
       indexNowKey: indexNowKey ?? this.indexNowKey,
+      cookieBannerEnabled: cookieBannerEnabled ?? this.cookieBannerEnabled,
+      cookiePreferencesEnabled:
+          cookiePreferencesEnabled ?? this.cookiePreferencesEnabled,
+      cookieBannerTitle: cookieBannerTitle ?? this.cookieBannerTitle,
+      cookieBannerDescription:
+          cookieBannerDescription ?? this.cookieBannerDescription,
+      cookiePolicyUrl: cookiePolicyUrl ?? this.cookiePolicyUrl,
+      newsletterPopupEnabled:
+          newsletterPopupEnabled ?? this.newsletterPopupEnabled,
+      newsletterPopupDelaySeconds:
+          newsletterPopupDelaySeconds ?? this.newsletterPopupDelaySeconds,
+      newsletterPopupFrequencyDays:
+          newsletterPopupFrequencyDays ?? this.newsletterPopupFrequencyDays,
+      newsletterPopupTitle: newsletterPopupTitle ?? this.newsletterPopupTitle,
+      newsletterPopupDescription:
+          newsletterPopupDescription ?? this.newsletterPopupDescription,
+      newsletterPopupButtonLabel:
+          newsletterPopupButtonLabel ?? this.newsletterPopupButtonLabel,
       socialAuthGoogleEnabled:
           socialAuthGoogleEnabled ?? this.socialAuthGoogleEnabled,
       socialAuthAppleEnabled:
@@ -960,6 +1081,11 @@ const _settingsSelect =
     'social_discord_url,'
     'google_search_console_code,bing_verification_code,'
     'yandex_verification_code,indexnow_key,'
+    'cookie_banner_enabled,cookie_preferences_enabled,cookie_banner_title,'
+    'cookie_banner_description,cookie_policy_url,newsletter_popup_enabled,'
+    'newsletter_popup_delay_seconds,newsletter_popup_frequency_days,'
+    'newsletter_popup_title,newsletter_popup_description,'
+    'newsletter_popup_button_label,'
     'social_auth_google_enabled,social_auth_apple_enabled,'
     'social_auth_facebook_enabled,social_auth_x_enabled,'
     'social_auth_redirect_scheme,social_auth_redirect_host,robots_txt,'
@@ -977,6 +1103,13 @@ bool _bool(Object? value, {required bool fallback}) {
   if (text == 'true' || text == '1') return true;
   if (text == 'false' || text == '0') return false;
   return fallback;
+}
+
+int _int(Object? value, {required int fallback}) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  final parsed = int.tryParse(value?.toString().trim() ?? '');
+  return parsed ?? fallback;
 }
 
 String _cleanLanguageCode(String value) {

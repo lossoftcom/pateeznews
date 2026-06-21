@@ -294,6 +294,17 @@ export interface SiteSettings {
   bing_verification_code?: string;
   yandex_verification_code?: string;
   indexnow_key?: string;
+  cookie_banner_enabled?: boolean;
+  cookie_preferences_enabled?: boolean;
+  cookie_banner_title?: string;
+  cookie_banner_description?: string;
+  cookie_policy_url?: string;
+  newsletter_popup_enabled?: boolean;
+  newsletter_popup_delay_seconds?: number;
+  newsletter_popup_frequency_days?: number;
+  newsletter_popup_title?: string;
+  newsletter_popup_description?: string;
+  newsletter_popup_button_label?: string;
   robots_txt?: string;
   header_custom_codes?: string;
   footer_custom_codes?: string;

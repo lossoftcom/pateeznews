@@ -81,6 +81,7 @@ const _slotFallbackKeys = <String, String>{
   'mobile_detail_between_articles': 'web_article_related_before',
   'mobile_video_feed_inline': 'web_video_feed_inline',
   'mobile_video_feed_rectangle': 'web_video_feed_inline',
+  'mobile_anchor': 'web_home_top',
   'mobile_category_after_masthead': 'web_category_feed_inline',
   'mobile_category_feed_inline': 'web_category_feed_inline',
   'mobile_detail_after_media': 'web_article_after_media',
