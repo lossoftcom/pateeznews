@@ -3,7 +3,7 @@ import type { NavigationItem, SiteSettings } from '@/types';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
-import { supabase } from '@/lib/supabase';
+import { clearSupabaseAuthStorage, supabase } from '@/lib/supabase';
 import { navigateImmediately } from '@/utils/immediateNavigation';
 // import Navbar from '@/components/Navbar'; // Removed - Global
 import Login from '@/components/auth/Login';
@@ -39,6 +39,7 @@ const ProfileEditApp: React.FC<ProfileEditAppProps> = ({ initialLang, initialTra
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
+    clearSupabaseAuthStorage();
     await navigateImmediately('/');
   }, []);
 

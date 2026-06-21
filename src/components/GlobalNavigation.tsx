@@ -3,7 +3,7 @@ import Navbar from '@/components/Navbar';
 import Login from '@/components/auth/Login';
 import type { SiteSettings, NavigationItem } from '@/types';
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
-import { supabase } from '@/lib/supabase';
+import { clearSupabaseAuthStorage, supabase } from '@/lib/supabase';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { navigateImmediately } from '@/utils/immediateNavigation';
@@ -32,6 +32,7 @@ const GlobalNavigation: React.FC<GlobalNavigationProps> = ({
     const handleLogout = async () => {
         document.cookie = "pateez_active_cat=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
         await supabase.auth.signOut();
+        clearSupabaseAuthStorage();
         await navigateImmediately('/');
     };
 

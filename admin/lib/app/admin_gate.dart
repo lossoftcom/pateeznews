@@ -189,23 +189,21 @@ class _AdminGateState extends State<AdminGate> {
     );
     try {
       final authState = await widget.authRepository.restoreSession();
-      final contentSettingsSnapshot = authState?.session == null
-          ? null
-          : await _preloadContentSettings(widget.languageCode);
-      await brandingReady;
+      unawaited(brandingReady);
       if (!mounted) return;
       setState(() {
         _session = authState?.session;
         _profile = authState?.profile;
-        _contentSettingsSnapshot = contentSettingsSnapshot;
+        _contentSettingsSnapshot = null;
         _checkingSession = false;
       });
       if (authState?.session != null) {
         _startIdleTimer();
+        unawaited(_refreshInitialContentSettings(widget.languageCode));
         unawaited(_refreshBranding());
       }
     } catch (_) {
-      await brandingReady;
+      unawaited(brandingReady);
       if (!mounted) return;
       setState(() {
         _session = null;
@@ -215,6 +213,14 @@ class _AdminGateState extends State<AdminGate> {
       });
       _cancelIdleTimer();
     }
+  }
+
+  Future<void> _refreshInitialContentSettings(String languageCode) async {
+    final snapshot = await _preloadContentSettings(languageCode);
+    if (!mounted || _session == null) return;
+    setState(() {
+      _contentSettingsSnapshot = snapshot;
+    });
   }
 
   Future<ContentSettingsSnapshot> _preloadContentSettings(
@@ -279,16 +285,14 @@ class _AdminGateState extends State<AdminGate> {
       email: email,
       password: password,
     );
-    final contentSettingsSnapshot = await _preloadContentSettings(
-      widget.languageCode,
-    );
     if (!mounted) return;
     setState(() {
       _session = authState.session;
       _profile = authState.profile;
-      _contentSettingsSnapshot = contentSettingsSnapshot;
+      _contentSettingsSnapshot = null;
     });
     _startIdleTimer();
+    unawaited(_refreshInitialContentSettings(widget.languageCode));
     unawaited(_refreshBranding());
   }
 

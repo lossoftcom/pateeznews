@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Camera, Check, ChevronDown, Eye, EyeOff, Globe, Link as LinkIcon, Save, Sparkles, User, Mail, MapPin, Briefcase, Calendar, Shield, Lock, Trash2, Smartphone } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { clearSupabaseAuthStorage, supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import { accountAction } from '@/services/appActions';
 import RemixIcon from '@/components/ui/RemixIcon';
@@ -445,6 +445,7 @@ const UserEditProfile: React.FC<UserEditProfileProps> = ({ userId, name, onBack 
     try {
       await accountAction('delete-self', { currentPassword: confirmedPassword });
       await supabase.auth.signOut();
+      clearSupabaseAuthStorage();
       window.location.href = '/';
     } catch (error: any) {
       setFormMessage(error.message || t('common.action_failed'));

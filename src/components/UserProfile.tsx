@@ -4,6 +4,7 @@ import { ArrowLeft, MessageSquare, Share2, Calendar, User as UserIcon, Mail, Lin
 import { NewsType, type NewsItem, type SiteSettings } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { formatPostDateParts } from '@/utils/helpers';
+import { getSupabaseAuthStorageKeys, migrateLegacySupabaseAuthStorage } from '@/lib/supabase';
 
 interface UserProfileProps {
   userId?: string;
@@ -42,7 +43,6 @@ const TEXT_ENTITY_MAP: Record<string, string> = {
   uuml: 'ü',
 };
 
-const AUTH_STORAGE_KEYS = ['pateeznews-supabase-auth', 'supabase-auth-token'];
 const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 interface ProfilePreview {
@@ -103,7 +103,8 @@ const parseProfileSocialLinks = (value: unknown) => {
 
 const readStoredProfileAccessToken = () => {
   if (typeof window === 'undefined') return '';
-  for (const key of AUTH_STORAGE_KEYS) {
+  migrateLegacySupabaseAuthStorage();
+  for (const key of getSupabaseAuthStorageKeys()) {
     const raw = window.localStorage.getItem(key);
     if (!raw) continue;
     try {
@@ -122,7 +123,8 @@ const readStoredProfileAccessToken = () => {
 
 const readStoredProfileUserId = () => {
   if (typeof window === 'undefined') return '';
-  for (const key of AUTH_STORAGE_KEYS) {
+  migrateLegacySupabaseAuthStorage();
+  for (const key of getSupabaseAuthStorageKeys()) {
     const raw = window.localStorage.getItem(key);
     if (!raw) continue;
     try {

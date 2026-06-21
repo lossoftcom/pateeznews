@@ -631,7 +631,8 @@ const Navbar: React.FC<NavbarProps> = ({
 
   const openAdminPanel = () => {
     setShowUserMenu(false);
-    void navigateImmediately('/admin');
+    if (typeof window === 'undefined') return;
+    window.open('/admin', '_blank', 'noopener,noreferrer');
   };
 
   const openProfileFromAccountMenu = () => {
@@ -966,6 +967,7 @@ const Navbar: React.FC<NavbarProps> = ({
                   <div className="px-1.5 space-y-0.5">
                     <button
                       type="button"
+                      onClick={openAdminPanel}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group"
                     >
                       <RemixIcon name="ri-dashboard-line" size={20} className="opacity-60 group-hover:opacity-100" />

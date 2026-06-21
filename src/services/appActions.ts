@@ -1,9 +1,11 @@
-const AUTH_STORAGE_KEYS = ['pateeznews-supabase-auth', 'supabase-auth-token'];
+import { getSupabaseAuthStorageKeys, migrateLegacySupabaseAuthStorage } from '@/lib/supabase';
+
 const VIEWER_ID_STORAGE_KEY = 'pateeznews_web_viewer_id';
 
 function readAccessToken() {
   if (typeof window === 'undefined') return null;
-  for (const key of AUTH_STORAGE_KEYS) {
+  migrateLegacySupabaseAuthStorage();
+  for (const key of getSupabaseAuthStorageKeys()) {
     const raw = localStorage.getItem(key);
     if (!raw) continue;
     try {

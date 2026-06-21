@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { supabase, type Session, type User } from '@/lib/supabase';
+import {
+  getSupabaseAuthStorageKeys,
+  migrateLegacySupabaseAuthStorage,
+  supabase,
+  type Session,
+  type User,
+} from '@/lib/supabase';
 
 export interface Profile {
   id: string;
@@ -26,9 +32,8 @@ export function useSupabaseSession(): {
 
     const hasAuthToken = () => {
       try {
-        return Object.keys(localStorage).some(
-          (key) => key === 'pateeznews-supabase-auth'
-        );
+        migrateLegacySupabaseAuthStorage();
+        return getSupabaseAuthStorageKeys().some((key) => Boolean(localStorage.getItem(key)));
       } catch {
         return false;
       }

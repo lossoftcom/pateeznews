@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/features/auth/data/admin_auth_models.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
@@ -33,6 +34,8 @@ class TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final openFrontend =
+        onOpenFrontend ?? () => unawaited(_openStandaloneFrontend());
     return Container(
       height: 76,
       padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 28),
@@ -48,7 +51,7 @@ class TopBar extends StatelessWidget {
             children: compact
                 ? [
                     SizedBox(
-                      width: onOpenFrontend == null ? 48 : compactSideWidth,
+                      width: compactSideWidth,
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: IconButton(
@@ -75,18 +78,16 @@ class TopBar extends StatelessWidget {
                       ),
                     ),
                     SizedBox(
-                      width: onOpenFrontend == null ? 40 : compactSideWidth,
+                      width: compactSideWidth,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          if (onOpenFrontend != null) ...[
-                            TopBarIconAction(
-                              icon: Symbols.open_in_new,
-                              tooltip: context.t('nav.sitePreview'),
-                              onPressed: onOpenFrontend!,
-                            ),
-                            const SizedBox(width: 6),
-                          ],
+                          TopBarIconAction(
+                            icon: Symbols.open_in_new,
+                            tooltip: context.t('nav.sitePreview'),
+                            onPressed: openFrontend,
+                          ),
+                          const SizedBox(width: 6),
                           UserAvatarMenu(
                             session: session,
                             profile: profile,
@@ -106,7 +107,7 @@ class TopBar extends StatelessWidget {
                       icon: Symbols.open_in_new,
                       tooltip: context.t('nav.sitePreview'),
                       label: context.t('nav.sitePreview'),
-                      onPressed: onOpenFrontend ?? () {},
+                      onPressed: openFrontend,
                     ),
                     const SizedBox(width: 12),
                     const _TopBarDateTime(),
@@ -129,6 +130,17 @@ class TopBar extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _openStandaloneFrontend() async {
+  final base = Uri.base;
+  final target = Uri(
+    scheme: base.scheme,
+    host: base.host,
+    port: base.hasPort ? base.port : null,
+    path: '/',
+  );
+  await launchUrl(target, webOnlyWindowName: '_blank');
 }
 
 class _TopBarDateTime extends StatefulWidget {
