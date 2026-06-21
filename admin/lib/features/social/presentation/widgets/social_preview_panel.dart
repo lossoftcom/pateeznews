@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../data/admin_social_repository.dart';
@@ -34,6 +35,8 @@ class SocialPreviewPanel extends StatefulWidget {
     this.loading = false,
     this.onAccountChanged,
     this.onPostTypeChanged,
+    this.onEditCreative,
+    this.onOpenPlatformOptions,
   });
 
   final Set<SocialPlatform> selectedPlatforms;
@@ -43,6 +46,8 @@ class SocialPreviewPanel extends StatefulWidget {
   final bool loading;
   final void Function(SocialPlatform platform, int accountId)? onAccountChanged;
   final ValueChanged<SocialPostType>? onPostTypeChanged;
+  final VoidCallback? onEditCreative;
+  final VoidCallback? onOpenPlatformOptions;
 
   @override
   State<SocialPreviewPanel> createState() => _SocialPreviewPanelState();
@@ -112,6 +117,30 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
     return platformInfoFor(platform).supportedTypes;
   }
 
+  List<SocialPostType> _availableTypesForSelection(
+    Iterable<SocialPlatform> platforms,
+  ) {
+    final supported = <SocialPostType>{
+      for (final platform in platforms) ..._availableTypesFor(platform),
+    };
+    return [
+      for (final type in SocialPostType.values)
+        if (supported.contains(type)) type,
+    ];
+  }
+
+  SocialPostType _effectivePostTypeForSelection(
+    Iterable<SocialPlatform> platforms,
+  ) {
+    final availableTypes = _availableTypesForSelection(platforms);
+    if (availableTypes.contains(widget.data.postType)) {
+      return widget.data.postType;
+    }
+    return availableTypes.isNotEmpty
+        ? availableTypes.first
+        : SocialPostType.feed;
+  }
+
   SocialPostType _effectivePostTypeFor(SocialPlatform platform) {
     final availableTypes = _availableTypesFor(platform);
     if (availableTypes.contains(widget.data.postType)) {
@@ -122,8 +151,8 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
         : SocialPostType.feed;
   }
 
-  void _syncPostTypeFor(SocialPlatform platform) {
-    final effectiveType = _effectivePostTypeFor(platform);
+  void _syncPostTypeForSelection(Iterable<SocialPlatform> platforms) {
+    final effectiveType = _effectivePostTypeForSelection(platforms);
     if (effectiveType == widget.data.postType) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -133,10 +162,6 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
 
   void _activateTab(SocialPlatform platform) {
     setState(() => _activeTab = platform);
-    final effectiveType = _effectivePostTypeFor(platform);
-    if (effectiveType != widget.data.postType) {
-      widget.onPostTypeChanged?.call(effectiveType);
-    }
   }
 
   List<AdminSocialConnectedAccount> _accountsFor(SocialPlatform platform) {
@@ -224,7 +249,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
 
     _activeTab ??= platforms.first;
     final activePlatform = _activeTab!;
-    _syncPostTypeFor(activePlatform);
+    _syncPostTypeForSelection(platforms);
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncTabButtons());
 
     return Column(
@@ -253,17 +278,33 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
                 bottom: BorderSide(color: AppColors.line),
               ),
             ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compactHeight = constraints.maxHeight < 560;
-                final padding = compactHeight ? 12.0 : 20.0;
-                return Padding(
-                  padding: EdgeInsets.all(padding),
-                  child: _ResponsivePreviewFit(
-                    child: _buildPreviewWithFormat(activePlatform),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compactHeight = constraints.maxHeight < 560;
+                      final padding = compactHeight ? 12.0 : 20.0;
+                      return Padding(
+                        padding: EdgeInsets.all(padding),
+                        child: _ResponsivePreviewFit(
+                          child: _buildPreviewWithFormat(activePlatform),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+                if (widget.onEditCreative != null ||
+                    widget.onOpenPlatformOptions != null)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: _PreviewQuickActions(
+                      onEditCreative: widget.onEditCreative,
+                      onOpenPlatformOptions: widget.onOpenPlatformOptions,
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -461,7 +502,7 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
 
   Widget _buildPostTypeSelector(SocialPlatform platform) {
     final availableTypes = _availableTypesFor(platform);
-    if (availableTypes.length <= 1) return const SizedBox.shrink();
+    if (availableTypes.isEmpty) return const SizedBox.shrink();
 
     return Container(
       width: double.infinity,
@@ -477,9 +518,32 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
       child: SocialPostTypeSelector(
         current: _effectivePostTypeFor(platform),
         available: availableTypes,
+        labelFor: (context, type) => _postTypeLabelFor(context, platform, type),
         onChanged: (type) => widget.onPostTypeChanged?.call(type),
       ),
     );
+  }
+
+  String _postTypeLabelFor(
+    BuildContext context,
+    SocialPlatform platform,
+    SocialPostType type,
+  ) {
+    if (platform == SocialPlatform.youtube && type == SocialPostType.feed) {
+      return context.t('social.publish.formatVideo');
+    }
+    if (platform == SocialPlatform.youtube &&
+        type == SocialPostType.shortVideo) {
+      return context.t('social.publish.formatShortVideo');
+    }
+    if (platform == SocialPlatform.tiktok &&
+        type == SocialPostType.shortVideo) {
+      return context.t('social.publish.formatVideo');
+    }
+    if (platform == SocialPlatform.tiktok && type == SocialPostType.photo) {
+      return context.t('social.publish.formatPhoto');
+    }
+    return context.t(postTypeKey(type));
   }
 
   Widget _buildPreview(SocialPlatform platform) {
@@ -936,6 +1000,109 @@ class _SocialPreviewPanelState extends State<SocialPreviewPanel> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewQuickActions extends StatelessWidget {
+  const _PreviewQuickActions({
+    required this.onEditCreative,
+    required this.onOpenPlatformOptions,
+  });
+
+  final VoidCallback? onEditCreative;
+  final VoidCallback? onOpenPlatformOptions;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 162,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(AppRadius.value * 1.5),
+          border: Border.all(color: AppColors.line),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(7),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (onEditCreative != null)
+                _PreviewActionButton(
+                  icon: Symbols.brush_outlined,
+                  label: 'Tasarımı düzenle',
+                  tooltip:
+                      'Seçili görseli açar; metin, sticker, çizim ve link görünümü tek görsele gömülür.',
+                  onTap: onEditCreative,
+                ),
+              if (onEditCreative != null && onOpenPlatformOptions != null)
+                const SizedBox(height: 6),
+              if (onOpenPlatformOptions != null)
+                _PreviewActionButton(
+                  icon: Symbols.settings_input_component_outlined,
+                  label: 'Platform ayarları',
+                  tooltip:
+                      'Instagram, Facebook, TikTok ve X için Bundle Social alanlarını açar.',
+                  onTap: onOpenPlatformOptions,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewActionButton extends StatelessWidget {
+  const _PreviewActionButton({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 148,
+        height: 32,
+        child: OutlinedButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 15),
+          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.deepOcean,
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: AppColors.line),
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.value * 1.2),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'PateezSans',
+              letterSpacing: 0,
+            ),
           ),
         ),
       ),

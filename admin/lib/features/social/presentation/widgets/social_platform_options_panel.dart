@@ -114,9 +114,11 @@ Future<SocialPlatformPublishOptions?> showSocialPlatformOptionsDialog(
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.deepOcean,
                               foregroundColor: Colors.white,
+                              fixedSize: const Size(94, 42),
+                              minimumSize: const Size(94, 42),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 18,
-                                vertical: 13,
+                                vertical: 0,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(
@@ -405,6 +407,7 @@ class _TiktokOptions extends StatelessWidget {
               values: const {
                 'PUBLIC_TO_EVERYONE': 'Herkese açık',
                 'MUTUAL_FOLLOW_FRIENDS': 'Arkadaşlar',
+                'FOLLOWER_OF_CREATOR': 'Takipçiler',
                 'SELF_ONLY': 'Sadece ben',
               },
               help:

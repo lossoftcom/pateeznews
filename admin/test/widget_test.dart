@@ -5256,12 +5256,8 @@ void main() {
     expect(find.text('Sosyal medya paylaşımı'), findsOneWidget);
     expect(find.text('Canli Instagram'), findsOneWidget);
     expect(find.text('Gönderi metni'), findsOneWidget);
-    expect(find.text('Yaratıcı stüdyo'), findsOneWidget);
+    expect(find.text('Tasarımı düzenle'), findsOneWidget);
     expect(find.text('Platform ayarları'), findsOneWidget);
-    expect(
-      find.textContaining('Bağlantı etiketi görsele gömülür'),
-      findsOneWidget,
-    );
     expect(find.text('X'), findsWidgets);
 
     await tester.enterText(
@@ -5270,11 +5266,15 @@ void main() {
       ),
       'Test sosyal paylaşım metni',
     );
-    await tester.ensureVisible(find.text('Konum ID'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Platform ayarları'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Şehir adı yazılmaz'), findsOneWidget);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Konum ID'),
       '17840000',
     );
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Şimdi'));
     await tester.pumpAndSettle();
 
@@ -5311,6 +5311,172 @@ void main() {
     expect(options['TIKTOK'], containsPair('privacy', 'SELF_ONLY'));
     expect(options['TIKTOK'], containsPair('disableDuet', true));
     expect(options['TWITTER'], containsPair('replySettings', 'FOLLOWING'));
+  });
+
+  test('Sosyal platform formatları desteklenen API tipleriyle sınırlıdır', () {
+    expect(platformInfoFor(SocialPlatform.twitter).supportedTypes, [
+      SocialPostType.feed,
+    ]);
+    expect(
+      platformInfoFor(SocialPlatform.instagram).supportedTypes,
+      containsAll([
+        SocialPostType.feed,
+        SocialPostType.story,
+        SocialPostType.reels,
+      ]),
+    );
+    expect(
+      platformInfoFor(SocialPlatform.facebook).supportedTypes,
+      containsAll([
+        SocialPostType.feed,
+        SocialPostType.story,
+        SocialPostType.reels,
+      ]),
+    );
+    expect(
+      platformInfoFor(SocialPlatform.youtube).supportedTypes,
+      containsAll([SocialPostType.feed, SocialPostType.shortVideo]),
+    );
+    expect(
+      platformInfoFor(SocialPlatform.tiktok).supportedTypes,
+      containsAll([SocialPostType.shortVideo, SocialPostType.photo]),
+    );
+    expect(platformInfoFor(SocialPlatform.threads).supportedTypes, [
+      SocialPostType.feed,
+    ]);
+  });
+
+  testWidgets('Sosyal medya hikaye formatı X hesabını dışarıda bırakır', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final socialRepository = _FakeAdminSocialRepository();
+    await _pumpAdminApp(tester, socialRepository: socialRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sosyal Medya'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Paylaşım Yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Hikaye'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.maxLines == 6,
+      ),
+      'Hikaye testi',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Şimdi'));
+    await tester.pumpAndSettle();
+
+    expect(socialRepository.publishedData?.postType, SocialPostType.story);
+    expect(
+      socialRepository.publishedData?.selectedPlatforms,
+      contains(SocialPlatform.instagram),
+    );
+    expect(
+      socialRepository.publishedData?.selectedPlatforms,
+      isNot(contains(SocialPlatform.twitter)),
+    );
+    expect(
+      socialRepository.publishedData?.selectedConnectedAccountIds,
+      isNot(containsPair(SocialPlatform.twitter, 2)),
+    );
+  });
+
+  testWidgets('Sosyal medya sadece X bağlıyken hikaye ve reels göstermez', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final socialRepository = _FakeAdminSocialRepository()
+      ..connectedAccounts.removeWhere(
+        (account) => account.platform != SocialPlatform.twitter,
+      );
+    await _pumpAdminApp(tester, socialRepository: socialRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sosyal Medya'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Paylaşım Yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Canli Instagram'), findsNothing);
+    expect(find.text('Canli X'), findsAtLeastNWidgets(1));
+    expect(find.text('Akış'), findsOneWidget);
+    expect(find.text('Hikaye'), findsNothing);
+    expect(find.text('Reels'), findsNothing);
+    expect(find.text('Thread'), findsNothing);
+  });
+
+  testWidgets('Sosyal medya sadece YouTube bağlıyken video ve short gösterir', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final socialRepository = _FakeAdminSocialRepository();
+    socialRepository.connectedAccounts
+      ..clear()
+      ..add(
+        AdminSocialConnectedAccount(
+          id: 3,
+          socialAccountId: 7001,
+          platform: SocialPlatform.youtube,
+          platformType: 'YOUTUBE',
+          accountName: 'Bundle Social Canli',
+          displayName: 'Canli YouTube',
+          username: 'canli_youtube',
+          channelId: '',
+          channelName: '',
+          status: 'connected',
+          connectedAt: DateTime(2026, 5, 26),
+        ),
+      );
+    await _pumpAdminApp(tester, socialRepository: socialRepository);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'editor@pateeznews.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'gizli123');
+    await tester.tap(find.text('Giriş yap'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sosyal Medya'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Paylaşım Yap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Canli YouTube'), findsAtLeastNWidgets(1));
+    expect(find.text('Video'), findsOneWidget);
+    expect(find.text('Short'), findsOneWidget);
+    expect(find.text('Hikaye'), findsNothing);
+    expect(find.text('Reels'), findsNothing);
   });
 
   testWidgets('Sosyal medya ayarları menüsü ayar ekranını açar', (

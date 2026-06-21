@@ -48,7 +48,7 @@ SocialPlatform socialPlatformFromBundleType(String type) {
 }
 
 /// Post format types.
-enum SocialPostType { feed, story, reels, thread, shortVideo }
+enum SocialPostType { feed, story, reels, thread, shortVideo, photo }
 
 List<String> _splitOptionList(String value) {
   return value
@@ -491,7 +491,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     color: Color(0xFF000000),
     logoAsset: 'assets/images/social/x.svg',
     charLimit: 280,
-    supportedTypes: [SocialPostType.feed, SocialPostType.thread],
+    supportedTypes: [SocialPostType.feed],
   ),
   SocialPlatformInfo(
     platform: SocialPlatform.linkedin,
@@ -507,7 +507,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     color: Color(0xFF000000),
     logoAsset: 'assets/images/social/tiktok.svg',
     charLimit: 2200,
-    supportedTypes: [SocialPostType.shortVideo],
+    supportedTypes: [SocialPostType.shortVideo, SocialPostType.photo],
   ),
   SocialPlatformInfo(
     platform: SocialPlatform.youtube,
@@ -539,7 +539,7 @@ const List<SocialPlatformInfo> socialPlatforms = [
     color: Color(0xFF000000),
     logoAsset: 'assets/images/social/threads.svg',
     charLimit: 500,
-    supportedTypes: [SocialPostType.feed, SocialPostType.thread],
+    supportedTypes: [SocialPostType.feed],
   ),
   SocialPlatformInfo(
     platform: SocialPlatform.bluesky,
@@ -594,4 +594,5 @@ String postTypeKey(SocialPostType t) => switch (t) {
   SocialPostType.reels => 'social.publish.formatReels',
   SocialPostType.thread => 'social.publish.formatThread',
   SocialPostType.shortVideo => 'social.publish.formatShortVideo',
+  SocialPostType.photo => 'social.publish.formatPhoto',
 };

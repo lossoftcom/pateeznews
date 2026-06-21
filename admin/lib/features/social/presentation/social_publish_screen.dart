@@ -75,14 +75,18 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
       setState(() {
         _loadingConnectedAccounts = false;
         _connectedAccounts = connectedAccounts;
-        final selectedPlatforms = _platformsFromAccounts(connectedAccounts);
+        final connectedPlatforms = _platformsFromAccounts(connectedAccounts);
+        final postType = _effectivePostTypeForPlatforms(
+          _data.postType,
+          connectedPlatforms,
+        );
         _data = _data.copyWith(
-          selectedPlatforms: selectedPlatforms,
-          selectedConnectedAccountIds: selectedAccountIds,
-          postType: _effectivePostTypeForPlatforms(
-            _data.postType,
-            selectedPlatforms,
+          selectedPlatforms: _platformsSupportingPostType(
+            connectedPlatforms,
+            postType,
           ),
+          selectedConnectedAccountIds: selectedAccountIds,
+          postType: postType,
         );
       });
     } catch (_) {
@@ -173,7 +177,8 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
     Set<SocialPlatform> platforms,
   ) {
     final supported = <SocialPostType>{
-      for (final platform in platforms) ...platformInfoFor(platform).supportedTypes,
+      for (final platform in platforms)
+        ...platformInfoFor(platform).supportedTypes,
     };
     return [
       for (final type in SocialPostType.values)
@@ -190,21 +195,33 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
     return available.isNotEmpty ? available.first : SocialPostType.feed;
   }
 
+  Set<SocialPlatform> _platformsSupportingPostType(
+    Set<SocialPlatform> platforms,
+    SocialPostType type,
+  ) {
+    return {
+      for (final platform in platforms)
+        if (platformInfoFor(platform).supportedTypes.contains(type)) platform,
+    };
+  }
+
   void _changePostType(SocialPostType type) {
-    if (!_availablePostTypesForPlatforms(_data.selectedPlatforms).contains(type)) {
+    final connectedPlatforms = _platformsFromAccounts(_connectedAccounts);
+    if (!_availablePostTypesForPlatforms(connectedPlatforms).contains(type)) {
       return;
     }
 
-    final nextPlatforms = <SocialPlatform>{
-      for (final platform in _data.selectedPlatforms)
-        if (platformInfoFor(platform).supportedTypes.contains(type)) platform,
-    };
+    final nextPlatforms = _platformsSupportingPostType(
+      connectedPlatforms,
+      type,
+    );
     if (nextPlatforms.isEmpty) return;
 
-    final nextSelectedIds = <SocialPlatform, int>{
-      for (final entry in _data.selectedConnectedAccountIds.entries)
-        if (nextPlatforms.contains(entry.key)) entry.key: entry.value,
-    };
+    final nextSelectedIds = <SocialPlatform, int>{};
+    for (final platform in nextPlatforms) {
+      final account = _selectedConnectedAccountFor(platform);
+      if (account != null) nextSelectedIds[platform] = account.id;
+    }
 
     _updateData(
       (d) => d.copyWith(

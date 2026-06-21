@@ -19,7 +19,7 @@ Future<void> showSocialCreativeEditor(
     AdminToast.show(
       context,
       message: 'Önce yukarıdaki Paylaşım görseli alanından medya seçin.',
-      tone: AdminToastTone.warning,
+      tone: AdminToastTone.info,
     );
     return;
   }
@@ -29,7 +29,7 @@ Future<void> showSocialCreativeEditor(
       context,
       message:
           'Video üzerine tıklanabilir link/sticker API ile eklenmez. Video katmanı için ayrı video render hattı gerekir.',
-      tone: AdminToastTone.warning,
+      tone: AdminToastTone.info,
     );
     return;
   }

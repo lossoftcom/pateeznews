@@ -95,7 +95,9 @@ function absoluteUrl(value: string) {
 
 function postTypeFor(platform: string, requestedType: string) {
   const type = requestedType.toLowerCase();
-  if (platform === 'TIKTOK') return 'VIDEO';
+  if (platform === 'TIKTOK') {
+    return type === 'photo' || type === 'image' ? 'IMAGE' : 'VIDEO';
+  }
   if (platform === 'YOUTUBE') return type === 'feed' ? 'VIDEO' : 'SHORT';
   if (type === 'story') return 'STORY';
   if (type === 'reels' || type === 'shortvideo' || type === 'short_video') return 'REEL';
@@ -258,15 +260,21 @@ function platformData(options: {
     }
     case 'TIKTOK': {
       if (!uploadIds.length) throw new Error('TikTok gönderimi için medya yüklemesi gerekir.');
+      const type = postTypeFor(platform, postType);
       const privacy =
         optionEnum(
           platformOption,
           'privacy',
-          new Set(['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY'])
+          new Set([
+            'PUBLIC_TO_EVERYONE',
+            'MUTUAL_FOLLOW_FRIENDS',
+            'FOLLOWER_OF_CREATOR',
+            'SELF_ONLY',
+          ])
         ) || 'PUBLIC_TO_EVERYONE';
       const musicSoundInfo = optionMusicSoundInfo(platformOption);
       return {
-        type: 'VIDEO',
+        type,
         text,
         uploadIds,
         privacy,

@@ -13,11 +13,13 @@ class SocialPostTypeSelector extends StatelessWidget {
     required this.current,
     required this.available,
     required this.onChanged,
+    this.labelFor,
   });
 
   final SocialPostType current;
   final List<SocialPostType> available;
   final ValueChanged<SocialPostType> onChanged;
+  final String Function(BuildContext context, SocialPostType type)? labelFor;
 
   IconData _iconFor(SocialPostType t) => switch (t) {
     SocialPostType.feed => Symbols.dynamic_feed_rounded,
@@ -25,11 +27,12 @@ class SocialPostTypeSelector extends StatelessWidget {
     SocialPostType.reels => Symbols.movie_creation_rounded,
     SocialPostType.thread => Symbols.forum_rounded,
     SocialPostType.shortVideo => Symbols.slow_motion_video_rounded,
+    SocialPostType.photo => Symbols.add_photo_alternate_outlined,
   };
 
   @override
   Widget build(BuildContext context) {
-    if (available.length <= 1) return const SizedBox.shrink();
+    if (available.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,7 +95,8 @@ class SocialPostTypeSelector extends StatelessWidget {
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            context.t(postTypeKey(type)),
+                            labelFor?.call(context, type) ??
+                                context.t(postTypeKey(type)),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: selected
