@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'admin_auth_models.dart';
+import 'browser_auth_storage.dart';
 
 class AdminSessionStore {
   const AdminSessionStore({
@@ -91,6 +92,7 @@ class AdminSessionStore {
   Future<void> clearAuth() async {
     await clearSession();
     await clearProfileCache();
+    clearBrowserAuthStorage();
   }
 }
 

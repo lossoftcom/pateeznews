@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 import * as parse5 from 'parse5';
-import { geminiFastModelAttempts, getOneLowerGeminiModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '../geminiModelFallback';
+import {
+  geminiFastModelAttempts,
+  geminiThinkingConfigForModel,
+  getOneLowerGeminiModel,
+  isGeminiFallbackWorthTrying,
+  normalizeGeminiModelName,
+} from '../geminiModelFallback';
 import { dbQuery } from './supabaseDb';
 
 const CITY = 'Niğde';
@@ -10,7 +16,7 @@ const DEFAULT_UPDATE_INTERVAL_MINUTES = 30;
 const SOURCE_FETCH_TIMEOUT_MS = 4500;
 const DETAIL_FETCH_TIMEOUT_MS = 6500;
 const GEMINI_TIMEOUT_MS = 12000;
-const MANUAL_GEMINI_TIMEOUT_MS = 30000;
+const MANUAL_GEMINI_TIMEOUT_MS = 18000;
 const AI_IMAGE_FETCH_TIMEOUT_MS = 4500;
 const MAX_AI_IMAGE_BYTES = 2_500_000;
 const MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -3198,6 +3204,45 @@ const manualAnnouncementAiImagePart = async (
   }
 };
 
+const manualAnnouncementAiModelAttempts = (selectedModel: unknown) => {
+  const selected = normalizeGeminiModelName(selectedModel);
+  const lower = selected.toLowerCase();
+  const selectedIsFast = Boolean(selected) && (
+    lower.includes('flash') ||
+    lower.includes('lite')
+  ) && !lower.includes('pro');
+  const attempts = [
+    ...(selectedIsFast ? [selected] : []),
+    'gemini-3.1-flash-lite',
+    getOneLowerGeminiModel(selected),
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    ...(!selectedIsFast ? [selected] : []),
+  ];
+  const seen = new Set<string>();
+  return attempts.filter((model) => {
+    const key = normalizeGeminiModelName(model).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const geminiFetchFailure = (error: unknown) => {
+  const message = error instanceof Error
+    ? error.message
+    : String(error || 'Gemini network error');
+  const name = error && typeof error === 'object' && 'name' in error
+    ? String((error as { name?: unknown }).name || '')
+    : '';
+  const text = `${name} ${message}`.toLowerCase();
+  return {
+    ok: false as const,
+    status: text.includes('abort') || text.includes('timeout') ? 408 : 0,
+    message: message || 'Gemini network error',
+  };
+};
+
 const generateManualAnnouncementAi = async (
   settings: AiSettings,
   input: {
@@ -3242,40 +3287,49 @@ isPublishable, contentType, rejectReason, category, sourceName, title, summary, 
     throw new Error('Görsel AI tarafından okunacak boyuta indirilemedi');
   }
 
-  const payload = {
-    contents: [{ parts: [{ text: prompt }, ...(imagePart ? [imagePart] : [])] }],
-    generationConfig: {
+  const makePayload = (modelId: string) => {
+    const generationConfig: Record<string, unknown> = {
       temperature: 0.05,
       topK: 12,
       topP: 0.7,
       maxOutputTokens: 4096,
       responseMimeType: 'application/json',
       responseSchema: MANUAL_ANNOUNCEMENT_AI_SCHEMA,
-    },
+    };
+    const thinkingConfig = geminiThinkingConfigForModel(modelId);
+    if (thinkingConfig) generationConfig.thinkingConfig = thinkingConfig;
+    return {
+      contents: [{ parts: [{ text: prompt }, ...(imagePart ? [imagePart] : [])] }],
+      generationConfig,
+    };
   };
 
   const call = async (apiVersion: 'v1beta' | 'v1', modelId: string) => {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(settings.apiKey)}`,
-      {
-        method: 'POST',
-        signal: AbortSignal.timeout(MANUAL_GEMINI_TIMEOUT_MS),
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(settings.apiKey)}`,
+        {
+          method: 'POST',
+          signal: AbortSignal.timeout(MANUAL_GEMINI_TIMEOUT_MS),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(makePayload(modelId)),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.error) {
+        return {
+          ok: false as const,
+          status: response.status,
+          message: data?.error?.message || `Gemini HTTP ${response.status}`,
+        };
       }
-    );
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.error) {
-      return {
-        ok: false as const,
-        status: response.status,
-        message: data?.error?.message || `Gemini HTTP ${response.status}`,
-      };
+      return { ok: true as const, data };
+    } catch (error) {
+      return geminiFetchFailure(error);
     }
-    return { ok: true as const, data };
   };
 
-  const queue = geminiFastModelAttempts(settings.model || 'gemini-2.5-flash');
+  const queue = manualAnnouncementAiModelAttempts(settings.model || 'gemini-2.5-flash');
   let lastError = '';
 
   for (const model of queue) {

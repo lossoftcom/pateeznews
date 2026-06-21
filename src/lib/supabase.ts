@@ -4,9 +4,20 @@ export type { Session, User };
 
 const FALLBACK_SUPABASE_URL = 'https://debgdvrkcqhtwdyrqves.supabase.co';
 const PATEEZ_AUTH_STORAGE_KEY = 'pateez-app-auth-session';
+const FLUTTER_SECURE_STORAGE_PUBLIC_KEY = 'FlutterSecureStorage';
 const LEGACY_SUPABASE_AUTH_STORAGE_KEYS = [
   'pateeznews-supabase-auth',
   'supabase-auth-token',
+] as const;
+const FLUTTER_SECURE_AUTH_STORAGE_KEYS = [
+  'supabase-auth-token',
+  'pateez_frontend_auth_session',
+] as const;
+const FLUTTER_SHARED_AUTH_STORAGE_KEYS = [
+  'supabase-auth-token',
+  'pateez_profile_cache',
+  'pateez_frontend_auth_session',
+  'pateez_frontend_profile_cache',
 ] as const;
 type AuthEventName = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED' | 'INITIAL_SESSION';
 type AuthListener = (event: AuthEventName, session: Session | null) => void | Promise<void>;
@@ -46,6 +57,13 @@ export function getSupabaseAuthStorageKeys() {
     PATEEZ_AUTH_STORAGE_KEY,
     current,
     ...LEGACY_SUPABASE_AUTH_STORAGE_KEYS.filter((key) => key !== current && key !== PATEEZ_AUTH_STORAGE_KEY),
+  ];
+}
+
+export function getFlutterAuthStorageKeys() {
+  return [
+    ...FLUTTER_SECURE_AUTH_STORAGE_KEYS.map((key) => `${FLUTTER_SECURE_STORAGE_PUBLIC_KEY}.${key}`),
+    ...FLUTTER_SHARED_AUTH_STORAGE_KEYS.map((key) => `flutter.${key}`),
   ];
 }
 
@@ -93,6 +111,9 @@ export function clearSupabaseAuthStorage() {
       window.localStorage.removeItem(key);
       window.localStorage.removeItem(`${key}-code-verifier`);
       window.localStorage.removeItem(`${key}-user`);
+    }
+    for (const key of getFlutterAuthStorageKeys()) {
+      window.localStorage.removeItem(key);
     }
     window.localStorage.removeItem('pateez_profile_cache');
   } catch {

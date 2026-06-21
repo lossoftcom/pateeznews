@@ -1363,7 +1363,7 @@ class _ManualAnnouncementAiDialogState
   }
 
   Widget _buildSidePanel() {
-    return Column(
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ManualAiImagePanel(
@@ -1375,6 +1375,12 @@ class _ManualAnnouncementAiDialogState
         const SizedBox(height: 14),
         const _ManualAiRulePanel(),
       ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) return content;
+        return SingleChildScrollView(child: content);
+      },
     );
   }
 }
