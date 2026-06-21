@@ -8,6 +8,7 @@ import '../core/theme/app_colors.dart';
 import '../features/account/data/admin_account_settings_repository.dart';
 import '../features/auth/data/admin_auth_models.dart';
 import '../features/auth/data/admin_auth_repository.dart';
+import '../features/auth/data/browser_auth_storage.dart';
 import '../features/comments/data/admin_comments_repository.dart';
 import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
@@ -101,17 +102,33 @@ class _AdminGateState extends State<AdminGate> {
   /// son kullanım anında, kullanıcı aktif olsa bile çıkış yapılıyordu.)
   static const _idleTimeout = Duration(minutes: 30);
   Timer? _idleTimer;
+  Timer? _externalAuthSyncTimer;
+  Object? _browserAuthStorageListener;
 
   @override
   void initState() {
     super.initState();
+    _browserAuthStorageListener = listenBrowserAuthStorageChanges(
+      _scheduleExternalAuthRestore,
+    );
     unawaited(_restoreSession());
   }
 
   @override
   void dispose() {
     _idleTimer?.cancel();
+    _externalAuthSyncTimer?.cancel();
+    cancelBrowserAuthStorageChanges(_browserAuthStorageListener);
     super.dispose();
+  }
+
+  void _scheduleExternalAuthRestore() {
+    if (!mounted || _checkingSession || _session != null) return;
+    _externalAuthSyncTimer?.cancel();
+    _externalAuthSyncTimer = Timer(const Duration(milliseconds: 200), () {
+      if (!mounted || _checkingSession || _session != null) return;
+      unawaited(_restoreSession());
+    });
   }
 
   Future<void> _restoreSession() async {

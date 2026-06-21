@@ -26,6 +26,27 @@ export async function uploadLocalStorageFile(formData: FormData) {
   return data;
 }
 
+export async function readLocalStorageFile(input: { type: string; id: string }) {
+  const url = localStorageUrl('/api/local-storage/file');
+  url.searchParams.set('type', input.type);
+  url.searchParams.set('id', input.id);
+  const response = await fetch(url);
+  const body = new Uint8Array(await response.arrayBuffer());
+  if (!response.ok) {
+    const text = new TextDecoder().decode(body);
+    let message = text || 'Local storage file read failed';
+    try {
+      const data = JSON.parse(text);
+      message = data?.error || message;
+    } catch {}
+    throw new Error(message);
+  }
+  return {
+    body,
+    contentType: response.headers.get('content-type') || '',
+  };
+}
+
 export async function resolveLocalStorageVideoThumb(body: unknown) {
   const response = await fetch(localStorageUrl('/api/local-storage/video-thumb'), {
     method: 'POST',

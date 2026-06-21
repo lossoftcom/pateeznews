@@ -19,6 +19,7 @@ const FLUTTER_SHARED_AUTH_STORAGE_KEYS = [
   'pateez_frontend_auth_session',
   'pateez_frontend_profile_cache',
 ] as const;
+const FLUTTER_ADMIN_SHARED_AUTH_STORAGE_KEY = 'flutter.supabase-auth-token';
 type AuthEventName = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED' | 'INITIAL_SESSION';
 type AuthListener = (event: AuthEventName, session: Session | null) => void | Promise<void>;
 
@@ -145,6 +146,66 @@ function normalizeStoredSession(raw: string | null): Session | null {
   }
 }
 
+function jwtExpiresAt(token: string) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    const decoded = JSON.parse(window.atob(padded));
+    return typeof decoded?.exp === 'number' ? decoded.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizedSessionForStorage(session: Session): Session {
+  const accessToken = String(session.access_token || '').trim();
+  const expiresAt = Number(session.expires_at || 0) || jwtExpiresAt(accessToken) || undefined;
+  const expiresIn = Number(session.expires_in || 0) || (
+    expiresAt ? Math.max(0, expiresAt - Math.floor(Date.now() / 1000)) : undefined
+  );
+  return {
+    ...session,
+    access_token: accessToken,
+    refresh_token: session.refresh_token || '',
+    token_type: session.token_type || 'bearer',
+    expires_at: expiresAt,
+    expires_in: expiresIn,
+    user: session.user || null,
+  } as Session;
+}
+
+function objectOrEmpty(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function saveFlutterAdminSession(session: Session) {
+  const user = objectOrEmpty(session.user);
+  const userId = String(user.id || '').trim();
+  const accessToken = String(session.access_token || '').trim();
+  const expiresAt = Number(session.expires_at || 0) || 0;
+  if (!accessToken || !userId || !expiresAt) return;
+
+  const adminSession = {
+    access_token: accessToken,
+    token_type: session.token_type || 'bearer',
+    expires_at: expiresAt,
+    user: {
+      id: userId,
+      email: typeof user.email === 'string' ? user.email : null,
+      role: typeof user.role === 'string' ? user.role : 'authenticated',
+      aud: typeof user.aud === 'string' ? user.aud : 'authenticated',
+      user_metadata: objectOrEmpty(user.user_metadata),
+      app_metadata: objectOrEmpty(user.app_metadata),
+    },
+  };
+  window.localStorage.setItem(FLUTTER_ADMIN_SHARED_AUTH_STORAGE_KEY, JSON.stringify(adminSession));
+}
+
 function readStoredPateezSession(): Session | null {
   if (typeof window === 'undefined') return null;
   migrateLegacySupabaseAuthStorage();
@@ -166,18 +227,20 @@ function saveStoredPateezSession(session: Session | null) {
       clearSupabaseAuthStorage();
       return;
     }
+    const storedSession = normalizedSessionForStorage(session);
     const payload = JSON.stringify({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token || '',
-      token_type: session.token_type || 'bearer',
-      expires_at: session.expires_at || null,
-      expires_in: session.expires_in || null,
-      user: session.user || null,
-      session,
-      currentSession: session,
+      access_token: storedSession.access_token,
+      refresh_token: storedSession.refresh_token || '',
+      token_type: storedSession.token_type || 'bearer',
+      expires_at: storedSession.expires_at || null,
+      expires_in: storedSession.expires_in || null,
+      user: storedSession.user || null,
+      session: storedSession,
+      currentSession: storedSession,
     });
     window.localStorage.setItem(PATEEZ_AUTH_STORAGE_KEY, payload);
     window.localStorage.setItem(getSupabaseAuthStorageKey(), payload);
+    saveFlutterAdminSession(storedSession);
   } catch {
     // localStorage can be unavailable in restricted browser modes.
   }

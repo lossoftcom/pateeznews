@@ -151,6 +151,63 @@ class MediaVideoThumbnailResult {
   final String provider;
 }
 
+class MediaUploadException implements Exception {
+  const MediaUploadException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class MediaDeleteException implements Exception {
+  const MediaDeleteException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class MediaDeleteUsagePost {
+  const MediaDeleteUsagePost({required this.id, required this.title});
+
+  factory MediaDeleteUsagePost.fromJson(Map<dynamic, dynamic> json) {
+    return MediaDeleteUsagePost(
+      id: (json['id'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+    );
+  }
+
+  final String id;
+  final String title;
+}
+
+class MediaDeleteUsageException extends MediaDeleteException {
+  const MediaDeleteUsageException({
+    required String message,
+    required this.usageCount,
+    required this.posts,
+  }) : super(message);
+
+  factory MediaDeleteUsageException.fromJson(Map<dynamic, dynamic> json) {
+    final usage = json['usage'];
+    final usageMap = usage is Map ? usage : const {};
+    final rows = usageMap['posts'];
+    return MediaDeleteUsageException(
+      message: (json['message'] ?? 'Media is used in posts').toString(),
+      usageCount: (usageMap['count'] as num?)?.toInt() ?? 0,
+      posts: [
+        for (final row in rows is List ? rows : const [])
+          if (row is Map) MediaDeleteUsagePost.fromJson(row),
+      ],
+    );
+  }
+
+  final int usageCount;
+  final List<MediaDeleteUsagePost> posts;
+}
+
 int compareNewestMedia(MediaItem a, MediaItem b) {
   final dateCompare = b.date.compareTo(a.date);
   if (dateCompare != 0) return dateCompare;
@@ -413,10 +470,14 @@ class MediaService {
       if (activePoll != null) await activePoll;
       if (closeClient) client.close();
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw MediaUploadException(_responseError(response));
+    }
 
     final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) return null;
+    if (decoded is! Map<String, dynamic>) {
+      throw const MediaUploadException('Invalid upload response');
+    }
 
     return MediaItem(
       id: (decoded['id'] ?? '').toString(),
@@ -726,20 +787,40 @@ class MediaService {
     return MediaVideoThumbnailResult.fromJson(decoded);
   }
 
-  Future<bool> deleteFile(String fileId, {String? type}) async {
+  Future<bool> deleteFile(
+    String fileId, {
+    String? type,
+    bool force = false,
+  }) async {
     final uri = _resolve('/api/storage/delete');
     final body = <String, dynamic>{'id': fileId};
     final normalizedType = type?.trim();
     if (normalizedType != null && normalizedType.isNotEmpty) {
       body['type'] = normalizedType;
     }
+    if (force) body['force'] = true;
     final response = await _request(
       'DELETE',
       uri,
       body: jsonEncode(body),
       headers: await adminJsonHeaders(),
     );
-    return response.statusCode >= 200 && response.statusCode < 300;
+    if (response.statusCode == 409) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] == 'MEDIA_IN_USE') {
+          throw MediaDeleteUsageException.fromJson(decoded);
+        }
+      } on MediaDeleteUsageException {
+        rethrow;
+      } catch (_) {
+        // Fall through to the generic response error below.
+      }
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw MediaDeleteException(_responseError(response));
+    }
+    return true;
   }
 
   String resolveUrl(String path) => _resolve(path).toString();

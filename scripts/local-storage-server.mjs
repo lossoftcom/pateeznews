@@ -39,6 +39,17 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+function fileResponse(res, status, buffer, contentType) {
+  res.writeHead(status, {
+    'Content-Type': contentType || 'application/octet-stream',
+    'Content-Length': buffer.length,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization,content-type',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+  });
+  res.end(buffer);
+}
+
 function normalizePath(value) {
   return String(value || '')
     .replace(/\\/g, '/')
@@ -73,6 +84,24 @@ function todayPath() {
 function inside(base, target) {
   const relative = path.relative(base, target);
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+async function pruneEmptyDirectories(startDir, stopDir) {
+  let current = path.resolve(startDir);
+  const stop = path.resolve(stopDir);
+  while (current !== stop && inside(stop, current)) {
+    try {
+      await fs.promises.rmdir(current);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        current = path.dirname(current);
+        continue;
+      }
+      if (error?.code === 'ENOTEMPTY' || error?.code === 'EEXIST') return;
+      throw error;
+    }
+    current = path.dirname(current);
+  }
 }
 
 function resolveUploadPath(type, id) {
@@ -246,6 +275,7 @@ async function deleteImageVariants(type, id) {
     await fs.promises.unlink(outputPath).catch((error) => {
       if (error?.code !== 'ENOENT') throw error;
     });
+    await pruneEmptyDirectories(path.dirname(outputPath), VARIANT_ROOT);
   }));
 }
 
@@ -763,6 +793,17 @@ async function upload(req, res) {
   });
 }
 
+async function readStoredFile(req, res, url) {
+  const type = storageType(url.searchParams.get('type'));
+  const id = normalizePath(url.searchParams.get('id'));
+  const resolved = resolveUploadPath(type, id);
+  if (!resolved || !fs.existsSync(resolved.absolutePath)) {
+    return json(res, 404, { error: 'File not found' });
+  }
+  const buffer = await fs.promises.readFile(resolved.absolutePath);
+  return fileResponse(res, 200, buffer, contentTypeForFilename(resolved.relativeId));
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -905,6 +946,7 @@ async function remove(req, res) {
         }).catch((error) => {
           if (error?.code !== 'ENOENT') throw error;
         });
+        await pruneEmptyDirectories(path.dirname(resolved.absolutePath), path.join(ROOT, itemType));
         await deleteImageVariants(itemType, resolved.relativeId);
       }
     }
@@ -920,6 +962,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/local-storage/list') {
       return json(res, 200, listItems(storageType(url.searchParams.get('type'))));
     }
+    if (req.method === 'GET' && url.pathname === '/api/local-storage/file') return readStoredFile(req, res, url);
     if (req.method === 'POST' && url.pathname === '/api/local-storage/upload') return upload(req, res);
     if (req.method === 'POST' && url.pathname === '/api/local-storage/video-thumb') return resolveVideoThumb(req, res);
     if (req.method === 'POST' && url.pathname === '/api/local-storage/rename') return renameStoredFile(req, res);

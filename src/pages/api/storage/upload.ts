@@ -18,7 +18,7 @@ import {
     recordStorageMediaFile,
 } from '@/lib/server/storageSettings';
 import { resolveLocalUploadPath } from '@/lib/server/localUploadStorage';
-import { deleteLocalStorageFile, uploadLocalStorageFile } from '@/lib/server/localStorageProxy';
+import { deleteLocalStorageFile, readLocalStorageFile, uploadLocalStorageFile } from '@/lib/server/localStorageProxy';
 import { remoteApiPath, uploadRemoteStorageFile, uploadRemoteStorageObject } from '@/lib/server/remoteObjectStorage';
 import {
     allowedExtensionsForRuleType,
@@ -175,6 +175,11 @@ function storageObjectPathFromMediaUrl(value: string) {
 }
 
 async function readLocalUploadBuffer(type: StorageType, id: string) {
+    try {
+        return (await readLocalStorageFile({ type, id })).body;
+    } catch {
+        // Fall back to direct filesystem access for older local-storage servers.
+    }
     const resolved = resolveLocalUploadPath(type, id);
     if (!resolved || !fs.existsSync(resolved.absolutePath)) {
         throw Object.assign(new Error('Processed local upload file is missing'), { status: 500 });

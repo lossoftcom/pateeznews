@@ -57,6 +57,7 @@ class AdminSessionStore {
     );
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_sessionKey);
+    saveBrowserAuthSession(session.toJson());
   }
 
   Future<void> clearSession() async {

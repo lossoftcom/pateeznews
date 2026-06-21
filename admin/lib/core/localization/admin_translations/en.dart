@@ -3739,6 +3739,9 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "media.delete": "Delete",
   "media.deleteSelected": "Delete Selected",
   "media.deleting": "Deleting...",
+  "media.deleteUsedTitle": "Media is used in news",
+  "media.deleteUsedMessage":
+      "This media is used in {count} news post(s): {posts}\n\nDeleting it can break the media link in those posts. Delete anyway?",
   "media.useThis": "Use Image",
   "media.useVideo": "Use Video",
   "media.useAudio": "Use Audio",

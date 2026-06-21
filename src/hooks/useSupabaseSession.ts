@@ -39,6 +39,15 @@ export function useSupabaseSession(): {
       }
     };
 
+    const authStorageEventKeys = () => {
+      const keys = getSupabaseAuthStorageKeys();
+      return new Set([
+        ...keys,
+        ...keys.flatMap((key) => [`${key}-code-verifier`, `${key}-user`]),
+        'pateez_profile_cache',
+      ]);
+    };
+
     const hydrateProfileCache = () => {
       try {
         const cached = localStorage.getItem('pateez_profile_cache');
@@ -99,19 +108,8 @@ export function useSupabaseSession(): {
       }
     }
 
-    // Hydrate cached avatar/profile after mount (prevents SSR/client mismatch).
-    const tokenExists = hasAuthToken();
-    const cachedProfile = tokenExists ? hydrateProfileCache() : null;
-    if (cachedProfile && isMounted) {
-      setProfile(cachedProfile);
-    }
-
-    // If we have no auth token, don't block UI waiting for auth resolution.
-    if (!tokenExists) {
-      setLoading(false);
-    }
-
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+    async function syncSessionFromStorage() {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!isMounted) return;
       if (currentSession) {
         setSession(currentSession);
@@ -124,7 +122,21 @@ export function useSupabaseSession(): {
         } catch { }
       }
       setLoading(false);
-    });
+    }
+
+    // Hydrate cached avatar/profile after mount (prevents SSR/client mismatch).
+    const tokenExists = hasAuthToken();
+    const cachedProfile = tokenExists ? hydrateProfileCache() : null;
+    if (cachedProfile && isMounted) {
+      setProfile(cachedProfile);
+    }
+
+    // If we have no auth token, don't block UI waiting for auth resolution.
+    if (!tokenExists) {
+      setLoading(false);
+    }
+
+    syncSessionFromStorage();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (isMounted) {
@@ -142,8 +154,15 @@ export function useSupabaseSession(): {
       }
     });
 
+    const handleStorage = (event: StorageEvent) => {
+      if (!event.key || !authStorageEventKeys().has(event.key)) return;
+      void syncSessionFromStorage();
+    };
+    window.addEventListener('storage', handleStorage);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('storage', handleStorage);
       subscription.unsubscribe();
     };
   }, []);

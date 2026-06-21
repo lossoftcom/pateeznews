@@ -3713,6 +3713,9 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "media.delete": "Sil",
   "media.deleteSelected": "Seçilenleri Sil",
   "media.deleting": "Siliniyor...",
+  "media.deleteUsedTitle": "Medya haberde kullanılıyor",
+  "media.deleteUsedMessage":
+      "Bu medya {count} haberde kullanılıyor: {posts}\n\nSilerseniz ilgili haberlerdeki medya bağlantısı bozulabilir. Yine de silinsin mi?",
   "media.useThis": "Image Kullan",
   "media.useVideo": "Video Kullan",
   "media.useAudio": "Ses Kullan",

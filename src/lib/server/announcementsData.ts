@@ -3481,7 +3481,7 @@ const manualAnnouncementLocalObjectPathFromUrl = (value: string) => {
   return normalized;
 };
 
-const readManualAnnouncementImageUrl = async (imageUrl: string) => {
+const readManualAnnouncementImageUrl = async (imageUrl: string, requestOrigin = '') => {
   const clean = normalizeText(imageUrl);
   if (!clean) return null;
   const objectPath = manualAnnouncementLocalObjectPathFromUrl(clean);
@@ -3498,13 +3498,16 @@ const readManualAnnouncementImageUrl = async (imageUrl: string) => {
       if (!buffer.byteLength || buffer.byteLength > MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES) return null;
       return { buffer, mimeType: imageMimeTypeFromPath(objectPath), fileName: objectPath.split('/').pop() || '' };
     } catch {
-      return null;
+      // Production storage paths may be remote/redirected; fall back to HTTP fetch below.
     }
   }
 
-  if (!/^https?:\/\//i.test(clean)) return null;
+  const fetchUrl = /^https?:\/\//i.test(clean)
+    ? clean
+    : toAbsoluteUrl(requestOrigin, clean);
+  if (!fetchUrl) return null;
   try {
-    const response = await fetch(clean, {
+    const response = await fetch(fetchUrl, {
       signal: AbortSignal.timeout(AI_IMAGE_FETCH_TIMEOUT_MS),
       headers: {
         Accept: 'image/avif,image/webp,image/png,image/jpeg,image/*;q=0.7',
@@ -3519,7 +3522,7 @@ const readManualAnnouncementImageUrl = async (imageUrl: string) => {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     if (!buffer.byteLength || buffer.byteLength > MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES) return null;
-    return { buffer, mimeType: contentType, fileName: clean.split(/[/?#]/).pop() || '' };
+    return { buffer, mimeType: contentType, fileName: fetchUrl.split(/[/?#]/).pop() || '' };
   } catch {
     return null;
   }
@@ -3528,12 +3531,13 @@ const readManualAnnouncementImageUrl = async (imageUrl: string) => {
 const manualAnnouncementAiImagePart = async (
   image: ReturnType<typeof decodeManualAnnouncementImage>,
   imageUrl = '',
+  requestOrigin = '',
 ) => {
   try {
     let buffer = image?.buffer || null;
     let mimeType = image?.mimeType || '';
     if (!buffer && imageUrl) {
-      const urlImage = await readManualAnnouncementImageUrl(imageUrl);
+      const urlImage = await readManualAnnouncementImageUrl(imageUrl, requestOrigin);
       if (urlImage) {
         buffer = urlImage.buffer;
         mimeType = urlImage.mimeType;
@@ -3611,6 +3615,7 @@ const generateManualAnnouncementAi = async (
     selectedSourceName: string;
     image: ReturnType<typeof decodeManualAnnouncementImage>;
     imageUrl: string;
+    requestOrigin: string;
   },
 ) => {
   if (!settings.active || !settings.apiKey) {
@@ -3643,7 +3648,7 @@ ${input.text.slice(0, 5000) || '-'}
 JSON alanları:
 isPublishable, contentType, rejectReason, category, sourceName, title, summary, body, place, district, statusLabel, scheduleLabel, startsAt, endsAt, confidence
   `;
-  const imagePart = await manualAnnouncementAiImagePart(input.image, input.imageUrl);
+  const imagePart = await manualAnnouncementAiImagePart(input.image, input.imageUrl, input.requestOrigin);
   if (!input.text && (input.image || input.imageUrl) && !imagePart) {
     throw new Error('Görsel AI tarafından okunacak boyuta indirilemedi');
   }
@@ -3833,6 +3838,7 @@ export async function createManualAnnouncementWithAi(input: Record<string, any>)
   const selectedSourceName = normalizeText(input.sourceName ?? input.source_name);
   const image = decodeManualAnnouncementImage(input);
   const imageUrl = normalizeManualAnnouncementImageUrl(input);
+  const requestOrigin = normalizeText(input.requestOrigin ?? input.request_origin ?? input.origin);
   if (!text && !image && !imageUrl) throw new Error('Duyuru metni veya görsel gerekli');
 
   const settings = await fetchAiSettings();
@@ -3843,6 +3849,7 @@ export async function createManualAnnouncementWithAi(input: Record<string, any>)
     selectedSourceName,
     image,
     imageUrl,
+    requestOrigin,
   });
   if (!ai) throw new Error('AI duyuruyu işleyemedi');
   const rejectReason = aiRejectReason(ai);

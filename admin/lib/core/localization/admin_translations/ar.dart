@@ -3663,6 +3663,9 @@ const Map<String, String> adminArTranslations = <String, String>{
   "media.delete": "حذف",
   "media.deleteSelected": "حذف المحدد",
   "media.deleting": "جارٍ الحذف...",
+  "media.deleteUsedTitle": "الوسائط مستخدمة في خبر",
+  "media.deleteUsedMessage":
+      "هذه الوسائط مستخدمة في {count} خبر/أخبار: {posts}\n\nقد يؤدي حذفها إلى تعطيل رابط الوسائط في تلك الأخبار. هل تريد الحذف على أي حال؟",
   "media.useThis": "استخدام الصورة",
   "media.useVideo": "استخدام الفيديو",
   "media.useAudio": "استخدام الصوت",

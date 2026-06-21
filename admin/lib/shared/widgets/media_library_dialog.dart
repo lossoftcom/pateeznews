@@ -13,6 +13,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../data/media_service.dart';
 import 'admin_cached_image.dart';
+import 'app_confirmation_dialog.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 const _mlBorder = Color(0xFFDDE5E8);
@@ -303,8 +304,15 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
       if (failedUploads > 0 && mounted) {
         _showUploadMessage(context.t('media.uploadFailed'));
       }
-    } catch (_) {
-      if (mounted) _showUploadMessage(context.t('media.uploadFailed'));
+    } on MediaUploadException catch (error) {
+      if (mounted) _showUploadMessage(error.message);
+    } catch (error) {
+      if (mounted) {
+        final message = error.toString().trim();
+        _showUploadMessage(
+          message.isEmpty ? context.t('media.uploadFailed') : message,
+        );
+      }
     }
     if (mounted) {
       setState(() {
@@ -322,11 +330,15 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
     AdminToast.show(context, message: message, tone: AdminToastTone.error);
   }
 
-  Future<void> _deleteFile(MediaItem file) async {
+  Future<void> _deleteFile(MediaItem file, {bool force = false}) async {
     if (_busyFileId.isNotEmpty) return;
     setState(() => _busyFileId = file.id);
     try {
-      final ok = await widget.mediaService.deleteFile(file.id, type: file.type);
+      final ok = await widget.mediaService.deleteFile(
+        file.id,
+        type: file.type,
+        force: force,
+      );
       if (ok && mounted) {
         setState(() {
           _files.removeWhere((f) => f.id == file.id);
@@ -338,8 +350,43 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
           _lastSelectedSrc = next.lastOrNull;
         }
       }
-    } catch (_) {}
-    if (mounted) setState(() => _busyFileId = '');
+    } on MediaDeleteUsageException catch (error) {
+      if (!mounted) return;
+      setState(() => _busyFileId = '');
+      final confirmed = await _confirmDeleteUsedMedia(file, error);
+      if (confirmed && mounted) {
+        await _deleteFile(file, force: true);
+      }
+      return;
+    } on MediaDeleteException catch (error) {
+      if (mounted) _showUploadMessage(error.message);
+    } catch (error) {
+      if (mounted) _showUploadMessage(error.toString());
+    } finally {
+      if (mounted && _busyFileId == file.id) setState(() => _busyFileId = '');
+    }
+  }
+
+  Future<bool> _confirmDeleteUsedMedia(
+    MediaItem file,
+    MediaDeleteUsageException error,
+  ) {
+    final postNames = [
+      for (final post in error.posts.take(3))
+        if (post.title.trim().isNotEmpty) post.title.trim() else '#${post.id}',
+    ].join(', ');
+    final postsLabel = postNames.isEmpty ? file.value : postNames;
+    return showAppConfirmationDialog(
+      context,
+      title: context.t('media.deleteUsedTitle'),
+      message: context.t(
+        'media.deleteUsedMessage',
+        values: {'count': error.usageCount, 'posts': postsLabel},
+      ),
+      cancelLabel: context.t('common.cancel'),
+      confirmLabel: context.t('common.delete'),
+      danger: true,
+    );
   }
 
   Future<void> _deleteSelectedFromFooter() async {

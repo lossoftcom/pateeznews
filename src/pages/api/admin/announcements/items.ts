@@ -55,7 +55,10 @@ export const POST: APIRoute = async ({ request, url }) => {
     if (action === 'createManualAi') {
       const values = body?.values && typeof body.values === 'object' ? body.values : body;
       return adminJson({
-        data: withAbsoluteAnnouncementItem(await createManualAnnouncementWithAi(values || {}), url.origin),
+        data: withAbsoluteAnnouncementItem(
+          await createManualAnnouncementWithAi({ ...(values || {}), requestOrigin: url.origin }),
+          url.origin,
+        ),
         error: null,
       });
     }
