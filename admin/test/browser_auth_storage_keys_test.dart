@@ -25,6 +25,23 @@ void main() {
     expect(keys, contains('pateez_profile_cache'));
   });
 
+  test(
+    'browserAuthReadableStorageKeys secure storage kalintilarini okumaz',
+    () {
+      final keys = browserAuthReadableStorageKeys(
+        supabaseUrl: 'https://debgdvrkcqhtwdyrqves.supabase.co',
+      );
+
+      expect(keys, contains('pateez-app-auth-session'));
+      expect(keys, contains('sb-debgdvrkcqhtwdyrqves-auth-token'));
+      expect(keys, contains(flutterAdminSharedAuthStorageKey));
+      expect(
+        keys.where((key) => key.startsWith('FlutterSecureStorage.')),
+        isEmpty,
+      );
+    },
+  );
+
   test('browserAuthSessionPayload public oturum formatini olusturur', () {
     final payload = browserAuthSessionPayload({
       'access_token': ' token ',
@@ -49,5 +66,45 @@ void main() {
     expect(session, isA<Map<String, Object?>>());
     expect((session as Map<String, Object?>)['access_token'], 'token');
     expect(payload['currentSession'], session);
+  });
+
+  test('browserAuthSessionFromRaw public payload icinden session okur', () {
+    final raw = '''
+    {
+      "access_token": "root-token",
+      "session": {
+        "access_token": " session-token ",
+        "refresh_token": "refresh-token",
+        "token_type": "",
+        "expires_at": "4102444800",
+        "user": {"id": "user-1", "email": "nasip@example.com"}
+      }
+    }
+    ''';
+
+    final session = browserAuthSessionFromRaw(raw);
+
+    expect(session?['access_token'], 'session-token');
+    expect(session?['refresh_token'], 'refresh-token');
+    expect(session?['token_type'], 'bearer');
+    expect(session?['expires_at'], 4102444800);
+    expect(session?['user'], isA<Map<String, Object?>>());
+  });
+
+  test('browserAuthSessionFromRaw admin payload icinden session okur', () {
+    final raw = '''
+    {
+      "access_token": " admin-token ",
+      "token_type": "bearer",
+      "expires_at": 4102444800,
+      "user": {"id": "user-1", "email": "nasip@example.com"}
+    }
+    ''';
+
+    final session = browserAuthSessionFromRaw(raw);
+
+    expect(session?['access_token'], 'admin-token');
+    expect(session?['expires_at'], 4102444800);
+    expect((session?['user'] as Map<String, Object?>?)?['id'], 'user-1');
   });
 }

@@ -68,6 +68,17 @@ function cleanUuid(value: unknown) {
     : '';
 }
 
+function roleHasWriterAccess(value: unknown) {
+  const role = cleanText(value).toLowerCase();
+  return role === 'admin' ||
+    role === 'super_admin' ||
+    role === 'editor' ||
+    role === 'moderator' ||
+    role === 'publisher' ||
+    role === 'writer' ||
+    role === 'yazar';
+}
+
 function nullableText(value: unknown, maxLength = 500) {
   const text = cleanText(value).slice(0, maxLength);
   return text || null;
@@ -171,7 +182,9 @@ export async function loadProfile(client: any, userId: string, origin: string, v
     `SELECT id, username, full_name, avatar_url, cover_url, role, status,
             reward_system, email, phone, created_at, about_me, social_links,
             show_email, rss_feeds, expertise, website, address, city,
-            auth_provider, auth_providers
+            auth_provider, auth_providers, writer_application_status,
+            writer_application_at, writer_application_reviewed_at,
+            writer_application_reviewed_by
        FROM public.profiles
       WHERE id = $1::uuid
       LIMIT 1`,
@@ -326,7 +339,7 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const action = cleanText(body.action);
-    if (action !== 'update-profile' && action !== 'check-profile-fields') {
+    if (action !== 'update-profile' && action !== 'check-profile-fields' && action !== 'apply-writer') {
       return json({ error: { message: 'Unsupported profile action' } }, 400);
     }
 
@@ -373,6 +386,37 @@ export const POST: APIRoute = async ({ request }) => {
         };
       });
       return json({ ok: true, conflicts });
+    }
+
+    if (action === 'apply-writer') {
+      const result = await withTransaction(async (client) => {
+        const currentResult = await client.query(
+          `SELECT id, role, writer_application_status
+             FROM public.profiles
+            WHERE id = $1::uuid
+            FOR UPDATE`,
+          [userId],
+        );
+        const current = currentResult.rows[0];
+        if (!current) throw new Error('Profil bulunamadı');
+
+        if (!roleHasWriterAccess(current.role) && current.writer_application_status !== 'pending') {
+          await client.query(
+            `UPDATE public.profiles
+                SET writer_application_status = 'pending',
+                    writer_application_at = COALESCE(writer_application_at, now()),
+                    writer_application_reviewed_at = NULL,
+                    writer_application_reviewed_by = NULL,
+                    updated_at = now()
+              WHERE id = $1::uuid`,
+            [userId],
+          );
+        }
+
+        return loadProfile(client, userId, new URL(request.url).origin, userId);
+      });
+
+      return json({ ok: true, profile: result });
     }
 
     const fullName = cleanText(body.fullName || body.full_name).slice(0, 160);

@@ -68,9 +68,12 @@ async function profileForUser(userId: string) {
     city: string | null;
     auth_provider: string | null;
     auth_providers: string[] | null;
+    writer_application_status: string | null;
+    writer_application_at: string | null;
   }>(
     `SELECT id, username, full_name, avatar_url, cover_url, phone, address,
-            role, email, status, city, auth_provider, auth_providers
+            role, email, status, city, auth_provider, auth_providers,
+            writer_application_status, writer_application_at
      FROM public.profiles
      WHERE id = $1::uuid
      LIMIT 1`,

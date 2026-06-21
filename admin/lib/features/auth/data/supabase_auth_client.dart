@@ -80,16 +80,17 @@ class SupabaseAuthClient implements AdminAuthRepository {
 
   @override
   Future<void> signOut() async {
-    final session = await sessionStore.readSession();
-    final token = session?.accessToken.trim() ?? '';
-    if (token.isNotEmpty) {
-      try {
+    try {
+      final session = await sessionStore.readSession();
+      final token = session?.accessToken.trim() ?? '';
+      if (token.isNotEmpty) {
         await _postJson('/api/app/auth', {'action': 'signOut', 'token': token});
-      } catch (_) {
-        // Yerel admin çıkışı ağ hatası yüzünden engellenmemeli.
       }
+    } catch (_) {
+      // Yerel admin çıkışı ağ/storage hatası yüzünden engellenmemeli.
+    } finally {
+      await sessionStore.clearAuth();
     }
-    await sessionStore.clearAuth();
   }
 
   Future<AdminProfile?> _profileForSession(AdminSession session) async {

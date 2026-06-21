@@ -352,7 +352,12 @@ const isOfficialRole = (role: unknown) => {
   const value = String(role || "")
     .trim()
     .toLowerCase();
-  return value === "admin" || value === "super_admin" || value === "editor";
+  return value === "admin" ||
+    value === "super_admin" ||
+    value === "editor" ||
+    value === "publisher" ||
+    value === "writer" ||
+    value === "yazar";
 };
 
 const defaultContentHomeSettings: ContentHomeSettings = {

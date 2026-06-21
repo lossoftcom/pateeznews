@@ -2073,6 +2073,7 @@ const Map<String, String> adminArTranslations = <String, String>{
   "nav.contentManagement": "إدارة المحتوى",
   "nav.newsAdd": "إضافة خبر",
   "nav.news": "الأخبار",
+  "nav.automaticNews": "الأخبار التلقائية",
   "nav.stories": "القصص",
   "nav.comments": "التعليقات",
   "nav.downloadDatabase": "تنزيل قاعدة البيانات",

@@ -43,6 +43,8 @@ interface ProfileAuthRow {
   city: string | null;
   auth_provider: string | null;
   auth_providers: string[] | null;
+  writer_application_status?: string | null;
+  writer_application_at?: string | null;
 }
 
 interface ProviderProfile {
@@ -342,7 +344,8 @@ async function profileById(userId: string, client?: DatabaseClient) {
   const query = client?.query.bind(client) || dbQuery;
   const result = await query<ProfileAuthRow>(
     `SELECT id, username, full_name, avatar_url, cover_url, phone, address,
-            role, email, status, city, auth_provider, auth_providers
+            role, email, status, city, auth_provider, auth_providers,
+            writer_application_status, writer_application_at
        FROM public.profiles
       WHERE id = $1::uuid
       LIMIT 1`,
@@ -378,7 +381,7 @@ export async function signInWithPassword(email: string, password: string) {
     const result = await dbQuery<ProfileAuthRow & { password_ok: boolean }>(
       `SELECT p.id, p.username, p.full_name, p.avatar_url, p.cover_url, p.phone,
               p.address, p.role, p.email, p.status, p.city, p.auth_provider,
-              p.auth_providers,
+              p.auth_providers, p.writer_application_status, p.writer_application_at,
               (c.password_hash = extensions.crypt($2::text, c.password_hash)) AS password_ok
          FROM public.profiles p
          JOIN public.profile_auth_credentials c ON c.user_id = p.id

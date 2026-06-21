@@ -1,5 +1,6 @@
 import astroWorker from '@astrojs/cloudflare/entrypoints/server';
 import { runAnnouncementsRefresh } from './lib/server/announcementsData';
+import { runAutomaticNewsRefresh } from './lib/server/automaticNewsData';
 import { processMailCampaigns } from './lib/server/mail/campaignProcessor';
 import { processNotificationOutbox } from './lib/server/notifications/processor';
 
@@ -19,6 +20,13 @@ export default {
       ctx.waitUntil(
         processNotificationOutbox().catch((error) => {
           console.error('notification outbox cron failed', error);
+        })
+      );
+      ctx.waitUntil(
+        runAutomaticNewsRefresh({
+          runType: 'cron',
+        }).catch((error) => {
+          console.error('automatic news cron failed', error);
         })
       );
     }

@@ -155,6 +155,17 @@ const hasFullProfilePayload = (profile: Record<string, any> | null | undefined) 
   Boolean(profile?.stats && Array.isArray(profile?.posts))
 );
 
+const hasWriterAccessRole = (value: unknown) => {
+  const role = String(value || '').trim().toLowerCase();
+  return role === 'admin' ||
+    role === 'super_admin' ||
+    role === 'editor' ||
+    role === 'moderator' ||
+    role === 'publisher' ||
+    role === 'writer' ||
+    role === 'yazar';
+};
+
 const joinedDateLabel = (value: unknown, lang = 'tr') => (
   formatPostDateParts(String(value || ''), lang).date
 );
@@ -246,9 +257,11 @@ const mapProfileToViewData = (
     joinedDate,
     joinedYear: joinedYearLabel(profile.created_at, lang),
     city: normalizeStoredPlainText(profile.city),
+    role,
+    writerApplicationStatus: String(profile.writer_application_status || 'none').trim().toLowerCase(),
     likedPosts: formatCount(stats.liked_posts ?? 0, lang),
     commentsCount: formatCount(stats.comments ?? 0, lang),
-    verified: role === 'admin' || role === 'editor',
+    verified: hasWriterAccessRole(role),
     social_links: socialLinks,
     followerProfiles: mapProfilePreviewList(profile.follower_profiles, profile.follower_avatars),
     followingProfiles: mapProfilePreviewList(profile.following_profiles, profile.following_avatars),
@@ -300,6 +313,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
   const [isOwnProfile, setIsOwnProfile] = useState(Boolean(initialProfile?.is_own_profile));
   const [isProfileActionReady, setIsProfileActionReady] = useState(Boolean(initialProfile?.is_own_profile));
   const [isMobileProfileAppbarVisible, setIsMobileProfileAppbarVisible] = useState(false);
+  const [writerApplicationBusy, setWriterApplicationBusy] = useState(false);
   const socialEntries = useMemo(() => {
     const links = userData?.social_links || {};
     const platforms = ['x', 'facebook', 'instagram', 'tiktok', 'youtube', 'discord', 'linkedin', 'telegram', 'whatsapp', 'pinterest'];
@@ -405,6 +419,35 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
     };
   }, []);
 
+  const handleWriterApplication = async () => {
+    if (writerApplicationBusy) return;
+    const token = readStoredProfileAccessToken();
+    if (!token) return;
+    try {
+      setWriterApplicationBusy(true);
+      const response = await fetch('/api/app/profile', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json; charset=UTF-8',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'apply-writer', token }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.error || !payload?.profile) {
+        throw new Error(payload?.error?.message || 'Writer application failed');
+      }
+      const profile = payload.profile as Record<string, any>;
+      setUserData(mapProfileToViewData(profile, showEmail, t('common.user'), t('users_list.default_description'), langCode));
+      setUserNews(mapProfilePosts(profile));
+    } catch (error) {
+      console.error('Writer application failed:', error);
+    } finally {
+      setWriterApplicationBusy(false);
+    }
+  };
+
   const renderProfileStack = (profiles: ProfilePreview[], totalCount: number, emptyLabel: string) => {
     const visibleProfiles = profiles.slice(0, 5);
     const remaining = Math.max(0, totalCount - visibleProfiles.length);
@@ -473,6 +516,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
       <button onClick={onBack} className="mt-4 px-6 py-2.5 bg-gray-900 text-white rounded-[5px] font-semibold text-sm hover:bg-gray-800 transition-all">{t('admin.post.go_back')}</button>
     </div>
   );
+
+  const writerApplicationStatus = String(userData.writerApplicationStatus || 'none').trim().toLowerCase();
+  const showWriterApplication = Boolean(
+    isOwnProfile &&
+    !hasWriterAccessRole(userData.role) &&
+    writerApplicationStatus !== 'approved'
+  );
+  const writerApplicationPending = writerApplicationStatus === 'pending';
+  const writerApplicationLabel = writerApplicationPending
+    ? 'Yazarlık başvurusu beklemede'
+    : 'Yazarlık için başvur';
 
   return (
     <>
@@ -554,6 +608,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
           {userData.category && <b>{userData.category}</b>}
           <em>{t('user_profile.online')}</em>
         </div>
+        {showWriterApplication && (
+          <button
+            type="button"
+            className="profile-mobile-writer-button"
+            onClick={() => { void handleWriterApplication(); }}
+            disabled={writerApplicationBusy || writerApplicationPending}
+          >
+            <Edit3 size={14} strokeWidth={2.1} />
+            <span>{writerApplicationBusy ? 'Gönderiliyor...' : writerApplicationLabel}</span>
+          </button>
+        )}
       </section>
 
       <section className="profile-mobile-stats" aria-label="Profil istatistikleri">
@@ -820,16 +885,31 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, name, onBack, onNewsS
           </div>
 
           {/* Action Buttons */}
-          <div className="col-span-2 justify-self-start md:col-span-1 md:justify-self-end">
+          <div className="col-span-2 flex flex-wrap items-center gap-2 justify-self-start md:col-span-1 md:justify-self-end md:justify-end">
             {!isProfileActionReady ? (
               <div className="h-10 min-w-[118px] rounded-[4px] border border-gray-100 bg-gray-100/90 shadow-sm" aria-hidden="true" />
             ) : isOwnProfile ? (
-              <button
-                onClick={onEditClick}
-                className="h-10 rounded-[4px] bg-gray-900 px-4 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(15,23,42,0.16)] transition-all hover:bg-gray-800 active:scale-95"
-              >
-                {t('user_profile.edit_profile')}
-              </button>
+              <>
+                {showWriterApplication && (
+                  <button
+                    type="button"
+                    onClick={() => { void handleWriterApplication(); }}
+                    disabled={writerApplicationBusy || writerApplicationPending}
+                    className={`h-10 rounded-[4px] border px-4 text-xs font-semibold transition-all active:scale-95 ${writerApplicationPending
+                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border-palette-red/20 bg-palette-red/5 text-palette-red hover:bg-palette-red/10'
+                    }`}
+                  >
+                    {writerApplicationBusy ? 'Gönderiliyor...' : writerApplicationLabel}
+                  </button>
+                )}
+                <button
+                  onClick={onEditClick}
+                  className="h-10 rounded-[4px] bg-gray-900 px-4 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(15,23,42,0.16)] transition-all hover:bg-gray-800 active:scale-95"
+                >
+                  {t('user_profile.edit_profile')}
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => setIsFollowing(!isFollowing)}

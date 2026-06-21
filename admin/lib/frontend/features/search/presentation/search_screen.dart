@@ -1130,7 +1130,12 @@ bool _matches(String value, String query) {
 
 bool _isOfficialRole(String role) {
   final value = role.trim().toLowerCase();
-  return value == 'admin' || value == 'super_admin' || value == 'editor';
+  return value == 'admin' ||
+      value == 'super_admin' ||
+      value == 'editor' ||
+      value == 'publisher' ||
+      value == 'writer' ||
+      value == 'yazar';
 }
 
 String _initials(String value) {

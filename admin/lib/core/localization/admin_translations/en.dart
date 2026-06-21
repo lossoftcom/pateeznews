@@ -2111,6 +2111,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "nav.contentManagement": "Content Management",
   "nav.newsAdd": "Add News",
   "nav.news": "News",
+  "nav.automaticNews": "Automatic News",
   "nav.stories": "Stories",
   "nav.comments": "Comments",
   "nav.downloadDatabase": "Download database",

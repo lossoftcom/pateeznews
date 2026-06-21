@@ -54,6 +54,7 @@ class ProfileData {
     required this.name,
     required this.handle,
     required this.roleLabel,
+    this.role = '',
     this.expertise = '',
     required this.aboutMe,
     required this.email,
@@ -68,6 +69,9 @@ class ProfileData {
     required this.isOnline,
     required this.isOwnProfile,
     this.isFollowing = false,
+    this.writerApplicationStatus = 'none',
+    this.writerApplicationAt,
+    this.writerApplicationReviewedAt,
     this.website = '',
     this.address = '',
     this.city = 'Niğde',
@@ -89,6 +93,7 @@ class ProfileData {
   final String name;
   final String handle;
   final String roleLabel;
+  final String role;
   final String expertise;
   final String aboutMe;
   final String email;
@@ -103,6 +108,9 @@ class ProfileData {
   final bool isOnline;
   final bool isOwnProfile;
   final bool isFollowing;
+  final String writerApplicationStatus;
+  final DateTime? writerApplicationAt;
+  final DateTime? writerApplicationReviewedAt;
   final String website;
   final String address;
   final String city;
@@ -121,11 +129,35 @@ class ProfileData {
 
   bool get hasAbout => aboutMe.trim().isNotEmpty;
 
+  bool get hasWriterAccess {
+    final value = role.trim().toLowerCase();
+    return value == 'admin' ||
+        value == 'super_admin' ||
+        value == 'moderator' ||
+        value == 'editor' ||
+        value == 'publisher' ||
+        value == 'writer' ||
+        value == 'yazar';
+  }
+
+  bool get writerApplicationPending =>
+      writerApplicationStatus.trim().toLowerCase() == 'pending';
+
+  bool get showWriterApplicationAction {
+    final status = writerApplicationStatus.trim().toLowerCase();
+    return isOwnProfile && !hasWriterAccess && status != 'approved';
+  }
+
+  String get writerApplicationLabel => writerApplicationPending
+      ? 'Yazarlık başvurusu beklemede'
+      : 'Yazarlık için başvur';
+
   ProfileData copyWith({
     String? id,
     String? name,
     String? handle,
     String? roleLabel,
+    String? role,
     String? expertise,
     String? aboutMe,
     String? email,
@@ -140,6 +172,9 @@ class ProfileData {
     bool? isOnline,
     bool? isOwnProfile,
     bool? isFollowing,
+    String? writerApplicationStatus,
+    DateTime? writerApplicationAt,
+    DateTime? writerApplicationReviewedAt,
     String? website,
     String? address,
     String? city,
@@ -161,6 +196,7 @@ class ProfileData {
       name: name ?? this.name,
       handle: handle ?? this.handle,
       roleLabel: roleLabel ?? this.roleLabel,
+      role: role ?? this.role,
       expertise: expertise ?? this.expertise,
       aboutMe: aboutMe ?? this.aboutMe,
       email: email ?? this.email,
@@ -175,6 +211,11 @@ class ProfileData {
       isOnline: isOnline ?? this.isOnline,
       isOwnProfile: isOwnProfile ?? this.isOwnProfile,
       isFollowing: isFollowing ?? this.isFollowing,
+      writerApplicationStatus:
+          writerApplicationStatus ?? this.writerApplicationStatus,
+      writerApplicationAt: writerApplicationAt ?? this.writerApplicationAt,
+      writerApplicationReviewedAt:
+          writerApplicationReviewedAt ?? this.writerApplicationReviewedAt,
       website: website ?? this.website,
       address: address ?? this.address,
       city: city ?? this.city,

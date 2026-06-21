@@ -263,19 +263,25 @@ const accountInitials = (user: any) => {
   return initials || 'P';
 };
 
-const canOpenAdminPanel = (user: any) => {
-  const role = String(
+const accountRole = (user: any) => (
+  String(
     user?.profile?.role ??
     user?.role ??
     ''
-  ).trim().toLowerCase();
+  ).trim().toLowerCase()
+);
 
-  return role === 'admin' ||
+const hasWriterAccessRole = (role: string) => (
+  role === 'admin' ||
     role === 'super_admin' ||
     role === 'moderator' ||
     role === 'editor' ||
-    role === 'writer';
-};
+    role === 'publisher' ||
+    role === 'writer' ||
+    role === 'yazar'
+);
+
+const canOpenAdminPanel = (user: any) => hasWriterAccessRole(accountRole(user));
 
 const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
@@ -331,6 +337,19 @@ const Navbar: React.FC<NavbarProps> = ({
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileAccountMenuRef = useRef<HTMLDivElement>(null);
   const showAdminPanelAction = Boolean(isLoggedIn && canOpenAdminPanel(user));
+  const [writerApplicationStatus, setWriterApplicationStatus] = useState(
+    String(profileFromUser(user).writer_application_status || 'none').trim().toLowerCase()
+  );
+  const [writerApplicationBusy, setWriterApplicationBusy] = useState(false);
+  const writerApplicationPending = writerApplicationStatus === 'pending';
+  const writerApplicationVisible = Boolean(
+    isLoggedIn &&
+    !hasWriterAccessRole(accountRole(user)) &&
+    writerApplicationStatus !== 'approved'
+  );
+  const writerApplicationLabel = writerApplicationPending
+    ? 'Başvuru beklemede'
+    : 'Yazarlık için başvur';
 
   const explicitTopNavItems = React.useMemo(
     () => navItems.filter((item) => item.menu_code === 'top_navbar'),
@@ -692,6 +711,49 @@ const Navbar: React.FC<NavbarProps> = ({
     window.open('/admin', '_blank', 'noopener,noreferrer');
   };
 
+  const applyForWriter = async () => {
+    if (writerApplicationBusy || writerApplicationPending) return;
+    try {
+      setWriterApplicationBusy(true);
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token || '';
+      if (!token) {
+        setShowUserMenu(false);
+        onProfileClick?.();
+        return;
+      }
+      const response = await fetch('/api/app/profile', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json; charset=UTF-8',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'apply-writer', token }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.error) {
+        throw new Error(payload?.error?.message || 'Başvuru gönderilemedi');
+      }
+      const profile = payload?.profile || {};
+      setWriterApplicationStatus(
+        String(profile.writer_application_status || 'pending').trim().toLowerCase()
+      );
+      try {
+        const cached = window.localStorage.getItem('pateez_profile_cache');
+        const cachedProfile = cached ? JSON.parse(cached) : {};
+        window.localStorage.setItem(
+          'pateez_profile_cache',
+          JSON.stringify({ ...cachedProfile, ...profile })
+        );
+      } catch { }
+    } catch (error) {
+      console.error('Writer application failed:', error);
+    } finally {
+      setWriterApplicationBusy(false);
+    }
+  };
+
   const openProfileFromAccountMenu = () => {
     setShowUserMenu(false);
     onProfileViewClick?.();
@@ -701,6 +763,12 @@ const Navbar: React.FC<NavbarProps> = ({
     setShowUserMenu(false);
     onLogout?.();
   };
+
+  useEffect(() => {
+    setWriterApplicationStatus(
+      String(profileFromUser(user).writer_application_status || 'none').trim().toLowerCase()
+    );
+  }, [user?.profile?.writer_application_status, user?.profile?.id, user?.id]);
 
   const handleMobileAppSelect = (item: MobileAppItem) => {
     const appRoute = MOBILE_APP_ROUTES[item.id];
@@ -1054,6 +1122,18 @@ const Navbar: React.FC<NavbarProps> = ({
                       </button>
                     )}
 
+                    {writerApplicationVisible && (
+                      <button
+                        type="button"
+                        onClick={() => { void applyForWriter(); }}
+                        disabled={writerApplicationBusy || writerApplicationPending}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-gray-700 hover:bg-palette-beige/10 hover:text-palette-red transition-all group ${writerApplicationPending ? 'opacity-70 cursor-default hover:text-gray-700' : ''}`}
+                      >
+                        <RemixIcon name="ri-quill-pen-line" size={20} className="opacity-60 group-hover:opacity-100" />
+                        <span className="text-[12px] font-bold tracking-tight">{writerApplicationBusy ? 'Gönderiliyor...' : writerApplicationLabel}</span>
+                      </button>
+                    )}
+
                     <div className="h-px bg-palette-beige/10 my-1.5 mx-2"></div>
 
                     {onLogout && (
@@ -1330,6 +1410,19 @@ const Navbar: React.FC<NavbarProps> = ({
               >
                 <RemixIcon name="ri-user-3-fill" size={18} />
                 <span>Profilim</span>
+              </button>
+            )}
+
+            {writerApplicationVisible && (
+              <button
+                type="button"
+                className="mobile-shell-account-action"
+                onClick={() => { void applyForWriter(); }}
+                disabled={writerApplicationBusy || writerApplicationPending}
+                role="menuitem"
+              >
+                <RemixIcon name="ri-quill-pen-line" size={18} />
+                <span>{writerApplicationBusy ? 'Gönderiliyor...' : writerApplicationLabel}</span>
               </button>
             )}
 

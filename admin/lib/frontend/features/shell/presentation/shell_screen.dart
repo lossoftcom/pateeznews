@@ -489,7 +489,12 @@ class _ShellScreenState extends State<ShellScreen>
     }
     final role = (profile?.role ?? '').trim().toLowerCase();
     final verified =
-        role == 'admin' || role == 'super_admin' || role == 'editor';
+        role == 'admin' ||
+        role == 'super_admin' ||
+        role == 'editor' ||
+        role == 'publisher' ||
+        role == 'writer' ||
+        role == 'yazar';
     final fallbackData =
         widget.profileData ??
         ProfileData(
@@ -499,6 +504,7 @@ class _ShellScreenState extends State<ShellScreen>
               : auth.displayName,
           handle: profile?.handle ?? '',
           roleLabel: _roleLabelFor(role),
+          role: role,
           expertise: _roleLabelFor(role),
           aboutMe: '',
           email: profile?.email ?? auth.session.user.email ?? '',
@@ -512,6 +518,7 @@ class _ShellScreenState extends State<ShellScreen>
           isVerified: verified,
           isOnline: true,
           isOwnProfile: true,
+          writerApplicationStatus: profile?.writerApplicationStatus ?? 'none',
           website: '',
           address: '',
           rssFeeds: true,
@@ -560,6 +567,44 @@ class _ShellScreenState extends State<ShellScreen>
         },
       ),
     );
+  }
+
+  Future<void> _applyForWriter() async {
+    final auth = widget.authState;
+    if (auth == null) {
+      _closeAccountMenu();
+      await _openAccount();
+      return;
+    }
+    final profile = auth.profile;
+    if (profile?.writerApplicationPending == true) {
+      _closeAccountMenu();
+      _showMessage('Yazarlık başvurusu beklemede.');
+      return;
+    }
+    if (profile?.showWriterApplicationAction != true) return;
+    _closeAccountMenu();
+    try {
+      final result = await widget.profileRepository.applyForWriter(
+        token: auth.session.accessToken,
+      );
+      widget.onProfileUpdated?.call(result);
+      _showMessage('Yazarlık başvurusu alındı.');
+    } on ProfileException catch (error) {
+      if (!mounted) return;
+      FrontendToast.show(
+        context,
+        message: error.message,
+        tone: FrontendToastTone.error,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      FrontendToast.show(
+        context,
+        message: 'Başvuru gönderilemedi.',
+        tone: FrontendToastTone.error,
+      );
+    }
   }
 
   Future<void> _openAuthorProfile(NewsAuthor author) async {
@@ -700,6 +745,9 @@ class _ShellScreenState extends State<ShellScreen>
         return 'Editör';
       case 'publisher':
         return 'Yayıncı';
+      case 'writer':
+      case 'yazar':
+        return 'Yazar';
       default:
         return 'Üye';
     }
@@ -1180,6 +1228,7 @@ class _ShellScreenState extends State<ShellScreen>
                     ? _openAdminPanel
                     : null,
                 onProfile: _openProfile,
+                onWriterApplication: _applyForWriter,
                 onSignOut: _signOut,
               ),
             ),
@@ -1584,12 +1633,14 @@ class _AccountQuickMenu extends StatelessWidget {
     required this.authState,
     required this.onProfile,
     required this.onSignOut,
+    required this.onWriterApplication,
     this.onAdminPanel,
   });
 
   final FrontendAuthState authState;
   final VoidCallback? onAdminPanel;
   final VoidCallback onProfile;
+  final VoidCallback onWriterApplication;
   final VoidCallback onSignOut;
 
   @override
@@ -1664,6 +1715,14 @@ class _AccountQuickMenu extends StatelessWidget {
               label: 'Profilim',
               onTap: onProfile,
             ),
+            if (authState.profile?.showWriterApplicationAction == true)
+              _MenuAction(
+                icon: Symbols.edit_note_outlined,
+                label:
+                    authState.profile?.writerApplicationLabel ??
+                    'Yazarlık için başvur',
+                onTap: onWriterApplication,
+              ),
             _MenuAction(
               icon: Symbols.logout,
               label: 'Çıkış yap',

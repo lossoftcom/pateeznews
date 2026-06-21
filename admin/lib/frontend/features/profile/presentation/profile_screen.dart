@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
 import '../../../core/mock/home_mock_data.dart';
 import '../../../core/theme/app_colors.dart';
@@ -83,6 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late ProfileData _data;
   var _loadingLiveProfile = false;
   var _followBusy = false;
+  var _writerApplicationBusy = false;
   var _returningHome = false;
 
   /// Kapak yüksekliğine yakın eşik: altında app bar saydam (kapak görünür) →
@@ -294,6 +296,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     widget.onProfileUpdated?.call(result);
   }
 
+  Future<void> _applyForWriter() async {
+    if (_writerApplicationBusy || !_data.showWriterApplicationAction) return;
+    final token = widget.authToken.trim();
+    if (token.isEmpty) {
+      FrontendToast.show(
+        context,
+        message: 'Başvuru yapmak için giriş yapın.',
+        tone: FrontendToastTone.info,
+      );
+      widget.onAuthRequired?.call();
+      return;
+    }
+    setState(() => _writerApplicationBusy = true);
+    try {
+      final result = await widget.repository.applyForWriter(token: token);
+      if (!mounted) return;
+      setState(() => _data = result.profile);
+      widget.onProfileUpdated?.call(result);
+      FrontendToast.show(context, message: 'Yazarlık başvurusu alındı.');
+    } on ProfileException catch (error) {
+      if (!mounted) return;
+      FrontendToast.show(
+        context,
+        message: error.message,
+        tone: FrontendToastTone.error,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      FrontendToast.show(
+        context,
+        message: 'Başvuru gönderilemedi.',
+        tone: FrontendToastTone.error,
+      );
+    } finally {
+      if (mounted) setState(() => _writerApplicationBusy = false);
+    }
+  }
+
   Future<void> _openPreviewProfile(ProfilePreview profile) async {
     final id = profile.id.trim();
     final handle = profile.handle.trim().replaceFirst(RegExp(r'^@+'), '');
@@ -452,6 +492,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       curve: Curves.easeOutCubic,
                     ),
               ),
+              if (data.showWriterApplicationAction)
+                SliverToBoxAdapter(
+                  child: _WriterApplicationCard(
+                    label: data.writerApplicationLabel,
+                    pending: data.writerApplicationPending,
+                    busy: _writerApplicationBusy,
+                    onTap: _applyForWriter,
+                  ),
+                ),
               SliverToBoxAdapter(
                 child:
                     ProfileInfoSection(
@@ -539,6 +588,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WriterApplicationCard extends StatelessWidget {
+  const _WriterApplicationCard({
+    required this.label,
+    required this.pending,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool pending;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = pending ? AppColors.warmHorizon : AppColors.actionRed;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageHorizontal,
+        AppSpacing.md,
+        AppSpacing.pageHorizontal,
+        0,
+      ),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(4),
+        child: InkWell(
+          onTap: pending || busy ? null : onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.softLine),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    pending ? Symbols.check_circle : Symbols.edit_note_outlined,
+                    color: color,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    busy ? 'Gönderiliyor...' : label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.titleS.copyWith(
+                      color: pending ? AppColors.inkStrong : color,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

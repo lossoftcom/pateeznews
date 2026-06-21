@@ -229,6 +229,7 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
   static const _roles = [
     AdminUserRole(id: 'admin', name: 'admin', label: 'Süper Yönetici'),
     AdminUserRole(id: 'editor', name: 'editor', label: 'Editör'),
+    AdminUserRole(id: 'yazar', name: 'yazar', label: 'Yazar'),
     AdminUserRole(id: 'member', name: 'member', label: 'Standart Üye'),
   ];
 
@@ -346,7 +347,8 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
           user.authProviderLabel.toLowerCase().contains(term) ||
           user.ipAddress.toLowerCase().contains(term) ||
           user.displaySignupCity.toLowerCase().contains(term) ||
-          user.loginStatusLabel.toLowerCase().contains(term);
+          user.loginStatusLabel.toLowerCase().contains(term) ||
+          user.writerApplicationLabel.toLowerCase().contains(term);
       final matchesRole = role == 'Tümü' || user.role == role;
       final matchesReward =
           reward == 'Tümü' ||
@@ -390,6 +392,9 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
             : a.isLoggedIn
             ? -1
             : 1,
+      'writerApplication' => a.writerApplicationLabel.toLowerCase().compareTo(
+        b.writerApplicationLabel.toLowerCase(),
+      ),
       'reward' =>
         a.rewardEnabled == b.rewardEnabled
             ? 0
@@ -435,6 +440,41 @@ class _FakeAdminUsersRepository implements AdminUsersRepository {
       signupCity: current.signupCity,
       isLoggedIn: current.isLoggedIn,
       lastLoginAt: current.lastLoginAt,
+      writerApplicationStatus: current.writerApplicationStatus,
+      writerApplicationAt: current.writerApplicationAt,
+      writerApplicationReviewedAt: current.writerApplicationReviewedAt,
+    );
+  }
+
+  @override
+  Future<void> approveWriterApplication({
+    required AdminSession session,
+    required String userId,
+  }) async {
+    final index = _users.indexWhere((user) => user.id == userId);
+    if (index == -1) return;
+    final current = _users[index];
+    _users[index] = ManagedUser(
+      id: current.id,
+      rowNumber: current.rowNumber,
+      fullName: current.fullName,
+      username: current.username,
+      email: current.email,
+      city: current.city,
+      authProvider: current.authProvider,
+      role: 'yazar',
+      roleLabel: roleLabelFor('yazar', _roles),
+      status: current.status,
+      rewardEnabled: current.rewardEnabled,
+      createdAt: current.createdAt,
+      avatarUrl: current.avatarUrl,
+      ipAddress: current.ipAddress,
+      signupCity: current.signupCity,
+      isLoggedIn: current.isLoggedIn,
+      lastLoginAt: current.lastLoginAt,
+      writerApplicationStatus: 'approved',
+      writerApplicationAt: current.writerApplicationAt,
+      writerApplicationReviewedAt: DateTime.utc(2026, 6, 21, 19, 0),
     );
   }
 }

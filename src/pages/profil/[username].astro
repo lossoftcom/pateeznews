@@ -59,7 +59,7 @@ const initialLang = {
   is_default: langMeta?.isDefault || lang === defaultLangCode,
 };
 
-const selectProfileFields = 'id, username, slug, full_name, avatar_url, cover_url, about_me, expertise, website, social_links, email, show_email, meta_title, meta_description, meta_keywords, canonical_url, role, created_at, updated_at';
+const selectProfileFields = 'id, username, slug, full_name, avatar_url, cover_url, about_me, expertise, website, social_links, email, show_email, meta_title, meta_description, meta_keywords, canonical_url, role, created_at, updated_at, writer_application_status, writer_application_at, writer_application_reviewed_at, writer_application_reviewed_by';
 const profileResult = await dbQuery(
   `SELECT ${selectProfileFields}
      FROM public.profiles

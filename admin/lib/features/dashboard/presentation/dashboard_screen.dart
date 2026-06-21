@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/features/account/data/admin_account_settings_repository.dart';
 import 'package:pateeznews_admin/features/account/presentation/account_settings_screen.dart';
+import 'package:pateeznews_admin/features/automatic_news/presentation/automatic_news_screen.dart';
 import 'package:pateeznews_admin/features/comments/data/admin_comments_repository.dart';
 import 'package:pateeznews_admin/features/comments/presentation/comments_screen.dart';
 import 'package:pateeznews_admin/features/mail/presentation/bulk_mail_screen.dart';
@@ -325,7 +326,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _canOpen(_DashboardPage page) {
     return switch (page) {
       _DashboardPage.home => _hasAny(['dashboard_access', 'view_overview']),
-      _DashboardPage.newsAdd || _DashboardPage.news => _hasAny([
+      _DashboardPage.newsAdd ||
+      _DashboardPage.news ||
+      _DashboardPage.automaticNews => _hasAny([
         'posts_access',
         'manage_content',
         'news_access',
@@ -455,6 +458,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _editingNewsPostId = null;
       _selectedPage = _DashboardPage.news;
     });
+  }
+
+  void _openAutomaticNews() {
+    _openPage(_DashboardPage.automaticNews);
   }
 
   void _openNewsAdd() {
@@ -675,6 +682,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _selectedPage == _DashboardPage.deathNoticeSettings;
     final newsAddSelected = _selectedPage == _DashboardPage.newsAdd;
     final newsSelected = _selectedPage == _DashboardPage.news;
+    final automaticNewsSelected = _selectedPage == _DashboardPage.automaticNews;
     final storiesSelected = _selectedPage == _DashboardPage.stories;
     final pagesSelected = _selectedPage == _DashboardPage.pages;
     final commentsSelected = _selectedPage == _DashboardPage.comments;
@@ -842,6 +850,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !settingsSelected &&
                       !newsAddSelected &&
                       !newsSelected &&
+                      !automaticNewsSelected &&
                       !storiesSelected &&
                       !pagesSelected &&
                       !commentsSelected &&
@@ -883,6 +892,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       !adsSelected,
                   newsAddSelected: newsAddSelected,
                   newsSelected: newsSelected,
+                  automaticNewsSelected: automaticNewsSelected,
                   storiesSelected: storiesSelected,
                   pagesSelected: pagesSelected,
                   commentsSelected: commentsSelected,
@@ -930,6 +940,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onHomeSelected: _openHome,
                   onNewsAddSelected: _openNewsAdd,
                   onNewsSelected: _openNews,
+                  onAutomaticNewsSelected: _openAutomaticNews,
                   onStoriesSelected: _openStories,
                   onPagesSelected: _openPages,
                   onCommentsSelected: _openComments,
@@ -1019,6 +1030,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !settingsSelected &&
                         !newsAddSelected &&
                         !newsSelected &&
+                        !automaticNewsSelected &&
                         !storiesSelected &&
                         !pagesSelected &&
                         !commentsSelected &&
@@ -1060,6 +1072,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         !adsSelected,
                     newsAddSelected: newsAddSelected,
                     newsSelected: newsSelected,
+                    automaticNewsSelected: automaticNewsSelected,
                     storiesSelected: storiesSelected,
                     pagesSelected: pagesSelected,
                     commentsSelected: commentsSelected,
@@ -1110,6 +1123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onHomeSelected: _openHome,
                     onNewsAddSelected: _openNewsAdd,
                     onNewsSelected: _openNews,
+                    onAutomaticNewsSelected: _openAutomaticNews,
                     onStoriesSelected: _openStories,
                     onPagesSelected: _openPages,
                     onCommentsSelected: _openComments,
@@ -1190,6 +1204,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   onAddPost: _openNewsAdd,
                                   onEditPost: _openNewsEdit,
                                 ),
+                                _DashboardPage.automaticNews =>
+                                  const AutomaticNewsScreen(),
                                 _DashboardPage.stories => StoriesScreen(
                                   session: widget.session,
                                   repository: widget.storiesRepository,
@@ -1476,6 +1492,7 @@ enum _DashboardPage {
   home,
   newsAdd,
   news,
+  automaticNews,
   stories,
   pages,
   comments,

@@ -107,6 +107,8 @@ class FrontendProfile {
     this.phone,
     this.address,
     this.authProvider,
+    this.writerApplicationStatus = 'none',
+    this.writerApplicationAt,
   });
 
   final String id;
@@ -120,6 +122,8 @@ class FrontendProfile {
   final String? phone;
   final String? address;
   final String? authProvider;
+  final String writerApplicationStatus;
+  final String? writerApplicationAt;
 
   bool get isAdmin {
     final value = role?.trim().toLowerCase() ?? '';
@@ -127,8 +131,20 @@ class FrontendProfile {
         value == 'super_admin' ||
         value == 'moderator' ||
         value == 'editor' ||
-        value == 'writer';
+        value == 'writer' ||
+        value == 'yazar';
   }
+
+  bool get writerApplicationPending =>
+      writerApplicationStatus.trim().toLowerCase() == 'pending';
+
+  bool get showWriterApplicationAction {
+    final status = writerApplicationStatus.trim().toLowerCase();
+    return !isAdmin && status != 'approved';
+  }
+
+  String get writerApplicationLabel =>
+      writerApplicationPending ? 'Başvuru beklemede' : 'Yazarlık için başvur';
 
   String get displayName {
     for (final value in [fullName, username, email]) {
@@ -173,6 +189,9 @@ class FrontendProfile {
       phone: json['phone']?.toString(),
       address: json['address']?.toString(),
       authProvider: json['auth_provider']?.toString(),
+      writerApplicationStatus:
+          json['writer_application_status']?.toString() ?? 'none',
+      writerApplicationAt: json['writer_application_at']?.toString(),
     );
   }
 
@@ -188,6 +207,8 @@ class FrontendProfile {
     String? phone,
     String? address,
     String? authProvider,
+    String? writerApplicationStatus,
+    String? writerApplicationAt,
   }) {
     return FrontendProfile(
       id: id ?? this.id,
@@ -201,6 +222,9 @@ class FrontendProfile {
       phone: phone ?? this.phone,
       address: address ?? this.address,
       authProvider: authProvider ?? this.authProvider,
+      writerApplicationStatus:
+          writerApplicationStatus ?? this.writerApplicationStatus,
+      writerApplicationAt: writerApplicationAt ?? this.writerApplicationAt,
     );
   }
 
@@ -217,6 +241,8 @@ class FrontendProfile {
       'phone': phone,
       'address': address,
       'auth_provider': authProvider,
+      'writer_application_status': writerApplicationStatus,
+      'writer_application_at': writerApplicationAt,
     };
   }
 }

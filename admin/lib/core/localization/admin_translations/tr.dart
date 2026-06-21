@@ -2090,6 +2090,7 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "nav.contentManagement": "İçerik Yönetimi",
   "nav.newsAdd": "Haber Ekle",
   "nav.news": "Haberler",
+  "nav.automaticNews": "Otomatik Haber",
   "nav.stories": "Hikayeler",
   "nav.comments": "Yorumlar",
   "nav.downloadDatabase": "Veritabanını indir",

@@ -5,6 +5,19 @@ import 'package:web/web.dart' as web;
 
 import 'browser_auth_storage_keys.dart';
 
+Map<String, Object?>? readBrowserAuthSession() {
+  try {
+    final storage = web.window.localStorage;
+    for (final key in browserAuthReadableStorageKeys()) {
+      final session = browserAuthSessionFromRaw(storage.getItem(key));
+      if (session != null) return session;
+    }
+  } catch (_) {
+    // localStorage can be unavailable in restricted browser modes.
+  }
+  return null;
+}
+
 void saveBrowserAuthSession(Map<String, Object?> session) {
   try {
     final payload = browserAuthSessionPayload(session);
@@ -40,8 +53,12 @@ void cancelBrowserAuthStorageChanges(Object? listener) {
 }
 
 void clearBrowserAuthStorage() {
-  final storage = web.window.localStorage;
-  for (final key in browserAuthStorageKeys()) {
-    storage.removeItem(key);
+  try {
+    final storage = web.window.localStorage;
+    for (final key in browserAuthStorageKeys()) {
+      storage.removeItem(key);
+    }
+  } catch (_) {
+    // localStorage can be unavailable in restricted browser modes.
   }
 }

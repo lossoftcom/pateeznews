@@ -123,10 +123,10 @@ class _AdminGateState extends State<AdminGate> {
   }
 
   void _scheduleExternalAuthRestore() {
-    if (!mounted || _checkingSession || _session != null) return;
+    if (!mounted || _checkingSession) return;
     _externalAuthSyncTimer?.cancel();
     _externalAuthSyncTimer = Timer(const Duration(milliseconds: 200), () {
-      if (!mounted || _checkingSession || _session != null) return;
+      if (!mounted || _checkingSession) return;
       unawaited(_restoreSession());
     });
   }

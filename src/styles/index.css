@@ -3124,6 +3124,29 @@ h5.news-title-font {
         content: "";
     }
 
+    body.public-route .profile-mobile-writer-button {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 36px;
+        margin-top: 12px;
+        padding: 0 12px;
+        border: 1px solid rgba(227, 6, 19, 0.18);
+        border-radius: 4px;
+        background: rgba(227, 6, 19, 0.06);
+        color: #E30613;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0;
+    }
+
+    body.public-route .profile-mobile-writer-button:disabled {
+        border-color: rgba(243, 156, 18, 0.22);
+        background: rgba(243, 156, 18, 0.10);
+        color: #A76306;
+    }
+
     body.public-route .profile-mobile-stats {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));

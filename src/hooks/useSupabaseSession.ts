@@ -14,6 +14,8 @@ export interface Profile {
   avatar_url: string;
   role: string;
   email?: string;
+  writer_application_status?: string;
+  writer_application_at?: string | null;
 }
 
 export function useSupabaseSession(): {
@@ -91,7 +93,7 @@ export function useSupabaseSession(): {
     async function fetchProfile(nextSession: Session) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,username,full_name,avatar_url,role,email')
+        .select('id,username,full_name,avatar_url,role,email,writer_application_status,writer_application_at')
         .eq('id', nextSession.user.id)
         .single();
 

@@ -25,7 +25,7 @@ class UserAvatarMenu extends StatefulWidget {
 }
 
 class _UserAvatarMenuState extends State<UserAvatarMenu> {
-  final _layerLink = LayerLink();
+  final _avatarKey = GlobalKey();
   OverlayEntry? _menuEntry;
 
   @override
@@ -36,6 +36,15 @@ class _UserAvatarMenuState extends State<UserAvatarMenu> {
 
   void _openMenu() {
     if (_menuEntry != null) return;
+
+    final overlay = Overlay.of(context).context.findRenderObject();
+    final avatar = _avatarKey.currentContext?.findRenderObject();
+    if (overlay is! RenderBox || avatar is! RenderBox) return;
+
+    const menuWidth = 176.0;
+    final avatarOffset = avatar.localToGlobal(Offset.zero, ancestor: overlay);
+    final menuTop = avatarOffset.dy + avatar.size.height + 10;
+    final menuRight = overlay.size.width - avatarOffset.dx - avatar.size.width;
 
     _menuEntry = OverlayEntry(
       builder: (context) {
@@ -48,12 +57,10 @@ class _UserAvatarMenuState extends State<UserAvatarMenu> {
                 child: const SizedBox.expand(),
               ),
             ),
-            CompositedTransformFollower(
-              link: _layerLink,
-              showWhenUnlinked: false,
-              targetAnchor: Alignment.bottomRight,
-              followerAnchor: Alignment.topRight,
-              offset: const Offset(0, 10),
+            Positioned(
+              top: menuTop,
+              right: menuRight,
+              width: menuWidth,
               child: UserMenuCard(
                 onProfile: _closeMenu,
                 onAccountSettings: () {
@@ -92,17 +99,15 @@ class _UserAvatarMenuState extends State<UserAvatarMenu> {
     final profile = widget.profile;
     final title = profile?.displayName ?? widget.session.user.email ?? 'Profil';
 
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: Tooltip(
-        message: title,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggleMenu,
-            child: _AvatarCircle(profile: profile, session: widget.session),
-          ),
+    return Tooltip(
+      message: title,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          key: _avatarKey,
+          behavior: HitTestBehavior.opaque,
+          onTap: _toggleMenu,
+          child: _AvatarCircle(profile: profile, session: widget.session),
         ),
       ),
     );
@@ -153,7 +158,6 @@ class _AvatarCircle extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _AvatarInitials extends StatelessWidget {

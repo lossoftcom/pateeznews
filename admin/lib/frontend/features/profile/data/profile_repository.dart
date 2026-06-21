@@ -221,6 +221,23 @@ class ProfileRepository {
     return _parseProfileResult(response);
   }
 
+  Future<ProfileSaveResult> applyForWriter({required String token}) async {
+    final client = httpClient ?? sharedFrontendClient;
+    late final http.Response response;
+    try {
+      response = await client
+          .post(
+            _uri('/api/app/profile'),
+            headers: _jsonAuthHeaders(token),
+            body: jsonEncode({'action': 'apply-writer'}),
+          )
+          .timeout(_timeout);
+    } finally {
+      // Shared frontend client is not closed.
+    }
+    return _parseProfileResult(response);
+  }
+
   Future<void> updatePassword({
     required String token,
     required String currentPassword,
@@ -330,6 +347,7 @@ class ProfileRepository {
       ]),
       handle: _handle(_str(json['username'])),
       roleLabel: expertise.isNotEmpty ? expertise : _roleLabel(role),
+      role: role,
       expertise: expertise,
       aboutMe: _str(json['about_me']),
       email: _str(json['email']),
@@ -344,6 +362,13 @@ class ProfileRepository {
       isOnline: true,
       isOwnProfile: _bool(json['is_own_profile'], fallback: true),
       isFollowing: _bool(json['viewer_following'], fallback: false),
+      writerApplicationStatus: _str(json['writer_application_status']).isEmpty
+          ? 'none'
+          : _str(json['writer_application_status']),
+      writerApplicationAt: _date(json['writer_application_at']),
+      writerApplicationReviewedAt: _date(
+        json['writer_application_reviewed_at'],
+      ),
       website: _str(json['website']),
       address: _str(json['address']),
       city: _str(json['city']).isEmpty ? 'Niğde' : _str(json['city']),
@@ -553,7 +578,12 @@ int _int(Object? value) {
 }
 
 bool _isOfficialRole(String role) {
-  return role == 'admin' || role == 'super_admin' || role == 'editor';
+  return role == 'admin' ||
+      role == 'super_admin' ||
+      role == 'editor' ||
+      role == 'publisher' ||
+      role == 'writer' ||
+      role == 'yazar';
 }
 
 String _roleLabel(String role) {
@@ -561,6 +591,7 @@ String _roleLabel(String role) {
     'admin' || 'super_admin' => 'Yönetici',
     'editor' => 'Editör',
     'publisher' => 'Yayıncı',
+    'writer' || 'yazar' => 'Yazar',
     _ => 'Üye',
   };
 }

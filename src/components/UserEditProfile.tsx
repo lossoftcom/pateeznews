@@ -26,6 +26,7 @@ const roleLabelFor = (role: unknown) => {
   if (key === 'admin' || key === 'super_admin') return 'Yönetici';
   if (key === 'editor') return 'Editör';
   if (key === 'publisher') return 'Yayıncı';
+  if (key === 'writer' || key === 'yazar') return 'Yazar';
   if (key === 'member' || key === 'user') return 'Üye';
   return '';
 };

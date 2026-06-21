@@ -55,6 +55,7 @@ class UsersTableCard extends StatelessWidget {
     required this.onEditUser,
     required this.onToggleStatus,
     required this.onToggleReward,
+    required this.onApproveWriterApplication,
     required this.onDeleteUser,
     required this.onDeleteSelected,
     required this.onSort,
@@ -85,6 +86,7 @@ class UsersTableCard extends StatelessWidget {
   final ValueChanged<ManagedUser> onEditUser;
   final ValueChanged<ManagedUser> onToggleStatus;
   final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onApproveWriterApplication;
   final ValueChanged<ManagedUser> onDeleteUser;
   final VoidCallback onDeleteSelected;
   final ValueChanged<String> onSort;
@@ -122,6 +124,7 @@ class UsersTableCard extends StatelessWidget {
               onEditUser: onEditUser,
               onToggleStatus: onToggleStatus,
               onToggleReward: onToggleReward,
+              onApproveWriterApplication: onApproveWriterApplication,
               onDeleteUser: onDeleteUser,
               onDeleteSelected: onDeleteSelected,
             );
@@ -162,6 +165,7 @@ class UsersTableCard extends StatelessWidget {
                   onEditUser: onEditUser,
                   onToggleStatus: onToggleStatus,
                   onToggleReward: onToggleReward,
+                  onApproveWriterApplication: onApproveWriterApplication,
                   onDeleteUser: onDeleteUser,
                   onSort: onSort,
                 ),
@@ -206,6 +210,7 @@ class _UsersMobileView extends StatelessWidget {
     required this.onEditUser,
     required this.onToggleStatus,
     required this.onToggleReward,
+    required this.onApproveWriterApplication,
     required this.onDeleteUser,
     required this.onDeleteSelected,
   });
@@ -232,6 +237,7 @@ class _UsersMobileView extends StatelessWidget {
   final ValueChanged<ManagedUser> onEditUser;
   final ValueChanged<ManagedUser> onToggleStatus;
   final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onApproveWriterApplication;
   final ValueChanged<ManagedUser> onDeleteUser;
   final VoidCallback onDeleteSelected;
 
@@ -409,6 +415,7 @@ class _UsersMobileView extends StatelessWidget {
                 onEditUser: onEditUser,
                 onToggleStatus: onToggleStatus,
                 onToggleReward: onToggleReward,
+                onApproveWriterApplication: onApproveWriterApplication,
                 onDeleteUser: onDeleteUser,
               );
             },
@@ -436,6 +443,7 @@ class _UsersMobileCard extends StatelessWidget {
     required this.onEditUser,
     required this.onToggleStatus,
     required this.onToggleReward,
+    required this.onApproveWriterApplication,
     required this.onDeleteUser,
   });
 
@@ -446,6 +454,7 @@ class _UsersMobileCard extends StatelessWidget {
   final ValueChanged<ManagedUser> onEditUser;
   final ValueChanged<ManagedUser> onToggleStatus;
   final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onApproveWriterApplication;
   final ValueChanged<ManagedUser> onDeleteUser;
 
   @override
@@ -528,6 +537,12 @@ class _UsersMobileCard extends StatelessWidget {
               AdminMobileMenuButton(
                 tooltip: context.t('User actions'),
                 actions: [
+                  if (user.writerApplicationPending)
+                    AdminMobileMenuAction(
+                      icon: Symbols.check_circle,
+                      label: 'Kabul et',
+                      onTap: () => onApproveWriterApplication(user),
+                    ),
                   AdminMobileMenuAction(
                     icon: Symbols.edit_square,
                     label: 'Düzenle',
@@ -596,6 +611,14 @@ class _UsersMobileCard extends StatelessWidget {
                   label: 'Ödül',
                   icon: Symbols.verified,
                   color: AppColors.warmHorizon,
+                ),
+              if (user.writerApplicationStatus.trim().toLowerCase() != 'none')
+                AdminMobileChip(
+                  label: user.writerApplicationLabel,
+                  icon: Symbols.edit_note_outlined,
+                  color: user.writerApplicationPending
+                      ? AppColors.warmHorizon
+                      : AppColors.deepOcean,
                 ),
             ],
           ),
@@ -1150,6 +1173,7 @@ class _UsersDataTable extends StatelessWidget {
     required this.onEditUser,
     required this.onToggleStatus,
     required this.onToggleReward,
+    required this.onApproveWriterApplication,
     required this.onDeleteUser,
     required this.onSort,
   });
@@ -1165,16 +1189,18 @@ class _UsersDataTable extends StatelessWidget {
   final ValueChanged<ManagedUser> onEditUser;
   final ValueChanged<ManagedUser> onToggleStatus;
   final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onApproveWriterApplication;
   final ValueChanged<ManagedUser> onDeleteUser;
   final ValueChanged<String> onSort;
 
-  static const double _minWidth = 1360;
+  static const double _minWidth = 1500;
   static const double _selectWidth = 42;
   static const double _idWidth = 64;
   static const double _authProviderWidth = 120;
   static const double _ipWidth = 132;
   static const double _signupCityWidth = 116;
   static const double _roleWidth = 130;
+  static const double _writerApplicationWidth = 140;
   static const double _rewardWidth = 130;
   static const double _loginWidth = 126;
   static const double _statusWidth = 112;
@@ -1232,6 +1258,8 @@ class _UsersDataTable extends StatelessWidget {
                                     onEditUser: onEditUser,
                                     onToggleStatus: onToggleStatus,
                                     onToggleReward: onToggleReward,
+                                    onApproveWriterApplication:
+                                        onApproveWriterApplication,
                                     onDeleteUser: onDeleteUser,
                                   ),
                               ],
@@ -1255,6 +1283,7 @@ class _UsersTableColumnLayout {
     required this.ipWidth,
     required this.signupCityWidth,
     required this.roleWidth,
+    required this.writerApplicationWidth,
     required this.rewardWidth,
     required this.loginWidth,
     required this.statusWidth,
@@ -1266,6 +1295,7 @@ class _UsersTableColumnLayout {
   final double ipWidth;
   final double signupCityWidth;
   final double roleWidth;
+  final double writerApplicationWidth;
   final double rewardWidth;
   final double loginWidth;
   final double statusWidth;
@@ -1279,6 +1309,7 @@ class _UsersTableColumnLayout {
         _UsersDataTable._ipWidth -
         _UsersDataTable._signupCityWidth -
         _UsersDataTable._roleWidth -
+        _UsersDataTable._writerApplicationWidth -
         _UsersDataTable._rewardWidth -
         _UsersDataTable._loginWidth -
         _UsersDataTable._statusWidth -
@@ -1291,14 +1322,16 @@ class _UsersTableColumnLayout {
     final extraWidth = tableWidth - _UsersDataTable._minWidth;
 
     return _UsersTableColumnLayout(
-      userWidth: _baseUserWidth + (extraWidth * 0.18),
+      userWidth: _baseUserWidth + (extraWidth * 0.16),
       authProviderWidth:
-          _UsersDataTable._authProviderWidth + (extraWidth * 0.10),
-      ipWidth: _UsersDataTable._ipWidth + (extraWidth * 0.10),
-      signupCityWidth: _UsersDataTable._signupCityWidth + (extraWidth * 0.09),
-      roleWidth: _UsersDataTable._roleWidth + (extraWidth * 0.12),
-      rewardWidth: _UsersDataTable._rewardWidth + (extraWidth * 0.13),
-      loginWidth: _UsersDataTable._loginWidth + (extraWidth * 0.10),
+          _UsersDataTable._authProviderWidth + (extraWidth * 0.09),
+      ipWidth: _UsersDataTable._ipWidth + (extraWidth * 0.09),
+      signupCityWidth: _UsersDataTable._signupCityWidth + (extraWidth * 0.08),
+      roleWidth: _UsersDataTable._roleWidth + (extraWidth * 0.10),
+      writerApplicationWidth:
+          _UsersDataTable._writerApplicationWidth + (extraWidth * 0.10),
+      rewardWidth: _UsersDataTable._rewardWidth + (extraWidth * 0.11),
+      loginWidth: _UsersDataTable._loginWidth + (extraWidth * 0.09),
       statusWidth: _UsersDataTable._statusWidth + (extraWidth * 0.08),
       createdWidth: _UsersDataTable._createdWidth + (extraWidth * 0.10),
     );
@@ -1401,6 +1434,15 @@ class _UsersHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
+            width: layout.writerApplicationWidth,
+            child: SortableTableHeader(
+              label: 'Yazarlık',
+              sortKey: 'writerApplication',
+              sortState: sortState,
+              onSort: onSort,
+            ),
+          ),
+          SizedBox(
             width: layout.rewardWidth,
             child: SortableTableHeader(
               label: 'Reward System',
@@ -1457,6 +1499,7 @@ class _UsersRow extends StatelessWidget {
     required this.onEditUser,
     required this.onToggleStatus,
     required this.onToggleReward,
+    required this.onApproveWriterApplication,
     required this.onDeleteUser,
   });
 
@@ -1468,6 +1511,7 @@ class _UsersRow extends StatelessWidget {
   final ValueChanged<ManagedUser> onEditUser;
   final ValueChanged<ManagedUser> onToggleStatus;
   final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onApproveWriterApplication;
   final ValueChanged<ManagedUser> onDeleteUser;
 
   @override
@@ -1524,6 +1568,10 @@ class _UsersRow extends StatelessWidget {
             child: _RoleCell(role: roleLabelFor(user.role, roles)),
           ),
           SizedBox(
+            width: layout.writerApplicationWidth,
+            child: _WriterApplicationBadge(user: user),
+          ),
+          SizedBox(
             width: layout.rewardWidth,
             child: _RewardCell(enabled: user.rewardEnabled),
           ),
@@ -1548,6 +1596,7 @@ class _UsersRow extends StatelessWidget {
                 onEditUser: onEditUser,
                 onToggleStatus: onToggleStatus,
                 onToggleReward: onToggleReward,
+                onApproveWriterApplication: onApproveWriterApplication,
                 onDeleteUser: onDeleteUser,
               ),
             ),
@@ -1824,6 +1873,67 @@ class _UserTextCell extends StatelessWidget {
   }
 }
 
+class _WriterApplicationBadge extends StatelessWidget {
+  const _WriterApplicationBadge({required this.user});
+
+  final ManagedUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = user.writerApplicationStatus.trim().toLowerCase();
+    final color = switch (status) {
+      'pending' => AppColors.warmHorizon,
+      'approved' => const Color(0xFF198754),
+      'rejected' => AppColors.actionRed,
+      _ => AppColors.support,
+    };
+    final label = status == 'none' || status.isEmpty
+        ? 'Yok'
+        : user.writerApplicationLabel;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        height: 28,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: AppColors.softLine.withValues(alpha: 0.9),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                context.t(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RewardCell extends StatelessWidget {
   const _RewardCell({required this.enabled});
 
@@ -1988,6 +2098,7 @@ class _UserRowMenu extends StatefulWidget {
     required this.onEditUser,
     required this.onToggleStatus,
     required this.onToggleReward,
+    required this.onApproveWriterApplication,
     required this.onDeleteUser,
   });
 
@@ -1995,6 +2106,7 @@ class _UserRowMenu extends StatefulWidget {
   final ValueChanged<ManagedUser> onEditUser;
   final ValueChanged<ManagedUser> onToggleStatus;
   final ValueChanged<ManagedUser> onToggleReward;
+  final ValueChanged<ManagedUser> onApproveWriterApplication;
   final ValueChanged<ManagedUser> onDeleteUser;
 
   @override
@@ -2039,6 +2151,9 @@ class _UserRowMenuState extends State<_UserRowMenu> {
                     _runAndClose(() => widget.onToggleStatus(widget.user)),
                 onToggleReward: () =>
                     _runAndClose(() => widget.onToggleReward(widget.user)),
+                onApproveWriterApplication: () => _runAndClose(
+                  () => widget.onApproveWriterApplication(widget.user),
+                ),
                 onDelete: () =>
                     _runAndClose(() => widget.onDeleteUser(widget.user)),
               ),
@@ -2105,6 +2220,7 @@ class _UserMenuCard extends StatelessWidget {
     required this.onEdit,
     required this.onToggleStatus,
     required this.onToggleReward,
+    required this.onApproveWriterApplication,
     required this.onDelete,
   });
 
@@ -2112,6 +2228,7 @@ class _UserMenuCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onToggleStatus;
   final VoidCallback onToggleReward;
+  final VoidCallback onApproveWriterApplication;
   final VoidCallback onDelete;
 
   @override
@@ -2136,6 +2253,12 @@ class _UserMenuCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (user.writerApplicationPending)
+              _UserMenuItem(
+                icon: Symbols.check_circle,
+                label: 'Kabul et',
+                onTap: onApproveWriterApplication,
+              ),
             _UserMenuItem(
               icon: Symbols.edit_square,
               label: 'Düzenle',

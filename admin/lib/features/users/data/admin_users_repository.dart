@@ -36,6 +36,11 @@ abstract class AdminUsersRepository {
     required UserFormData data,
   });
 
+  Future<void> approveWriterApplication({
+    required AdminSession session,
+    required String userId,
+  });
+
   Future<void> deleteUser({
     required AdminSession session,
     required String userId,
@@ -57,6 +62,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
     AdminUserRole(id: 'admin', name: 'admin', label: 'Süper Yönetici'),
     AdminUserRole(id: 'editor', name: 'editor', label: 'Editör'),
     AdminUserRole(id: 'moderator', name: 'moderator', label: 'Moderatör'),
+    AdminUserRole(id: 'yazar', name: 'yazar', label: 'Yazar'),
     AdminUserRole(id: 'member', name: 'member', label: 'Standart Üye'),
   ];
 
@@ -187,7 +193,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       filters.add({
         'type': 'or',
         'value':
-            'full_name.ilike.$pattern,username.ilike.$pattern,email.ilike.$pattern,auth_provider.ilike.$pattern,ip_address.ilike.$pattern,signup_city.ilike.$pattern,city.ilike.$pattern',
+            'full_name.ilike.$pattern,username.ilike.$pattern,email.ilike.$pattern,auth_provider.ilike.$pattern,ip_address.ilike.$pattern,signup_city.ilike.$pattern,city.ilike.$pattern,writer_application_status.ilike.$pattern',
       });
     }
 
@@ -198,7 +204,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       'table': 'profiles',
       'method': 'select',
       'select':
-          'id,username,full_name,email,city,auth_provider,role,status,reward_system,avatar_url,created_at,ip_address,signup_city,is_logged_in,last_login_at',
+          'id,username,full_name,email,city,auth_provider,role,status,reward_system,avatar_url,created_at,ip_address,signup_city,is_logged_in,last_login_at,writer_application_status,writer_application_at,writer_application_reviewed_at',
       'filters': filters,
       'orders': _userOrders(sortKey, sortAscending),
       'range': {'from': from, 'to': to},
@@ -233,6 +239,16 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
     await _accountAction(session, 'admin-update-user', {
       'userId': userId,
       ..._formPayload(data),
+    });
+  }
+
+  @override
+  Future<void> approveWriterApplication({
+    required AdminSession session,
+    required String userId,
+  }) async {
+    await _accountAction(session, 'admin-approve-writer-application', {
+      'userId': userId,
     });
   }
 
@@ -345,6 +361,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       'ip' => 'ip_address',
       'city' => 'signup_city',
       'login' => 'is_logged_in',
+      'writerApplication' => 'writer_application_status',
       'reward' => 'reward_system',
       'status' => 'status',
       'id' || 'created' => 'created_at',
@@ -391,6 +408,14 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       signupCity: item['signup_city']?.toString() ?? '',
       isLoggedIn: item['is_logged_in'] == true,
       lastLoginAt: DateTime.tryParse(item['last_login_at']?.toString() ?? ''),
+      writerApplicationStatus:
+          item['writer_application_status']?.toString() ?? 'none',
+      writerApplicationAt: DateTime.tryParse(
+        item['writer_application_at']?.toString() ?? '',
+      ),
+      writerApplicationReviewedAt: DateTime.tryParse(
+        item['writer_application_reviewed_at']?.toString() ?? '',
+      ),
     );
   }
 

@@ -74,6 +74,8 @@ const ProfileApp: React.FC<ProfileAppProps> = ({ initialLang, initialTranslation
                 avatar_url: profile.avatar_url,
                 role: profile.role,
                 email: profile.email,
+                writer_application_status: (profile as any).writer_application_status,
+                writer_application_at: (profile as any).writer_application_at,
                 show_email: true,
                 is_own_profile: true,
               } : null}

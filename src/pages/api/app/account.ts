@@ -72,6 +72,13 @@ function cleanEmail(value: unknown) {
   return cleanText(value).toLowerCase();
 }
 
+function cleanUuid(value: unknown) {
+  const text = cleanText(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
+    ? text
+    : '';
+}
+
 function userPayload(
   body: any,
   passwordRequired: boolean,
@@ -124,7 +131,10 @@ async function ensureUniqueUserFields(client: any, input: { userId?: string; ema
 
 async function profileForClient(client: any, userId: string) {
   const result = await client.query(
-    `SELECT id, username, full_name, avatar_url, cover_url, role, status, reward_system, email, city, created_at
+    `SELECT id, username, full_name, avatar_url, cover_url, role, status,
+            reward_system, email, city, created_at, writer_application_status,
+            writer_application_at, writer_application_reviewed_at,
+            writer_application_reviewed_by
      FROM public.profiles
      WHERE id = $1::uuid
      LIMIT 1`,
@@ -399,6 +409,31 @@ export const POST: APIRoute = async ({ request }) => {
           password: payload.password || undefined,
           userMetadata: authUserMetadata(payload),
         });
+        return profileForClient(client, targetUserId);
+      });
+
+      return json({ ok: true, profile });
+    }
+
+    if (action === 'admin-approve-writer-application') {
+      if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
+      const targetUserId = cleanUuid(body.userId);
+      if (!targetUserId) return json({ error: { message: 'User missing' } }, 400);
+
+      const profile = await withTransaction(async (client) => {
+        const updateResult = await client.query(
+          `UPDATE public.profiles
+              SET role = 'yazar',
+                  writer_application_status = 'approved',
+                  writer_application_reviewed_at = now(),
+                  writer_application_reviewed_by = $1::uuid,
+                  updated_at = now()
+            WHERE id = $2::uuid
+              AND writer_application_status = 'pending'
+            RETURNING id`,
+          [userId, targetUserId]
+        );
+        if (!updateResult.rows[0]) throw new Error('Bekleyen yazarlık başvurusu bulunamadı');
         return profileForClient(client, targetUserId);
       });
 

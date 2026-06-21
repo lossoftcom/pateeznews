@@ -46,6 +46,7 @@ class _UsersScreenState extends State<UsersScreen> {
     AdminUserRole(id: 'admin', name: 'admin', label: 'Süper Yönetici'),
     AdminUserRole(id: 'editor', name: 'editor', label: 'Editör'),
     AdminUserRole(id: 'moderator', name: 'moderator', label: 'Moderatör'),
+    AdminUserRole(id: 'yazar', name: 'yazar', label: 'Yazar'),
     AdminUserRole(id: 'member', name: 'member', label: 'Standart Üye'),
   ];
 
@@ -192,6 +193,7 @@ class _UsersScreenState extends State<UsersScreen> {
       user.ipAddress,
       user.displaySignupCity,
       user.loginStatusLabel,
+      user.writerApplicationLabel,
       user.role,
       user.roleLabel,
     ].join(' ');
@@ -356,6 +358,17 @@ class _UsersScreenState extends State<UsersScreen> {
         session: widget.session,
         userId: user.id,
         data: _formDataFor(user, rewardEnabled: !user.rewardEnabled),
+      ),
+      reloadMetrics: true,
+    );
+  }
+
+  Future<void> _approveWriterApplication(ManagedUser user) async {
+    if (!user.writerApplicationPending) return;
+    await _runMutation(
+      () => widget.repository.approveWriterApplication(
+        session: widget.session,
+        userId: user.id,
       ),
       reloadMetrics: true,
     );
@@ -532,6 +545,8 @@ class _UsersScreenState extends State<UsersScreen> {
                 onEditUser: (user) => unawaited(_editUser(user)),
                 onToggleStatus: (user) => unawaited(_toggleStatus(user)),
                 onToggleReward: (user) => unawaited(_toggleReward(user)),
+                onApproveWriterApplication: (user) =>
+                    unawaited(_approveWriterApplication(user)),
                 onDeleteUser: (user) => unawaited(_deleteUser(user)),
                 onDeleteSelected: () => unawaited(_deleteSelected()),
                 onSort: _changeSort,

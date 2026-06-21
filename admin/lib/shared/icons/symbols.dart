@@ -246,6 +246,7 @@ class Symbols {
   static const arrow_up_s_fill = IconData(0xea77, fontFamily: _fontFamily);
   static const arrow_down_s_fill = IconData(0xea4d, fontFamily: _fontFamily);
   static const refresh_line = IconData(0xf064, fontFamily: _fontFamily);
+  static const rss_feed_outlined = IconData(0xf09f, fontFamily: _fontFamily);
 
   // -- Piyasa / finans (RemixIcon) — renkli ikon çipleri için.
   static const money_dollar_circle_fill = IconData(
@@ -262,7 +263,10 @@ class Symbols {
   static const copper_coin_fill = IconData(0xebdb, fontFamily: _fontFamily);
   static const medal_fill = IconData(0xef27, fontFamily: _fontFamily);
   static const vip_diamond_fill = IconData(0xf28f, fontFamily: _fontFamily);
-  static const arrow_left_right_fill = IconData(0xea61, fontFamily: _fontFamily);
+  static const arrow_left_right_fill = IconData(
+    0xea61,
+    fontFamily: _fontFamily,
+  );
   // Legacy icon name aliases backed by RemixIcon.
   // Keep these aliases centralized so old call sites render RemixIcon glyphs.
   static const add_box_outlined = IconData(0xea0f, fontFamily: _fontFamily);

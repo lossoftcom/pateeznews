@@ -75,6 +75,54 @@ void main() {
     );
   });
 
+  test('session store browser auth payloadindan oturumu geri yukler', () async {
+    final store = AdminSessionStore(
+      browserSessionReader: () => _testSession.toJson(),
+    );
+
+    final session = await store.readSession();
+
+    expect(session?.accessToken, _testSession.accessToken);
+    expect(session?.user.id, _testSession.user.id);
+  });
+
+  test(
+    'session store browser auth payloadini kayitli admin oturumundan once kullanir',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(secureStorageChannel, (call) async {
+            if (call.method == 'read') {
+              return jsonEncode(_secureTestSession.toJson());
+            }
+            if (call.method == 'readAll') return <String, String>{};
+            if (call.method == 'containsKey') return true;
+            return null;
+          });
+
+      final store = AdminSessionStore(
+        browserSessionReader: () => _testSession.toJson(),
+      );
+
+      final session = await store.readSession();
+
+      expect(session?.accessToken, _testSession.accessToken);
+    },
+  );
+
+  test('clearAuth secure storage silme hatasinda cikisi kirmaz', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureStorageChannel, (call) async {
+          if (call.method == 'delete') {
+            throw PlatformException(code: 'delete-failed');
+          }
+          return null;
+        });
+
+    final store = AdminSessionStore(browserSessionReader: () => null);
+
+    await expectLater(store.clearAuth(), completes);
+  });
+
   test('signInWithPassword public app auth endpointini kullanir', () async {
     final requestBodies = <Map<String, Object?>>[];
     final store = _MemoryAdminSessionStore(null);
@@ -118,10 +166,37 @@ void main() {
     );
     expect(requestBodies.first, isNot(contains('email')));
   });
+
+  test('signOut session okuma hatasinda da auth temizler', () async {
+    final store = _ThrowingReadSessionStore();
+    final client = SupabaseAuthClient(
+      apiBaseUrl: 'https://api.test',
+      sessionStore: store,
+      httpClient: MockClient((request) async => http.Response('{}', 500)),
+    );
+
+    await expectLater(client.signOut(), completes);
+
+    expect(store.cleared, isTrue);
+  });
 }
 
 const _testSession = AdminSession(
   accessToken: 'stored-token',
+  tokenType: 'bearer',
+  expiresAt: 4102444800,
+  user: AdminUser(
+    id: 'user-1',
+    email: 'nasip@example.com',
+    role: 'authenticated',
+    aud: 'authenticated',
+    userMetadata: {},
+    appMetadata: {},
+  ),
+);
+
+const _secureTestSession = AdminSession(
+  accessToken: 'secure-token',
   tokenType: 'bearer',
   expiresAt: 4102444800,
   user: AdminUser(
@@ -169,5 +244,19 @@ class _MemoryAdminSessionStore extends AdminSessionStore {
   @override
   Future<void> saveProfileCache(AdminProfile profile) async {
     this.profile = profile;
+  }
+}
+
+class _ThrowingReadSessionStore extends AdminSessionStore {
+  var cleared = false;
+
+  @override
+  Future<AdminSession?> readSession() async {
+    throw StateError('read failed');
+  }
+
+  @override
+  Future<void> clearAuth() async {
+    cleared = true;
   }
 }

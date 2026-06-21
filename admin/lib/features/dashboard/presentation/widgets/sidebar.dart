@@ -51,6 +51,7 @@ class AdminDrawer extends StatelessWidget {
     required this.homeSelected,
     required this.newsAddSelected,
     required this.newsSelected,
+    required this.automaticNewsSelected,
     required this.storiesSelected,
     required this.pagesSelected,
     required this.commentsSelected,
@@ -98,6 +99,7 @@ class AdminDrawer extends StatelessWidget {
     required this.onHomeSelected,
     required this.onNewsAddSelected,
     required this.onNewsSelected,
+    required this.onAutomaticNewsSelected,
     required this.onStoriesSelected,
     required this.onPagesSelected,
     required this.onCommentsSelected,
@@ -181,6 +183,7 @@ class AdminDrawer extends StatelessWidget {
   final bool homeSelected;
   final bool newsAddSelected;
   final bool newsSelected;
+  final bool automaticNewsSelected;
   final bool storiesSelected;
   final bool pagesSelected;
   final bool commentsSelected;
@@ -228,6 +231,7 @@ class AdminDrawer extends StatelessWidget {
   final VoidCallback onHomeSelected;
   final VoidCallback onNewsAddSelected;
   final VoidCallback onNewsSelected;
+  final VoidCallback onAutomaticNewsSelected;
   final VoidCallback onStoriesSelected;
   final VoidCallback onPagesSelected;
   final VoidCallback onCommentsSelected;
@@ -323,6 +327,7 @@ class AdminDrawer extends StatelessWidget {
           homeSelected: homeSelected,
           newsAddSelected: newsAddSelected,
           newsSelected: newsSelected,
+          automaticNewsSelected: automaticNewsSelected,
           storiesSelected: storiesSelected,
           pagesSelected: pagesSelected,
           commentsSelected: commentsSelected,
@@ -370,6 +375,7 @@ class AdminDrawer extends StatelessWidget {
           onHomeSelected: onHomeSelected,
           onNewsAddSelected: onNewsAddSelected,
           onNewsSelected: onNewsSelected,
+          onAutomaticNewsSelected: onAutomaticNewsSelected,
           onStoriesSelected: onStoriesSelected,
           onPagesSelected: onPagesSelected,
           onCommentsSelected: onCommentsSelected,
@@ -460,6 +466,7 @@ class Sidebar extends StatefulWidget {
     required this.homeSelected,
     required this.newsAddSelected,
     required this.newsSelected,
+    required this.automaticNewsSelected,
     required this.storiesSelected,
     required this.pagesSelected,
     required this.commentsSelected,
@@ -507,6 +514,7 @@ class Sidebar extends StatefulWidget {
     required this.onHomeSelected,
     required this.onNewsAddSelected,
     required this.onNewsSelected,
+    required this.onAutomaticNewsSelected,
     required this.onStoriesSelected,
     required this.onPagesSelected,
     required this.onCommentsSelected,
@@ -591,6 +599,7 @@ class Sidebar extends StatefulWidget {
   final bool homeSelected;
   final bool newsAddSelected;
   final bool newsSelected;
+  final bool automaticNewsSelected;
   final bool storiesSelected;
   final bool pagesSelected;
   final bool commentsSelected;
@@ -638,6 +647,7 @@ class Sidebar extends StatefulWidget {
   final VoidCallback onHomeSelected;
   final VoidCallback onNewsAddSelected;
   final VoidCallback onNewsSelected;
+  final VoidCallback onAutomaticNewsSelected;
   final VoidCallback onStoriesSelected;
   final VoidCallback onPagesSelected;
   final VoidCallback onCommentsSelected;
@@ -747,6 +757,7 @@ class _SidebarState extends State<Sidebar> {
     }
     if (data.newsAddSelected ||
         data.newsSelected ||
+        data.automaticNewsSelected ||
         data.storiesSelected ||
         data.commentsSelected) {
       return _contentGroup;
@@ -894,6 +905,7 @@ class _SidebarState extends State<Sidebar> {
     final contentSelected =
         widget.newsAddSelected ||
         widget.newsSelected ||
+        widget.automaticNewsSelected ||
         widget.storiesSelected ||
         widget.commentsSelected;
     final contentVisible =
@@ -1015,6 +1027,15 @@ class _SidebarState extends State<Sidebar> {
                             selected: widget.newsSelected,
                             onTap: () =>
                                 _select(context, widget.onNewsSelected),
+                          ),
+                        if (widget.newsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.automaticNews'),
+                            selected: widget.automaticNewsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onAutomaticNewsSelected,
+                            ),
                           ),
                         if (widget.storiesVisible)
                           SidebarSubItem(

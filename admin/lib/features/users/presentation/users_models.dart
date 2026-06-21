@@ -39,6 +39,9 @@ class ManagedUser {
     this.signupCity = '',
     this.isLoggedIn = false,
     this.lastLoginAt,
+    this.writerApplicationStatus = 'none',
+    this.writerApplicationAt,
+    this.writerApplicationReviewedAt,
   });
 
   final String id;
@@ -58,6 +61,9 @@ class ManagedUser {
   final String signupCity;
   final bool isLoggedIn;
   final DateTime? lastLoginAt;
+  final String writerApplicationStatus;
+  final DateTime? writerApplicationAt;
+  final DateTime? writerApplicationReviewedAt;
 
   String get displayName {
     final value = fullName.trim();
@@ -108,6 +114,18 @@ class ManagedUser {
   }
 
   String get loginStatusLabel => isLoggedIn ? 'Oturum açık' : 'Oturum kapalı';
+
+  bool get writerApplicationPending =>
+      writerApplicationStatus.trim().toLowerCase() == 'pending';
+
+  String get writerApplicationLabel {
+    return switch (writerApplicationStatus.trim().toLowerCase()) {
+      'pending' => 'Beklemede',
+      'approved' => 'Onaylandı',
+      'rejected' => 'Reddedildi',
+      _ => 'Başvuru yok',
+    };
+  }
 }
 
 String authProviderLabelFor(String provider) {
@@ -271,6 +289,7 @@ String roleLabelFor(String role, List<AdminUserRole> roles) {
     'admin' => 'Süper Yönetici',
     'editor' => 'Editör',
     'moderator' => 'Moderatör',
+    'writer' || 'yazar' => 'Yazar',
     'member' => 'Standart Üye',
     _ => role,
   };
