@@ -293,7 +293,7 @@ function platformData(options: {
       const replySettings = optionEnum(
         platformOption,
         'replySettings',
-        new Set(['EVERYONE', 'FOLLOWING', 'MENTIONED_USERS'])
+        new Set(['EVERYONE', 'FOLLOWING', 'MENTIONED_USERS', 'SUBSCRIBERS', 'VERIFIED'])
       );
       return { ...common, ...(replySettings ? { replySettings } : {}) };
     }

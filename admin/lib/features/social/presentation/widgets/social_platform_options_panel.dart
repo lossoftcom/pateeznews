@@ -6,15 +6,156 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../social_platform_data.dart';
 
+Future<SocialPlatformPublishOptions?> showSocialPlatformOptionsDialog(
+  BuildContext context, {
+  required SocialPublishData data,
+}) {
+  var draft = data.platformOptions;
+  return showDialog<SocialPlatformPublishOptions>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.34),
+    builder: (dialogContext) {
+      final size = MediaQuery.sizeOf(dialogContext);
+      final width = (size.width - 48).clamp(620.0, 880.0).toDouble();
+      final height = (size.height - 48).clamp(560.0, 820.0).toDouble();
+
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            clipBehavior: Clip.antiAlias,
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 18, 14, 16),
+                      child: Row(
+                        children: [
+                          _IconBadge(
+                            icon: Symbols.settings_input_component_outlined,
+                            color: AppColors.deepOcean,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Platform ayarları',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.deepOcean,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Buradaki alanlar sadece Bundle Social API gerçekten destekliyorsa gönderilir.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.support,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Kapat',
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Symbols.close, size: 20),
+                            color: AppColors.deepOcean,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: AppColors.line),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                        child: SocialPlatformOptionsPanel(
+                          data: data.copyWith(platformOptions: draft),
+                          showHeader: false,
+                          onChanged: (options) =>
+                              setModalState(() => draft = options),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1, color: AppColors.line),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.deepOcean,
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            child: const Text('İptal'),
+                          ),
+                          const SizedBox(width: 10),
+                          FilledButton(
+                            onPressed: () => Navigator.of(context).pop(draft),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.deepOcean,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 13,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.value,
+                                ),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            child: const Text('Kaydet'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class SocialPlatformOptionsPanel extends StatelessWidget {
   const SocialPlatformOptionsPanel({
     super.key,
     required this.data,
     required this.onChanged,
+    this.showHeader = true,
   });
 
   final SocialPublishData data;
   final ValueChanged<SocialPlatformPublishOptions> onChanged;
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -26,40 +167,44 @@ class SocialPlatformOptionsPanel extends StatelessWidget {
     });
     if (visiblePlatforms.isEmpty) return const SizedBox.shrink();
 
+    final content = Column(
+      children: [
+        if (visiblePlatforms.contains(SocialPlatform.instagram))
+          _InstagramOptions(
+            options: data.platformOptions.instagram,
+            postType: data.postType,
+            onChanged: (value) =>
+                onChanged(data.platformOptions.copyWith(instagram: value)),
+          ),
+        if (visiblePlatforms.contains(SocialPlatform.facebook))
+          _FacebookOptions(
+            options: data.platformOptions.facebook,
+            postType: data.postType,
+            onChanged: (value) =>
+                onChanged(data.platformOptions.copyWith(facebook: value)),
+          ),
+        if (visiblePlatforms.contains(SocialPlatform.tiktok))
+          _TiktokOptions(
+            options: data.platformOptions.tiktok,
+            onChanged: (value) =>
+                onChanged(data.platformOptions.copyWith(tiktok: value)),
+          ),
+        if (visiblePlatforms.contains(SocialPlatform.twitter))
+          _TwitterOptions(
+            options: data.platformOptions.twitter,
+            onChanged: (value) =>
+                onChanged(data.platformOptions.copyWith(twitter: value)),
+          ),
+      ],
+    );
+
+    if (!showHeader) return content;
+
     return _PanelShell(
       icon: Symbols.settings_input_component_outlined,
       title: 'Platform ayarları',
       subtitle: 'Sadece Bundle Social API alanları gönderilir.',
-      child: Column(
-        children: [
-          if (visiblePlatforms.contains(SocialPlatform.instagram))
-            _InstagramOptions(
-              options: data.platformOptions.instagram,
-              postType: data.postType,
-              onChanged: (value) =>
-                  onChanged(data.platformOptions.copyWith(instagram: value)),
-            ),
-          if (visiblePlatforms.contains(SocialPlatform.facebook))
-            _FacebookOptions(
-              options: data.platformOptions.facebook,
-              postType: data.postType,
-              onChanged: (value) =>
-                  onChanged(data.platformOptions.copyWith(facebook: value)),
-            ),
-          if (visiblePlatforms.contains(SocialPlatform.tiktok))
-            _TiktokOptions(
-              options: data.platformOptions.tiktok,
-              onChanged: (value) =>
-                  onChanged(data.platformOptions.copyWith(tiktok: value)),
-            ),
-          if (visiblePlatforms.contains(SocialPlatform.twitter))
-            _TwitterOptions(
-              options: data.platformOptions.twitter,
-              onChanged: (value) =>
-                  onChanged(data.platformOptions.copyWith(twitter: value)),
-            ),
-        ],
-      ),
+      child: content,
     );
   }
 }
@@ -89,12 +234,16 @@ class _InstagramOptions extends StatelessWidget {
               label: 'Alt metin',
               value: options.altText,
               hint: 'Erişilebilirlik açıklaması',
+              help:
+                  'Görselde ne olduğunu anlatır. Ekran okuyucu ve erişilebilirlik için kullanılır.',
               onChanged: (value) => onChanged(options.copyWith(altText: value)),
             ),
             _TextOptionField(
               label: 'Konum ID',
               value: options.locationId,
               hint: 'Instagram locationId',
+              help:
+                  'Şehir adı yazılmaz. Instagram/Meta tarafındaki gerçek konum numarası yazılır.',
               onChanged: (value) =>
                   onChanged(options.copyWith(locationId: value)),
             ),
@@ -102,6 +251,8 @@ class _InstagramOptions extends StatelessWidget {
               label: 'Ortak üreticiler',
               value: options.collaborators,
               hint: 'kullanici1, kullanici2',
+              help:
+                  'Gönderide ortak üretici olarak görünecek kullanıcı adlarıdır. Birden fazlaysa virgülle ayır.',
               onChanged: (value) =>
                   onChanged(options.copyWith(collaborators: value)),
             ),
@@ -109,6 +260,8 @@ class _InstagramOptions extends StatelessWidget {
               label: 'Etiketli kullanıcılar',
               value: options.taggedUsers,
               hint: 'kullanici1, kullanici2',
+              help:
+                  'Gönderide etiketlenecek kullanıcı adlarıdır. Bu story link/poll stickeri değildir.',
               onChanged: (value) =>
                   onChanged(options.copyWith(taggedUsers: value)),
             ),
@@ -116,6 +269,8 @@ class _InstagramOptions extends StatelessWidget {
               label: 'Kapak görsel URL',
               value: options.thumbnailUrl,
               hint: 'https://...',
+              help:
+                  'Reels/video kapağı için kullanılacak hazır görsel adresidir. Emin değilsen boş bırak.',
               onChanged: (value) =>
                   onChanged(options.copyWith(thumbnailUrl: value)),
             ),
@@ -123,6 +278,8 @@ class _InstagramOptions extends StatelessWidget {
               label: 'Kapak zamanı ms',
               value: options.thumbnailOffsetMs,
               hint: '1500',
+              help:
+                  'Videonun kaçıncı milisaniyesi kapak olsun. 1000 yazarsan 1. saniye demektir.',
               onChanged: (value) => onChanged(
                 options.copyWith(
                   thumbnailOffsetMs: value,
@@ -192,12 +349,16 @@ class _FacebookOptions extends StatelessWidget {
               label: 'Alt metin',
               value: options.altText,
               hint: 'Medya açıklaması',
+              help:
+                  'Facebook medyasını kısaca açıklar. Görseli göremeyen kullanıcılar için faydalıdır.',
               onChanged: (value) => onChanged(options.copyWith(altText: value)),
             ),
             _TextOptionField(
               label: 'Kapak görsel URL',
               value: options.thumbnailUrl,
               hint: 'https://...',
+              help:
+                  'Video veya link önizlemesinde kapak olarak kullanılacak görsel adresidir.',
               onChanged: (value) =>
                   onChanged(options.copyWith(thumbnailUrl: value)),
             ),
@@ -205,6 +366,8 @@ class _FacebookOptions extends StatelessWidget {
               label: 'Native planlama zamanı',
               value: options.nativeScheduleTime,
               hint: 'ISO tarih',
+              help:
+                  'Facebook tarafındaki kendi planlama zamanı. Emin değilsen boş bırak, üstteki Zamanla düğmesini kullan.',
               onChanged: (value) =>
                   onChanged(options.copyWith(nativeScheduleTime: value)),
             ),
@@ -244,12 +407,16 @@ class _TiktokOptions extends StatelessWidget {
                 'MUTUAL_FOLLOW_FRIENDS': 'Arkadaşlar',
                 'SELF_ONLY': 'Sadece ben',
               },
+              help:
+                  'TikTok videosunu kimlerin göreceğini seçer. Normal paylaşım için Herkese açık bırak.',
               onChanged: (value) => onChanged(options.copyWith(privacy: value)),
             ),
             _TextOptionField(
               label: 'Kapak görsel URL',
               value: options.thumbnailUrl,
               hint: 'https://...',
+              help:
+                  'TikTok kapağı olarak kullanılacak görsel adresidir. Yoksa TikTok videodan kapak seçer.',
               onChanged: (value) =>
                   onChanged(options.copyWith(thumbnailUrl: value)),
             ),
@@ -257,6 +424,8 @@ class _TiktokOptions extends StatelessWidget {
               label: 'Kapak zamanı ms',
               value: options.thumbnailOffsetMs,
               hint: '1500',
+              help:
+                  'Videoda kapak karesi kaçıncı milisaniyeden alınsın. 1000 = 1 saniye.',
               onChanged: (value) => onChanged(
                 options.copyWith(
                   thumbnailOffsetMs: value,
@@ -268,6 +437,8 @@ class _TiktokOptions extends StatelessWidget {
               label: 'Foto kapak index',
               value: options.photoCoverIndex,
               hint: '0',
+              help:
+                  'Fotoğraf gönderisinde kaçıncı görsel kapak olsun. İlk görsel için 0 yazılır.',
               onChanged: (value) => onChanged(
                 options.copyWith(
                   photoCoverIndex: value,
@@ -279,6 +450,8 @@ class _TiktokOptions extends StatelessWidget {
               label: 'Müzik Sound ID',
               value: options.musicSoundId,
               hint: 'musicSoundId',
+              help:
+                  'TikTok/Bundle müzik aramasından dönen ses kimliğidir. Rastgele şarkı adı yazılmaz.',
               onChanged: (value) =>
                   onChanged(options.copyWith(musicSoundId: value)),
             ),
@@ -370,7 +543,11 @@ class _TwitterOptions extends StatelessWidget {
                 'EVERYONE': 'Herkes',
                 'FOLLOWING': 'Takip ettiklerim',
                 'MENTIONED_USERS': 'Sadece bahsedilenler',
+                'SUBSCRIBERS': 'Aboneler',
+                'VERIFIED': 'Doğrulanmış hesaplar',
               },
+              help:
+                  'X gönderisine kimlerin cevap yazabileceğini seçer. X tarafında hikaye veya reels yoktur.',
               onChanged: (value) =>
                   onChanged(options.copyWith(replySettings: value)),
             ),
@@ -551,25 +728,56 @@ class _TextOptionField extends StatelessWidget {
     required this.value,
     required this.hint,
     required this.onChanged,
+    this.help = '',
   });
 
   final String label;
   final String value;
   final String hint;
   final ValueChanged<String> onChanged;
+  final String help;
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      initialValue: value,
-      onChanged: onChanged,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          initialValue: value,
+          onChanged: onChanged,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+          decoration: _inputDecoration(label: label, hint: hint),
+        ),
+        if (help.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          _FieldHelp(text: help),
+        ],
+      ],
+    );
+  }
+}
+
+class _FieldHelp extends StatelessWidget {
+  const _FieldHelp({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
       style: const TextStyle(
-        fontSize: 12,
-        color: AppColors.deepOcean,
+        fontSize: 10.5,
+        height: 1.32,
+        color: AppColors.support,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,
       ),
-      decoration: _inputDecoration(label: label, hint: hint),
     );
   }
 }
@@ -580,30 +788,41 @@ class _NumberOptionField extends StatelessWidget {
     required this.value,
     required this.hint,
     required this.onChanged,
+    this.help = '',
   });
 
   final String label;
   final int? value;
   final String hint;
   final ValueChanged<int?> onChanged;
+  final String help;
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      initialValue: value?.toString() ?? '',
-      onChanged: (raw) {
-        final trimmed = raw.trim();
-        onChanged(trimmed.isEmpty ? null : int.tryParse(trimmed));
-      },
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      style: const TextStyle(
-        fontSize: 12,
-        color: AppColors.deepOcean,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0,
-      ),
-      decoration: _inputDecoration(label: label, hint: hint),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          initialValue: value?.toString() ?? '',
+          onChanged: (raw) {
+            final trimmed = raw.trim();
+            onChanged(trimmed.isEmpty ? null : int.tryParse(trimmed));
+          },
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+          decoration: _inputDecoration(label: label, hint: hint),
+        ),
+        if (help.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          _FieldHelp(text: help),
+        ],
+      ],
     );
   }
 }
@@ -614,32 +833,43 @@ class _DropdownOptionField extends StatelessWidget {
     required this.value,
     required this.values,
     required this.onChanged,
+    this.help = '',
   });
 
   final String label;
   final String value;
   final Map<String, String> values;
   final ValueChanged<String> onChanged;
+  final String help;
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      initialValue: values.containsKey(value) ? value : values.keys.first,
-      isExpanded: true,
-      items: [
-        for (final entry in values.entries)
-          DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: values.containsKey(value) ? value : values.keys.first,
+          isExpanded: true,
+          items: [
+            for (final entry in values.entries)
+              DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+          ],
+          onChanged: (value) {
+            if (value != null) onChanged(value);
+          },
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+          decoration: _inputDecoration(label: label, hint: ''),
+        ),
+        if (help.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          _FieldHelp(text: help),
+        ],
       ],
-      onChanged: (value) {
-        if (value != null) onChanged(value);
-      },
-      style: const TextStyle(
-        fontSize: 12,
-        color: AppColors.deepOcean,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0,
-      ),
-      decoration: _inputDecoration(label: label, hint: ''),
     );
   }
 }

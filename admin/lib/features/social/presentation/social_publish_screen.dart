@@ -75,9 +75,14 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
       setState(() {
         _loadingConnectedAccounts = false;
         _connectedAccounts = connectedAccounts;
+        final selectedPlatforms = _platformsFromAccounts(connectedAccounts);
         _data = _data.copyWith(
-          selectedPlatforms: _platformsFromAccounts(connectedAccounts),
+          selectedPlatforms: selectedPlatforms,
           selectedConnectedAccountIds: selectedAccountIds,
+          postType: _effectivePostTypeForPlatforms(
+            _data.postType,
+            selectedPlatforms,
+          ),
         );
       });
     } catch (_) {
@@ -162,6 +167,66 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
     );
     next[platform] = accountId;
     _updateData((d) => d.copyWith(selectedConnectedAccountIds: next));
+  }
+
+  List<SocialPostType> _availablePostTypesForPlatforms(
+    Set<SocialPlatform> platforms,
+  ) {
+    final supported = <SocialPostType>{
+      for (final platform in platforms) ...platformInfoFor(platform).supportedTypes,
+    };
+    return [
+      for (final type in SocialPostType.values)
+        if (supported.contains(type)) type,
+    ];
+  }
+
+  SocialPostType _effectivePostTypeForPlatforms(
+    SocialPostType current,
+    Set<SocialPlatform> platforms,
+  ) {
+    final available = _availablePostTypesForPlatforms(platforms);
+    if (available.contains(current)) return current;
+    return available.isNotEmpty ? available.first : SocialPostType.feed;
+  }
+
+  void _changePostType(SocialPostType type) {
+    if (!_availablePostTypesForPlatforms(_data.selectedPlatforms).contains(type)) {
+      return;
+    }
+
+    final nextPlatforms = <SocialPlatform>{
+      for (final platform in _data.selectedPlatforms)
+        if (platformInfoFor(platform).supportedTypes.contains(type)) platform,
+    };
+    if (nextPlatforms.isEmpty) return;
+
+    final nextSelectedIds = <SocialPlatform, int>{
+      for (final entry in _data.selectedConnectedAccountIds.entries)
+        if (nextPlatforms.contains(entry.key)) entry.key: entry.value,
+    };
+
+    _updateData(
+      (d) => d.copyWith(
+        postType: type,
+        selectedPlatforms: nextPlatforms,
+        selectedConnectedAccountIds: nextSelectedIds,
+      ),
+    );
+  }
+
+  Future<void> _openCreativeEditor() {
+    return showSocialCreativeEditor(
+      context,
+      data: _data,
+      onMediaUrlsChanged: _replaceMediaUrls,
+    );
+  }
+
+  Future<void> _showPlatformOptions() async {
+    final options = await showSocialPlatformOptionsDialog(context, data: _data);
+    if (options == null || !mounted) return;
+    _updateData((d) => d.copyWith(platformOptions: options));
   }
 
   int? _primarySocialAccountIdForPublish() {
@@ -418,8 +483,9 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
               data: _data,
               loading: _loadingConnectedAccounts,
               onAccountChanged: _selectConnectedAccount,
-              onPostTypeChanged: (type) =>
-                  _updateData((d) => d.copyWith(postType: type)),
+              onPostTypeChanged: _changePostType,
+              onEditCreative: _openCreativeEditor,
+              onOpenPlatformOptions: _showPlatformOptions,
             ),
           ),
         ),
@@ -467,8 +533,9 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
                     data: _data,
                     loading: _loadingConnectedAccounts,
                     onAccountChanged: _selectConnectedAccount,
-                    onPostTypeChanged: (type) =>
-                        _updateData((d) => d.copyWith(postType: type)),
+                    onPostTypeChanged: _changePostType,
+                    onEditCreative: _openCreativeEditor,
+                    onOpenPlatformOptions: _showPlatformOptions,
                   ),
                 ),
               ],
@@ -573,27 +640,10 @@ class _SocialPublishScreenState extends State<SocialPublishScreen>
 
           const SizedBox(height: 22),
 
-          SocialCreativeStudio(
-            data: _data,
-            onMediaUrlsChanged: _replaceMediaUrls,
-            onPickImage: _pickImageFromLibrary,
-            onPickVideo: _pickVideoFromLibrary,
-          ),
-
-          const SizedBox(height: 22),
-
           // Hashtags
           SocialHashtagInput(
             hashtags: _data.hashtags,
             onChanged: (tags) => _updateData((d) => d.copyWith(hashtags: tags)),
-          ),
-
-          const SizedBox(height: 22),
-
-          SocialPlatformOptionsPanel(
-            data: _data,
-            onChanged: (options) =>
-                _updateData((d) => d.copyWith(platformOptions: options)),
           ),
 
           const SizedBox(height: 30),
