@@ -14,7 +14,7 @@ const AI_IMAGE_FETCH_TIMEOUT_MS = 4500;
 const MAX_AI_IMAGE_BYTES = 2_500_000;
 const MAX_SOURCES_PER_RUN = 80;
 const MAX_CANDIDATES_PER_SOURCE = 10;
-const MAX_AI_CANDIDATES_PER_RUN = 12;
+const MAX_AI_CANDIDATES_PER_RUN = 40;
 const MAX_QUEUE_PER_SOURCE = 5;
 const MAX_PAYLOAD_SCAN_ROWS = 500;
 const USER_AGENT = 'Pateez-Announcements/1.0 (+https://www.pateez.com)';
@@ -90,6 +90,13 @@ const EXCLUDED_TERMS = [
   'kamulaştırma',
   'kamulastirma',
   'metruk ilan',
+  'başvuru dilekçesi',
+  'basvuru dilekcesi',
+  'yerleşim planı',
+  'yerlesim plani',
+  'aplikasyon krokisi',
+  'proje kontrolü',
+  'proje kontrolu',
 ];
 const CELEBRATION_TERMS = [
   'kutlu olsun',
@@ -126,11 +133,36 @@ const INTERNAL_ONLY_TERMS = [
   'yeta temizlik',
   'hasta ve ziyaretçileri yönlendirme',
   'hasta ve ziyaretcileri yonlendirme',
+  'görev talebi',
+  'gorev talebi',
+  'görev talepleri',
+  'gorev talepleri',
+  'açıköğretim programları',
+  'acikogretim programlari',
+  'bütünleme sınavı',
+  'butunleme sinavi',
+  'final sınavı görev',
+  'final sinavi gorev',
+  'telafi için görev',
+  'telafi icin gorev',
+  'öğrenci alım ilanı',
+  'ogrenci alim ilani',
+  'uluslararası öğrenci alım',
+  'uluslararasi ogrenci alim',
+  'bilgi ve belgeye erişim ücret tarifesi',
+  'bilgi ve belgeye erisim ucret tarifesi',
+  'yetenek kapısı tanıtımı',
+  'yetenek kapisi tanitimi',
+  'spor aktiviteleri devam ediyor',
+  'bilimsel etkinlikler',
 ];
 const NON_ACTIONABLE_CAMPAIGN_TERMS = [
   'dikkatinle yol ver',
   'yol ver hayata',
   'kamu spotu',
+  'kadına el kalkamaz',
+  'kadina el kalkamaz',
+  'kades',
 ];
 const ACTIONABLE_PUBLIC_TERMS = [
   'duyuru',
@@ -176,6 +208,139 @@ const ACTIONABLE_PUBLIC_TERMS = [
   'afad',
   'meteoroloji',
 ];
+const WATER_OUTAGE_TERMS = [
+  'su kesintisi',
+  'sular kesilecek',
+  'su verilemeyecek',
+  'içme suyu',
+  'icme suyu',
+  'ana isale',
+  'şebeke suyu',
+  'sebeke suyu',
+  'kanalizasyon arızası',
+  'kanalizasyon arizasi',
+];
+const WEATHER_ALERT_TERMS = [
+  'meteoroloji',
+  'kuvvetli yağış',
+  'kuvvetli yagis',
+  'sağanak',
+  'saganak',
+  'fırtına',
+  'firtina',
+  'zirai don',
+  'don uyarısı',
+  'don uyarisi',
+  'kar yağışı',
+  'kar yagisi',
+  'sel',
+  'taşkın',
+  'taskin',
+  'sarı kod',
+  'sari kod',
+  'turuncu kod',
+  'toz taşınımı',
+  'toz tasinimi',
+];
+const PUBLIC_ORDER_TERMS = [
+  'sokağa çıkma yasağı',
+  'sokaga cikma yasagi',
+  'yasaklandı',
+  'yasaklandi',
+  'valilik kararı',
+  'valilik karari',
+  'il hıfzıssıhha',
+  'il hifzissihha',
+  'eğitime ara',
+  'egitime ara',
+  'okullar tatil',
+  'güvenlik tedbiri',
+  'guvenlik tedbiri',
+  'toplantı ve gösteri',
+  'toplanti ve gosteri',
+];
+const PUBLIC_EXAM_TERMS = [
+  'lgs',
+  'lks',
+  'yks',
+  'tyt',
+  'ayt',
+  'kpss',
+  'merkezi sınav',
+  'merkezi sinav',
+  'sınav merkezi',
+  'sinav merkezi',
+  'sınav günü',
+  'sinav gunu',
+  'nüfus müdürlüğü açık',
+  'nufus mudurlugu acik',
+  'ulaşım düzenlemesi',
+  'ulasim duzenlemesi',
+];
+const MUNICIPAL_SERVICE_TERMS = [
+  ...WATER_OUTAGE_TERMS,
+  'otobüs sefer',
+  'otobus sefer',
+  'toplu taşıma',
+  'toplu tasima',
+  'ulaşım hizmeti',
+  'ulasim hizmeti',
+  'pazar yeri',
+  'mezarlık ziyareti',
+  'mezarlik ziyareti',
+  'altyapı çalışması',
+  'altyapi calismasi',
+];
+const AGRICULTURE_PUBLIC_TERMS = [
+  'karaleke',
+  'iç kurdu',
+  'ic kurdu',
+  'zirai mücadele',
+  'zirai mucadele',
+  'üretici uyarısı',
+  'uretici uyarisi',
+  'çiftçi uyarısı',
+  'ciftci uyarisi',
+  'kırsal kalkınma',
+  'kirsal kalkinma',
+  'hibe başvuruları',
+  'hibe basvurulari',
+  'destek başvuruları',
+  'destek basvurulari',
+  'son başvuru',
+  'son basvuru',
+];
+const CORE_CITY_SOURCE_KEYS = new Set([
+  'nigde-valiligi',
+  'nigde-belediyesi',
+  'medas-nigde',
+  'karayollari-6-bolge',
+  'nigde-afad',
+  'nigde-il-milli-egitim',
+  'nigde-altunhisar-mem',
+  'nigde-bor-mem',
+  'nigde-camardi-mem',
+  'nigde-ciftlik-mem',
+  'nigde-ulukisla-mem',
+  'altunhisar-kaymakamligi',
+  'bor-kaymakamligi',
+  'camardi-kaymakamligi',
+  'ciftlik-kaymakamligi',
+  'ulukisla-kaymakamligi',
+  'altunhisar-belediyesi',
+  'bor-belediyesi',
+  'camardi-belediyesi',
+  'ciftlik-belediyesi',
+  'ulukisla-belediyesi',
+  'nigde-il-saglik',
+  'nigde-bor-devlet-hastanesi',
+  'nigde-tarim-orman',
+  'nigde-csb',
+  'nigde-emniyet',
+  'nigde-il-ozel-idaresi',
+]);
+const CORE_CITY_SOURCE_TYPES = new Set(['municipality', 'utility', 'health']);
+const GENERAL_SOURCE_TYPES_REQUIRE_STRONG_SIGNAL = new Set(['media', 'chamber', 'union', 'sports', 'other']);
 const LOW_QUALITY_TITLE_TERMS = [
   '<![cdata',
   'setupPageDescription',
@@ -216,8 +381,6 @@ const ROAD_OPERATION_TERMS = [
   'şerit',
   'serit',
   'asfalt',
-  'ulaşım',
-  'ulasim',
   'köprü',
   'kopru',
   'menfez',
@@ -226,6 +389,33 @@ const ROAD_OPERATION_TERMS = [
 ];
 const RECENT_WITHOUT_EVENT_DAYS = 45;
 const IMAGE_OUTPUT_ROOT = 'local-upload/announcements';
+const MIN_ANNOUNCEMENT_IMAGE_WIDTH = 240;
+const MIN_ANNOUNCEMENT_IMAGE_HEIGHT = 140;
+const LOGO_IMAGE_TERMS = [
+  'logo',
+  'favicon',
+  'icon',
+  'sprite',
+  'avatar',
+  'profile',
+  'loader',
+  'loading',
+  'placeholder',
+  'default',
+  'og-default',
+  'no-image',
+  'noimage',
+  'blank',
+  'brand',
+  'header',
+  'footer',
+  'menu',
+  'nav',
+  'flag',
+  'bayrak',
+  'amblem',
+  'arma',
+];
 
 type AnnouncementCategory = 'official' | 'power' | 'road';
 type CrawlStrategy = 'auto' | 'rss' | 'sitemap' | 'html' | 'social_public' | 'search';
@@ -1112,6 +1302,11 @@ const trUpper = (value: string) => normalizeText(value).toLocaleUpperCase('tr-TR
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 
+const containsAnyTerm = (value: string, terms: readonly string[]) => {
+  const haystack = trLower(value);
+  return terms.some((term) => haystack.includes(trLower(term)));
+};
+
 const slugify = (value: string) =>
   trLower(value)
     .normalize('NFD')
@@ -1124,6 +1319,16 @@ const slugify = (value: string) =>
     .replace(/ç/g, 'c')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+
+const sourceTypeKey = (source: AnnouncementSource) => trLower(source.sourceType || 'other');
+
+const isCoreCitySource = (source: AnnouncementSource) =>
+  CORE_CITY_SOURCE_KEYS.has(source.sourceKey) ||
+  CORE_CITY_SOURCE_TYPES.has(sourceTypeKey(source));
+
+const sourceRequiresStrongSignal = (source: AnnouncementSource) =>
+  GENERAL_SOURCE_TYPES_REQUIRE_STRONG_SIGNAL.has(sourceTypeKey(source)) ||
+  !isCoreCitySource(source);
 
 const normalizeDistrict = (value: unknown) => {
   const slug = slugify(String(value || ''));
@@ -1170,8 +1375,7 @@ const hasNonActionableCampaignSignal = (value: string) => {
 };
 
 const hasActionablePublicSignal = (value: string) => {
-  const haystack = trLower(value);
-  return ACTIONABLE_PUBLIC_TERMS.some((term) => haystack.includes(term));
+  return containsAnyTerm(value, ACTIONABLE_PUBLIC_TERMS);
 };
 
 const hasLowQualityNoise = (value: string) => {
@@ -1211,8 +1415,61 @@ const hasRoadSignal = (value: string) => {
 
 const hasPowerSignal = (value: string) => {
   const haystack = trLower(value);
-  return /(medaş|medas|elektrik|kesinti|trafo|şebeke|sebeke|enerji|186)/i.test(haystack);
+  return /\b(medaş|medas|186)\b/i.test(haystack) ||
+    /(?:elektrik|enerji|şebeke|sebeke|trafo).{0,80}(?:kesinti|arıza|ariza|bakım|bakim|onarım|onarim|planlı|planli)/i.test(haystack) ||
+    /(?:kesinti|arıza|ariza|bakım|bakim|onarım|onarim|planlı|planli).{0,80}(?:elektrik|enerji|şebeke|sebeke|trafo)/i.test(haystack);
 };
+
+const hasWaterOutageSignal = (value: string) => containsAnyTerm(value, WATER_OUTAGE_TERMS);
+const hasWeatherAlertSignal = (value: string) => containsAnyTerm(value, WEATHER_ALERT_TERMS);
+const hasPublicOrderSignal = (value: string) => containsAnyTerm(value, PUBLIC_ORDER_TERMS);
+const hasPublicExamSignal = (value: string) => containsAnyTerm(value, PUBLIC_EXAM_TERMS);
+const hasMunicipalServiceSignal = (value: string) => containsAnyTerm(value, MUNICIPAL_SERVICE_TERMS);
+const hasAgriculturePublicSignal = (value: string) => containsAnyTerm(value, AGRICULTURE_PUBLIC_TERMS);
+
+const cityImpactDecision = (candidate: Candidate) => {
+  const text = `${candidate.source.name} ${candidate.title} ${candidate.summary} ${candidate.body} ${candidate.place}`;
+  const trustedSource = isCoreCitySource(candidate.source);
+  const strongSignalRequired = sourceRequiresStrongSignal(candidate.source);
+
+  if (candidate.category === 'power') {
+    return hasPowerSignal(text)
+      ? { ok: true, reason: 'elektrik kesintisi/arıza sinyali' }
+      : { ok: false, reason: 'elektrik kategorisi için kesinti/arıza kanıtı yok' };
+  }
+  if (candidate.category === 'road') {
+    return hasRoadSignal(text)
+      ? { ok: true, reason: 'yol/trafik sinyali' }
+      : { ok: false, reason: 'yol kategorisi için yol/trafik kanıtı yok' };
+  }
+  if (hasWaterOutageSignal(text)) return { ok: true, reason: 'su kesintisi/hizmet sinyali' };
+  if (hasWeatherAlertSignal(text)) return { ok: true, reason: 'meteorolojik uyarı sinyali' };
+  if (hasPublicOrderSignal(text)) return { ok: true, reason: 'kamu düzeni/valilik kararı sinyali' };
+  if (hasPublicExamSignal(text)) return { ok: true, reason: 'şehir geneli sınav/ulaşım sinyali' };
+  if (trustedSource && hasMunicipalServiceSignal(text)) {
+    return { ok: true, reason: 'belediye/hizmet duyurusu sinyali' };
+  }
+  if (trustedSource && hasAgriculturePublicSignal(text)) {
+    return { ok: true, reason: 'tarım/üretici uyarısı veya destek sinyali' };
+  }
+  if (!strongSignalRequired && hasActionablePublicSignal(text) && /(son tarih|son gün|son gun|hibe|destek|ruhsat|beyanname)/i.test(trLower(text))) {
+    return { ok: true, reason: 'resmi son tarih/başvuru sinyali' };
+  }
+  return { ok: false, reason: 'şehir hayatını etkileyen kritik duyuru kanıtı yok' };
+};
+
+const hasHardCityCriticalSignal = (candidate: Candidate) => {
+  const text = `${candidate.source.name} ${candidate.title} ${candidate.summary} ${candidate.body} ${candidate.place}`;
+  return hasPowerSignal(text) ||
+    hasRoadSignal(text) ||
+    hasWaterOutageSignal(text) ||
+    hasWeatherAlertSignal(text) ||
+    hasPublicOrderSignal(text) ||
+    hasPublicExamSignal(text);
+};
+
+const requiresAiConfirmation = (candidate: Candidate) =>
+  sourceRequiresStrongSignal(candidate.source) && !hasHardCityCriticalSignal(candidate);
 
 const isLocallyScoped = (source: AnnouncementSource, value: string) => {
   const haystack = trLower(`${source.name} ${source.district} ${value}`);
@@ -1239,6 +1496,8 @@ const publicationDecision = (candidate: Candidate) => {
   if (hasNonActionableCampaignSignal(text)) return { ok: false, reason: 'aksiyon içermeyen kampanya/slogan' };
   if (!isLocallyScoped(candidate.source, text)) return { ok: false, reason: 'Niğde kapsamı kanıtlanmadı' };
   if (!hasActionablePublicSignal(text)) return { ok: false, reason: 'kullanıcıya dönük aksiyon bilgisi yok' };
+  const impact = cityImpactDecision(candidate);
+  if (!impact.ok) return impact;
   if (candidate.category === 'road' && !hasRoadSignal(text)) return { ok: false, reason: 'yol/trafik bilgisi kanıtlanmadı' };
   if (candidate.category === 'power' && !hasPowerSignal(text)) return { ok: false, reason: 'elektrik kesintisi bilgisi kanıtlanmadı' };
   if (compactSummary.length < 28 && !candidate.scheduleLabel && !candidate.statusLabel) {
@@ -1394,6 +1653,54 @@ const isCandidateCurrent = (candidate: Candidate) => {
   const publishedAt = new Date(candidate.publishedAt).getTime();
   if (Number.isNaN(publishedAt)) return true;
   return publishedAt >= todayStart - RECENT_WITHOUT_EVENT_DAYS * 24 * 60 * 60 * 1000;
+};
+
+const rowToDecisionCandidate = (row: any): Candidate => {
+  const source: AnnouncementSource = {
+    id: String(row.source_id || ''),
+    sourceKey: String(row.source_key || ''),
+    name: String(row.source_name || ''),
+    sourceType: String(row.source_type || 'other'),
+    categoryHint: validCategory(row.category_hint || row.category),
+    district: normalizeDistrict(row.district),
+    websiteUrl: String(row.website_url || ''),
+    listUrl: String(row.list_url || row.source_url || ''),
+    socialUrl: String(row.social_url || ''),
+    facebookUrl: String(row.facebook_url || ''),
+    instagramUrl: String(row.instagram_url || ''),
+    crawlStrategy: 'auto',
+    selectorConfig: {},
+    isActive: true,
+    crawlIntervalMinutes: DEFAULT_UPDATE_INTERVAL_MINUTES,
+    lastCheckedAt: '',
+    lastSuccessAt: '',
+    lastError: '',
+    sortOrder: 0,
+  };
+  return {
+    source,
+    title: String(row.title || ''),
+    summary: String(row.summary || ''),
+    body: String(row.body || ''),
+    place: String(row.place || 'Niğde geneli'),
+    district: normalizeDistrict(row.district),
+    publishedAt: String(row.published_at || row.created_at || ''),
+    startsAt: String(row.starts_at || ''),
+    endsAt: String(row.ends_at || ''),
+    statusLabel: String(row.status_label || ''),
+    scheduleLabel: String(row.schedule_label || ''),
+    imageUrl: String(row.image_url || ''),
+    sourceUrl: String(row.source_url || ''),
+    canonicalUrl: String(row.canonical_url || row.source_url || ''),
+    category: validCategory(row.category),
+    confidence: Number(row.confidence || 0) || 0,
+    rawPayload: {},
+  };
+};
+
+const rowPassesPublicationDecision = (row: any) => {
+  const candidate = rowToDecisionCandidate(row);
+  return isCandidateCurrent(candidate) && publicationDecision(candidate).ok;
 };
 
 const fetchText = async (url: string, timeoutMs = SOURCE_FETCH_TIMEOUT_MS) => {
@@ -1913,10 +2220,10 @@ Niğde yerel duyuru editörüsün. Aşağıdaki kaynak metni sadece kanıtlanan 
 Yeni bilgi uydurma. Sosyal medya API kullanmadan, verilmiş sayfa metnine sadık kal.
 Kategori sadece official, power veya road olabilir.
 Yayın kararı çok sıkı olsun:
-- Halkın geneline veya Niğde'deki net bir kullanıcı grubuna doğrudan fayda/uyarı/son tarih/başvuru/çalışma/kesinti bilgisi varsa isPublishable true.
-- Kutlama, tebrik, anma, resmi ilan, ihale, personel/staj alımı, kurum içi duyuru, genel haber, liste/arşiv sayfası veya Niğde ilgisi kanıtlanmayan içerikte isPublishable false.
+- Elektrik kesintisi/arıza/bakım, su kesintisi, yol kapanması/trafik/güzergah, meteorolojik uyarı, valilik/kaymakamlık kamu düzeni kararı, belediye şehir hizmeti kesintisi, LGS/YKS/KPSS gibi şehir geneli sınav ulaşım/nüfus hizmeti, üreticiye resmi tarım uyarısı veya resmi hibe/son başvuru duyurusu varsa isPublishable true.
+- Üniversite görev talebi, kurum içi duyuru, genel etkinlik/tanıtım, bilimsel kongre, kurs/sergi haberi, OSB yerleşim/hizmet sayfası, kooperatif tanıtımı, kutlama, tebrik, anma, resmi ilan, ihale, personel/staj alımı, genel haber, liste/arşiv sayfası veya Niğde ilgisi kanıtlanmayan içerikte isPublishable false.
 - Yol kategorisi sadece yol kapanması, trafik, güzergah, yol çalışması gibi kanıtlı bilgilerde road olsun.
-- Elektrik kategorisi sadece kesinti/arıza/bakım/enerji bilgisi kanıtlıysa power olsun.
+- Elektrik kategorisi sadece elektrik kesintisi/arıza/bakım/trafo/şebeke bilgisi kanıtlıysa power olsun; enerji verimliliği veya genel enerji tanıtımı power değildir.
 
 Kaynak: ${candidate.source.name}
 URL: ${candidate.canonicalUrl || candidate.sourceUrl}
@@ -2305,6 +2612,10 @@ export async function runAnnouncementsRefresh(options: RefreshOptions = {}) {
               ? await classifyWithAi(aiSettings, parsed).catch(() => null)
               : null;
             if (ai) aiUsed += 1;
+            if (!ai && aiSettings.active && aiSettings.apiKey && requiresAiConfirmation(parsed)) {
+              totals.skippedCount += 1;
+              continue;
+            }
             const aiRejection = aiRejectReason(ai);
             if (aiRejection) {
               totals.skippedCount += 1;
@@ -2563,6 +2874,8 @@ const ADMIN_ANNOUNCEMENT_SELECT = `a.id, a.source_id, a.source_key, a.category, 
         a.schedule_label, a.image_url, a.source_url, a.canonical_url,
         a.linked_post_id, a.published_at, a.starts_at, a.ends_at, a.created_at, a.updated_at,
         a.is_active,
+        s.source_type, s.category_hint, s.website_url, s.list_url,
+        s.social_url, s.facebook_url, s.instagram_url,
         p.title AS linked_post_title, p.slug AS linked_post_slug, p.summary AS linked_post_summary,
         p.category AS linked_post_category, p.thumbnail_url AS linked_post_thumbnail_url,
         p.published_at AS linked_post_published_at`;
@@ -2571,6 +2884,7 @@ async function getAdminAnnouncementById(id: string) {
   const result = await dbQuery(
     `SELECT ${ADMIN_ANNOUNCEMENT_SELECT}
      FROM public.announcements a
+     LEFT JOIN public.announcement_sources s ON s.id = a.source_id
      LEFT JOIN public.posts p ON p.id = a.linked_post_id
      WHERE a.id = $1
      LIMIT 1`,
@@ -2596,6 +2910,7 @@ export async function listAdminAnnouncements({
   const result = await dbQuery(
     `SELECT ${ADMIN_ANNOUNCEMENT_SELECT}
      FROM public.announcements a
+     LEFT JOIN public.announcement_sources s ON s.id = a.source_id
      LEFT JOIN public.posts p ON p.id = a.linked_post_id
      WHERE ($1::boolean IS TRUE OR a.is_active IS TRUE)
        AND (
@@ -2613,7 +2928,9 @@ export async function listAdminAnnouncements({
      LIMIT $5`,
     [includeInactive, cleanSearch, from, to, Math.min(Math.max(limit, 1), 500)]
   );
-  const announcements = result.rows.map(rowToAdminAnnouncement);
+  const announcements = result.rows
+    .filter(rowPassesPublicationDecision)
+    .map(rowToAdminAnnouncement);
   return {
     city: CITY,
     citySlug: CITY_SLUG,
@@ -2765,49 +3082,7 @@ export async function getAnnouncementPayload({ category = '', district = '', lim
     [todayStart, recentStart, MAX_PAYLOAD_SCAN_ROWS]
   );
 
-  const cleanRows = result.rows.filter((row: any) => {
-    const source: AnnouncementSource = {
-      id: String(row.source_id || ''),
-      sourceKey: String(row.source_key || ''),
-      name: String(row.source_name || ''),
-      sourceType: String(row.source_type || 'other'),
-      categoryHint: validCategory(row.category_hint || row.category),
-      district: normalizeDistrict(row.district),
-      websiteUrl: String(row.website_url || ''),
-      listUrl: String(row.list_url || row.source_url || ''),
-      socialUrl: String(row.social_url || ''),
-      facebookUrl: String(row.facebook_url || ''),
-      instagramUrl: String(row.instagram_url || ''),
-      crawlStrategy: 'auto',
-      selectorConfig: {},
-      isActive: true,
-      crawlIntervalMinutes: DEFAULT_UPDATE_INTERVAL_MINUTES,
-      lastCheckedAt: '',
-      lastSuccessAt: '',
-      lastError: '',
-      sortOrder: 0,
-    };
-    const candidate: Candidate = {
-      source,
-      title: String(row.title || ''),
-      summary: String(row.summary || ''),
-      body: String(row.body || ''),
-      place: String(row.place || 'Niğde geneli'),
-      district: normalizeDistrict(row.district),
-      publishedAt: String(row.published_at || row.created_at || ''),
-      startsAt: String(row.starts_at || ''),
-      endsAt: String(row.ends_at || ''),
-      statusLabel: String(row.status_label || ''),
-      scheduleLabel: String(row.schedule_label || ''),
-      imageUrl: String(row.image_url || ''),
-      sourceUrl: String(row.source_url || ''),
-      canonicalUrl: String(row.canonical_url || row.source_url || ''),
-      category: validCategory(row.category),
-      confidence: 0,
-      rawPayload: {},
-    };
-    return isCandidateCurrent(candidate) && publicationDecision(candidate).ok;
-  });
+  const cleanRows = result.rows.filter(rowPassesPublicationDecision);
 
   const allAnnouncements: AnnouncementItem[] = cleanRows.map((row: any) => ({
     id: String(row.id || ''),
