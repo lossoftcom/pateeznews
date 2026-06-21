@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/features/account/data/admin_account_settings_repository.dart';
 import 'package:pateeznews_admin/features/account/presentation/account_settings_screen.dart';
@@ -67,6 +69,7 @@ import 'package:pateeznews_admin/features/users/data/admin_users_repository.dart
 import 'package:pateeznews_admin/features/users/presentation/roles_permissions_screen.dart';
 import 'package:pateeznews_admin/features/users/presentation/users_screen.dart';
 import 'package:pateeznews_admin/features/ads/presentation/ads_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/localization/admin_language_controller.dart';
@@ -151,6 +154,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Set<String> _permissionKeys = const {};
   String? _editingNewsPostId;
   ContentSettingsSnapshot? _contentSettingsSnapshot;
+  SharedPreferences? _preferences;
+
+  String get _selectedPageStorageKey =>
+      'admin_dashboard_selected_page_${widget.session.user.id}';
 
   @override
   void initState() {
@@ -158,19 +165,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _contentSettingsSnapshot = widget.initialContentSettings;
     final initialUpload = _contentSettingsSnapshot?.upload;
     if (initialUpload != null) _cacheUploadSettings(initialUpload);
-    _loadPermissions();
+    unawaited(_restoreSelectedPageThenLoadPermissions());
   }
 
   @override
   void didUpdateWidget(covariant DashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (_roleName != _roleNameFor(oldWidget.profile, oldWidget.session)) {
-      _loadPermissions();
+      unawaited(_loadPermissions());
     }
     if (oldWidget.initialContentSettings != widget.initialContentSettings &&
         widget.initialContentSettings != null) {
       _contentSettingsSnapshot = widget.initialContentSettings;
       _cacheUploadSettings(widget.initialContentSettings!.upload);
+    }
+  }
+
+  Future<void> _restoreSelectedPageThenLoadPermissions() async {
+    await _restoreSelectedPage();
+    if (!mounted) return;
+    await _loadPermissions();
+  }
+
+  Future<void> _restoreSelectedPage() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      _preferences = preferences;
+      final restoredPage = _dashboardPageFromName(
+        preferences.getString(_selectedPageStorageKey),
+      );
+      if (!mounted || restoredPage == null) return;
+      setState(() {
+        _selectedPage = restoredPage;
+      });
+    } catch (_) {
+      // Yerel sayfa tercihi okunamazsa mevcut varsayılan dashboard davranışı kalır.
     }
   }
 
@@ -384,7 +413,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_canOpen(_selectedPage)) return;
     for (final page in _DashboardPage.values) {
       if (_canOpen(page)) {
-        setState(() => _selectedPage = page);
+        _selectPage(page);
         return;
       }
     }
@@ -392,7 +421,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openPage(_DashboardPage page) {
     if (!_canOpen(page)) return;
+    _selectPage(page);
+  }
+
+  void _selectPage(_DashboardPage page) {
+    _persistSelectedPage(page);
     setState(() => _selectedPage = page);
+  }
+
+  void _persistSelectedPage(_DashboardPage page) {
+    final preferences = _preferences;
+    if (preferences != null) {
+      unawaited(preferences.setString(_selectedPageStorageKey, page.name));
+      return;
+    }
+    unawaited(_persistSelectedPageAfterLoad(page));
+  }
+
+  Future<void> _persistSelectedPageAfterLoad(_DashboardPage page) async {
+    final preferences = await SharedPreferences.getInstance();
+    _preferences = preferences;
+    await preferences.setString(_selectedPageStorageKey, page.name);
   }
 
   void _openHome() {
@@ -401,6 +450,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openNews() {
     if (!_canOpen(_DashboardPage.news)) return;
+    _persistSelectedPage(_DashboardPage.news);
     setState(() {
       _editingNewsPostId = null;
       _selectedPage = _DashboardPage.news;
@@ -409,6 +459,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openNewsAdd() {
     if (!_canOpen(_DashboardPage.newsAdd)) return;
+    _persistSelectedPage(_DashboardPage.newsAdd);
     setState(() {
       _editingNewsPostId = null;
       _selectedPage = _DashboardPage.newsAdd;
@@ -417,6 +468,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openNewsEdit(String postId) {
     if (!_canOpen(_DashboardPage.newsAdd)) return;
+    _persistSelectedPage(_DashboardPage.newsAdd);
     setState(() {
       _editingNewsPostId = postId;
       _selectedPage = _DashboardPage.newsAdd;
@@ -1467,4 +1519,12 @@ enum _DashboardPage {
   fontSettings,
   languageSettings,
   ads,
+}
+
+_DashboardPage? _dashboardPageFromName(String? value) {
+  if (value == null || value.trim().isEmpty) return null;
+  for (final page in _DashboardPage.values) {
+    if (page.name == value) return page;
+  }
+  return null;
 }
