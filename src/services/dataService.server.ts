@@ -198,6 +198,8 @@ const SITE_SETTINGS_SELECT = [
     'contact_email_news',
     'contact_email_ads',
     'robots_txt',
+    'header_custom_codes',
+    'footer_custom_codes',
     'weather_enabled',
     'weather_location_name',
     'weather_location_country',

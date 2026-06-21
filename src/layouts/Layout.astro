@@ -207,11 +207,18 @@ const websiteLd = (siteSettings?.site_name || orgName) ? {
 const googleVerificationRaw = String(siteSettings?.google_search_console_code || '').trim();
 const bingVerificationRaw = String(siteSettings?.bing_verification_code || '').trim();
 const yandexVerificationRaw = String(siteSettings?.yandex_verification_code || '').trim();
+const googleAnalyticsId = String(siteSettings?.google_analytics_id || '').trim();
 const headerCustomCodes = String(siteSettings?.header_custom_codes || '').trim();
 const footerCustomCodes = String(siteSettings?.footer_custom_codes || '').trim();
 const adsenseClientId = adSettings?.masterEnabled && adSettings.adsenseConnected
 	? String(adSettings.adsensePublisherId || '').trim()
 	: '';
+const googleAnalyticsScript = googleAnalyticsId ? `
+window.dataLayer = window.dataLayer || [];
+window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+window.gtag('js', new Date());
+window.gtag('config', ${JSON.stringify(googleAnalyticsId)});
+` : '';
 const consentFallback = siteSettings?.cookie_banner_enabled === false ? 'granted' : 'denied';
 const consentBootstrapScript = `
 (() => {
@@ -270,7 +277,7 @@ const preconnectOrigins = (() => {
 	addOrigin(siteSettings?.footer_logo_url);
 	addOrigin(siteSettings?.dark_logo_url);
 	addOrigin(siteSettings?.email_logo_url);
-	if (siteSettings?.google_analytics_id) origins.add('https://www.googletagmanager.com');
+	if (googleAnalyticsId) origins.add('https://www.googletagmanager.com');
 
 	return Array.from(origins).filter((origin) => origin && origin !== Astro.url.origin);
 })();
@@ -718,15 +725,10 @@ const fontPreloadHrefs = Array.from(new Set(
 
 		<script is:inline set:html={consentBootstrapScript}></script>
 
-		{siteSettings?.google_analytics_id && (
+		{googleAnalyticsId && (
 			<>
-				<script async src={`https://www.googletagmanager.com/gtag/js?id=${siteSettings.google_analytics_id}`}></script>
-				<script is:inline>{`
-					window.dataLayer = window.dataLayer || [];
-					window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
-					window.gtag('js', new Date());
-					window.gtag('config', '${siteSettings.google_analytics_id}');
-				`}</script>
+				<script async src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}></script>
+				<script is:inline set:html={googleAnalyticsScript}></script>
 			</>
 		)}
 
