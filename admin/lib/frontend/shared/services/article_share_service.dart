@@ -37,7 +37,10 @@ String frontendShareUrlForArticle(NewsArticle article) {
     ).toString();
   }
 
-  final videoUrl = article.primaryVideoUrl.trim();
+  final feedUrls = article.videoFeedUrls;
+  final videoUrl = feedUrls.isNotEmpty
+      ? feedUrls.first
+      : article.primaryVideoUrl.trim();
   if (videoUrl.isNotEmpty) return _absoluteFrontendUrl(videoUrl);
   return _absoluteFrontendUrl(article.imageUrl);
 }

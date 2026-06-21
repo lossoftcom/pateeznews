@@ -4713,7 +4713,7 @@ h5.news-title-font {
         margin: 0 !important;
         color: #536270 !important;
         font-size: 14px !important;
-        font-weight: 600 !important;
+        font-weight: 400 !important;
         line-height: 1.5 !important;
         letter-spacing: 0 !important;
     }
@@ -4732,10 +4732,10 @@ h5.news-title-font {
     body.public-route:has(.news-detail-mobile-shell) .detail-media-extra {
         display: grid;
         gap: 3px;
-        color: rgba(149, 165, 166, 0.72);
+        color: rgba(138, 148, 155, 0.72);
         font-size: 10.5px;
         font-style: italic;
-        font-weight: 700;
+        font-weight: 500;
         line-height: 1.28;
         letter-spacing: 0;
     }
@@ -4750,7 +4750,7 @@ h5.news-title-font {
 
     body.public-route:has(.news-detail-mobile-shell) .detail-media-extra a {
         text-decoration: underline;
-        text-decoration-color: rgba(149, 165, 166, 0.42);
+        text-decoration-color: rgba(138, 148, 155, 0.42);
         text-decoration-thickness: 1px;
         text-underline-offset: 2px;
     }

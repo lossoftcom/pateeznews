@@ -1568,15 +1568,21 @@ const mapFeedItem = (
           quality: 86,
         })
       : null;
+  const fallbackVideoItem =
+    !homepageBlock && itemType === "video"
+      ? videoMediaItem(item, origin, { width: 1200, quality: 86 }) ||
+        itemVideoItems[0] ||
+        null
+      : null;
+  const cardVideoItem = homepageVideoItem || fallbackVideoItem;
   const videoItems =
-    homepageVideoItem &&
-    !itemVideoItems.some((entry) => entry.url === homepageVideoItem.url)
-      ? [homepageVideoItem, ...itemVideoItems]
+    cardVideoItem &&
+    !itemVideoItems.some((entry) => entry.url === cardVideoItem.url)
+      ? [cardVideoItem, ...itemVideoItems]
       : itemVideoItems;
   const videoUrls = videoItems.map((entry) => entry.url);
   const videoThumbUrls = videoItems.map((entry) => entry.thumbUrl);
-  const homepageVideoUrl = homepageVideoItem?.url || "";
-  const videoUrl = homepageVideoUrl || videoUrls[0] || "";
+  const videoUrl = cardVideoItem?.url || "";
 
   const audioUrl =
     homepageBlock &&

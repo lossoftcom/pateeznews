@@ -8351,7 +8351,10 @@ String _shareUrlForArticle(NewsArticle article) {
   final slug = article.slug.trim();
   final pathSegment = slug.isNotEmpty ? slug : article.id.trim();
   if (pathSegment.isNotEmpty) return _publicArticleUrl(pathSegment);
-  final videoUrl = article.primaryVideoUrl.trim();
+  final feedUrls = article.videoFeedUrls;
+  final videoUrl = feedUrls.isNotEmpty
+      ? feedUrls.first
+      : article.primaryVideoUrl.trim();
   if (videoUrl.isNotEmpty) return _absoluteFrontendUrl(videoUrl);
   return _absoluteFrontendUrl(article.imageUrl);
 }

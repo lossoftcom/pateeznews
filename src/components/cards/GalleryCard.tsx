@@ -5,18 +5,24 @@ import { NewsType, type NewsItem } from '@/types';
 
 interface GalleryCardProps {
   data: NewsItem;
+  fitMode?: 'bounded' | 'fluidWidth';
 }
 
-const GalleryCard: React.FC<GalleryCardProps> = ({ data }) => {
+const GalleryCard: React.FC<GalleryCardProps> = ({ data, fitMode = 'bounded' }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [maxHeight, setMaxHeight] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const swipeStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const ignoreClickRef = useRef(false);
   const slideCount = data.mediaList?.length || 0;
+  const isFluidWidth = fitMode === 'fluidWidth';
 
   // Tüm resimlerin boyutlarını yükle ve en yüksek olanı bul
   useEffect(() => {
+    if (isFluidWidth) {
+      setMaxHeight(0);
+      return;
+    }
     if (!data.mediaList || data.mediaList.length === 0) return;
 
     const loadImageDimensions = async () => {
@@ -56,7 +62,7 @@ const GalleryCard: React.FC<GalleryCardProps> = ({ data }) => {
     const handleResize = () => loadImageDimensions();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [data.mediaList]);
+  }, [data.mediaList, isFluidWidth]);
 
   // Otomatik slider geçişi (4 saniye aralıkla)
   useEffect(() => {
@@ -165,13 +171,15 @@ const GalleryCard: React.FC<GalleryCardProps> = ({ data }) => {
         onPointerCancel={handlePointerCancel}
         onClick={handleContainerClick}
         className="gallery-interact-area relative w-full overflow-hidden group select-none flex items-center justify-center"
-        style={{ height: maxHeight > 0 ? `${maxHeight}px` : 'auto' }}
+        style={{ height: !isFluidWidth && maxHeight > 0 ? `${maxHeight}px` : 'auto' }}
       >
         <img
           src={data.mediaList[currentSlide]}
           alt={`Slide ${currentSlide}`}
           draggable={false}
-          className="max-w-full max-h-full object-contain transition-all duration-500"
+          className={isFluidWidth
+            ? 'block w-full h-auto max-w-full object-contain transition-all duration-500'
+            : 'max-w-full max-h-full object-contain transition-all duration-500'}
         />
         <button
           onClick={prevSlide}

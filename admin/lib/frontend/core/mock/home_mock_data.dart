@@ -201,8 +201,9 @@ class NewsArticle {
   /// Boşsa tek görsel / kapak gösterilir.
   final List<String> sliderImages;
 
-  /// Kartta oynatılacak ana video (yerel/uzak/YouTube/Shorts). Boşsa ilk
-  /// videoUrls elemanı kullanılır; ikisi de boşsa slider / görsel / kapak gösterilir.
+  /// Kartta oynatılacak ana video (yerel/uzak/YouTube/Shorts).
+  /// Yalnız ana sayfada gösterilmek üzere seçili video bloğu için doludur;
+  /// haber içindeki diğer videolar [videoUrls] ile tam ekran video akışında kalır.
   final String videoUrl;
 
   /// Haberdeki tüm video blokları. Tam ekran video akışı bu listeyi kullanır.
@@ -215,10 +216,6 @@ class NewsArticle {
   String get primaryVideoUrl {
     final primary = videoUrl.trim();
     if (primary.isNotEmpty) return primary;
-    for (final url in videoUrls) {
-      final clean = url.trim();
-      if (clean.isNotEmpty) return clean;
-    }
     return '';
   }
 

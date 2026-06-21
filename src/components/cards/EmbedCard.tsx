@@ -25,8 +25,10 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
 
     // Facebook: plugins URL'sinden orijinal URL'yi çıkar
     if (raw.includes('facebook.com/plugins/')) {
+      const iframeSrcMatch = raw.match(/<iframe[^>]+src=["']([^"']+)["']/i);
+      const pluginUrl = iframeSrcMatch?.[1] || raw;
       try {
-        const parsed = new URL(raw);
+        const parsed = new URL(pluginUrl);
         const href = parsed.searchParams.get('href');
         if (href) return href;
       } catch { }
@@ -125,7 +127,7 @@ const EmbedCard: React.FC<EmbedCardProps> = ({ data }) => {
     platformName = 'Facebook';
     platformColor = 'bg-palette-maroon text-palette-beige';
     platformIcon = <Facebook size={14} className="fill-current" />;
-    const encodedUrl = encodeURIComponent(data.mediaUrl);
+    const encodedUrl = encodeURIComponent(sourceUrl);
     embedContent = (
       <div className="w-full flex justify-center bg-white overflow-hidden">
         <iframe

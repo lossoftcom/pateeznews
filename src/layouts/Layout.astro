@@ -554,7 +554,7 @@ const fontPreloadHrefs = Array.from(new Set(
 		<link rel="preload" href="/fonts/inter-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
 		<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 		<link rel="preload" href="/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
-		<link rel="preload" href="/fonts/remixicon/remixicon.ttf" as="font" type="font/ttf" crossorigin>
+		<link rel="preload" href="/fonts/remixicon/remixicon.ttf?t=1769685282643" as="font" type="font/ttf" crossorigin>
 		<link rel="stylesheet" href="/fonts/remixicon/remixicon.css">
 		{fontPreloadHrefs.map((href) => (
 			<link rel="preload" href={href} as="font" crossorigin />
@@ -688,6 +688,7 @@ const fontPreloadHrefs = Array.from(new Set(
 
 		{adsenseClientId && (
 			<script
+				is:inline
 				async
 				src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClientId}`}
 				crossorigin="anonymous"

@@ -1672,9 +1672,8 @@ const mapFeedItem = (
   const optimizedImage =
     item.optimizedCoverThumbnail || item.optimizedThumbnail;
 
-  // "Ana sayfada görünsün" seçili blok (görsel veya slider) varsa, kapak yerine
-  // o blok ana sayfa kartında gösterilir. Hiçbir blok seçili değilse kapak görseli
-  // kullanılır (mevcut davranış). Video akışı ise bu switch'e bağlı değildir;
+  // "Ana sayfada görünsün" seçili blok varsa, Astro web'deki gibi ana sayfa
+  // kartında yalnız o blok gösterilir. Video akışı bu seçimden bağımsız kalır;
   // haber içindeki tüm video blokları mobil tam ekran akışa gider.
   const blocks = Array.isArray((item as any).items) ? (item as any).items : [];
   const homepageBlock = blocks.find((b: any) => b && b.showOnHomepage === true);
@@ -1718,15 +1717,21 @@ const mapFeedItem = (
           quality: 86,
         })
       : null;
+  const fallbackVideoItem =
+    !homepageBlock && itemType === "video"
+      ? videoMediaItem(item, origin, { width: 1200, quality: 86 }) ||
+        itemVideoItems[0] ||
+        null
+      : null;
+  const cardVideoItem = homepageVideoItem || fallbackVideoItem;
   const videoItems =
-    homepageVideoItem &&
-    !itemVideoItems.some((entry) => entry.url === homepageVideoItem.url)
-      ? [homepageVideoItem, ...itemVideoItems]
+    cardVideoItem &&
+    !itemVideoItems.some((entry) => entry.url === cardVideoItem.url)
+      ? [cardVideoItem, ...itemVideoItems]
       : itemVideoItems;
   const videoUrls = videoItems.map((entry) => entry.url);
   const videoThumbUrls = videoItems.map((entry) => entry.thumbUrl);
-  const homepageVideoUrl = homepageVideoItem?.url || "";
-  const videoUrl = homepageVideoUrl || videoUrls[0] || "";
+  const videoUrl = cardVideoItem?.url || "";
 
   const audioUrl =
     homepageBlock &&

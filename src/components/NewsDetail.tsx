@@ -502,7 +502,7 @@ const normalizedDetailItemType = (item: any) => String(item?.type || '').trim().
 
 const detailItemTitleText = (item: any) => String(item?.title || '').trim();
 
-const detailItemDescriptionHtml = (item: any) => String(item?.description || '').trim();
+const detailItemDescriptionText = (item: any) => stripHtmlToText(String(item?.description || ''));
 
 const shouldShowDetailItemTitle = (item: any) => {
   const type = normalizedDetailItemType(item);
@@ -515,7 +515,7 @@ const isDetailItemDescriptionInsideMedia = (item: any) => {
 };
 
 const shouldShowDetailItemDescriptionBeforeMedia = (item: any) => (
-  !!detailItemDescriptionHtml(item) && !isDetailItemDescriptionInsideMedia(item)
+  !!detailItemDescriptionText(item) && !isDetailItemDescriptionInsideMedia(item)
 );
 
 const sourceText = (source: string, moreInfoUrl: string) => {
@@ -552,19 +552,18 @@ const hasDetailItemExtraInfo = (item: any) => (
 const DetailMediaIntro: React.FC<{ item: any }> = ({ item }) => {
   const title = shouldShowDetailItemTitle(item) ? detailItemTitleText(item) : '';
   const description = shouldShowDetailItemDescriptionBeforeMedia(item)
-    ? detailItemDescriptionHtml(item)
+    ? detailItemDescriptionText(item)
     : '';
 
   if (!title && !description) return null;
 
   return (
-    <div className="detail-media-intro">
-      {title && <h3 className="detail-media-title">{title}</h3>}
+    <div className="detail-media-intro grid gap-2">
+      {title && <h3 className="detail-media-title m-0 text-[20.5px] font-extrabold leading-[1.2] tracking-normal text-[#0F1B26]">{title}</h3>}
       {description && (
-        <div
-          className="detail-media-description rich-text-content"
-          dangerouslySetInnerHTML={{ __html: description }}
-        />
+        <p className="detail-media-description m-0 text-[14px] font-normal leading-[1.5] tracking-normal text-[#536270]">
+          {description}
+        </p>
       )}
     </div>
   );
@@ -580,13 +579,23 @@ const DetailItemExtraInfo: React.FC<{ item: any }> = ({ item }) => {
   const href = sourceHref(moreInfoUrl || source);
 
   return (
-    <div className="detail-media-extra">
-      {altText && <p>{altText}</p>}
+    <div
+      className="detail-media-extra grid gap-[3px] text-[10.5px] font-medium italic leading-[1.28] tracking-normal"
+      style={{ color: 'rgba(138, 148, 155, 0.72)' }}
+    >
+      {altText && <p className="m-0 text-inherit">{altText}</p>}
       {infoText && (
         href ? (
-          <a href={href} target="_blank" rel="noreferrer">{infoText}</a>
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="m-0 text-inherit underline decoration-[#8A949B]/40 decoration-1 underline-offset-2"
+          >
+            {infoText}
+          </a>
         ) : (
-          <p>{infoText}</p>
+          <p className="m-0 text-inherit">{infoText}</p>
         )
       )}
     </div>
@@ -2679,7 +2688,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                   case 'slider':
                     return <div key={item.id} className="detail-media-item detail-media-item--slider">
                       <DetailMediaIntro item={item} />
-                      <GalleryCard data={{ ...data, summary: '', mediaList: item.mediaUrls } as any} />
+                      <GalleryCard data={{ ...data, summary: '', mediaList: item.mediaUrls } as any} fitMode="fluidWidth" />
                       <DetailItemExtraInfo item={item} />
                     </div>;
 	                  case 'poll':

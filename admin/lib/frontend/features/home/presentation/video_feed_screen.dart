@@ -353,7 +353,8 @@ String _fullscreenLogoUrl(AppShellSettings settings) {
 String videoArticleKey(NewsArticle article) {
   final id = article.id.trim();
   if (id.isNotEmpty) return id;
-  return article.primaryVideoUrl;
+  final urls = article.videoFeedUrls;
+  return urls.isNotEmpty ? urls.first : article.primaryVideoUrl;
 }
 
 class _VideoFeedHeader extends StatelessWidget {
