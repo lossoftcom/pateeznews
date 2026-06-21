@@ -96,6 +96,7 @@ export const GET: APIRoute = async ({ request }) => {
         .from('posts')
         .select('language_code')
         .eq('status', 'published')
+        .is('deleted_at', null)
         .in('language_code', recentNewsLangCodes)
         .gte('published_at', recentSinceIso)
         .lte('published_at', recentUntilIso)
@@ -173,6 +174,7 @@ export const GET: APIRoute = async ({ request }) => {
       .from('posts')
       .select('id, slug, updated_at, published_at')
       .eq('status', 'published')
+      .is('deleted_at', null)
       .eq('language_code', lang),
     supabase
       .from('navigation_items')

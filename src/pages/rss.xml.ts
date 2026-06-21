@@ -137,6 +137,7 @@ export const GET: APIRoute = async ({ request }) => {
     .from('posts')
     .select('id, slug, title, summary, seo_description, published_at, updated_at, card_data')
     .eq('status', 'published')
+    .is('deleted_at', null)
     .eq('language_code', lang)
     .order('published_at', { ascending: false })
     .limit(50);

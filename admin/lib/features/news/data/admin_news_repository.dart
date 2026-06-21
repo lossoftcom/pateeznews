@@ -34,7 +34,7 @@ abstract class AdminNewsRepository {
 
   Future<void> deletePost(String postId);
 
-  Future<void> deletePosts(List<String> postIds);
+  Future<void> deletePosts(List<String> postIds, {bool permanently = false});
 
   Future<AdminNewsEditorBootstrap> fetchEditorBootstrap();
 
@@ -193,10 +193,16 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
   }
 
   @override
-  Future<void> deletePosts(List<String> postIds) async {
+  Future<void> deletePosts(
+    List<String> postIds, {
+    bool permanently = false,
+  }) async {
     final ids = postIds.map(int.tryParse).whereType<int>().toList();
     if (ids.isEmpty) return;
-    final result = await _postJson('/api/admin/news/delete', {'ids': ids});
+    final result = await _postJson('/api/admin/news/delete', {
+      'ids': ids,
+      if (permanently) 'permanent': true,
+    });
     _throwIfApiError(result, fallbackMessage: 'Seçili haberler silinemedi');
   }
 

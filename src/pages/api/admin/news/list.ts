@@ -341,10 +341,12 @@ export const POST: APIRoute = async ({ request }) => {
     const origin = new URL(request.url).origin;
     const body = await request.json().catch(() => ({}));
     const trashMode = body.trash === true;
-    const cleanupLanguage = String(body.language || '').trim();
-    await purgeExpiredTrashPosts(cleanupLanguage && cleanupLanguage !== ALL ? cleanupLanguage : 'tr').catch((error) => {
-      console.warn('Expired trash cleanup skipped:', error);
-    });
+    if (trashMode) {
+      const cleanupLanguage = String(body.language || '').trim();
+      await purgeExpiredTrashPosts(cleanupLanguage && cleanupLanguage !== ALL ? cleanupLanguage : 'tr').catch((error) => {
+        console.warn('Expired trash cleanup skipped:', error);
+      });
+    }
 
     const values: unknown[] = [];
     const where: string[] = [];

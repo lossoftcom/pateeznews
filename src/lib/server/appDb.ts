@@ -1,5 +1,5 @@
 import { connectDbClient, dbQuery, type DatabaseClient } from './supabaseDb';
-import { getSessionFromToken, type SupabaseSession } from './supabaseAuth';
+import { getSessionFromToken, type AppAuthSession } from './appAuth';
 import { adminSecurityHeaders } from './securityHeaders';
 
 export async function ensureAppSchema() {
@@ -27,7 +27,7 @@ export function getTokenFromRequest(request: Request, body?: Record<string, any>
   return bearer || body?.token || null;
 }
 
-export async function getSessionFromRequest(request: Request, body?: Record<string, any>): Promise<SupabaseSession | null> {
+export async function getSessionFromRequest(request: Request, body?: Record<string, any>): Promise<AppAuthSession | null> {
   return getSessionFromToken(getTokenFromRequest(request, body));
 }
 

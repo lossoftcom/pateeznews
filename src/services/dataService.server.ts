@@ -166,6 +166,10 @@ const SITE_SETTINGS_SELECT = [
     'newsletter_popup_title',
     'newsletter_popup_description',
     'newsletter_popup_button_label',
+    'google_news_enabled',
+    'google_news_publication_name',
+    'google_news_rss_content_mode',
+    'google_news_feed_limit',
     'twitter_username',
     'fb_app_id',
     'social_whatsapp_url',
@@ -575,6 +579,7 @@ const getLiveCategoryNewsPage = async (
          FROM public.posts p
          LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
          WHERE p.status = 'published'
+           AND p.deleted_at IS NULL
            AND p.language_code = $1
            AND (p.published_at <= now() OR p.published_at IS NULL)
            AND (
@@ -644,6 +649,7 @@ const getLiveWeeklyTrendNewsPage = async (
              FROM public.posts p
              LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
              WHERE p.status = 'published'
+               AND p.deleted_at IS NULL
                AND p.language_code = $1
                AND (p.published_at <= now() OR p.published_at IS NULL)
         ),
@@ -738,6 +744,7 @@ const getLiveHomeNewsItems = async (lang: string, limit = 50): Promise<NewsItem[
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
 
     const baseWhere = `p.status = 'published'
+           AND p.deleted_at IS NULL
            AND p.language_code = $1
            AND (p.published_at <= now() OR p.published_at IS NULL)`;
     const baseFrom = `FROM public.posts p
@@ -810,6 +817,9 @@ const getLiveNewsBySlug = async (slugOrId: string): Promise<NewsItem | null> => 
              FROM public.posts p
              LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
              WHERE p.slug = $1
+               AND p.status = 'published'
+               AND p.deleted_at IS NULL
+               AND (p.published_at <= now() OR p.published_at IS NULL)
              LIMIT 1`,
             [normalized]
         );
@@ -821,6 +831,9 @@ const getLiveNewsBySlug = async (slugOrId: string): Promise<NewsItem | null> => 
                  FROM public.posts p
                  LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
                  WHERE p.id::text = $1
+                   AND p.status = 'published'
+                   AND p.deleted_at IS NULL
+                   AND (p.published_at <= now() OR p.published_at IS NULL)
                  LIMIT 1`,
                 [normalized]
             );

@@ -1,9 +1,5 @@
 import type { APIRoute } from "astro";
 import { dbQuery } from "@/lib/server/supabaseDb";
-import {
-  getSupabasePublishableKey,
-  getSupabaseUrl,
-} from "@/lib/server/supabaseAuth";
 import { dataService } from "@/services/dataService.server";
 import type { NavigationItem, SiteSettings } from "@/types";
 
@@ -19,59 +15,12 @@ const normalizeLanguageCode = (value: unknown) => {
 
 const text = (value: unknown) => String(value || "").trim();
 
-type SupabaseAuthProviderStatus = {
+type AppAuthProviderStatus = {
   googleEnabled?: boolean;
   appleEnabled?: boolean;
   facebookEnabled?: boolean;
   xEnabled?: boolean;
 };
-
-let authProviderStatusCache:
-  | { expiresAt: number; value: SupabaseAuthProviderStatus | null }
-  | null = null;
-
-async function getSupabaseAuthProviderStatus() {
-  const now = Date.now();
-  if (authProviderStatusCache && authProviderStatusCache.expiresAt > now) {
-    return authProviderStatusCache.value;
-  }
-
-  const supabaseUrl = getSupabaseUrl();
-  const publishableKey = getSupabasePublishableKey();
-  if (!supabaseUrl || !publishableKey) return null;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 1500);
-  try {
-    const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {
-      headers: {
-        Accept: "application/json",
-        apikey: publishableKey,
-      },
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
-    const body = (await response.json()) as {
-      external?: Record<string, unknown>;
-    };
-    const external = body.external || {};
-    const value: SupabaseAuthProviderStatus = {
-      googleEnabled: external.google === true,
-      appleEnabled: external.apple === true,
-      facebookEnabled: external.facebook === true,
-    };
-    if (typeof external.x === "boolean") {
-      value.xEnabled = external.x;
-    }
-    authProviderStatusCache = { expiresAt: now + 60_000, value };
-    return value;
-  } catch {
-    authProviderStatusCache = { expiresAt: now + 10_000, value: null };
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 const socialProviderEnabled = (
   siteEnabled: boolean | undefined,
@@ -87,7 +36,7 @@ const defaultLogoPaths = {
 
 const siteSettingsPayload = (
   settings: SiteSettings | null,
-  authProviders: SupabaseAuthProviderStatus | null,
+  authProviders: AppAuthProviderStatus | null,
 ) => ({
   siteName: text(settings?.site_name),
   logoUrl: text(settings?.logo_url) || defaultLogoPaths.logoUrl,
@@ -186,16 +135,15 @@ export const GET: APIRoute = async ({ url }) => {
   const lang = normalizeLanguageCode(url.searchParams.get("lang"));
 
   try {
-    const [settings, navigationItems, pages, authProviders] = await Promise.all([
+    const [settings, navigationItems, pages] = await Promise.all([
       dataService.getSiteSettings(lang),
       dataService.getNavigationItems(lang),
       getShellPages(lang),
-      getSupabaseAuthProviderStatus(),
     ]);
 
     return json({
       languageCode: lang,
-      siteSettings: siteSettingsPayload(settings, authProviders),
+      siteSettings: siteSettingsPayload(settings, null),
       navigationItems: navigationItems.map(navigationItemPayload),
       pages: pages.map(pagePayload),
     });

@@ -129,6 +129,7 @@ export const GET: APIRoute = async ({ request, url }) => {
        FROM public.posts p
        LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
        WHERE p.status = 'published'
+         AND p.deleted_at IS NULL
          AND p.language_code = $1
          AND (p.published_at <= now() OR p.published_at IS NULL)
          AND (

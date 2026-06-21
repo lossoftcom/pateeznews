@@ -1336,7 +1336,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         widget.storageSettingsRepository,
                                   ),
                                 _DashboardPage.googleNews =>
-                                  const GoogleNewsSettingsScreen(),
+                                  GoogleNewsSettingsScreen(
+                                    session: widget.session,
+                                  ),
                                 _DashboardPage.aiSettings => AiSettingsScreen(
                                   session: widget.session,
                                   repository: widget.aiSettingsRepository,

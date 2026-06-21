@@ -6,9 +6,10 @@ import {
   adminCreateAuthUser,
   adminDeleteAuthUser,
   adminUpdateAuthUser,
+  setPasswordForUser,
   signInWithPassword,
   updateUser,
-} from '@/lib/server/supabaseAuth';
+} from '@/lib/server/appAuth';
 import {
   getSecuritySettings,
   validatePasswordWithSecuritySettings,
@@ -343,6 +344,7 @@ export const POST: APIRoute = async ({ request }) => {
             payload.city,
           ]
         );
+        await setPasswordForUser(targetUserId, payload.password, client);
         return profileForClient(client, targetUserId);
       }).catch(async (error) => {
         if (createdAuthUserId) {

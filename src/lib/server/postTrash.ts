@@ -14,6 +14,9 @@ interface TrashCleanupSettings {
 
 interface TrashPostRow {
   id: string | number;
+  slug?: string | null;
+  language_code?: string | null;
+  status?: string | null;
   thumbnail_url: string | null;
   media_url: string | null;
   content: string | null;
@@ -221,17 +224,48 @@ export async function purgeExpiredTrashPosts(languageCode = 'tr') {
     await deleteExclusiveLocalMedia(rows);
   }
 
+  const result = await deleteTrashRows(rows);
+  return { purged: result.rows.length };
+}
+
+async function deleteTrashRows(rows: TrashPostRow[]) {
   const ids = rows
     .map((row) => Number(row.id))
     .filter((id) => Number.isFinite(id));
-  if (!ids.length) return { purged: 0 };
+  if (!ids.length) return { rows: [] as any[] };
 
-  const result = await dbQuery<{ id: string | number }>(
+  return dbQuery<{
+    id: string | number;
+    slug: string | null;
+    language_code: string | null;
+    status: string | null;
+  }>(
     `DELETE FROM public.posts
      WHERE id = ANY($1::bigint[])
        AND deleted_at IS NOT NULL
-     RETURNING id`,
+     RETURNING id, slug, language_code, status`,
     [ids]
   );
-  return { purged: result.rows.length };
+}
+
+export async function deleteTrashPostsByIds(ids: number[], languageCode = 'tr') {
+  const cleanIds = ids.filter((id) => Number.isFinite(id));
+  if (!cleanIds.length) return { rows: [] as any[] };
+
+  const settings = await fetchTrashCleanupSettings(languageCode);
+  const result = await dbQuery<TrashPostRow>(
+    `SELECT id, slug, language_code, status, thumbnail_url, media_url, content, card_data, items, faq_data
+     FROM public.posts
+     WHERE id = ANY($1::bigint[])
+       AND deleted_at IS NOT NULL`,
+    [cleanIds]
+  );
+  const rows = result.rows || [];
+  if (!rows.length) return { rows: [] as any[] };
+
+  if (settings.deleteMedia) {
+    await deleteExclusiveLocalMedia(rows);
+  }
+
+  return deleteTrashRows(rows);
 }

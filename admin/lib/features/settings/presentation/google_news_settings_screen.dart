@@ -1,14 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+import '../../auth/data/admin_auth_models.dart';
+import '../data/admin_google_news_settings_repository.dart';
 
 class GoogleNewsSettingsScreen extends StatefulWidget {
-  const GoogleNewsSettingsScreen({super.key});
+  const GoogleNewsSettingsScreen({
+    super.key,
+    required this.session,
+    this.repository = const SupabaseAdminGoogleNewsSettingsRepository(),
+  });
+
+  final AdminSession session;
+  final AdminGoogleNewsSettingsRepository repository;
 
   @override
   State<GoogleNewsSettingsScreen> createState() =>
@@ -16,13 +29,28 @@ class GoogleNewsSettingsScreen extends StatefulWidget {
 }
 
 class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
-  final _publicationNameController = TextEditingController(text: 'My News');
+  static const _rssFullOption = 'googleNews.option.showFullContent';
+  static const _rssSummaryOption = 'googleNews.option.showSummary';
+  static const _categoryAllOption = 'googleNews.option.allCategories';
+  static const _categoryNewsOption = 'googleNews.option.news';
+  static const _categoryVideoOption = 'googleNews.option.video';
+
+  final _publicationNameController = TextEditingController(text: 'Pateez');
   final _feedPostLimitController = TextEditingController(text: '50');
 
   var _active = true;
-  var _rssContent = 'googleNews.option.showFullContent';
-  var _language = 'language.name.en';
-  var _category = 'googleNews.option.selectCategory';
+  var _rssContent = _rssFullOption;
+  var _language = 'language.name.tr';
+  var _category = _categoryAllOption;
+  var _loading = true;
+  var _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSettings());
+  }
 
   @override
   void dispose() {
@@ -31,12 +59,135 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
     super.dispose();
   }
 
-  void _showSavedMessage() {
-    AdminToast.show(
-      context,
-      message: context.t('googleNews.saveSuccess'),
-      tone: AdminToastTone.success,
+  Future<void> _loadSettings() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final settings = await widget.repository.fetchSettings('tr');
+      if (!mounted) return;
+      _applySettings(settings);
+      setState(() => _loading = false);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _applySettings(GoogleNewsSettingsData settings) {
+    _active = settings.enabled;
+    _publicationNameController.text = settings.publicationName;
+    _feedPostLimitController.text = settings.feedLimit.toString();
+    _rssContent = settings.rssContentMode == GoogleNewsRssContentMode.summary
+        ? _rssSummaryOption
+        : _rssFullOption;
+    _language = _languageOptionForCode(settings.languageCode);
+  }
+
+  Future<void> _saveSettings() async {
+    if (_loading || _saving) return;
+    final publicationName = _publicationNameController.text.trim();
+    if (publicationName.isEmpty) {
+      _showMessage('googleNews.error.publicationNameRequired');
+      return;
+    }
+    final feedLimit = _boundedInt(
+      _feedPostLimitController.text,
+      fallback: 50,
+      min: 1,
+      max: 100,
     );
+    setState(() => _saving = true);
+    try {
+      final saved = await widget.repository.saveSettings(
+        session: widget.session,
+        settings: GoogleNewsSettingsData(
+          languageCode: _languageCode,
+          enabled: _active,
+          publicationName: publicationName,
+          rssContentMode: _rssMode,
+          feedLimit: feedLimit,
+        ),
+      );
+      if (!mounted) return;
+      _applySettings(saved);
+      setState(() => _saving = false);
+      _showMessage('googleNews.saveSuccess', tone: AdminToastTone.success);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showMessage('${context.t('settings.save_error')}: $error');
+    }
+  }
+
+  Future<void> _copyUrl(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    _showMessage('googleNews.copySuccess', tone: AdminToastTone.success);
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
+  }
+
+  void _showMessage(
+    String message, {
+    AdminToastTone tone = AdminToastTone.info,
+  }) {
+    AdminToast.show(context, message: context.t(message), tone: tone);
+  }
+
+  String get _languageCode {
+    return switch (_language) {
+      'language.name.en' => 'en',
+      'language.name.ar' => 'ar',
+      _ => 'tr',
+    };
+  }
+
+  String get _rssMode => _rssContent == _rssSummaryOption
+      ? GoogleNewsRssContentMode.summary
+      : GoogleNewsRssContentMode.full;
+
+  String get _typeParam {
+    if (_category == _categoryNewsOption) return 'article';
+    if (_category == _categoryVideoOption) return 'video';
+    return '';
+  }
+
+  String get _generatedFeedUrl {
+    final params = <String, String>{'lang': _languageCode};
+    if (_typeParam.isNotEmpty) params['type'] = _typeParam;
+    return _absoluteUrl('/service/feed/google-news', params);
+  }
+
+  String get _primaryFeedUrl =>
+      _absoluteUrl('/service/feed/google-news', {'lang': _languageCode});
+
+  String get _newsSitemapUrl => _absoluteUrl('/news-sitemap.xml');
+
+  String _absoluteUrl(String path, [Map<String, String>? query]) {
+    final uri = Uri.base.resolve(path).replace(queryParameters: query);
+    if (uri.hasScheme && uri.host.isNotEmpty) return uri.toString();
+    return Uri.https('www.pateez.com', path, query).toString();
+  }
+
+  String _languageOptionForCode(String code) {
+    return switch (code.trim().toLowerCase()) {
+      'en' => 'language.name.en',
+      'ar' => 'language.name.ar',
+      _ => 'language.name.tr',
+    };
   }
 
   @override
@@ -64,43 +215,125 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
                 ),
               ),
               const SizedBox(height: 22),
-              _GoogleNewsLayout(
-                left: _SettingsCard(
-                  active: _active,
-                  publicationNameController: _publicationNameController,
-                  rssContent: _rssContent,
-                  feedPostLimitController: _feedPostLimitController,
-                  onActiveChanged: (value) => setState(() => _active = value),
-                  onRssContentChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _rssContent = value);
-                  },
-                  onSave: _showSavedMessage,
+              if (_loading)
+                const _GoogleNewsStatusCard(
+                  message: 'googleNews.loading',
+                  progress: true,
+                )
+              else if (_error != null)
+                _GoogleNewsStatusCard(
+                  message: _error!,
+                  actionLabel: 'Retry',
+                  onAction: _loadSettings,
+                )
+              else
+                _GoogleNewsLayout(
+                  left: _SettingsCard(
+                    active: _active,
+                    enabled: !_saving,
+                    saving: _saving,
+                    publicationNameController: _publicationNameController,
+                    rssContent: _rssContent,
+                    feedPostLimitController: _feedPostLimitController,
+                    onActiveChanged: (value) {
+                      if (_saving) return;
+                      setState(() => _active = value);
+                    },
+                    onRssContentChanged: (value) {
+                      if (value == null || _saving) return;
+                      setState(() => _rssContent = value);
+                    },
+                    onSave: _saveSettings,
+                  ),
+                  right: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _FeedGeneratorCard(
+                        language: _language,
+                        category: _category,
+                        generatedUrl: _generatedFeedUrl,
+                        onCopyUrl: () => _copyUrl(_generatedFeedUrl),
+                        onOpenUrl: () => _openUrl(_generatedFeedUrl),
+                        onLanguageChanged: (value) {
+                          if (value == null || _saving) return;
+                          setState(() => _language = value);
+                        },
+                        onCategoryChanged: (value) {
+                          if (value == null || _saving) return;
+                          setState(() => _category = value);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      _IntegrationEndpointsCard(
+                        newsSitemapUrl: _newsSitemapUrl,
+                        primaryFeedUrl: _primaryFeedUrl,
+                        onOpenUrl: _openUrl,
+                      ),
+                    ],
+                  ),
                 ),
-                right: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _FeedGeneratorCard(
-                      language: _language,
-                      category: _category,
-                      onLanguageChanged: (value) {
-                        if (value == null) return;
-                        setState(() => _language = value);
-                      },
-                      onCategoryChanged: (value) {
-                        if (value == null) return;
-                        setState(() => _category = value);
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    const _IntegrationEndpointsCard(),
-                  ],
-                ),
-              ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _GoogleNewsStatusCard extends StatelessWidget {
+  const _GoogleNewsStatusCard({
+    required this.message,
+    this.progress = false,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String message;
+  final bool progress;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GoogleNewsCard(
+      child: Row(
+        children: [
+          if (progress)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.actionRed,
+              ),
+            )
+          else
+            const SymbolIcon(
+              Symbols.info_outline_rounded,
+              color: AppColors.actionRed,
+              size: 20,
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              context.t(message),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: 12),
+            _PrimaryButton(
+              label: actionLabel!,
+              icon: Symbols.refresh,
+              onPressed: onAction,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -138,6 +371,8 @@ class _GoogleNewsLayout extends StatelessWidget {
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({
     required this.active,
+    required this.enabled,
+    required this.saving,
     required this.publicationNameController,
     required this.rssContent,
     required this.feedPostLimitController,
@@ -147,6 +382,8 @@ class _SettingsCard extends StatelessWidget {
   });
 
   final bool active;
+  final bool enabled;
+  final bool saving;
   final TextEditingController publicationNameController;
   final String rssContent;
   final TextEditingController feedPostLimitController;
@@ -166,13 +403,18 @@ class _SettingsCard extends StatelessWidget {
           Row(
             children: [
               Expanded(child: _FieldLabel('googleNews.field.status')),
-              _CompactCheckSwitch(value: active, onChanged: onActiveChanged),
+              _CompactCheckSwitch(
+                value: active,
+                enabled: enabled,
+                onChanged: onActiveChanged,
+              ),
             ],
           ),
           const SizedBox(height: 24),
           _FullTextField(
             label: 'googleNews.field.publicationName',
             controller: publicationNameController,
+            enabled: enabled,
             isRequired: true,
           ),
           const SizedBox(height: 22),
@@ -185,6 +427,7 @@ class _SettingsCard extends StatelessWidget {
               'googleNews.option.showSummary',
             ],
             onChanged: onRssContentChanged,
+            enabled: enabled,
             isRequired: true,
           ),
           const SizedBox(height: 22),
@@ -193,6 +436,7 @@ class _SettingsCard extends StatelessWidget {
             helper: 'googleNews.help.feedPostLimit',
             controller: feedPostLimitController,
             keyboardType: TextInputType.number,
+            enabled: enabled,
             isRequired: true,
           ),
           const SizedBox(height: 24),
@@ -201,7 +445,8 @@ class _SettingsCard extends StatelessWidget {
             child: _PrimaryButton(
               label: 'Save Changes',
               icon: Symbols.check,
-              onPressed: onSave,
+              busy: saving,
+              onPressed: enabled ? onSave : null,
             ),
           ),
         ],
@@ -214,12 +459,18 @@ class _FeedGeneratorCard extends StatelessWidget {
   const _FeedGeneratorCard({
     required this.language,
     required this.category,
+    required this.generatedUrl,
+    required this.onCopyUrl,
+    required this.onOpenUrl,
     required this.onLanguageChanged,
     required this.onCategoryChanged,
   });
 
   final String language;
   final String category;
+  final String generatedUrl;
+  final VoidCallback onCopyUrl;
+  final VoidCallback onOpenUrl;
   final ValueChanged<String?> onLanguageChanged;
   final ValueChanged<String?> onCategoryChanged;
 
@@ -246,7 +497,6 @@ class _FeedGeneratorCard extends StatelessWidget {
             label: 'Category',
             value: category,
             options: const [
-              'googleNews.option.selectCategory',
               'googleNews.option.allCategories',
               'googleNews.option.news',
               'googleNews.option.video',
@@ -254,7 +504,11 @@ class _FeedGeneratorCard extends StatelessWidget {
             onChanged: onCategoryChanged,
           ),
           const SizedBox(height: 18),
-          const _FeedUrlField(),
+          _FeedUrlField(
+            url: generatedUrl,
+            onCopy: onCopyUrl,
+            onOpen: onOpenUrl,
+          ),
         ],
       ),
     );
@@ -262,7 +516,15 @@ class _FeedGeneratorCard extends StatelessWidget {
 }
 
 class _FeedUrlField extends StatelessWidget {
-  const _FeedUrlField();
+  const _FeedUrlField({
+    required this.url,
+    required this.onCopy,
+    required this.onOpen,
+  });
+
+  final String url;
+  final VoidCallback onCopy;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -287,17 +549,21 @@ class _FeedUrlField extends StatelessWidget {
                   color: Colors.white,
                   border: Border(right: BorderSide(color: AppColors.line)),
                 ),
-                child: const SymbolIcon(
-                  Symbols.open_in_new,
-                  color: AppColors.iconMuted,
-                  size: 16,
+                child: IconButton(
+                  onPressed: onOpen,
+                  padding: EdgeInsets.zero,
+                  icon: const SymbolIcon(
+                    Symbols.open_in_new,
+                    color: AppColors.iconMuted,
+                    size: 16,
+                  ),
                 ),
               ),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
-                    context.t('googleNews.feed.generatedUrl'),
+                    url,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -311,7 +577,7 @@ class _FeedUrlField extends StatelessWidget {
               SizedBox(
                 height: 42,
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: onCopy,
                   style: TextButton.styleFrom(
                     backgroundColor: AppColors.actionRed,
                     foregroundColor: Colors.white,
@@ -341,7 +607,15 @@ class _FeedUrlField extends StatelessWidget {
 }
 
 class _IntegrationEndpointsCard extends StatelessWidget {
-  const _IntegrationEndpointsCard();
+  const _IntegrationEndpointsCard({
+    required this.newsSitemapUrl,
+    required this.primaryFeedUrl,
+    required this.onOpenUrl,
+  });
+
+  final String newsSitemapUrl;
+  final String primaryFeedUrl;
+  final ValueChanged<String> onOpenUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -361,22 +635,24 @@ class _IntegrationEndpointsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          const _EndpointBox(
+          _EndpointBox(
             title: 'googleNews.integration.newsSitemapTitle',
             description: 'googleNews.integration.newsSitemapDescription',
-            url: 'https://www.pateez.com/sitemap-news.xml',
+            url: newsSitemapUrl,
             icon: Symbols.article,
             accent: Color(0xFF2F80ED),
             background: Color(0xFFEAF3FF),
+            onOpenUrl: onOpenUrl,
           ),
           const SizedBox(height: 14),
-          const _EndpointBox(
+          _EndpointBox(
             title: 'googleNews.integration.publisherFeedTitle',
             description: 'googleNews.integration.publisherFeedDescription',
-            url: 'https://www.pateez.com/service/feed/google-news?lang=1',
+            url: primaryFeedUrl,
             icon: Symbols.draft,
             accent: Color(0xFFF39C12),
             background: Color(0xFFFFF7DB),
+            onOpenUrl: onOpenUrl,
           ),
         ],
       ),
@@ -392,6 +668,7 @@ class _EndpointBox extends StatelessWidget {
     required this.icon,
     required this.accent,
     required this.background,
+    required this.onOpenUrl,
   });
 
   final String title;
@@ -400,6 +677,7 @@ class _EndpointBox extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final Color background;
+  final ValueChanged<String> onOpenUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -439,7 +717,7 @@ class _EndpointBox extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _EndpointUrlRow(url: url),
+                  _EndpointUrlRow(url: url, onOpen: () => onOpenUrl(url)),
                 ],
               ),
             ),
@@ -451,9 +729,10 @@ class _EndpointBox extends StatelessWidget {
 }
 
 class _EndpointUrlRow extends StatelessWidget {
-  const _EndpointUrlRow({required this.url});
+  const _EndpointUrlRow({required this.url, required this.onOpen});
 
   final String url;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -483,7 +762,7 @@ class _EndpointUrlRow extends StatelessWidget {
         final viewButton = SizedBox(
           height: 34,
           child: TextButton(
-            onPressed: () {},
+            onPressed: onOpen,
             style: TextButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppColors.deepOcean,
@@ -576,6 +855,7 @@ class _FullTextField extends StatelessWidget {
     required this.controller,
     this.helper,
     this.keyboardType,
+    this.enabled = true,
     this.isRequired = false,
   });
 
@@ -583,6 +863,7 @@ class _FullTextField extends StatelessWidget {
   final TextEditingController controller;
   final String? helper;
   final TextInputType? keyboardType;
+  final bool enabled;
   final bool isRequired;
 
   @override
@@ -592,7 +873,11 @@ class _FullTextField extends StatelessWidget {
       children: [
         _FieldLabel(label, isRequired: isRequired),
         const SizedBox(height: 8),
-        _TextInput(controller: controller, keyboardType: keyboardType),
+        _TextInput(
+          controller: controller,
+          keyboardType: keyboardType,
+          enabled: enabled,
+        ),
         if (helper != null) ...[
           const SizedBox(height: 7),
           Text(
@@ -617,6 +902,7 @@ class _FullSelectField extends StatelessWidget {
     required this.options,
     required this.onChanged,
     this.helper,
+    this.enabled = true,
     this.isRequired = false,
   });
 
@@ -625,6 +911,7 @@ class _FullSelectField extends StatelessWidget {
   final List<String> options;
   final ValueChanged<String?> onChanged;
   final String? helper;
+  final bool enabled;
   final bool isRequired;
 
   @override
@@ -634,7 +921,12 @@ class _FullSelectField extends StatelessWidget {
       children: [
         _FieldLabel(label, isRequired: isRequired),
         const SizedBox(height: 8),
-        _SelectInput(value: value, options: options, onChanged: onChanged),
+        _SelectInput(
+          value: value,
+          options: options,
+          enabled: enabled,
+          onChanged: onChanged,
+        ),
         if (helper != null) ...[
           const SizedBox(height: 7),
           Text(
@@ -690,10 +982,15 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _TextInput extends StatelessWidget {
-  const _TextInput({required this.controller, this.keyboardType});
+  const _TextInput({
+    required this.controller,
+    this.keyboardType,
+    this.enabled = true,
+  });
 
   final TextEditingController controller;
   final TextInputType? keyboardType;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -701,6 +998,7 @@ class _TextInput extends StatelessWidget {
       height: 42,
       child: TextFormField(
         controller: controller,
+        enabled: enabled,
         keyboardType: keyboardType,
         textAlignVertical: TextAlignVertical.center,
         mouseCursor: SystemMouseCursors.text,
@@ -720,11 +1018,13 @@ class _SelectInput extends StatelessWidget {
   const _SelectInput({
     required this.value,
     required this.options,
+    required this.enabled,
     required this.onChanged,
   });
 
   final String value;
   final List<String> options;
+  final bool enabled;
   final ValueChanged<String?> onChanged;
 
   @override
@@ -769,7 +1069,7 @@ class _SelectInput extends StatelessWidget {
                   ),
                 ),
             ],
-            onChanged: onChanged,
+            onChanged: enabled ? onChanged : null,
           ),
         ),
       ),
@@ -782,21 +1082,25 @@ class _PrimaryButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onPressed,
+    this.busy = false,
   });
 
   final String label;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 38,
       child: TextButton(
-        onPressed: onPressed,
+        onPressed: busy ? null : onPressed,
         style:
             TextButton.styleFrom(
-              backgroundColor: AppColors.actionRed,
+              backgroundColor: onPressed == null || busy
+                  ? AppColors.softLine
+                  : AppColors.actionRed,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 18),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -816,7 +1120,17 @@ class _PrimaryButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SymbolIcon(icon, color: Colors.white, size: 16),
+            if (busy)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            else
+              SymbolIcon(icon, color: Colors.white, size: 16),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -834,9 +1148,14 @@ class _PrimaryButton extends StatelessWidget {
 }
 
 class _CompactCheckSwitch extends StatelessWidget {
-  const _CompactCheckSwitch({required this.value, required this.onChanged});
+  const _CompactCheckSwitch({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
 
   final bool value;
+  final bool enabled;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -845,17 +1164,17 @@ class _CompactCheckSwitch extends StatelessWidget {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => onChanged(!value),
+        onTap: enabled ? () => onChanged(!value) : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           width: 42,
           height: 24,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: value ? AppColors.actionRed : AppColors.softLine,
+            color: value && enabled ? AppColors.actionRed : AppColors.softLine,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: value
+              color: value && enabled
                   ? AppColors.actionRed
                   : AppColors.line.withValues(alpha: 0.9),
             ),
@@ -873,9 +1192,11 @@ class _CompactCheckSwitch extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: value
-                  ? const SymbolIcon(
+                  ? SymbolIcon(
                       Symbols.check,
-                      color: AppColors.actionRed,
+                      color: enabled
+                          ? AppColors.actionRed
+                          : AppColors.iconMuted,
                       size: 12,
                     )
                   : null,
@@ -940,4 +1261,14 @@ InputDecoration _inputDecoration(BuildContext context) {
       borderSide: BorderSide(color: AppColors.deepOcean.withValues(alpha: 0.4)),
     ),
   );
+}
+
+int _boundedInt(
+  String value, {
+  required int fallback,
+  required int min,
+  required int max,
+}) {
+  final parsed = int.tryParse(value.trim()) ?? fallback;
+  return parsed.clamp(min, max).toInt();
 }

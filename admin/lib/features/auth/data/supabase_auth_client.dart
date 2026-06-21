@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 
 import 'admin_auth_models.dart';
 import 'admin_auth_repository.dart';
@@ -18,10 +17,6 @@ class SupabaseAuthClient implements AdminAuthRepository {
   });
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
-  static const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  static const _supabasePublishableKey = String.fromEnvironment(
-    'SUPABASE_PUBLISHABLE_KEY',
-  );
   static const _requestTimeout = Duration(seconds: 8);
 
   final http.Client? httpClient;
@@ -30,16 +25,6 @@ class SupabaseAuthClient implements AdminAuthRepository {
 
   @override
   Future<AdminAuthState?> restoreSession() async {
-    if (_usesSupabaseSdk) {
-      final sdkSession = sdk.Supabase.instance.client.auth.currentSession;
-      if (sdkSession != null) {
-        final session = adminSessionFromSupabaseSession(sdkSession);
-        await sessionStore.saveSession(session);
-        final profile = await _profileForSession(session);
-        return AdminAuthState(session: session, profile: profile);
-      }
-    }
-
     return _restoreStoredSession();
   }
 
@@ -76,21 +61,6 @@ class SupabaseAuthClient implements AdminAuthRepository {
     required String email,
     required String password,
   }) async {
-    if (_usesSupabaseSdk) {
-      final result = await sdk.Supabase.instance.client.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
-      );
-      final sdkSession = result.session;
-      if (sdkSession == null || sdkSession.accessToken.isEmpty) {
-        throw const AdminAuthException('Giriş oturumu alınamadı');
-      }
-      final session = adminSessionFromSupabaseSession(sdkSession);
-      await sessionStore.saveSession(session);
-      final profile = await _profileForSession(session);
-      return AdminAuthState(session: session, profile: profile);
-    }
-
     final result = await _postJson('/api/supabase/auth', {
       'action': 'signInWithPassword',
       'email': email.trim(),
@@ -110,14 +80,8 @@ class SupabaseAuthClient implements AdminAuthRepository {
 
   @override
   Future<void> signOut() async {
-    if (_usesSupabaseSdk) {
-      await sdk.Supabase.instance.client.auth.signOut();
-    }
     await sessionStore.clearAuth();
   }
-
-  bool get _usesSupabaseSdk =>
-      _supabaseUrl.isNotEmpty && _supabasePublishableKey.isNotEmpty;
 
   Future<AdminProfile?> _profileForSession(AdminSession session) async {
     try {
@@ -227,30 +191,6 @@ class SupabaseAuthClient implements AdminAuthRepository {
     }
     throw AdminAuthException(fallbackMessage);
   }
-}
-
-AdminSession adminSessionFromSupabaseSession(sdk.Session session) {
-  final user = session.user;
-  return AdminSession(
-    accessToken: session.accessToken,
-    tokenType: session.tokenType,
-    expiresAt:
-        session.expiresAt ??
-        (DateTime.now().millisecondsSinceEpoch ~/ 1000) + 3600,
-    user: AdminUser(
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      aud: user.aud,
-      userMetadata: _mapFromSdk(user.userMetadata),
-      appMetadata: _mapFromSdk(user.appMetadata),
-    ),
-  );
-}
-
-Map<String, Object?> _mapFromSdk(Map<String, dynamic>? value) {
-  if (value == null) return const {};
-  return value.map((key, nestedValue) => MapEntry(key, nestedValue));
 }
 
 Map<String, Object?> _asStringKeyMap(Map<dynamic, dynamic> value) {

@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest, type AdminContext } from '@/lib/server/adminAuth';
 import { decryptSecret, encryptSecret, hasSecret } from '@/lib/server/mail/secrets';
 import { dbQuery } from '@/lib/server/supabaseDb';
-import { signInWithPassword } from '@/lib/server/supabaseAuth';
+import { signInWithPassword } from '@/lib/server/appAuth';
 
 export const prerender = false;
 

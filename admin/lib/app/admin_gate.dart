@@ -1,17 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 
 import '../core/theme/app_colors.dart';
 import '../features/account/data/admin_account_settings_repository.dart';
 import '../features/auth/data/admin_auth_models.dart';
 import '../features/auth/data/admin_auth_repository.dart';
-import '../features/auth/data/admin_session_store.dart';
-import '../features/auth/data/supabase_auth_client.dart';
 import '../features/comments/data/admin_comments_repository.dart';
 import '../features/navigation/data/admin_navigation_repository.dart';
 import '../features/news/data/admin_news_repository.dart';
@@ -94,12 +90,10 @@ class AdminGate extends StatefulWidget {
 }
 
 class _AdminGateState extends State<AdminGate> {
-  final _sessionStore = const AdminSessionStore();
   var _checkingSession = true;
   AdminSession? _session;
   AdminProfile? _profile;
   ContentSettingsSnapshot? _contentSettingsSnapshot;
-  StreamSubscription<sdk.AuthState>? _supabaseAuthSubscription;
 
   /// Oturumu yalnızca KULLANICI ETKİNLİĞİNE göre sonlandıran inaktivite süresi.
   /// Bu süre boyunca hiç etkileşim (dokunma/kaydırma/tuş) olmazsa giriş ekranına
@@ -111,74 +105,13 @@ class _AdminGateState extends State<AdminGate> {
   @override
   void initState() {
     super.initState();
-    _listenToSupabaseAuthChanges();
     unawaited(_restoreSession());
   }
 
   @override
   void dispose() {
     _idleTimer?.cancel();
-    unawaited(_supabaseAuthSubscription?.cancel());
     super.dispose();
-  }
-
-  void _listenToSupabaseAuthChanges() {
-    try {
-      final auth = sdk.Supabase.instance.client.auth;
-      final currentSession = auth.currentSession;
-      if (currentSession != null) {
-        unawaited(_persistSupabaseSession(currentSession, updateUi: false));
-      }
-      _supabaseAuthSubscription = auth.onAuthStateChange.listen(
-        (data) {
-          final event = data.event;
-          final session = data.session;
-          if (event == sdk.AuthChangeEvent.signedOut) {
-            unawaited(_clearSupabaseSession());
-            return;
-          }
-          if (session == null) return;
-          unawaited(_persistSupabaseSession(session));
-        },
-        onError: (Object error, StackTrace stackTrace) {
-          if (kDebugMode) {
-            debugPrint('Admin auth state sync failed: $error');
-          }
-        },
-      );
-    } catch (_) {
-      // Supabase SDK is optional in API-only local builds.
-    }
-  }
-
-  Future<void> _persistSupabaseSession(
-    sdk.Session sdkSession, {
-    bool updateUi = true,
-  }) async {
-    if (sdkSession.accessToken.trim().isEmpty) return;
-    final session = adminSessionFromSupabaseSession(sdkSession);
-    await _sessionStore.saveSession(session);
-    if (!mounted || !updateUi) return;
-    final currentSession = _session;
-    if (currentSession == null || currentSession.user.id != session.user.id) {
-      return;
-    }
-    setState(() {
-      _session = session;
-    });
-    // Token arka planda yenilendi (SDK auto-refresh). İnaktivite sayacı
-    // kullanıcı etkinliğine bağlıdır; sessiz token yenilemesi onu sıfırlamaz.
-  }
-
-  Future<void> _clearSupabaseSession() async {
-    await _sessionStore.clearAuth();
-    _cancelIdleTimer();
-    if (!mounted || _session == null) return;
-    _dismissAllModals();
-    setState(() {
-      _session = null;
-      _profile = null;
-    });
   }
 
   Future<void> _restoreSession() async {

@@ -1,4 +1,4 @@
-import { getSessionFromToken, type SupabaseSession } from './supabaseAuth';
+import { getSessionFromToken, type AppAuthSession } from './appAuth';
 import { dbQuery } from './supabaseDb';
 import { adminSecurityHeaders } from './securityHeaders';
 
@@ -7,7 +7,7 @@ type AdminAuthGlobal = typeof globalThis & {
 };
 
 export interface AdminContext {
-  session: SupabaseSession;
+  session: AppAuthSession;
   profile: {
     id: string;
     role: string | null;
@@ -48,7 +48,7 @@ function getCachedAdminContext(token: string, userId: string): AdminContext | nu
     return null;
   }
   return {
-    session: null as unknown as SupabaseSession,
+    session: null as unknown as AppAuthSession,
     profile: cached.profile,
     permissions: new Set(cached.permissions),
   };

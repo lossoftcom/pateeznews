@@ -10,6 +10,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:pateeznews_admin/app/pateeznews_admin_app.dart';
+import 'package:pateeznews_admin/core/localization/admin_language_controller.dart';
 import 'package:pateeznews_admin/core/localization/admin_translations.dart';
 import 'package:pateeznews_admin/core/theme/app_colors.dart';
 import 'package:pateeznews_admin/features/account/data/admin_account_settings_repository.dart';
@@ -21,6 +22,7 @@ import 'package:pateeznews_admin/features/navigation/data/admin_navigation_repos
 import 'package:pateeznews_admin/features/navigation/presentation/navigation_models.dart';
 import 'package:pateeznews_admin/features/news/data/admin_news_repository.dart';
 import 'package:pateeznews_admin/features/news/presentation/news_models.dart';
+import 'package:pateeznews_admin/features/news/presentation/widgets/news_table_card.dart';
 import 'package:pateeznews_admin/features/pages/data/admin_pages_repository.dart';
 import 'package:pateeznews_admin/features/pages/presentation/pages_models.dart';
 import 'package:pateeznews_admin/features/stories/data/admin_stories_repository.dart';
@@ -45,6 +47,7 @@ import 'package:pateeznews_admin/features/users/data/admin_roles_repository.dart
 import 'package:pateeznews_admin/features/users/data/admin_users_repository.dart';
 import 'package:pateeznews_admin/features/users/presentation/users_models.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/sortable_table_header.dart';
 
 const _testUser = AdminUser(
   id: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
@@ -1086,6 +1089,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
   String? toggledPinnedPostId;
   String? deletedPostId;
   List<String>? deletedPostIds;
+  bool? deletedPermanently;
   Map<String, Object?>? lastSavedEditorValues;
 
   @override
@@ -1102,8 +1106,12 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
   }
 
   @override
-  Future<void> deletePosts(List<String> postIds) async {
+  Future<void> deletePosts(
+    List<String> postIds, {
+    bool permanently = false,
+  }) async {
     deletedPostIds = postIds;
+    deletedPermanently = permanently;
     _posts.removeWhere((post) => postIds.contains(post.id));
   }
 
@@ -4422,6 +4430,78 @@ void main() {
     expect(newsRepository.toggledStatusPostId, '23');
   });
 
+  testWidgets('Haberler çöp kutusunda toplu kalıcı silme aksiyonunu gösterir', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final newsRepository = _FakeAdminNewsRepository();
+    final languageController = AdminLanguageController(
+      repository: _FakeAdminLanguagesRepository(),
+    );
+    var deleteSelectedCalled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdminLocalizationScope(
+            controller: languageController,
+            child: SizedBox.expand(
+              child: NewsTableCard(
+                posts: newsRepository._posts,
+                filterOptions: await newsRepository.fetchFilterOptions(),
+                loading: false,
+                loadingLabel: 'Haberler listeleniyor',
+                page: 1,
+                pageSize: 25,
+                totalCount: newsRepository._posts.length,
+                searchQuery: '',
+                languageFilter: 'Tümü',
+                categoryFilter: 'Tümü',
+                typeFilter: 'Tümü',
+                statusFilter: 'Tümü',
+                publisherFilter: 'Tümü',
+                selectedPostIds: {'23'},
+                sortState: const TableSortState(key: 'date', ascending: false),
+                trashMode: true,
+                videoOnly: false,
+                onPageSizeChanged: (_) {},
+                onSearchChanged: (_) {},
+                onLanguageChanged: (_) {},
+                onCategoryChanged: (_) {},
+                onTypeChanged: (_) {},
+                onStatusChanged: (_) {},
+                onPublisherChanged: (_) {},
+                onPageChanged: (_) {},
+                onTogglePost: (_) {},
+                onToggleAllPosts: () {},
+                onSort: (_) {},
+                onAddPost: () {},
+                onEditPost: (_) {},
+                onToggleStatus: (_) {},
+                onTogglePinned: (_) {},
+                onDeletePost: (_) {},
+                onDeleteSelected: () => deleteSelectedCalled = true,
+                onToggleTrashMode: () {},
+                onToggleVideoOnly: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seçili 1 haberi kalıcı sil'), findsOneWidget);
+
+    await tester.tap(find.text('Seçili 1 haberi kalıcı sil'));
+    await tester.pumpAndSettle();
+
+    expect(deleteSelectedCalled, isTrue);
+  });
+
   testWidgets('Boş içindekiler tabında AI modalı yeni taslak olarak açılır', (
     tester,
   ) async {
@@ -5916,13 +5996,10 @@ void main() {
     expect(find.text('Kopyala'), findsOneWidget);
     expect(find.text('Entegrasyon Uçları'), findsOneWidget);
     expect(find.text('News Sitemap (SEO & Botlar için)'), findsOneWidget);
-    expect(find.text('Publisher Center Feed (Uygulama için)'), findsOneWidget);
+    expect(find.text('Google News RSS Feed (Yardımcı akış)'), findsOneWidget);
+    expect(find.textContaining('/news-sitemap.xml'), findsOneWidget);
     expect(
-      find.text('https://www.pateez.com/sitemap-news.xml'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('https://www.pateez.com/service/feed/google-news?lang=1'),
+      find.textContaining('/service/feed/google-news?lang=tr'),
       findsWidgets,
     );
     expect(find.text('Görüntüle'), findsNWidgets(2));

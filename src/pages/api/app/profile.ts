@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSessionFromRequest, json, withTransaction } from '@/lib/server/appDb';
 import { dataService } from '@/services/dataService.server';
 import { mapAppFeedItems } from '@/lib/server/appFeed';
-import { updateUser } from '@/lib/server/supabaseAuth';
+import { updateUser } from '@/lib/server/appAuth';
 import { normalizeTurkeyCity } from '@/lib/server/turkeyCities';
 
 const PROFILE_POST_SELECT = `
@@ -194,6 +194,7 @@ export async function loadProfile(client: any, userId: string, origin: string, v
               FROM public.posts
              WHERE publisher_id = $1::uuid
                AND status = 'published'
+               AND deleted_at IS NULL
                AND (published_at <= now() OR published_at IS NULL)
           ) AS posts,
           (
@@ -254,6 +255,7 @@ export async function loadProfile(client: any, userId: string, origin: string, v
          LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
         WHERE p.publisher_id = $1::uuid
           AND p.status = 'published'
+          AND p.deleted_at IS NULL
           AND (p.published_at <= now() OR p.published_at IS NULL)
         ORDER BY p.published_at DESC NULLS LAST,
                  p.created_at DESC NULLS LAST,

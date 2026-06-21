@@ -217,6 +217,10 @@ const SITE_PUBLIC_COLUMNS = [
     'newsletter_popup_title',
     'newsletter_popup_description',
     'newsletter_popup_button_label',
+    'google_news_enabled',
+    'google_news_publication_name',
+    'google_news_rss_content_mode',
+    'google_news_feed_limit',
     'twitter_username',
     'fb_app_id',
     'social_whatsapp_url',
@@ -498,6 +502,7 @@ export const dataService = {
                 .from('posts')
                 .select(selectColumns)
                 .eq('status', 'published')
+                .is('deleted_at', null)
                 .eq('language_code', lang)
                 .or(`published_at.lte.${publishedAtLimit},published_at.is.null`);
 
@@ -565,6 +570,9 @@ export const dataService = {
             .from('posts')
             .select(selectClause)
             .eq('slug', normalized)
+            .eq('status', 'published')
+            .is('deleted_at', null)
+            .or(`published_at.lte.${new Date().toISOString()},published_at.is.null`)
             .maybeSingle();
 
         if (slugRes.data) return this.mapPost(slugRes.data);
@@ -575,6 +583,9 @@ export const dataService = {
                 .from('posts')
                 .select(selectClause)
                 .eq('id', normalized)
+                .eq('status', 'published')
+                .is('deleted_at', null)
+                .or(`published_at.lte.${new Date().toISOString()},published_at.is.null`)
                 .maybeSingle();
             if (idRes.data) return this.mapPost(idRes.data);
         }
@@ -627,6 +638,7 @@ export const dataService = {
             keywords: post?.keywords ?? (cardData as any)?.keywords,
             slug: post?.slug ?? (cardData as any)?.slug,
             factChecked: post?.fact_checked ?? (cardData as any)?.factChecked,
+            factCheck: (cardData as any)?.factCheck,
             schemaType: post?.schema_type ?? (cardData as any)?.schemaType,
             faqData: post?.faq_data ?? (cardData as any)?.faqData ?? faqFromItems,
             items: itemsRaw,

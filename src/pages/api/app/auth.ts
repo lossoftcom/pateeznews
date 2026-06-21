@@ -4,8 +4,10 @@ import { getSessionFromRequest, json, withTransaction } from '@/lib/server/appDb
 import {
   adminCreateAuthUser,
   adminDeleteAuthUser,
+  setPasswordForUser,
   signInWithPassword,
-} from '@/lib/server/supabaseAuth';
+  signInWithSocialToken,
+} from '@/lib/server/appAuth';
 import {
   clearLoginFailures,
   getLoginAttemptLock,
@@ -250,6 +252,21 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    if (action === 'signInWithSocialToken') {
+      const result = await signInWithSocialToken({
+        provider: body.provider,
+        idToken: body.idToken || body.id_token,
+        accessToken: body.accessToken || body.access_token,
+        fullName: body.fullName || body.full_name,
+        email: body.email,
+      });
+      const profile = await profileForUser(result.data.session.user.id);
+      return json({
+        data: { ...result.data, profile: profileForClient(profile) },
+        error: null,
+      });
+    }
+
     if (action === 'signUpWithPassword') {
       const fullName = cleanText(body.fullName || body.full_name).slice(0, 160);
       const email = cleanEmail(body.email);
@@ -329,6 +346,7 @@ export const POST: APIRoute = async ({ request }) => {
              VALUES ($1::uuid, $2, $3, $4, 'member', 'Aktif', $5, $3, now())`,
             [created.id, fullName, username, email, city],
           );
+          await setPasswordForUser(created.id, password, client);
           createdProfileId = created.id;
           return created;
         });

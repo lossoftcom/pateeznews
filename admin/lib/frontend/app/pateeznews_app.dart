@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
 
 import '../../app/pateeznews_admin_app.dart';
 import '../../features/auth/data/admin_auth_models.dart';
@@ -514,7 +512,6 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     await widget.adminSessionStore.saveSession(
       _adminSessionFromFrontend(authState.session),
     );
-    await _recoverSupabaseSession(authState.session);
     final profile = _adminProfileFromFrontend(authState.profile);
     if (profile != null) {
       await widget.adminSessionStore.saveProfileCache(profile);
@@ -587,16 +584,6 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   }
 }
 
-Future<void> _recoverSupabaseSession(FrontendAuthSession session) async {
-  try {
-    await sdk.Supabase.instance.client.auth.recoverSession(
-      jsonEncode(_supabaseSessionJson(session)),
-    );
-  } catch (_) {
-    // AdminSessionStore fallback keeps the admin handoff working in API-only runs.
-  }
-}
-
 AdminSession _adminSessionFromFrontend(FrontendAuthSession session) {
   return AdminSession(
     accessToken: session.accessToken,
@@ -611,30 +598,6 @@ AdminSession _adminSessionFromFrontend(FrontendAuthSession session) {
       appMetadata: const {},
     ),
   );
-}
-
-Map<String, Object?> _supabaseSessionJson(FrontendAuthSession session) {
-  final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-  final expiresIn = session.expiresAt > now ? session.expiresAt - now : 0;
-  return {
-    'access_token': session.accessToken,
-    'expires_in': expiresIn,
-    'expires_at': session.expiresAt,
-    'refresh_token': null,
-    'token_type': session.tokenType,
-    'provider_token': null,
-    'provider_refresh_token': null,
-    'user': {
-      'id': session.user.id,
-      'app_metadata': const {},
-      'user_metadata': session.user.userMetadata,
-      'aud': 'authenticated',
-      'email': session.user.email,
-      'phone': null,
-      'created_at': '',
-      'role': 'authenticated',
-    },
-  };
 }
 
 AdminProfile? _adminProfileFromFrontend(FrontendProfile? profile) {

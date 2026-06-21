@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart' as sdk;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/frontend_http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,15 +31,6 @@ enum FrontendSocialAuthProvider {
   const FrontendSocialAuthProvider(this.id);
 
   final String id;
-
-  sdk.OAuthProvider get oauthProvider {
-    return switch (this) {
-      FrontendSocialAuthProvider.google => sdk.OAuthProvider.google,
-      FrontendSocialAuthProvider.apple => sdk.OAuthProvider.apple,
-      FrontendSocialAuthProvider.facebook => sdk.OAuthProvider.facebook,
-      FrontendSocialAuthProvider.x => sdk.OAuthProvider.x,
-    };
-  }
 }
 
 class FrontendAuthUser {
@@ -325,6 +319,21 @@ class FrontendAuthRepository {
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _timeout = Duration(seconds: 8);
+  static const _googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue:
+        '219689188237-jprruujk8knn7noafs2nbvdgnuc67mbe.apps.googleusercontent.com',
+  );
+  static const _googleIosClientId = String.fromEnvironment(
+    'GOOGLE_IOS_CLIENT_ID',
+    defaultValue:
+        '219689188237-nujlogsppna6kq2g3m3vjdlp0gfgvgmj.apps.googleusercontent.com',
+  );
+  static const _appleServiceId = String.fromEnvironment(
+    'APPLE_SERVICE_ID',
+    defaultValue: 'com.pateez.pateezcom.web',
+  );
+  static Future<void>? _googleInitializeFuture;
 
   final http.Client? httpClient;
   final FrontendAuthStore store;
@@ -333,14 +342,6 @@ class FrontendAuthRepository {
   Future<FrontendAuthState?> restoreSession() async {
     final cachedSession = await store.readSession();
     if (cachedSession == null || cachedSession.accessToken.isEmpty) {
-      try {
-        final session = _supabaseClient().auth.currentSession;
-        if (session != null && session.accessToken.isNotEmpty) {
-          return _completeOAuthProfile(session);
-        }
-      } catch (_) {
-        // API-only çalışma ya da Supabase hazır değilse giriş ekranı açılır.
-      }
       return null;
     }
 
@@ -431,30 +432,154 @@ class FrontendAuthRepository {
     required FrontendSocialAuthProvider provider,
     required String redirectTo,
   }) async {
-    final supabase = _supabaseClient();
-    final completer = Completer<sdk.Session>();
-    late final StreamSubscription<sdk.AuthState> subscription;
-    subscription = supabase.auth.onAuthStateChange.listen((state) {
-      final session = state.session;
-      if ((state.event == sdk.AuthChangeEvent.signedIn ||
-              state.event == sdk.AuthChangeEvent.tokenRefreshed) &&
-          session != null &&
-          !completer.isCompleted) {
-        completer.complete(session);
-      }
-    });
+    return switch (provider) {
+      FrontendSocialAuthProvider.google => _signInWithGoogle(),
+      FrontendSocialAuthProvider.apple => _signInWithApple(),
+      FrontendSocialAuthProvider.facebook => _signInWithBrowserProvider(
+        path: 'meta',
+        redirectTo: redirectTo,
+      ),
+      FrontendSocialAuthProvider.x => _signInWithBrowserProvider(
+        path: 'x',
+        redirectTo: redirectTo,
+      ),
+    };
+  }
+
+  Future<FrontendAuthState> _signInWithGoogle() async {
+    await _initializeGoogleSignIn();
+    final account = await GoogleSignIn.instance.authenticate(
+      scopeHint: const ['openid', 'email', 'profile'],
+    );
+    final idToken = account.authentication.idToken ?? '';
+    var accessToken = '';
+    if (idToken.isEmpty) {
+      final headers = await account.authorizationClient.authorizationHeaders(
+        const ['openid', 'email', 'profile'],
+        promptIfNecessary: true,
+      );
+      accessToken =
+          headers?['Authorization']?.replaceFirst(RegExp(r'^Bearer\s+'), '') ??
+          '';
+    }
+    if (idToken.isEmpty && accessToken.isEmpty) {
+      throw const FrontendAuthException('Google kimlik tokenı alınamadı');
+    }
+    return _completeSocialToken(
+      provider: 'google',
+      idToken: idToken,
+      accessToken: accessToken,
+      fullName: account.displayName ?? '',
+      email: account.email,
+    );
+  }
+
+  Future<void> _initializeGoogleSignIn() {
+    _googleInitializeFuture ??= GoogleSignIn.instance.initialize(
+      clientId: kIsWeb
+          ? _googleWebClientId
+          : defaultTargetPlatform == TargetPlatform.iOS
+          ? _googleIosClientId
+          : null,
+      serverClientId: _googleWebClientId,
+    );
+    return _googleInitializeFuture!;
+  }
+
+  Future<FrontendAuthState> _signInWithApple() async {
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: const [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      webAuthenticationOptions:
+          !kIsWeb &&
+              defaultTargetPlatform != TargetPlatform.iOS &&
+              defaultTargetPlatform != TargetPlatform.macOS
+          ? WebAuthenticationOptions(
+              clientId: _appleServiceId,
+              redirectUri: _uri('/auth/apple/callback'),
+            )
+          : null,
+    );
+    final idToken = credential.identityToken ?? '';
+    if (idToken.isEmpty) {
+      throw const FrontendAuthException('Apple kimlik tokenı alınamadı');
+    }
+    final fullName = [credential.givenName, credential.familyName]
+        .whereType<String>()
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .join(' ');
+    return _completeSocialToken(
+      provider: 'apple',
+      idToken: idToken,
+      fullName: fullName,
+      email: credential.email ?? '',
+    );
+  }
+
+  Future<FrontendAuthState> _signInWithBrowserProvider({
+    required String path,
+    required String redirectTo,
+  }) async {
+    final callbackUri = Uri.parse(redirectTo);
+    if (callbackUri.scheme.isEmpty || callbackUri.host.isEmpty) {
+      throw const FrontendAuthException('Mobil yönlendirme ayarı eksik');
+    }
+    final startUri = _uri('/auth/$path/start').replace(
+      queryParameters: {
+        'mode': 'mobile',
+        'scheme': callbackUri.scheme,
+        'host': callbackUri.host,
+      },
+    );
+    final callback = await _launchAndWaitForCallback(startUri, callbackUri);
+    final error = callback.queryParameters['error']?.trim() ?? '';
+    if (error.isNotEmpty) throw FrontendAuthException(_friendlyError(error));
+    final payload = callback.queryParameters['payload']?.trim() ?? '';
+    if (payload.isEmpty) {
+      throw const FrontendAuthException('Sosyal giriş oturumu alınamadı');
+    }
+    final decoded = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(payload))),
+    );
+    if (decoded is! Map) {
+      throw const FrontendAuthException('Geçersiz sosyal giriş yanıtı');
+    }
+    return _authStateFromResult({
+      'data': _asStringMap(decoded),
+    }, fallbackMessage: 'Sosyal giriş tamamlanamadı');
+  }
+
+  Future<Uri> _launchAndWaitForCallback(Uri startUri, Uri callbackUri) async {
+    final appLinks = AppLinks();
+    final completer = Completer<Uri>();
+    late final StreamSubscription<Uri> subscription;
+    subscription = appLinks.uriLinkStream.listen(
+      (uri) {
+        if (uri.scheme == callbackUri.scheme &&
+            uri.host == callbackUri.host &&
+            !completer.isCompleted) {
+          completer.complete(uri);
+        }
+      },
+      onError: (Object error) {
+        if (!completer.isCompleted) {
+          completer.completeError(error);
+        }
+      },
+    );
 
     try {
-      final launched = await supabase.auth.signInWithOAuth(
-        provider.oauthProvider,
-        redirectTo: kIsWeb ? null : redirectTo,
-        authScreenLaunchMode: sdk.LaunchMode.platformDefault,
+      final launched = await launchUrl(
+        startUri,
+        mode: LaunchMode.externalApplication,
       );
       if (!launched) {
-        throw const FrontendAuthException('Sosyal giriş başlatılamadı');
+        throw const FrontendAuthException('Sosyal giriş penceresi açılamadı');
       }
-
-      final session = await completer.future.timeout(
+      return await completer.future.timeout(
         const Duration(minutes: 3),
         onTimeout: () {
           throw const FrontendAuthException(
@@ -462,72 +587,57 @@ class FrontendAuthRepository {
           );
         },
       );
-      return _completeOAuthProfile(session);
-    } on FrontendAuthException {
-      rethrow;
-    } catch (_) {
-      throw const FrontendAuthException(
-        'Sosyal giriş tamamlanamadı. Lütfen tekrar dene.',
-      );
     } finally {
       await subscription.cancel();
     }
   }
 
+  Future<FrontendAuthState> _completeSocialToken({
+    required String provider,
+    String idToken = '',
+    String accessToken = '',
+    String fullName = '',
+    String email = '',
+  }) async {
+    final result = await _postJson('/api/app/auth', {
+      'action': 'signInWithSocialToken',
+      'provider': provider,
+      'idToken': idToken,
+      'accessToken': accessToken,
+      'fullName': fullName,
+      'email': email,
+    });
+    return _authStateFromResult(
+      result,
+      fallbackMessage: 'Sosyal giriş tamamlanamadı',
+    );
+  }
+
   Future<void> signOut() async {
     await store.clearAuth();
-    try {
-      await _supabaseClient().auth.signOut();
-    } catch (_) {
-      // API-only sessions still clear through FrontendAuthStore.
-    }
   }
 
   Future<FrontendProfile?> _cachedProfile() {
     return store.readProfileCache(_resolveAvatarUrl);
   }
 
-  sdk.SupabaseClient _supabaseClient() {
-    try {
-      return sdk.Supabase.instance.client;
-    } catch (_) {
-      throw const FrontendAuthException('Supabase sosyal giriş hazır değil');
+  Future<FrontendAuthState> _authStateFromResult(
+    Map<String, Object?> result, {
+    required String fallbackMessage,
+  }) async {
+    _throwIfApiError(result, fallbackMessage: fallbackMessage);
+    final session = _sessionFromResult(result);
+    if (session == null || session.accessToken.isEmpty) {
+      throw const FrontendAuthException('Giriş oturumu alınamadı');
     }
-  }
-
-  Future<FrontendAuthState> _completeOAuthProfile(sdk.Session session) async {
-    final fallbackSession = _sessionFromSupabase(session);
-    final result = await _postJson('/api/app/auth', {
-      'action': 'completeOAuthProfile',
-      'token': session.accessToken,
-    });
-    _throwIfApiError(result, fallbackMessage: 'Sosyal profil tamamlanamadı');
-    final syncedSession = _sessionFromResult(result) ?? fallbackSession;
     final profile = _profileFromResult(result);
-    await store.saveSession(syncedSession);
+    await store.saveSession(session);
     if (profile != null) {
       await store.saveProfileCache(profile);
     } else {
       await store.clearProfileCache();
     }
-    return FrontendAuthState(session: syncedSession, profile: profile);
-  }
-
-  FrontendAuthSession _sessionFromSupabase(sdk.Session session) {
-    final expiresAt =
-        session.expiresAt ??
-        (DateTime.now().millisecondsSinceEpoch ~/ 1000) +
-            (session.expiresIn ?? 3600);
-    return FrontendAuthSession(
-      accessToken: session.accessToken,
-      tokenType: session.tokenType,
-      expiresAt: expiresAt,
-      user: FrontendAuthUser(
-        id: session.user.id,
-        email: session.user.email,
-        userMetadata: _asStringMap(session.user.userMetadata ?? const {}),
-      ),
-    );
+    return FrontendAuthState(session: session, profile: profile);
   }
 
   Future<Map<String, Object?>> _postJson(

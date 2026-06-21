@@ -3,7 +3,7 @@ import {
   getSessionFromToken,
   signInWithPassword,
   updateUser,
-} from '@/lib/server/supabaseAuth';
+} from '@/lib/server/appAuth';
 import { adminSecurityHeaders } from '@/lib/server/securityHeaders';
 import {
   clearLoginFailures,

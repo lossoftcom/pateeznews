@@ -23,9 +23,48 @@ type AppAuthResult = {
   session?: {
     access_token?: string;
     refresh_token?: string;
+    user?: unknown;
   } | null;
   profile?: unknown;
 };
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        oauth2?: {
+          initTokenClient: (options: {
+            client_id: string;
+            scope: string;
+            callback: (response: { access_token?: string; error?: string; error_description?: string }) => void;
+          }) => { requestAccessToken: (options?: { prompt?: string }) => void };
+        };
+      };
+    };
+    AppleID?: {
+      auth?: {
+        init: (options: {
+          clientId: string;
+          scope: string;
+          redirectURI: string;
+          usePopup: boolean;
+        }) => void;
+        signIn: () => Promise<{
+          authorization?: { id_token?: string };
+          user?: { name?: { firstName?: string; lastName?: string }; email?: string };
+        }>;
+      };
+    };
+    FB?: {
+      init: (options: { appId: string; cookie: boolean; xfbml: boolean; version: string }) => void;
+      login: (
+        callback: (response: { authResponse?: { accessToken?: string }; status?: string }) => void,
+        options: { scope: string; return_scopes: boolean },
+      ) => void;
+    };
+    fbAsyncInit?: () => void;
+  }
+}
 
 interface LoginProps {
   onSuccess: () => void;
@@ -36,6 +75,13 @@ interface LoginProps {
 const DEFAULT_CITY = 'Niğde';
 const DEFAULT_LOGO_URL = '/local-upload/logo/tr/pateezlogoson.png';
 const AUTH_API_PATH = '/api/app/auth';
+const DEFAULT_GOOGLE_WEB_CLIENT_ID = '219689188237-jprruujk8knn7noafs2nbvdgnuc67mbe.apps.googleusercontent.com';
+const DEFAULT_APPLE_SERVICE_ID = 'com.pateez.pateezcom.web';
+const DEFAULT_FACEBOOK_APP_ID = '929495530098255';
+const GOOGLE_WEB_CLIENT_ID = import.meta.env.PUBLIC_GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
+const APPLE_SERVICE_ID = import.meta.env.PUBLIC_APPLE_SERVICE_ID || DEFAULT_APPLE_SERVICE_ID;
+const FACEBOOK_APP_ID = import.meta.env.PUBLIC_FACEBOOK_APP_ID || DEFAULT_FACEBOOK_APP_ID;
+const FACEBOOK_SDK_VERSION = 'v25.0';
 
 const turkeyCities = [
   'Adana',
@@ -185,14 +231,181 @@ async function appAuthRequest(body: Record<string, unknown>): Promise<AppAuthRes
 async function applySupabaseSession(session: AppAuthResult['session']) {
   const accessToken = String(session?.access_token || '').trim();
   const refreshToken = String(session?.refresh_token || '').trim();
-  if (!accessToken || !refreshToken) {
+  if (!accessToken) {
     throw new Error('Giriş oturumu alınamadı');
   }
   const { error } = await supabase.auth.setSession({
     access_token: accessToken,
     refresh_token: refreshToken,
+    user: session?.user as any,
   });
   if (error) throw error;
+}
+
+function loadScript(src: string, id: string) {
+  return new Promise<void>((resolve, reject) => {
+    if (typeof document === 'undefined') {
+      reject(new Error('Tarayıcı oturumu başlatılamadı'));
+      return;
+    }
+    const existing = document.getElementById(id) as HTMLScriptElement | null;
+    if (existing?.dataset.loaded === 'true') {
+      resolve();
+      return;
+    }
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Sosyal giriş SDK yüklenemedi')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = id;
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    };
+    script.onerror = () => reject(new Error('Sosyal giriş SDK yüklenemedi'));
+    document.head.appendChild(script);
+  });
+}
+
+async function getGoogleAccessToken() {
+  await loadScript('https://accounts.google.com/gsi/client', 'google-identity-services');
+  return new Promise<string>((resolve, reject) => {
+    const initTokenClient = window.google?.accounts?.oauth2?.initTokenClient;
+    if (!initTokenClient || !GOOGLE_WEB_CLIENT_ID) {
+      reject(new Error('Google giriş ayarı eksik'));
+      return;
+    }
+    const client = initTokenClient({
+      client_id: GOOGLE_WEB_CLIENT_ID,
+      scope: 'openid email profile',
+      callback: (response) => {
+        if (response.access_token) {
+          resolve(response.access_token);
+          return;
+        }
+        reject(new Error(response.error_description || response.error || 'Google giriş tamamlanamadı'));
+      },
+    });
+    client.requestAccessToken({ prompt: 'select_account' });
+  });
+}
+
+async function getAppleIdToken() {
+  await loadScript('https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js', 'apple-sign-in-js');
+  const appleAuth = window.AppleID?.auth;
+  if (!appleAuth || !APPLE_SERVICE_ID) {
+    throw new Error('Apple giriş ayarı eksik');
+  }
+  appleAuth.init({
+    clientId: APPLE_SERVICE_ID,
+    scope: 'name email',
+    redirectURI: `${window.location.origin}/auth/apple/callback`,
+    usePopup: true,
+  });
+  const response = await appleAuth.signIn();
+  const idToken = String(response.authorization?.id_token || '').trim();
+  if (!idToken) throw new Error('Apple kimlik tokenı alınamadı');
+  const fullName = [
+    response.user?.name?.firstName,
+    response.user?.name?.lastName,
+  ].map((value) => String(value || '').trim()).filter(Boolean).join(' ');
+  return {
+    idToken,
+    fullName,
+    email: String(response.user?.email || '').trim(),
+  };
+}
+
+let facebookSdkReady: Promise<void> | null = null;
+
+function ensureFacebookSdk() {
+  if (facebookSdkReady) return facebookSdkReady;
+  facebookSdkReady = new Promise<void>((resolve, reject) => {
+    window.fbAsyncInit = () => {
+      window.FB?.init({
+        appId: FACEBOOK_APP_ID,
+        cookie: false,
+        xfbml: false,
+        version: FACEBOOK_SDK_VERSION,
+      });
+      resolve();
+    };
+    loadScript('https://connect.facebook.net/en_US/sdk.js', 'facebook-jssdk').catch(reject);
+    if (window.FB) {
+      window.fbAsyncInit?.();
+    }
+  });
+  return facebookSdkReady;
+}
+
+async function getFacebookAccessToken() {
+  if (!FACEBOOK_APP_ID) throw new Error('Facebook giriş ayarı eksik');
+  await ensureFacebookSdk();
+  return new Promise<string>((resolve, reject) => {
+    window.FB?.login((response) => {
+      const token = String(response.authResponse?.accessToken || '').trim();
+      if (token) {
+        resolve(token);
+        return;
+      }
+      reject(new Error('Facebook giriş tamamlanamadı'));
+    }, { scope: 'public_profile,email', return_scopes: true });
+  });
+}
+
+async function getXSessionFromPopup() {
+  const popupWidth = 520;
+  const popupHeight = 680;
+  const left = Math.max(0, window.screenX + Math.round((window.outerWidth - popupWidth) / 2));
+  const top = Math.max(0, window.screenY + Math.round((window.outerHeight - popupHeight) / 2));
+  const popup = window.open(
+    `/auth/x/start?mode=popup&origin=${encodeURIComponent(window.location.origin)}`,
+    'pateez-x-login',
+    `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+  );
+  if (!popup) throw new Error('X giriş penceresi açılamadı');
+
+  return new Promise<AppAuthResult>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      reject(new Error('X giriş zaman aşımına uğradı'));
+    }, 120_000);
+
+    const timer = window.setInterval(() => {
+      if (popup.closed) {
+        window.clearInterval(timer);
+        window.clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+        reject(new Error('X giriş iptal edildi'));
+      }
+    }, 600);
+
+    function cleanup() {
+      window.clearInterval(timer);
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', onMessage);
+      popup.close();
+    }
+
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      const payload = event.data || {};
+      if (payload.type !== 'pateez-social-auth' || payload.provider !== 'x') return;
+      cleanup();
+      if (payload.error) {
+        reject(new Error(cleanMessage(payload.error, 'X giriş tamamlanamadı')));
+        return;
+      }
+      resolve({ session: payload.session, profile: payload.profile, user: payload.session?.user });
+    }
+
+    window.addEventListener('message', onMessage);
+  });
 }
 
 const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
@@ -408,15 +621,40 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
     setError(null);
     setFieldErrors({});
     try {
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-      if (oauthError) throw oauthError;
+      if (provider === 'google') {
+        const accessToken = await getGoogleAccessToken();
+        const data = await appAuthRequest({
+          action: 'signInWithSocialToken',
+          provider: 'google',
+          accessToken,
+        });
+        await applySupabaseSession(data.session);
+      } else if (provider === 'apple') {
+        const appleCredential = await getAppleIdToken();
+        const data = await appAuthRequest({
+          action: 'signInWithSocialToken',
+          provider: 'apple',
+          idToken: appleCredential.idToken,
+          fullName: appleCredential.fullName,
+          email: appleCredential.email,
+        });
+        await applySupabaseSession(data.session);
+      } else if (provider === 'facebook') {
+        const accessToken = await getFacebookAccessToken();
+        const data = await appAuthRequest({
+          action: 'signInWithSocialToken',
+          provider: 'facebook',
+          accessToken,
+        });
+        await applySupabaseSession(data.session);
+      } else {
+        const data = await getXSessionFromPopup();
+        await applySupabaseSession(data.session);
+      }
+      onSuccess();
     } catch (socialError: any) {
       setError(cleanMessage(socialError?.message, 'Sosyal giriş başlatılamadı.'));
+    } finally {
       setLoading(false);
     }
   };

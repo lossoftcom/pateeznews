@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/data/admin_memory_cache.dart';
+import '../../../shared/widgets/admin_toast.dart';
 import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../data/admin_news_repository.dart';
@@ -54,6 +55,7 @@ class _NewsScreenState extends State<NewsScreen> {
     publishers: [],
   );
   var _loading = true;
+  var _loadingMessageKey = 'news.loading.listing';
   String? _errorText;
   var _page = 1;
   var _pageSize = 25;
@@ -92,11 +94,14 @@ class _NewsScreenState extends State<NewsScreen> {
       '$_typeFilter|$_statusFilter|$_publisherFilter|$_page|$_pageSize|'
       '${_sortState.key}|${_sortState.ascending}';
 
-  Future<void> _loadAll() async {
+  Future<void> _loadAll({
+    bool preferCache = true,
+    String loadingMessageKey = 'news.loading.listing',
+  }) async {
     // Cache-öncelik: son veri varsa anında göster, sonra sessizce tazele.
     final cachedFilters = _newsFilterCache.get('filters');
     final cachedPage = _newsPageCache.get(_postsCacheKey());
-    if (cachedFilters != null && cachedPage != null) {
+    if (preferCache && cachedFilters != null && cachedPage != null) {
       setState(() {
         _filterOptions = cachedFilters;
         _posts = cachedPage.posts;
@@ -112,6 +117,7 @@ class _NewsScreenState extends State<NewsScreen> {
     }
 
     setState(() {
+      _loadingMessageKey = loadingMessageKey;
       _loading = true;
       _errorText = null;
     });
@@ -142,8 +148,27 @@ class _NewsScreenState extends State<NewsScreen> {
     }
   }
 
-  Future<void> _loadPosts() async {
+  Future<void> _loadPosts({
+    bool preferCache = true,
+    String loadingMessageKey = 'news.loading.listing',
+  }) async {
+    final cachedPage = _newsPageCache.get(_postsCacheKey());
+    if (preferCache && cachedPage != null) {
+      setState(() {
+        _posts = cachedPage.posts;
+        _totalCount = cachedPage.totalCount;
+        _selectedPostIds.removeWhere(
+          (id) => !_posts.any((post) => post.id == id),
+        );
+        _loading = false;
+        _errorText = null;
+      });
+      unawaited(_refreshPostsSilently());
+      return;
+    }
+
     setState(() {
+      _loadingMessageKey = loadingMessageKey;
       _loading = true;
       _errorText = null;
     });
@@ -250,7 +275,6 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   void _togglePost(String postId) {
-    if (_trashMode) return;
     setState(() {
       if (_selectedPostIds.contains(postId)) {
         _selectedPostIds.remove(postId);
@@ -364,39 +388,75 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   Future<void> _deletePost(AdminNewsPost post) async {
+    final permanently = _trashMode;
     final confirmed = await showAppConfirmationDialog(
       context,
-      title: context.t('Delete post?'),
+      title: context.t(
+        permanently ? 'news.deletePermanentTitle' : 'Delete post?',
+      ),
       message: context.t(
-        'news.deleteMessage',
+        permanently ? 'news.deletePermanentMessage' : 'news.deleteMessage',
         values: {'title': post.displayTitle},
       ),
-      confirmLabel: context.t('news.moveToTrash'),
+      confirmLabel: context.t(
+        permanently ? 'news.deletePermanently' : 'news.moveToTrash',
+      ),
       danger: true,
     );
     if (!confirmed) return;
-    await _runMutation(() => widget.repository.deletePost(post.id));
+    await _runMutation(
+      () => permanently
+          ? widget.repository.deletePosts([post.id], permanently: true)
+          : widget.repository.deletePost(post.id),
+      loadingMessageKey: 'news.loading.deleting',
+      successMessageKey: permanently
+          ? 'news.toast.deletedSelected'
+          : 'news.toast.movedSelectedToTrash',
+      successValues: const {'count': 1},
+    );
   }
 
   Future<void> _deleteSelected() async {
     final ids = _selectedPostIds.toList(growable: false);
     if (ids.isEmpty) return;
+    final permanently = _trashMode;
     final confirmed = await showAppConfirmationDialog(
       context,
-      title: context.t('Delete selected posts?'),
+      title: context.t(
+        permanently
+            ? 'news.deleteSelectedPermanentTitle'
+            : 'Delete selected posts?',
+      ),
       message: context.t(
-        'news.deleteSelectedMessage',
+        permanently
+            ? 'news.deleteSelectedPermanentMessage'
+            : 'news.deleteSelectedMessage',
         values: {'count': ids.length},
       ),
-      confirmLabel: context.t('news.moveToTrash'),
+      confirmLabel: context.t(
+        permanently ? 'news.deletePermanently' : 'news.moveToTrash',
+      ),
       danger: true,
     );
     if (!confirmed) return;
-    await _runMutation(() => widget.repository.deletePosts(ids));
+    await _runMutation(
+      () => widget.repository.deletePosts(ids, permanently: permanently),
+      loadingMessageKey: 'news.loading.deleting',
+      successMessageKey: permanently
+          ? 'news.toast.deletedSelected'
+          : 'news.toast.movedSelectedToTrash',
+      successValues: {'count': ids.length},
+    );
   }
 
-  Future<void> _runMutation(Future<void> Function() action) async {
+  Future<void> _runMutation(
+    Future<void> Function() action, {
+    String loadingMessageKey = 'news.loading.processing',
+    String? successMessageKey,
+    Map<String, Object?> successValues = const {},
+  }) async {
     setState(() {
+      _loadingMessageKey = loadingMessageKey;
       _loading = true;
       _errorText = null;
     });
@@ -404,7 +464,16 @@ class _NewsScreenState extends State<NewsScreen> {
       await action();
       if (!mounted) return;
       _selectedPostIds.clear();
-      await _loadAll();
+      _newsPageCache.clear();
+      await _loadAll(preferCache: false, loadingMessageKey: loadingMessageKey);
+      if (!mounted) return;
+      if (successMessageKey != null) {
+        AdminToast.show(
+          context,
+          message: context.t(successMessageKey, values: successValues),
+          tone: AdminToastTone.success,
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -456,6 +525,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 posts: _videoOnly ? _posts : _visiblePosts(),
                 filterOptions: _filterOptions,
                 loading: _loading,
+                loadingLabel: context.t(_loadingMessageKey),
                 searching: _searching && _searchQuery.trim().isNotEmpty,
                 page: _page,
                 pageSize: _pageSize,

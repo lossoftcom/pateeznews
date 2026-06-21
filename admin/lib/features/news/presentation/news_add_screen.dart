@@ -150,6 +150,20 @@ const _schemaTypeOptions = [
   _SchemaTypeOption('Recipe', 'newsAdd.schemaType.recipe'),
   _SchemaTypeOption('Event', 'newsAdd.schemaType.event'),
 ];
+const _factCheckRatingOptions = [
+  _FactCheckRatingOption('5', 'newsAdd.factCheck.rating.true'),
+  _FactCheckRatingOption('4', 'newsAdd.factCheck.rating.mostlyTrue'),
+  _FactCheckRatingOption('3', 'newsAdd.factCheck.rating.halfTrue'),
+  _FactCheckRatingOption('2', 'newsAdd.factCheck.rating.mostlyFalse'),
+  _FactCheckRatingOption('1', 'newsAdd.factCheck.rating.false'),
+];
+
+class _FactCheckRatingOption {
+  const _FactCheckRatingOption(this.value, this.labelKey);
+
+  final String value;
+  final String labelKey;
+}
 
 String _normalizeNewsAddCategoryLabel(String value) {
   return value
@@ -254,6 +268,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   final _publishAtController = TextEditingController();
   final _quizEndDateController = TextEditingController();
   final _coverAltController = TextEditingController();
+  final _factClaimController = TextEditingController();
+  final _factClaimAuthorController = TextEditingController();
+  final _factClaimAuthorUrlController = TextEditingController();
+  final _factClaimAppearanceUrlController = TextEditingController();
   final _mainScrollController = ScrollController();
   final _sidebarScrollController = ScrollController();
   final _articleBlocks = <Object>[ArticleTextBlockEntry()];
@@ -271,6 +289,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   // ── Misc state ────────────────────────────────────────────────────────────
   var _schemaType = 'NewsArticle';
+  var _factRatingValue = '5';
   var _languageCode = 'tr';
   var _mainCategory = 'Niğde';
   String? _subCategory;
@@ -345,6 +364,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _publishAtController.dispose();
     _quizEndDateController.dispose();
     _coverAltController.dispose();
+    _factClaimController.dispose();
+    _factClaimAuthorController.dispose();
+    _factClaimAuthorUrlController.dispose();
+    _factClaimAppearanceUrlController.dispose();
     _focusKeywordsController.dispose();
     _mainScrollController.dispose();
     _sidebarScrollController.dispose();
@@ -436,6 +459,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _mansetSlider = false;
     _pinToTop = false;
     _factCheck = false;
+    _factRatingValue = '5';
     _pollAllowMulti = false;
     _pollShowResults = true;
     _schemaType = 'NewsArticle';
@@ -446,6 +470,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _autoSubCategory = null;
     _coverImageUrl = null;
     _mansetImageUrl = null;
+    _factClaimController.clear();
+    _factClaimAuthorController.clear();
+    _factClaimAuthorUrlController.clear();
+    _factClaimAppearanceUrlController.clear();
     _editingPostId = widget.postId;
     _loadedPublisherId = null;
     _selectedPublisherId = null;
@@ -637,6 +665,26 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _pinToTop = post.isPinned;
     _mansetSlider = post.showInManset;
     _factCheck = post.factChecked;
+    final factCheckData = _map(post.cardData['factCheck']);
+    _setControllerText(
+      _factClaimController,
+      _text(factCheckData['claimReviewed']),
+    );
+    _setControllerText(
+      _factClaimAuthorController,
+      _text(factCheckData['claimAuthorName']),
+    );
+    _setControllerText(
+      _factClaimAuthorUrlController,
+      _text(factCheckData['claimAuthorUrl']),
+    );
+    _setControllerText(
+      _factClaimAppearanceUrlController,
+      _text(factCheckData['claimAppearanceUrl']),
+    );
+    _factRatingValue = _normalizeFactCheckRatingValue(
+      factCheckData['ratingValue'],
+    );
     _coverImageUrl = post.thumbnailUrl.trim().isEmpty
         ? null
         : post.thumbnailUrl;
@@ -2008,7 +2056,36 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (_mansetSlider && (_mansetImageUrl?.trim().isEmpty ?? true)) {
       return context.t('newsAdd.mansetImageRequiredError');
     }
+    if (_factCheck) {
+      if (_factClaimController.text.trim().isEmpty) {
+        return context.t('newsAdd.errorFactCheckClaimRequired');
+      }
+      if (!_factCheckRatingOptions.any(
+        (option) => option.value == _factRatingValue,
+      )) {
+        return context.t('newsAdd.errorFactCheckRatingRequired');
+      }
+      if (_factClaimAuthorController.text.trim().isEmpty &&
+          _factClaimAppearanceUrlController.text.trim().isEmpty) {
+        return context.t('newsAdd.errorFactCheckSourceRequired');
+      }
+      if (!_isOptionalHttpUrl(_factClaimAuthorUrlController.text)) {
+        return context.t('newsAdd.errorFactCheckUrlInvalid');
+      }
+      if (!_isOptionalHttpUrl(_factClaimAppearanceUrlController.text)) {
+        return context.t('newsAdd.errorFactCheckUrlInvalid');
+      }
+    }
     return null;
+  }
+
+  bool _isOptionalHttpUrl(String value) {
+    final raw = value.trim();
+    if (raw.isEmpty) return true;
+    final uri = Uri.tryParse(raw);
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.trim().isNotEmpty;
   }
 
   Future<void> _handleClearEditor() async {
@@ -2043,6 +2120,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _quizEndDateController,
       _coverAltController,
       _focusKeywordsController,
+      _factClaimController,
+      _factClaimAuthorController,
+      _factClaimAuthorUrlController,
+      _factClaimAppearanceUrlController,
     ];
     if (controllers.any((controller) => controller.text.trim().isNotEmpty)) {
       return true;
@@ -2946,6 +3027,11 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     } else {
       cardData['categoryPath'] = categoryPath;
     }
+    if (_factCheck) {
+      cardData['factCheck'] = _buildFactCheckData();
+    } else {
+      cardData.remove('factCheck');
+    }
     Map<String, Object?>? featured = items
         .where((item) => item['showOnHomepage'] == true)
         .cast<Map<String, Object?>?>()
@@ -3023,6 +3109,27 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return cardData;
   }
 
+  Map<String, Object?> _buildFactCheckData() {
+    final ratingValue = int.tryParse(_factRatingValue) ?? 5;
+    final data = <String, Object?>{
+      'claimReviewed': _factClaimController.text.trim(),
+      'ratingValue': ratingValue.clamp(1, 5),
+    };
+    final claimAuthor = _factClaimAuthorController.text.trim();
+    if (claimAuthor.isNotEmpty) {
+      data['claimAuthorName'] = claimAuthor;
+    }
+    final claimAuthorUrl = _factClaimAuthorUrlController.text.trim();
+    if (claimAuthorUrl.isNotEmpty) {
+      data['claimAuthorUrl'] = claimAuthorUrl;
+    }
+    final claimAppearanceUrl = _factClaimAppearanceUrlController.text.trim();
+    if (claimAppearanceUrl.isNotEmpty) {
+      data['claimAppearanceUrl'] = claimAppearanceUrl;
+    }
+    return data;
+  }
+
   String _entryId(Object owner) {
     final existing = _entryIds[owner];
     if (existing != null && existing.isNotEmpty) return existing;
@@ -3066,6 +3173,13 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   bool _bool(Object? value) {
     if (value is bool) return value;
     return value?.toString().toLowerCase() == 'true';
+  }
+
+  String _normalizeFactCheckRatingValue(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return _factCheckRatingOptions.any((option) => option.value == text)
+        ? text
+        : '5';
   }
 
   Map<String, Object?> _map(Object? value) {
@@ -3347,6 +3461,18 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
   void _handleRemoveKeyword(String value) {
     setState(() => _keywords.remove(value));
+  }
+
+  void _handleFactCheckChanged(bool value) {
+    setState(() {
+      _factCheck = value;
+      if (value && _factClaimController.text.trim().isEmpty) {
+        final title = _titleController.text.trim();
+        if (title.isNotEmpty) {
+          _factClaimController.text = title;
+        }
+      }
+    });
   }
 
   void _handleAddArticleTextBlock() {
@@ -6929,9 +7055,17 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         const SizedBox(height: 18),
         _PublishCard(
           factCheck: _factCheck,
+          factClaimController: _factClaimController,
+          factClaimAuthorController: _factClaimAuthorController,
+          factClaimAuthorUrlController: _factClaimAuthorUrlController,
+          factClaimAppearanceUrlController: _factClaimAppearanceUrlController,
+          factRatingValue: _factRatingValue,
           publishAtController: _publishAtController,
           saving: _saving,
-          onFactCheckChanged: (value) => setState(() => _factCheck = value),
+          onFactCheckChanged: _handleFactCheckChanged,
+          onFactRatingChanged: (value) => setState(
+            () => _factRatingValue = _normalizeFactCheckRatingValue(value),
+          ),
           onSaveDraft: () => unawaited(_handleSave('draft')),
           onPublish: () => unawaited(_handleSave('published')),
           onSchedule: () => unawaited(_handleSave('published')),
@@ -14265,18 +14399,30 @@ class _CategorySettingsCard extends StatelessWidget {
 class _PublishCard extends StatelessWidget {
   const _PublishCard({
     required this.factCheck,
+    required this.factClaimController,
+    required this.factClaimAuthorController,
+    required this.factClaimAuthorUrlController,
+    required this.factClaimAppearanceUrlController,
+    required this.factRatingValue,
     required this.publishAtController,
     required this.saving,
     required this.onFactCheckChanged,
+    required this.onFactRatingChanged,
     required this.onSaveDraft,
     required this.onPublish,
     required this.onSchedule,
   });
 
   final bool factCheck;
+  final TextEditingController factClaimController;
+  final TextEditingController factClaimAuthorController;
+  final TextEditingController factClaimAuthorUrlController;
+  final TextEditingController factClaimAppearanceUrlController;
+  final String factRatingValue;
   final TextEditingController publishAtController;
   final bool saving;
   final ValueChanged<bool> onFactCheckChanged;
+  final ValueChanged<String?> onFactRatingChanged;
   final VoidCallback onSaveDraft;
   final VoidCallback onPublish;
   final VoidCallback onSchedule;
@@ -14335,6 +14481,17 @@ class _PublishCard extends StatelessWidget {
               ],
             ),
           ),
+          if (factCheck) ...[
+            const SizedBox(height: 12),
+            _FactCheckDetailsFields(
+              claimController: factClaimController,
+              claimAuthorController: factClaimAuthorController,
+              claimAuthorUrlController: factClaimAuthorUrlController,
+              claimAppearanceUrlController: factClaimAppearanceUrlController,
+              ratingValue: factRatingValue,
+              onRatingChanged: onFactRatingChanged,
+            ),
+          ],
           const SizedBox(height: 16),
           const _FieldLabel('newsAdd.scheduledPublish'),
           Container(
@@ -14415,6 +14572,76 @@ class _PublishCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FactCheckDetailsFields extends StatelessWidget {
+  const _FactCheckDetailsFields({
+    required this.claimController,
+    required this.claimAuthorController,
+    required this.claimAuthorUrlController,
+    required this.claimAppearanceUrlController,
+    required this.ratingValue,
+    required this.onRatingChanged,
+  });
+
+  final TextEditingController claimController;
+  final TextEditingController claimAuthorController;
+  final TextEditingController claimAuthorUrlController;
+  final TextEditingController claimAppearanceUrlController;
+  final String ratingValue;
+  final ValueChanged<String?> onRatingChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _FieldLabel('newsAdd.factCheck.claim'),
+        _TextInputBox(
+          controller: claimController,
+          hintTextKey: 'newsAdd.factCheck.claimHint',
+          maxLines: 3,
+          minLines: 2,
+          fontSize: 12.8,
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('newsAdd.factCheck.rating'),
+        _DropdownField(
+          value: ratingValue,
+          leadingIcon: Symbols.fact_check_outlined,
+          items: [
+            for (final option in _factCheckRatingOptions)
+              DropdownMenuItem(
+                value: option.value,
+                child: Text(context.t(option.labelKey)),
+              ),
+          ],
+          onChanged: onRatingChanged,
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('newsAdd.factCheck.claimAuthor'),
+        _TextInputBox(
+          controller: claimAuthorController,
+          hintTextKey: 'newsAdd.factCheck.claimAuthorHint',
+          fontSize: 12.8,
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('newsAdd.factCheck.claimAuthorUrl'),
+        _TextInputBox(
+          controller: claimAuthorUrlController,
+          hintTextKey: 'newsAdd.factCheck.claimAuthorUrlHint',
+          fontSize: 12.8,
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('newsAdd.factCheck.claimAppearanceUrl'),
+        _TextInputBox(
+          controller: claimAppearanceUrlController,
+          hintTextKey: 'newsAdd.factCheck.claimAppearanceUrlHint',
+          fontSize: 12.8,
+        ),
+      ],
     );
   }
 }

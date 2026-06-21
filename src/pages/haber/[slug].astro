@@ -50,7 +50,8 @@ const initialLang = {
 };
 
 if (!newsItem) {
-  return Astro.redirect('/404');
+  Astro.response.status = 404;
+  return Astro.rewrite('/404');
 }
 
 const title = newsItem.seoTitle || `${newsItem.title} | ${siteSettings?.site_name || 'Pateez'}`;
@@ -121,9 +122,58 @@ const authorProfileUrl = newsItem.publisherHandle
   ? new URL(`/profil/${encodeURIComponent(newsItem.publisherHandle)}`, canonicalBase).toString()
   : '';
 const articleImage = toAbsoluteUrl(ogImage);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const orgName = (siteSettings?.organization_legal_name || siteSettings?.site_name || 'Pateez').trim();
 const orgLogo = toAbsoluteUrl(siteSettings?.logo_url || siteSettings?.favicon_url);
+const orgUrl = new URL('/', canonicalBase).toString();
+const factCheckData = isRecord(newsItem.factCheck) ? newsItem.factCheck : {};
+const toSchemaHttpUrl = (value: unknown) => {
+  const absolute = toAbsoluteUrl(String(value || ''));
+  if (!absolute) return '';
+  try {
+    const parsed = new URL(absolute);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : '';
+  } catch {
+    return '';
+  }
+};
+const factCheckRatingNumber = (() => {
+  const raw = Number(factCheckData.ratingValue);
+  if (!Number.isFinite(raw)) return null;
+  return Math.min(5, Math.max(1, Math.round(raw)));
+})();
+const factCheckRatingLabels: Record<string, Record<number, string>> = {
+  tr: {
+    1: 'Yanlış',
+    2: 'Büyük ölçüde yanlış',
+    3: 'Yarı doğru',
+    4: 'Büyük ölçüde doğru',
+    5: 'Doğru',
+  },
+  en: {
+    1: 'False',
+    2: 'Mostly false',
+    3: 'Half true',
+    4: 'Mostly true',
+    5: 'True',
+  },
+  ar: {
+    1: 'خاطئ',
+    2: 'خاطئ إلى حد كبير',
+    3: 'نصف صحيح',
+    4: 'صحيح إلى حد كبير',
+    5: 'صحيح',
+  },
+};
+const factCheckRatingLabel = factCheckRatingNumber
+  ? factCheckRatingLabels[lang]?.[factCheckRatingNumber] || factCheckRatingLabels.en[factCheckRatingNumber]
+  : '';
+const factCheckClaim = stripHtml(String(factCheckData.claimReviewed || ''));
+const factCheckClaimAuthorName = stripHtml(String(factCheckData.claimAuthorName || ''));
+const factCheckClaimAuthorUrl = toSchemaHttpUrl(factCheckData.claimAuthorUrl);
+const factCheckClaimAppearanceUrl = toSchemaHttpUrl(factCheckData.claimAppearanceUrl);
 const articleLd = {
   "@context": "https://schema.org",
   "@type": articleSchemaType,
@@ -157,6 +207,39 @@ const articleLd = {
   inLanguage: lang,
   isAccessibleForFree: true,
 };
+
+const factCheckItemReviewed = factCheckClaimAuthorName || factCheckClaimAppearanceUrl ? {
+  "@type": "Claim",
+  ...(factCheckClaimAuthorName ? {
+    author: {
+      "@type": "Organization",
+      name: factCheckClaimAuthorName,
+      ...(factCheckClaimAuthorUrl ? { sameAs: factCheckClaimAuthorUrl } : {}),
+    },
+  } : {}),
+  ...(factCheckClaimAppearanceUrl ? { appearance: factCheckClaimAppearanceUrl } : {}),
+} : null;
+const claimReviewLd = newsItem.factChecked && factCheckClaim && factCheckRatingNumber && factCheckRatingLabel ? {
+  "@context": "https://schema.org",
+  "@type": "ClaimReview",
+  url: canonicalUrl,
+  claimReviewed: factCheckClaim,
+  ...(toIso(newsItem.timestamp) ? { datePublished: toIso(newsItem.timestamp) } : {}),
+  author: {
+    "@type": "Organization",
+    name: orgName,
+    url: orgUrl,
+    ...(orgLogo ? { logo: { "@type": "ImageObject", url: orgLogo } } : {}),
+  },
+  reviewRating: {
+    "@type": "Rating",
+    ratingValue: factCheckRatingNumber,
+    bestRating: 5,
+    worstRating: 1,
+    alternateName: factCheckRatingLabel,
+  },
+  ...(factCheckItemReviewed ? { itemReviewed: factCheckItemReviewed } : {}),
+} : null;
 
 const getItemType = (item: any) => String(item?.type || '').trim().toLowerCase();
 const contentItems = Array.isArray(newsItem.items) ? newsItem.items : [];
@@ -291,7 +374,7 @@ const faqLd = faqItems.length > 0 ? {
   })),
 } : null;
 
-const jsonLdItems = [articleLd, breadcrumbLd, recipeLd, eventLd, videoLd, quizLd, faqLd].filter(Boolean);
+const jsonLdItems = [articleLd, claimReviewLd, breadcrumbLd, recipeLd, eventLd, videoLd, quizLd, faqLd].filter(Boolean);
 ---
 
 <Layout 

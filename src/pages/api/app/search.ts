@@ -153,6 +153,7 @@ export const GET: APIRoute = async ({ url, request }) => {
            LEFT JOIN public.profiles pr ON pr.id = p.publisher_id
            CROSS JOIN input
            WHERE p.status = 'published'
+             AND p.deleted_at IS NULL
              AND p.language_code = $3
              AND (p.published_at <= now() OR p.published_at IS NULL)
              AND (

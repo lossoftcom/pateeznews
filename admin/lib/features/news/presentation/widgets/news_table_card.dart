@@ -65,6 +65,7 @@ class NewsTableCard extends StatelessWidget {
     required this.posts,
     required this.filterOptions,
     required this.loading,
+    required this.loadingLabel,
     this.searching = false,
     required this.page,
     required this.pageSize,
@@ -103,6 +104,7 @@ class NewsTableCard extends StatelessWidget {
   final List<AdminNewsPost> posts;
   final AdminNewsFilterOptions filterOptions;
   final bool loading;
+  final String loadingLabel;
   final int page;
   final int pageSize;
   final int totalCount;
@@ -152,6 +154,7 @@ class NewsTableCard extends StatelessWidget {
               posts: posts,
               filterOptions: filterOptions,
               loading: loading,
+              loadingLabel: loadingLabel,
               page: page,
               pageSize: pageSize,
               totalCount: totalCount,
@@ -216,29 +219,41 @@ class NewsTableCard extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Expanded(
-                child: videoOnly
-                    ? _NewsVideoLibrary(
-                        posts: posts,
-                        loading: loading,
-                        searching: false,
-                        searchQuery: searchQuery,
-                        onEditPost: onEditPost,
-                      )
-                    : _NewsDataTable(
-                        posts: posts,
-                        loading: loading,
-                        searching: searching,
-                        selectedPostIds: selectedPostIds,
-                        sortState: sortState,
-                        trashMode: trashMode,
-                        onTogglePost: onTogglePost,
-                        onToggleAllPosts: onToggleAllPosts,
-                        onSort: onSort,
-                        onEditPost: onEditPost,
-                        onToggleStatus: onToggleStatus,
-                        onTogglePinned: onTogglePinned,
-                        onDeletePost: onDeletePost,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: videoOnly
+                          ? _NewsVideoLibrary(
+                              posts: posts,
+                              loading: loading,
+                              loadingLabel: loadingLabel,
+                              searching: false,
+                              searchQuery: searchQuery,
+                              onEditPost: onEditPost,
+                            )
+                          : _NewsDataTable(
+                              posts: posts,
+                              loading: loading,
+                              loadingLabel: loadingLabel,
+                              searching: searching,
+                              selectedPostIds: selectedPostIds,
+                              sortState: sortState,
+                              trashMode: trashMode,
+                              onTogglePost: onTogglePost,
+                              onToggleAllPosts: onToggleAllPosts,
+                              onSort: onSort,
+                              onEditPost: onEditPost,
+                              onToggleStatus: onToggleStatus,
+                              onTogglePinned: onTogglePinned,
+                              onDeletePost: onDeletePost,
+                            ),
+                    ),
+                    if (loading && posts.isNotEmpty)
+                      Positioned.fill(
+                        child: _NewsLoadingOverlay(label: loadingLabel),
                       ),
+                  ],
+                ),
               ),
               if (!videoOnly) ...[
                 const SizedBox(height: 16),
@@ -512,10 +527,11 @@ class _NewsToolbar extends StatelessWidget {
           active: videoOnly,
           onPressed: onToggleVideoOnly,
         );
-        final deleteButton = selectedCount == 0 || trashMode
+        final deleteButton = selectedCount == 0
             ? null
             : _BulkDeleteButton(
                 selectedCount: selectedCount,
+                permanent: trashMode,
                 onPressed: onDeleteSelected,
               );
 
@@ -929,10 +945,12 @@ class _AddPostButton extends StatelessWidget {
 class _BulkDeleteButton extends StatelessWidget {
   const _BulkDeleteButton({
     required this.selectedCount,
+    required this.permanent,
     required this.onPressed,
   });
 
   final int selectedCount;
+  final bool permanent;
   final VoidCallback onPressed;
 
   @override
@@ -969,7 +987,9 @@ class _BulkDeleteButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               context.t(
-                'news.selectedDelete',
+                permanent
+                    ? 'news.selectedPermanentDelete'
+                    : 'news.selectedDelete',
                 values: {'count': selectedCount},
               ),
             ),
@@ -984,6 +1004,7 @@ class _NewsDataTable extends StatefulWidget {
   const _NewsDataTable({
     required this.posts,
     required this.loading,
+    required this.loadingLabel,
     this.searching = false,
     required this.selectedPostIds,
     required this.sortState,
@@ -999,6 +1020,7 @@ class _NewsDataTable extends StatefulWidget {
 
   final List<AdminNewsPost> posts;
   final bool loading;
+  final String loadingLabel;
   final bool searching;
   final Set<String> selectedPostIds;
   final TableSortState sortState;
@@ -1102,7 +1124,7 @@ class _NewsDataTableState extends State<_NewsDataTable> {
                     child:
                         (widget.loading || widget.searching) &&
                             widget.posts.isEmpty
-                        ? const _NewsLoading()
+                        ? _NewsLoading(label: widget.loadingLabel)
                         : widget.posts.isEmpty
                         ? const _NewsEmpty()
                         : SingleChildScrollView(
@@ -2175,6 +2197,7 @@ class _NewsVideoLibrary extends StatelessWidget {
   const _NewsVideoLibrary({
     required this.posts,
     required this.loading,
+    required this.loadingLabel,
     required this.searching,
     required this.searchQuery,
     required this.onEditPost,
@@ -2182,6 +2205,7 @@ class _NewsVideoLibrary extends StatelessWidget {
 
   final List<AdminNewsPost> posts;
   final bool loading;
+  final String loadingLabel;
   final bool searching;
   final String searchQuery;
   final ValueChanged<AdminNewsPost> onEditPost;
@@ -2234,7 +2258,7 @@ class _NewsVideoLibrary extends StatelessWidget {
         : all.where((usage) => _matches(usage, query)).toList(growable: false);
 
     if (videos.isEmpty) {
-      if ((loading || searching)) return const _NewsLoading();
+      if ((loading || searching)) return _NewsLoading(label: loadingLabel);
       return _NewsVideoLibraryEmpty(filtered: query.isNotEmpty);
     }
 
@@ -4237,18 +4261,51 @@ class _NewsMenuItem extends StatelessWidget {
 }
 
 class _NewsLoading extends StatelessWidget {
-  const _NewsLoading();
+  const _NewsLoading({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox(
-        width: 22,
-        height: 22,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: AppColors.deepOcean,
-        ),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.8,
+              color: AppColors.actionRed,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.actionRed,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsLoadingOverlay extends StatelessWidget {
+  const _NewsLoadingOverlay({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return AbsorbPointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.78)),
+        child: _NewsLoading(label: label),
       ),
     );
   }
@@ -4481,6 +4538,7 @@ class _NewsMobileView extends StatelessWidget {
     required this.posts,
     required this.filterOptions,
     required this.loading,
+    required this.loadingLabel,
     required this.page,
     required this.pageSize,
     required this.totalCount,
@@ -4515,6 +4573,7 @@ class _NewsMobileView extends StatelessWidget {
   final List<AdminNewsPost> posts;
   final AdminNewsFilterOptions filterOptions;
   final bool loading;
+  final String loadingLabel;
   final int page;
   final int pageSize;
   final int totalCount;
@@ -4682,7 +4741,7 @@ class _NewsMobileView extends StatelessWidget {
       'common.recordRange',
       values: {'from': from, 'to': to, 'total': totalCount},
     );
-    final hasSelection = selectedPostIds.isNotEmpty && !trashMode;
+    final hasSelection = selectedPostIds.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4700,7 +4759,9 @@ class _NewsMobileView extends StatelessWidget {
             ? AdminMobileSelectionBar(
                 selectedCount: selectedPostIds.length,
                 label: context.t(
-                  'news.selectedDelete',
+                  trashMode
+                      ? 'news.selectedPermanentDelete'
+                      : 'news.selectedDelete',
                   values: {'count': selectedPostIds.length},
                 ),
                 onClear: () {
@@ -4770,32 +4831,45 @@ class _NewsMobileView extends StatelessWidget {
               ),
         const SizedBox(height: 14),
         Expanded(
-          child: videoOnly
-              ? _NewsVideoLibrary(
-                  posts: posts,
-                  loading: loading,
-                  searching: false,
-                  searchQuery: searchQuery,
-                  onEditPost: onEditPost,
-                )
-              : AdminMobileListView(
-                  loading: loading,
-                  itemCount: posts.length,
-                  emptyLabel: context.t('No posts found'),
-                  itemBuilder: (context, index) {
-                    final post = posts[index];
-                    return _NewsMobileCard(
-                      post: post,
-                      selected: selectedPostIds.contains(post.id),
-                      onToggle: () => onTogglePost(post.id),
-                      trashMode: trashMode,
-                      onEditPost: onEditPost,
-                      onToggleStatus: onToggleStatus,
-                      onTogglePinned: onTogglePinned,
-                      onDeletePost: onDeletePost,
-                    );
-                  },
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: videoOnly
+                    ? _NewsVideoLibrary(
+                        posts: posts,
+                        loading: loading,
+                        loadingLabel: loadingLabel,
+                        searching: false,
+                        searchQuery: searchQuery,
+                        onEditPost: onEditPost,
+                      )
+                    : loading && posts.isEmpty
+                    ? _NewsLoading(label: loadingLabel)
+                    : AdminMobileListView(
+                        loading: false,
+                        itemCount: posts.length,
+                        emptyLabel: context.t('No posts found'),
+                        itemBuilder: (context, index) {
+                          final post = posts[index];
+                          return _NewsMobileCard(
+                            post: post,
+                            selected: selectedPostIds.contains(post.id),
+                            onToggle: () => onTogglePost(post.id),
+                            trashMode: trashMode,
+                            onEditPost: onEditPost,
+                            onToggleStatus: onToggleStatus,
+                            onTogglePinned: onTogglePinned,
+                            onDeletePost: onDeletePost,
+                          );
+                        },
+                      ),
+              ),
+              if (loading && posts.isNotEmpty)
+                Positioned.fill(
+                  child: _NewsLoadingOverlay(label: loadingLabel),
                 ),
+            ],
+          ),
         ),
         if (!videoOnly) ...[
           const SizedBox(height: 12),

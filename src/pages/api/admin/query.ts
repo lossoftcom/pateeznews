@@ -128,6 +128,8 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'newsletter_popup_delay_seconds', 'newsletter_popup_frequency_days',
       'newsletter_popup_title', 'newsletter_popup_description',
       'newsletter_popup_button_label',
+      'google_news_enabled', 'google_news_publication_name',
+      'google_news_rss_content_mode', 'google_news_feed_limit',
       'twitter_username', 'fb_app_id',
       'social_whatsapp_url', 'social_telegram_url', 'social_instagram_url',
       'social_facebook_url', 'social_x_url', 'social_youtube_url',

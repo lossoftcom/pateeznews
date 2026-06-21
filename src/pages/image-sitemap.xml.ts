@@ -82,6 +82,7 @@ export const GET: APIRoute = async ({ request }) => {
     .from('posts')
     .select('id, slug, updated_at, published_at, thumbnail_url, media_url, card_data, items')
     .eq('status', 'published')
+    .is('deleted_at', null)
     .eq('language_code', lang)
     .order('published_at', { ascending: false })
     .limit(1000);

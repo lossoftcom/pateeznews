@@ -118,6 +118,13 @@ export interface NewsItem {
   keywords?: string;
   slug?: string;
   factChecked?: boolean;
+  factCheck?: {
+    claimReviewed?: string;
+    ratingValue?: number | string;
+    claimAuthorName?: string;
+    claimAuthorUrl?: string;
+    claimAppearanceUrl?: string;
+  };
   schemaType?: string;
   faqData?: { q: string; a: string }[];
 }
@@ -305,6 +312,10 @@ export interface SiteSettings {
   newsletter_popup_title?: string;
   newsletter_popup_description?: string;
   newsletter_popup_button_label?: string;
+  google_news_enabled?: boolean;
+  google_news_publication_name?: string;
+  google_news_rss_content_mode?: 'full' | 'summary';
+  google_news_feed_limit?: number;
   robots_txt?: string;
   header_custom_codes?: string;
   footer_custom_codes?: string;

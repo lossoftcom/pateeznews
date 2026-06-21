@@ -7,6 +7,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/widgets/symbol_icon.dart';
 import 'sidebar_header.dart';
 import 'sidebar_item.dart';
 
@@ -694,9 +695,12 @@ class _SidebarState extends State<Sidebar> {
 
   static const _mailGroup = 'mail';
   static const _notificationsGroup = 'notifications';
+  static const _contentGroup = 'content';
   static const _smsGroup = 'sms';
   static const _whatsappGroup = 'whatsapp';
   static const _socialGroup = 'social';
+  static const _managementGroup = 'management';
+  static const _userManagementGroup = 'user_management';
   static const _modulesGroup = 'modules';
   static const _settingsGroup = 'settings';
 
@@ -741,6 +745,12 @@ class _SidebarState extends State<Sidebar> {
         data.notificationSettingsSelected) {
       return _notificationsGroup;
     }
+    if (data.newsAddSelected ||
+        data.newsSelected ||
+        data.storiesSelected ||
+        data.commentsSelected) {
+      return _contentGroup;
+    }
     if (data.mailInboxSelected ||
         data.bulkMailSelected ||
         data.mailTemplatesSelected ||
@@ -766,6 +776,14 @@ class _SidebarState extends State<Sidebar> {
         data.socialAccountsSelected ||
         data.socialSettingsSelected) {
       return _socialGroup;
+    }
+    if (data.subscribersSelected ||
+        data.pagesSelected ||
+        data.navigationSelected) {
+      return _managementGroup;
+    }
+    if (data.usersSelected || data.rolesPermissionsSelected) {
+      return _userManagementGroup;
     }
     if (data.storageSettingsSelected ||
         data.googleNewsSelected ||
@@ -873,6 +891,13 @@ class _SidebarState extends State<Sidebar> {
         widget.notificationTemplatesSelected ||
         widget.notificationDevicesSelected ||
         widget.notificationSettingsSelected;
+    final contentSelected =
+        widget.newsAddSelected ||
+        widget.newsSelected ||
+        widget.storiesSelected ||
+        widget.commentsSelected;
+    final contentVisible =
+        widget.newsVisible || widget.storiesVisible || widget.commentsVisible;
     final smsSelected =
         widget.smsOutboxSelected ||
         widget.smsBulkSelected ||
@@ -915,6 +940,18 @@ class _SidebarState extends State<Sidebar> {
         widget.contentSettingsVisible ||
         widget.fontSettingsVisible ||
         widget.languageSettingsVisible;
+    final managementSelected =
+        widget.subscribersSelected ||
+        widget.pagesSelected ||
+        widget.navigationSelected;
+    final managementVisible =
+        widget.subscribersVisible ||
+        widget.pagesVisible ||
+        widget.navigationVisible;
+    final userManagementSelected =
+        widget.usersSelected || widget.rolesPermissionsSelected;
+    final userManagementVisible =
+        widget.usersVisible || widget.rolesPermissionsVisible;
     final expanded =
         widget.drawerMode || _pinnedOpen || _hovering || !_autoCollapsed;
     final compact = !expanded && !widget.drawerMode;
@@ -956,46 +993,44 @@ class _SidebarState extends State<Sidebar> {
                       compact: compact,
                       onTap: () => _select(context, widget.onHomeSelected),
                     ),
-                  if (widget.newsVisible)
-                    SidebarItem(
-                      icon: Symbols.add,
-                      label: context.t('nav.newsAdd'),
-                      selected: widget.newsAddSelected,
-                      compact: compact,
-                      onTap: () => _select(context, widget.onNewsAddSelected),
-                    ),
-                  if (widget.newsVisible)
-                    SidebarItem(
+                  if (contentVisible)
+                    SidebarExpandableItem(
                       icon: Symbols.article,
-                      label: context.t('nav.news'),
-                      selected: widget.newsSelected,
+                      label: context.t('nav.contentManagement'),
+                      selected: contentSelected,
                       compact: compact,
-                      onTap: () => _select(context, widget.onNewsSelected),
-                    ),
-                  if (widget.storiesVisible)
-                    SidebarItem(
-                      icon: Symbols.photo_camera,
-                      label: context.t('nav.stories'),
-                      selected: widget.storiesSelected,
-                      compact: compact,
-                      onTap: () => _select(context, widget.onStoriesSelected),
-                    ),
-                  if (widget.commentsVisible)
-                    SidebarItem(
-                      icon: Symbols.short_text,
-                      label: context.t('nav.comments'),
-                      selected: widget.commentsSelected,
-                      compact: compact,
-                      onTap: () => _select(context, widget.onCommentsSelected),
-                    ),
-                  if (widget.subscribersVisible)
-                    SidebarItem(
-                      icon: Symbols.group,
-                      label: context.t('nav.subscribers'),
-                      selected: widget.subscribersSelected,
-                      compact: compact,
-                      onTap: () =>
-                          _select(context, widget.onSubscribersSelected),
+                      expanded: _openExpandable == _contentGroup,
+                      onTap: () => _handleExpandableTap(_contentGroup),
+                      children: [
+                        if (widget.newsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.newsAdd'),
+                            selected: widget.newsAddSelected,
+                            onTap: () =>
+                                _select(context, widget.onNewsAddSelected),
+                          ),
+                        if (widget.newsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.news'),
+                            selected: widget.newsSelected,
+                            onTap: () =>
+                                _select(context, widget.onNewsSelected),
+                          ),
+                        if (widget.storiesVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.stories'),
+                            selected: widget.storiesSelected,
+                            onTap: () =>
+                                _select(context, widget.onStoriesSelected),
+                          ),
+                        if (widget.commentsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.comments'),
+                            selected: widget.commentsSelected,
+                            onTap: () =>
+                                _select(context, widget.onCommentsSelected),
+                          ),
+                      ],
                     ),
                   if (widget.notificationsVisible)
                     SidebarExpandableItem(
@@ -1211,39 +1246,64 @@ class _SidebarState extends State<Sidebar> {
                         ),
                       ],
                     ),
-                  if (widget.pagesVisible)
-                    SidebarItem(
-                      icon: Symbols.draft,
-                      label: context.t('nav.pages'),
-                      selected: widget.pagesSelected,
+                  if (managementVisible)
+                    SidebarExpandableItem(
+                      icon: Symbols.apps,
+                      label: context.t('nav.management'),
+                      selected: managementSelected,
                       compact: compact,
-                      onTap: () => _select(context, widget.onPagesSelected),
+                      expanded: _openExpandable == _managementGroup,
+                      onTap: () => _handleExpandableTap(_managementGroup),
+                      children: [
+                        if (widget.subscribersVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.subscribers'),
+                            selected: widget.subscribersSelected,
+                            onTap: () =>
+                                _select(context, widget.onSubscribersSelected),
+                          ),
+                        if (widget.pagesVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.pages'),
+                            selected: widget.pagesSelected,
+                            onTap: () =>
+                                _select(context, widget.onPagesSelected),
+                          ),
+                        if (widget.navigationVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.navigation'),
+                            selected: widget.navigationSelected,
+                            onTap: () =>
+                                _select(context, widget.onNavigationSelected),
+                          ),
+                      ],
                     ),
-                  if (widget.navigationVisible)
-                    SidebarItem(
-                      icon: Symbols.format_list_numbered,
-                      label: context.t('nav.navigation'),
-                      selected: widget.navigationSelected,
-                      compact: compact,
-                      onTap: () =>
-                          _select(context, widget.onNavigationSelected),
-                    ),
-                  if (widget.usersVisible)
-                    SidebarItem(
+                  if (userManagementVisible)
+                    SidebarExpandableItem(
                       icon: Symbols.group,
-                      label: context.t('nav.users'),
-                      selected: widget.usersSelected,
+                      label: context.t('nav.userManagement'),
+                      selected: userManagementSelected,
                       compact: compact,
-                      onTap: () => _select(context, widget.onUsersSelected),
-                    ),
-                  if (widget.rolesPermissionsVisible)
-                    SidebarItem(
-                      icon: Symbols.verified,
-                      label: context.t('nav.roles'),
-                      selected: widget.rolesPermissionsSelected,
-                      compact: compact,
-                      onTap: () =>
-                          _select(context, widget.onRolesPermissionsSelected),
+                      expanded: _openExpandable == _userManagementGroup,
+                      onTap: () => _handleExpandableTap(_userManagementGroup),
+                      children: [
+                        if (widget.usersVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.users'),
+                            selected: widget.usersSelected,
+                            onTap: () =>
+                                _select(context, widget.onUsersSelected),
+                          ),
+                        if (widget.rolesPermissionsVisible)
+                          SidebarSubItem(
+                            label: context.t('nav.roles'),
+                            selected: widget.rolesPermissionsSelected,
+                            onTap: () => _select(
+                              context,
+                              widget.onRolesPermissionsSelected,
+                            ),
+                          ),
+                      ],
                     ),
                   if (widget.adsVisible)
                     SidebarItem(
@@ -1395,6 +1455,10 @@ class _SidebarState extends State<Sidebar> {
                           ),
                       ],
                     ),
+                  if (settingsVisible) ...[
+                    const SizedBox(height: 10),
+                    _DatabaseDownloadButton(compact: compact),
+                  ],
                 ],
               ),
             ),
@@ -1409,5 +1473,78 @@ class _SidebarState extends State<Sidebar> {
       onExit: _handleHoverExit,
       child: sidebar,
     );
+  }
+}
+
+class _DatabaseDownloadButton extends StatelessWidget {
+  const _DatabaseDownloadButton({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = context.t('nav.downloadDatabase');
+    final button = Padding(
+      padding: EdgeInsets.only(
+        left: compact ? 0 : 4,
+        right: compact ? 0 : 4,
+        bottom: 4,
+      ),
+      child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        onTap: () {},
+        child: Container(
+          height: 38,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 12),
+          decoration: BoxDecoration(
+            color: AppColors.deepOcean.withValues(alpha: 0.045),
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: AppColors.deepOcean.withValues(alpha: 0.12),
+            ),
+          ),
+          child: compact
+              ? Center(
+                  child: SymbolIcon(
+                    Symbols.download,
+                    color: AppColors.deepOcean,
+                    size: 18,
+                  ),
+                )
+              : Row(
+                  children: [
+                    SymbolIcon(
+                      Symbols.download,
+                      color: AppColors.deepOcean,
+                      size: 17,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+
+    return compact
+        ? Tooltip(
+            message: label,
+            waitDuration: const Duration(milliseconds: 450),
+            child: button,
+          )
+        : button;
   }
 }

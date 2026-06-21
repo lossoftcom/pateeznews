@@ -60,13 +60,19 @@ export const GET: APIRoute = async ({ request }) => {
     .from('posts')
     .select('id, slug, title, seo_title, published_at')
     .eq('status', 'published')
+    .is('deleted_at', null)
     .eq('language_code', lang)
     .gte('published_at', since)
     .lte('published_at', new Date().toISOString())
     .order('published_at', { ascending: false })
     .limit(1000);
 
-  const publicationName = stripText(siteSettings?.site_name || siteSettings?.organization_legal_name || 'Pateez');
+  const publicationName = stripText(
+    siteSettings?.google_news_publication_name ||
+    siteSettings?.site_name ||
+    siteSettings?.organization_legal_name ||
+    'Pateez'
+  );
   const newsLanguage = (lang || defaultLangCode || 'tr').split(/[-_]/)[0].toLowerCase();
 
   const entries = (data || []).map((post: any) => {

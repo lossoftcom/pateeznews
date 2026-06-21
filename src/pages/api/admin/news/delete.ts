@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import { submitIndexNowForPosts } from '@/lib/server/indexNow';
+import { deleteTrashPostsByIds } from '@/lib/server/postTrash';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 export const POST: APIRoute = async ({ request }) => {
@@ -11,6 +12,21 @@ export const POST: APIRoute = async ({ request }) => {
       .map((value: unknown) => Number(value))
       .filter((value: number) => Number.isFinite(value));
     if (!ids.length) return adminJson({ data: null, error: { message: 'At least one post id is required' } }, 400);
+
+    if (body?.permanent === true) {
+      const cleanupLanguage = String(body?.language || '').trim() || 'tr';
+      const result = await deleteTrashPostsByIds(ids, cleanupLanguage);
+
+      if (result.rows.length) {
+        try {
+          await submitIndexNowForPosts(request, result.rows);
+        } catch (error) {
+          console.warn('IndexNow submission failed:', error instanceof Error ? error.message : error);
+        }
+      }
+
+      return adminJson({ data: { deleted: result.rows.map((row) => row.id) }, error: null });
+    }
 
     const result = await dbQuery(
       `UPDATE public.posts
