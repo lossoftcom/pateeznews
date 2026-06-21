@@ -8,6 +8,7 @@ import { formatPostDateParts, isPostId } from '@/utils/helpers';
 import { navigateImmediately } from '@/utils/immediateNavigation';
 import { getPostHref } from '@/utils/postUrl';
 import { getProfileHref } from '@/utils/profileUrl';
+import { openSiteSearch } from '@/utils/searchNavigation';
 import {
   buildFacebookShareUrl,
   buildShareHashtags,
@@ -974,10 +975,15 @@ const MobileVideoFeedOverlay: React.FC<MobileVideoFeedOverlayProps> = ({ newsIte
     }
   };
 
+  const openSearch = () => {
+    onClose();
+    void openSiteSearch();
+  };
+
   return (
     <div className="mobile-video-feed-overlay" role="dialog" aria-modal="true" aria-label="Video">
       <header className="mobile-video-feed-topbar">
-        <button type="button" className="mobile-video-feed-top-icon" aria-label="Ara">
+        <button type="button" className="mobile-video-feed-top-icon" onClick={openSearch} aria-label="Ara">
           <RemixIcon name="ri-search-line" size={19} />
         </button>
         <FullscreenBrand siteSettings={siteSettings} />

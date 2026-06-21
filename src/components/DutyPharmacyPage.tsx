@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import RemixIcon from '@/components/ui/RemixIcon';
 import { navigateImmediately } from '@/utils/immediateNavigation';
+import { openSiteSearch } from '@/utils/searchNavigation';
 
 type DutyPharmacy = {
   id: string;
@@ -139,11 +140,15 @@ const DutyPharmacyPage: React.FC = () => {
     void navigateImmediately('/');
   };
 
+  const openSearch = () => {
+    void openSiteSearch();
+  };
+
   return (
     <main className="duty-pharmacy-mobile-page" aria-label="Nöbetçi Eczane">
       <div className="duty-pharmacy-shell">
         <header className="duty-pharmacy-appbar">
-          <button type="button" className="duty-pharmacy-icon-button duty-pharmacy-search-button" aria-label="Ara">
+          <button type="button" className="duty-pharmacy-icon-button duty-pharmacy-search-button" onClick={openSearch} aria-label="Ara">
             <RemixIcon name="ri-search-line" size={25} />
           </button>
           <div className="duty-pharmacy-appbar-title">

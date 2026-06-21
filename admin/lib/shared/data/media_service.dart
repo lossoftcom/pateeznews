@@ -399,7 +399,7 @@ class MediaService {
           onTransferProgress?.call(
             const MediaTransferProgress(
               phase: 'processing',
-              progress: 0,
+              progress: null,
               remaining: null,
             ),
           );

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import RemixIcon from '@/components/ui/RemixIcon';
 import { navigateImmediately } from '@/utils/immediateNavigation';
+import { openSiteSearch } from '@/utils/searchNavigation';
 
 type MarketRate = {
   id: string;
@@ -155,11 +156,15 @@ const MarketRatesPage: React.FC = () => {
     void navigateImmediately('/');
   };
 
+  const openSearch = () => {
+    void openSiteSearch();
+  };
+
   return (
     <main className="market-rates-mobile-page" aria-label="Döviz ve Altın">
       <div className="market-rates-shell">
         <header className="market-rates-appbar">
-          <button type="button" className="market-rates-icon-button market-rates-search-button" aria-label="Ara">
+          <button type="button" className="market-rates-icon-button market-rates-search-button" onClick={openSearch} aria-label="Ara">
             <RemixIcon name="ri-search-line" size={25} />
           </button>
           <div className="market-rates-appbar-title">

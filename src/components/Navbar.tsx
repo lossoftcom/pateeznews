@@ -14,6 +14,7 @@ import {
   type SpecialContentConfig
 } from '@/utils/specialContent';
 import { searchSite } from '@/services/appActions';
+import { getSiteSearchHref, openSiteSearch } from '@/utils/searchNavigation';
 
 interface NavbarProps {
   onHomeClick?: () => void;
@@ -560,7 +561,7 @@ const Navbar: React.FC<NavbarProps> = ({
       openSearchResult(`/profil/${encodeURIComponent(firstProfile.username || firstProfile.id)}`);
       return;
     }
-    if (searchTerm.trim()) openSearchResult(`/kategori/${slugify(searchTerm.trim())}`);
+    if (searchTerm.trim()) openSearchResult(getSiteSearchHref(searchTerm.trim(), currentLang.code || 'tr'));
   };
 
   const activeQueryCategory = new URLSearchParams(currentLocation.search).get('kategori');
@@ -592,7 +593,9 @@ const Navbar: React.FC<NavbarProps> = ({
   };
 
   const videoConfig = getSpecialContentConfig('video');
-  const isMobileOverlayActive = isMobileAppsOpen || isSearchOpen || showUserMenu;
+  const isSearchRouteActive = activePath === '/arama';
+  const isSearchActive = isSearchOpen || isSearchRouteActive;
+  const isMobileOverlayActive = isMobileAppsOpen || isSearchOpen || showUserMenu || isSearchRouteActive;
   const isHomeActive = !isMobileOverlayActive && activePath === '/' && !activeQueryCategory;
   const isVideoActive = !isMobileOverlayActive && videoConfig ? isSpecialActive(videoConfig) : false;
   const isAccountRouteActive = activePath === '/profil' || activePath === '/profil-duzenle' || activePath.startsWith('/profil/');
@@ -628,7 +631,16 @@ const Navbar: React.FC<NavbarProps> = ({
     setIsMobileDrawerOpen(false);
     setIsMobileAppsOpen(false);
     setShowUserMenu(false);
-    setIsSearchOpen(true);
+    setIsSearchOpen(false);
+    void openSiteSearch('', currentLang.code || 'tr');
+  };
+
+  const toggleHeaderSearch = () => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      void openSiteSearch(searchTerm, currentLang.code || 'tr');
+      return;
+    }
+    setIsSearchOpen((value) => !value);
   };
 
   const openMobileAccount = () => {
@@ -858,7 +870,8 @@ const Navbar: React.FC<NavbarProps> = ({
 
           <div className="public-site-header-actions flex items-center gap-1 ml-auto z-20">
             <button
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              onClick={toggleHeaderSearch}
+              aria-label={isSearchOpen ? 'Aramayı kapat' : 'Ara'}
               className={`w-10 h-10 flex items-center justify-center rounded-[5px] transition-colors duration-100 ${isSearchOpen
                 ? 'bg-gray-900 text-white shadow-md'
                 : 'text-palette-tan hover:bg-palette-beige/10'
@@ -1323,8 +1336,8 @@ const Navbar: React.FC<NavbarProps> = ({
           <RemixIcon name={isMobileAppsOpen ? 'ri-apps-fill' : 'ri-apps-line'} size={isMobileAppsOpen ? 22 : 21} />
           <span>Uygulamalar</span>
         </button>
-        <button type="button" onClick={openMobileSearch} className={isSearchOpen ? 'is-active' : undefined}>
-          <RemixIcon name={isSearchOpen ? 'ri-search-fill' : 'ri-search-line'} size={isSearchOpen ? 22 : 21} />
+        <button type="button" onClick={openMobileSearch} className={isSearchActive ? 'is-active' : undefined}>
+          <RemixIcon name={isSearchActive ? 'ri-search-fill' : 'ri-search-line'} size={isSearchActive ? 22 : 21} />
           <span>Arama</span>
         </button>
         <button type="button" onClick={openMobileAccount} className={isAccountActive ? 'is-active' : undefined}>
@@ -1363,6 +1376,7 @@ const Navbar: React.FC<NavbarProps> = ({
             />
             <div className="absolute right-3.5 flex items-center gap-2 z-10">
               <button
+                type="button"
                 onClick={() => setIsSearchOpen(false)}
                 className="p-1 text-palette-tan/30 hover:text-palette-red"
               >
@@ -1379,7 +1393,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 </div>
               ) : searchResults.posts.length === 0 && searchResults.profiles.length === 0 ? (
                 <button
-                  onClick={() => openSearchResult(`/kategori/${slugify(searchTerm.trim())}`)}
+                  onClick={() => openSearchResult(getSiteSearchHref(searchTerm.trim(), currentLang.code || 'tr'))}
                   className="w-full px-4 py-5 text-left text-[12px] font-bold text-palette-tan hover:bg-palette-beige/10"
                 >
                   {searchTerm.trim()}

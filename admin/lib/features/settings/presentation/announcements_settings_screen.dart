@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
 
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
@@ -9,8 +7,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/data/media_service.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/media_library_dialog.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../../news/data/admin_news_repository.dart';
@@ -1096,15 +1096,11 @@ class _ManualAnnouncementAiDialog extends StatefulWidget {
 
 class _ManualAnnouncementAiDialogState
     extends State<_ManualAnnouncementAiDialog> {
-  static const _maxImageBytes = 8 * 1024 * 1024;
-
   final _textController = TextEditingController();
   final _notesController = TextEditingController();
   final _sourceController = TextEditingController();
   var _district = '';
-  Uint8List? _imageBytes;
-  var _imageFileName = '';
-  var _imageMimeType = '';
+  var _imageUrl = '';
   var _working = false;
   String? _error;
 
@@ -1118,26 +1114,20 @@ class _ManualAnnouncementAiDialogState
 
   Future<void> _pickImage() async {
     if (_working) return;
-    final file = await openFile(
-      acceptedTypeGroups: const [
-        XTypeGroup(
-          label: 'Duyuru görseli',
-          extensions: ['jpg', 'jpeg', 'png', 'webp'],
-        ),
-      ],
-    );
-    if (file == null) return;
-    final length = await file.length();
-    if (length > _maxImageBytes) {
-      setState(() => _error = 'Görsel 8 MB sınırını aşmamalı.');
-      return;
-    }
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
+    final selected = await showMediaLibraryDialog(context);
+    if (selected == null || selected.trim().isEmpty || !mounted) return;
     setState(() {
-      _imageBytes = bytes;
-      _imageFileName = file.name;
-      _imageMimeType = _imageMimeTypeForName(file.name);
+      _imageUrl = selected.trim();
+      _error = null;
+    });
+  }
+
+  Future<void> _pickImageUrl() async {
+    if (_working) return;
+    final selected = await showUrlImageDialog(context);
+    if (selected == null || selected.trim().isEmpty || !mounted) return;
+    setState(() {
+      _imageUrl = selected.trim();
       _error = null;
     });
   }
@@ -1145,16 +1135,14 @@ class _ManualAnnouncementAiDialogState
   void _removeImage() {
     if (_working) return;
     setState(() {
-      _imageBytes = null;
-      _imageFileName = '';
-      _imageMimeType = '';
+      _imageUrl = '';
     });
   }
 
   Future<void> _submit() async {
     if (_working) return;
     final text = _textController.text.trim();
-    if (text.isEmpty && (_imageBytes == null || _imageBytes!.isEmpty)) {
+    if (text.isEmpty && _imageUrl.trim().isEmpty) {
       setState(() => _error = 'Duyuru metni veya görsel eklenmeli.');
       return;
     }
@@ -1169,9 +1157,7 @@ class _ManualAnnouncementAiDialogState
           notes: _notesController.text,
           district: _district,
           sourceName: _sourceController.text,
-          imageBytes: _imageBytes,
-          imageFileName: _imageFileName,
-          imageMimeType: _imageMimeType,
+          imageUrl: _imageUrl,
         ),
       );
       if (!mounted) return;
@@ -1367,10 +1353,10 @@ class _ManualAnnouncementAiDialogState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ManualAiImagePanel(
-          imageBytes: _imageBytes,
-          imageFileName: _imageFileName,
+          imageUrl: _imageUrl,
           onPick: _pickImage,
-          onRemove: _imageBytes == null ? null : _removeImage,
+          onPickUrl: _pickImageUrl,
+          onRemove: _imageUrl.trim().isEmpty ? null : _removeImage,
         ),
         const SizedBox(height: 14),
         const _ManualAiRulePanel(),
@@ -1623,93 +1609,276 @@ class _ManualAiLabel extends StatelessWidget {
   }
 }
 
+const _manualAiStrongLine = Color(0xFFDDE5E8);
+const _manualAiUploadInk = Color(0xFF6D7B83);
+
 class _ManualAiImagePanel extends StatelessWidget {
   const _ManualAiImagePanel({
-    required this.imageBytes,
-    required this.imageFileName,
+    required this.imageUrl,
     required this.onPick,
+    required this.onPickUrl,
     required this.onRemove,
   });
 
-  final Uint8List? imageBytes;
-  final String imageFileName;
+  final String imageUrl;
   final VoidCallback onPick;
+  final VoidCallback onPickUrl;
   final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final bytes = imageBytes;
+    final cleanImageUrl = imageUrl.trim();
+    final hasImage = cleanImageUrl.isNotEmpty;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _ManualAiLabel(
-          label: 'Duyuru görseli',
-          icon: Symbols.image_outlined,
-        ),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
+        Text(
+          'Duyuru görseli',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.inkSoft,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: ClipRRect(
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPick,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: _ManualAiDashedRect(
+              child: Container(
+                height: 188,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(AppRadius.value),
-                  child: Container(
-                    color: Colors.white,
-                    child: bytes == null
-                        ? const Center(
-                            child: SymbolIcon(
-                              Symbols.image_outlined,
-                              size: 34,
-                              color: AppColors.iconMuted,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: !hasImage
+                    ? _ManualAiImageEmptyPicker(onPickUrl: onPickUrl)
+                    : Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.value,
+                              ),
+                              child: AdminCachedImage(
+                                url: _resolvedManualAiImageUrl(cleanImageUrl),
+                                fit: BoxFit.contain,
+                                memCacheWidth: 720,
+                                filterQuality: FilterQuality.high,
+                                useOldImageOnUrlChange: true,
+                                errorWidget: _ManualAiImageEmptyPicker(
+                                  onPickUrl: onPickUrl,
+                                ),
+                              ),
                             ),
-                          )
-                        : Image.memory(bytes, fit: BoxFit.contain),
-                  ),
-                ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _ManualAiImageActionButton(
+                                  icon: Symbols.edit_outlined,
+                                  color: AppColors.deepOcean,
+                                  onTap: onPick,
+                                ),
+                                const SizedBox(width: 8),
+                                _ManualAiImageActionButton(
+                                  icon: Symbols.delete_outline_rounded,
+                                  color: AppColors.actionRed,
+                                  onTap: onRemove,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                imageFileName.isEmpty ? 'Görsel seçilmedi' : imageFileName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.inkSoft,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _ManualAiSmallButton(
-                    label: bytes == null ? 'Resim Ekle' : 'Resmi Değiştir',
-                    icon: Symbols.upload,
-                    onTap: onPick,
-                    filled: true,
-                  ),
-                  if (bytes != null)
-                    _ManualAiSmallButton(
-                      label: 'Kaldır',
-                      icon: Symbols.close,
-                      onTap: onRemove,
-                    ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ],
     );
   }
+}
+
+class _ManualAiImageEmptyPicker extends StatelessWidget {
+  const _ManualAiImageEmptyPicker({required this.onPickUrl});
+
+  final VoidCallback onPickUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SymbolIcon(Symbols.add, color: _manualAiUploadInk, size: 32),
+          const SizedBox(height: 8),
+          Text(
+            'Görsel Seç',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: _manualAiUploadInk,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 12),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onPickUrl,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  border: Border.all(color: _manualAiStrongLine),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SymbolIcon(
+                      Symbols.public,
+                      size: 13,
+                      color: AppColors.deepOcean,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'URL ile ekle',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.deepOcean,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualAiImageActionButton extends StatelessWidget {
+  const _ManualAiImageActionButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: _manualAiStrongLine),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+          child: SymbolIcon(icon, size: 15, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManualAiDashedRect extends StatelessWidget {
+  const _ManualAiDashedRect({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: const _ManualAiDashedBorderPainter(),
+      child: child,
+    );
+  }
+}
+
+class _ManualAiDashedBorderPainter extends CustomPainter {
+  const _ManualAiDashedBorderPainter();
+
+  static const _strokeWidth = 1.25;
+  static const _dashWidth = 7.0;
+  static const _dashSpace = 4.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _manualAiStrongLine
+      ..strokeWidth = _strokeWidth
+      ..style = PaintingStyle.stroke;
+    final rect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(AppRadius.value),
+    );
+    final path = Path()..addRRect(rect);
+    final dashed = _dashPath(path, _dashWidth, _dashSpace);
+    canvas.drawPath(dashed, paint);
+  }
+
+  Path _dashPath(Path source, double dashLen, double spaceLen) {
+    final dest = Path();
+    for (final metric in source.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + dashLen;
+        dest.addPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          Offset.zero,
+        );
+        distance = next + spaceLen;
+      }
+    }
+    return dest;
+  }
+
+  @override
+  bool shouldRepaint(covariant _ManualAiDashedBorderPainter oldDelegate) =>
+      false;
+}
+
+String _resolvedManualAiImageUrl(String value) {
+  if (value.startsWith('http')) return value;
+  return MediaService().resolveImageUrl(value, width: 720, quality: 90);
 }
 
 class _ManualAiRulePanel extends StatelessWidget {
@@ -1950,13 +2119,6 @@ class _ManualAiOverlay extends StatelessWidget {
       ),
     );
   }
-}
-
-String _imageMimeTypeForName(String name) {
-  final clean = name.toLowerCase().split('?').first;
-  if (clean.endsWith('.png')) return 'image/png';
-  if (clean.endsWith('.webp')) return 'image/webp';
-  return 'image/jpeg';
 }
 
 class _AnnouncementFilters extends StatelessWidget {

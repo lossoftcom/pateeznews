@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import RemixIcon from '@/components/ui/RemixIcon';
 import { navigateImmediately } from '@/utils/immediateNavigation';
+import { openSiteSearch } from '@/utils/searchNavigation';
 
 // ---------------------------------------------------------------------------
 // Veri tipleri — /api/app/weather çıktısıyla birebir aynı (Flutter WeatherData).
@@ -461,6 +462,10 @@ const WeatherPage: React.FC = () => {
     void navigateImmediately('/');
   };
 
+  const openSearch = () => {
+    void openSiteSearch();
+  };
+
   const heroMetrics = useMemo(() => {
     if (!view) return [];
     const { current, daily } = view;
@@ -500,7 +505,7 @@ const WeatherPage: React.FC = () => {
     <main className="weather-mobile-page" aria-label="Hava Durumu">
       <div className="weather-shell">
         <header className="weather-appbar">
-          <button type="button" className="weather-icon-button" aria-label="Ara">
+          <button type="button" className="weather-icon-button" onClick={openSearch} aria-label="Ara">
             <RemixIcon name="ri-search-line" size={23} />
           </button>
           <div className="weather-appbar-title">

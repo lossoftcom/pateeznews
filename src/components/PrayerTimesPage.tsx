@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import RemixIcon from '@/components/ui/RemixIcon';
 import { navigateImmediately } from '@/utils/immediateNavigation';
+import { openSiteSearch } from '@/utils/searchNavigation';
 
 type PrayerTimeKey = 'imsak' | 'gunes' | 'ogle' | 'ikindi' | 'aksam' | 'yatsi';
 
@@ -197,11 +198,15 @@ const PrayerTimesPage: React.FC = () => {
     void navigateImmediately('/');
   };
 
+  const openSearch = () => {
+    void openSiteSearch();
+  };
+
   return (
     <main className="prayer-times-mobile-page" aria-label="Namaz Vakitleri">
       <div className="prayer-times-shell">
         <header className="prayer-times-appbar">
-          <button type="button" className="prayer-times-icon-button prayer-times-search-button" aria-label="Ara">
+          <button type="button" className="prayer-times-icon-button prayer-times-search-button" onClick={openSearch} aria-label="Ara">
             <RemixIcon name="ri-search-line" size={25} />
           </button>
           <div className="prayer-times-appbar-title">

@@ -248,6 +248,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
       _uploadBatchTotal = files.length;
     });
     final uploaded = <MediaItem>[];
+    var failedUploads = 0;
     try {
       for (var index = 0; index < files.length; index += 1) {
         final file = files[index];
@@ -277,7 +278,11 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
             });
           },
         );
-        if (result == null || !mounted) continue;
+        if (result == null) {
+          failedUploads += 1;
+          continue;
+        }
+        if (!mounted) continue;
         final raw = result.thumb ?? result.src;
         _resolvedUrls[result.id] = widget.type == 'image'
             ? widget.mediaService.resolveImageUrl(raw, width: 260, quality: 86)
@@ -295,7 +300,12 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
             ? uploaded.map((file) => file.src).toSet()
             : {_lastSelectedSrc ?? uploaded.last.src};
       }
-    } catch (_) {}
+      if (failedUploads > 0 && mounted) {
+        _showUploadMessage(context.t('media.uploadFailed'));
+      }
+    } catch (_) {
+      if (mounted) _showUploadMessage(context.t('media.uploadFailed'));
+    }
     if (mounted) {
       setState(() {
         _uploading = false;
@@ -1010,11 +1020,20 @@ class _UploadSidebar extends StatelessWidget {
         ? null
         : (progress.clamp(0, 1) * 100).round();
     final phase = processing
-        ? context.t('media.processingVideo')
+        ? _processingLabel(context)
         : context.t('media.uploading');
     final batch = batchTotal > 1 ? ' $batchIndex/$batchTotal' : '';
     if (percent == null) return '$phase$batch';
     return '$phase$batch $percent%';
+  }
+
+  String _processingLabel(BuildContext context) {
+    return switch (type) {
+      'video' => context.t('media.processingVideo'),
+      'audio' => context.t('media.processingAudio'),
+      'file' => context.t('media.processingFile'),
+      _ => context.t('media.processingImage'),
+    };
   }
 
   String _remainingText(BuildContext context) {

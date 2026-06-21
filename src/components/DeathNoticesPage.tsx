@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import RemixIcon from '@/components/ui/RemixIcon';
 import { navigateImmediately } from '@/utils/immediateNavigation';
+import { openSiteSearch } from '@/utils/searchNavigation';
 
 type DeathNotice = {
   id: string;
@@ -55,6 +56,10 @@ const goBack = () => {
   void navigateImmediately('/');
 };
 
+const openSearch = () => {
+  void openSiteSearch();
+};
+
 const DeathNoticesPage: React.FC = () => {
   const [data, setData] = useState<DeathNoticePayload>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
@@ -102,7 +107,7 @@ const DeathNoticesPage: React.FC = () => {
     <main className="death-notices-mobile-page" aria-label="Ölüm İlanları">
       <div className="death-notices-shell">
         <header className="death-notices-appbar">
-          <button type="button" className="death-notices-icon-button death-notices-search-button" aria-label="Ara">
+          <button type="button" className="death-notices-icon-button death-notices-search-button" onClick={openSearch} aria-label="Ara">
             <RemixIcon name="ri-search-line" size={25} />
           </button>
           <div className="death-notices-appbar-title">

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import RemixIcon from '@/components/ui/RemixIcon';
 import { navigateImmediately } from '@/utils/immediateNavigation';
+import { openSiteSearch } from '@/utils/searchNavigation';
 
 type AnnouncementCategory = 'official' | 'power' | 'road';
 
@@ -247,6 +248,10 @@ const AnnouncementsPage: React.FC = () => {
     void navigateImmediately('/');
   };
 
+  const openSearch = () => {
+    void openSiteSearch();
+  };
+
   const openAnnouncement = (item: AnnouncementItem) => {
     const postHref = postHrefFor(item);
     if (postHref) {
@@ -261,7 +266,7 @@ const AnnouncementsPage: React.FC = () => {
     <main className="announcements-mobile-page" aria-label="Duyurular">
       <div className="announcements-shell">
         <header className="announcements-appbar">
-          <button type="button" className="announcements-icon-button announcements-search-button" aria-label="Ara">
+          <button type="button" className="announcements-icon-button announcements-search-button" onClick={openSearch} aria-label="Ara">
             <RemixIcon name="ri-search-line" size={25} />
           </button>
           <div className="announcements-appbar-title">

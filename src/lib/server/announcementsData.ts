@@ -26,6 +26,7 @@ const MAX_AI_CANDIDATES_PER_RUN = 40;
 const MAX_QUEUE_PER_SOURCE = 5;
 const MAX_PAYLOAD_SCAN_ROWS = 500;
 const USER_AGENT = 'Pateez-Announcements/1.0 (+https://www.pateez.com)';
+const INSTAGRAM_WEB_APP_ID = '936619743392459';
 const MANUAL_ANNOUNCEMENT_SOURCE_KEY = 'manual-admin';
 const MANUAL_ANNOUNCEMENT_SOURCE_NAME = 'Manuel Duyuru';
 
@@ -203,15 +204,10 @@ const ACTIONABLE_PUBLIC_TERMS = [
   'elektrik',
   'planlı',
   'planli',
-  'kurs',
-  'eğitim',
-  'egitim',
   'çiftçi',
   'ciftci',
   'üretici',
   'uretici',
-  'kırsal kalkınma',
-  'kirsal kalkinma',
   'ruhsat',
   'beyanname',
   'vergi',
@@ -311,14 +307,54 @@ const AGRICULTURE_PUBLIC_TERMS = [
   'uretici uyarisi',
   'çiftçi uyarısı',
   'ciftci uyarisi',
-  'kırsal kalkınma',
-  'kirsal kalkinma',
-  'hibe başvuruları',
-  'hibe basvurulari',
-  'destek başvuruları',
-  'destek basvurulari',
-  'son başvuru',
-  'son basvuru',
+];
+const ROUTINE_NON_CITY_TERMS = [
+  'sergi',
+  'sergiledi',
+  'kursiyer',
+  'halk eğitim',
+  'halk egitim',
+  'kurslarına ziyaret',
+  'kurslarina ziyaret',
+  'ziyaret',
+  'bilinçlendirme eğitimi',
+  'bilinclendirme egitimi',
+  'siber suçlara karşı',
+  'siber suclara karsi',
+  'eğitim programı',
+  'egitim programi',
+  'kitapçığı',
+  'kitapcigi',
+  'enerji verimliliği',
+  'enerji verimliligi',
+  'yeni bir hizmet daha',
+  'tören',
+  'toren',
+  'açılış',
+  'acilis',
+  'düğün',
+  'dugun',
+];
+const LAW_ENFORCEMENT_SOURCE_TERMS = [
+  'emniyet',
+  'jandarma',
+  'polis',
+  'pol.tr',
+];
+const LAW_ENFORCEMENT_ROUTINE_TERMS = [
+  'operasyon',
+  'yakalandı',
+  'yakalandi',
+  'gözaltı',
+  'gozalti',
+  'tutuklandı',
+  'tutuklandi',
+  'denetim',
+  'rapor',
+  'bilgilendirme eğitimi',
+  'bilinclendirme egitimi',
+  'siber suç',
+  'siber suc',
 ];
 const CORE_CITY_SOURCE_KEYS = new Set([
   'nigde-valiligi',
@@ -552,6 +588,13 @@ type RefreshTotals = {
   updatedCount: number;
   skippedCount: number;
   errors: string[];
+};
+
+type CandidateDiscovery = {
+  url: string;
+  title: string;
+  score: number;
+  socialPayload?: Record<string, any>;
 };
 
 type DefaultSource = {
@@ -1336,7 +1379,13 @@ const isCoreCitySource = (source: AnnouncementSource) =>
   CORE_CITY_SOURCE_KEYS.has(source.sourceKey) ||
   CORE_CITY_SOURCE_TYPES.has(sourceTypeKey(source));
 
+const isLawEnforcementSource = (source: AnnouncementSource) => {
+  const haystack = trLower(`${source.sourceKey} ${source.name} ${source.websiteUrl} ${source.listUrl}`);
+  return LAW_ENFORCEMENT_SOURCE_TERMS.some((term) => haystack.includes(term));
+};
+
 const sourceRequiresStrongSignal = (source: AnnouncementSource) =>
+  isLawEnforcementSource(source) ||
   GENERAL_SOURCE_TYPES_REQUIRE_STRONG_SIGNAL.has(sourceTypeKey(source)) ||
   !isCoreCitySource(source);
 
@@ -1371,7 +1420,11 @@ const hasExcludedSignal = (value: string) => {
 
 const hasCelebrationSignal = (value: string) => {
   const haystack = trLower(value);
-  return CELEBRATION_TERMS.some((term) => haystack.includes(term));
+  return CELEBRATION_TERMS.some((term) => {
+    const cleanTerm = trLower(term);
+    if (cleanTerm === 'anma') return /(^|[^\p{L}\p{N}])anma([^\p{L}\p{N}]|$)/u.test(haystack);
+    return haystack.includes(cleanTerm);
+  });
 };
 
 const hasInternalOnlySignal = (value: string) => {
@@ -1382,6 +1435,16 @@ const hasInternalOnlySignal = (value: string) => {
 const hasNonActionableCampaignSignal = (value: string) => {
   const haystack = trLower(value);
   return NON_ACTIONABLE_CAMPAIGN_TERMS.some((term) => haystack.includes(term));
+};
+
+const hasRoutineNonCitySignal = (value: string) => {
+  const haystack = trLower(value);
+  return ROUTINE_NON_CITY_TERMS.some((term) => haystack.includes(term));
+};
+
+const hasLawEnforcementRoutineSignal = (value: string) => {
+  const haystack = trLower(value);
+  return LAW_ENFORCEMENT_ROUTINE_TERMS.some((term) => haystack.includes(term));
 };
 
 const hasActionablePublicSignal = (value: string) => {
@@ -1437,8 +1500,37 @@ const hasPublicExamSignal = (value: string) => containsAnyTerm(value, PUBLIC_EXA
 const hasMunicipalServiceSignal = (value: string) => containsAnyTerm(value, MUNICIPAL_SERVICE_TERMS);
 const hasAgriculturePublicSignal = (value: string) => containsAnyTerm(value, AGRICULTURE_PUBLIC_TERMS);
 
+const hasHardCityCriticalTextSignal = (value: string) =>
+  hasPowerSignal(value) ||
+  hasRoadSignal(value) ||
+  hasWaterOutageSignal(value) ||
+  hasWeatherAlertSignal(value) ||
+  hasPublicOrderSignal(value) ||
+  hasPublicExamSignal(value) ||
+  hasAgriculturePublicSignal(value);
+
+const bodyLooksNoisyForDecision = (candidate: Candidate) => {
+  const sourceType = sourceTypeKey(candidate.source);
+  const summary = trLower(candidate.summary);
+  const body = trLower(candidate.body);
+  if (sourceType === 'media') return true;
+  if (candidate.rawPayload?.socialPlatform || candidate.source.sourceKey === MANUAL_ANNOUNCEMENT_SOURCE_KEY) return false;
+  const leading = `${summary} ${body.slice(0, 900)}`;
+  return /ana\s*sayfa|anasayfa|hakkımızda|hakkimizda|künye|kunye|kurumsal yapı|kurumsal yapi|görme engelli|gorme engelli|e-belediye|başkanın özgeçmişi|baskanin ozgecmisi|facebook|twitter|arama/.test(leading);
+};
+
+const decisionText = (candidate: Candidate) => [
+  candidate.source.name,
+  candidate.title,
+  candidate.summary,
+  bodyLooksNoisyForDecision(candidate) ? '' : candidate.body,
+  candidate.place,
+  candidate.statusLabel,
+  candidate.scheduleLabel,
+].join(' ');
+
 const cityImpactDecision = (candidate: Candidate) => {
-  const text = `${candidate.source.name} ${candidate.title} ${candidate.summary} ${candidate.body} ${candidate.place}`;
+  const text = decisionText(candidate);
   const trustedSource = isCoreCitySource(candidate.source);
   const strongSignalRequired = sourceRequiresStrongSignal(candidate.source);
 
@@ -1459,27 +1551,27 @@ const cityImpactDecision = (candidate: Candidate) => {
   if (trustedSource && hasMunicipalServiceSignal(text)) {
     return { ok: true, reason: 'belediye/hizmet duyurusu sinyali' };
   }
-  if (trustedSource && hasAgriculturePublicSignal(text)) {
-    return { ok: true, reason: 'tarım/üretici uyarısı veya destek sinyali' };
+  if (hasAgriculturePublicSignal(text)) {
+    return { ok: true, reason: 'tarım/üretici uyarısı sinyali' };
   }
-  if (!strongSignalRequired && hasActionablePublicSignal(text) && /(son tarih|son gün|son gun|hibe|destek|ruhsat|beyanname)/i.test(trLower(text))) {
-    return { ok: true, reason: 'resmi son tarih/başvuru sinyali' };
-  }
+  if (!strongSignalRequired && hasActionablePublicSignal(text) && /(ruhsat|beyanname)/i.test(trLower(text))) return { ok: true, reason: 'resmi işlem son tarih sinyali' };
   return { ok: false, reason: 'şehir hayatını etkileyen kritik duyuru kanıtı yok' };
 };
 
 const hasHardCityCriticalSignal = (candidate: Candidate) => {
-  const text = `${candidate.source.name} ${candidate.title} ${candidate.summary} ${candidate.body} ${candidate.place}`;
-  return hasPowerSignal(text) ||
-    hasRoadSignal(text) ||
-    hasWaterOutageSignal(text) ||
-    hasWeatherAlertSignal(text) ||
-    hasPublicOrderSignal(text) ||
-    hasPublicExamSignal(text);
+  return hasHardCityCriticalTextSignal(decisionText(candidate));
 };
 
 const requiresAiConfirmation = (candidate: Candidate) =>
   sourceRequiresStrongSignal(candidate.source) && !hasHardCityCriticalSignal(candidate);
+
+const shouldAttemptAiForRejectedCandidate = (candidate: Candidate) => {
+  const text = decisionText(candidate);
+  if (candidate.rawPayload?.socialPlatform && (isCoreCitySource(candidate.source) || sourceRequiresStrongSignal(candidate.source))) return true;
+  if (candidate.imageUrl && isCoreCitySource(candidate.source) && (hasAnnouncementSignal(text) || hasHardCityCriticalTextSignal(text))) return true;
+  if (isCoreCitySource(candidate.source) && hasHardCityCriticalTextSignal(text)) return true;
+  return false;
+};
 
 const isLocallyScoped = (source: AnnouncementSource, value: string) => {
   const haystack = trLower(`${source.name} ${source.district} ${value}`);
@@ -1491,7 +1583,7 @@ const isLocallyScoped = (source: AnnouncementSource, value: string) => {
 };
 
 const publicationDecision = (candidate: Candidate) => {
-  const text = `${candidate.source.name} ${candidate.title} ${candidate.summary} ${candidate.body} ${candidate.place}`;
+  const text = decisionText(candidate);
   const compactSummary = normalizeText(`${candidate.summary} ${candidate.body}`).replace(/\s+/g, ' ');
 
   if (hasLowQualityNoise(candidate.title) || hasLowQualityNoise(candidate.summary)) {
@@ -1504,6 +1596,12 @@ const publicationDecision = (candidate: Candidate) => {
   if (hasCelebrationSignal(text)) return { ok: false, reason: 'kutlama veya anma içeriği' };
   if (hasInternalOnlySignal(text)) return { ok: false, reason: 'dar kurum içi/personel içeriği' };
   if (hasNonActionableCampaignSignal(text)) return { ok: false, reason: 'aksiyon içermeyen kampanya/slogan' };
+  if (isLawEnforcementSource(candidate.source) && hasLawEnforcementRoutineSignal(text) && !hasHardCityCriticalSignal(candidate)) {
+    return { ok: false, reason: 'emniyet/jandarma rutin raporu veya eğitimi' };
+  }
+  if (hasRoutineNonCitySignal(text) && !hasHardCityCriticalSignal(candidate)) {
+    return { ok: false, reason: 'şehir duyurusu olmayan etkinlik/eğitim/ziyaret içeriği' };
+  }
   if (!isLocallyScoped(candidate.source, text)) return { ok: false, reason: 'Niğde kapsamı kanıtlanmadı' };
   if (!hasActionablePublicSignal(text)) return { ok: false, reason: 'kullanıcıya dönük aksiyon bilgisi yok' };
   const impact = cityImpactDecision(candidate);
@@ -1889,7 +1987,7 @@ const candidateScore = (url: string, label: string) => {
   return score;
 };
 
-const parseXmlCandidates = (source: AnnouncementSource, xml: string, baseUrl: string) => {
+const parseXmlCandidates = (source: AnnouncementSource, xml: string, baseUrl: string): CandidateDiscovery[] => {
   const items = [...xml.matchAll(/<(item|entry)\b[\s\S]*?<\/\1>/gi)].slice(0, MAX_CANDIDATES_PER_SOURCE * 2);
   return items
     .map((match) => {
@@ -1899,7 +1997,7 @@ const parseXmlCandidates = (source: AnnouncementSource, xml: string, baseUrl: st
       const url = toAbsoluteUrl(baseUrl, link);
       return url ? { url, title, score: candidateScore(url, title) + 5 } : null;
     })
-    .filter((item): item is { url: string; title: string; score: number } => Boolean(item))
+    .filter((item): item is CandidateDiscovery => Boolean(item))
     .filter((item) => item.score > 0 || sameHost(source.listUrl, item.url));
 };
 
@@ -1926,6 +2024,139 @@ const wellKnownUrls = (source: AnnouncementSource) => {
   return [...urls].slice(0, MAX_QUEUE_PER_SOURCE - 1);
 };
 
+const instagramUsernameFromUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    if (!url.hostname.replace(/^www\./, '').endsWith('instagram.com')) return '';
+    const [first] = url.pathname.split('/').filter(Boolean);
+    if (!first || ['p', 'reel', 'tv', 'stories', 'explore', 'accounts'].includes(first)) return '';
+    return first.replace(/^@/, '');
+  } catch {
+    return '';
+  }
+};
+
+const instagramCaption = (node: any) =>
+  normalizeText(node?.edge_media_to_caption?.edges?.[0]?.node?.text || '');
+
+const instagramTitleFromCaption = (caption: string, sourceName: string) => {
+  const line = caption
+    .split(/\n+/)
+    .map((item) => normalizeText(item).replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, ''))
+    .find((item) => item.replace(/[^\p{L}\p{N}]/gu, '').length >= 5);
+  return (line || `${sourceName} Instagram duyurusu`).slice(0, 140);
+};
+
+const instagramCandidateScore = (source: AnnouncementSource, postUrl: string, caption: string) => {
+  const text = `${source.name} ${caption}`;
+  if (hasExcludedSignal(text)) return -999;
+  const hardSignal = hasHardCityCriticalTextSignal(text);
+  if (hasCelebrationSignal(text) && !hardSignal) return -999;
+  if (hasRoutineNonCitySignal(text) && !hardSignal) return -20;
+  let score = candidateScore(postUrl, caption);
+  if (hardSignal) score += 18;
+  if (hasActionablePublicSignal(text)) score += 8;
+  if (isCoreCitySource(source)) score += 4;
+  if (caption.length > 40) score += 2;
+  return score;
+};
+
+const collectInstagramProfileCandidates = async (
+  source: AnnouncementSource,
+  instagramUrl: string,
+  limit: number,
+): Promise<CandidateDiscovery[]> => {
+  const username = instagramUsernameFromUrl(instagramUrl);
+  if (!username) return [];
+  const response = await fetch(
+    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
+    {
+      signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+      headers: {
+        Accept: 'application/json',
+        Referer: `https://www.instagram.com/${username}/`,
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
+        'x-ig-app-id': INSTAGRAM_WEB_APP_ID,
+      },
+    },
+  );
+  if (!response.ok) throw new Error(`Instagram ${username} HTTP ${response.status}`);
+  const data = await response.json().catch(() => null);
+  const edges = Array.isArray(data?.data?.user?.edge_owner_to_timeline_media?.edges)
+    ? data.data.user.edge_owner_to_timeline_media.edges
+    : [];
+  return edges
+    .map((edge: any) => {
+      const node = edge?.node || {};
+      const shortcode = normalizeText(node.shortcode);
+      const caption = instagramCaption(node);
+      if (!shortcode || !caption) return null;
+      const url = `https://www.instagram.com/p/${shortcode}/`;
+      const title = instagramTitleFromCaption(caption, source.name);
+      const score = instagramCandidateScore(source, url, caption);
+      if (score < 4) return null;
+      return {
+        url,
+        title,
+        score,
+        socialPayload: {
+          socialPlatform: 'instagram',
+          username,
+          shortcode,
+          caption,
+          displayUrl: normalizeText(node.display_url),
+          takenAtTimestamp: Number(node.taken_at_timestamp || 0) || 0,
+          isVideo: Boolean(node.is_video),
+        },
+      };
+    })
+    .filter((item): item is CandidateDiscovery => Boolean(item))
+    .slice(0, limit);
+};
+
+const parseSocialCandidate = (source: AnnouncementSource, item: CandidateDiscovery): Candidate | null => {
+  if (item.socialPayload?.socialPlatform !== 'instagram') return null;
+  const caption = normalizeText(item.socialPayload.caption);
+  const title = instagramTitleFromCaption(caption, source.name);
+  if (!caption || !title || title.length < 6) return null;
+  const body = caption.slice(0, 7000);
+  const publishedAt = item.socialPayload.takenAtTimestamp
+    ? new Date(Number(item.socialPayload.takenAtTimestamp) * 1000).toISOString()
+    : new Date().toISOString();
+  const category = categoryFor(source, title, body);
+  const statusLabel = statusFor(title, body);
+  const scheduleLabel = scheduleFor(`${title} ${body}`);
+  const place = placeFor(`${title} ${body}`);
+  const district = districtFor(source, `${title} ${body}`);
+  const eventWindow = extractEventWindow(`${title} ${body}`, publishedAt);
+  return {
+    source,
+    title,
+    summary: summarize(caption, title),
+    body,
+    place,
+    district,
+    publishedAt,
+    startsAt: eventWindow.startsAt,
+    endsAt: eventWindow.endsAt,
+    statusLabel,
+    scheduleLabel,
+    imageUrl: normalizeText(item.socialPayload.displayUrl),
+    sourceUrl: item.url,
+    canonicalUrl: item.url,
+    category,
+    confidence: 0.68,
+    rawPayload: {
+      discoveredUrl: item.url,
+      canonicalUrl: item.url,
+      socialPlatform: 'instagram',
+      instagramUsername: item.socialPayload.username,
+      instagramShortcode: item.socialPayload.shortcode,
+      isVideo: item.socialPayload.isVideo,
+    },
+  };
+};
+
 const collectCandidateUrls = async (source: AnnouncementSource, limit: number) => {
   const socialUrl = preferredSocialUrl(source);
   const queue = [
@@ -1933,10 +2164,21 @@ const collectCandidateUrls = async (source: AnnouncementSource, limit: number) =
     ...(source.crawlStrategy === 'social_public' ? wellKnownUrls(source).slice(0, 1) : []),
     socialUrl,
   ].filter(Boolean).filter((url, index, list) => list.indexOf(url) === index).slice(0, MAX_QUEUE_PER_SOURCE);
-  const candidates = new Map<string, { url: string; title: string; score: number }>();
+  const candidates = new Map<string, CandidateDiscovery>();
   let attempted = 0;
   let reachable = 0;
   const errors: string[] = [];
+
+  if (source.instagramUrl) {
+    try {
+      for (const item of await collectInstagramProfileCandidates(source, source.instagramUrl, limit)) {
+        const current = candidates.get(item.url);
+        if (!current || item.score > current.score) candidates.set(item.url, item);
+      }
+    } catch (error: any) {
+      errors.push(normalizeText(error?.message || 'Instagram profili taranamadı'));
+    }
+  }
 
   for (const url of queue) {
     if (!url) continue;
@@ -1976,7 +2218,7 @@ const collectCandidateUrls = async (source: AnnouncementSource, limit: number) =
     }
   }
 
-  if (attempted > 0 && reachable === 0) {
+  if (attempted > 0 && reachable === 0 && candidates.size === 0) {
     throw new Error(`kaynağa ulaşılamıyor: ${errors[0] || source.listUrl}`);
   }
 
@@ -1985,7 +2227,10 @@ const collectCandidateUrls = async (source: AnnouncementSource, limit: number) =
     .slice(0, limit);
 };
 
-const parseCandidate = async (source: AnnouncementSource, url: string): Promise<Candidate | null> => {
+const parseCandidate = async (source: AnnouncementSource, item: CandidateDiscovery): Promise<Candidate | null> => {
+  const socialCandidate = parseSocialCandidate(source, item);
+  if (socialCandidate) return socialCandidate;
+  const url = item.url;
   const response = await fetchText(url, DETAIL_FETCH_TIMEOUT_MS);
   const document = parse5.parse(response.text);
   const fullText = normalizeText(textWithBreaks(document));
@@ -2322,10 +2567,12 @@ Niğde yerel duyuru editörüsün. Aşağıdaki kaynak metni sadece kanıtlanan 
 Yeni bilgi uydurma. Sosyal medya API kullanmadan, verilmiş sayfa metnine sadık kal.
 Kategori sadece official, power veya road olabilir.
 Yayın kararı çok sıkı olsun:
-- Elektrik kesintisi/arıza/bakım, su kesintisi, yol kapanması/trafik/güzergah, meteorolojik uyarı, valilik/kaymakamlık kamu düzeni kararı, belediye şehir hizmeti kesintisi, LGS/YKS/KPSS gibi şehir geneli sınav ulaşım/nüfus hizmeti, üreticiye resmi tarım uyarısı veya resmi hibe/son başvuru duyurusu varsa isPublishable true.
-- Üniversite görev talebi, kurum içi duyuru, genel etkinlik/tanıtım, bilimsel kongre, kurs/sergi haberi, OSB yerleşim/hizmet sayfası, kooperatif tanıtımı, kutlama, tebrik, anma, resmi ilan, ihale, personel/staj alımı, genel haber, liste/arşiv sayfası veya Niğde ilgisi kanıtlanmayan içerikte isPublishable false.
+- Elektrik kesintisi/arıza/bakım, su kesintisi, yol kapanması/trafik/güzergah, meteorolojik uyarı, valilik/kaymakamlık kamu düzeni kararı, belediye şehir hizmeti kesintisi, okul tatili/eğitime ara, LGS/YKS/KPSS/ALES/DGS gibi şehir geneli sınav ulaşım/nüfus hizmeti veya üreticiye resmi tarım hastalık/zararlı/zirai uyarısı varsa isPublishable true.
+- Valilik, kaymakamlık ve belediye Instagram içeriklerinde görselde yazan metni oku; şehir/district hizmeti, uyarı, sınav, nüfus müdürlüğü mesaisi, yol/trafik veya meteoroloji duyurusu ise yayınlanabilir.
+- Jandarma/emniyet rutin raporu, operasyon haberi, siber suç/eğitim semineri, ziyaret, tören, açılış, kurs, sergi, kitapçık, enerji verimliliği tanıtımı, genel etkinlik/tanıtım, bilimsel kongre, OSB yerleşim/hizmet sayfası, kooperatif tanıtımı, kutlama, tebrik, anma, resmi ilan, ihale, personel/staj alımı, genel haber, liste/arşiv sayfası veya Niğde ilgisi kanıtlanmayan içerikte isPublishable false.
 - Yol kategorisi sadece yol kapanması, trafik, güzergah, yol çalışması gibi kanıtlı bilgilerde road olsun.
 - Elektrik kategorisi sadece elektrik kesintisi/arıza/bakım/trafo/şebeke bilgisi kanıtlıysa power olsun; enerji verimliliği veya genel enerji tanıtımı power değildir.
+- Görselde duyuru metni varsa body alanına kısa ve temiz şekilde aktar; sayfa menüsü, ilgili haberler ve navigasyon metinlerini body'ye alma.
 
 Kaynak: ${candidate.source.name}
 URL: ${candidate.canonicalUrl || candidate.sourceUrl}
@@ -2335,7 +2582,7 @@ Metin:
 ${candidate.body.slice(0, 4500)}
 
 JSON alanları:
-isPublishable, contentType, rejectReason, category, title, summary, place, statusLabel, scheduleLabel, imageUrl, startsAt, endsAt, confidence
+isPublishable, contentType, rejectReason, category, title, summary, body, place, statusLabel, scheduleLabel, imageUrl, startsAt, endsAt, confidence
   `;
   const imagePart = await aiImagePart(candidate);
   const payload = {
@@ -2404,7 +2651,7 @@ const aiRejectReason = (ai: Record<string, any> | null) => {
   const publishable = ai.isPublishable ?? ai.publishable;
   if (publishable === false) return normalizeText(ai.rejectReason) || 'AI yayınlanabilir bulmadı';
   const type = trLower(String(ai.contentType || ai.type || ''));
-  if (/(celebration|kutlama|tebrik|official_ad|resmi_ilan|tender|ihale|job|internship|staj|personnel|personel|generic_news|archive|listing|list|internal)/.test(type)) {
+  if (/(celebration|kutlama|tebrik|official_ad|resmi_ilan|tender|ihale|job|internship|staj|personnel|personel|generic_news|archive|listing|list|internal|police_report|jandarma_report|security_report|routine_report|operation|visit|ceremony|exhibition|course|training|seminar|booklet|generic_event|non_actionable)/.test(type)) {
     return normalizeText(ai.rejectReason) || `AI içerik türünü reddetti: ${type}`;
   }
   if (ai.isCelebration === true) return normalizeText(ai.rejectReason) || 'AI kutlama/anma olarak işaretledi';
@@ -2424,6 +2671,7 @@ const applyAi = (candidate: Candidate, ai: Record<string, any> | null): Candidat
     category,
     title: normalizeText(ai.title) || candidate.title,
     summary: summarize(normalizeText(ai.summary), candidate.title) || candidate.summary,
+    body: normalizeText(ai.body) || candidate.body,
     place: normalizeText(ai.place) || candidate.place,
     district: districtFromText(`${normalizeText(ai.place)} ${candidate.title} ${candidate.summary}`) || candidate.district,
     statusLabel: normalizeText(ai.statusLabel) || candidate.statusLabel,
@@ -2713,7 +2961,7 @@ export async function runAnnouncementsRefresh(options: RefreshOptions = {}) {
         totals.candidatesFound += urls.length;
         for (const item of urls) {
           try {
-            const parsed = await parseCandidate(source, item.url);
+            const parsed = await parseCandidate(source, item);
             if (!parsed) {
               totals.skippedCount += 1;
               continue;
@@ -2723,14 +2971,16 @@ export async function runAnnouncementsRefresh(options: RefreshOptions = {}) {
               continue;
             }
             const preliminaryDecision = publicationDecision(parsed);
-            if (!preliminaryDecision.ok) {
-              totals.skippedCount += 1;
-              continue;
-            }
-            const ai = aiUsed < MAX_AI_CANDIDATES_PER_RUN
+            const shouldAskAi = aiSettings.active && aiSettings.apiKey && aiUsed < MAX_AI_CANDIDATES_PER_RUN &&
+              (preliminaryDecision.ok || shouldAttemptAiForRejectedCandidate(parsed));
+            const ai = shouldAskAi
               ? await classifyWithAi(aiSettings, parsed).catch(() => null)
               : null;
             if (ai) aiUsed += 1;
+            if (!preliminaryDecision.ok && !ai) {
+              totals.skippedCount += 1;
+              continue;
+            }
             if (!ai && aiSettings.active && aiSettings.apiKey && requiresAiConfirmation(parsed)) {
               totals.skippedCount += 1;
               continue;
@@ -3176,14 +3426,123 @@ const decodeManualAnnouncementImage = (input: Record<string, any>) => {
   return { buffer, mimeType, fileName };
 };
 
+const normalizeManualAnnouncementImageUrl = (input: Record<string, any>) => {
+  const clean = normalizeText(input.imageUrl ?? input.image_url);
+  if (!clean) return '';
+  if (/^data:/i.test(clean)) throw new Error('Duyuru görseli URL olarak seçilmeli');
+  if (hasLogoImageSignal(clean)) throw new Error('Logo/ikon duyuru görseli olarak eklenemez');
+  return clean;
+};
+
+const imageMimeTypeFromPath = (value: string, fallback = 'image/jpeg') => {
+  const clean = normalizeText(value).split(/[?#]/)[0].toLowerCase();
+  if (clean.endsWith('.png')) return 'image/png';
+  if (clean.endsWith('.webp')) return 'image/webp';
+  if (clean.endsWith('.gif')) return 'image/gif';
+  if (clean.endsWith('.avif')) return 'image/avif';
+  if (clean.endsWith('.jpg') || clean.endsWith('.jpeg')) return 'image/jpeg';
+  return fallback;
+};
+
+const manualAnnouncementLocalObjectPathFromUrl = (value: string) => {
+  const clean = normalizeText(value);
+  if (!clean) return '';
+  let pathname = clean;
+  let isAbsolute = false;
+  let isLocalHost = false;
+  try {
+    const parsed = new URL(clean);
+    const host = parsed.hostname.replace(/^www\./, '');
+    isAbsolute = true;
+    isLocalHost = ['pateez.com', 'localhost', '127.0.0.1'].includes(host);
+    pathname = parsed.pathname;
+  } catch {
+    // Relative media library paths are handled below.
+  }
+
+  let normalized = pathname.replace(/\\/g, '/').replace(/^\/+/, '');
+  try {
+    normalized = decodeURIComponent(normalized);
+  } catch {
+    // Keep the original normalized value when the URL is not decodable.
+  }
+  const hasLocalMarker =
+    normalized.startsWith('api/storage/file/') ||
+    normalized.startsWith('local-upload/');
+  if (isAbsolute && !isLocalHost && !hasLocalMarker) return '';
+
+  normalized = normalized
+    .replace(/^api\/storage\/file\//, '')
+    .replace(/^local-upload\//, '');
+  if (!normalized || normalized === '.' || normalized.startsWith('../') || normalized.split('/').includes('..')) {
+    return '';
+  }
+  if (!/\.(?:jpe?g|png|webp|gif|avif)$/i.test(normalized)) return '';
+  return normalized;
+};
+
+const readManualAnnouncementImageUrl = async (imageUrl: string) => {
+  const clean = normalizeText(imageUrl);
+  if (!clean) return null;
+  const objectPath = manualAnnouncementLocalObjectPathFromUrl(clean);
+  if (objectPath) {
+    try {
+      const [fs, path] = await Promise.all([import('node:fs/promises'), import('node:path')]);
+      const uploadRoot = path.resolve(process.cwd(), 'public', 'local-upload');
+      const absolutePath = path.resolve(uploadRoot, objectPath);
+      const relative = path.relative(uploadRoot, absolutePath);
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isFile() || stat.size > MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES) return null;
+      const buffer = await fs.readFile(absolutePath);
+      if (!buffer.byteLength || buffer.byteLength > MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES) return null;
+      return { buffer, mimeType: imageMimeTypeFromPath(objectPath), fileName: objectPath.split('/').pop() || '' };
+    } catch {
+      return null;
+    }
+  }
+
+  if (!/^https?:\/\//i.test(clean)) return null;
+  try {
+    const response = await fetch(clean, {
+      signal: AbortSignal.timeout(AI_IMAGE_FETCH_TIMEOUT_MS),
+      headers: {
+        Accept: 'image/avif,image/webp,image/png,image/jpeg,image/*;q=0.7',
+        'User-Agent': USER_AGENT,
+      },
+    });
+    if (!response.ok) return null;
+    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim();
+    if (!contentType.startsWith('image/')) return null;
+    const contentLength = Number(response.headers.get('content-length') || 0);
+    if (contentLength > MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (!buffer.byteLength || buffer.byteLength > MAX_MANUAL_ANNOUNCEMENT_IMAGE_BYTES) return null;
+    return { buffer, mimeType: contentType, fileName: clean.split(/[/?#]/).pop() || '' };
+  } catch {
+    return null;
+  }
+};
+
 const manualAnnouncementAiImagePart = async (
   image: ReturnType<typeof decodeManualAnnouncementImage>,
+  imageUrl = '',
 ) => {
-  if (!image) return null;
   try {
-    let buffer = image.buffer;
-    let mimeType = image.mimeType;
-    if (buffer.byteLength > MAX_AI_IMAGE_BYTES || !/^image\/(?:jpeg|jpg|png|webp)$/i.test(mimeType)) {
+    let buffer = image?.buffer || null;
+    let mimeType = image?.mimeType || '';
+    if (!buffer && imageUrl) {
+      const urlImage = await readManualAnnouncementImageUrl(imageUrl);
+      if (urlImage) {
+        buffer = urlImage.buffer;
+        mimeType = urlImage.mimeType;
+      }
+    }
+    if (!buffer) return null;
+    const supportedInlineType = /^image\/(?:jpeg|jpg|png|webp)$/i.test(mimeType);
+    if (!image && !supportedInlineType) return null;
+    if (image && (buffer.byteLength > MAX_AI_IMAGE_BYTES || !supportedInlineType)) {
       const { default: sharp } = await import('sharp');
       buffer = await sharp(buffer, { failOn: 'none' })
         .rotate()
@@ -3251,6 +3610,7 @@ const generateManualAnnouncementAi = async (
     selectedDistrict: string;
     selectedSourceName: string;
     image: ReturnType<typeof decodeManualAnnouncementImage>;
+    imageUrl: string;
   },
 ) => {
   if (!settings.active || !settings.apiKey) {
@@ -3262,8 +3622,8 @@ Niğde yerel duyuru editörüsün. Kullanıcının manuel verdiği metni ve vars
 Yeni bilgi uydurma. Metinde veya görselde yoksa alanı boş bırak. Kişi/kurum adı, tarih, mahalle, ilçe ve hizmet bilgisini tahmin etme.
 
 Yayın kararı çok sıkı olsun:
-- Elektrik kesintisi/arıza/bakım, su kesintisi, yol kapanması/trafik/güzergah, meteorolojik uyarı, valilik/kaymakamlık kamu düzeni kararı, belediye şehir hizmeti kesintisi, LGS/YKS/KPSS gibi şehir geneli sınav ulaşım/nüfus hizmeti, üreticiye resmi tarım uyarısı veya resmi hibe/son başvuru duyurusu varsa isPublishable true.
-- Üniversite görev talebi, kurum içi/personel duyurusu, genel etkinlik/tanıtım, bilimsel kongre, kurs/sergi haberi, kutlama, tebrik, anma, resmi ilan, ihale, personel/staj alımı, genel haber, liste/arşiv metni veya Niğde ilgisi kanıtlanmayan içerikte isPublishable false.
+- Elektrik kesintisi/arıza/bakım, su kesintisi, yol kapanması/trafik/güzergah, meteorolojik uyarı, valilik/kaymakamlık kamu düzeni kararı, belediye şehir hizmeti kesintisi, okul tatili/eğitime ara, LGS/YKS/KPSS/ALES/DGS gibi şehir geneli sınav ulaşım/nüfus hizmeti veya üreticiye resmi tarım hastalık/zararlı/zirai uyarısı varsa isPublishable true.
+- Jandarma/emniyet rutin raporu, operasyon haberi, siber suç/eğitim semineri, ziyaret, tören, açılış, kurs, sergi, kitapçık, enerji verimliliği tanıtımı, genel etkinlik/tanıtım, bilimsel kongre, kutlama, tebrik, anma, resmi ilan, ihale, personel/staj alımı, genel haber, liste/arşiv metni veya Niğde ilgisi kanıtlanmayan içerikte isPublishable false.
 - Kategori sadece official, power veya road olabilir.
 - road sadece yol kapanması, trafik, güzergah veya yol çalışması kanıtlıysa kullan.
 - power sadece elektrik kesintisi/arıza/bakım/trafo/şebeke bilgisi kanıtlıysa kullan.
@@ -3273,6 +3633,7 @@ Yayın kararı çok sıkı olsun:
 
 Seçili ilçe: ${input.selectedDistrict || 'AI belirlesin'}
 Girilen kaynak/kurum: ${input.selectedSourceName || 'Belirtilmedi'}
+Görsel adresi: ${input.imageUrl || '-'}
 Ek not:
 ${input.notes.slice(0, 1200) || '-'}
 
@@ -3282,8 +3643,8 @@ ${input.text.slice(0, 5000) || '-'}
 JSON alanları:
 isPublishable, contentType, rejectReason, category, sourceName, title, summary, body, place, district, statusLabel, scheduleLabel, startsAt, endsAt, confidence
   `;
-  const imagePart = await manualAnnouncementAiImagePart(input.image);
-  if (!input.text && input.image && !imagePart) {
+  const imagePart = await manualAnnouncementAiImagePart(input.image, input.imageUrl);
+  if (!input.text && (input.image || input.imageUrl) && !imagePart) {
     throw new Error('Görsel AI tarafından okunacak boyuta indirilemedi');
   }
 
@@ -3369,6 +3730,7 @@ const manualAnnouncementContentHash = (candidate: Candidate) =>
 const upsertManualAnnouncementCandidate = async (
   candidate: Candidate,
   image: ReturnType<typeof decodeManualAnnouncementImage>,
+  selectedImageUrl = '',
 ) => {
   const contentHash = manualAnnouncementContentHash(candidate);
   const existing = await dbQuery(
@@ -3378,13 +3740,14 @@ const upsertManualAnnouncementCandidate = async (
      LIMIT 1`,
     [contentHash],
   );
-  const imageResult = image
+  const providedImageUrl = normalizeText(selectedImageUrl);
+  const imageResult = image && !providedImageUrl
     ? await writeAnnouncementImageBuffer(image.buffer, contentHash, candidate.publishedAt)
     : { url: '', width: null as number | null, height: null as number | null };
-  if (image && !imageResult.url) {
+  if (image && !providedImageUrl && !imageResult.url) {
     throw new Error('Duyuru görseli gerçek duyuru görseli olarak doğrulanamadı');
   }
-  const imageUrl = imageResult.url;
+  const imageUrl = providedImageUrl || imageResult.url;
   const oldImageUrl = String(existing.rows[0]?.image_url || '');
 
   const result = await dbQuery(
@@ -3469,7 +3832,8 @@ export async function createManualAnnouncementWithAi(input: Record<string, any>)
   const selectedDistrict = normalizeText(input.district);
   const selectedSourceName = normalizeText(input.sourceName ?? input.source_name);
   const image = decodeManualAnnouncementImage(input);
-  if (!text && !image) throw new Error('Duyuru metni veya görsel gerekli');
+  const imageUrl = normalizeManualAnnouncementImageUrl(input);
+  if (!text && !image && !imageUrl) throw new Error('Duyuru metni veya görsel gerekli');
 
   const settings = await fetchAiSettings();
   const ai = await generateManualAnnouncementAi(settings, {
@@ -3478,6 +3842,7 @@ export async function createManualAnnouncementWithAi(input: Record<string, any>)
     selectedDistrict,
     selectedSourceName,
     image,
+    imageUrl,
   });
   if (!ai) throw new Error('AI duyuruyu işleyemedi');
   const rejectReason = aiRejectReason(ai);
@@ -3507,7 +3872,7 @@ export async function createManualAnnouncementWithAi(input: Record<string, any>)
     endsAt,
     statusLabel: normalizeText(ai.statusLabel) || 'Yayında',
     scheduleLabel: normalizeText(ai.scheduleLabel),
-    imageUrl: image ? 'manual-upload' : '',
+    imageUrl: imageUrl || (image ? 'manual-upload' : ''),
     sourceUrl: '',
     canonicalUrl: '',
     category: validCategory(ai.category),
@@ -3516,6 +3881,7 @@ export async function createManualAnnouncementWithAi(input: Record<string, any>)
       source: 'manual-admin',
       text,
       notes,
+      imageUrl,
       imageFileName: image?.fileName || '',
     },
     aiPayload: ai,
@@ -3523,9 +3889,12 @@ export async function createManualAnnouncementWithAi(input: Record<string, any>)
 
   const decision = publicationDecision(candidate);
   if (!decision.ok) throw new Error(`Duyuru şehir için uygun bulunmadı: ${decision.reason}`);
-  if (!isCandidateCurrent(candidate)) throw new Error('Duyuru tarihi güncel değil');
+  if (!isCandidateCurrent(candidate)) {
+    candidate.startsAt = '';
+    candidate.endsAt = '';
+  }
 
-  const id = await upsertManualAnnouncementCandidate(candidate, image);
+  const id = await upsertManualAnnouncementCandidate(candidate, image, imageUrl);
   return getAdminAnnouncementById(id);
 }
 

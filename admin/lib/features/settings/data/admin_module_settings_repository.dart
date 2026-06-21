@@ -1288,31 +1288,23 @@ class ManualAnnouncementAiRequest {
     required this.notes,
     required this.district,
     required this.sourceName,
-    this.imageBytes,
-    this.imageFileName = '',
-    this.imageMimeType = '',
+    this.imageUrl = '',
   });
 
   final String text;
   final String notes;
   final String district;
   final String sourceName;
-  final Uint8List? imageBytes;
-  final String imageFileName;
-  final String imageMimeType;
+  final String imageUrl;
 
   Map<String, Object?> toJson() {
-    final bytes = imageBytes;
+    final cleanImageUrl = imageUrl.trim();
     return {
       'text': text.trim(),
       'notes': notes.trim(),
       'district': district.trim(),
       'sourceName': sourceName.trim(),
-      if (bytes != null && bytes.isNotEmpty) ...{
-        'imageBase64': base64Encode(bytes),
-        'imageFileName': imageFileName.trim(),
-        'imageMimeType': imageMimeType.trim(),
-      },
+      if (cleanImageUrl.isNotEmpty) 'imageUrl': cleanImageUrl,
     };
   }
 }

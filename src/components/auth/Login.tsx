@@ -82,6 +82,7 @@ const GOOGLE_WEB_CLIENT_ID = import.meta.env.PUBLIC_GOOGLE_WEB_CLIENT_ID || DEFA
 const APPLE_SERVICE_ID = import.meta.env.PUBLIC_APPLE_SERVICE_ID || DEFAULT_APPLE_SERVICE_ID;
 const FACEBOOK_APP_ID = import.meta.env.PUBLIC_FACEBOOK_APP_ID || DEFAULT_FACEBOOK_APP_ID;
 const FACEBOOK_SDK_VERSION = 'v25.0';
+const REMEMBERED_IDENTIFIER_STORAGE_KEY = 'pateez_login_identifier';
 
 const turkeyCities = [
   'Adana',
@@ -178,6 +179,38 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const looksLikeEmailAddress = (value: string) => EMAIL_PATTERN.test(value.trim().toLowerCase());
 
 const hasFieldErrors = (errors: AuthFieldErrors) => Object.values(errors).some(Boolean);
+
+const readRememberedIdentifier = () => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(REMEMBERED_IDENTIFIER_STORAGE_KEY)?.trim() || '';
+  } catch {
+    return '';
+  }
+};
+
+const saveRememberedIdentifier = (value: string) => {
+  if (typeof window === 'undefined') return;
+  const cleanValue = value.trim();
+  try {
+    if (cleanValue) {
+      window.localStorage.setItem(REMEMBERED_IDENTIFIER_STORAGE_KEY, cleanValue);
+    } else {
+      window.localStorage.removeItem(REMEMBERED_IDENTIFIER_STORAGE_KEY);
+    }
+  } catch {
+    // localStorage can be unavailable in restricted browser modes.
+  }
+};
+
+const clearRememberedIdentifier = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(REMEMBERED_IDENTIFIER_STORAGE_KEY);
+  } catch {
+    // localStorage can be unavailable in restricted browser modes.
+  }
+};
 
 const fieldForAuthError = (message: string, mode: AccountMode): AuthFieldName | null => {
   const normalized = message.toLocaleLowerCase('tr-TR');
@@ -412,6 +445,7 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
   const { currentLang } = useLanguage();
   const [mode, setMode] = useState<AccountMode>('signIn');
   const [identifier, setIdentifier] = useState('');
+  const [rememberIdentifier, setRememberIdentifier] = useState(false);
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -437,6 +471,13 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
     DEFAULT_LOGO_URL
   );
   const siteName = String(siteSettings?.site_name || 'Pateez').trim() || 'Pateez';
+
+  useEffect(() => {
+    const rememberedIdentifier = readRememberedIdentifier();
+    if (!rememberedIdentifier) return;
+    setIdentifier(rememberedIdentifier);
+    setRememberIdentifier(true);
+  }, []);
 
   useEffect(() => {
     setLogoFailed(false);
@@ -578,6 +619,11 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
           password,
         });
         await applySupabaseSession(data.session);
+        if (rememberIdentifier) {
+          saveRememberedIdentifier(cleanIdentifier);
+        } else {
+          clearRememberedIdentifier();
+        }
       }
       onSuccess();
     } catch (authError: any) {
@@ -837,7 +883,21 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
                     onTogglePassword={() => setShowPassword((value) => !value)}
                     error={fieldErrors.password}
                   />
-                  <div className="flex justify-end">
+                  <div className="flex min-h-[24px] items-center justify-between gap-3">
+                    <label className="flex min-w-0 cursor-pointer items-center gap-2 text-[11.5px] font-[800] text-[#5d6c78]">
+                      <input
+                        type="checkbox"
+                        checked={rememberIdentifier}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setRememberIdentifier(checked);
+                          if (!checked) clearRememberedIdentifier();
+                        }}
+                        disabled={loading}
+                        className="h-4 w-4 shrink-0 rounded-[4px] border-[#dce6ea] text-[#f54138] accent-[#f54138] focus:ring-[#ffc9c5] disabled:cursor-not-allowed disabled:opacity-60"
+                      />
+                      <span className="truncate">Beni hatırla</span>
+                    </label>
                     <button
                       type="button"
                       onClick={handleForgotPassword}

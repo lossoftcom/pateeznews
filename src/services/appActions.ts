@@ -100,10 +100,16 @@ export function subscribeNewsletter(email: string, source: string, languageCode:
   });
 }
 
-export function searchSite(query: string, languageCode: string) {
+export function searchSite(
+  query: string,
+  languageCode: string,
+  options: { limit?: number; profilesLimit?: number } = {},
+) {
   const url = new URL('/api/app/search', window.location.origin);
   url.searchParams.set('q', query);
   url.searchParams.set('lang', languageCode);
+  if (options.limit) url.searchParams.set('limit', String(options.limit));
+  if (options.profilesLimit) url.searchParams.set('profilesLimit', String(options.profilesLimit));
   return fetch(url).then((response) => response.json());
 }
 

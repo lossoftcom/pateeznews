@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { subscribeNewsletter } from '@/services/appActions';
 import { useToast } from '@/context/ToastContext';
 import { formatPostDateParts, slugify } from '@/utils/helpers';
+import { openSiteSearch } from '@/utils/searchNavigation';
 import RemixIcon from './ui/RemixIcon';
 import PublisherFollowButton from './PublisherFollowButton';
 import AdSlot from './ads/AdSlot';
@@ -848,7 +849,12 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
 
         <div className="category-mobile-shell opinion-mobile-shell">
           <header className="category-mobile-appbar opinion-mobile-appbar">
-            <button type="button" className="category-mobile-icon-button" aria-label="Bu kategoride ara">
+            <button
+              type="button"
+              className="category-mobile-icon-button"
+              onClick={() => { void openSiteSearch(displayCategory, currentLang.code || 'tr'); }}
+              aria-label="Bu kategoride ara"
+            >
               <RemixIcon name="ri-search-line" size={25} />
             </button>
             <div className="category-mobile-appbar-spacer" />
@@ -1610,7 +1616,12 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({ category, onBack, onNew
 
       <div className="category-mobile-shell">
         <header className="category-mobile-appbar">
-          <button type="button" className="category-mobile-icon-button" aria-label="Bu kategoride ara">
+          <button
+            type="button"
+            className="category-mobile-icon-button"
+            onClick={() => { void openSiteSearch(mobileCategoryTitle, currentLang.code || 'tr'); }}
+            aria-label="Bu kategoride ara"
+          >
             <RemixIcon name="ri-search-line" size={25} />
           </button>
           <div className="category-mobile-appbar-spacer" />

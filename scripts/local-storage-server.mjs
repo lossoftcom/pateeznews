@@ -140,6 +140,15 @@ function contentTypeForFilename(filename, fallback = 'application/octet-stream')
   }[ext] || fallback;
 }
 
+function uploadContentType(filename, multipartContentType) {
+  const headerType = String(multipartContentType || '').split(';')[0].trim().toLowerCase();
+  const filenameType = contentTypeForFilename(filename, '');
+  if (!headerType || headerType === 'application/octet-stream') {
+    return filenameType || 'application/octet-stream';
+  }
+  return headerType;
+}
+
 function normalizeImageOutputFormat(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'jpg' || normalized === 'jpeg') return 'jpeg';
@@ -697,7 +706,7 @@ async function upload(req, res) {
   }
 
   let buffer = await fs.promises.readFile(file.path);
-  let contentType = file.headers?.['content-type'] || contentTypeForFilename(finalFilename);
+  let contentType = uploadContentType(finalFilename, file.headers?.['content-type']);
   if (shouldOptimize(type, finalFilename, contentType)) {
     try {
       const outputFormat = normalizeImageOutputFormat(field(fields, 'imageOutputFormat'));

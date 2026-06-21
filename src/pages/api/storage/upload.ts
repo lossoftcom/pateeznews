@@ -213,17 +213,27 @@ async function cleanupLocalUpload(type: StorageType, id: string) {
 
 function localMediaRecordFromResult(localResult: Record<string, unknown>) {
     const type = getStorageType(localResult.type);
+    const id = String(localResult.id || '');
     return {
-        id: String(localResult.id || ''),
+        id,
         type,
         value: String(localResult.value || ''),
         path: String(localResult.path || ''),
         size: Number(localResult.size || 0),
-        contentType: String(localResult.contentType || ''),
+        contentType: normalizedUploadContentType(id, localResult.contentType),
         src: String(localResult.src || ''),
         publicSrc: String(localResult.publicSrc || ''),
         thumb: String(localResult.thumb || localResult.src || ''),
     };
+}
+
+function normalizedUploadContentType(id: string, contentType: unknown) {
+    const normalized = String(contentType || '').split(';')[0].trim().toLowerCase();
+    const inferred = contentTypeForFilename(id, '');
+    if (!normalized || normalized === 'application/octet-stream') {
+        return inferred || 'application/octet-stream';
+    }
+    return normalized;
 }
 
 function localFallbackResult(localResult: Record<string, unknown>) {
@@ -302,7 +312,7 @@ export const POST: APIRoute = async ({ request }) => {
                 const resultType = getStorageType(processed.type);
                 const resultId = String(processed.id || '');
                 const buffer = await readLocalUploadBuffer(resultType, resultId);
-                const contentType = String(processed.contentType || contentTypeForFilename(resultId));
+                const contentType = normalizedUploadContentType(resultId, processed.contentType);
                 let result;
                 try {
                     const thumbObjectPath = await uploadLocalThumbToRemote(
@@ -376,13 +386,14 @@ export const POST: APIRoute = async ({ request }) => {
         }
 
         const result = await uploadLocalStorageFile(uploadFormData);
+        const resultId = String(result.id || '');
         await recordLocalMediaFile({
-            id: String(result.id || ''),
+            id: resultId,
             type: getStorageType(result.type),
             value: String(result.value || ''),
             path: String(result.path || ''),
             size: Number(result.size || 0),
-            contentType: String(result.contentType || ''),
+            contentType: normalizedUploadContentType(resultId, result.contentType),
             src: String(result.src || ''),
             publicSrc: String(result.publicSrc || ''),
             thumb: String(result.thumb || result.src || ''),
