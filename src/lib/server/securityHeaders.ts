@@ -8,7 +8,7 @@ export const ADMIN_CONTENT_SECURITY_POLICY = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://accounts.google.com https://static.cloudflareinsights.com",
-  "connect-src 'self' http://localhost:* http://127.0.0.1:* http://10.0.2.2:* https://*.supabase.co wss://*.supabase.co https://fonts.gstatic.com https://www.gstatic.com https://accounts.google.com https://cloudflareinsights.com",
+  "connect-src 'self' http://localhost:* http://127.0.0.1:* http://10.0.2.2:* https://*.supabase.co wss://*.supabase.co https://fonts.gstatic.com https://www.gstatic.com https://accounts.google.com https://generativelanguage.googleapis.com https://cloudflareinsights.com",
   "frame-src 'self' https://accounts.google.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
