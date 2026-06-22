@@ -148,9 +148,9 @@ async function exchangeMetaCode(input: {
   return String(payload.access_token);
 }
 
-export const GET: APIRoute = async ({ request, url, clientAddress }) => {
+export const GET: APIRoute = async ({ request, url }) => {
   const requestOrigin = new URL(request.url).origin;
-  const location = getRequestLocation(request, clientAddress);
+  const location = getRequestLocation(request);
   const stateCookie = readStateCookie(request);
   const origin = stateCookie?.origin === requestOrigin ? stateCookie.origin : requestOrigin;
   const error = cleanText(url.searchParams.get('error_description') || url.searchParams.get('error_message') || url.searchParams.get('error'));

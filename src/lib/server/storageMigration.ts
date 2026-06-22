@@ -101,7 +101,7 @@ async function updateTextTargets(replacement: Replacement) {
       (column) => `${column} = NULLIF(REPLACE(COALESCE(${column}, ''), $1, $2), '')`,
     );
     const conditions = target.columns.map(
-      (column) => `COALESCE(${column}, '') LIKE $3 ESCAPE '\\\\'`,
+      (column) => `COALESCE(${column}, '') LIKE $3 ESCAPE '\\'`,
     );
     const result = await dbQuery(
       `UPDATE ${target.table}
@@ -122,10 +122,10 @@ async function updateJsonTargets(replacement: Replacement) {
   for (const target of JSON_TARGETS) {
     const sets = target.columns.map(
       (column) =>
-        `${column} = CASE WHEN COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\\\' THEN (REPLACE(${column}::text, $1, $2))::jsonb ELSE ${column} END`,
+        `${column} = CASE WHEN COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\' THEN (REPLACE(${column}::text, $1, $2))::jsonb ELSE ${column} END`,
     );
     const conditions = target.columns.map(
-      (column) => `COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\\\'`,
+      (column) => `COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\'`,
     );
     const result = await dbQuery(
       `UPDATE ${target.table}

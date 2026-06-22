@@ -244,11 +244,11 @@ async function ensureSignupEmailAvailable(client: any, email: string) {
   if (result.rows[0]) throw new Error('E-posta zaten kullanılıyor');
 }
 
-export const POST: APIRoute = async ({ request, clientAddress }) => {
+export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const action = cleanText(body.action);
-    const location = getRequestLocation(request, clientAddress);
+    const location = getRequestLocation(request);
 
     if (action === 'completeOAuthProfile') {
       const session = await getSessionFromRequest(request, body);

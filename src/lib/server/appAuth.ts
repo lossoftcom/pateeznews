@@ -8,6 +8,7 @@ import {
 } from 'jose';
 import { connectDbClient, dbQuery, type DatabaseClient } from './supabaseDb';
 import { readRuntimeEnv } from './runtimeEnv';
+import { signInWithPassword as signInWithSupabasePassword } from './supabaseAuth';
 
 export type AppAuthProvider = 'email' | 'google' | 'apple' | 'facebook' | 'x' | 'twitter';
 
@@ -73,6 +74,7 @@ type AppAuthGlobal = typeof globalThis & {
 
 const AUTH_AUDIENCE = 'authenticated';
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const LOCAL_DEV_AUTH_SECRET = 'pateez-local-development-auth-secret-only';
 const DEFAULT_CITY = 'Niğde';
 
 const DEFAULT_GOOGLE_CLIENT_IDS = [
@@ -167,6 +169,9 @@ function appAuthSecret() {
     readRuntimeEnv('PATEEZ_AUTH_JWT_SECRET') ||
     readRuntimeEnv('AUTH_JWT_SECRET') ||
     readRuntimeEnv('MAIL_SECRET_KEY');
+  if ((!secret || secret.length < 16) && (import.meta.env.DEV || readRuntimeEnv('NODE_ENV') === 'development')) {
+    return new TextEncoder().encode(LOCAL_DEV_AUTH_SECRET);
+  }
   if (!secret || secret.length < 16) {
     throw new Error('PATEEZ_AUTH_JWT_SECRET or MAIL_SECRET_KEY is required for app auth');
   }
@@ -354,6 +359,20 @@ async function profileById(userId: string, client?: DatabaseClient) {
   return result.rows[0] || null;
 }
 
+async function profileByEmail(email: string, client?: DatabaseClient) {
+  const query = client?.query.bind(client) || dbQuery;
+  const result = await query<ProfileAuthRow>(
+    `SELECT id, username, full_name, avatar_url, cover_url, phone, address,
+            role, email, status, city, auth_provider, auth_providers,
+            writer_application_status, writer_application_at
+       FROM public.profiles
+      WHERE lower(email) = lower($1)
+      LIMIT 1`,
+    [cleanEmail(email)],
+  );
+  return result.rows[0] || null;
+}
+
 export async function setPasswordForUser(
   userId: string,
   password: string,
@@ -378,23 +397,38 @@ export async function setPasswordForUser(
 
 export async function signInWithPassword(email: string, password: string) {
   try {
+    const cleanLoginEmail = cleanEmail(email);
     const result = await dbQuery<ProfileAuthRow & { password_ok: boolean }>(
       `SELECT p.id, p.username, p.full_name, p.avatar_url, p.cover_url, p.phone,
               p.address, p.role, p.email, p.status, p.city, p.auth_provider,
               p.auth_providers, p.writer_application_status, p.writer_application_at,
-              (c.password_hash = extensions.crypt($2::text, c.password_hash)) AS password_ok
+              CASE
+                WHEN c.password_hash IS NULL THEN false
+                ELSE (c.password_hash = extensions.crypt($2::text, c.password_hash))
+              END AS password_ok
          FROM public.profiles p
-         JOIN public.profile_auth_credentials c ON c.user_id = p.id
+         LEFT JOIN public.profile_auth_credentials c ON c.user_id = p.id
         WHERE lower(p.email) = lower($1)
         LIMIT 1`,
-      [cleanEmail(email), password],
+      [cleanLoginEmail, password],
     );
-    const profile = result.rows[0];
-    if (!profile?.password_ok) {
-      return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
-    }
-    if (String(profile.status || '').toLowerCase() === 'blocked') {
+    const profile = result.rows[0] || null;
+    if (profile && String(profile.status || '').toLowerCase() === 'blocked') {
       return { data: { user: null, session: null }, error: { message: 'Account is blocked' } };
+    }
+    if (!profile?.password_ok) {
+      const legacyResult = await signInWithSupabasePassword(cleanLoginEmail, password);
+      const legacyUserId = legacyResult.data.session?.user?.id || legacyResult.data.user?.id || '';
+      const legacyProfile = legacyUserId ? await profileById(legacyUserId) : await profileByEmail(cleanLoginEmail);
+      if (legacyResult.error || !legacyProfile?.id) {
+        return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
+      }
+      if (String(legacyProfile.status || '').toLowerCase() === 'blocked') {
+        return { data: { user: null, session: null }, error: { message: 'Account is blocked' } };
+      }
+      await setPasswordForUser(legacyProfile.id, password).catch(() => undefined);
+      const session = await createSession(legacyProfile);
+      return { data: { user: session.user, session }, error: null };
     }
     const session = await createSession(profile);
     return { data: { user: session.user, session }, error: null };

@@ -153,6 +153,34 @@ export const isBoilerplateAiText = (value: unknown) => {
     return BOILERPLATE_PATTERNS.some((pattern) => text.includes(pattern));
 };
 
+// Detects machine-generated, high-entropy tokens such as hex hashes
+// (e.g. "605ec1f66e43a2f91370"), UUID fragments, or base36/62 ids. Kept
+// conservative so real words/place names (which contain no digits) are never
+// flagged: a token must be long AND mix letters with a meaningful share of
+// digits to be considered random.
+// Specific multi-word screenshot phrases (Turkish + English). Matched as whole
+// phrases — never single words like "resmi" (official) or "ekran" (screen) on
+// their own — so legitimate news filenames are not falsely flagged.
+const SCREENSHOT_PHRASES = [
+    'ekran resmi',
+    'ekran goruntusu',
+    'ekran goruntu',
+    'ekrani goruntusu',
+    'screen shot',
+];
+
+const isRandomLookingToken = (word: string) => {
+    if (word.length < 12) return false;
+    const hasLetter = /[a-z]/.test(word);
+    const hasDigit = /[0-9]/.test(word);
+    if (!hasLetter || !hasDigit) return false;
+    // Pure hexadecimal hash mixing digits and letters.
+    if (/^[a-f0-9]+$/.test(word)) return true;
+    // Long alphanumeric id with a high digit ratio.
+    const digitCount = (word.match(/[0-9]/g) || []).length;
+    return digitCount / word.length >= 0.3;
+};
+
 export const isTechnicalMediaText = (value: unknown) => {
     const text = transliterateTurkish(String(value || ''))
         .toLowerCase()
@@ -163,7 +191,9 @@ export const isTechnicalMediaText = (value: unknown) => {
 
     if (!text) return true;
     if (/\b\d{10,}\b/.test(text)) return true;
+    if (SCREENSHOT_PHRASES.some((phrase) => text.includes(phrase))) return true;
     const words = text.split(' ').filter(Boolean);
+    if (words.some(isRandomLookingToken)) return true;
     const technicalCount = words.filter((word) => TECHNICAL_FILENAME_WORDS.has(word)).length;
     if (technicalCount > 0 && words.length <= 8) return true;
     if (technicalCount >= 2) return true;

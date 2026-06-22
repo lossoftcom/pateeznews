@@ -16,6 +16,7 @@ class MediaItem {
     required this.src,
     this.thumb,
     required this.path,
+    this.needsSeoRename = false,
   });
 
   final String id;
@@ -26,6 +27,11 @@ class MediaItem {
   final String src;
   final String? thumb;
   final String path;
+
+  /// True when the stored filename looks machine-generated/meaningless and the
+  /// admin should be prompted for an SEO-friendly rename. Only set on upload
+  /// responses; listing responses leave it false.
+  final bool needsSeoRename;
 
   factory MediaItem.fromJson(Map<String, dynamic> json, String fallbackType) {
     return MediaItem(
@@ -38,6 +44,28 @@ class MediaItem {
       thumb: json['thumb']?.toString(),
       path: (json['path'] ?? json['id']?.toString().split('/').first ?? '')
           .toString(),
+      needsSeoRename: json['needsSeoRename'] == true,
+    );
+  }
+
+  MediaItem copyWith({
+    String? id,
+    String? value,
+    String? src,
+    String? thumb,
+    String? path,
+    bool? needsSeoRename,
+  }) {
+    return MediaItem(
+      id: id ?? this.id,
+      value: value ?? this.value,
+      size: size,
+      date: date,
+      type: type,
+      src: src ?? this.src,
+      thumb: thumb ?? this.thumb,
+      path: path ?? this.path,
+      needsSeoRename: needsSeoRename ?? this.needsSeoRename,
     );
   }
 }
@@ -488,6 +516,7 @@ class MediaService {
       src: (decoded['src'] ?? '').toString(),
       thumb: decoded['thumb']?.toString(),
       path: (decoded['id'] ?? '').toString().split('/').first,
+      needsSeoRename: decoded['needsSeoRename'] == true,
     );
   }
 
@@ -720,7 +749,10 @@ class MediaService {
     required String languageCode,
     required String mediaKind,
     required String context,
+    String? filename,
+    bool suggestOnly = false,
   }) async {
+    final manualName = filename?.trim() ?? '';
     final response = await _request(
       'POST',
       _resolve('/api/storage/seo-rename'),
@@ -731,6 +763,8 @@ class MediaService {
         'languageCode': languageCode,
         'mediaKind': mediaKind,
         'context': context,
+        if (manualName.isNotEmpty) 'filename': manualName,
+        if (suggestOnly) 'suggestOnly': true,
       }),
       timeout: _aiTimeout,
     );

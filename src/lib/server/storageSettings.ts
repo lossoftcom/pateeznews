@@ -204,6 +204,57 @@ export async function recordStorageMediaFile(provider: StorageMediaProvider, rec
   });
 }
 
+export async function renameStorageMediaRecord(
+  provider: StorageMediaProvider,
+  record: LocalMediaRecord & { oldId: string },
+) {
+  const oldKey = providerMediaKey(provider, record.type, record.oldId);
+  const newKey = providerMediaKey(provider, record.type, record.id);
+  if (oldKey === newKey) return;
+
+  const existing = await dbQuery<{ payload: Record<string, unknown> | null }>(
+    `SELECT payload
+     FROM public.app_cache
+     WHERE key = $1
+     LIMIT 1`,
+    [oldKey]
+  ).catch(() => ({ rows: [] as Array<{ payload: Record<string, unknown> | null }> }));
+
+  const payload = {
+    ...(existing.rows[0]?.payload || {}),
+    provider,
+    id: record.id,
+    type: record.type,
+    value: record.value,
+    path: record.path,
+    size: record.size,
+    contentType: record.contentType,
+    src: record.src,
+    publicSrc: record.publicSrc,
+    thumb: record.thumb,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await dbQuery(
+    `DELETE FROM public.app_cache WHERE key = $1`,
+    [oldKey]
+  ).catch((error) => {
+    console.warn('Storage media provider old DB index cleanup skipped:', error?.message || error);
+  });
+
+  await dbQuery(
+    `INSERT INTO public.app_cache (key, payload, expires_at, updated_at)
+     VALUES ($1, $2::jsonb, $3::timestamptz, now())
+     ON CONFLICT (key) DO UPDATE SET
+       payload = EXCLUDED.payload,
+       expires_at = EXCLUDED.expires_at,
+       updated_at = now()`,
+    [newKey, JSON.stringify(payload), PERSISTENT_EXPIRES_AT]
+  ).catch((error) => {
+    console.warn('Storage media provider DB index rename skipped:', error?.message || error);
+  });
+}
+
 export async function recordLocalMediaFile(record: LocalMediaRecord) {
   const payload = {
     provider: 'local',

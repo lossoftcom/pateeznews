@@ -5,7 +5,16 @@ import { dbQuery } from '@/lib/server/supabaseDb';
 import { requireStorageAdminRequest } from '@/lib/server/storageAdminAuth';
 import { LOCAL_UPLOAD_ROOT } from '@/lib/server/localUploadStorage';
 import { renameLocalStorageFile } from '@/lib/server/localStorageProxy';
-import { renameLocalMediaRecord } from '@/lib/server/storageSettings';
+import {
+    getStorageSettings,
+    isLocalStorageActive,
+    isS3CompatibleStorageActive,
+    localBackupEnabled,
+    renameLocalMediaRecord,
+    renameStorageMediaRecord,
+    type StorageMediaProvider,
+} from '@/lib/server/storageSettings';
+import { activeRemoteProvider, remoteObjectExists, renameRemoteStorageFile } from '@/lib/server/remoteObjectStorage';
 import { geminiFastModelAttempts, geminiThinkingConfigForModel, isGeminiFallbackWorthTrying, normalizeGeminiModelName } from '@/lib/geminiModelFallback';
 import { buildSeoFilenameFallback, cleanAiScalarText, extractJsonStringField, isBoilerplateAiText, isTechnicalMediaText, toSeoSlug } from '@/lib/mediaSeoText';
 import { fetchMediaSeoSystemPrompt } from '@/lib/server/mediaSeoPrompt';
@@ -168,10 +177,10 @@ const updatePostsMediaReferences = async (
             const likePattern = `%${escapeLikePattern(safeOld)}%`;
             const conditionParts = [
                 ...updateTextColumns.map(
-                    (column) => `COALESCE(${column}, '') LIKE $3 ESCAPE '\\\\'`,
+                    (column) => `COALESCE(${column}, '') LIKE $3 ESCAPE '\\'`,
                 ),
                 ...updateJsonColumns.map(
-                    (column) => `COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\\\'`,
+                    (column) => `COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\'`,
                 ),
             ];
 
@@ -182,7 +191,7 @@ const updatePostsMediaReferences = async (
                 ),
                 ...updateJsonColumns.map(
                     (column) =>
-                        `${column} = CASE WHEN COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\\\' THEN (REPLACE(${column}::text, $1, $2))::jsonb ELSE ${column} END`,
+                        `${column} = CASE WHEN COALESCE(${column}::text, '') LIKE $3 ESCAPE '\\' THEN (REPLACE(${column}::text, $1, $2))::jsonb ELSE ${column} END`,
                 ),
             ];
 
@@ -439,24 +448,134 @@ const normalizeRenameReplacements = (value: unknown): LocalRenameReplacement[] =
         .filter((item) => item.oldId && item.newId && item.oldSrc && item.newSrc);
 };
 
+const mediaRecordForReplacement = (
+    type: StorageType,
+    replacement: LocalRenameReplacement,
+) => ({
+    oldId: replacement.oldId,
+    id: replacement.newId,
+    type: replacement.type || type,
+    value: replacement.value || path.posix.basename(replacement.newId),
+    path: replacement.path || path.posix.dirname(replacement.newId),
+    size: Number.isFinite(replacement.size) ? replacement.size || 0 : 0,
+    contentType: replacement.contentType || '',
+    src: replacement.newSrc,
+    publicSrc: replacement.newPublicSrc || replacement.newSrc,
+    thumb: replacement.thumb || replacement.newSrc,
+});
+
 const updateLocalMediaRecords = async (
     type: StorageType,
     replacements: LocalRenameReplacement[],
 ) => {
     for (const replacement of replacements) {
-        await renameLocalMediaRecord({
-            oldId: replacement.oldId,
-            id: replacement.newId,
-            type: replacement.type || type,
-            value: replacement.value || path.posix.basename(replacement.newId),
-            path: replacement.path || path.posix.dirname(replacement.newId),
-            size: Number.isFinite(replacement.size) ? replacement.size || 0 : 0,
-            contentType: replacement.contentType || '',
-            src: replacement.newSrc,
-            publicSrc: replacement.newPublicSrc || replacement.newSrc,
-            thumb: replacement.thumb || replacement.newSrc,
-        });
+        await renameLocalMediaRecord(mediaRecordForReplacement(type, replacement));
     }
+};
+
+const MEDIA_FETCH_TIMEOUT_MS = 12_000;
+
+const inlineMimeForContentType = (contentType: string) => {
+    const normalized = contentType.split(';')[0].trim().toLowerCase();
+    if (normalized === 'image/jpeg' || normalized === 'image/jpg') return 'image/jpeg';
+    if (normalized === 'image/png') return 'image/png';
+    if (normalized === 'image/webp') return 'image/webp';
+    return '';
+};
+
+// Workers-safe vision input: downloads the served image over HTTP (works for
+// both R2 and locally-backed files, with no filesystem dependency) and inlines
+// it as base64, mirroring the proven automatic-news image proxy. Returns null on
+// any problem so the AI can still run text-only.
+const fetchInlineImageFromUrl = async (src: string, requestUrl: string) => {
+    let absolute = '';
+    try {
+        const parsed = new URL(src);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') absolute = parsed.toString();
+    } catch {
+        // Relative storage paths are resolved against the request origin below.
+    }
+    if (!absolute) {
+        try {
+            absolute = new URL(src, new URL(requestUrl).origin).toString();
+        } catch {
+            return null;
+        }
+    }
+
+    try {
+        const response = await fetch(absolute, {
+            signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
+            headers: {
+                Accept: 'image/*,*/*;q=0.8',
+                'User-Agent': 'PateezAdmin/1.0 (+https://pateeznews.com)',
+            },
+            redirect: 'follow',
+        });
+        if (!response.ok) return null;
+        const mimeType = inlineMimeForContentType(response.headers.get('content-type') || '');
+        if (!mimeType) return null;
+        const buffer = await response.arrayBuffer();
+        if (!buffer.byteLength || buffer.byteLength > MAX_AI_IMAGE_BYTES) return null;
+        return { mimeType, data: Buffer.from(new Uint8Array(buffer)).toString('base64') };
+    } catch {
+        return null;
+    }
+};
+
+const apiStorageFilePath = (type: StorageType, id: string) => `/api/storage/file/${type}/${id}`;
+
+const stripExtension = (value: string) => {
+    const dotIndex = value.lastIndexOf('.');
+    return dotIndex > 0 ? value.slice(0, dotIndex) : value;
+};
+
+// Picks the first collision-free key on the remote bucket (base, base-2, …) so
+// a generated SEO name never overwrites a different existing object.
+const chooseUniqueRemoteBase = async (
+    settings: Awaited<ReturnType<typeof getStorageSettings>>,
+    type: StorageType,
+    oldId: string,
+    requestedBase: string,
+    ext: string,
+    dirPrefix: string,
+) => {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+        const candidate = attempt === 0 ? requestedBase : `${requestedBase}-${attempt + 1}`;
+        const candidateId = `${dirPrefix}${candidate}${ext}`;
+        if (candidateId === oldId) return candidate;
+        const exists = await remoteObjectExists(settings, type, candidateId).catch(() => false);
+        if (!exists) return candidate;
+    }
+    return `${requestedBase}-${Date.now()}`;
+};
+
+const remoteReplacement = (type: StorageType, oldId: string, newId: string): LocalRenameReplacement => ({
+    oldId,
+    newId,
+    oldSrc: apiStorageFilePath(type, oldId),
+    newSrc: apiStorageFilePath(type, newId),
+    oldPublicSrc: apiStorageFilePath(type, oldId),
+    newPublicSrc: apiStorageFilePath(type, newId),
+    value: path.posix.basename(newId),
+    path: path.posix.dirname(newId),
+    size: 0,
+    contentType: '',
+    thumb: apiStorageFilePath(type, newId),
+    type,
+});
+
+// The main object plus, for videos, every possible thumbnail key. The remote
+// rename skips non-existent sources, so listing all thumb extensions is safe.
+const buildRemoteReplacements = (type: StorageType, oldId: string, newId: string): LocalRenameReplacement[] => {
+    const main = remoteReplacement(type, oldId, newId);
+    if (type !== 'video') return [main];
+    const oldRoot = stripExtension(oldId);
+    const newRoot = stripExtension(newId);
+    const thumbs = ['.webp', '.jpg', '.jpeg', '.png'].map((thumbExt) =>
+        remoteReplacement(type, `${oldRoot}_thumb${thumbExt}`, `${newRoot}_thumb${thumbExt}`),
+    );
+    return [main, ...thumbs];
 };
 
 export const POST: APIRoute = async ({ request }) => {
@@ -464,45 +583,148 @@ export const POST: APIRoute = async ({ request }) => {
         const body = await request.json().catch(() => ({}));
         const src = String(body?.src || '').trim();
         const ref = parseStorageRef(src, body?.type);
-        if (!ref) return json({ error: 'Local storage file required' }, 400);
+        if (!ref) return json({ error: 'Storage file reference required' }, 400);
         await requireStorageAdminRequest(request, ref.type);
 
-        const uploadRootDir = LOCAL_UPLOAD_ROOT;
-        const baseDir = path.resolve(uploadRootDir, ref.type);
-        const candidateId = getCandidateId(baseDir, ref.id);
-        if (!candidateId) return json({ error: 'File not found' }, 404);
+        const settings = await getStorageSettings();
+        const remoteActive = isS3CompatibleStorageActive(settings);
+        const localActive = isLocalStorageActive(settings);
+        if (!remoteActive && !localActive) {
+            return json({ error: `Storage provider is not implemented: ${settings.activeStorage}` }, 501);
+        }
 
-        const exactPath = path.resolve(baseDir, candidateId);
-        if (!isInside(baseDir, exactPath)) return json({ error: 'Invalid file path' }, 400);
+        // A local file (dev / local backup) is optional. On Cloudflare Workers and
+        // remote-only setups there is no filesystem, so it is never required —
+        // the remote bucket is the source of truth.
+        const baseDir = path.resolve(LOCAL_UPLOAD_ROOT, ref.type);
+        let candidateId: string | null = null;
+        try {
+            candidateId = getCandidateId(baseDir, ref.id);
+        } catch {
+            candidateId = null;
+        }
+        const localPath = candidateId ? path.resolve(baseDir, candidateId) : null;
+        const effectiveId = candidateId || ref.id;
 
         const languageCode = String(body?.languageCode || 'tr').trim() || 'tr';
-        const settings = await fetchAiSettings(languageCode);
-        if (!settings?.google_ai_api_key) return json({ error: 'Google AI API key not configured' }, 400);
+        // `filename` lets the admin commit an explicit, user-edited name (no AI
+        // call). `suggestOnly` returns an AI proposal without renaming anything,
+        // so the modal can pre-fill an editable field before the user confirms.
+        const manualName = String(body?.filename || '').trim();
+        const suggestOnly = body?.suggestOnly === true;
+        const aiSettings = await fetchAiSettings(languageCode);
+        const aiApiKey = aiSettings?.google_ai_api_key || '';
+        if (!manualName && !aiApiKey) return json({ error: 'Google AI API key not configured' }, 400);
 
-        const currentName = path.basename(candidateId);
+        const currentName = path.posix.basename(effectiveId);
         const context = String(body?.context || '').slice(0, 6000);
-	        const mediaKind = String(body?.mediaKind || 'haber medyası').slice(0, 120);
-	        const model = normalizeGeminiModelName(settings.google_ai_model) || 'gemini-2.5-flash';
-	        const systemPrompt = await fetchMediaSeoSystemPrompt(languageCode);
-	        let inlineImage: { mimeType: string; data: string } | null = null;
-        if (ref.type === 'image') {
-            try {
-                inlineImage = await prepareInlineImage(exactPath);
-            } catch {
-                inlineImage = null;
-            }
-        }
-        const requestedBase = await generateSeoName({
-            apiKey: settings.google_ai_api_key,
-            model,
-            context,
-            currentName,
-	            mediaKind,
-	            type: ref.type,
-	            inlineImage,
-	            systemPrompt
-	        });
+        const mediaKind = String(body?.mediaKind || 'haber medyası').slice(0, 120);
+        const model = normalizeGeminiModelName(aiSettings?.google_ai_model) || 'gemini-2.5-flash';
 
+        let requestedBase: string;
+        if (manualName) {
+            requestedBase = toSeoSlug(manualName, '');
+            if (!usableSeoFilename(requestedBase)) {
+                return json({ error: 'Provided filename is not a valid SEO name' }, 400);
+            }
+        } else {
+            const systemPrompt = await fetchMediaSeoSystemPrompt(languageCode);
+            let inlineImage: { mimeType: string; data: string } | null = null;
+            if (ref.type === 'image') {
+                if (localPath && isInside(baseDir, localPath)) {
+                    try {
+                        inlineImage = await prepareInlineImage(localPath);
+                    } catch {
+                        inlineImage = null;
+                    }
+                }
+                if (!inlineImage) inlineImage = await fetchInlineImageFromUrl(src, request.url);
+            }
+            requestedBase = await generateSeoName({
+                apiKey: aiApiKey,
+                model,
+                context,
+                currentName,
+                mediaKind,
+                type: ref.type,
+                inlineImage,
+                systemPrompt,
+            });
+        }
+
+        if (suggestOnly) {
+            return json({
+                success: true,
+                suggestion: true,
+                filename: requestedBase,
+                src: apiStorageFilePath(ref.type, effectiveId),
+                replacements: [],
+            });
+        }
+
+        // ── Remote-first rename (Cloudflare R2 / S3-compatible) ──────────────
+        if (remoteActive) {
+            const exists = await remoteObjectExists(settings, ref.type, effectiveId).catch(() => true);
+            if (!exists) return json({ error: 'File not found' }, 404);
+
+            const ext = path.posix.extname(effectiveId) || (ref.type === 'video' ? '.mp4' : '.webp');
+            const dir = path.posix.dirname(effectiveId);
+            const dirPrefix = dir && dir !== '.' ? `${dir}/` : '';
+            const uniqueBase = await chooseUniqueRemoteBase(settings, ref.type, effectiveId, requestedBase, ext, dirPrefix);
+            const newId = `${dirPrefix}${uniqueBase}${ext}`;
+
+            if (newId === effectiveId) {
+                return json({
+                    success: true,
+                    filename: uniqueBase,
+                    src: apiStorageFilePath(ref.type, effectiveId),
+                    replacements: [],
+                    dbUpdatedPosts: 0,
+                    remoteRenamed: 0,
+                    remoteError: '',
+                });
+            }
+
+            const replacements = buildRemoteReplacements(ref.type, effectiveId, newId);
+            const renameOutcome = await renameRemoteStorageFile(settings, {
+                type: ref.type,
+                replacements: replacements.map(({ oldId, newId: nextId }) => ({ oldId, newId: nextId })),
+            });
+
+            // Keep the local backup copy in sync when one is reachable.
+            if (candidateId) {
+                try {
+                    await renameLocalStorageFile({ type: ref.type, id: candidateId, newBase: uniqueBase });
+                } catch (error: any) {
+                    console.warn('Local backup rename skipped:', error?.message || error);
+                }
+            }
+
+            const mainReplacement = replacements[0];
+            const providers: StorageMediaProvider[] = [activeRemoteProvider(settings)];
+            if (localBackupEnabled(settings)) providers.push('localStorage');
+            for (const provider of providers) {
+                await renameStorageMediaRecord(provider, mediaRecordForReplacement(ref.type, mainReplacement))
+                    .catch((error) => console.warn('Provider media record rename skipped:', error?.message || error));
+            }
+            await renameLocalMediaRecord(mediaRecordForReplacement(ref.type, mainReplacement))
+                .catch((error) => console.warn('Local media record rename skipped:', error?.message || error));
+
+            const mediaUpdateResult = await updatePostsMediaReferences(replacements);
+
+            return json({
+                success: true,
+                filename: uniqueBase,
+                src: mainReplacement.newSrc,
+                replacements,
+                dbUpdatedPosts: mediaUpdateResult.updatedPosts,
+                remoteRenamed: renameOutcome.renamed,
+                remoteError: '',
+            });
+        }
+
+        // ── Local-storage-only rename (dev / self-hosted) ────────────────────
+        if (!candidateId) return json({ error: 'File not found' }, 404);
         const renameResult = await renameLocalStorageFile({
             type: ref.type,
             id: candidateId,
@@ -516,9 +738,11 @@ export const POST: APIRoute = async ({ request }) => {
         return json({
             success: true,
             filename: String(renameResult?.filename || requestedBase),
-            src: String(renameResult?.src || selectedReplacement?.newSrc || `/api/storage/file/${ref.type}/${candidateId}`),
+            src: String(renameResult?.src || selectedReplacement?.newSrc || apiStorageFilePath(ref.type, candidateId)),
             replacements,
             dbUpdatedPosts: mediaUpdateResult.updatedPosts,
+            remoteRenamed: 0,
+            remoteError: '',
         });
     } catch (error: any) {
         if ((error?.status || 500) >= 500) console.error('SEO Rename Error:', error);

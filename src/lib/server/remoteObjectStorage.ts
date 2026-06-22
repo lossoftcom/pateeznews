@@ -614,3 +614,116 @@ export async function deleteRemoteStorageFile(
 
   return { success: true, deleted, paths: deleted };
 }
+
+async function copyRemoteObject(
+  config: S3CompatibleConfig,
+  sourceObjectPath: string,
+  destObjectPath: string,
+) {
+  const remoteSource = providerObjectPath(config, sourceObjectPath);
+  const remoteDest = providerObjectPath(config, destObjectPath);
+  const encodedBucket = encodeRfc3986(config.bucketName);
+  const copySource = `/${encodedBucket}/${encodeObjectPath(remoteSource)}`;
+  const target = bucketUrl(config, remoteDest);
+  const response = await signedFetch(config, {
+    method: 'PUT',
+    url: target.url,
+    canonicalPath: target.canonicalPath,
+    headers: { 'x-amz-copy-source': copySource },
+  });
+  const text = await response.text();
+  // S3 CopyObject can return HTTP 200 with an <Error> body, so check both.
+  const ok = response.ok && !/<Error>/i.test(text);
+  return { ok, status: response.status, text };
+}
+
+async function deleteRemoteObject(config: S3CompatibleConfig, objectPath: string) {
+  const target = bucketUrl(config, providerObjectPath(config, objectPath));
+  const response = await signedFetch(config, {
+    method: 'DELETE',
+    url: target.url,
+    canonicalPath: target.canonicalPath,
+  });
+  if (!response.ok && response.status !== 404) {
+    const text = await response.text();
+    throw Object.assign(new Error(text || `${config.provider} delete failed`), { status: response.status });
+  }
+}
+
+// Renames remote objects by copying each source key to its new key and then
+// deleting the originals. Copies are performed first; if any copy fails the
+// already-created copies are rolled back so the original keys stay authoritative
+// (never a half-renamed state). The final deletes are best-effort cleanup: once
+// every copy has succeeded the new keys are already serving the file, so a
+// failed delete only leaves an orphaned old object rather than breaking the file.
+export async function renameRemoteStorageFile(
+  settings: StorageSettings,
+  input: {
+    type: StorageType;
+    replacements: Array<{ oldId: string; newId: string }>;
+  },
+) {
+  const config = requireS3CompatibleConfig(settings);
+  const copied: Array<{ oldObjectPath: string; newObjectPath: string }> = [];
+
+  try {
+    for (const { oldId, newId } of input.replacements) {
+      if (!oldId || !newId || oldId === newId) continue;
+      const oldObjectPath = objectPathFor(input.type, oldId);
+      const newObjectPath = objectPathFor(input.type, newId);
+      const result = await copyRemoteObject(config, oldObjectPath, newObjectPath);
+      if (!result.ok) {
+        // The source is frequently a local-only image variant that was never
+        // pushed to the remote bucket; treat "missing source" as a skip.
+        if (result.status === 404 || /NoSuchKey|does not exist/i.test(result.text)) continue;
+        throw Object.assign(
+          new Error(result.text || `${config.provider} copy failed`),
+          { status: result.status || 500 },
+        );
+      }
+      copied.push({ oldObjectPath, newObjectPath });
+    }
+  } catch (error) {
+    for (const { newObjectPath } of copied) {
+      await deleteRemoteObject(config, newObjectPath).catch((cleanupError) => {
+        console.warn(
+          'Remote rename rollback skipped:',
+          newObjectPath,
+          cleanupError instanceof Error ? cleanupError.message : cleanupError,
+        );
+      });
+    }
+    throw error;
+  }
+
+  for (const { oldObjectPath } of copied) {
+    await deleteRemoteObject(config, oldObjectPath).catch((error) => {
+      console.warn(
+        'Remote rename old object cleanup skipped:',
+        oldObjectPath,
+        error instanceof Error ? error.message : error,
+      );
+    });
+  }
+
+  return { success: true, renamed: copied.length };
+}
+
+// Lightweight existence check (HEAD) used to pick a collision-free key before a
+// rename so an SEO name never silently overwrites a different object.
+export async function remoteObjectExists(
+  settings: StorageSettings,
+  type: StorageType,
+  id: string,
+) {
+  const config = requireS3CompatibleConfig(settings);
+  const objectPath = objectPathFor(type, id);
+  const target = bucketUrl(config, providerObjectPath(config, objectPath));
+  const response = await signedFetch(config, {
+    method: 'HEAD',
+    url: target.url,
+    canonicalPath: target.canonicalPath,
+  });
+  await response.arrayBuffer().catch(() => undefined);
+  return response.status >= 200 && response.status < 300;
+}

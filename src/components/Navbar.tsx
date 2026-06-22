@@ -1138,7 +1138,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
                     {onLogout && (
                       <button
-                        onClick={() => { onLogout(); setShowUserMenu(false); }}
+                        onClick={logoutFromAccountMenu}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-palette-red hover:bg-palette-red/5 transition-all group"
                       >
                         <RemixIcon name="ri-logout-box-r-line" size={20} className="opacity-60 group-hover:opacity-100" />

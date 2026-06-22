@@ -67,13 +67,13 @@ const getRequestLocation = (request: Request, clientAddress?: string) => {
   return { city, ip };
 };
 
-export const POST: APIRoute = async ({ request, clientAddress }) => {
+export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const email = String(body.email || '').trim().toLowerCase();
     const languageCode = String(body.languageCode || 'tr').trim().slice(0, 10) || 'tr';
     const source = String(body.source || 'site').trim().slice(0, 60) || 'site';
-    const location = getRequestLocation(request, clientAddress);
+    const location = getRequestLocation(request);
 
     if (!EMAIL_RE.test(email)) {
       return json({ error: { message: 'Invalid email' } }, 400);

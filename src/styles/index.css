@@ -11,6 +11,58 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+    :where(body.public-route *, body.public-route *::before, body.public-route *::after) {
+        box-sizing: border-box;
+        border-width: 0;
+        border-style: solid;
+        border-color: #E5E7EB;
+    }
+
+    :where(body.public-route button, body.public-route input, body.public-route optgroup, body.public-route select, body.public-route textarea) {
+        margin: 0;
+        padding: 0;
+        font: inherit;
+        color: inherit;
+        line-height: inherit;
+        letter-spacing: inherit;
+    }
+
+    :where(body.public-route button, body.public-route select) {
+        text-transform: none;
+    }
+
+    :where(body.public-route button, body.public-route [type='button'], body.public-route [type='reset'], body.public-route [type='submit']) {
+        -webkit-appearance: button;
+        appearance: button;
+        background-color: transparent;
+        background-image: none;
+    }
+
+    :where(body.public-route button, body.public-route [role='button']) {
+        cursor: pointer;
+    }
+
+    :where(body.public-route button:disabled) {
+        cursor: default;
+    }
+
+    :where(body.public-route a) {
+        color: inherit;
+        text-decoration: inherit;
+    }
+
+    :where(body.public-route img, body.public-route svg, body.public-route video, body.public-route canvas, body.public-route audio, body.public-route iframe, body.public-route embed, body.public-route object) {
+        display: block;
+        vertical-align: middle;
+    }
+
+    :where(body.public-route img, body.public-route video) {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
 :root {
     --pateez-deep-ocean: #2C3E50;
     --pateez-surface: #F8F9FA;

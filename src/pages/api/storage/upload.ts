@@ -29,6 +29,19 @@ import {
     uploadRuleTypeForStorageType,
     type ContentUploadSettings,
 } from '@/lib/server/contentUploadSettings';
+import { isTechnicalMediaText } from '@/lib/mediaSeoText';
+
+// Flags uploads whose final name is machine-generated/meaningless so the admin
+// UI can prompt for an SEO-friendly rename. The stored `value` is the source of
+// truth for the displayed filename.
+const mediaUploadResponse = (payload: Record<string, unknown>) =>
+    new Response(
+        JSON.stringify({
+            ...payload,
+            needsSeoRename: isTechnicalMediaText(payload.value),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
 
 const OPTIMIZED_IMAGE_STORAGE_TYPES = new Set<StorageType>(['image', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
@@ -343,12 +356,7 @@ export const POST: APIRoute = async ({ request }) => {
                         etaSeconds: 0,
                         message: 'Remote storage unavailable; local backup used.',
                     });
-                    return new Response(JSON.stringify(fallback), {
-                        status: 200,
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    return mediaUploadResponse(fallback);
                 }
 
                 await recordStorageMediaFile(result.provider, {
@@ -373,12 +381,7 @@ export const POST: APIRoute = async ({ request }) => {
                     etaSeconds: 0,
                 });
 
-                return new Response(JSON.stringify(result), {
-                    status: 200,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+                return mediaUploadResponse(result);
             } finally {
                 if (!keepLocalBackup && localResult?.id) {
                     await cleanupLocalUpload(getStorageType(localResult.type), String(localResult.id));
@@ -410,12 +413,7 @@ export const POST: APIRoute = async ({ request }) => {
             etaSeconds: 0,
         });
 
-        return new Response(JSON.stringify(result), {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
+        return mediaUploadResponse(result);
 
     } catch (err: any) {
         console.error('Upload Error:', err);

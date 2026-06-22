@@ -57,7 +57,7 @@ export function getSupabaseAuthStorageKeys() {
   return [
     PATEEZ_AUTH_STORAGE_KEY,
     current,
-    ...LEGACY_SUPABASE_AUTH_STORAGE_KEYS.filter((key) => key !== current && key !== PATEEZ_AUTH_STORAGE_KEY),
+    ...LEGACY_SUPABASE_AUTH_STORAGE_KEYS.filter((key) => key !== current),
   ];
 }
 
@@ -95,7 +95,6 @@ export function migrateLegacySupabaseAuthStorage() {
       }
     }
     for (const legacyKey of LEGACY_SUPABASE_AUTH_STORAGE_KEYS) {
-      if (legacyKey === storageKey) continue;
       window.localStorage.removeItem(legacyKey);
       window.localStorage.removeItem(`${legacyKey}-code-verifier`);
       window.localStorage.removeItem(`${legacyKey}-user`);
@@ -296,9 +295,9 @@ const pateezAuth = {
   },
   async signOut() {
     const session = readStoredPateezSession();
-    await notifyAppSignOut(session);
     clearSupabaseAuthStorage();
     emitAuthChange('SIGNED_OUT', null);
+    void notifyAppSignOut(session);
     return { error: null };
   },
   onAuthStateChange(callback: AuthListener) {

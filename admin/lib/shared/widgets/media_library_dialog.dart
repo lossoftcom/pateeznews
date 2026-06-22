@@ -324,6 +324,95 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
         _uploadBatchTotal = 0;
       });
     }
+
+    if (mounted) await _enforceSeoRename(uploaded);
+  }
+
+  // After upload, files whose name is machine-generated/meaningless must be
+  // given an SEO-friendly name before the library can be used. Each such file
+  // opens a blocking modal in turn; the modal only closes once a valid name has
+  // been committed (across remote + local + DB by the rename pipeline).
+  Future<void> _enforceSeoRename(List<MediaItem> uploaded) async {
+    for (final uploadedFile in uploaded) {
+      if (!mounted) break;
+      if (!uploadedFile.needsSeoRename) continue;
+      final current = _files.firstWhere(
+        (f) => f.id == uploadedFile.id,
+        orElse: () => uploadedFile,
+      );
+      final result = await showMandatorySeoRenameDialog(
+        context,
+        file: current,
+        mediaService: widget.mediaService,
+        languageCode: _uploadSettingsLanguageCode ?? 'tr',
+      );
+      if (!mounted) break;
+      if (result != null && result.success) {
+        _applyRenameResult(current, result);
+      }
+    }
+  }
+
+  void _applyRenameResult(MediaItem original, MediaSeoRenameResult result) {
+    MediaSeoReplacement? main;
+    for (final replacement in result.replacements) {
+      if (replacement.oldId == original.id || replacement.oldSrc == original.src) {
+        main = replacement;
+        break;
+      }
+    }
+    main ??= result.replacements.isNotEmpty ? result.replacements.first : null;
+
+    final newSrc = (main != null && main.newSrc.isNotEmpty) ? main.newSrc : result.src;
+    if (newSrc.isEmpty) return;
+    final newId = (main != null && main.newId.isNotEmpty)
+        ? main.newId
+        : _storageIdFromSrc(newSrc, original.type);
+    final newValue = newId.split('/').where((part) => part.isNotEmpty).isEmpty
+        ? original.value
+        : newId.split('/').last;
+    final updated = original.copyWith(
+      id: newId,
+      value: newValue,
+      src: newSrc,
+      thumb: newSrc,
+      path: _storageDirFromId(newId),
+      needsSeoRename: false,
+    );
+
+    final version = DateTime.now().millisecondsSinceEpoch;
+    setState(() {
+      final index = _files.indexWhere((f) => f.id == original.id);
+      if (index != -1) _files[index] = updated;
+      _resolvedUrls.remove(original.id);
+      _resolvedUrls[updated.id] = widget.type == 'image'
+          ? widget.mediaService
+              .resolveImageUrl('$newSrc?v=$version', width: 260, quality: 86)
+          : widget.mediaService.resolveUrl(newSrc);
+      final selected = Set<String>.of(_selectedSrcs.value);
+      if (selected.remove(original.src)) {
+        selected.add(newSrc);
+        _selectedSrcs.value = selected;
+      }
+      if (_lastSelectedSrc == original.src) _lastSelectedSrc = newSrc;
+    });
+  }
+
+  String _storageIdFromSrc(String src, String type) {
+    final clean = src.split('?').first.split('#').first;
+    const marker = '/api/storage/file/';
+    var rest = clean;
+    final markerIndex = clean.indexOf(marker);
+    if (markerIndex >= 0) rest = clean.substring(markerIndex + marker.length);
+    if (rest.startsWith('$type/')) rest = rest.substring(type.length + 1);
+    return rest;
+  }
+
+  String _storageDirFromId(String id) {
+    final parts = id.split('/').where((part) => part.isNotEmpty).toList();
+    if (parts.isEmpty) return '';
+    parts.removeLast();
+    return parts.join('/');
   }
 
   void _showUploadMessage(String message) {
@@ -2790,6 +2879,416 @@ class _ImageEditModalState extends State<_ImageEditModal> {
                     onTap: _close,
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MANDATORY SEO RENAME MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+Future<MediaSeoRenameResult?> showMandatorySeoRenameDialog(
+  BuildContext context, {
+  required MediaItem file,
+  required MediaService mediaService,
+  required String languageCode,
+}) {
+  return showDialog<MediaSeoRenameResult>(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+    builder: (_) => _MandatorySeoRenameModal(
+      file: file,
+      mediaService: mediaService,
+      languageCode: languageCode,
+    ),
+  );
+}
+
+class _MandatorySeoRenameModal extends StatefulWidget {
+  const _MandatorySeoRenameModal({
+    required this.file,
+    required this.mediaService,
+    required this.languageCode,
+  });
+
+  final MediaItem file;
+  final MediaService mediaService;
+  final String languageCode;
+
+  @override
+  State<_MandatorySeoRenameModal> createState() =>
+      _MandatorySeoRenameModalState();
+}
+
+class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
+  late final TextEditingController _nameCtrl;
+  var _suggesting = false;
+  var _saving = false;
+  var _userEdited = false;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController();
+    unawaited(_fetchSuggestion());
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _mediaKind =>
+      widget.file.value.isNotEmpty ? widget.file.value : 'haber görseli';
+
+  static const _turkishSlugMap = {
+    'ğ': 'g', 'Ğ': 'g', 'ü': 'u', 'Ü': 'u', 'ş': 's', 'Ş': 's',
+    'ı': 'i', 'İ': 'i', 'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c',
+  };
+
+  String _slugPreview(String value) {
+    var out = value;
+    _turkishSlugMap.forEach((key, val) => out = out.replaceAll(key, val));
+    out = out.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    return out
+        .replaceAll(RegExp(r'^-+|-+$'), '')
+        .replaceAll(RegExp(r'-{2,}'), '-');
+  }
+
+  String _extensionOf(String name, String type) {
+    final dot = name.lastIndexOf('.');
+    if (dot >= 0 && dot < name.length - 1) {
+      return name.substring(dot + 1).toLowerCase();
+    }
+    return type == 'video' ? 'mp4' : 'webp';
+  }
+
+  Future<void> _fetchSuggestion() async {
+    if (_suggesting) return;
+    setState(() {
+      _suggesting = true;
+      _error = '';
+    });
+    try {
+      final result = await widget.mediaService.renameMediaWithAi(
+        src: widget.file.src,
+        type: widget.file.type,
+        languageCode: widget.languageCode,
+        mediaKind: _mediaKind,
+        context: '',
+        suggestOnly: true,
+      );
+      if (!mounted) return;
+      final suggestion = result?.filename.trim() ?? '';
+      if (suggestion.isNotEmpty && !_userEdited) {
+        _nameCtrl.text = suggestion;
+        _nameCtrl.selection =
+            TextSelection.collapsed(offset: suggestion.length);
+      }
+    } catch (_) {
+      // Suggestion is optional; the user can still type a name manually.
+    } finally {
+      if (mounted) setState(() => _suggesting = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    if (_slugPreview(_nameCtrl.text).isEmpty) {
+      setState(() => _error = context.t('media.seoEmptyError'));
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = '';
+    });
+    try {
+      final result = await widget.mediaService.renameMediaWithAi(
+        src: widget.file.src,
+        type: widget.file.type,
+        languageCode: widget.languageCode,
+        mediaKind: _mediaKind,
+        context: '',
+        filename: _nameCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      if (result != null && result.success) {
+        Navigator.of(context).pop(result);
+        return;
+      }
+      final message = (result != null && result.error.trim().isNotEmpty)
+          ? result.error.trim()
+          : context.t('media.seoFailed');
+      setState(() => _error = message);
+    } catch (_) {
+      if (mounted) setState(() => _error = context.t('media.seoFailed'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isImage = widget.file.type == 'image';
+    final slug = _slugPreview(_nameCtrl.text);
+    final busy = _saving || _suggesting;
+
+    return PopScope(
+      canPop: false,
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: 460,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.deepOcean.withValues(alpha: 0.2),
+                  blurRadius: 36,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.warmHorizon.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                      ),
+                      child: const Icon(
+                        Symbols.edit_outlined,
+                        size: 15,
+                        color: AppColors.warmHorizon,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        context.t('media.seoRequiredTitle'),
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (isImage) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                    child: SizedBox(
+                      height: 120,
+                      width: double.infinity,
+                      child: ColoredBox(
+                        color: AppColors.surface,
+                        child: AdminCachedImage(
+                          url: widget.mediaService.resolveImageUrl(
+                            widget.file.src,
+                            width: 360,
+                            quality: 86,
+                          ),
+                          fit: BoxFit.contain,
+                          useOldImageOnUrlChange: true,
+                          errorWidget: Icon(
+                            Symbols.broken_image_outlined,
+                            size: 28,
+                            color: AppColors.placeholder.withValues(alpha: 0.45),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                Text(
+                  context.t('media.seoRequiredDesc'),
+                  style: TextStyle(
+                    color: _mlMuted.withValues(alpha: 0.85),
+                    fontSize: 12,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      '${context.t('media.seoCurrentName')}: ',
+                      style: TextStyle(
+                        color: _mlMuted.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        widget.file.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _mlMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _ModalLabel(text: context.t('media.seoNewName')),
+                const SizedBox(height: 6),
+                _ModalTextField(
+                  controller: _nameCtrl,
+                  hint: context.t('media.seoNewNameHint'),
+                  autofocus: true,
+                  onChanged: (_) {
+                    _userEdited = true;
+                    if (_error.isNotEmpty) {
+                      setState(() => _error = '');
+                    } else {
+                      setState(() {});
+                    }
+                  },
+                  onSubmitted: (_) => _save(),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        slug.isEmpty
+                            ? ''
+                            : '${context.t('media.seoPreview')}: $slug.${_extensionOf(widget.file.value, widget.file.type)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _mlSelectedDeep,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _SeoSuggestButton(
+                      busy: _suggesting,
+                      label: _suggesting
+                          ? context.t('media.seoSuggesting')
+                          : context.t('media.seoSuggest'),
+                      onTap: busy ? null : _fetchSuggestion,
+                    ),
+                  ],
+                ),
+                if (_error.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    _error,
+                    style: const TextStyle(
+                      color: AppColors.actionRed,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _PrimaryButton(
+                      enabled: !busy,
+                      color: AppColors.warmHorizon,
+                      icon: Symbols.check_rounded,
+                      label: _saving
+                          ? context.t('media.seoSaving')
+                          : context.t('media.seoSave'),
+                      onTap: _save,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeoSuggestButton extends StatelessWidget {
+  const _SeoSuggestButton({
+    required this.busy,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool busy;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.deepOcean.withValues(alpha: enabled ? 0.06 : 0.03),
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: AppColors.deepOcean.withValues(alpha: enabled ? 0.25 : 0.12),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 13,
+                height: 13,
+                child: busy
+                    ? const CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        color: AppColors.deepOcean,
+                      )
+                    : Icon(
+                        Symbols.search_rounded,
+                        size: 13,
+                        color: AppColors.deepOcean.withValues(
+                          alpha: enabled ? 1 : 0.4,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: AppColors.deepOcean.withValues(alpha: enabled ? 1 : 0.4),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
               ),
             ],
           ),
