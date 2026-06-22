@@ -27,6 +27,8 @@ if (shouldRunPubGet(adminCwd)) {
   }
 }
 
+applyMediaLibrarySelectionPatch(adminCwd);
+
 const flutterArgs = [
   'build',
   'web',
@@ -57,6 +59,138 @@ child.on('error', (error) => {
   console.error(error.message);
   process.exit(1);
 });
+
+function applyMediaLibrarySelectionPatch(projectDir) {
+  const file = `${projectDir}/lib/shared/widgets/media_library_dialog.dart`;
+  if (!fs.existsSync(file)) return;
+
+  let source = fs.readFileSync(file, 'utf8');
+  let next = source;
+
+  if (!next.includes("import 'dart:math' as math;")) {
+    next = next.replace(
+      "import 'dart:async';\n",
+      "import 'dart:async';\nimport 'dart:math' as math;\n",
+    );
+  }
+
+  next = next.replace(
+    "  final _searchTerm = ValueNotifier<String>('');\n  String? _lastSelectedSrc;",
+    "  final _searchTerm = ValueNotifier<String>('');\n  String? _lastSelectedSrc;\n  String? _selectionAnchorSrc;",
+  );
+
+  next = next.replace(
+    "  void initState() {\n    super.initState();\n    _loadFiles();\n  }",
+    "  void initState() {\n    super.initState();\n    HardwareKeyboard.instance.addHandler(_handleKeyboardSelection);\n    _loadFiles();\n  }",
+  );
+
+  next = next.replace(
+    "  void dispose() {\n    _selectedSrcs.dispose();\n    _searchTerm.dispose();\n    super.dispose();\n  }",
+    "  void dispose() {\n    HardwareKeyboard.instance.removeHandler(_handleKeyboardSelection);\n    _selectedSrcs.dispose();\n    _searchTerm.dispose();\n    super.dispose();\n  }",
+  );
+
+  next = next.replace(
+    "          final next = Set<String>.of(_selectedSrcs.value)..remove(file.src);\n          _selectedSrcs.value = next;\n          _lastSelectedSrc = next.lastOrNull;",
+    "          final next = Set<String>.of(_selectedSrcs.value)..remove(file.src);\n          _selectedSrcs.value = next;\n          if (_lastSelectedSrc == file.src) _lastSelectedSrc = next.lastOrNull;\n          if (_selectionAnchorSrc == file.src) _selectionAnchorSrc = next.lastOrNull;",
+  );
+
+  next = next.replace(
+    "  void _clearSelection() {\n    if (_selectedSrcs.value.isEmpty) return;\n    _lastSelectedSrc = null;\n    _selectedSrcs.value = <String>{};\n  }",
+    "  void _clearSelection() {\n    if (_selectedSrcs.value.isEmpty) return;\n    _lastSelectedSrc = null;\n    _selectionAnchorSrc = null;\n    _selectedSrcs.value = <String>{};\n  }",
+  );
+
+  const oldToggle = String.raw`  void _toggleSelection(MediaItem file) {
+    final selected = Set<String>.of(_selectedSrcs.value);
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      if (!selected.remove(file.src)) {
+        selected.add(file.src);
+        _lastSelectedSrc = file.src;
+      } else if (_lastSelectedSrc == file.src) {
+        _lastSelectedSrc = selected.lastOrNull;
+      }
+    } else {
+      selected
+        ..clear()
+        ..add(file.src);
+      _lastSelectedSrc = file.src;
+    }
+    _selectedSrcs.value = selected;
+  }`;
+
+  const newToggle = String.raw`  bool get _isTextInputFocused {
+    final focusedContext = FocusManager.instance.primaryFocus?.context;
+    return focusedContext != null && focusedContext.widget is EditableText;
+  }
+
+  void _selectAllFiltered() {
+    final filtered = _filteredFiles;
+    if (filtered.isEmpty) return;
+    _selectedSrcs.value = {for (final file in filtered) file.src};
+    _selectionAnchorSrc = filtered.first.src;
+    _lastSelectedSrc = filtered.last.src;
+  }
+
+  bool _handleKeyboardSelection(KeyEvent event) {
+    if (event is! KeyDownEvent || _isTextInputFocused) return false;
+    final selectAll = event.logicalKey == LogicalKeyboardKey.keyA &&
+        (HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed);
+    if (!selectAll) return false;
+    _selectAllFiltered();
+    return true;
+  }
+
+  void _toggleSelection(MediaItem file) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final selected = Set<String>.of(_selectedSrcs.value);
+    final shiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final togglePressed = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    if (shiftPressed) {
+      final filtered = _filteredFiles;
+      final anchorSrc = _selectionAnchorSrc ?? _lastSelectedSrc;
+      final anchorIndex = filtered.indexWhere((item) => item.src == anchorSrc);
+      final currentIndex = filtered.indexWhere((item) => item.src == file.src);
+      if (anchorIndex >= 0 && currentIndex >= 0) {
+        final start = math.min(anchorIndex, currentIndex);
+        final end = math.max(anchorIndex, currentIndex);
+        for (var index = start; index <= end; index += 1) {
+          selected.add(filtered[index].src);
+        }
+      } else {
+        selected.add(file.src);
+      }
+      _selectionAnchorSrc ??= file.src;
+      _lastSelectedSrc = file.src;
+    } else if (togglePressed) {
+      if (selected.contains(file.src)) {
+        selected.remove(file.src);
+        if (_lastSelectedSrc == file.src) _lastSelectedSrc = selected.lastOrNull;
+      } else {
+        selected.add(file.src);
+        _lastSelectedSrc = file.src;
+      }
+      _selectionAnchorSrc = file.src;
+    } else {
+      selected
+        ..clear()
+        ..add(file.src);
+      _lastSelectedSrc = file.src;
+      _selectionAnchorSrc = file.src;
+    }
+    _selectedSrcs.value = selected;
+  }`;
+
+  if (next.includes(oldToggle) && !next.includes('bool _handleKeyboardSelection(KeyEvent event)')) {
+    next = next.replace(oldToggle, newToggle);
+  }
+
+  if (next !== source) {
+    fs.writeFileSync(file, next);
+    console.log('Applied admin media library keyboard selection patch.');
+  }
+}
 
 function shouldRunPubGet(projectDir) {
   const packageConfig = `${projectDir}/.dart_tool/package_config.json`;
