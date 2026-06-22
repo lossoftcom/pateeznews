@@ -28,6 +28,7 @@ if (shouldRunPubGet(adminCwd)) {
 }
 
 applyMediaLibrarySelectionPatch(adminCwd);
+applyAutomaticNewsPreviewPatch(adminCwd);
 
 const flutterArgs = [
   'build',
@@ -59,6 +60,147 @@ child.on('error', (error) => {
   console.error(error.message);
   process.exit(1);
 });
+
+function applyAutomaticNewsPreviewPatch(projectDir) {
+  const file = `${projectDir}/lib/features/automatic_news/presentation/automatic_news_screen.dart`;
+  if (!fs.existsSync(file)) return;
+
+  let source = fs.readFileSync(file, 'utf8');
+  let next = source;
+
+  if (!next.includes("import 'package:url_launcher/url_launcher.dart';")) {
+    next = next.replace(
+      "import 'package:share_plus/share_plus.dart' hide XFile;\n",
+      "import 'package:share_plus/share_plus.dart' hide XFile;\nimport 'package:url_launcher/url_launcher.dart';\n",
+    );
+  }
+
+  next = next.replace(
+    "                      fit: BoxFit.cover,\n                      memCacheWidth: compact ? 720 : 920,",
+    "                      fit: BoxFit.contain,\n                      memCacheWidth: compact ? 720 : 920,",
+  );
+
+  next = next.replace(
+    `          _PreviewInfoBlock(
+            label: hasVideo ? 'Medya / Video Linki' : 'Medya Linki',
+            value: mediaUrl,
+            compactValue: _compactUrl(mediaUrl),
+          ),`,
+    `          _PreviewLinkInfoBlock(
+            label: hasVideo ? 'Medya / Video Linki' : 'Medya Linki',
+            value: mediaUrl,
+          ),
+          if (draft.sourceUrl.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _PreviewLinkInfoBlock(
+              label: 'Haberin Tam Linki',
+              value: draft.sourceUrl,
+            ),
+          ],`,
+  );
+
+  next = next.replace(
+    `          _PreviewInfoBlock(
+            label: 'Haber Linki',
+            value: draft.sourceUrl,
+            compactValue: _compactUrl(draft.sourceUrl),
+          ),`,
+    `          _PreviewLinkInfoBlock(
+            label: 'Haber Linki',
+            value: draft.sourceUrl,
+          ),`,
+  );
+
+  const headersFunction = String.raw`Map<String, String>? _automaticNewsImageHttpHeaders(
+  Map<String, String> imageRequestHeaders,
+) {
+  return kIsWeb && imageRequestHeaders.isNotEmpty ? imageRequestHeaders : null;
+}`;
+  if (next.includes(headersFunction) && !next.includes('Future<void> _openPreviewExternalUrl(String value)')) {
+    next = next.replace(
+      headersFunction,
+      String.raw`Map<String, String>? _automaticNewsImageHttpHeaders(
+  Map<String, String> imageRequestHeaders,
+) {
+  return kIsWeb && imageRequestHeaders.isNotEmpty ? imageRequestHeaders : null;
+}
+
+Future<void> _openPreviewExternalUrl(String value) async {
+  final raw = value.trim();
+  if (raw.isEmpty) return;
+  final uri = Uri.tryParse(raw);
+  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) return;
+  await launchUrl(uri, webOnlyWindowName: '_blank');
+}`,
+    );
+  }
+
+  if (!next.includes('class _PreviewLinkInfoBlock extends StatelessWidget')) {
+    next = next.replace(
+      'class _PreviewInfoBlock extends StatelessWidget {',
+      String.raw`class _PreviewLinkInfoBlock extends StatelessWidget {
+  const _PreviewLinkInfoBlock({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = _readableText(value);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.inkSoft,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 5),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => unawaited(_openPreviewExternalUrl(value)),
+              child: Text(
+                displayValue,
+                softWrap: true,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.actionRed,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                  height: 1.35,
+                  decoration: TextDecoration.underline,
+                  decorationColor: AppColors.actionRed.withValues(alpha: 0.65),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewInfoBlock extends StatelessWidget {`,
+    );
+  }
+
+  if (next !== source) {
+    fs.writeFileSync(file, next);
+    console.log('Applied automatic news preview modal patch.');
+  }
+}
 
 function applyMediaLibrarySelectionPatch(projectDir) {
   const file = `${projectDir}/lib/shared/widgets/media_library_dialog.dart`;
