@@ -10,7 +10,7 @@
     "dev": "node ./scripts/run-with-cloudflare-env.mjs astro dev --host 127.0.0.1",
     "build": "npm run build:cloudflare",
     "build:astro": "node ./scripts/run-with-cloudflare-env.mjs astro build",
-    "build:admin:web": "node ./scripts/build-admin-web.mjs",
+    "build:admin:web": "node ./docs/patch-auto-news-modal.mjs && node ./scripts/build-admin-web.mjs",
     "copy:admin:web": "node ./scripts/copy-admin-web.mjs",
     "build:cloudflare": "npm run build:admin:web && npm run copy:admin:web && npm run build:astro",
     "deploy": "npm run build:cloudflare && wrangler deploy",
