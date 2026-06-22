@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_date_formatter.dart';
@@ -2476,80 +2477,11 @@ class _Pagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        _PagerButton(
-          label: '<<',
-          enabled: page > 1 && !loading,
-          onTap: () => onPageChanged(1),
-        ),
-        _PagerButton(
-          label: '<',
-          enabled: page > 1 && !loading,
-          onTap: () => onPageChanged(page - 1),
-        ),
-        _PagerButton(label: '$page', selected: true),
-        _PagerButton(
-          label: '>',
-          enabled: page < totalPages && !loading,
-          onTap: () => onPageChanged(page + 1),
-        ),
-        _PagerButton(
-          label: '>>',
-          enabled: page < totalPages && !loading,
-          onTap: () => onPageChanged(totalPages),
-        ),
-      ],
-    );
-  }
-}
-
-class _PagerButton extends StatelessWidget {
-  const _PagerButton({
-    required this.label,
-    this.selected = false,
-    this.enabled = true,
-    this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? onTap : null,
-        child: Opacity(
-          opacity: enabled ? 1 : 0.46,
-          child: Container(
-            width: 36,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.deepOcean : Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.value),
-              border: Border.all(
-                color: selected
-                    ? AppColors.deepOcean
-                    : AppColors.line.withValues(alpha: 0.72),
-              ),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : AppColors.support,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AdminTablePagination(
+      page: page,
+      pageCount: totalPages,
+      enabled: !loading,
+      onPageChanged: onPageChanged,
     );
   }
 }

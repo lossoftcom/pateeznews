@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
@@ -428,12 +429,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
                 pageSize: _pageSize,
                 totalCount: _totalCount,
                 visibleCount: _languages.length,
-                onFirst: () => _goToPage(1),
-                onPrevious: () => _goToPage(_page - 1),
-                onNext: () => _goToPage(_page + 1),
-                onLast: () => _goToPage(
-                  (_totalCount / _pageSize).ceil().clamp(1, 999999).toInt(),
-                ),
+                onPageChanged: _goToPage,
               ),
             ],
           ),
@@ -858,20 +854,14 @@ class _LanguageSettingsFooter extends StatelessWidget {
     required this.pageSize,
     required this.totalCount,
     required this.visibleCount,
-    required this.onFirst,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onLast,
+    required this.onPageChanged,
   });
 
   final int page;
   final int pageSize;
   final int totalCount;
   final int visibleCount;
-  final VoidCallback onFirst;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final VoidCallback onLast;
+  final ValueChanged<int> onPageChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -891,12 +881,10 @@ class _LanguageSettingsFooter extends StatelessWidget {
         fontWeight: FontWeight.w500,
       ),
     );
-    final pager = _LanguagePagination(
+    final pager = AdminTablePagination(
       page: page,
-      onFirst: onFirst,
-      onPrevious: onPrevious,
-      onNext: onNext,
-      onLast: onLast,
+      pageCount: maxPage,
+      onPageChanged: onPageChanged,
     );
 
     return LayoutBuilder(
@@ -909,7 +897,7 @@ class _LanguageSettingsFooter extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               IconButton(
-                onPressed: hasPrevious ? onPrevious : null,
+                onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
                 icon: const Icon(Symbols.chevron_left),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
@@ -929,7 +917,7 @@ class _LanguageSettingsFooter extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: hasNext ? onNext : null,
+                onPressed: hasNext ? () => onPageChanged(page + 1) : null,
                 icon: const Icon(Symbols.chevron_right),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
@@ -964,79 +952,6 @@ class _LanguageSettingsFooter extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _LanguagePagination extends StatelessWidget {
-  const _LanguagePagination({
-    required this.page,
-    required this.onFirst,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onLast,
-  });
-
-  final int page;
-  final VoidCallback onFirst;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final VoidCallback onLast;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        _PageButton(label: '<<', onPressed: onFirst),
-        _PageButton(label: '<', onPressed: onPrevious),
-        _PageButton(label: '$page', selected: true),
-        _PageButton(label: '>', onPressed: onNext),
-        _PageButton(label: '>>', onPressed: onLast),
-      ],
-    );
-  }
-}
-
-class _PageButton extends StatelessWidget {
-  const _PageButton({
-    required this.label,
-    this.selected = false,
-    this.onPressed,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: selected ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: selected ? null : onPressed,
-        child: Container(
-          width: 36,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.deepOcean : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: selected
-                  ? AppColors.deepOcean
-                  : AppColors.line.withValues(alpha: 0.72),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.support,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

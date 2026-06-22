@@ -8,6 +8,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/admin_image_url.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
+import '../../../../shared/widgets/admin_table_chrome.dart';
 import '../../../../shared/widgets/highlighted_text.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
@@ -1193,81 +1194,65 @@ class _UsersDataTable extends StatelessWidget {
   final ValueChanged<ManagedUser> onDeleteUser;
   final ValueChanged<String> onSort;
 
-  static const double _minWidth = 1500;
   static const double _selectWidth = 42;
   static const double _idWidth = 64;
-  static const double _authProviderWidth = 120;
-  static const double _ipWidth = 132;
-  static const double _signupCityWidth = 116;
-  static const double _roleWidth = 130;
-  static const double _writerApplicationWidth = 140;
-  static const double _rewardWidth = 130;
-  static const double _loginWidth = 126;
-  static const double _statusWidth = 112;
-  static const double _createdWidth = 160;
   static const double _menuWidth = 76;
-  static const double _contentSpacing = 36;
+  static const int _userFlex = 28;
+  static const int _authProviderFlex = 10;
+  static const int _signupCityFlex = 11;
+  static const int _roleFlex = 16;
+  static const int _rewardFlex = 10;
+  static const int _statusFlex = 10;
+  static const int _createdFlex = 15;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
-        final layout = _UsersTableColumnLayout.forWidth(tableWidth);
-
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: tableWidth,
-            height: constraints.hasBoundedHeight ? constraints.maxHeight : null,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                border: Border.all(
-                  color: AppColors.line.withValues(alpha: 0.72),
+        return SizedBox(
+          width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
+          height: constraints.hasBoundedHeight ? constraints.maxHeight : null,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+            ),
+            child: Column(
+              children: [
+                _UsersHeader(
+                  selectedCount: selectedUserIds.length,
+                  totalCount: users.length,
+                  sortState: sortState,
+                  onToggleAllUsers: onToggleAllUsers,
+                  onSort: onSort,
                 ),
-              ),
-              child: Column(
-                children: [
-                  _UsersHeader(
-                    layout: layout,
-                    selectedCount: selectedUserIds.length,
-                    totalCount: users.length,
-                    sortState: sortState,
-                    onToggleAllUsers: onToggleAllUsers,
-                    onSort: onSort,
-                  ),
-                  Expanded(
-                    child: (loading || searching) && users.isEmpty
-                        ? const _UsersLoading()
-                        : users.isEmpty
-                        ? const _UsersEmpty()
-                        : SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                for (final user in users)
-                                  _UsersRow(
-                                    user: user,
-                                    roles: roles,
-                                    layout: layout,
-                                    selected: selectedUserIds.contains(user.id),
-                                    onToggle: () => onToggleUser(user.id),
-                                    onEditUser: onEditUser,
-                                    onToggleStatus: onToggleStatus,
-                                    onToggleReward: onToggleReward,
-                                    onApproveWriterApplication:
-                                        onApproveWriterApplication,
-                                    onDeleteUser: onDeleteUser,
-                                  ),
-                              ],
-                            ),
+                Expanded(
+                  child: (loading || searching) && users.isEmpty
+                      ? const _UsersLoading()
+                      : users.isEmpty
+                      ? const _UsersEmpty()
+                      : SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              for (final user in users)
+                                _UsersRow(
+                                  user: user,
+                                  roles: roles,
+                                  selected: selectedUserIds.contains(user.id),
+                                  onToggle: () => onToggleUser(user.id),
+                                  onEditUser: onEditUser,
+                                  onToggleStatus: onToggleStatus,
+                                  onToggleReward: onToggleReward,
+                                  onApproveWriterApplication:
+                                      onApproveWriterApplication,
+                                  onDeleteUser: onDeleteUser,
+                                ),
+                            ],
                           ),
-                  ),
-                ],
-              ),
+                        ),
+                ),
+              ],
             ),
           ),
         );
@@ -1276,71 +1261,8 @@ class _UsersDataTable extends StatelessWidget {
   }
 }
 
-class _UsersTableColumnLayout {
-  const _UsersTableColumnLayout({
-    required this.userWidth,
-    required this.authProviderWidth,
-    required this.ipWidth,
-    required this.signupCityWidth,
-    required this.roleWidth,
-    required this.writerApplicationWidth,
-    required this.rewardWidth,
-    required this.loginWidth,
-    required this.statusWidth,
-    required this.createdWidth,
-  });
-
-  final double userWidth;
-  final double authProviderWidth;
-  final double ipWidth;
-  final double signupCityWidth;
-  final double roleWidth;
-  final double writerApplicationWidth;
-  final double rewardWidth;
-  final double loginWidth;
-  final double statusWidth;
-  final double createdWidth;
-
-  static double get _baseUserWidth {
-    return _UsersDataTable._minWidth -
-        _UsersDataTable._selectWidth -
-        _UsersDataTable._idWidth -
-        _UsersDataTable._authProviderWidth -
-        _UsersDataTable._ipWidth -
-        _UsersDataTable._signupCityWidth -
-        _UsersDataTable._roleWidth -
-        _UsersDataTable._writerApplicationWidth -
-        _UsersDataTable._rewardWidth -
-        _UsersDataTable._loginWidth -
-        _UsersDataTable._statusWidth -
-        _UsersDataTable._createdWidth -
-        _UsersDataTable._menuWidth -
-        _UsersDataTable._contentSpacing;
-  }
-
-  factory _UsersTableColumnLayout.forWidth(double tableWidth) {
-    final extraWidth = tableWidth - _UsersDataTable._minWidth;
-
-    return _UsersTableColumnLayout(
-      userWidth: _baseUserWidth + (extraWidth * 0.16),
-      authProviderWidth:
-          _UsersDataTable._authProviderWidth + (extraWidth * 0.09),
-      ipWidth: _UsersDataTable._ipWidth + (extraWidth * 0.09),
-      signupCityWidth: _UsersDataTable._signupCityWidth + (extraWidth * 0.08),
-      roleWidth: _UsersDataTable._roleWidth + (extraWidth * 0.10),
-      writerApplicationWidth:
-          _UsersDataTable._writerApplicationWidth + (extraWidth * 0.10),
-      rewardWidth: _UsersDataTable._rewardWidth + (extraWidth * 0.11),
-      loginWidth: _UsersDataTable._loginWidth + (extraWidth * 0.09),
-      statusWidth: _UsersDataTable._statusWidth + (extraWidth * 0.08),
-      createdWidth: _UsersDataTable._createdWidth + (extraWidth * 0.10),
-    );
-  }
-}
-
 class _UsersHeader extends StatelessWidget {
   const _UsersHeader({
-    required this.layout,
     required this.selectedCount,
     required this.totalCount,
     required this.sortState,
@@ -1348,7 +1270,6 @@ class _UsersHeader extends StatelessWidget {
     required this.onSort,
   });
 
-  final _UsersTableColumnLayout layout;
   final int selectedCount;
   final int totalCount;
   final TableSortState sortState;
@@ -1388,8 +1309,8 @@ class _UsersHeader extends StatelessWidget {
               onSort: onSort,
             ),
           ),
-          SizedBox(
-            width: layout.userWidth,
+          Expanded(
+            flex: _UsersDataTable._userFlex,
             child: SortableTableHeader(
               label: 'User',
               sortKey: 'user',
@@ -1397,8 +1318,8 @@ class _UsersHeader extends StatelessWidget {
               onSort: onSort,
             ),
           ),
-          SizedBox(
-            width: layout.authProviderWidth,
+          Expanded(
+            flex: _UsersDataTable._authProviderFlex,
             child: SortableTableHeader(
               label: 'Kayıt',
               sortKey: 'authProvider',
@@ -1406,26 +1327,17 @@ class _UsersHeader extends StatelessWidget {
               onSort: onSort,
             ),
           ),
-          SizedBox(
-            width: layout.ipWidth,
+          Expanded(
+            flex: _UsersDataTable._signupCityFlex,
             child: SortableTableHeader(
-              label: 'IP',
-              sortKey: 'ip',
-              sortState: sortState,
-              onSort: onSort,
-            ),
-          ),
-          SizedBox(
-            width: layout.signupCityWidth,
-            child: SortableTableHeader(
-              label: 'Şehir',
+              label: 'City',
               sortKey: 'city',
               sortState: sortState,
               onSort: onSort,
             ),
           ),
-          SizedBox(
-            width: layout.roleWidth,
+          Expanded(
+            flex: _UsersDataTable._roleFlex,
             child: SortableTableHeader(
               label: 'Role',
               sortKey: 'role',
@@ -1433,17 +1345,8 @@ class _UsersHeader extends StatelessWidget {
               onSort: onSort,
             ),
           ),
-          SizedBox(
-            width: layout.writerApplicationWidth,
-            child: SortableTableHeader(
-              label: 'Yazarlık',
-              sortKey: 'writerApplication',
-              sortState: sortState,
-              onSort: onSort,
-            ),
-          ),
-          SizedBox(
-            width: layout.rewardWidth,
+          Expanded(
+            flex: _UsersDataTable._rewardFlex,
             child: SortableTableHeader(
               label: 'Reward System',
               sortKey: 'reward',
@@ -1452,17 +1355,8 @@ class _UsersHeader extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
             ),
           ),
-          SizedBox(
-            width: layout.loginWidth,
-            child: SortableTableHeader(
-              label: 'Giriş',
-              sortKey: 'login',
-              sortState: sortState,
-              onSort: onSort,
-            ),
-          ),
-          SizedBox(
-            width: layout.statusWidth,
+          Expanded(
+            flex: _UsersDataTable._statusFlex,
             child: SortableTableHeader(
               label: 'Status',
               sortKey: 'status',
@@ -1470,8 +1364,8 @@ class _UsersHeader extends StatelessWidget {
               onSort: onSort,
             ),
           ),
-          SizedBox(
-            width: layout.createdWidth,
+          Expanded(
+            flex: _UsersDataTable._createdFlex,
             child: SortableTableHeader(
               label: 'Created',
               sortKey: 'created',
@@ -1493,7 +1387,6 @@ class _UsersRow extends StatelessWidget {
   const _UsersRow({
     required this.user,
     required this.roles,
-    required this.layout,
     required this.selected,
     required this.onToggle,
     required this.onEditUser,
@@ -1505,7 +1398,6 @@ class _UsersRow extends StatelessWidget {
 
   final ManagedUser user;
   final List<AdminUserRole> roles;
-  final _UsersTableColumnLayout layout;
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<ManagedUser> onEditUser;
@@ -1544,47 +1436,35 @@ class _UsersRow extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(
-            width: layout.userWidth,
+          Expanded(
+            flex: _UsersDataTable._userFlex,
             child: _RowSelectTapTarget(
               onTap: onToggle,
               child: _UserIdentity(user: user),
             ),
           ),
-          SizedBox(
-            width: layout.authProviderWidth,
+          Expanded(
+            flex: _UsersDataTable._authProviderFlex,
             child: _AuthProviderCell(label: user.authProviderLabel),
           ),
-          SizedBox(
-            width: layout.ipWidth,
-            child: _UserTextCell(value: user.ipAddress),
+          Expanded(
+            flex: _UsersDataTable._signupCityFlex,
+            child: _UserLocationCell(user: user),
           ),
-          SizedBox(
-            width: layout.signupCityWidth,
-            child: _UserTextCell(value: user.displaySignupCity),
+          Expanded(
+            flex: _UsersDataTable._roleFlex,
+            child: _RoleCell(user: user, role: roleLabelFor(user.role, roles)),
           ),
-          SizedBox(
-            width: layout.roleWidth,
-            child: _RoleCell(role: roleLabelFor(user.role, roles)),
-          ),
-          SizedBox(
-            width: layout.writerApplicationWidth,
-            child: _WriterApplicationBadge(user: user),
-          ),
-          SizedBox(
-            width: layout.rewardWidth,
+          Expanded(
+            flex: _UsersDataTable._rewardFlex,
             child: _RewardCell(enabled: user.rewardEnabled),
           ),
-          SizedBox(
-            width: layout.loginWidth,
-            child: _LoginStatusBadge(active: user.isLoggedIn),
+          Expanded(
+            flex: _UsersDataTable._statusFlex,
+            child: _StatusCell(user: user),
           ),
-          SizedBox(
-            width: layout.statusWidth,
-            child: _StatusBadge(label: user.status),
-          ),
-          SizedBox(
-            width: layout.createdWidth,
+          Expanded(
+            flex: _UsersDataTable._createdFlex,
             child: _DateCell(dateTime: user.createdAt),
           ),
           SizedBox(
@@ -1787,33 +1667,110 @@ class _UserAvatarFallback extends StatelessWidget {
   }
 }
 
-class _RoleCell extends StatelessWidget {
-  const _RoleCell({required this.role});
+class _UserLocationCell extends StatelessWidget {
+  const _UserLocationCell({required this.user});
 
+  final ManagedUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final city = user.displaySignupCity.trim();
+    final ip = user.ipAddress.trim();
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        HighlightedText(
+          city.isEmpty ? '-' : city,
+          query: _UsersSearchScope.of(context),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w600,
+            fontSize: 12.5,
+          ),
+        ),
+        if (ip.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          HighlightedText(
+            'IP $ip',
+            query: _UsersSearchScope.of(context),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.support,
+              fontWeight: FontWeight.w500,
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RoleCell extends StatelessWidget {
+  const _RoleCell({required this.user, required this.role});
+
+  final ManagedUser user;
   final String role;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final applicationStatus = user.writerApplicationStatus.trim().toLowerCase();
+    final showApplication =
+        applicationStatus.isNotEmpty && applicationStatus != 'none';
+    final applicationColor = switch (applicationStatus) {
+      'pending' => AppColors.warmHorizon,
+      'approved' => const Color(0xFF198754),
+      'rejected' => AppColors.actionRed,
+      _ => AppColors.support,
+    };
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SymbolIcon(
-          Symbols.verified,
-          color: AppColors.iconMuted,
-          size: 18,
+        Row(
+          children: [
+            const SymbolIcon(
+              Symbols.verified,
+              color: AppColors.iconMuted,
+              size: 18,
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(
+                context.t(role),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 9),
-        Flexible(
-          child: Text(
-            context.t(role),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.deepOcean,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
+        if (showApplication) ...[
+          const SizedBox(height: 3),
+          Padding(
+            padding: const EdgeInsets.only(left: 27),
+            child: Text(
+              'Yazarlık: ${context.t(user.writerApplicationLabel)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: applicationColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1851,89 +1808,6 @@ class _AuthProviderCell extends StatelessWidget {
   }
 }
 
-class _UserTextCell extends StatelessWidget {
-  const _UserTextCell({required this.value});
-
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = value.trim().isEmpty ? '-' : value.trim();
-    return HighlightedText(
-      text,
-      query: _UsersSearchScope.of(context),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        color: AppColors.deepOcean,
-        fontWeight: FontWeight.w600,
-        fontSize: 12.5,
-      ),
-    );
-  }
-}
-
-class _WriterApplicationBadge extends StatelessWidget {
-  const _WriterApplicationBadge({required this.user});
-
-  final ManagedUser user;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = user.writerApplicationStatus.trim().toLowerCase();
-    final color = switch (status) {
-      'pending' => AppColors.warmHorizon,
-      'approved' => const Color(0xFF198754),
-      'rejected' => AppColors.actionRed,
-      _ => AppColors.support,
-    };
-    final label = status == 'none' || status.isEmpty
-        ? 'Yok'
-        : user.writerApplicationLabel;
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        height: 28,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: AppColors.softLine.withValues(alpha: 0.9),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                context.t(label),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _RewardCell extends StatelessWidget {
   const _RewardCell({required this.enabled});
 
@@ -1952,53 +1826,50 @@ class _RewardCell extends StatelessWidget {
   }
 }
 
-class _LoginStatusBadge extends StatelessWidget {
-  const _LoginStatusBadge({required this.active});
+class _StatusCell extends StatelessWidget {
+  const _StatusCell({required this.user});
 
-  final bool active;
+  final ManagedUser user;
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? const Color(0xFF198754) : AppColors.support;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        height: 28,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: AppColors.softLine.withValues(alpha: 0.9),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
+    final loginColor = user.isLoggedIn
+        ? const Color(0xFF198754)
+        : AppColors.support.withValues(alpha: 0.86);
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _StatusBadge(label: user.status),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: loginColor,
+                borderRadius: BorderRadius.circular(AppRadius.value),
               ),
-              const SizedBox(width: 5),
-              Text(
-                active ? 'Açık' : 'Kapalı',
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                user.isLoggedIn ? 'Login' : 'Login değil',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: color,
-                  fontSize: 12,
+                  color: loginColor,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ),
+      ],
     );
   }
 }
@@ -2041,12 +1912,16 @@ class _StatusBadge extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 5),
-              Text(
-                context.t(label),
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  context.t(label),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -2454,80 +2329,11 @@ class _UsersPagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        _PageButton(
-          label: '<<',
-          enabled: page > 1 && !loading,
-          onPressed: () => onPageChanged(1),
-        ),
-        _PageButton(
-          label: '<',
-          enabled: page > 1 && !loading,
-          onPressed: () => onPageChanged(page - 1),
-        ),
-        _PageButton(label: page.toString(), selected: true),
-        _PageButton(
-          label: '>',
-          enabled: page < lastPage && !loading,
-          onPressed: () => onPageChanged(page + 1),
-        ),
-        _PageButton(
-          label: '>>',
-          enabled: page < lastPage && !loading,
-          onPressed: () => onPageChanged(lastPage),
-        ),
-      ],
-    );
-  }
-}
-
-class _PageButton extends StatelessWidget {
-  const _PageButton({
-    required this.label,
-    this.selected = false,
-    this.enabled = true,
-    this.onPressed,
-  });
-
-  final String label;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? onPressed : null,
-        child: Opacity(
-          opacity: enabled ? 1 : 0.46,
-          child: Container(
-            width: 36,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.deepOcean : Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.value),
-              border: Border.all(
-                color: selected
-                    ? AppColors.deepOcean
-                    : AppColors.line.withValues(alpha: 0.72),
-              ),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : AppColors.support,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AdminTablePagination(
+      page: page,
+      pageCount: lastPage,
+      enabled: !loading,
+      onPageChanged: onPageChanged,
     );
   }
 }

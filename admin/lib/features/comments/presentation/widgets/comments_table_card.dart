@@ -11,6 +11,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/admin_image_url.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
+import '../../../../shared/widgets/admin_table_chrome.dart';
 import '../../../../shared/widgets/highlighted_text.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
@@ -2434,80 +2435,11 @@ class _CommentsPagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        _PageButton(
-          label: '<<',
-          enabled: page > 1 && !loading,
-          onPressed: () => onPageChanged(1),
-        ),
-        _PageButton(
-          label: '<',
-          enabled: page > 1 && !loading,
-          onPressed: () => onPageChanged(page - 1),
-        ),
-        _PageButton(label: page.toString(), selected: true),
-        _PageButton(
-          label: '>',
-          enabled: page < lastPage && !loading,
-          onPressed: () => onPageChanged(page + 1),
-        ),
-        _PageButton(
-          label: '>>',
-          enabled: page < lastPage && !loading,
-          onPressed: () => onPageChanged(lastPage),
-        ),
-      ],
-    );
-  }
-}
-
-class _PageButton extends StatelessWidget {
-  const _PageButton({
-    required this.label,
-    this.selected = false,
-    this.enabled = true,
-    this.onPressed,
-  });
-
-  final String label;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? onPressed : null,
-        child: Opacity(
-          opacity: enabled ? 1 : 0.46,
-          child: Container(
-            width: 36,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.deepOcean : Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.value),
-              border: Border.all(
-                color: selected
-                    ? AppColors.deepOcean
-                    : AppColors.line.withValues(alpha: 0.72),
-              ),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : AppColors.support,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AdminTablePagination(
+      page: page,
+      pageCount: lastPage,
+      enabled: !loading,
+      onPageChanged: onPageChanged,
     );
   }
 }

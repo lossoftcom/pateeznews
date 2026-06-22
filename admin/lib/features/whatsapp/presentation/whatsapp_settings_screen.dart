@@ -3163,53 +3163,12 @@ class _WhatsappSettingsFooter extends StatelessWidget {
             ),
           ),
         ),
-        _PaginationButton(
-          label: '<<',
-          enabled: page > 1,
-          onTap: () => onPageChanged(1),
-        ),
-        const SizedBox(width: 8),
-        _PaginationButton(
-          label: '<',
-          enabled: page > 1,
-          onTap: () => onPageChanged(page - 1),
-        ),
-        const SizedBox(width: 8),
-        AdminTablePageButton(label: '$page', selected: true),
-        const SizedBox(width: 8),
-        _PaginationButton(
-          label: '>',
-          enabled: page < pageCount,
-          onTap: () => onPageChanged(page + 1),
-        ),
-        const SizedBox(width: 8),
-        _PaginationButton(
-          label: '>>',
-          enabled: page < pageCount,
-          onTap: () => onPageChanged(pageCount),
+        AdminTablePagination(
+          page: page,
+          pageCount: pageCount,
+          onPageChanged: onPageChanged,
         ),
       ],
-    );
-  }
-}
-
-class _PaginationButton extends StatelessWidget {
-  const _PaginationButton({
-    required this.label,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AdminTablePageButton(
-      label: label,
-      enabled: enabled,
-      onPressed: onTap,
     );
   }
 }

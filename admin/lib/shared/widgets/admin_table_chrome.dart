@@ -307,6 +307,123 @@ class AdminTablePageButton extends StatelessWidget {
   }
 }
 
+class AdminTablePagination extends StatelessWidget {
+  const AdminTablePagination({
+    super.key,
+    required this.page,
+    required this.pageCount,
+    required this.onPageChanged,
+    this.enabled = true,
+  });
+
+  final int page;
+  final int pageCount;
+  final ValueChanged<int> onPageChanged;
+  final bool enabled;
+
+  static const _visibleNumberCount = 3;
+
+  List<int?> _visiblePageItems(int currentPage, int totalPages) {
+    if (totalPages <= _visibleNumberCount) {
+      return List<int?>.generate(totalPages, (index) => index + 1);
+    }
+
+    var firstVisible = currentPage - 1;
+    var lastVisible = currentPage + 1;
+
+    if (currentPage <= 2) {
+      firstVisible = 1;
+      lastVisible = _visibleNumberCount;
+    } else if (currentPage >= totalPages - 1) {
+      firstVisible = totalPages - _visibleNumberCount + 1;
+      lastVisible = totalPages;
+    }
+
+    final items = <int?>[];
+    if (firstVisible > 1) items.add(null);
+
+    for (var value = firstVisible; value <= lastVisible; value += 1) {
+      items.add(value);
+    }
+
+    if (lastVisible < totalPages) items.add(null);
+
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safePageCount = pageCount < 1 ? 1 : pageCount;
+    final safePage = page.clamp(1, safePageCount).toInt();
+    final pageItems = _visiblePageItems(safePage, safePageCount);
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          AdminTablePageButton(
+            label: '<<',
+            enabled: enabled && safePage > 1,
+            onPressed: () => onPageChanged(1),
+          ),
+          AdminTablePageButton(
+            label: '<',
+            enabled: enabled && safePage > 1,
+            onPressed: () => onPageChanged(safePage - 1),
+          ),
+          for (final pageItem in pageItems)
+            if (pageItem == null)
+              const _AdminTablePageEllipsis()
+            else
+              AdminTablePageButton(
+                label: '$pageItem',
+                selected: pageItem == safePage,
+                enabled: pageItem == safePage || enabled,
+                onPressed: pageItem == safePage
+                    ? null
+                    : () => onPageChanged(pageItem),
+              ),
+          AdminTablePageButton(
+            label: '>',
+            enabled: enabled && safePage < safePageCount,
+            onPressed: () => onPageChanged(safePage + 1),
+          ),
+          AdminTablePageButton(
+            label: '>>',
+            enabled: enabled && safePage < safePageCount,
+            onPressed: () => onPageChanged(safePageCount),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminTablePageEllipsis extends StatelessWidget {
+  const _AdminTablePageEllipsis();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 36,
+      height: 34,
+      child: Center(
+        child: Text(
+          '...',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.support,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AdminTableEmptyText extends StatelessWidget {
   const AdminTableEmptyText({super.key, required this.label});
 

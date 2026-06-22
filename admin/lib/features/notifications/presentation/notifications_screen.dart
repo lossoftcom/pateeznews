@@ -1790,30 +1790,10 @@ class _Footer extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        AdminTablePageButton(
-          label: '<<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(1),
-        ),
-        const SizedBox(width: 8),
-        AdminTablePageButton(
-          label: '<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(page - 1),
-        ),
-        const SizedBox(width: 8),
-        AdminTablePageButton(label: '$page', selected: true),
-        const SizedBox(width: 8),
-        AdminTablePageButton(
-          label: '>',
-          enabled: page < pageCount,
-          onPressed: () => onPageChanged(page + 1),
-        ),
-        const SizedBox(width: 8),
-        AdminTablePageButton(
-          label: '>>',
-          enabled: page < pageCount,
-          onPressed: () => onPageChanged(pageCount),
+        AdminTablePagination(
+          page: page,
+          pageCount: pageCount,
+          onPageChanged: onPageChanged,
         ),
       ],
     );

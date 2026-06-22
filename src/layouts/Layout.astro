@@ -668,6 +668,12 @@ const fontPreloadHrefs = Array.from(new Set(
 			.route-loading.is-active {
 				opacity: 0.9;
 			}
+			html.pateez-route-style-pending body.public-route > :not(#route-loading):not(script) {
+				visibility: hidden;
+			}
+			html.pateez-route-style-pending body.public-route .route-loading {
+				opacity: 0.9;
+			}
 			.route-loading__bar {
 				height: 100%;
 				width: 100%;
@@ -780,6 +786,72 @@ const fontPreloadHrefs = Array.from(new Set(
 			})();
 		</script>
 		<!-- 🚀 PERSISTENT NAVIGATION (ZERO RELOAD) -->
+		<script is:inline>
+			(() => {
+				if (window.__pateezRouteStyleGuardBound) return;
+				window.__pateezRouteStyleGuardBound = true;
+
+				const pendingClass = 'pateez-route-style-pending';
+				let fallbackTimer = 0;
+				let frame = 0;
+				const watchedLinks = new WeakSet();
+
+				const getRequiredStyles = () => Array.from(document.querySelectorAll('link[rel~="stylesheet"]'))
+					.filter((link) => {
+						try {
+							const url = new URL(link.href, window.location.href);
+							return url.origin === window.location.origin && url.pathname.startsWith('/_astro/') && url.pathname.endsWith('.css');
+						} catch (_) {
+							return false;
+						}
+					});
+
+				const hasUsableSheet = (link) => {
+					if (!link || link.disabled) return true;
+					if (link.media && link.media !== 'all' && !window.matchMedia(link.media).matches) return true;
+					try {
+						return Boolean(link.sheet);
+					} catch (_) {
+						return false;
+					}
+				};
+
+				const clearPending = () => {
+					window.clearTimeout(fallbackTimer);
+					window.cancelAnimationFrame(frame);
+					document.documentElement.classList.remove(pendingClass);
+				};
+
+				const checkStyles = () => {
+					const links = getRequiredStyles();
+					if (links.length === 0 || links.every(hasUsableSheet)) {
+						clearPending();
+						return;
+					}
+					links.forEach((link) => {
+						if (watchedLinks.has(link)) return;
+						watchedLinks.add(link);
+						link.addEventListener('load', checkStyles, { once: true });
+						link.addEventListener('error', checkStyles, { once: true });
+					});
+					window.cancelAnimationFrame(frame);
+					frame = window.requestAnimationFrame(checkStyles);
+				};
+
+				const holdUntilStylesReady = () => {
+					document.documentElement.classList.add(pendingClass);
+					window.clearTimeout(fallbackTimer);
+					fallbackTimer = window.setTimeout(clearPending, 3500);
+					window.cancelAnimationFrame(frame);
+					frame = window.requestAnimationFrame(checkStyles);
+				};
+
+				document.addEventListener('astro:before-swap', holdUntilStylesReady);
+				document.addEventListener('astro:after-swap', holdUntilStylesReady);
+				document.addEventListener('astro:page-load', checkStyles);
+				window.addEventListener('pageshow', checkStyles);
+			})();
+		</script>
 		<div transition:persist="global-nav" class="relative z-[999]">
 			<GlobalNavigation
 				client:load

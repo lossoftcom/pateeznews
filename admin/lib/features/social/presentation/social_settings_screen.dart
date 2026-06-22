@@ -2898,53 +2898,12 @@ class _SocialSettingsFooter extends StatelessWidget {
             ),
           ),
         ),
-        _PaginationButton(
-          label: '<<',
-          enabled: page > 0,
-          onTap: () => onPageChanged(0),
-        ),
-        const SizedBox(width: 8),
-        _PaginationButton(
-          label: '<',
-          enabled: page > 0,
-          onTap: () => onPageChanged(page - 1),
-        ),
-        const SizedBox(width: 8),
-        AdminTablePageButton(label: '${page + 1}', selected: true),
-        const SizedBox(width: 8),
-        _PaginationButton(
-          label: '>',
-          enabled: page < maxPage,
-          onTap: () => onPageChanged(page + 1),
-        ),
-        const SizedBox(width: 8),
-        _PaginationButton(
-          label: '>>',
-          enabled: page < maxPage,
-          onTap: () => onPageChanged(maxPage),
+        AdminTablePagination(
+          page: page + 1,
+          pageCount: maxPage + 1,
+          onPageChanged: (newPage) => onPageChanged(newPage - 1),
         ),
       ],
-    );
-  }
-}
-
-class _PaginationButton extends StatelessWidget {
-  const _PaginationButton({
-    required this.label,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AdminTablePageButton(
-      label: label,
-      enabled: enabled,
-      onPressed: onTap,
     );
   }
 }

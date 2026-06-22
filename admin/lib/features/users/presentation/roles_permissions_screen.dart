@@ -6,6 +6,7 @@ import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/widgets/admin_table_chrome.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
@@ -900,81 +901,10 @@ class _RolesPagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        _PageButton(
-          label: '<<',
-          enabled: page > 1,
-          onTap: () => onPageChanged(1),
-        ),
-        _PageButton(
-          label: '<',
-          enabled: page > 1,
-          onTap: () => onPageChanged(page - 1),
-        ),
-        _PageButton(label: page.toString(), selected: true, onTap: () {}),
-        _PageButton(
-          label: '>',
-          enabled: page < pageCount,
-          onTap: () => onPageChanged(page + 1),
-        ),
-        _PageButton(
-          label: '>>',
-          enabled: page < pageCount,
-          onTap: () => onPageChanged(pageCount),
-        ),
-      ],
-    );
-  }
-}
-
-class _PageButton extends StatelessWidget {
-  const _PageButton({
-    required this.label,
-    required this.onTap,
-    this.selected = false,
-    this.enabled = true,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool selected;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? onTap : null,
-        child: Container(
-          width: 36,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.deepOcean : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: selected
-                  ? AppColors.deepOcean
-                  : AppColors.line.withValues(alpha: 0.72),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected
-                  ? Colors.white
-                  : enabled
-                  ? AppColors.support
-                  : AppColors.support.withValues(alpha: 0.42),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
+    return AdminTablePagination(
+      page: page,
+      pageCount: pageCount,
+      onPageChanged: onPageChanged,
     );
   }
 }

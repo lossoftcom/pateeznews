@@ -2567,86 +2567,10 @@ class _MailPagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _PagerButton(
-          label: '<<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(1),
-        ),
-        const SizedBox(width: 8),
-        _PagerButton(
-          label: '<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(page - 1),
-        ),
-        const SizedBox(width: 8),
-        AdminTablePageButton(label: page.toString(), selected: true),
-        const SizedBox(width: 8),
-        _PagerButton(
-          label: '>',
-          enabled: page < lastPage,
-          onPressed: () => onPageChanged(page + 1),
-        ),
-        const SizedBox(width: 8),
-        _PagerButton(
-          label: '>>',
-          enabled: page < lastPage,
-          onPressed: () => onPageChanged(lastPage),
-        ),
-      ],
-    );
-  }
-}
-
-class _PagerButton extends StatelessWidget {
-  const _PagerButton({
-    required this.label,
-    required this.enabled,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool enabled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 38,
-      height: 34,
-      child: TextButton(
-        onPressed: enabled ? onPressed : null,
-        style:
-            TextButton.styleFrom(
-              backgroundColor: Colors.white,
-              disabledForegroundColor: AppColors.support.withValues(
-                alpha: 0.42,
-              ),
-              foregroundColor: AppColors.deepOcean,
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                side: BorderSide(
-                  color: AppColors.line.withValues(
-                    alpha: enabled ? 0.72 : 0.38,
-                  ),
-                ),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: WidgetStatePropertyAll(
-                enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-              ),
-            ),
-        child: Text(label),
-      ),
+    return AdminTablePagination(
+      page: page,
+      pageCount: lastPage,
+      onPageChanged: onPageChanged,
     );
   }
 }

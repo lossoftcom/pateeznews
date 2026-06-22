@@ -44,17 +44,6 @@ const writeUrlState = (href: string, historyMode: 'push' | 'replace' = 'push', e
   return nextState;
 };
 
-const waitForAstroPageLoad = () => new Promise<void>((resolve) => {
-  let timer = 0;
-  const finish = () => {
-    document.removeEventListener('astro:page-load', finish);
-    window.clearTimeout(timer);
-    resolve();
-  };
-  document.addEventListener('astro:page-load', finish, { once: true });
-  timer = window.setTimeout(finish, 15000);
-});
-
 export const updateUrlImmediately = (
   href: string,
   historyMode: 'push' | 'replace' = 'push',
@@ -92,8 +81,5 @@ export const navigateImmediately = async (href: string, options: NavigateOptions
 
   document.getElementById('route-loading')?.classList.add('is-active');
   const historyMode = options.history === 'replace' ? 'replace' : 'push';
-  const nextState = writeUrlState(target.href, historyMode, options.state);
-  const completion = waitForAstroPageLoad();
-  window.dispatchEvent(new PopStateEvent('popstate', { state: nextState }));
-  return completion;
+  return navigate(target.href, { ...options, history: historyMode });
 };

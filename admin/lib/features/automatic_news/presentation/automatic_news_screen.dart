@@ -2676,49 +2676,49 @@ class _AutomaticNewsFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final start = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    final safePageCount = pageCount < 1 ? 1 : pageCount;
+    final safePage = page.clamp(1, safePageCount).toInt();
+    final start = totalCount == 0 ? 0 : ((safePage - 1) * pageSize) + 1;
     final end = totalCount == 0
         ? 0
-        : (page * pageSize).clamp(0, totalCount).toInt();
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '$start - $end / $totalCount kayıt gösteriliyor',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.inkSoft,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
-        Wrap(
-          spacing: 8,
+        : (safePage * pageSize).clamp(0, totalCount).toInt();
+
+    final summary = Text(
+      '$start - $end / $totalCount kayıt gösteriliyor',
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: AppColors.inkSoft,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+      ),
+    );
+
+    final pagination = AdminTablePagination(
+      page: safePage,
+      pageCount: safePageCount,
+      onPageChanged: onPageChanged,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 720) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              summary,
+              const SizedBox(height: 12),
+              Align(alignment: Alignment.centerRight, child: pagination),
+            ],
+          );
+        }
+
+        return Row(
           children: [
-            AdminTablePageButton(
-              label: '<<',
-              enabled: page > 1,
-              onPressed: () => onPageChanged(1),
-            ),
-            AdminTablePageButton(
-              label: '<',
-              enabled: page > 1,
-              onPressed: () => onPageChanged(page - 1),
-            ),
-            AdminTablePageButton(label: '$page', selected: true),
-            AdminTablePageButton(
-              label: '>',
-              enabled: page < pageCount,
-              onPressed: () => onPageChanged(page + 1),
-            ),
-            AdminTablePageButton(
-              label: '>>',
-              enabled: page < pageCount,
-              onPressed: () => onPageChanged(pageCount),
-            ),
+            Expanded(child: summary),
+            const SizedBox(width: 16),
+            pagination,
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }

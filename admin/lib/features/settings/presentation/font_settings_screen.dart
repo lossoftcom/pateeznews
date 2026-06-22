@@ -2557,31 +2557,10 @@ class _FontPagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        AdminTablePageButton(
-          label: '<<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(1),
-        ),
-        AdminTablePageButton(
-          label: '<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(page - 1),
-        ),
-        AdminTablePageButton(label: page.toString(), selected: true),
-        AdminTablePageButton(
-          label: '>',
-          enabled: page < lastPage,
-          onPressed: () => onPageChanged(page + 1),
-        ),
-        AdminTablePageButton(
-          label: '>>',
-          enabled: page < lastPage,
-          onPressed: () => onPageChanged(lastPage),
-        ),
-      ],
+    return AdminTablePagination(
+      page: page,
+      pageCount: lastPage,
+      onPageChanged: onPageChanged,
     );
   }
 }

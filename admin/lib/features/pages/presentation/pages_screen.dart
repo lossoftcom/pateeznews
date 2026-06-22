@@ -12,6 +12,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/admin_rich_text_editor.dart';
+import '../../../shared/widgets/admin_table_chrome.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/symbol_icon.dart';
@@ -2662,7 +2663,6 @@ class _PagesFooter extends StatelessWidget {
         final pager = _PagesPagination(
           page: page,
           totalPages: totalPages,
-          hasNext: to < totalCount,
           onPageChanged: onPageChanged,
         );
 
@@ -2736,91 +2736,19 @@ class _PagesPagination extends StatelessWidget {
   const _PagesPagination({
     required this.page,
     required this.totalPages,
-    required this.hasNext,
     required this.onPageChanged,
   });
 
   final int page;
   final int totalPages;
-  final bool hasNext;
   final ValueChanged<int> onPageChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        _PageNavButton(
-          label: '<<',
-          enabled: page > 1,
-          onTap: () => onPageChanged(1),
-        ),
-        _PageNavButton(
-          label: '<',
-          enabled: page > 1,
-          onTap: () => onPageChanged(page - 1),
-        ),
-        _PageNavButton(label: page.toString(), selected: true),
-        _PageNavButton(
-          label: '>',
-          enabled: hasNext,
-          onTap: () => onPageChanged(page + 1),
-        ),
-        _PageNavButton(
-          label: '>>',
-          enabled: hasNext,
-          onTap: () => onPageChanged(totalPages),
-        ),
-      ],
-    );
-  }
-}
-
-class _PageNavButton extends StatelessWidget {
-  const _PageNavButton({
-    required this.label,
-    this.selected = false,
-    this.enabled = true,
-    this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? onTap : null,
-        child: Opacity(
-          opacity: enabled ? 1 : 0.46,
-          child: Container(
-            width: 36,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.deepOcean : Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.value),
-              border: Border.all(
-                color: selected
-                    ? AppColors.deepOcean
-                    : AppColors.line.withValues(alpha: 0.72),
-              ),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : AppColors.support,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AdminTablePagination(
+      page: page,
+      pageCount: totalPages,
+      onPageChanged: onPageChanged,
     );
   }
 }

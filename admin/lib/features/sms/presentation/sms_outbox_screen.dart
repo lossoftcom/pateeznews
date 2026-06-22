@@ -1971,56 +1971,10 @@ class _SmsOutboxPagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _SmsOutboxPagerButton(
-          label: '<<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(1),
-        ),
-        const SizedBox(width: 8),
-        _SmsOutboxPagerButton(
-          label: '<',
-          enabled: page > 1,
-          onPressed: () => onPageChanged(page - 1),
-        ),
-        const SizedBox(width: 8),
-        AdminTablePageButton(label: page.toString(), selected: true),
-        const SizedBox(width: 8),
-        _SmsOutboxPagerButton(
-          label: '>',
-          enabled: page < lastPage,
-          onPressed: () => onPageChanged(page + 1),
-        ),
-        const SizedBox(width: 8),
-        _SmsOutboxPagerButton(
-          label: '>>',
-          enabled: page < lastPage,
-          onPressed: () => onPageChanged(lastPage),
-        ),
-      ],
-    );
-  }
-}
-
-class _SmsOutboxPagerButton extends StatelessWidget {
-  const _SmsOutboxPagerButton({
-    required this.label,
-    required this.enabled,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool enabled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return AdminTablePageButton(
-      label: label,
-      enabled: enabled,
-      onPressed: onPressed,
+    return AdminTablePagination(
+      page: page,
+      pageCount: lastPage,
+      onPageChanged: onPageChanged,
     );
   }
 }
