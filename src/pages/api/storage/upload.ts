@@ -39,6 +39,10 @@ import {
     type ContentUploadSettings,
 } from '@/lib/server/contentUploadSettings';
 import { isTechnicalMediaText } from '@/lib/mediaSeoText';
+import {
+    shouldUseDirectRemoteUploadFallback,
+    uploadOriginalFileDirectlyToRemoteStorage,
+} from '@/lib/server/directRemoteUploadFallback';
 
 // Flags uploads whose final name is machine-generated/meaningless so the admin
 // UI can prompt for an SEO-friendly rename. The stored `value` is the source of
@@ -404,7 +408,31 @@ export const POST: APIRoute = async ({ request }) => {
             const keepLocalBackup = localBackupEnabled(storageSettings);
             let localResult: Record<string, unknown> | null = null;
             try {
-                const processed = await uploadLocalStorageFile(uploadFormData);
+                let processed: Record<string, unknown>;
+                try {
+                    processed = await uploadLocalStorageFile(uploadFormData);
+                } catch (error) {
+                    if (!shouldUseDirectRemoteUploadFallback(error)) throw error;
+                    console.warn(
+                        'Local upload processor unavailable; uploading original file to remote storage fallback:',
+                        error instanceof Error ? error.message : error,
+                    );
+                    const result = await uploadOriginalFileDirectlyToRemoteStorage({
+                        storageSettings,
+                        file,
+                        type,
+                        formData,
+                    });
+                    setStorageUploadProgress(uploadId, {
+                        phase: 'done',
+                        progress: 1,
+                        etaSeconds: 0,
+                        message: 'Local processor unavailable; remote fallback upload completed.',
+                    });
+                    if (replaceId) await purgeReplacedMediaCache(requestUrl.origin, result);
+                    return mediaUploadResponse(result);
+                }
+
                 localResult = processed;
                 const resultType = getStorageType(processed.type);
                 const resultId = String(processed.id || '');
