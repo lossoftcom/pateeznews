@@ -1,25 +1,46 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/features/automatic_news/data/admin_automatic_news_repository.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:quill_native_bridge/quill_native_bridge.dart';
+import 'package:share_plus/share_plus.dart' hide XFile;
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/data/admin_image_url.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/admin_toast.dart';
 import '../../../shared/widgets/admin_table_chrome.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
+
+class AutomaticNewsAiDraftSeed {
+  const AutomaticNewsAiDraftSeed({
+    required this.topic,
+    required this.sourceUrl,
+    required this.imageUrl,
+    required this.imageAlt,
+  });
+
+  final String topic;
+  final String sourceUrl;
+  final String imageUrl;
+  final String imageAlt;
+}
 
 class AutomaticNewsScreen extends StatefulWidget {
   const AutomaticNewsScreen({
     super.key,
     this.repository = const SupabaseAdminAutomaticNewsRepository(),
+    this.onEditDraft,
   });
 
   final AdminAutomaticNewsRepository repository;
+  final ValueChanged<AutomaticNewsAiDraftSeed>? onEditDraft;
 
   @override
   State<AutomaticNewsScreen> createState() => _AutomaticNewsScreenState();
@@ -44,6 +65,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
   var _pageSize = 25;
   var _searchQuery = '';
   var _sortState = const TableSortState(key: 'date', ascending: false);
+  String? _downloadingImageDraftId;
 
   @override
   void initState() {
@@ -242,6 +264,132 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
     await _deleteDrafts([draft]);
   }
 
+  void _editDraft(_AutomaticNewsDraft draft) {
+    widget.onEditDraft?.call(draft.toAiDraftSeed());
+  }
+
+  Future<void> _downloadDraftImage(_AutomaticNewsDraft draft) async {
+    if (draft.imageUrl.isEmpty || _downloadingImageDraftId != null) return;
+    setState(() => _downloadingImageDraftId = draft.recordId);
+    try {
+      final file = await widget.repository.downloadImage(draft.recordId);
+      if (!mounted) return;
+      await _saveDownloadedImage(file);
+    } catch (error) {
+      if (!mounted) return;
+      AdminToast.show(
+        context,
+        message: error.toString(),
+        tone: AdminToastTone.error,
+      );
+    } finally {
+      if (mounted) setState(() => _downloadingImageDraftId = null);
+    }
+  }
+
+  Future<void> _saveDownloadedImage(AutomaticNewsImageFile file) async {
+    if (_shouldSaveDownloadedImageToGallery) {
+      final savedToGallery = await _saveDownloadedImageToGallery(file);
+      if (savedToGallery) return;
+    }
+    final extension = _fileExtension(file.fileName);
+    try {
+      final location = await getSaveLocation(
+        suggestedName: file.fileName,
+        acceptedTypeGroups: [
+          XTypeGroup(
+            label: 'Görsel',
+            extensions: [if (extension.isNotEmpty) extension],
+            mimeTypes: [file.mimeType],
+          ),
+        ],
+      );
+      if (location == null) return;
+      await XFile.fromData(
+        file.bytes,
+        mimeType: file.mimeType,
+        name: file.fileName,
+      ).saveTo(location.path);
+      if (!mounted) return;
+      AdminToast.show(
+        context,
+        message: 'Görsel kaydedildi',
+        tone: AdminToastTone.success,
+      );
+    } on UnimplementedError {
+      await _shareDownloadedImage(file);
+    } on UnsupportedError {
+      await _shareDownloadedImage(file);
+    }
+  }
+
+  bool get _shouldSaveDownloadedImageToGallery {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+  }
+
+  Future<bool> _saveDownloadedImageToGallery(
+    AutomaticNewsImageFile file,
+  ) async {
+    final bridge = QuillNativeBridge();
+    try {
+      final supported = await bridge.isSupported(
+        QuillNativeBridgeFeature.saveImageToGallery,
+      );
+      if (!supported) return false;
+      final extension = _fileExtension(file.fileName).isNotEmpty
+          ? _fileExtension(file.fileName)
+          : _fileExtensionForMimeType(file.mimeType);
+      await bridge.saveImageToGallery(
+        file.bytes,
+        options: GalleryImageSaveOptions(
+          name: _fileNameWithoutExtension(file.fileName),
+          fileExtension: extension.isEmpty ? 'jpg' : extension,
+          albumName: null,
+        ),
+      );
+      if (!mounted) return true;
+      AdminToast.show(
+        context,
+        message: 'Görsel galeriye kaydedildi',
+        tone: AdminToastTone.success,
+      );
+      return true;
+    } on UnimplementedError {
+      return false;
+    } on UnsupportedError {
+      return false;
+    }
+  }
+
+  Future<void> _shareDownloadedImage(AutomaticNewsImageFile file) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null
+        ? null
+        : box.localToGlobal(Offset.zero) & box.size;
+    final result = await SharePlus.instance.share(
+      ShareParams(
+        files: [
+          XFile.fromData(
+            file.bytes,
+            mimeType: file.mimeType,
+            name: file.fileName,
+          ),
+        ],
+        fileNameOverrides: [file.fileName],
+        title: file.fileName,
+        sharePositionOrigin: origin,
+      ),
+    );
+    if (!mounted || result.status != ShareResultStatus.success) return;
+    AdminToast.show(
+      context,
+      message: 'Görsel paylaşım menüsüne gönderildi',
+      tone: AdminToastTone.success,
+    );
+  }
+
   Future<void> _openSourceDialog() async {
     await showDialog<void>(
       context: context,
@@ -336,6 +484,9 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
                 onRefresh: () => unawaited(_loadItems(showLoading: true)),
                 onOpenSources: _openSourceDialog,
                 onViewDraft: _showDraftPreview,
+                onEditDraft: _editDraft,
+                onDownloadDraftImage: (draft) =>
+                    unawaited(_downloadDraftImage(draft)),
                 onDeleteDraft: (draft) => unawaited(_deleteDraft(draft)),
               ),
             ),
@@ -544,6 +695,8 @@ class _AutomaticNewsTableCard extends StatelessWidget {
     required this.onRefresh,
     required this.onOpenSources,
     required this.onViewDraft,
+    required this.onEditDraft,
+    required this.onDownloadDraftImage,
     required this.onDeleteDraft,
   });
 
@@ -576,6 +729,8 @@ class _AutomaticNewsTableCard extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onOpenSources;
   final ValueChanged<_AutomaticNewsDraft> onViewDraft;
+  final ValueChanged<_AutomaticNewsDraft> onEditDraft;
+  final ValueChanged<_AutomaticNewsDraft> onDownloadDraftImage;
   final ValueChanged<_AutomaticNewsDraft> onDeleteDraft;
 
   @override
@@ -621,6 +776,8 @@ class _AutomaticNewsTableCard extends StatelessWidget {
                 onToggleDraft: onToggleDraft,
                 onToggleVisibleDrafts: onToggleVisibleDrafts,
                 onViewDraft: onViewDraft,
+                onEditDraft: onEditDraft,
+                onDownloadDraftImage: onDownloadDraftImage,
                 onDeleteDraft: onDeleteDraft,
               ),
             ),
@@ -903,6 +1060,8 @@ class _AutomaticNewsDataTable extends StatelessWidget {
     required this.onToggleDraft,
     required this.onToggleVisibleDrafts,
     required this.onViewDraft,
+    required this.onEditDraft,
+    required this.onDownloadDraftImage,
     required this.onDeleteDraft,
   });
 
@@ -914,6 +1073,8 @@ class _AutomaticNewsDataTable extends StatelessWidget {
   final ValueChanged<int> onToggleDraft;
   final VoidCallback onToggleVisibleDrafts;
   final ValueChanged<_AutomaticNewsDraft> onViewDraft;
+  final ValueChanged<_AutomaticNewsDraft> onEditDraft;
+  final ValueChanged<_AutomaticNewsDraft> onDownloadDraftImage;
   final ValueChanged<_AutomaticNewsDraft> onDeleteDraft;
 
   static const double _selectWidth = 42;
@@ -1002,6 +1163,9 @@ class _AutomaticNewsDataTable extends StatelessWidget {
                                     ),
                                     onToggle: () => onToggleDraft(draft.id),
                                     onView: () => onViewDraft(draft),
+                                    onEdit: () => onEditDraft(draft),
+                                    onDownload: () =>
+                                        onDownloadDraftImage(draft),
                                     onDelete: () => onDeleteDraft(draft),
                                   ),
                               ],
@@ -1195,6 +1359,8 @@ class _AutomaticNewsRow extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onView,
+    required this.onEdit,
+    required this.onDownload,
     required this.onDelete,
   });
 
@@ -1203,6 +1369,8 @@ class _AutomaticNewsRow extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onView;
+  final VoidCallback onEdit;
+  final VoidCallback onDownload;
   final VoidCallback onDelete;
 
   @override
@@ -1272,7 +1440,13 @@ class _AutomaticNewsRow extends StatelessWidget {
             width: _AutomaticNewsDataTable._menuWidth,
             child: Align(
               alignment: Alignment.center,
-              child: _AutomaticNewsRowMenu(onView: onView, onDelete: onDelete),
+              child: _AutomaticNewsRowMenu(
+                onView: onView,
+                onEdit: onEdit,
+                onDownload: onDownload,
+                canDownload: draft.imageUrl.isNotEmpty,
+                onDelete: onDelete,
+              ),
             ),
           ),
         ],
@@ -1445,10 +1619,49 @@ String _readableText(String value, {String fallback = '-'}) {
   return trimmed.isEmpty ? fallback : trimmed;
 }
 
+String _fileExtension(String fileName) {
+  final normalized = fileName.trim();
+  final index = normalized.lastIndexOf('.');
+  if (index < 0 || index == normalized.length - 1) return '';
+  final extension = normalized.substring(index + 1).toLowerCase();
+  return RegExp(r'^[a-z0-9]{2,5}$').hasMatch(extension) ? extension : '';
+}
+
+String _fileNameWithoutExtension(String fileName) {
+  final normalized = fileName.trim();
+  if (normalized.isEmpty) return 'otomatik-haber-gorseli';
+  final index = normalized.lastIndexOf('.');
+  if (index <= 0) return normalized;
+  return normalized.substring(0, index).trim().isEmpty
+      ? 'otomatik-haber-gorseli'
+      : normalized.substring(0, index).trim();
+}
+
+String _fileExtensionForMimeType(String mimeType) {
+  final normalized = mimeType.split(';').first.trim().toLowerCase();
+  return switch (normalized) {
+    'image/jpeg' || 'image/jpg' => 'jpg',
+    'image/png' => 'png',
+    'image/webp' => 'webp',
+    'image/gif' => 'gif',
+    'image/avif' => 'avif',
+    _ => '',
+  };
+}
+
 class _AutomaticNewsRowMenu extends StatefulWidget {
-  const _AutomaticNewsRowMenu({required this.onView, required this.onDelete});
+  const _AutomaticNewsRowMenu({
+    required this.onView,
+    required this.onEdit,
+    required this.onDownload,
+    required this.canDownload,
+    required this.onDelete,
+  });
 
   final VoidCallback onView;
+  final VoidCallback onEdit;
+  final VoidCallback onDownload;
+  final bool canDownload;
   final VoidCallback onDelete;
 
   @override
@@ -1486,6 +1699,9 @@ class _AutomaticNewsRowMenuState extends State<_AutomaticNewsRowMenu> {
               offset: const Offset(0, 8),
               child: _AutomaticNewsMenuCard(
                 onView: () => _runAndClose(widget.onView),
+                onEdit: () => _runAndClose(widget.onEdit),
+                onDownload: () => _runAndClose(widget.onDownload),
+                canDownload: widget.canDownload,
                 onDelete: () => _runAndClose(widget.onDelete),
               ),
             ),
@@ -1545,9 +1761,18 @@ class _AutomaticNewsRowMenuState extends State<_AutomaticNewsRowMenu> {
 }
 
 class _AutomaticNewsMenuCard extends StatelessWidget {
-  const _AutomaticNewsMenuCard({required this.onView, required this.onDelete});
+  const _AutomaticNewsMenuCard({
+    required this.onView,
+    required this.onEdit,
+    required this.onDownload,
+    required this.canDownload,
+    required this.onDelete,
+  });
 
   final VoidCallback onView;
+  final VoidCallback onEdit;
+  final VoidCallback onDownload;
+  final bool canDownload;
   final VoidCallback onDelete;
 
   @override
@@ -1577,6 +1802,17 @@ class _AutomaticNewsMenuCard extends StatelessWidget {
               label: 'Haberi Görüntüle',
               onTap: onView,
             ),
+            _AutomaticNewsMenuItem(
+              icon: Symbols.edit_square,
+              label: 'Haberi düzenle',
+              onTap: onEdit,
+            ),
+            if (canDownload)
+              _AutomaticNewsMenuItem(
+                icon: Symbols.download,
+                label: 'Resmi indir',
+                onTap: onDownload,
+              ),
             _AutomaticNewsMenuItem(
               icon: Symbols.delete,
               label: 'Sil',
@@ -3254,6 +3490,99 @@ class _AutomaticNewsDraft {
   final DateTime capturedAt;
 
   String get mediaUrl => imageUrl.isNotEmpty ? imageUrl : videoUrl;
+
+  AutomaticNewsAiDraftSeed toAiDraftSeed() {
+    final source = sourceUrl.trim();
+    final body = contentText.trim().isNotEmpty ? contentText : summary;
+    final keywords = _automaticNewsSeedKeywords(this);
+    final lines = <String>[
+      _seedField('Haber başlığı', title),
+      _seedField('Kısa özet', summary),
+      _seedField('SEO başlık', title),
+      _seedField('URL uzantısı', _slugifyAutomaticNewsTitle(title)),
+      _seedField('Meta açıklama', summary),
+      if (keywords.isNotEmpty) _seedField('Odak anahtar kelimeler', keywords),
+      'Haber içerik blokları:',
+      '---',
+      _seedField('Blok tipi', 'text'),
+      _seedField('Blok metni', _plainTextToHtml(body)),
+      if (source.isNotEmpty) _seedField('Blok kaynağı', source),
+      if (imageUrl.trim().isNotEmpty) ...[
+        '---',
+        _seedField('Blok tipi', 'image'),
+        _seedField('Medya URL', imageUrl.trim()),
+        _seedField('Alt metin', title),
+      ],
+    ].where((line) => line.trim().isNotEmpty).toList(growable: false);
+    return AutomaticNewsAiDraftSeed(
+      topic: lines.join('\n'),
+      sourceUrl: source,
+      imageUrl: imageUrl.trim(),
+      imageAlt: title,
+    );
+  }
+}
+
+String _seedField(String label, String value) {
+  final text = value.trim();
+  return text.isEmpty ? '' : '$label: $text';
+}
+
+String _plainTextToHtml(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return '';
+  return text
+      .split(RegExp(r'\n{2,}'))
+      .map(
+        (paragraph) =>
+            '<p>${_escapeHtml(paragraph).replaceAll('\n', '<br>')}</p>',
+      )
+      .join('');
+}
+
+String _escapeHtml(String value) {
+  return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+}
+
+String _slugifyAutomaticNewsTitle(String value) {
+  final normalized = value
+      .trim()
+      .toLowerCase()
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ş', 's')
+      .replaceAll('ı', 'i')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c')
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  return normalized;
+}
+
+String _automaticNewsSeedKeywords(_AutomaticNewsDraft draft) {
+  final values = <String>[
+    draft.category,
+    _compactUrl(draft.sourceUrl).split('/').first,
+    ...draft.title.split(RegExp(r'\s+')).where((word) => word.length > 3),
+  ];
+  final seen = <String>{};
+  final keywords = <String>[];
+  for (final value in values) {
+    final keyword = value
+        .replaceAll(RegExp(r'''[,.!?;:()"'\u2019\u201c\u201d]+'''), '')
+        .trim();
+    if (keyword.isEmpty || !seen.add(keyword.toLowerCase())) {
+      continue;
+    }
+    keywords.add(keyword);
+    if (keywords.length >= 10) break;
+  }
+  return keywords.join(', ');
 }
 
 const _platforms = ['Instagram', 'Web', 'RSS'];

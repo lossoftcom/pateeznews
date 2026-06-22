@@ -154,6 +154,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _permissionError;
   Set<String> _permissionKeys = const {};
   String? _editingNewsPostId;
+  NewsAddInitialAiContent? _pendingNewsAiContent;
+  var _pendingNewsAiContentToken = 0;
   ContentSettingsSnapshot? _contentSettingsSnapshot;
   SharedPreferences? _preferences;
 
@@ -456,6 +458,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _persistSelectedPage(_DashboardPage.news);
     setState(() {
       _editingNewsPostId = null;
+      _pendingNewsAiContent = null;
       _selectedPage = _DashboardPage.news;
     });
   }
@@ -469,6 +472,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _persistSelectedPage(_DashboardPage.newsAdd);
     setState(() {
       _editingNewsPostId = null;
+      _pendingNewsAiContent = null;
       _selectedPage = _DashboardPage.newsAdd;
     });
   }
@@ -478,6 +482,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _persistSelectedPage(_DashboardPage.newsAdd);
     setState(() {
       _editingNewsPostId = postId;
+      _pendingNewsAiContent = null;
+      _selectedPage = _DashboardPage.newsAdd;
+    });
+  }
+
+  void _openAutomaticNewsAi(AutomaticNewsAiDraftSeed seed) {
+    if (!_canOpen(_DashboardPage.newsAdd)) return;
+    _persistSelectedPage(_DashboardPage.newsAdd);
+    setState(() {
+      _editingNewsPostId = null;
+      _pendingNewsAiContentToken += 1;
+      _pendingNewsAiContent = NewsAddInitialAiContent(
+        topic: seed.topic,
+        sourceUrl: seed.sourceUrl,
+        imageUrl: seed.imageUrl,
+        imageAlt: seed.imageAlt,
+        addImageItem: seed.imageUrl.trim().isNotEmpty,
+      );
       _selectedPage = _DashboardPage.newsAdd;
     });
   }
@@ -1197,6 +1219,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   initialPostFormatSettings:
                                       _contentSettingsSnapshot?.postFormats,
                                   postId: _editingNewsPostId,
+                                  initialAiContent: _pendingNewsAiContent,
+                                  initialAiContentToken:
+                                      _pendingNewsAiContentToken,
                                   onBackToNews: _openNews,
                                 ),
                                 _DashboardPage.news => NewsScreen(
@@ -1205,7 +1230,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   onEditPost: _openNewsEdit,
                                 ),
                                 _DashboardPage.automaticNews =>
-                                  const AutomaticNewsScreen(),
+                                  AutomaticNewsScreen(
+                                    onEditDraft: _openAutomaticNewsAi,
+                                  ),
                                 _DashboardPage.stories => StoriesScreen(
                                   session: widget.session,
                                   repository: widget.storiesRepository,

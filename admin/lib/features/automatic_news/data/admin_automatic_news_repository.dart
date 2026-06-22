@@ -122,6 +122,18 @@ class AutomaticNewsPageResult {
   final int totalCount;
 }
 
+class AutomaticNewsImageFile {
+  const AutomaticNewsImageFile({
+    required this.bytes,
+    required this.fileName,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String fileName;
+  final String mimeType;
+}
+
 class AutomaticNewsRefreshResult {
   const AutomaticNewsRefreshResult({
     required this.status,
@@ -250,6 +262,8 @@ abstract class AdminAutomaticNewsRepository {
   Future<AutomaticNewsRefreshResult> refreshNow();
 
   Future<AutomaticNewsRefreshResult> testSources();
+
+  Future<AutomaticNewsImageFile> downloadImage(String id);
 
   Future<void> deleteItems(List<String> ids);
 }
@@ -417,6 +431,48 @@ class SupabaseAdminAutomaticNewsRepository
   }
 
   @override
+  Future<AutomaticNewsImageFile> downloadImage(String id) async {
+    final normalized = id.trim();
+    if (normalized.isEmpty) {
+      throw const AutomaticNewsException('İndirilecek haber seçilmedi');
+    }
+    final uri = _resolveUri(
+      '/api/admin/automatic-news/image',
+    ).replace(queryParameters: {'id': normalized});
+    final client = httpClient ?? adminHttpClient;
+    final closeClient = shouldCloseAdminHttpClient(client, httpClient);
+    try {
+      final response = await client
+          .get(uri, headers: await adminAuthHeaders())
+          .timeout(_requestTimeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        _throwBytesApiError(
+          response,
+          fallbackMessage: 'Otomatik haber görseli indirilemedi',
+        );
+      }
+      final rawFileName = response.headers['x-pateez-file-name'] ?? '';
+      final decodedFileName = rawFileName.isEmpty
+          ? ''
+          : Uri.decodeComponent(rawFileName);
+      final mimeType =
+          response.headers['content-type']?.split(';').first.trim() ??
+          'application/octet-stream';
+      return AutomaticNewsImageFile(
+        bytes: response.bodyBytes,
+        fileName: decodedFileName.isEmpty
+            ? 'otomatik-haber-gorseli.jpg'
+            : decodedFileName,
+        mimeType: mimeType.isEmpty ? 'application/octet-stream' : mimeType,
+      );
+    } on TimeoutException {
+      throw const AutomaticNewsException('Sunucu yanıtı zaman aşımına uğradı');
+    } finally {
+      if (closeClient) client.close();
+    }
+  }
+
+  @override
   Future<void> deleteItems(List<String> ids) async {
     final normalized = ids
         .map((id) => id.trim())
@@ -514,6 +570,24 @@ class SupabaseAdminAutomaticNewsRepository
       throw AutomaticNewsException(
         message == null || message.isEmpty ? fallbackMessage : message,
       );
+    }
+    throw AutomaticNewsException(fallbackMessage);
+  }
+
+  void _throwBytesApiError(
+    http.Response response, {
+    required String fallbackMessage,
+  }) {
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is Map) {
+        _throwIfApiError(
+          _asStringKeyMap(decoded),
+          fallbackMessage: fallbackMessage,
+        );
+      }
+    } catch (_) {
+      // Fall through to the stable fallback message.
     }
     throw AutomaticNewsException(fallbackMessage);
   }

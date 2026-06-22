@@ -217,6 +217,22 @@ class _SchemaTypeOption {
   final String labelKey;
 }
 
+class NewsAddInitialAiContent {
+  const NewsAddInitialAiContent({
+    required this.topic,
+    required this.sourceUrl,
+    required this.imageUrl,
+    required this.imageAlt,
+    required this.addImageItem,
+  });
+
+  final String topic;
+  final String sourceUrl;
+  final String imageUrl;
+  final String imageAlt;
+  final bool addImageItem;
+}
+
 class NewsAddScreen extends StatefulWidget {
   const NewsAddScreen({
     super.key,
@@ -228,6 +244,8 @@ class NewsAddScreen extends StatefulWidget {
     this.contentSettingsRepository =
         const SupabaseAdminContentSettingsRepository(),
     this.initialPostFormatSettings,
+    this.initialAiContent,
+    this.initialAiContentToken = 0,
     this.onBackToNews,
   });
 
@@ -237,6 +255,8 @@ class NewsAddScreen extends StatefulWidget {
   final AdminNewsAiRepository? aiRepository;
   final AdminContentSettingsRepository contentSettingsRepository;
   final ContentPostFormatSettingsData? initialPostFormatSettings;
+  final NewsAddInitialAiContent? initialAiContent;
+  final int initialAiContentToken;
   final String? postId;
   final VoidCallback? onBackToNews;
 
@@ -324,6 +344,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     for (final tab in NewsAddFormatTab.values) tab,
   };
   late final AdminNewsAiRepository _aiRepository;
+  var _consumedInitialAiContentToken = 0;
+  var _openingInitialAiContent = false;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   @override
@@ -343,6 +365,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         oldWidget.repository != widget.repository) {
       _editingPostId = widget.postId;
       unawaited(_loadEditor());
+    }
+    if (oldWidget.initialAiContentToken != widget.initialAiContentToken) {
+      _queueInitialAiContentModal();
     }
     if (oldWidget.initialPostFormatSettings !=
             widget.initialPostFormatSettings &&
@@ -439,6 +464,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       });
       _hydrating = false;
       unawaited(_loadFormatSettings(_languageCode));
+      _queueInitialAiContentModal();
     } catch (error) {
       if (!mounted) return;
       _hydrating = false;
@@ -446,6 +472,32 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _loadError = error.toString();
         _loading = false;
       });
+    }
+  }
+
+  void _queueInitialAiContentModal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_openInitialAiContentModalIfNeeded());
+    });
+  }
+
+  Future<void> _openInitialAiContentModalIfNeeded() async {
+    final seed = widget.initialAiContent;
+    final token = widget.initialAiContentToken;
+    if (seed == null ||
+        token == 0 ||
+        token == _consumedInitialAiContentToken ||
+        _loading ||
+        _openingInitialAiContent) {
+      return;
+    }
+    _consumedInitialAiContentToken = token;
+    _openingInitialAiContent = true;
+    try {
+      await _openAiContentGenerator(initialContent: seed);
+    } finally {
+      _openingInitialAiContent = false;
     }
   }
 
@@ -4758,8 +4810,13 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     );
   }
 
-  Future<void> _openAiContentGenerator() async {
-    final initialContent = _currentAiContentSeed();
+  Future<void> _openAiContentGenerator({
+    NewsAddInitialAiContent? initialContent,
+  }) async {
+    final seed = initialContent;
+    final initialTopic = seed?.topic.trim().isNotEmpty == true
+        ? seed!.topic
+        : _currentAiContentSeed();
     final targetTab = _activeTab;
     final result = await showDialog<_AiContentGeneratorResult>(
       context: context,
@@ -4770,9 +4827,19 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           category: _selectedCategory,
           formatType: _postTypeForActiveTab,
           formatSubtype: _aiFormatSubtypeForActiveTab,
-          initialTopic: initialContent,
+          initialTopic: initialTopic,
           initialNotes: '',
-          revisionMode: initialContent.trim().isNotEmpty,
+          initialSourceUrl: '',
+          initialSourceImages: seed?.imageUrl.trim().isNotEmpty == true
+              ? [
+                  AdminNewsSourceImage(
+                    url: seed!.imageUrl.trim(),
+                    alt: seed.imageAlt,
+                  ),
+                ]
+              : const <AdminNewsSourceImage>[],
+          initialImageItemCount: seed?.addImageItem == true ? 1 : 0,
+          revisionMode: initialTopic.trim().isNotEmpty,
           onGenerate: _aiRepository.generateDraft,
         );
       },
@@ -9924,6 +9991,9 @@ class _AiContentGeneratorDialog extends StatefulWidget {
     required this.formatSubtype,
     required this.initialTopic,
     required this.initialNotes,
+    required this.initialSourceUrl,
+    required this.initialSourceImages,
+    required this.initialImageItemCount,
     required this.revisionMode,
     required this.onGenerate,
   });
@@ -9934,6 +10004,9 @@ class _AiContentGeneratorDialog extends StatefulWidget {
   final String formatSubtype;
   final String initialTopic;
   final String initialNotes;
+  final String initialSourceUrl;
+  final List<AdminNewsSourceImage> initialSourceImages;
+  final int initialImageItemCount;
   final bool revisionMode;
   final Future<AdminNewsAiDraft> Function(AdminNewsAiDraftRequest request)
   onGenerate;
@@ -9963,6 +10036,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   var _sourceUrlStatusIsError = false;
   AdminNewsSourceArticle? _sourceArticle;
   String? _sourceArticleUrl;
+  var _manualSourceImages = const <AdminNewsSourceImage>[];
   _AiSelectedSourceImage? _selectedSourceImage;
   var _sourceImageUploading = false;
   double? _sourceImageUploadProgress;
@@ -10042,10 +10116,14 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   @override
   void initState() {
     super.initState();
-    _sourceUrlController = TextEditingController();
+    _manualSourceImages = widget.initialSourceImages;
+    _sourceUrlController = TextEditingController(text: widget.initialSourceUrl);
     _sourceUrlController.addListener(_handleSourceUrlChanged);
     _topicController = TextEditingController(text: widget.initialTopic);
     _notesController = TextEditingController(text: widget.initialNotes);
+    if (widget.initialImageItemCount > 0) {
+      _itemCounts['newsAdd.add.image'] = widget.initialImageItemCount;
+    }
     if (_usesInteractiveAiFormat) {
       _tone = 'entertaining';
     }
@@ -10064,7 +10142,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     final url = _sourceUrlController.text.trim();
     final article = _sourceArticle;
     if (article == null || _sourceArticleUrl != url) {
-      return const <AdminNewsSourceImage>[];
+      return _manualSourceImages;
     }
     return article.images;
   }
@@ -10077,6 +10155,9 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     setState(() {
       _sourceArticle = null;
       _sourceArticleUrl = null;
+      if (_sourceUrlController.text.trim() != widget.initialSourceUrl.trim()) {
+        _manualSourceImages = const <AdminNewsSourceImage>[];
+      }
       _selectedSourceImage = null;
       _sourceImageStatus = null;
       _sourceImageStatusIsError = false;
@@ -10166,6 +10247,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       final article = await _sourceReader.read(url);
       if (!mounted) return article;
       setState(() {
+        _manualSourceImages = const <AdminNewsSourceImage>[];
         _sourceArticle = article;
         _sourceArticleUrl = url;
         _sourceUrlStatus = context.t('newsAdd.aiModal.sourceUrlReady');
@@ -10203,6 +10285,11 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   Future<void> _handleOpenSourceImages() async {
     final images = _currentSourceImages;
     if (images.isEmpty || _sourceImageUploading) return;
+    if (_manualSourceImages.isNotEmpty && images.length == 1) {
+      if (_selectedSourceImage != null) return;
+      await _uploadSelectedSourceImage(images.first);
+      return;
+    }
     final selected = await showDialog<AdminNewsSourceImage>(
       context: context,
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
@@ -10725,6 +10812,8 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                 uploadProgress: _sourceImageUploadProgress,
                 status: _sourceImageStatus,
                 statusIsError: _sourceImageStatusIsError,
+                directAdd:
+                    _manualSourceImages.isNotEmpty && sourceImages.length == 1,
                 sidePanel: canUseSidePanel,
                 onTap: _sourceImageUploading
                     ? null
@@ -11018,6 +11107,7 @@ class _SourceImagePreview extends StatelessWidget {
     required this.uploadProgress,
     required this.status,
     required this.statusIsError,
+    required this.directAdd,
     required this.onTap,
     this.sidePanel = false,
   });
@@ -11028,6 +11118,7 @@ class _SourceImagePreview extends StatelessWidget {
   final double? uploadProgress;
   final String? status;
   final bool statusIsError;
+  final bool directAdd;
   final VoidCallback? onTap;
   final bool sidePanel;
 
@@ -11088,7 +11179,10 @@ class _SourceImagePreview extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        _SourceImagePreviewAction(selected: selectedImage != null),
+        _SourceImagePreviewAction(
+          selected: selectedImage != null,
+          directAdd: directAdd,
+        ),
       ],
     );
   }
@@ -11127,6 +11221,7 @@ class _SourceImagePreview extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: _SourceImagePreviewAction(
             selected: selectedImage != null,
+            directAdd: directAdd,
             compact: true,
           ),
         ),
@@ -11222,28 +11317,48 @@ class _SourceImagePreviewText extends StatelessWidget {
 class _SourceImagePreviewAction extends StatelessWidget {
   const _SourceImagePreviewAction({
     required this.selected,
+    required this.directAdd,
     this.compact = false,
   });
 
   final bool selected;
+  final bool directAdd;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final iconOnly = !directAdd || selected;
     final size = compact ? 30.0 : 34.0;
     return Container(
-      width: size,
+      width: iconOnly ? size : 78,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: AppColors.deepOcean,
         borderRadius: BorderRadius.circular(AppRadius.value),
       ),
-      child: Icon(
-        selected ? Symbols.check : Symbols.grid_view,
-        color: Colors.white,
-        size: compact ? 15 : 16,
-      ),
+      child: iconOnly
+          ? Icon(
+              selected ? Symbols.check : Symbols.grid_view,
+              color: Colors.white,
+              size: compact ? 15 : 16,
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Symbols.add, color: Colors.white, size: 15),
+                SizedBox(width: 5),
+                Text(
+                  'Ekle',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
