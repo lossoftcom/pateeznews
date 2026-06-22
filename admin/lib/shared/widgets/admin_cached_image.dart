@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -21,6 +22,7 @@ class AdminCachedImage extends StatelessWidget {
     this.fadeIn = true,
     this.filterQuality = FilterQuality.medium,
     this.useOldImageOnUrlChange = false,
+    this.httpHeaders,
   });
 
   final String url;
@@ -49,6 +51,7 @@ class AdminCachedImage extends StatelessWidget {
   /// `Image.network(gaplessPlayback: true)` karşılığı). Liste hücrelerinde
   /// (widget geri dönüştürülürken yanlış görsel riskine karşı) `false` bırak.
   final bool useOldImageOnUrlChange;
+  final Map<String, String>? httpHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +66,10 @@ class AdminCachedImage extends StatelessWidget {
       memCacheWidth: cacheWidth,
       filterQuality: filterQuality,
       useOldImageOnUrlChange: useOldImageOnUrlChange,
+      httpHeaders: httpHeaders,
+      imageRenderMethodForWeb: httpHeaders?.isNotEmpty == true
+          ? ImageRenderMethodForWeb.HttpGet
+          : ImageRenderMethodForWeb.HtmlImage,
       fadeInDuration: Duration(milliseconds: fadeIn ? 180 : 0),
       fadeOutDuration: Duration(milliseconds: fadeIn ? 120 : 0),
       placeholder: (context, _) => Container(color: placeholderColor),

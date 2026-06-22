@@ -22,6 +22,7 @@ type ImageVariantOptions = {
 
 const LOCAL_IMAGE_PATH_PREFIXES = ["/api/storage/file/", "/local-upload/"];
 const VIDEO_THUMB_EXTENSIONS = [".webp", ".jpg", ".jpeg", ".png"];
+const FRESH_HOME_CACHE = "public, no-cache, must-revalidate";
 const VIDEO_THUMB_FIELDS = [
   "thumbnailUrl",
   "thumbUrl",
@@ -1989,7 +1990,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       },
       200,
       isAnonymous
-        ? { cacheControl: 'public, s-maxage=30, stale-while-revalidate=300' }
+        ? { cacheControl: FRESH_HOME_CACHE }
         : {},
     );
   } catch (error: any) {

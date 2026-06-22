@@ -177,7 +177,7 @@ const getTypeFilterConditions = (terms: string[]) => {
 const CACHE_TTL = {
     SETTINGS: 1000 * 30,      // 30 seconds
     NAV: 1000 * 60 * 5,      // 5 minutes
-    NEWS: 1000 * 30,         // 30 seconds
+    NEWS: 0,                 // fresh per request; inflight dedupe still coalesces concurrent reads
     STORIES: 1000 * 60,      // 1 minute
 };
 
@@ -331,6 +331,14 @@ export const invalidateDataCache = (predicate?: (key: string) => boolean) => {
         if (!predicate || predicate(key)) delete inflight[key];
     }
 };
+
+export const isNewsDataCacheKey = (key: string) =>
+    key.startsWith('news_') ||
+    key.startsWith('post_') ||
+    key.startsWith('category_page_') ||
+    key.startsWith('weekly_trend_page_');
+
+export const invalidateNewsDataCache = () => invalidateDataCache(isNewsDataCacheKey);
 
 export const invalidateSiteSettingsCache = (lang?: string) => {
     const normalizedLang = String(lang || '').trim().toLowerCase().replace(/_/g, '-');

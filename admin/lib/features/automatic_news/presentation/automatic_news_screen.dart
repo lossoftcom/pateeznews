@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 import 'package:pateeznews_admin/features/automatic_news/data/admin_automatic_news_repository.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:quill_native_bridge/quill_native_bridge.dart';
@@ -65,6 +66,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
   var _pageSize = 25;
   var _searchQuery = '';
   var _sortState = const TableSortState(key: 'date', ascending: false);
+  var _imageRequestHeaders = const <String, String>{};
   String? _downloadingImageDraftId;
 
   @override
@@ -88,7 +90,18 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
   }
 
   Future<void> _loadInitial() async {
+    await _loadImageRequestHeaders();
     await Future.wait([_loadSources(), _loadItems(showLoading: true)]);
+  }
+
+  Future<void> _loadImageRequestHeaders() async {
+    if (!kIsWeb) return;
+    final headers = await adminAuthHeaders();
+    final authorization = headers['Authorization']?.trim() ?? '';
+    if (!mounted || authorization.isEmpty) return;
+    setState(() {
+      _imageRequestHeaders = {'Authorization': authorization};
+    });
   }
 
   Future<void> _loadSources() async {
@@ -432,7 +445,10 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
     showDialog<void>(
       context: context,
       barrierColor: const Color(0xB20D1B24),
-      builder: (context) => _AutomaticNewsPreviewDialog(draft: draft),
+      builder: (context) => _AutomaticNewsPreviewDialog(
+        draft: draft,
+        imageRequestHeaders: _imageRequestHeaders,
+      ),
     );
   }
 
@@ -465,6 +481,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
                 searchController: _searchController,
                 searchQuery: _searchQuery,
                 selectedDraftIds: _selectedDraftIds,
+                imageRequestHeaders: _imageRequestHeaders,
                 platformFilter: _platformFilter,
                 categoryFilter: _categoryFilter,
                 statusFilter: _statusFilter,
@@ -676,6 +693,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
     required this.searchController,
     required this.searchQuery,
     required this.selectedDraftIds,
+    required this.imageRequestHeaders,
     required this.platformFilter,
     required this.categoryFilter,
     required this.statusFilter,
@@ -710,6 +728,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
   final TextEditingController searchController;
   final String searchQuery;
   final Set<int> selectedDraftIds;
+  final Map<String, String> imageRequestHeaders;
   final String platformFilter;
   final String categoryFilter;
   final String statusFilter;
@@ -771,6 +790,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
                 drafts: drafts,
                 loading: loading,
                 selectedDraftIds: selectedDraftIds,
+                imageRequestHeaders: imageRequestHeaders,
                 sortState: sortState,
                 onSort: onSort,
                 onToggleDraft: onToggleDraft,
@@ -1055,6 +1075,7 @@ class _AutomaticNewsDataTable extends StatelessWidget {
     required this.drafts,
     required this.loading,
     required this.selectedDraftIds,
+    required this.imageRequestHeaders,
     required this.sortState,
     required this.onSort,
     required this.onToggleDraft,
@@ -1068,6 +1089,7 @@ class _AutomaticNewsDataTable extends StatelessWidget {
   final List<_AutomaticNewsDraft> drafts;
   final bool loading;
   final Set<int> selectedDraftIds;
+  final Map<String, String> imageRequestHeaders;
   final TableSortState sortState;
   final ValueChanged<String> onSort;
   final ValueChanged<int> onToggleDraft;
@@ -1157,6 +1179,7 @@ class _AutomaticNewsDataTable extends StatelessWidget {
                                 for (final draft in drafts)
                                   _AutomaticNewsRow(
                                     draft: draft,
+                                    imageRequestHeaders: imageRequestHeaders,
                                     postWidth: postWidth,
                                     selected: selectedDraftIds.contains(
                                       draft.id,
@@ -1355,6 +1378,7 @@ class _SortableColumnHeader extends StatelessWidget {
 class _AutomaticNewsRow extends StatelessWidget {
   const _AutomaticNewsRow({
     required this.draft,
+    required this.imageRequestHeaders,
     required this.postWidth,
     required this.selected,
     required this.onToggle,
@@ -1365,6 +1389,7 @@ class _AutomaticNewsRow extends StatelessWidget {
   });
 
   final _AutomaticNewsDraft draft;
+  final Map<String, String> imageRequestHeaders;
   final double postWidth;
   final bool selected;
   final VoidCallback onToggle;
@@ -1410,7 +1435,10 @@ class _AutomaticNewsRow extends StatelessWidget {
           ),
           SizedBox(
             width: postWidth,
-            child: _DraftIdentity(draft: draft),
+            child: _DraftIdentity(
+              draft: draft,
+              imageRequestHeaders: imageRequestHeaders,
+            ),
           ),
           SizedBox(
             width: _AutomaticNewsDataTable._sourceWidth,
@@ -1456,15 +1484,19 @@ class _AutomaticNewsRow extends StatelessWidget {
 }
 
 class _DraftIdentity extends StatelessWidget {
-  const _DraftIdentity({required this.draft});
+  const _DraftIdentity({
+    required this.draft,
+    required this.imageRequestHeaders,
+  });
 
   final _AutomaticNewsDraft draft;
+  final Map<String, String> imageRequestHeaders;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _DraftPreview(draft: draft),
+        _DraftPreview(draft: draft, imageRequestHeaders: imageRequestHeaders),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -1512,14 +1544,19 @@ class _DraftIdentity extends StatelessWidget {
 }
 
 class _DraftPreview extends StatelessWidget {
-  const _DraftPreview({required this.draft});
+  const _DraftPreview({required this.draft, required this.imageRequestHeaders});
 
   final _AutomaticNewsDraft draft;
+  final Map<String, String> imageRequestHeaders;
 
   @override
   Widget build(BuildContext context) {
     final color = _platformColor(draft.platform);
-    final mediaUrl = draft.imageUrl;
+    final mediaUrl = _automaticNewsImageDisplayUrl(
+      draft,
+      width: 140,
+      imageRequestHeaders: imageRequestHeaders,
+    );
     final hasVideo = draft.videoUrl.isNotEmpty;
 
     return Container(
@@ -1537,7 +1574,10 @@ class _DraftPreview extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 AdminCachedImage(
-                  url: adminImageUrl(mediaUrl, width: 140),
+                  url: mediaUrl,
+                  httpHeaders: _automaticNewsImageHttpHeaders(
+                    imageRequestHeaders,
+                  ),
                   fit: BoxFit.cover,
                   memCacheWidth: 140,
                   fadeIn: false,
@@ -1583,6 +1623,36 @@ class _DraftPreviewFallback extends StatelessWidget {
     final icon = hasVideo ? Symbols.videocam_outlined : _platformIcon(platform);
     return Center(child: SymbolIcon(icon, color: color, size: 22));
   }
+}
+
+String _automaticNewsImageDisplayUrl(
+  _AutomaticNewsDraft draft, {
+  required int width,
+  required Map<String, String> imageRequestHeaders,
+}) {
+  final imageUrl = draft.imageUrl.trim();
+  if (imageUrl.isEmpty) return '';
+  if (kIsWeb &&
+      imageRequestHeaders.isNotEmpty &&
+      draft.recordId.trim().isNotEmpty) {
+    return Uri.base
+        .resolve('/api/admin/automatic-news/image')
+        .replace(
+          queryParameters: {
+            'id': draft.recordId,
+            'disposition': 'inline',
+            'w': '$width',
+          },
+        )
+        .toString();
+  }
+  return adminImageUrl(imageUrl, width: width);
+}
+
+Map<String, String>? _automaticNewsImageHttpHeaders(
+  Map<String, String> imageRequestHeaders,
+) {
+  return kIsWeb && imageRequestHeaders.isNotEmpty ? imageRequestHeaders : null;
 }
 
 IconData _platformIcon(String platform) {
@@ -2200,9 +2270,13 @@ class _AutomaticNewsEmpty extends StatelessWidget {
 }
 
 class _AutomaticNewsPreviewDialog extends StatelessWidget {
-  const _AutomaticNewsPreviewDialog({required this.draft});
+  const _AutomaticNewsPreviewDialog({
+    required this.draft,
+    required this.imageRequestHeaders,
+  });
 
   final _AutomaticNewsDraft draft;
+  final Map<String, String> imageRequestHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -2253,6 +2327,7 @@ class _AutomaticNewsPreviewDialog extends StatelessWidget {
                                 children: [
                                   _AutomaticNewsPreviewMedia(
                                     draft: draft,
+                                    imageRequestHeaders: imageRequestHeaders,
                                     compact: true,
                                   ),
                                   const SizedBox(height: 20),
@@ -2266,6 +2341,7 @@ class _AutomaticNewsPreviewDialog extends StatelessWidget {
                                     flex: 5,
                                     child: _AutomaticNewsPreviewMedia(
                                       draft: draft,
+                                      imageRequestHeaders: imageRequestHeaders,
                                       compact: false,
                                     ),
                                   ),
@@ -2371,10 +2447,12 @@ class _AutomaticNewsPreviewHeader extends StatelessWidget {
 class _AutomaticNewsPreviewMedia extends StatelessWidget {
   const _AutomaticNewsPreviewMedia({
     required this.draft,
+    required this.imageRequestHeaders,
     required this.compact,
   });
 
   final _AutomaticNewsDraft draft;
+  final Map<String, String> imageRequestHeaders;
   final bool compact;
 
   @override
@@ -2399,9 +2477,13 @@ class _AutomaticNewsPreviewMedia extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     AdminCachedImage(
-                      url: adminImageUrl(
-                        draft.imageUrl,
+                      url: _automaticNewsImageDisplayUrl(
+                        draft,
                         width: compact ? 720 : 920,
+                        imageRequestHeaders: imageRequestHeaders,
+                      ),
+                      httpHeaders: _automaticNewsImageHttpHeaders(
+                        imageRequestHeaders,
                       ),
                       fit: BoxFit.cover,
                       memCacheWidth: compact ? 720 : 920,

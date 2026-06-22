@@ -4,6 +4,7 @@ import { type NewsItem, NewsType, type NavigationItem, type SiteSettings, type P
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import Skeleton from '@/components/ui/Skeleton';
+import IntrinsicRatioImage from '@/components/ui/IntrinsicRatioImage';
 import { hasPostActionSession, postAction } from '@/services/appActions';
 import { getPostHref, getPostPathSegment } from '@/utils/postUrl';
 import { formatPostDateParts, isPostId } from '@/utils/helpers';
@@ -129,13 +130,13 @@ const withImageVariant = (src: string | null | undefined, width: number, quality
   }
 };
 
-const imageSizeAttrs = (image?: { width?: number; height?: number }, fallbackWidth = 1200, fallbackHeight = 675) => {
+const imageSizeAttrs = (image?: { width?: number; height?: number }) => {
   const width = Number(image?.width || 0);
   const height = Number(image?.height || 0);
   if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
     return { width, height };
   }
-  return { width: fallbackWidth, height: fallbackHeight };
+  return { width: undefined, height: undefined };
 };
 
 const profileHref = (handle?: string) => {
@@ -843,7 +844,15 @@ const QuizBlock: React.FC<{ item: any }> = ({ item }) => {
         <div className="detail-quiz-result rounded-[5px] border border-gray-200 bg-white p-5 md:p-6">
           {canShowResult && selectedResult ? (
             <div className="grid gap-5 md:grid-cols-[180px_1fr] items-center">
-              {selectedResult.image && <img src={selectedResult.image} alt={stripHtmlToText(selectedResult.title || '')} className="w-full max-h-[180px] rounded-[5px] object-cover bg-gray-50" />}
+              {selectedResult.image && (
+                <IntrinsicRatioImage
+                  src={selectedResult.image}
+                  alt={stripHtmlToText(selectedResult.title || '')}
+                  frameClassName="rounded-[5px] bg-gray-50"
+                  imageClassName="bg-gray-50"
+                  loading="lazy"
+                />
+              )}
               <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500">
                   {quizType === 'trivia' ? `${score}/${questions.length}` : `${answeredCount}/${questions.length}`}
@@ -1040,7 +1049,13 @@ const TableOfContentsBlock: React.FC<{ item: any }> = ({ item }) => {
 
               {entry.image && (
                 <figure className="overflow-hidden rounded-[5px] border border-gray-100 bg-gray-50">
-                  <img src={entry.image} alt={entry.imageDescription || entry.title} className="w-full max-h-[520px] object-contain" />
+                  <IntrinsicRatioImage
+                    src={entry.image}
+                    alt={entry.imageDescription || entry.title}
+                    frameClassName="bg-gray-50"
+                    imageClassName="bg-gray-50"
+                    loading="lazy"
+                  />
                   {entry.imageDescription && (
                     <figcaption className="border-t border-gray-100 px-4 py-2 text-xs font-medium italic text-gray-500">
                       {entry.imageDescription}
@@ -1200,7 +1215,13 @@ const RecipeBlock: React.FC<{ item: any }> = ({ item }) => {
                 {direction.title && <h5 className="text-xl font-black text-gray-900">{direction.title}</h5>}
                 {direction.image && (
                   <figure className="overflow-hidden rounded-[5px] border border-gray-100 bg-gray-50">
-                    <img src={direction.image} alt={direction.imageDescription || direction.title} className="w-full max-h-[520px] object-contain" />
+                    <IntrinsicRatioImage
+                      src={direction.image}
+                      alt={direction.imageDescription || direction.title}
+                      frameClassName="bg-gray-50"
+                      imageClassName="bg-gray-50"
+                      loading="lazy"
+                    />
                     {direction.imageDescription && (
                       <figcaption className="border-t border-gray-100 px-4 py-2 text-xs font-medium italic text-gray-500">
                         {direction.imageDescription}
@@ -1424,10 +1445,12 @@ const EventBlock: React.FC<{ item: any }> = ({ item }) => {
                   </div>
                   {entry.image && (
                     <figure className="overflow-hidden rounded-[4px] border border-gray-100 bg-white">
-                      <img
+                      <IntrinsicRatioImage
                         src={entry.image}
                         alt={entry.imageDescription || entry.title}
-                        className="h-24 w-full object-cover"
+                        frameClassName="bg-white"
+                        imageClassName="bg-white"
+                        loading="lazy"
                       />
                     </figure>
                   )}
@@ -2034,16 +2057,16 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
       const coverSize = imageSizeAttrs(coverOptimized);
       return (
         <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-2">
-          <img
+          <IntrinsicRatioImage
             src={withImageVariant(coverSrc, 1600)}
             alt={data.thumbnailAlt || data.seoTitle || data.title}
             title={data.thumbnailAlt || data.seoTitle || data.title}
             width={coverSize.width}
             height={coverSize.height}
             loading="eager"
-            decoding="async"
             fetchPriority="high"
-            className="w-full h-auto object-contain"
+            frameClassName="bg-gray-950"
+            imageClassName="bg-gray-950"
           />
         </div>
       );
@@ -2067,16 +2090,16 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
         const size = imageSizeAttrs(image);
         return (
           <div className="rounded-[5px] overflow-hidden border border-gray-100 shadow-xl mt-4 mb-2">
-            <img
+            <IntrinsicRatioImage
               src={withImageVariant(image?.src || data.thumbnail, 1600)}
               alt={data.thumbnailAlt || data.seoTitle || data.title}
               title={data.thumbnailAlt || data.seoTitle || data.title}
               width={size.width}
               height={size.height}
               loading="eager"
-              decoding="async"
               fetchPriority="high"
-              className="w-full h-auto object-contain"
+              frameClassName="bg-gray-950"
+              imageClassName="bg-gray-950"
             />
           </div>
         );
@@ -2203,15 +2226,16 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
             <RemixIcon name="ri-arrow-left-line" size={21} />
           </button>
           {mobileHeroSrc ? (
-            <img
+            <IntrinsicRatioImage
               src={mobileHeroSrc}
               alt={data.thumbnailAlt || data.seoTitle || data.title}
               title={data.thumbnailAlt || data.seoTitle || data.title}
               width={mobileHeroSize.width}
               height={mobileHeroSize.height}
               loading="eager"
-              decoding="async"
               fetchPriority="high"
+              frameClassName="mobile-detail-hero-media bg-[#0F1B26]"
+              imageClassName="bg-[#0F1B26]"
             />
           ) : (
             <div className="mobile-detail-hero-empty">
@@ -2651,19 +2675,15 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
                     return (
                       <div key={item.id} className="detail-media-item detail-media-item--image max-w-full overflow-hidden">
                         <DetailMediaIntro item={item} />
-                        <div className="relative w-full bg-gray-50 rounded-[5px] overflow-hidden border border-gray-100 shadow-lg flex items-center justify-center max-h-[600px]">
-                          <div
-                            className="absolute inset-0 bg-center bg-no-repeat bg-cover blur-2xl opacity-10 scale-110"
-                            style={{ backgroundImage: `url(${withImageVariant(item.mediaUrl, 64, 60)})` }}
-                          />
-                          <img
+                        <div className="relative w-full rounded-[5px] overflow-hidden border border-gray-100 shadow-lg bg-gray-50">
+                          <IntrinsicRatioImage
                             src={withImageVariant(item.mediaUrl, 1200)}
                             alt={item.altText || item.title || t('news.image_alt_default')}
                             width={itemImageSize.width}
                             height={itemImageSize.height}
                             loading="lazy"
-                            decoding="async"
-                            className="relative z-10 w-full h-auto max-h-[600px] object-contain"
+                            frameClassName="bg-gray-50"
+                            imageClassName="bg-gray-50"
                           />
                         </div>
                         <DetailItemExtraInfo item={item} />

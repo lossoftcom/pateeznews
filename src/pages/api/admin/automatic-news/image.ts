@@ -9,6 +9,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   try {
     await requireAdminRequest(request, 'view_settings');
     const id = String(url.searchParams.get('id') || '').trim();
+    const inline = String(url.searchParams.get('disposition') || '').trim() === 'inline';
     if (!id) {
       return adminJson({ data: null, error: { message: 'İndirilecek haber seçilmedi' } }, 400);
     }
@@ -46,12 +47,14 @@ export const GET: APIRoute = async ({ request, url }) => {
       headers: {
         'Content-Type': contentType,
         'Content-Length': String(bytes.byteLength),
-        'Content-Disposition': contentDisposition(fileName),
+        'Content-Disposition': inline ? inlineContentDisposition(fileName) : contentDisposition(fileName),
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         'CDN-Cache-Control': 'no-store',
         'Cloudflare-CDN-Cache-Control': 'no-store',
         'Vary': 'Authorization',
-        'X-Pateez-File-Name': encodeURIComponent(fileName),
+        ...(inline
+          ? { 'X-Pateez-Image-Proxy': '1' }
+          : { 'X-Pateez-File-Name': encodeURIComponent(fileName) }),
         ...adminSecurityHeaders(),
       },
     });
@@ -116,4 +119,9 @@ function extensionFromUrl(imageUrl: string) {
 function contentDisposition(fileName: string) {
   const asciiName = fileName.replace(/[^a-zA-Z0-9._-]+/g, '-');
   return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
+function inlineContentDisposition(fileName: string) {
+  const asciiName = fileName.replace(/[^a-zA-Z0-9._-]+/g, '-');
+  return `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

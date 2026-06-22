@@ -317,6 +317,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   String? _autoSubCategory;
   String? _coverImageUrl;
   String? _mansetImageUrl;
+  var _mansetImageFollowsCover = true;
   final _keywords = <String>[];
   final _focusKeywordsController = TextEditingController();
   final _faqEntries = <_FaqEntry>[];
@@ -522,6 +523,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _autoSubCategory = null;
     _coverImageUrl = null;
     _mansetImageUrl = null;
+    _mansetImageFollowsCover = true;
     _factClaimController.clear();
     _factClaimAuthorController.clear();
     _factClaimAuthorUrlController.clear();
@@ -737,18 +739,19 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _factRatingValue = _normalizeFactCheckRatingValue(
       factCheckData['ratingValue'],
     );
-    _coverImageUrl = post.thumbnailUrl.trim().isEmpty
-        ? null
-        : post.thumbnailUrl;
+    final loadedCoverImage = post.thumbnailUrl.trim();
+    _coverImageUrl = loadedCoverImage.isEmpty ? null : loadedCoverImage;
     final loadedMansetImage = _text(
       post.cardData['mansetImageUrl'] ??
           post.cardData['featuredImageUrl'] ??
           post.cardData['headlineImageUrl'],
     );
+    _mansetImageFollowsCover =
+        loadedMansetImage.isEmpty || loadedMansetImage == loadedCoverImage;
     _mansetImageUrl = loadedMansetImage.isNotEmpty
         ? loadedMansetImage
-        : (_mansetSlider && post.thumbnailUrl.trim().isNotEmpty
-              ? post.thumbnailUrl
+        : (_mansetSlider && loadedCoverImage.isNotEmpty
+              ? loadedCoverImage
               : null);
     _setControllerText(
       _publishAtController,
@@ -2105,7 +2108,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (_showsOpinionPublisherSelector && !_hasSelectedOpinionPublisher) {
       return context.t('newsAdd.errorPublisherRequired');
     }
-    if (_mansetSlider && (_mansetImageUrl?.trim().isEmpty ?? true)) {
+    if (_mansetSlider && _effectiveMansetImageUrl.isEmpty) {
       return context.t('newsAdd.mansetImageRequiredError');
     }
     if (_factCheck) {
@@ -2415,6 +2418,35 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _hasRichTextInput(block.descriptionController) ||
         _hasStringInput(block.mediaUrl) ||
         block.showOnHomepage;
+  }
+
+  String _cleanMediaUrl(String? value) => (value ?? '').trim();
+
+  String get _effectiveMansetImageUrl {
+    if (!_mansetSlider) return '';
+    if (_mansetImageFollowsCover) return _cleanMediaUrl(_coverImageUrl);
+    return _cleanMediaUrl(_mansetImageUrl);
+  }
+
+  void _applyCoverImageValue(String? value) {
+    final previousCover = _cleanMediaUrl(_coverImageUrl);
+    final currentManset = _cleanMediaUrl(_mansetImageUrl);
+    final shouldFollowCover =
+        _mansetImageFollowsCover ||
+        currentManset.isEmpty ||
+        (previousCover.isNotEmpty && currentManset == previousCover);
+
+    _coverImageUrl = value;
+    if (_mansetSlider && shouldFollowCover) {
+      _mansetImageUrl = value;
+      _mansetImageFollowsCover = true;
+    }
+  }
+
+  void _handleCoverImageChanged(String? value) {
+    setState(() {
+      _applyCoverImageValue(value);
+    });
   }
 
   Map<String, Object?> _buildPostValues(String status) {
@@ -3067,7 +3099,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     ]) {
       cardData.remove(key);
     }
-    final mansetImageUrl = _mansetImageUrl?.trim() ?? '';
+    final mansetImageUrl = _effectiveMansetImageUrl;
     if (mansetImageUrl.isEmpty) {
       cardData.remove('mansetImageUrl');
     } else {
@@ -3391,15 +3423,22 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   // ── Handlers ──────────────────────────────────────────────────────────────
   Future<void> _handleMansetChanged(bool value) async {
     if (!value) {
-      setState(() => _mansetSlider = false);
+      setState(() {
+        _mansetSlider = false;
+        _mansetImageFollowsCover = true;
+      });
       return;
     }
 
     final selected = await _openMansetImageDialog();
     if (!mounted || selected == null) return;
+    final selectedImage = selected.trim();
+    final coverImage = _cleanMediaUrl(_coverImageUrl);
 
     setState(() {
-      _mansetImageUrl = selected;
+      _mansetImageUrl = selectedImage;
+      _mansetImageFollowsCover =
+          coverImage.isNotEmpty && selectedImage == coverImage;
       _mansetSlider = true;
     });
   }
@@ -4803,6 +4842,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           onRemoveFaq: _handleRemoveFaq,
           onAiMediaSeo: _openAiMediaSeoDialog,
           onAiGenerate: _openAiContentGenerator,
+          onTextPreview: _openFullNewsTextPreview,
         ),
         const SizedBox(height: 20),
         ..._buildTabBody(),
@@ -4852,6 +4892,17 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       eventImages: result.eventImages,
     );
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
+  }
+
+  Future<void> _openFullNewsTextPreview() async {
+    final preview = _buildFullNewsTextPreview();
+    await showDialog<void>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (dialogContext) {
+        return _NewsTextPreviewDialog(preview: preview);
+      },
+    );
   }
 
   Future<void> _openAiMediaSeoDialog() async {
@@ -5360,6 +5411,583 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     };
   }
 
+  _NewsTextPreviewData _buildFullNewsTextPreview() {
+    final sections = <_NewsTextPreviewSection>[];
+    final articleParagraphs = <_NewsTextPreviewParagraph>[];
+
+    void addSection(String title, List<String> lines, {String badge = ''}) {
+      final cleanLines = lines
+          .map((line) => line.trimRight())
+          .where((line) => line.trim().isNotEmpty)
+          .toList(growable: false);
+      if (cleanLines.isEmpty) return;
+      sections.add(
+        _NewsTextPreviewSection(title: title, badge: badge, lines: cleanLines),
+      );
+    }
+
+    final formatLabel = _newsPreviewActiveFormatLabel();
+    final categoryPath = _selectedCategoryPath.join(' > ');
+    final categoryLabel = categoryPath.isNotEmpty
+        ? categoryPath
+        : _selectedCategory.trim();
+    final coverUrl = _coverImageUrl?.trim() ?? '';
+
+    final overview = <String>[];
+    _addNewsPreviewLine(overview, 'Haber başlığı', _titleController.text);
+    _addNewsPreviewLine(overview, 'Kısa özet', _summaryController.text);
+    _addNewsPreviewLine(overview, 'Aktif format', formatLabel);
+    _addNewsPreviewLine(overview, 'Haber dili', _languageCode.toUpperCase());
+    _addNewsPreviewLine(overview, 'Kategori yolu', categoryLabel);
+    _addNewsPreviewLine(overview, 'Kapak görseli', coverUrl);
+    _addNewsPreviewLine(overview, 'Kapak alt metni', _coverAltController.text);
+    _addNewsPreviewLine(overview, 'Manşet slider', _mansetSlider);
+    _addNewsPreviewLine(overview, 'Başa tuttur', _pinToTop);
+    addSection('Haber Bilgileri', overview, badge: formatLabel);
+
+    final seo = <String>[];
+    _addNewsPreviewLine(seo, 'SEO başlık', _seoTitleController.text);
+    _addNewsPreviewLine(seo, 'URL uzantısı', _slugController.text);
+    _addNewsPreviewLine(seo, 'Meta açıklama', _metaDescriptionController.text);
+    if (_keywords.isNotEmpty) {
+      _addNewsPreviewLine(seo, 'Odak anahtar kelimeler', _keywords.join(', '));
+    }
+    _addNewsPreviewLine(seo, 'Schema.org türü', _schemaType);
+    addSection('SEO ve Yapılandırma', seo, badge: _schemaType);
+
+    final items = _itemsForStorage();
+    for (var index = 0; index < items.length; index++) {
+      final item = items[index];
+      final type = _text(item['type']);
+      final typeLabel = _newsPreviewBlockTypeLabel(type);
+      final title = _newsPreviewStructuredValue(item['title']);
+      final sectionTitle = title.isEmpty || title == 'Table of Contents'
+          ? 'İçerik Bloğu ${index + 1}'
+          : title;
+      addSection(sectionTitle, _newsPreviewMapLines(item), badge: typeLabel);
+      _appendNewsArticlePreviewItem(
+        articleParagraphs,
+        item,
+        mainTitle: _titleController.text,
+      );
+    }
+
+    final faqData = _faqDataForStorage();
+    if (faqData.isNotEmpty) {
+      final faqLines = <String>[];
+      for (var index = 0; index < faqData.length; index++) {
+        final row = faqData[index];
+        _addNewsPreviewLine(faqLines, '${index + 1}. Soru', row['q']);
+        _addNewsPreviewLine(faqLines, '${index + 1}. Cevap', row['a']);
+      }
+      addSection(
+        'Sık Sorulan Sorular',
+        faqLines,
+        badge: '${faqData.length} soru',
+      );
+      _addNewsArticleHeading(articleParagraphs, 'Sık Sorulan Sorular');
+      for (final row in faqData) {
+        _addNewsArticleHeading(articleParagraphs, row['q']);
+        _addNewsArticleText(articleParagraphs, row['a']);
+      }
+    }
+
+    if (sections.isEmpty) {
+      addSection('Boş Haber', const [
+        'Henüz okunabilir haber alanı doldurulmadı.',
+      ], badge: formatLabel);
+    }
+    final lead = _newsArticlePlainText(_summaryController.text);
+    if (lead.isEmpty && articleParagraphs.isEmpty) {
+      _addNewsArticleText(
+        articleParagraphs,
+        'Henüz okunabilir haber metni girilmedi.',
+      );
+    }
+
+    final title = _titleController.text.trim().isEmpty
+        ? 'Başlıksız Haber'
+        : _titleController.text.trim();
+    final subtitleParts = [
+      if (categoryLabel.isNotEmpty) categoryLabel,
+      if (_languageCode.trim().isNotEmpty) _languageCode.toUpperCase(),
+      if (formatLabel.isNotEmpty) formatLabel,
+    ];
+    return _NewsTextPreviewData(
+      title: title,
+      subtitle: subtitleParts.join(' • '),
+      formatLabel: formatLabel,
+      categoryLabel: categoryLabel.isEmpty ? 'Kategori yok' : categoryLabel,
+      lead: lead,
+      paragraphs: articleParagraphs,
+      sections: sections,
+    );
+  }
+
+  void _appendNewsArticlePreviewItem(
+    List<_NewsTextPreviewParagraph> paragraphs,
+    Map<String, Object?> item, {
+    required String mainTitle,
+  }) {
+    final type = _text(item['type']);
+    final title = _newsArticlePlainText(item['title']);
+    final description = _newsArticlePlainText(item['description']);
+
+    if (type != 'quote' && !_sameNewsPreviewText(title, mainTitle)) {
+      _addNewsArticleHeading(paragraphs, title);
+    }
+    if (type == 'quote') {
+      _addNewsArticleQuote(paragraphs, description);
+      _addNewsArticleText(paragraphs, title);
+      return;
+    }
+    _addNewsArticleText(paragraphs, description);
+
+    if (type == 'poll' || type == 'vs') {
+      final options = _mapList(item['options'])
+          .map((row) => _newsArticlePlainText(row['text']))
+          .where((text) => text.isNotEmpty)
+          .toList(growable: false);
+      if (options.isNotEmpty) {
+        _addNewsArticleText(
+          paragraphs,
+          'Anket seçenekleri ${options.join(', ')}.',
+        );
+      }
+    }
+
+    if (type == 'quiz') {
+      final data = _map(item['quizData']);
+      for (final result in _mapList(data['results'])) {
+        _addNewsArticleHeading(paragraphs, result['title']);
+        _addNewsArticleText(paragraphs, result['description']);
+      }
+      for (final question in _mapList(data['questions'])) {
+        _addNewsArticleHeading(paragraphs, question['title']);
+        _addNewsArticleText(paragraphs, question['description']);
+        final answers = _mapList(question['answers'])
+            .map((row) => _newsArticlePlainText(row['text']))
+            .where((text) => text.isNotEmpty)
+            .toList(growable: false);
+        if (answers.isNotEmpty) {
+          _addNewsArticleText(paragraphs, answers.join(', '));
+        }
+      }
+    }
+
+    if (type == 'toc') {
+      final data = _map(item['tocData']);
+      for (final row in _mapList(data['items'])) {
+        _addNewsArticleHeading(paragraphs, row['title']);
+        _addNewsArticleText(paragraphs, row['content']);
+      }
+    }
+
+    if (type == 'recipe') {
+      final data = _map(item['recipeData']);
+      final ingredients = _mapList(data['ingredients'])
+          .map((row) => _newsArticlePlainText(row['text']))
+          .where((text) => text.isNotEmpty)
+          .toList(growable: false);
+      if (ingredients.isNotEmpty) {
+        _addNewsArticleHeading(paragraphs, 'Malzemeler');
+        _addNewsArticleText(paragraphs, ingredients.join('\n'));
+      }
+      final nutrition = _mapList(data['nutrition'])
+          .map((row) {
+            final label = _newsArticlePlainText(row['label']);
+            final value = _newsArticlePlainText(row['value']);
+            return [label, value].where((text) => text.isNotEmpty).join(' ');
+          })
+          .where((text) => text.isNotEmpty)
+          .toList(growable: false);
+      if (nutrition.isNotEmpty) {
+        _addNewsArticleHeading(paragraphs, 'Besin Değerleri');
+        _addNewsArticleText(paragraphs, nutrition.join('\n'));
+      }
+      for (final row in _mapList(data['directions'])) {
+        _addNewsArticleHeading(paragraphs, row['title']);
+        _addNewsArticleText(paragraphs, row['content']);
+      }
+    }
+
+    if (type == 'event') {
+      final data = _map(item['eventData']);
+      _addNewsArticleText(
+        paragraphs,
+        [
+          _newsArticlePlainText(data['venueName']),
+          _newsArticlePlainText(data['address']),
+        ].where((text) => text.isNotEmpty).join(', '),
+      );
+      for (final row in _mapList(data['highlights'])) {
+        _addNewsArticleText(
+          paragraphs,
+          [
+            _newsArticlePlainText(row['label']),
+            _newsArticlePlainText(row['value']),
+          ].where((text) => text.isNotEmpty).join(' '),
+        );
+      }
+      for (final row in _mapList(data['schedule'])) {
+        _addNewsArticleHeading(paragraphs, row['title']);
+        _addNewsArticleText(paragraphs, row['description']);
+      }
+      for (final row in _mapList(data['speakers'])) {
+        _addNewsArticleHeading(paragraphs, row['name']);
+        _addNewsArticleText(paragraphs, row['role']);
+        _addNewsArticleText(paragraphs, row['bio']);
+      }
+    }
+
+    if (type == 'review') {
+      final data = _map(item['reviewData']);
+      _addNewsArticleHeading(paragraphs, data['productName']);
+      _addNewsArticleText(paragraphs, data['verdict']);
+      _addNewsArticleText(paragraphs, _newsArticlePlainText(data['pros']));
+      _addNewsArticleText(paragraphs, _newsArticlePlainText(data['cons']));
+    }
+
+    if (type == 'flipcard') {
+      final data = _map(item['flipData']);
+      _addNewsArticleHeading(paragraphs, data['frontTitle']);
+      _addNewsArticleText(paragraphs, data['frontDescription']);
+      _addNewsArticleHeading(paragraphs, data['backTitle']);
+      _addNewsArticleText(paragraphs, data['backDescription']);
+    }
+  }
+
+  void _addNewsArticleHeading(
+    List<_NewsTextPreviewParagraph> paragraphs,
+    Object? value,
+  ) {
+    final text = _newsArticlePlainText(value);
+    if (text.isEmpty) return;
+    if (paragraphs.isNotEmpty && paragraphs.last.text == text) return;
+    paragraphs.add(
+      _NewsTextPreviewParagraph(text: text, style: _NewsTextStyle.heading),
+    );
+  }
+
+  void _addNewsArticleQuote(
+    List<_NewsTextPreviewParagraph> paragraphs,
+    Object? value,
+  ) {
+    final text = _newsArticlePlainText(value);
+    if (text.isEmpty) return;
+    paragraphs.add(
+      _NewsTextPreviewParagraph(text: text, style: _NewsTextStyle.quote),
+    );
+  }
+
+  void _addNewsArticleText(
+    List<_NewsTextPreviewParagraph> paragraphs,
+    Object? value,
+  ) {
+    final text = _newsArticlePlainText(value);
+    if (text.isEmpty) return;
+    for (final part in text.split(RegExp(r'\n{2,}'))) {
+      final clean = part.trim();
+      if (clean.isEmpty) continue;
+      if (paragraphs.isNotEmpty && paragraphs.last.text == clean) continue;
+      paragraphs.add(_NewsTextPreviewParagraph(text: clean));
+    }
+  }
+
+  String _newsArticlePlainText(Object? value) {
+    if (value == null) return '';
+    if (value is List) {
+      return value
+          .map(_newsArticlePlainText)
+          .where((text) => text.isNotEmpty)
+          .join('\n');
+    }
+    if (value is Map) {
+      return value.values
+          .map(_newsArticlePlainText)
+          .where((text) => text.isNotEmpty)
+          .join('\n');
+    }
+    return value
+        .toString()
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(
+          RegExp(r'</p>|</h[1-6]>|</li>', caseSensitive: false),
+          '\n\n',
+        )
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(RegExp(r' *\n *'), '\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+  }
+
+  bool _sameNewsPreviewText(String left, String right) {
+    return left.trim().toLowerCase() == right.trim().toLowerCase();
+  }
+
+  List<String> _newsPreviewMapLines(Map<String, Object?> value) {
+    final lines = <String>[];
+    final usedKeys = <String>{};
+    const preferredKeys = [
+      'orderNumber',
+      'type',
+      'title',
+      'description',
+      'source',
+      'showOnHomepage',
+      'mediaUrl',
+      'mediaUrls',
+      'altText',
+      'videoThumbUrl',
+      'thumbnailUrl',
+      'videoPlatform',
+      'videoPublishedAt',
+      'videoAddedAt',
+      'isImagePoll',
+      'pollColumns',
+      'options',
+      'quizData',
+      'tocData',
+      'recipeData',
+      'eventData',
+      'flipData',
+      'beforeAfterData',
+      'reviewData',
+    ];
+    for (final key in preferredKeys) {
+      if (!value.containsKey(key)) continue;
+      usedKeys.add(key);
+      _addNewsPreviewLine(lines, _newsPreviewLabelForKey(key), value[key]);
+    }
+
+    final remainingKeys =
+        value.keys
+            .where((key) => key != 'id' && !usedKeys.contains(key))
+            .toList()
+          ..sort();
+    for (final key in remainingKeys) {
+      _addNewsPreviewLine(lines, _newsPreviewLabelForKey(key), value[key]);
+    }
+    return lines;
+  }
+
+  void _addNewsPreviewLine(List<String> lines, String label, Object? value) {
+    final text = _newsPreviewStructuredValue(value);
+    if (text.isEmpty) return;
+    if (text.contains('\n')) {
+      lines
+        ..add('$label:')
+        ..add(_indentNewsPreviewBlock(text));
+      return;
+    }
+    lines.add('$label: $text');
+  }
+
+  String _newsPreviewStructuredValue(Object? value) {
+    if (value == null) return '';
+    if (value is String) return _plainTextFromAiHtml(value);
+    if (value is bool) return value ? 'Evet' : 'Hayır';
+    if (value is num) return value.toString();
+    if (value is List) {
+      final rows = <String>[];
+      for (var index = 0; index < value.length; index++) {
+        final text = _newsPreviewStructuredValue(value[index]);
+        if (text.isEmpty) continue;
+        if (text.contains('\n')) {
+          rows
+            ..add('${index + 1}.')
+            ..add(_indentNewsPreviewBlock(text));
+        } else {
+          rows.add('${index + 1}. $text');
+        }
+      }
+      return rows.join('\n').trim();
+    }
+    if (value is Map) {
+      final lines = <String>[];
+      for (final entry in value.entries) {
+        final key = entry.key.toString();
+        if (key == 'id') continue;
+        _addNewsPreviewLine(lines, _newsPreviewLabelForKey(key), entry.value);
+      }
+      return lines.join('\n').trim();
+    }
+    return value.toString().trim();
+  }
+
+  String _indentNewsPreviewBlock(String value) {
+    return value
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .map((line) => '  $line')
+        .join('\n');
+  }
+
+  String _newsPreviewActiveFormatLabel() {
+    return switch (_activeTab) {
+      NewsAddFormatTab.article => 'Makale',
+      NewsAddFormatTab.opinion => 'Köşe Yazısı',
+      NewsAddFormatTab.quiz => 'Test (Quiz)',
+      NewsAddFormatTab.poll => 'Anket',
+      NewsAddFormatTab.video => 'Video',
+      NewsAddFormatTab.contents => 'İçindekiler',
+      NewsAddFormatTab.recipe => 'Tarif',
+      NewsAddFormatTab.event => 'Etkinlik',
+    };
+  }
+
+  String _newsPreviewBlockTypeLabel(String type) {
+    return switch (type) {
+      'text' => 'Metin',
+      'image' => 'Görsel',
+      'slider' => 'Slider',
+      'video' => 'Video',
+      'audio' => 'Ses',
+      'file' => 'Dosya',
+      'social' => 'Sosyal',
+      'flipcard' => 'Flip Card',
+      'beforeafter' => 'Önce / Sonra',
+      'poll' => 'Anket',
+      'quiz' => 'Test (Quiz)',
+      'toc' => 'İçindekiler',
+      'recipe' => 'Tarif',
+      'event' => 'Etkinlik',
+      'vs' => 'Karşılaştırma',
+      'review' => 'İnceleme',
+      'quote' => 'Alıntı',
+      'iframe' => 'Embed',
+      'article' => 'Makale',
+      'contents' => 'İçindekiler',
+      _ => type.trim().isEmpty ? 'Blok' : type,
+    };
+  }
+
+  String _newsPreviewLabelForKey(String key) {
+    return switch (key) {
+      'type' => 'Tip',
+      'title' => 'Başlık',
+      'description' => 'Metin',
+      'source' => 'Kaynak',
+      'showOnHomepage' => 'Ana sayfada göster',
+      'orderNumber' => 'Sıra',
+      'mediaUrl' => 'Medya URL',
+      'mediaUrls' => 'Medya URL listesi',
+      'altText' => 'Alt metin',
+      'videoThumbUrl' => 'Video kapak görseli',
+      'thumbnailUrl' => 'Küçük görsel',
+      'videoPlatform' => 'Video platformu',
+      'videoPublishedAt' => 'Video yayın tarihi',
+      'videoAddedAt' => 'Video eklenme tarihi',
+      'isImagePoll' => 'Görselli anket',
+      'pollColumns' => 'Anket sütun sayısı',
+      'options' => 'Seçenekler',
+      'text' => 'Metin',
+      'image' => 'Görsel',
+      'votes' => 'Oy',
+      'quizData' => 'Quiz verisi',
+      'quizType' => 'Quiz tipi',
+      'results' => 'Sonuçlar',
+      'questions' => 'Sorular',
+      'questionSorting' => 'Soru sıralaması',
+      'allowMultiple' => 'Çoklu seçim',
+      'showResults' => 'Sonuçları göster',
+      'endDate' => 'Bitiş tarihi',
+      'answers' => 'Cevaplar',
+      'resultId' => 'Sonuç bağlantısı',
+      'isCorrect' => 'Doğru cevap',
+      'explanation' => 'Açıklama',
+      'minScore' => 'Minimum skor',
+      'maxScore' => 'Maksimum skor',
+      'layout' => 'Yerleşim',
+      'tocData' => 'İçindekiler verisi',
+      'linkListStyle' => 'Bağlantı liste stili',
+      'showInText' => 'Metin içinde gösterim',
+      'level1' => 'Seviye 1',
+      'level2' => 'Seviye 2',
+      'level3' => 'Seviye 3',
+      'items' => 'Öğeler',
+      'parentId' => 'Üst bağlantı',
+      'imageDescription' => 'Görsel açıklaması',
+      'content' => 'İçerik',
+      'recipeData' => 'Tarif verisi',
+      'prepTime' => 'Hazırlık süresi',
+      'cookTime' => 'Pişirme süresi',
+      'serving' => 'Porsiyon',
+      'difficulty' => 'Zorluk',
+      'ingredients' => 'Malzemeler',
+      'nutrition' => 'Besin değerleri',
+      'directions' => 'Adımlar',
+      'eventData' => 'Etkinlik verisi',
+      'startDateTime' => 'Başlangıç tarihi',
+      'endDateTime' => 'Bitiş tarihi',
+      'organizer' => 'Organizatör',
+      'venueName' => 'Mekan',
+      'address' => 'Adres',
+      'latitude' => 'Enlem',
+      'longitude' => 'Boylam',
+      'registrationType' => 'Kayıt tipi',
+      'ticketUrl' => 'Bilet URL',
+      'ticketPrice' => 'Bilet fiyatı',
+      'capacity' => 'Kapasite',
+      'scheduleTitle' => 'Program başlığı',
+      'highlightsTitle' => 'Öne çıkanlar başlığı',
+      'speakersTitle' => 'Konuşmacılar başlığı',
+      'schedule' => 'Program',
+      'date' => 'Tarih',
+      'time' => 'Saat',
+      'highlights' => 'Öne çıkanlar',
+      'label' => 'Etiket',
+      'value' => 'Değer',
+      'speakers' => 'Konuşmacılar',
+      'name' => 'Ad',
+      'role' => 'Rol',
+      'bio' => 'Biyografi',
+      'flipData' => 'Flip card verisi',
+      'frontImage' => 'Ön yüz görseli',
+      'frontTitle' => 'Ön yüz başlığı',
+      'frontDescription' => 'Ön yüz açıklaması',
+      'frontLink' => 'Ön yüz bağlantısı',
+      'backImage' => 'Arka yüz görseli',
+      'backTitle' => 'Arka yüz başlığı',
+      'backDescription' => 'Arka yüz açıklaması',
+      'backLink' => 'Arka yüz bağlantısı',
+      'beforeAfterData' => 'Önce / sonra verisi',
+      'beforeImage' => 'Önce görseli',
+      'afterImage' => 'Sonra görseli',
+      'beforeLabel' => 'Önce etiketi',
+      'afterLabel' => 'Sonra etiketi',
+      'reviewData' => 'İnceleme verisi',
+      'productName' => 'Ürün adı',
+      'productImage' => 'Ürün görseli',
+      'score' => 'Skor',
+      'pros' => 'Artılar',
+      'cons' => 'Eksiler',
+      'breakdown' => 'Kriterler',
+      'verdict' => 'Karar metni',
+      _ => _readableNewsPreviewFallbackLabel(key),
+    };
+  }
+
+  String _readableNewsPreviewFallbackLabel(String key) {
+    final spaced = key
+        .replaceAll('_', ' ')
+        .replaceAllMapped(
+          RegExp(r'([a-z0-9])([A-Z])'),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .trim();
+    if (spaced.isEmpty) return 'Alan';
+    return '${spaced.substring(0, 1).toUpperCase()}${spaced.substring(1)}';
+  }
+
   String _currentAiContentSeed() {
     final lines = <String>[];
 
@@ -5729,7 +6357,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _AiSelectedSourceImage sourceImage,
   ) {
     if ((_coverImageUrl?.trim().isNotEmpty ?? false)) return;
-    _coverImageUrl = sourceImage.mediaSrc;
+    _applyCoverImageValue(sourceImage.mediaSrc);
     if (_coverAltController.text.trim().isEmpty) {
       _coverAltController.text = _firstNonEmpty([
         sourceImage.altText,
@@ -7070,7 +7698,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         _CoverCard(
           imageUrl: _coverImageUrl,
           altController: _coverAltController,
-          onImageChanged: (value) => setState(() => _coverImageUrl = value),
+          onImageChanged: _handleCoverImageChanged,
         ),
         const SizedBox(height: 18),
         _CategorySettingsCard(
@@ -8633,6 +9261,7 @@ class _ContentInfoCard extends StatelessWidget {
     required this.onRemoveFaq,
     required this.onAiMediaSeo,
     required this.onAiGenerate,
+    required this.onTextPreview,
   });
 
   final NewsAddFormatTab activeTab;
@@ -8659,6 +9288,7 @@ class _ContentInfoCard extends StatelessWidget {
   final ValueChanged<_FaqEntry> onRemoveFaq;
   final VoidCallback onAiMediaSeo;
   final VoidCallback onAiGenerate;
+  final VoidCallback onTextPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -8699,6 +9329,7 @@ class _ContentInfoCard extends StatelessWidget {
                     onPinChanged: onPinChanged,
                     onAiMediaSeo: onAiMediaSeo,
                     onAiGenerate: onAiGenerate,
+                    onTextPreview: onTextPreview,
                   ),
                 ),
                 const SizedBox(height: 22),
@@ -8857,6 +9488,7 @@ class _HeaderToggles extends StatelessWidget {
     required this.onPinChanged,
     required this.onAiMediaSeo,
     required this.onAiGenerate,
+    required this.onTextPreview,
   });
 
   final bool mansetSlider;
@@ -8865,6 +9497,7 @@ class _HeaderToggles extends StatelessWidget {
   final ValueChanged<bool> onPinChanged;
   final VoidCallback onAiMediaSeo;
   final VoidCallback onAiGenerate;
+  final VoidCallback onTextPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -8889,6 +9522,7 @@ class _HeaderToggles extends StatelessWidget {
         ),
         _AiMediaSeoButton(onTap: onAiMediaSeo),
         _AiButton(onTap: onAiGenerate),
+        _NewsTextPreviewButton(onTap: onTextPreview),
       ],
     );
   }
@@ -9023,6 +9657,421 @@ class _AiButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _NewsTextPreviewButton extends StatelessWidget {
+  const _NewsTextPreviewButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Haber metnini görüntüle',
+      waitDuration: const Duration(milliseconds: 350),
+      child: Semantics(
+        button: true,
+        label: 'Haber metnini görüntüle',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Container(
+              width: 34,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.warmHorizon.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.warmHorizon.withValues(alpha: 0.24),
+                ),
+              ),
+              child: const Icon(
+                Symbols.text_snippet_outlined,
+                size: 16,
+                color: AppColors.warmHorizon,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsTextPreviewData {
+  const _NewsTextPreviewData({
+    required this.title,
+    required this.subtitle,
+    required this.formatLabel,
+    required this.categoryLabel,
+    required this.lead,
+    required this.paragraphs,
+    required this.sections,
+  });
+
+  final String title;
+  final String subtitle;
+  final String formatLabel;
+  final String categoryLabel;
+  final String lead;
+  final List<_NewsTextPreviewParagraph> paragraphs;
+  final List<_NewsTextPreviewSection> sections;
+
+  String get copyText {
+    return [
+      title,
+      if (lead.trim().isNotEmpty) lead,
+      for (final paragraph in paragraphs) paragraph.text,
+    ].where((line) => line.trim().isNotEmpty).join('\n\n').trim();
+  }
+
+  int get wordCount => RegExp(r'\S+').allMatches(copyText).length;
+
+  int get characterCount => copyText.length;
+}
+
+enum _NewsTextStyle { body, heading, quote }
+
+class _NewsTextPreviewParagraph {
+  const _NewsTextPreviewParagraph({
+    required this.text,
+    this.style = _NewsTextStyle.body,
+  });
+
+  final String text;
+  final _NewsTextStyle style;
+}
+
+class _NewsTextPreviewSection {
+  const _NewsTextPreviewSection({
+    required this.title,
+    required this.lines,
+    this.badge = '',
+  });
+
+  final String title;
+  final List<String> lines;
+  final String badge;
+
+  String get body => lines.join('\n').trim();
+
+  String get copyText {
+    return [
+      title,
+      if (badge.trim().isNotEmpty) 'Tür: $badge',
+      body,
+    ].where((line) => line.trim().isNotEmpty).join('\n').trim();
+  }
+}
+
+class _NewsTextPreviewDialog extends StatefulWidget {
+  const _NewsTextPreviewDialog({required this.preview});
+
+  final _NewsTextPreviewData preview;
+
+  @override
+  State<_NewsTextPreviewDialog> createState() => _NewsTextPreviewDialogState();
+}
+
+class _NewsTextPreviewDialogState extends State<_NewsTextPreviewDialog> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _copyAll() async {
+    await Clipboard.setData(ClipboardData(text: widget.preview.copyText));
+    if (!mounted) return;
+    AdminToast.show(
+      context,
+      message: 'Haber metni kopyalandı.',
+      tone: AdminToastTone.success,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    var dialogWidth = size.width - 48;
+    if (dialogWidth > 1020) dialogWidth = 1020;
+    if (dialogWidth < 320) dialogWidth = size.width - 24;
+    var dialogHeight = size.height - 48;
+    if (dialogHeight > 760) dialogHeight = 760;
+    if (dialogHeight < 360) dialogHeight = size.height - 24;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SizedBox(
+        width: dialogWidth,
+        height: dialogHeight,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value + 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 34,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                      border: Border.all(color: _newsAddSoftLine),
+                    ),
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 36,
+                          vertical: 32,
+                        ),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 820),
+                            child: _NewsTextPreviewArticle(
+                              preview: widget.preview,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 18, 14, 18),
+      decoration: const BoxDecoration(
+        color: AppColors.deepOcean,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.value + 2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+            ),
+            child: const Icon(
+              Symbols.text_snippet_outlined,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Haber Metni Önizlemesi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.preview.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.84),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.25,
+                  ),
+                ),
+                if (widget.preview.subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    widget.preview.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.62),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _NewsTextPreviewCopyAction(onTap: _copyAll),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Kapat',
+            child: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Symbols.close, color: Colors.white, size: 20),
+              splashRadius: 20,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsTextPreviewCopyAction extends StatelessWidget {
+  const _NewsTextPreviewCopyAction({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(
+                Icons.content_copy_rounded,
+                size: 16,
+                color: AppColors.deepOcean,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Kopyala',
+                style: TextStyle(
+                  color: AppColors.deepOcean,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsTextPreviewArticle extends StatelessWidget {
+  const _NewsTextPreviewArticle({required this.preview});
+
+  final _NewsTextPreviewData preview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(
+          preview.title,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            height: 1.18,
+          ),
+        ),
+        if (preview.lead.trim().isNotEmpty) ...[
+          const SizedBox(height: 16),
+          SelectableText(
+            preview.lead,
+            style: const TextStyle(
+              color: Color(0xFF4B5D6E),
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              height: 1.48,
+            ),
+          ),
+        ],
+        if (preview.paragraphs.isNotEmpty) const SizedBox(height: 24),
+        for (final paragraph in preview.paragraphs)
+          _NewsTextPreviewArticleParagraph(paragraph: paragraph),
+      ],
+    );
+  }
+}
+
+class _NewsTextPreviewArticleParagraph extends StatelessWidget {
+  const _NewsTextPreviewArticleParagraph({required this.paragraph});
+
+  final _NewsTextPreviewParagraph paragraph;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = switch (paragraph.style) {
+      _NewsTextStyle.heading => const TextStyle(
+        color: AppColors.deepOcean,
+        fontSize: 20,
+        fontWeight: FontWeight.w800,
+        height: 1.28,
+      ),
+      _NewsTextStyle.quote => const TextStyle(
+        color: Color(0xFF314252),
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        fontStyle: FontStyle.italic,
+        height: 1.62,
+      ),
+      _NewsTextStyle.body => const TextStyle(
+        color: Color(0xFF314252),
+        fontSize: 15.5,
+        fontWeight: FontWeight.w500,
+        height: 1.72,
+      ),
+    };
+    final topPadding = paragraph.style == _NewsTextStyle.heading ? 20.0 : 0.0;
+    final bottomPadding = paragraph.style == _NewsTextStyle.heading
+        ? 10.0
+        : 14.0;
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+      child: SelectableText(paragraph.text, style: style),
     );
   }
 }

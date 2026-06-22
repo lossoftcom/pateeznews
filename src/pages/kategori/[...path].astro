@@ -3,14 +3,14 @@ import Layout from '@/layouts/Layout.astro';
 import HomePage from '@/components/HomePage';
 import { dataService } from '@/services/dataService.server';
 import { loadLocaleData } from '@/lib/locales';
-import { setPublicHtmlCache } from '@/lib/server/publicCache';
+import { setFreshPublicHtmlCache } from '@/lib/server/publicCache';
 import { slugify } from '@/utils/helpers';
 import { resolveLangCode } from '@/utils/lang';
 import { getPostPathSegment } from '@/utils/postUrl';
 import { getPublicAdSettings } from '@/lib/server/publicAds';
 
 export const prerender = false;
-setPublicHtmlCache(Astro.response);
+setFreshPublicHtmlCache(Astro.response);
 
 const rawPath = Astro.params.path;
 const pathParts = String(rawPath || '')

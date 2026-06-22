@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NewsItem } from '@/types';
 import RemixIcon from './ui/RemixIcon';
+import { IntrinsicRatioFrame } from './ui/IntrinsicRatioImage';
 
 const AUTOPLAY_DELAY = 5000;
 const DISPLAY_TIME_ZONE = 'Europe/Istanbul';
@@ -140,20 +141,10 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
     const slides = useMemo(() => newsSlides.map(mapNewsToSlide).filter(Boolean) as MansetSlide[], [newsSlides]);
     const [activeIndex, setActiveIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
-    const [slideRatios, setSlideRatios] = useState<Record<string, number>>({});
     const swipeStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
     const ignoreClickRef = useRef(false);
     const activeSlide = slides[activeIndex];
-    const activeAspectRatio = activeSlide ? slideRatios[activeSlide.id] || 16 / 9 : 16 / 9;
-
-    const storeSlideRatio = useCallback((slideId: string, width: number, height: number) => {
-        if (width <= 0 || height <= 0) return;
-        const ratio = width / height;
-        setSlideRatios((current) => {
-            if (Math.abs((current[slideId] || 0) - ratio) < 0.001) return current;
-            return { ...current, [slideId]: ratio };
-        });
-    }, []);
+    const activeImageSrc = activeSlide ? withLocalImageVariant(activeSlide.image, activeIndex === 0 ? 1600 : 1200) : '';
 
     useEffect(() => {
         if (activeIndex >= slides.length) {
@@ -175,36 +166,6 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
         if (slides.length === 0) return;
         setActiveIndex((current) => (current + 1) % slides.length);
     }, [slides.length]);
-
-    const handleSlideImageLoad = useCallback((slideId: string, event: React.SyntheticEvent<HTMLImageElement>) => {
-        const image = event.currentTarget;
-        storeSlideRatio(slideId, image.naturalWidth, image.naturalHeight);
-    }, [storeSlideRatio]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined' || slides.length === 0) return undefined;
-        let cancelled = false;
-        const probes = slides
-            .filter((slide) => !slideRatios[slide.id])
-            .map((slide, index) => {
-                const image = new window.Image();
-                image.onload = () => {
-                    if (!cancelled) storeSlideRatio(slide.id, image.naturalWidth, image.naturalHeight);
-                };
-                image.src = withLocalImageVariant(slide.image, index === 0 ? 1600 : 1200);
-                if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
-                    storeSlideRatio(slide.id, image.naturalWidth, image.naturalHeight);
-                }
-                return image;
-            });
-
-        return () => {
-            cancelled = true;
-            probes.forEach((image) => {
-                image.onload = null;
-            });
-        };
-    }, [slides, slideRatios, storeSlideRatio]);
 
     const resetSwipeClickGuard = useCallback(() => {
         window.setTimeout(() => {
@@ -268,7 +229,11 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
             onPointerCancel={handlePointerCancel}
             aria-label="Manşet haber sliderı"
         >
-            <div className="manset-slider-stage relative w-full aspect-[16/9]" style={{ aspectRatio: activeAspectRatio }}>
+            <IntrinsicRatioFrame
+                src={activeImageSrc}
+                className="manset-slider-stage relative w-full overflow-hidden bg-gray-950"
+                sizerClassName="manset-slide-sizer bg-gray-950"
+            >
                 {slides.map((slide, index) => {
                     const isActive = index === activeIndex;
 
@@ -293,8 +258,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
                                 loading={index === 0 ? 'eager' : 'lazy'}
                                 decoding="async"
                                 fetchPriority={index === 0 ? 'high' : 'low'}
-                                onLoad={(event) => handleSlideImageLoad(slide.id, event)}
-                                className="w-full h-full object-contain bg-gray-950"
+                                className="manset-slide-image w-full h-full object-contain bg-gray-950"
                             />
                             {showNewsInfo && (
                                 <>
@@ -365,7 +329,7 @@ const MansetSlider: React.FC<MansetSliderProps> = ({ slides: newsSlides = [], sh
                         );
                     })}
                 </div>
-            </div>
+            </IntrinsicRatioFrame>
 
             <style>{`
                 .manset-slider .manset-arrow-icon {

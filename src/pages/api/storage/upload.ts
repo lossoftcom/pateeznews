@@ -20,6 +20,15 @@ import {
 import { resolveLocalUploadPath } from '@/lib/server/localUploadStorage';
 import { deleteLocalStorageFile, readLocalStorageFile, uploadLocalStorageFile } from '@/lib/server/localStorageProxy';
 import { remoteApiPath, uploadRemoteStorageFile, uploadRemoteStorageObject } from '@/lib/server/remoteObjectStorage';
+import { purgeCloudflareCacheFiles } from '@/lib/server/cloudflareCache';
+import {
+    LOCAL_VARIANT_PREFIXES,
+    SUPPORTED_VARIANT_QUALITY,
+    SUPPORTED_VARIANT_WIDTHS,
+    TRANSFORMABLE_IMAGE_EXTENSIONS,
+    objectExtension,
+    variantObjectPath,
+} from '@/lib/server/imageVariants';
 import {
     allowedExtensionsForRuleType,
     loadContentUploadSettings,
@@ -46,6 +55,7 @@ const mediaUploadResponse = (payload: Record<string, unknown>) =>
 const OPTIMIZED_IMAGE_STORAGE_TYPES = new Set<StorageType>(['image', 'profile']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tif', '.tiff', '.svg']);
 const REMOTE_IMAGE_FETCH_TIMEOUT_MS = 20000;
+const IMAGE_PURGE_QUALITIES = Array.from(new Set([SUPPORTED_VARIANT_QUALITY, 82]));
 
 type UploadInput = Pick<File, 'name' | 'type' | 'size' | 'arrayBuffer'>;
 
@@ -187,6 +197,73 @@ function storageObjectPathFromMediaUrl(value: string) {
     return '';
 }
 
+function absolutePurgeUrl(value: string, origin: string) {
+    const clean = String(value || '').trim();
+    if (!clean) return null;
+    try {
+        return new URL(clean, origin);
+    } catch {
+        return null;
+    }
+}
+
+function addUrl(urls: Set<string>, value: string, origin: string) {
+    const url = absolutePurgeUrl(value, origin);
+    if (!url || (url.protocol !== 'http:' && url.protocol !== 'https:')) return;
+    url.hash = '';
+    urls.add(url.toString());
+}
+
+function addStorageImagePurgeUrls(urls: Set<string>, objectPath: string, origin: string) {
+    const cleanObjectPath = normalizeStoragePath(objectPath);
+    if (!cleanObjectPath) return;
+
+    addUrl(urls, `/api/storage/file/${cleanObjectPath}`, origin);
+    addUrl(urls, `/local-upload/${cleanObjectPath}`, origin);
+
+    const extension = objectExtension(cleanObjectPath);
+    if (!TRANSFORMABLE_IMAGE_EXTENSIONS.has(extension)) return;
+
+    for (const width of SUPPORTED_VARIANT_WIDTHS) {
+        addUrl(urls, `/api/storage/file/${cleanObjectPath}?w=${width}`, origin);
+        for (const quality of IMAGE_PURGE_QUALITIES) {
+            addUrl(
+                urls,
+                `/api/storage/file/${cleanObjectPath}?w=${width}&q=${quality}`,
+                origin,
+            );
+        }
+        if (LOCAL_VARIANT_PREFIXES.some((prefix) => cleanObjectPath.startsWith(prefix))) {
+            for (const quality of IMAGE_PURGE_QUALITIES) {
+                addUrl(
+                    urls,
+                    `/local-upload/${variantObjectPath(cleanObjectPath, width, quality)}`,
+                    origin,
+                );
+            }
+        } else {
+            for (const quality of IMAGE_PURGE_QUALITIES) {
+                addUrl(
+                    urls,
+                    `/cdn-cgi/image/width=${width},quality=${quality},format=auto/local-upload/${cleanObjectPath}`,
+                    origin,
+                );
+            }
+        }
+    }
+}
+
+async function purgeReplacedMediaCache(origin: string, result: Record<string, unknown>) {
+    const urls = new Set<string>();
+    for (const key of ['src', 'publicSrc', 'thumb']) {
+        const value = String(result[key] || '');
+        addUrl(urls, value, origin);
+        const objectPath = storageObjectPathFromMediaUrl(value);
+        if (objectPath) addStorageImagePurgeUrls(urls, objectPath, origin);
+    }
+    await purgeCloudflareCacheFiles(urls);
+}
+
 async function readLocalUploadBuffer(type: StorageType, id: string) {
     try {
         return (await readLocalStorageFile({ type, id })).body;
@@ -279,6 +356,7 @@ export const POST: APIRoute = async ({ request }) => {
     let activeUploadId: string | null = null;
 
     try {
+        const requestUrl = new URL(request.url);
         const formData = await request.formData();
         const type = getStorageType(formData.get('type'));
         await requireStorageAdminRequest(request, type);
@@ -306,6 +384,7 @@ export const POST: APIRoute = async ({ request }) => {
 
         const storageSettings = await getStorageSettings();
         const uploadId = (formData.get('uploadId') as string | null)?.trim() || null;
+        const replaceId = (formData.get('replaceId') as string | null)?.trim() || '';
         activeUploadId = uploadId;
 
         const uploadFormData = fileField instanceof File ? formData : new FormData();
@@ -356,6 +435,7 @@ export const POST: APIRoute = async ({ request }) => {
                         etaSeconds: 0,
                         message: 'Remote storage unavailable; local backup used.',
                     });
+                    if (replaceId) await purgeReplacedMediaCache(requestUrl.origin, fallback);
                     return mediaUploadResponse(fallback);
                 }
 
@@ -381,6 +461,7 @@ export const POST: APIRoute = async ({ request }) => {
                     etaSeconds: 0,
                 });
 
+                if (replaceId) await purgeReplacedMediaCache(requestUrl.origin, result);
                 return mediaUploadResponse(result);
             } finally {
                 if (!keepLocalBackup && localResult?.id) {
@@ -413,6 +494,7 @@ export const POST: APIRoute = async ({ request }) => {
             etaSeconds: 0,
         });
 
+        if (replaceId) await purgeReplacedMediaCache(requestUrl.origin, result);
         return mediaUploadResponse(result);
 
     } catch (err: any) {

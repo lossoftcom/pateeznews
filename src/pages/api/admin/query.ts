@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
 import { executeQuerySpec, executeRpc, type QuerySpec } from '@/lib/server/supabaseQuery';
 import { submitIndexNowForPosts } from '@/lib/server/indexNow';
-import { invalidateDataCache, invalidateSiteSettingsCache } from '@/services/dataService';
-import { invalidateServerDataCache, invalidateServerSiteSettingsCache } from '@/services/dataService.server';
+import { invalidateDataCache, invalidateNewsDataCache, invalidateSiteSettingsCache } from '@/services/dataService';
+import { invalidateServerDataCache, invalidateServerNewsDataCache, invalidateServerSiteSettingsCache } from '@/services/dataService.server';
 
 type QueryMethod = QuerySpec['method'];
 
@@ -360,8 +360,8 @@ export const POST: APIRoute = async ({ request }) => {
       body?.table === 'posts' &&
       ['insert', 'update', 'upsert', 'delete'].includes(String(body?.method))
     ) {
-      invalidateDataCache((key) => key.startsWith('news_'));
-      invalidateServerDataCache((key) => key.startsWith('news_') || key.startsWith('post_') || key.startsWith('category_page_'));
+      invalidateNewsDataCache();
+      invalidateServerNewsDataCache();
       const rows = Array.isArray(result.data) ? result.data : [result.data].filter(Boolean);
       const shouldSubmitIndexNow = rows.some((row: any) => String(row?.status || '').trim() === 'published' || String(row?.status || '').trim() === 'trash');
       if (shouldSubmitIndexNow) {
@@ -379,8 +379,8 @@ export const POST: APIRoute = async ({ request }) => {
       body?.table === 'comments' &&
       ['insert', 'update', 'upsert', 'delete'].includes(String(body?.method))
     ) {
-      invalidateDataCache((key) => key.startsWith('news_'));
-      invalidateServerDataCache((key) => key.startsWith('news_') || key.startsWith('post_') || key.startsWith('category_page_'));
+      invalidateNewsDataCache();
+      invalidateServerNewsDataCache();
     }
 
     return adminJson(result, result.error ? 400 : 200);

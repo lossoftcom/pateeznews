@@ -3,6 +3,8 @@ import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAu
 import { submitIndexNowForPosts } from '@/lib/server/indexNow';
 import { deleteTrashPostsByIds } from '@/lib/server/postTrash';
 import { dbQuery } from '@/lib/server/supabaseDb';
+import { invalidateNewsDataCache } from '@/services/dataService';
+import { invalidateServerNewsDataCache } from '@/services/dataService.server';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -18,6 +20,8 @@ export const POST: APIRoute = async ({ request }) => {
       const result = await deleteTrashPostsByIds(ids, cleanupLanguage);
 
       if (result.rows.length) {
+        invalidateNewsDataCache();
+        invalidateServerNewsDataCache();
         try {
           await submitIndexNowForPosts(request, result.rows);
         } catch (error) {
@@ -44,6 +48,8 @@ export const POST: APIRoute = async ({ request }) => {
     );
 
     if (result.rows.length) {
+      invalidateNewsDataCache();
+      invalidateServerNewsDataCache();
       try {
         await submitIndexNowForPosts(request, result.rows);
       } catch (error) {

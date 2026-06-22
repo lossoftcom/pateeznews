@@ -306,7 +306,7 @@ const POST_DETAIL_SELECT = `
 const SERVER_CACHE_TTL = {
     SETTINGS: 1000 * 60,
     NAV: 1000 * 60 * 5,
-    NEWS: 1000 * 30,
+    NEWS: 0,
     SIDEBAR: 1000 * 30,
 };
 
@@ -341,6 +341,14 @@ export const invalidateServerDataCache = (predicate?: (key: string) => boolean) 
         if (!predicate || predicate(key)) delete serverInflight[key];
     }
 };
+
+export const isServerNewsDataCacheKey = (key: string) =>
+    key.startsWith('news_') ||
+    key.startsWith('post_') ||
+    key.startsWith('category_page_') ||
+    key.startsWith('weekly_trend_page_');
+
+export const invalidateServerNewsDataCache = () => invalidateServerDataCache(isServerNewsDataCacheKey);
 
 export const invalidateServerSiteSettingsCache = (lang?: string) => {
     const normalizedLang = String(lang || '').trim().toLowerCase().replace(/_/g, '-');

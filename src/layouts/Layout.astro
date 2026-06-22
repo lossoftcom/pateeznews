@@ -690,6 +690,24 @@ const fontPreloadHrefs = Array.from(new Set(
 				100% { transform: translateX(92%) scaleX(0.28); }
 			}
 		</style>
+		<style is:inline>
+			::view-transition-old(root),
+			::view-transition-new(root) {
+				animation: none !important;
+				mix-blend-mode: normal;
+			}
+			html.pateez-route-style-pending::view-transition,
+			html.pateez-route-style-pending::view-transition-group(root),
+			html.pateez-route-style-pending::view-transition-image-pair(root),
+			html.pateez-route-style-pending::view-transition-old(root),
+			html.pateez-route-style-pending::view-transition-new(root) {
+				animation: none !important;
+			}
+			html.pateez-route-style-pending::view-transition-old(root),
+			html.pateez-route-style-pending::view-transition-new(root) {
+				opacity: 0 !important;
+			}
+		</style>
 
 		<!-- Open Graph / Facebook -->
 		<meta property="og:type" content={resolvedOgType} />
@@ -794,7 +812,12 @@ const fontPreloadHrefs = Array.from(new Set(
 				const pendingClass = 'pateez-route-style-pending';
 				let fallbackTimer = 0;
 				let frame = 0;
+				let pendingStartedAt = 0;
+				let routeLoadDone = true;
+				let emptyStyleFrames = 0;
 				const watchedLinks = new WeakSet();
+				const minHoldMs = 120;
+				const emptyStyleFrameLimit = 3;
 
 				const getRequiredStyles = () => Array.from(document.querySelectorAll('link[rel~="stylesheet"]'))
 					.filter((link) => {
@@ -819,37 +842,75 @@ const fontPreloadHrefs = Array.from(new Set(
 				const clearPending = () => {
 					window.clearTimeout(fallbackTimer);
 					window.cancelAnimationFrame(frame);
+					routeLoadDone = true;
+					emptyStyleFrames = 0;
 					document.documentElement.classList.remove(pendingClass);
 				};
 
+				const queueCheck = () => {
+					window.cancelAnimationFrame(frame);
+					frame = window.requestAnimationFrame(checkStyles);
+				};
+
+				const clearAfterPaint = () => {
+					window.cancelAnimationFrame(frame);
+					frame = window.requestAnimationFrame(() => {
+						frame = window.requestAnimationFrame(clearPending);
+					});
+				};
+
 				const checkStyles = () => {
-					const links = getRequiredStyles();
-					if (links.length === 0 || links.every(hasUsableSheet)) {
-						clearPending();
+					if (!document.documentElement.classList.contains(pendingClass)) return;
+					if (!routeLoadDone || performance.now() - pendingStartedAt < minHoldMs) {
+						queueCheck();
 						return;
 					}
+
+					const links = getRequiredStyles();
+					if (links.length === 0) {
+						emptyStyleFrames += 1;
+						if (emptyStyleFrames >= emptyStyleFrameLimit) {
+							clearAfterPaint();
+							return;
+						}
+						queueCheck();
+						return;
+					}
+
+					emptyStyleFrames = 0;
+					if (links.every(hasUsableSheet)) {
+						clearAfterPaint();
+						return;
+					}
+
 					links.forEach((link) => {
 						if (watchedLinks.has(link)) return;
 						watchedLinks.add(link);
 						link.addEventListener('load', checkStyles, { once: true });
 						link.addEventListener('error', checkStyles, { once: true });
 					});
-					window.cancelAnimationFrame(frame);
-					frame = window.requestAnimationFrame(checkStyles);
+					queueCheck();
 				};
 
 				const holdUntilStylesReady = () => {
+					pendingStartedAt = performance.now();
+					routeLoadDone = false;
+					emptyStyleFrames = 0;
 					document.documentElement.classList.add(pendingClass);
 					window.clearTimeout(fallbackTimer);
 					fallbackTimer = window.setTimeout(clearPending, 3500);
-					window.cancelAnimationFrame(frame);
-					frame = window.requestAnimationFrame(checkStyles);
+					queueCheck();
+				};
+
+				const markRouteLoaded = () => {
+					routeLoadDone = true;
+					checkStyles();
 				};
 
 				document.addEventListener('astro:before-swap', holdUntilStylesReady);
 				document.addEventListener('astro:after-swap', holdUntilStylesReady);
-				document.addEventListener('astro:page-load', checkStyles);
-				window.addEventListener('pageshow', checkStyles);
+				document.addEventListener('astro:page-load', markRouteLoaded);
+				window.addEventListener('pageshow', markRouteLoaded);
 			})();
 		</script>
 		<div transition:persist="global-nav" class="relative z-[999]">

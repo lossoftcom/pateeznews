@@ -38,6 +38,7 @@ dependencies:
   http: ^1.6.0
   flutter_animate: ^4.5.0
   cached_network_image: ^3.4.1
+  cached_network_image_platform_interface: ^4.1.1
   file_selector: ^1.0.4
   web: ^1.1.1
   flutter_svg: ^2.3.0
