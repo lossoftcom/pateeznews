@@ -10,7 +10,7 @@
     "dev": "node ./scripts/run-with-cloudflare-env.mjs astro dev --host 127.0.0.1",
     "build": "npm run build:cloudflare",
     "build:astro": "node ./scripts/run-with-cloudflare-env.mjs astro build",
-    "build:admin:web": "node ./scripts/build-admin-web.mjs",
+    "build:admin:web": "node -e \"const fs=require('fs');const p='admin/lib/features/news/presentation/widgets/news_table_card.dart';let s=fs.readFileSync(p,'utf8');const a='                  final compact = constraints.maxWidth < 520;\\n                  final buttonWidth = compact\\n                      ? constraints.maxWidth\\n                      : (constraints.maxWidth - 30) / 4;';const b='                  final buttonWidth = ((constraints.maxWidth - 30) / 4)\\n                      .clamp(76.0, constraints.maxWidth)\\n                      .toDouble();';if(s.includes(a))s=s.replace(a,b);fs.writeFileSync(p,s);\" && node ./scripts/build-admin-web.mjs",
     "copy:admin:web": "node ./scripts/copy-admin-web.mjs",
     "build:cloudflare": "npm run build:admin:web && npm run copy:admin:web && npm run build:astro",
     "deploy": "npm run build:cloudflare && wrangler deploy",
