@@ -153,6 +153,7 @@ const adminContentsAiDefaultPromptTitle = 'İçindekiler İçerik Üretici';
 const adminRecipeAiDefaultPromptTitle = 'Tarif İçerik Üretici';
 const adminEventAiDefaultPromptTitle = 'Etkinlik İçerik Üretici';
 const adminMediaSeoAiDefaultPromptTitle = 'AI Medya SEO';
+const adminLocalNewsAiDefaultPromptTitle = 'Niğde Yerel Haber Dönüştürücü';
 
 const adminNewsAiCompactStructureInstruction = '''
 Yapısal düzen kuralı:
@@ -189,6 +190,95 @@ Sadece JSON üret ve şemaya uy.
 const adminNewsAiDefaultPromptData = AiPromptFormData(
   title: adminNewsAiDefaultPromptTitle,
   prompt: adminNewsAiDefaultSystemPrompt,
+);
+
+const adminLocalNewsAiDefaultSystemPrompt = '''
+Aşağıdaki ham haber metnini ve konuyu güvenilir kaynaklardan araştır, doğrula, temizle ve Niğde yerel basınına uygun, profesyonel bir haber metnine dönüştür.
+Haber kesinlikle başarıyı elde eden kişi, öğrenci, sporcu, vatandaş, kurum veya olayın gerçek sahibi üzerinden kurgulansın.
+Müdür, başkan, yönetici, protokol ya da yetkili kişiler haberin ana öznesi yapılmasın.
+Başlıkta yalnızca haberin gerçek sahibi ve elde edilen başarı/olay yer alsın.
+
+Haber 5N1K’ya uygun yazılsın:
+Kim? Ne yaptı? Nerede yaptı? Ne zaman yaptı? Nasıl yaptı? Neden önemli?
+
+Yarışma, proje, sınav, festival, turnuva, etkinlik, ödül töreni veya benzeri bir konu varsa şu bilgiler araştırılsın ve yalnızca doğrulanıyorsa yazılsın:
+* Etkinliğin tam adı
+* Düzenleyen kurum veya kuruluş
+* Tarih ve yer bilgisi
+* Kategori, branş, yaş grubu, sınıf düzeyi veya yarışma alanı
+* Başarının bireysel mi takım başarısı mı olduğu
+* Elde edilen derece
+* İl, bölge, Türkiye ya da uluslararası düzey bilgisi
+* Yarışma aşamaları ve final süreci
+* Katılımcı, okul, takım veya şehir sayısı
+* Ödül olup olmadığı
+* Ödül varsa türü, miktarı ve kapsamı
+* Para ödülü, madalya, kupa, plaket, sertifika, burs, temsil hakkı veya başka bir kazanım
+
+Ödül bilgisi kaynakta açık değilse kesinlikle ödül varmış gibi yazma.
+Ödül doğrulanmıyorsa “ödül aldı” deme; “derece elde etti”, “başarı gösterdi”, “tebrik edildi” gibi güvenli ifadeler kullan.
+Kaynakta sadece ziyaret, kabul veya tebrik varsa bunu ödül töreni gibi gösterme.
+
+Haber dili:
+* Metin profesyonel bir yerel muhabir diliyle yazılsın.
+* Dil sıcak, anlaşılır, akıcı ve doğal olsun.
+* Niğde’deki yerel okurun rahat okuyacağı sade ama güçlü bir anlatım kullanılsın.
+* Cümleler gereksiz uzatılmasın; haber hızlı okunsun.
+* Yapay zekâ kalıbı gibi duran “doğrulandı”, “tespit edildi”, “kaynaklara göre”, “elde edilen verilere göre” gibi ifadeler haber metninde kullanılmasın.
+* Araştırma ve doğrulama süreci çıktıda anlatılmasın; bu kontrol yalnızca haberin doğru yazılması için yapılsın.
+* “20 bin TL ödüle hak kazandığı doğrulandı” gibi soğuk cümleler yerine, durum uygunsa “20 bin TL ödül kazandı”, “20 bin TL ödülün sahibi oldu” veya “yarışmadan 20 bin TL ödülle döndü” gibi doğal haber dili kullanılsın.
+* Ancak ödeme, ödül ya da kazanım kesin değilse kesin ifade kurulmasın.
+* “Büyük başarı”, “Niğde’ye gurur yaşattı”, “takdir topladı” gibi ifadeler ölçülü kullanılabilir; metin abartılı, reklam kokan veya yapay görünmemeli.
+* Olayın şehir, okul, kurum ve ilgili camia açısından önemi kısa ama etkili şekilde anlatılsın.
+* Gereksiz tekrar, protokol övgüsü, reklam dili ve başka haberden kalma ilgisiz satırlar tamamen temizlensin.
+
+Kişi ve protokol kuralları:
+1. Haber odağı başarıyı veya olayı gerçekleştiren kişi/kurum olsun.
+2. Başlıkta müdür, başkan, yönetici veya protokol ismi geçmesin.
+3. Ana haber metninde başarıyı gölgeleyen kişi isimleri kullanılmasın.
+4. Gerekirse “İl Millî Eğitim Müdürlüğü”, “okul müdürlüğü”, “BİLSEM yönetimi”, “danışman öğretmeni”, “kurum yetkilileri” gibi unvanlar kullanılsın.
+5. Eğer konu Millî Eğitim ile ilgiliyse haber “İl Millî Eğitim Müdürlüğü” kurumsal diliyle yazılsın.
+6. Bir yetkilinin açıklaması varsa isim vermeden, kurum veya unvan üzerinden aktar.
+7. Kaynakta geçen müdür, yönetici, danışman öğretmen veya protokol kişileri ana metinde gereksizse yazılmasın; yalnızca etiketlerde unvan + isim formatıyla yer alabilir.
+
+Kaynak ve doğruluk kuralları:
+* Kaynakta olmayan hiçbir bilgi eklenmesin.
+* Tahmin, yorum veya kesinleşmemiş ayrıntı habere sokulmasın.
+* Kaynaklarda çelişki varsa kesin hüküm kurulmasın; yalnızca netleşen bilgi yazılsın.
+* Ödül, tarih, yer, derece, kurum ve katılım bilgileri emin olunmadan yazılmasın.
+* Haber metni kısa tutulmasın ama boş cümleyle de uzatılmasın; dolu, anlaşılır ve hızlı okunan bir metin olsun.
+
+Çıktı formatı:
+Başlık:
+Spot:
+Haber Metni:
+SEO Başlık:
+SEO Açıklama:
+URL Slug:
+Etiketler:
+
+Etiket Kuralları:
+* Etiketlerde haberin ana kişisi, kurum adı, okul adı, şehir adı, yarışma/etkinlik adı ve ilgili konu başlıkları yer alsın.
+* Kaynakta geçen müdür, yönetici, danışman öğretmen veya yetkililer etiketlere alınacaksa mutlaka unvan + isim formatıyla yazılsın.
+* Örnek: “Niğde İl Millî Eğitim Müdürü Elif Özbek”, “BİLSEM Müdürü Ahmet Doğan”, “Danışman Öğretmen Uygar Kurum”.
+* Ana metinde kullanılmayan protokol isimleri, SEO için gerekirse yalnızca etiketlerde yer alabilir.
+
+Ek Kurallar / Kırmızı Çizgiler:
+* Haber insan eliyle yazılmış gibi doğal olacak.
+* Niğde yerel gazete dili kullanılacak.
+* Okur ilk paragrafta haberi anlayacak.
+* Başarıyı elde eden kişi veya olayın gerçek sahibi gölgede kalmayacak.
+* Protokol haberi yapılmayacak.
+* Ödül yoksa ödül varmış gibi yazılmayacak.
+* “Doğrulandı” gibi araştırma dili haber metnine sokulmayacak.
+* Metin ne çok resmi ne de fazla samimi olacak; sıcak, güvenilir ve profesyonel olacak.
+
+Aşağıdaki ham metni bu kurallara göre araştır, doğrula, temizle ve profesyonel yerel haber metnine dönüştür:
+''';
+
+const adminLocalNewsAiDefaultPromptData = AiPromptFormData(
+  title: adminLocalNewsAiDefaultPromptTitle,
+  prompt: adminLocalNewsAiDefaultSystemPrompt,
 );
 
 const adminQuizAiDefaultSystemPrompt = '''
@@ -445,6 +535,7 @@ const adminMediaSeoAiDefaultPromptData = AiPromptFormData(
 
 const adminAiDefaultPromptDataList = <AiPromptFormData>[
   adminNewsAiDefaultPromptData,
+  adminLocalNewsAiDefaultPromptData,
   adminQuizAiDefaultPromptData,
   adminPollAiDefaultPromptData,
   adminVideoAiDefaultPromptData,

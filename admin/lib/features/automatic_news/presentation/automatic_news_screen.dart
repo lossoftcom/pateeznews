@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 import 'package:pateeznews_admin/features/automatic_news/data/admin_automatic_news_repository.dart';
+import 'package:pateeznews_admin/features/settings/data/admin_ai_settings_repository.dart';
 import 'package:pateeznews_admin/features/news/presentation/widgets/news_link_opener.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:quill_native_bridge/quill_native_bridge.dart';
@@ -2833,16 +2834,16 @@ void _openPreviewLink(String url) {
   unawaited(openNewsLink(trimmed));
 }
 
-Future<void> _copyPreviewText(BuildContext context, String value) async {
+Future<void> _copyPreviewText(
+  BuildContext context,
+  String value, {
+  String message = 'Metin kopyalandı',
+}) async {
   final text = _readableText(value, fallback: '').trim();
   if (text.isEmpty) return;
   await Clipboard.setData(ClipboardData(text: text));
   if (!context.mounted) return;
-  AdminToast.show(
-    context,
-    message: 'Metin kopyalandı',
-    tone: AdminToastTone.success,
-  );
+  AdminToast.show(context, message: message, tone: AdminToastTone.success);
 }
 
 String _fileExtension(String fileName) {
@@ -4168,6 +4169,7 @@ class _AutomaticNewsPreviewDetails extends StatelessWidget {
         ? draft.contentText
         : draft.summary;
     final copyText = _automaticNewsPreviewCopyText(draft, content);
+    final promptText = _automaticNewsPromptCopyText(draft, content);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -4202,6 +4204,8 @@ class _AutomaticNewsPreviewDetails extends StatelessWidget {
             _PreviewBadge('%${draft.quality} güven'),
           ],
         ),
+        const SizedBox(height: 12),
+        _AutomaticNewsPromptMenu(promptText: promptText),
         const SizedBox(height: 18),
         _PreviewSection(
           title: 'Kısa Özet',
@@ -4263,6 +4267,16 @@ String _automaticNewsPreviewCopyText(
       .join('\n')
       .replaceAll(RegExp(r'\n{3,}'), '\n\n')
       .trim();
+}
+
+String _automaticNewsPromptCopyText(_AutomaticNewsDraft draft, String content) {
+  final sourceText = _automaticNewsPreviewCopyText(draft, content);
+  return [
+    adminLocalNewsAiDefaultSystemPrompt.trim(),
+    '',
+    'Ham Haber Metni:',
+    sourceText,
+  ].join('\n').trim();
 }
 
 class _AutomaticNewsPreviewTiming extends StatelessWidget {
@@ -4411,6 +4425,316 @@ class _PreviewCopyButton extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _AutomaticNewsPromptAction { view, copy }
+
+class _AutomaticNewsPromptMenu extends StatelessWidget {
+  const _AutomaticNewsPromptMenu({required this.promptText});
+
+  final String promptText;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_AutomaticNewsPromptAction>(
+      tooltip: 'Prompt seçenekleri',
+      offset: const Offset(0, 8),
+      color: Colors.white,
+      elevation: 12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        side: BorderSide(color: AppColors.line.withValues(alpha: 0.82)),
+      ),
+      onSelected: (action) {
+        if (action == _AutomaticNewsPromptAction.view) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            _showAutomaticNewsPromptPreview(context, promptText);
+          });
+        } else {
+          unawaited(
+            _copyPreviewText(context, promptText, message: 'Prompt kopyalandı'),
+          );
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<_AutomaticNewsPromptAction>(
+          enabled: false,
+          height: 38,
+          child: SizedBox(
+            width: 260,
+            child: Text(
+              adminLocalNewsAiDefaultPromptTitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w800,
+                height: 1.24,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ),
+        const PopupMenuDivider(height: 1),
+        PopupMenuItem<_AutomaticNewsPromptAction>(
+          value: _AutomaticNewsPromptAction.view,
+          height: 42,
+          child: _PromptMenuActionRow(
+            icon: Icons.visibility_outlined,
+            label: 'Görüntüle',
+          ),
+        ),
+        PopupMenuItem<_AutomaticNewsPromptAction>(
+          value: _AutomaticNewsPromptAction.copy,
+          height: 42,
+          child: _PromptMenuActionRow(
+            icon: Icons.content_copy_rounded,
+            label: 'Kopyala',
+          ),
+        ),
+      ],
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7FAFC),
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: AppColors.line.withValues(alpha: 0.84)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.deepOcean.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppRadius.value / 1.4),
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                size: 16,
+                color: AppColors.deepOcean,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Prompt Kopyala',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    adminLocalNewsAiDefaultPromptTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkSoft,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 20,
+              color: AppColors.iconMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PromptMenuActionRow extends StatelessWidget {
+  const _PromptMenuActionRow({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: AppColors.deepOcean),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+void _showAutomaticNewsPromptPreview(BuildContext context, String promptText) {
+  showDialog<void>(
+    context: context,
+    barrierColor: const Color(0xB20D1B24),
+    builder: (context) => _AutomaticNewsPromptPreviewDialog(
+      title: adminLocalNewsAiDefaultPromptTitle,
+      promptText: promptText,
+    ),
+  );
+}
+
+class _AutomaticNewsPromptPreviewDialog extends StatelessWidget {
+  const _AutomaticNewsPromptPreviewDialog({
+    required this.title,
+    required this.promptText,
+  });
+
+  final String title;
+  final String promptText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 720),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.deepOcean.withValues(alpha: 0.18),
+                blurRadius: 30,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 16, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.deepOcean.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 18,
+                        color: AppColors.deepOcean,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppColors.deepOcean,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Kapat',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const SymbolIcon(
+                        Symbols.close,
+                        color: AppColors.iconMuted,
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: AppColors.line.withValues(alpha: 0.74)),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(22),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                      border: Border.all(
+                        color: AppColors.line.withValues(alpha: 0.76),
+                      ),
+                    ),
+                    child: Text(
+                      promptText,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.deepOcean,
+                        fontWeight: FontWeight.w600,
+                        height: 1.5,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Divider(height: 1, color: AppColors.line.withValues(alpha: 0.74)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded, size: 17),
+                      label: const Text('Kapat'),
+                    ),
+                    const SizedBox(width: 10),
+                    FilledButton.icon(
+                      onPressed: () => unawaited(
+                        _copyPreviewText(
+                          context,
+                          promptText,
+                          message: 'Prompt kopyalandı',
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.deepOcean,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.value),
+                        ),
+                      ),
+                      icon: const Icon(Icons.content_copy_rounded, size: 17),
+                      label: const Text('Kopyala'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -118,6 +118,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final defaults = prompts.isEmpty
         ? adminAiDefaultPromptDataList
         : const [
+            adminLocalNewsAiDefaultPromptData,
             adminQuizAiDefaultPromptData,
             adminPollAiDefaultPromptData,
             adminVideoAiDefaultPromptData,
