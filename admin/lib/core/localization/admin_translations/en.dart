@@ -3158,6 +3158,7 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.aiMediaSeoModal.coverMissingHint":
       "This option activates after a cover image is selected.",
   "newsAdd.aiMediaSeoModal.run": "Update Media SEO",
+  "newsAdd.aiMediaSeoModal.approve": "Approve and Update",
   "newsAdd.aiMediaSeoModal.running": "Updating media SEO...",
   "newsAdd.aiMediaSeoModal.runningHint":
       "Files are being renamed and media URLs in the form are being mapped.",
@@ -3170,7 +3171,11 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.aiMediaSeoModal.noMedia": "No media used in the news was found.",
   "newsAdd.aiMediaSeoModal.noOption": "Select at least one operation.",
   "newsAdd.aiMediaSeoModal.localOnly": "Not a local file",
+  "newsAdd.aiMediaSeoModal.externalMedia": "External media",
+  "newsAdd.aiMediaSeoModal.externalMediaHint":
+      "The file name cannot be changed; title, description, thumbnail, and structured-data metadata are handled as metadata-only.",
   "newsAdd.aiMediaSeoModal.unchanged": "Already suitable",
+  "newsAdd.aiMediaSeoModal.preview": "Preview",
   "newsAdd.aiMediaSeoModal.failed": "Could not update",
   "newsAdd.aiMediaSeoModal.renamed": "Renamed",
   "newsAdd.articleTitle": "News Title",

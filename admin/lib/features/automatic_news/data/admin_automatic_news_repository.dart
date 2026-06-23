@@ -134,6 +134,35 @@ class AutomaticNewsImageFile {
   final String mimeType;
 }
 
+class AutomaticNewsMediaResult {
+  const AutomaticNewsMediaResult({
+    required this.images,
+    required this.primaryImageUrl,
+    required this.sourceUrl,
+    required this.canonicalUrl,
+  });
+
+  factory AutomaticNewsMediaResult.fromJson(Map<String, Object?> json) {
+    final rawImages = json['images'];
+    return AutomaticNewsMediaResult(
+      images: rawImages is List
+          ? [
+              for (final item in rawImages)
+                if (item.toString().trim().isNotEmpty) item.toString().trim(),
+            ]
+          : const [],
+      primaryImageUrl: json['primaryImageUrl']?.toString() ?? '',
+      sourceUrl: json['sourceUrl']?.toString() ?? '',
+      canonicalUrl: json['canonicalUrl']?.toString() ?? '',
+    );
+  }
+
+  final List<String> images;
+  final String primaryImageUrl;
+  final String sourceUrl;
+  final String canonicalUrl;
+}
+
 class AutomaticNewsRefreshResult {
   const AutomaticNewsRefreshResult({
     required this.status,
@@ -264,6 +293,8 @@ abstract class AdminAutomaticNewsRepository {
   Future<AutomaticNewsRefreshResult> testSources();
 
   Future<AutomaticNewsImageFile> downloadImage(String id);
+
+  Future<AutomaticNewsMediaResult> fetchMedia(String id);
 
   Future<void> deleteItems(List<String> ids);
 }
@@ -470,6 +501,38 @@ class SupabaseAdminAutomaticNewsRepository
     } finally {
       if (closeClient) client.close();
     }
+  }
+
+  @override
+  Future<AutomaticNewsMediaResult> fetchMedia(String id) async {
+    final normalized = id.trim();
+    if (normalized.isEmpty) {
+      return const AutomaticNewsMediaResult(
+        images: [],
+        primaryImageUrl: '',
+        sourceUrl: '',
+        canonicalUrl: '',
+      );
+    }
+    final result = await _getJson(
+      _resolveUri(
+        '/api/admin/automatic-news/media',
+      ).replace(queryParameters: {'id': normalized}),
+    );
+    _throwIfApiError(
+      result,
+      fallbackMessage: 'Otomatik haber görselleri alınamadı',
+    );
+    final data = result['data'];
+    if (data is! Map) {
+      return const AutomaticNewsMediaResult(
+        images: [],
+        primaryImageUrl: '',
+        sourceUrl: '',
+        canonicalUrl: '',
+      );
+    }
+    return AutomaticNewsMediaResult.fromJson(_asStringKeyMap(data));
   }
 
   @override

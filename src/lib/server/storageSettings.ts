@@ -47,6 +47,7 @@ const STORAGE_SETTINGS_KEY = 'storage.settings';
 const LOCAL_MEDIA_KEY_PREFIX = 'storage.local.media.';
 const PROVIDER_MEDIA_KEY_PREFIX = 'storage.provider.media.';
 const PERSISTENT_EXPIRES_AT = '2099-12-31T23:59:59.000Z';
+export const MASKED_STORAGE_SECRET = '••••••••';
 
 const ACTIVE_STORAGE_VALUES = new Set<ActiveStorage>([
   'localStorage',
@@ -104,6 +105,19 @@ function normalizeProviders(value: unknown): Record<string, Record<string, strin
   return providers;
 }
 
+const STORAGE_SECRET_FIELDS: Record<RemoteStorageProvider, Set<string>> = {
+  awsS3: new Set(['accessKey', 'secretKey']),
+  cloudflareR2: new Set(['accessKey', 'secretKey']),
+  backblazeB2: new Set(['keyId', 'applicationKey']),
+  bunnyNet: new Set(['accessKey']),
+  googleDrive: new Set(['clientSecret', 'refreshToken']),
+};
+
+function isMaskedStorageSecret(value: unknown) {
+  const text = String(value || '').trim();
+  return text === MASKED_STORAGE_SECRET || /^[•*]{6,}$/.test(text);
+}
+
 export function normalizeStorageSettings(value: unknown): StorageSettings {
   const input = value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -114,6 +128,41 @@ export function normalizeStorageSettings(value: unknown): StorageSettings {
     providers: normalizeProviders(input.providers),
     localBackupEnabled: input.localBackupEnabled === true,
   };
+}
+
+export function maskStorageSettings(input: StorageSettings): StorageSettings {
+  const settings = normalizeStorageSettings(input);
+  const providers: Record<string, Record<string, string>> = {};
+  for (const [provider, rawValues] of Object.entries(settings.providers)) {
+    const secretFields = STORAGE_SECRET_FIELDS[provider as RemoteStorageProvider];
+    providers[provider] = {};
+    for (const [key, value] of Object.entries(rawValues)) {
+      providers[provider][key] = secretFields?.has(key) && value
+        ? MASKED_STORAGE_SECRET
+        : value;
+    }
+  }
+  return { ...settings, providers };
+}
+
+export function preserveMaskedStorageSecrets(
+  nextInput: unknown,
+  currentInput: StorageSettings,
+) {
+  const next = normalizeStorageSettings(nextInput);
+  const current = normalizeStorageSettings(currentInput);
+  const providers: Record<string, Record<string, string>> = {};
+  for (const [provider, rawValues] of Object.entries(next.providers)) {
+    const secretFields = STORAGE_SECRET_FIELDS[provider as RemoteStorageProvider];
+    const currentValues = current.providers[provider] || {};
+    providers[provider] = {};
+    for (const [key, value] of Object.entries(rawValues)) {
+      providers[provider][key] = secretFields?.has(key) && isMaskedStorageSecret(value)
+        ? currentValues[key] || ''
+        : value;
+    }
+  }
+  return { ...next, providers };
 }
 
 export function isLocalStorageActive(settings: StorageSettings) {
@@ -207,10 +256,10 @@ export async function recordStorageMediaFile(provider: StorageMediaProvider, rec
 export async function renameStorageMediaRecord(
   provider: StorageMediaProvider,
   record: LocalMediaRecord & { oldId: string },
+  options: { strict?: boolean } = {},
 ) {
   const oldKey = providerMediaKey(provider, record.type, record.oldId);
   const newKey = providerMediaKey(provider, record.type, record.id);
-  if (oldKey === newKey) return;
 
   const existing = await dbQuery<{ payload: Record<string, unknown> | null }>(
     `SELECT payload
@@ -235,14 +284,7 @@ export async function renameStorageMediaRecord(
     updatedAt: new Date().toISOString(),
   };
 
-  await dbQuery(
-    `DELETE FROM public.app_cache WHERE key = $1`,
-    [oldKey]
-  ).catch((error) => {
-    console.warn('Storage media provider old DB index cleanup skipped:', error?.message || error);
-  });
-
-  await dbQuery(
+  const insertNew = dbQuery(
     `INSERT INTO public.app_cache (key, payload, expires_at, updated_at)
      VALUES ($1, $2::jsonb, $3::timestamptz, now())
      ON CONFLICT (key) DO UPDATE SET
@@ -250,9 +292,28 @@ export async function renameStorageMediaRecord(
        expires_at = EXCLUDED.expires_at,
        updated_at = now()`,
     [newKey, JSON.stringify(payload), PERSISTENT_EXPIRES_AT]
-  ).catch((error) => {
-    console.warn('Storage media provider DB index rename skipped:', error?.message || error);
-  });
+  );
+  if (options.strict) {
+    await insertNew;
+  } else {
+    await insertNew.catch((error) => {
+      console.warn('Storage media provider DB index rename skipped:', error?.message || error);
+    });
+  }
+
+  if (oldKey !== newKey) {
+    const deleteOld = dbQuery(
+      `DELETE FROM public.app_cache WHERE key = $1`,
+      [oldKey]
+    );
+    if (options.strict) {
+      await deleteOld;
+    } else {
+      await deleteOld.catch((error) => {
+        console.warn('Storage media provider old DB index cleanup skipped:', error?.message || error);
+      });
+    }
+  }
 }
 
 export async function recordLocalMediaFile(record: LocalMediaRecord) {
@@ -275,7 +336,10 @@ export async function recordLocalMediaFile(record: LocalMediaRecord) {
   await recordStorageMediaFile('localStorage', record);
 }
 
-export async function renameLocalMediaRecord(record: LocalMediaRecord & { oldId: string }) {
+export async function renameLocalMediaRecord(
+  record: LocalMediaRecord & { oldId: string },
+  options: { strict?: boolean } = {},
+) {
   const oldKey = localMediaKey(record.type, record.oldId);
   const newKey = localMediaKey(record.type, record.id);
   const existing = await dbQuery<{ payload: Record<string, unknown> | null }>(
@@ -301,14 +365,7 @@ export async function renameLocalMediaRecord(record: LocalMediaRecord & { oldId:
     updatedAt: new Date().toISOString(),
   };
 
-  await dbQuery(
-    `DELETE FROM public.app_cache WHERE key = $1`,
-    [oldKey]
-  ).catch((error) => {
-    console.warn('Local media old DB index cleanup skipped:', error?.message || error);
-  });
-
-  await dbQuery(
+  const insertNew = dbQuery(
     `INSERT INTO public.app_cache (key, payload, expires_at, updated_at)
      VALUES ($1, $2::jsonb, $3::timestamptz, now())
      ON CONFLICT (key) DO UPDATE SET
@@ -316,9 +373,26 @@ export async function renameLocalMediaRecord(record: LocalMediaRecord & { oldId:
        expires_at = EXCLUDED.expires_at,
        updated_at = now()`,
     [newKey, JSON.stringify(payload), PERSISTENT_EXPIRES_AT]
-  ).catch((error) => {
-    console.warn('Local media DB index rename skipped:', error?.message || error);
-  });
+  );
+  if (options.strict) {
+    await insertNew;
+  } else {
+    await insertNew.catch((error) => {
+      console.warn('Local media DB index rename skipped:', error?.message || error);
+    });
+  }
+
+  const deleteOld = dbQuery(
+    `DELETE FROM public.app_cache WHERE key = $1`,
+    [oldKey]
+  );
+  if (options.strict) {
+    await deleteOld;
+  } else {
+    await deleteOld.catch((error) => {
+      console.warn('Local media old DB index cleanup skipped:', error?.message || error);
+    });
+  }
 }
 
 export async function deleteLocalMediaRecords(type: StorageType, ids: string[]) {

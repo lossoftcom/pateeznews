@@ -3136,6 +3136,7 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "newsAdd.aiMediaSeoModal.coverMissingHint":
       "Kapak görseli seçilince bu seçenek aktif olur.",
   "newsAdd.aiMediaSeoModal.run": "Medya SEO'yu Güncelle",
+  "newsAdd.aiMediaSeoModal.approve": "Onayla ve Güncelle",
   "newsAdd.aiMediaSeoModal.running": "Medya SEO güncelleniyor...",
   "newsAdd.aiMediaSeoModal.runningHint":
       "Dosyalar yeniden adlandırılıyor ve formdaki medya URL'leri eşleniyor.",
@@ -3148,7 +3149,11 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "newsAdd.aiMediaSeoModal.noMedia": "Haberde kullanılan medya bulunamadı.",
   "newsAdd.aiMediaSeoModal.noOption": "En az bir işlem seçin.",
   "newsAdd.aiMediaSeoModal.localOnly": "Yerel dosya değil",
+  "newsAdd.aiMediaSeoModal.externalMedia": "Harici medya",
+  "newsAdd.aiMediaSeoModal.externalMediaHint":
+      "Dosya adı değiştirilemez; başlık, açıklama, thumbnail ve yapılandırılmış veri tarafında metadata-only değerlendirilir.",
   "newsAdd.aiMediaSeoModal.unchanged": "Zaten uygun",
+  "newsAdd.aiMediaSeoModal.preview": "Önizleme",
   "newsAdd.aiMediaSeoModal.failed": "Güncellenemedi",
   "newsAdd.aiMediaSeoModal.renamed": "Yeniden adlandırıldı",
   "newsAdd.articleTitle": "Haber Başlığı",
@@ -3769,7 +3774,8 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "media.seoSave": "Kaydet ve devam et",
   "media.seoSaving": "Kaydediliyor...",
   "media.seoEmptyError": "Lütfen anlamlı bir dosya adı girin.",
-  "media.seoFailed": "Yeniden adlandırma başarısız oldu. Lütfen tekrar deneyin.",
+  "media.seoFailed":
+      "Yeniden adlandırma başarısız oldu. Lütfen tekrar deneyin.",
   "common.actions": "İşlemler",
   "common.refresh": "Yenile",
   "common.searchPlaceholder": "Ara...",

@@ -284,6 +284,14 @@ const getContextLine = (context: string, label: string) => {
     return htmlToPlainText(line?.slice(line.indexOf(':') + 1) || '');
 };
 
+const getContextAnyLine = (context: string, labels: string[]) => {
+    for (const label of labels) {
+        const value = getContextLine(context, label);
+        if (value) return value;
+    }
+    return '';
+};
+
 const getFocusedMediaText = (mediaKind: string) => {
     const cleaned = htmlToPlainText(mediaKind);
     const separators = [' | ', ':'];
@@ -340,10 +348,11 @@ export const buildSeoFilenameFallback = (input: {
     const focused = getFocusedMediaText(input.mediaKind);
     const title = getContextLine(input.context, 'Haber başlığı');
     const seoTitle = getContextLine(input.context, 'SEO başlık');
-    const summary = getContextLine(input.context, 'Kısa özet/spot');
-    const keywords = getContextLine(input.context, 'Anahtar kelimeler');
+    const summary = getContextAnyLine(input.context, ['Kısa özet', 'Kısa özet/spot']);
+    const metaDescription = getContextAnyLine(input.context, ['Meta açıklama', 'SEO açıklama']);
+    const keywords = getContextAnyLine(input.context, ['Odak anahtar kelimeler', 'Anahtar kelimeler']);
 
-    const pieces = removeDuplicatePieces([focused, title, seoTitle, summary, keywords])
+    const pieces = removeDuplicatePieces([focused, title, seoTitle, summary, metaDescription, keywords])
         .filter((piece) => !isBoilerplateAiText(piece));
 
     const source = pieces.join(' ');
@@ -366,8 +375,8 @@ export const buildAltTextFallback = (input: {
 }) => {
     const focused = getFocusedMediaText(input.mediaKind);
     const title = getContextLine(input.context, 'Haber başlığı');
-    const summary = getContextLine(input.context, 'Kısa özet/spot');
-    const seoDescription = getContextLine(input.context, 'SEO açıklama');
+    const summary = getContextAnyLine(input.context, ['Kısa özet', 'Kısa özet/spot']);
+    const seoDescription = getContextAnyLine(input.context, ['Meta açıklama', 'SEO açıklama']);
     const filenameText = cleanCurrentFilenameText(input.currentName);
 
     const pieces = removeDuplicatePieces([focused, title, summary, seoDescription, filenameText])

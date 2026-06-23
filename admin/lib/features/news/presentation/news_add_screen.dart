@@ -5063,9 +5063,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   Future<_AiMediaSeoReport> _runAiMediaSeo({
     required bool updateNames,
     required bool updateCoverAlt,
+    bool previewOnly = false,
+    Map<String, String> approvedNames = const <String, String>{},
   }) async {
     final references = _collectAiMediaSeoReferences();
     final contextText = _aiMediaSeoContext();
+    final contextJson = _aiMediaSeoContextJson();
     final rows = <_AiMediaSeoRow>[];
     var renamedCount = 0;
     var skippedCount = 0;
@@ -5080,22 +5083,31 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           rows.add(
             _AiMediaSeoRow(
               label: reference.label,
+              source: reference.src,
               oldName: oldName,
               newName: '-',
               status: _AiMediaSeoRowStatus.skipped,
-              messageKey: 'newsAdd.aiMediaSeoModal.localOnly',
+              messageKey: 'newsAdd.aiMediaSeoModal.externalMedia',
+              detail: context.t('newsAdd.aiMediaSeoModal.externalMediaHint'),
             ),
           );
           continue;
         }
 
         try {
+          final approvedName = approvedNames[reference.src]?.trim() ?? '';
+          final explicitName = approvedNames.containsKey(reference.src)
+              ? (approvedName.isEmpty ? oldName : approvedName)
+              : '';
           final result = await _mediaService.renameMediaWithAi(
             src: reference.src,
             type: reference.type,
             languageCode: _languageCode,
             mediaKind: reference.label,
             context: contextText,
+            contextJson: contextJson,
+            filename: previewOnly || explicitName.isEmpty ? null : explicitName,
+            suggestOnly: previewOnly,
           );
           if (!mounted) break;
           if (result == null || !result.success) {
@@ -5104,6 +5116,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             rows.add(
               _AiMediaSeoRow(
                 label: reference.label,
+                source: reference.src,
                 oldName: oldName,
                 newName: '-',
                 status: _AiMediaSeoRowStatus.failed,
@@ -5114,15 +5127,35 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             continue;
           }
 
+          if (previewOnly) {
+            skippedCount++;
+            rows.add(
+              _AiMediaSeoRow(
+                label: reference.label,
+                source: reference.src,
+                oldName: oldName,
+                newName: result.filename.trim().isEmpty
+                    ? _mediaFileName(result.src)
+                    : result.filename.trim(),
+                status: _AiMediaSeoRowStatus.preview,
+                messageKey: 'newsAdd.aiMediaSeoModal.preview',
+                detail: _mediaSeoResultDetail(result),
+              ),
+            );
+            continue;
+          }
+
           if (result.replacements.isEmpty) {
             skippedCount++;
             rows.add(
               _AiMediaSeoRow(
                 label: reference.label,
+                source: reference.src,
                 oldName: oldName,
                 newName: _mediaFileName(result.src),
                 status: _AiMediaSeoRowStatus.unchanged,
                 messageKey: 'newsAdd.aiMediaSeoModal.unchanged',
+                detail: _mediaSeoResultDetail(result),
               ),
             );
             continue;
@@ -5133,10 +5166,12 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           rows.add(
             _AiMediaSeoRow(
               label: reference.label,
+              source: reference.src,
               oldName: oldName,
               newName: _mediaFileName(result.src),
               status: _AiMediaSeoRowStatus.renamed,
               messageKey: 'newsAdd.aiMediaSeoModal.renamed',
+              detail: _mediaSeoResultDetail(result),
             ),
           );
         } catch (error) {
@@ -5144,6 +5179,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           rows.add(
             _AiMediaSeoRow(
               label: reference.label,
+              source: reference.src,
               oldName: oldName,
               newName: '-',
               status: _AiMediaSeoRowStatus.failed,
@@ -5157,7 +5193,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
     var altTextUpdated = false;
     final coverSource = _coverImageUrl?.trim();
-    if (updateCoverAlt && coverSource != null && coverSource.isNotEmpty) {
+    if (!previewOnly &&
+        updateCoverAlt &&
+        coverSource != null &&
+        coverSource.isNotEmpty) {
       try {
         final altResult = await _mediaService.generateMediaAltTextWithAi(
           src: coverSource,
@@ -5382,6 +5421,68 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     if (categoryPath.isNotEmpty) lines.add('Kategori yolu: $categoryPath');
     lines.add('Aktif haber tipi: $_postTypeForActiveTab');
     return lines.join('\n').trim();
+  }
+
+  Map<String, Object?> _aiMediaSeoContextJson() {
+    final blocks = <Map<String, Object?>>[];
+    for (final item in _itemsForStorage().where(_hasUsefulAiContentSeedItem)) {
+      blocks.add({
+        'type': _text(item['type']),
+        'title': _text(item['title']),
+        'text': _firstNonEmpty([
+          _text(item['description']),
+          _text(item['summary']),
+          _text(item['caption']),
+        ]),
+        'source': _text(item['source']),
+      });
+    }
+    return {
+      'title': _titleController.text.trim(),
+      'summary': _summaryController.text.trim(),
+      'seoTitle': _seoTitleController.text.trim(),
+      'metaDescription': _metaDescriptionController.text.trim(),
+      'focusKeywords': List<String>.of(_keywords),
+      'categoryPath': List<String>.of(_selectedCategoryPath),
+      'formatType': _postTypeForActiveTab,
+      'contentBlocks': blocks,
+    };
+  }
+
+  String _mediaSeoResultDetail(MediaSeoRenameResult result) {
+    final parts = <String>[];
+    final mode = result.generationMode.trim();
+    if (mode == 'ai') {
+      parts.add('AI');
+    } else if (mode == 'fallback') {
+      parts.add('Fallback');
+    } else if (mode == 'manual') {
+      parts.add('Onaylı ad');
+    }
+    if (result.modelUsed.trim().isNotEmpty) parts.add(result.modelUsed.trim());
+    if (result.usedVision) parts.add('vision');
+    final storage = result.storage;
+    if (storage.isNotEmpty) {
+      parts.add(
+        [
+          if ((storage['remoteCopy'] ?? '').isNotEmpty)
+            'remote:${storage['remoteCopy']}',
+          if ((storage['remoteDelete'] ?? '').isNotEmpty)
+            'delete:${storage['remoteDelete']}',
+          if ((storage['localBackup'] ?? '').isNotEmpty)
+            'local:${storage['localBackup']}',
+          if ((storage['database'] ?? '').isNotEmpty)
+            'db:${storage['database']}',
+        ].join(' '),
+      );
+    }
+    if (result.remoteError.trim().isNotEmpty) {
+      parts.add(result.remoteError.trim());
+    }
+    if (result.fallbackReason.trim().isNotEmpty && mode == 'fallback') {
+      parts.add(result.fallbackReason.trim());
+    }
+    return parts.join(' · ');
   }
 
   bool _isLocalStorageSeoMedia(String source) {
@@ -10331,7 +10432,7 @@ class _NewsTextPreviewArticleParagraph extends StatelessWidget {
   }
 }
 
-enum _AiMediaSeoRowStatus { renamed, unchanged, skipped, failed }
+enum _AiMediaSeoRowStatus { preview, renamed, unchanged, skipped, failed }
 
 class _AiMediaReference {
   const _AiMediaReference({
@@ -10348,6 +10449,7 @@ class _AiMediaReference {
 class _AiMediaSeoRow {
   const _AiMediaSeoRow({
     required this.label,
+    this.source = '',
     required this.oldName,
     required this.newName,
     required this.status,
@@ -10356,6 +10458,7 @@ class _AiMediaSeoRow {
   });
 
   final String label;
+  final String source;
   final String oldName;
   final String newName;
   final _AiMediaSeoRowStatus status;
@@ -10395,6 +10498,8 @@ class _AiMediaSeoDialog extends StatefulWidget {
   final Future<_AiMediaSeoReport> Function({
     required bool updateNames,
     required bool updateCoverAlt,
+    bool previewOnly,
+    Map<String, String> approvedNames,
   })
   onRun;
 
@@ -10406,8 +10511,10 @@ class _AiMediaSeoDialogState extends State<_AiMediaSeoDialog> {
   var _updateNames = true;
   late bool _updateCoverAlt;
   var _running = false;
+  var _previewReady = false;
   String? _errorKey;
   _AiMediaSeoReport? _report;
+  final _approvedNames = <String, String>{};
 
   @override
   void initState() {
@@ -10429,15 +10536,41 @@ class _AiMediaSeoDialogState extends State<_AiMediaSeoDialog> {
     setState(() {
       _running = true;
       _errorKey = null;
-      _report = null;
+      if (!_previewReady) _report = null;
     });
     try {
+      final commitPreview = _previewReady;
       final report = await widget.onRun(
         updateNames: _updateNames,
-        updateCoverAlt: _updateCoverAlt,
+        updateCoverAlt: commitPreview || !_updateNames
+            ? _updateCoverAlt
+            : false,
+        previewOnly: _updateNames && !commitPreview,
+        approvedNames: commitPreview
+            ? Map<String, String>.of(_approvedNames)
+            : const <String, String>{},
       );
       if (!mounted) return;
-      setState(() => _report = report);
+      setState(() {
+        _report = report;
+        _previewReady =
+            _updateNames &&
+            !commitPreview &&
+            report.rows.any(
+              (row) => row.status == _AiMediaSeoRowStatus.preview,
+            );
+        _approvedNames
+          ..clear()
+          ..addEntries(
+            report.rows
+                .where(
+                  (row) =>
+                      row.status == _AiMediaSeoRowStatus.preview &&
+                      row.source.trim().isNotEmpty,
+                )
+                .map((row) => MapEntry(row.source, row.newName)),
+          );
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _errorKey = 'newsAdd.aiMediaSeoModal.failed');
@@ -10482,12 +10615,18 @@ class _AiMediaSeoDialogState extends State<_AiMediaSeoDialog> {
                               coverAltEnabled: widget.hasCoverImage,
                               onUpdateNamesChanged: _running
                                   ? (_) {}
-                                  : (value) =>
-                                        setState(() => _updateNames = value),
+                                  : (value) => setState(() {
+                                      _updateNames = value;
+                                      _previewReady = false;
+                                      _approvedNames.clear();
+                                    }),
                               onUpdateCoverAltChanged: _running
                                   ? (_) {}
-                                  : (value) =>
-                                        setState(() => _updateCoverAlt = value),
+                                  : (value) => setState(() {
+                                      _updateCoverAlt = value;
+                                      _previewReady = false;
+                                      _approvedNames.clear();
+                                    }),
                             ),
                             if (_errorKey != null) ...[
                               const SizedBox(height: 12),
@@ -10499,7 +10638,14 @@ class _AiMediaSeoDialogState extends State<_AiMediaSeoDialog> {
                             ],
                             if (_report != null) ...[
                               const SizedBox(height: 16),
-                              _AiMediaSeoReportView(report: _report!),
+                              _AiMediaSeoReportView(
+                                report: _report!,
+                                editable: _previewReady,
+                                editedNames: _approvedNames,
+                                onNameChanged: (source, value) {
+                                  _approvedNames[source] = value;
+                                },
+                              ),
                             ],
                           ],
                         ),
@@ -10507,6 +10653,7 @@ class _AiMediaSeoDialogState extends State<_AiMediaSeoDialog> {
                     ),
                     _AiMediaSeoFooter(
                       running: _running,
+                      previewReady: _previewReady,
                       onClose: _running ? null : _close,
                       onRun: _running ? null : _run,
                     ),
@@ -10848,9 +10995,17 @@ class _AiMediaSeoOptionCard extends StatelessWidget {
 }
 
 class _AiMediaSeoReportView extends StatelessWidget {
-  const _AiMediaSeoReportView({required this.report});
+  const _AiMediaSeoReportView({
+    required this.report,
+    this.editable = false,
+    this.editedNames = const <String, String>{},
+    this.onNameChanged,
+  });
 
   final _AiMediaSeoReport report;
+  final bool editable;
+  final Map<String, String> editedNames;
+  final void Function(String source, String value)? onNameChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -10935,6 +11090,9 @@ class _AiMediaSeoReportView extends StatelessWidget {
                   _AiMediaSeoReportRow(
                     row: report.rows[index],
                     isLast: index == report.rows.length - 1,
+                    editable: editable,
+                    editedName: editedNames[report.rows[index].source],
+                    onNameChanged: onNameChanged,
                   ),
               ],
             ),
@@ -10945,13 +11103,23 @@ class _AiMediaSeoReportView extends StatelessWidget {
 }
 
 class _AiMediaSeoReportRow extends StatelessWidget {
-  const _AiMediaSeoReportRow({required this.row, required this.isLast});
+  const _AiMediaSeoReportRow({
+    required this.row,
+    required this.isLast,
+    this.editable = false,
+    this.editedName,
+    this.onNameChanged,
+  });
 
   final _AiMediaSeoRow row;
   final bool isLast;
+  final bool editable;
+  final String? editedName;
+  final void Function(String source, String value)? onNameChanged;
 
   Color get _color {
     return switch (row.status) {
+      _AiMediaSeoRowStatus.preview => AppColors.warmHorizon,
       _AiMediaSeoRowStatus.renamed => _newsAddMediaSeoGreen,
       _AiMediaSeoRowStatus.unchanged => AppColors.warmHorizon,
       _AiMediaSeoRowStatus.skipped => AppColors.iconMuted,
@@ -11004,10 +11172,19 @@ class _AiMediaSeoReportRow extends StatelessWidget {
                       size: 13,
                       color: AppColors.iconMuted,
                     ),
-                    _AiMediaSeoFileChip(
-                      text: row.newName,
-                      highlight: row.status == _AiMediaSeoRowStatus.renamed,
-                    ),
+                    if (editable &&
+                        row.status == _AiMediaSeoRowStatus.preview &&
+                        row.source.trim().isNotEmpty)
+                      _AiMediaSeoNameEditField(
+                        initialValue: editedName ?? row.newName,
+                        onChanged: (value) =>
+                            onNameChanged?.call(row.source, value),
+                      )
+                    else
+                      _AiMediaSeoFileChip(
+                        text: row.newName,
+                        highlight: row.status == _AiMediaSeoRowStatus.renamed,
+                      ),
                   ],
                 ),
                 if (row.detail.trim().isNotEmpty) ...[
@@ -11016,12 +11193,16 @@ class _AiMediaSeoReportRow extends StatelessWidget {
                     row.detail.trim(),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.actionRed,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      height: 1.35,
-                    ),
+                    style:
+                        const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ).copyWith(
+                          color: row.status == _AiMediaSeoRowStatus.failed
+                              ? AppColors.actionRed
+                              : AppColors.inkSoft,
+                        ),
                   ),
                 ],
               ],
@@ -11066,6 +11247,53 @@ class _AiMediaSeoFileChip extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w800,
           letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _AiMediaSeoNameEditField extends StatelessWidget {
+  const _AiMediaSeoNameEditField({
+    required this.initialValue,
+    required this.onChanged,
+  });
+
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 260,
+      height: 34,
+      child: TextFormField(
+        initialValue: initialValue,
+        onChanged: onChanged,
+        style: const TextStyle(
+          color: AppColors.deepOcean,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 9,
+            vertical: 8,
+          ),
+          filled: true,
+          fillColor: _newsAddMediaSeoGreen.withValues(alpha: 0.06),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            borderSide: BorderSide(
+              color: _newsAddMediaSeoGreen.withValues(alpha: 0.2),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            borderSide: const BorderSide(color: _newsAddMediaSeoGreen),
+          ),
         ),
       ),
     );
@@ -11171,11 +11399,13 @@ class _AiMediaSeoNotice extends StatelessWidget {
 class _AiMediaSeoFooter extends StatelessWidget {
   const _AiMediaSeoFooter({
     required this.running,
+    required this.previewReady,
     required this.onClose,
     required this.onRun,
   });
 
   final bool running;
+  final bool previewReady;
   final VoidCallback? onClose;
   final VoidCallback? onRun;
 
@@ -11203,6 +11433,8 @@ class _AiMediaSeoFooter extends StatelessWidget {
             icon: running ? Symbols.hourglass_empty : Symbols.auto_awesome,
             label: running
                 ? 'newsAdd.aiMediaSeoModal.running'
+                : previewReady
+                ? 'newsAdd.aiMediaSeoModal.approve'
                 : 'newsAdd.aiMediaSeoModal.run',
             onTap: onRun,
             background: _newsAddMediaSeoGreen,

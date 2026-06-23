@@ -790,6 +790,39 @@ const instagramTitleFromCaption = (caption: string, sourceName: string) => {
   return (line || `${sourceName} Instagram paylaşımı`).slice(0, 180);
 };
 
+const addInstagramImageUrl = (images: string[], value: unknown) => {
+  const url = normalizeText(value);
+  if (!/^https?:\/\//i.test(url)) return;
+  const key = url.replace(/[?#].*$/, '');
+  if (!images.some((item) => item.replace(/[?#].*$/, '') === key)) {
+    images.push(url);
+  }
+};
+
+const collectInstagramMediaImages = (node: any) => {
+  const images: string[] = [];
+  const addNodeImage = (mediaNode: any) => {
+    const resources = Array.isArray(mediaNode?.display_resources)
+      ? mediaNode.display_resources
+      : [];
+    addInstagramImageUrl(
+      images,
+      resources[resources.length - 1]?.src ||
+        mediaNode?.display_url ||
+        mediaNode?.thumbnail_src,
+    );
+  };
+
+  addNodeImage(node);
+  const sidecarEdges = Array.isArray(node?.edge_sidecar_to_children?.edges)
+    ? node.edge_sidecar_to_children.edges
+    : [];
+  for (const edge of sidecarEdges) {
+    addNodeImage(edge?.node);
+  }
+  return images.slice(0, 12);
+};
+
 const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
   const username = instagramUsernameFromUrl(source.url);
   if (!username) return [];
@@ -825,6 +858,7 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
       const publishedAt = Number(node.taken_at_timestamp || 0)
         ? new Date(Number(node.taken_at_timestamp) * 1000).toISOString()
         : null;
+      const mediaImages = collectInstagramMediaImages(node);
       return {
         source,
         sourceUrl,
@@ -837,13 +871,14 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
         status: qualityScore >= 78 ? 'Hazır' : 'İncele',
         originLabel: 'Instagram gönderisi',
         qualityScore,
-        imageUrl: normalizeText(node.display_url),
+        imageUrl: mediaImages[0] || normalizeText(node.display_url),
         videoUrl: Boolean(node.is_video) ? sourceUrl : '',
         publishedAt,
         rawPayload: {
           instagramUsername: username,
           instagramShortcode: shortcode,
           isVideo: Boolean(node.is_video),
+          mediaImages,
         },
       } satisfies AutomaticNewsItemInput;
     })

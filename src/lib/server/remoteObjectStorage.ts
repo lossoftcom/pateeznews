@@ -6,9 +6,13 @@ import {
   storageObjectPath,
   type StorageType,
 } from './supabaseStorage';
+import path from 'path';
 import type { ActiveStorage, StorageSettings } from './storageSettings';
 
 type S3CompatibleProvider = Extract<ActiveStorage, 'awsS3' | 'cloudflareR2' | 'backblazeB2'>;
+type BunnyProvider = Extract<ActiveStorage, 'bunnyNet'>;
+type GoogleDriveProvider = Extract<ActiveStorage, 'googleDrive'>;
+type RemoteProvider = S3CompatibleProvider | BunnyProvider | GoogleDriveProvider;
 
 type S3CompatibleConfig = {
   provider: S3CompatibleProvider;
@@ -21,10 +25,34 @@ type S3CompatibleConfig = {
   pathPrefix: string;
 };
 
+type BunnyConfig = {
+  provider: BunnyProvider;
+  storageZoneName: string;
+  accessKey: string;
+  endpoint: string;
+  pullZoneUrl: string;
+  pathPrefix: string;
+};
+
+type GoogleDriveConfig = {
+  provider: GoogleDriveProvider;
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  folderId: string;
+};
+
 type RemoteObject = {
   key: string;
   size: number;
   lastModified: string;
+};
+
+type RemoteObjectMetadata = {
+  exists: boolean;
+  etag: string;
+  size: number | null;
+  contentType: string;
 };
 
 export type RemoteStorageItem = {
@@ -37,7 +65,7 @@ export type RemoteStorageItem = {
   thumb: string;
   publicSrc: string;
   path: string;
-  provider: S3CompatibleProvider;
+  provider: RemoteProvider;
   objectPath: string;
   contentType?: string;
 };
@@ -146,8 +174,51 @@ function requireS3CompatibleConfig(settings: StorageSettings): S3CompatibleConfi
   throw Object.assign(new Error(`Selected storage provider is not implemented: ${settings.activeStorage}`), { status: 501 });
 }
 
-export function activeRemoteProvider(settings: StorageSettings): S3CompatibleProvider {
-  return requireS3CompatibleConfig(settings).provider;
+function requireBunnyConfig(settings: StorageSettings): BunnyConfig {
+  const provider = settings.providers.bunnyNet || {};
+  const storageZoneName = cleanSetting(provider.storageZoneName);
+  const accessKey = cleanSetting(provider.accessKey);
+  const hostname = cleanSetting(provider.hostname) || 'storage.bunnycdn.com';
+  if (!storageZoneName || !accessKey) {
+    throw Object.assign(new Error('Bunny.net Storage ayarları eksik'), { status: 400 });
+  }
+  return {
+    provider: 'bunnyNet',
+    storageZoneName,
+    accessKey,
+    endpoint: normalizedEndpoint(hostname),
+    pullZoneUrl: cleanSetting(provider.pullZoneUrl).replace(/\/+$/, ''),
+    pathPrefix: normalizedPathPrefix(provider.pathPrefix),
+  };
+}
+
+function requireGoogleDriveConfig(settings: StorageSettings): GoogleDriveConfig {
+  const provider = settings.providers.googleDrive || {};
+  const clientId = cleanSetting(provider.clientId);
+  const clientSecret = cleanSetting(provider.clientSecret);
+  const refreshToken = cleanSetting(provider.refreshToken);
+  const folderId = cleanSetting(provider.folderId);
+  if (!clientId || !clientSecret || !refreshToken || !folderId) {
+    throw Object.assign(new Error('Google Drive ayarları eksik'), { status: 400 });
+  }
+  return {
+    provider: 'googleDrive',
+    clientId,
+    clientSecret,
+    refreshToken,
+    folderId,
+  };
+}
+
+function isS3CompatibleProvider(value: ActiveStorage): value is S3CompatibleProvider {
+  return value === 'awsS3' || value === 'cloudflareR2' || value === 'backblazeB2';
+}
+
+export function activeRemoteProvider(settings: StorageSettings): RemoteProvider {
+  if (isS3CompatibleProvider(settings.activeStorage)) return settings.activeStorage;
+  if (settings.activeStorage === 'bunnyNet') return 'bunnyNet';
+  if (settings.activeStorage === 'googleDrive') return 'googleDrive';
+  throw Object.assign(new Error(`Selected storage provider is not remote: ${settings.activeStorage}`), { status: 400 });
 }
 
 function encodeRfc3986(value: string) {
@@ -383,6 +454,223 @@ function bucketUrl(config: S3CompatibleConfig, objectPath = '') {
   return { url: new URL(`${config.endpoint}${canonicalPath}`), canonicalPath };
 }
 
+function bunnyObjectPath(config: BunnyConfig, objectPath: string) {
+  const cleanObjectPath = normalizeStoragePath(objectPath);
+  return config.pathPrefix ? `${config.pathPrefix}/${cleanObjectPath}` : cleanObjectPath;
+}
+
+function bunnyUrl(config: BunnyConfig, objectPath: string) {
+  const endpoint = new URL(config.endpoint);
+  const objectPathPart = encodeObjectPath(bunnyObjectPath(config, objectPath));
+  endpoint.pathname = `/${encodeRfc3986(config.storageZoneName)}/${objectPathPart}`;
+  return endpoint;
+}
+
+async function bunnyFetch(
+  config: BunnyConfig,
+  objectPath: string,
+  init: RequestInit = {},
+) {
+  const headers = new Headers(init.headers || {});
+  headers.set('AccessKey', config.accessKey);
+  return fetch(bunnyUrl(config, objectPath), { ...init, headers });
+}
+
+async function bunnyObjectExists(config: BunnyConfig, objectPath: string) {
+  const response = await bunnyFetch(config, objectPath, {
+    method: 'GET',
+    headers: { range: 'bytes=0-0' },
+  });
+  await response.arrayBuffer().catch(() => undefined);
+  if (response.status === 404) return false;
+  if (!response.ok && response.status !== 206) {
+    throw Object.assign(new Error(`${config.provider} head failed`), { status: response.status });
+  }
+  return true;
+}
+
+async function bunnyDownloadObject(config: BunnyConfig, objectPath: string) {
+  const response = await bunnyFetch(config, objectPath, { method: 'GET' });
+  if (response.status === 404) {
+    return { ok: false as const, status: 404, body: null, contentType: '' };
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw Object.assign(new Error(text || `${config.provider} download failed`), { status: response.status });
+  }
+  return {
+    ok: true as const,
+    status: response.status,
+    body: await response.arrayBuffer(),
+    contentType: response.headers.get('content-type') || '',
+  };
+}
+
+async function bunnyUploadObject(
+  config: BunnyConfig,
+  objectPath: string,
+  body: ArrayBuffer | Uint8Array,
+  contentType = '',
+) {
+  const bytes = body instanceof Uint8Array ? body : new Uint8Array(body);
+  const checksum = (await sha256Hex(bytes)).toUpperCase();
+  const response = await bunnyFetch(config, objectPath, {
+    method: 'PUT',
+    headers: {
+      'content-type': contentType || contentTypeForFilename(objectPath),
+      checksum,
+    },
+    body: bodyBuffer(bytes),
+  });
+  const text = await response.text().catch(() => '');
+  if (!response.ok) {
+    throw Object.assign(new Error(text || `${config.provider} upload failed`), { status: response.status });
+  }
+}
+
+async function bunnyDeleteObject(config: BunnyConfig, objectPath: string) {
+  const response = await bunnyFetch(config, objectPath, { method: 'DELETE' });
+  if (!response.ok && response.status !== 404) {
+    const text = await response.text().catch(() => '');
+    throw Object.assign(new Error(text || `${config.provider} delete failed`), { status: response.status });
+  }
+}
+
+async function googleDriveAccessToken(config: GoogleDriveConfig) {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      refresh_token: config.refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.access_token) {
+    throw Object.assign(new Error(data?.error_description || data?.error || 'Google Drive token refresh failed'), { status: response.status || 401 });
+  }
+  return String(data.access_token);
+}
+
+async function googleDriveFetch(
+  config: GoogleDriveConfig,
+  url: string,
+  init: RequestInit = {},
+) {
+  const token = await googleDriveAccessToken(config);
+  const headers = new Headers(init.headers || {});
+  headers.set('authorization', `Bearer ${token}`);
+  return fetch(url, { ...init, headers });
+}
+
+async function googleDriveFileMetadata(config: GoogleDriveConfig, fileId: string) {
+  const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`);
+  url.searchParams.set('fields', 'id,name,size,mimeType,modifiedTime');
+  url.searchParams.set('supportsAllDrives', 'true');
+  const response = await googleDriveFetch(config, url.toString());
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw Object.assign(new Error(data?.error?.message || 'Google Drive file lookup failed'), { status: response.status });
+  }
+  return data as { id?: string; name?: string; size?: string; mimeType?: string; modifiedTime?: string };
+}
+
+async function googleDriveRenameFile(config: GoogleDriveConfig, fileId: string, name: string) {
+  const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`);
+  url.searchParams.set('fields', 'id,name,size,mimeType,modifiedTime');
+  url.searchParams.set('supportsAllDrives', 'true');
+  const response = await googleDriveFetch(config, url.toString(), {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw Object.assign(new Error(data?.error?.message || 'Google Drive rename failed'), { status: response.status });
+  }
+  return data as { id?: string; name?: string; size?: string; mimeType?: string; modifiedTime?: string };
+}
+
+async function googleDriveDeleteFile(config: GoogleDriveConfig, fileId: string) {
+  const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`);
+  url.searchParams.set('supportsAllDrives', 'true');
+  const response = await googleDriveFetch(config, url.toString(), { method: 'DELETE' });
+  if (!response.ok && response.status !== 404) {
+    const data = await response.json().catch(() => ({}));
+    throw Object.assign(new Error(data?.error?.message || 'Google Drive delete failed'), { status: response.status });
+  }
+}
+
+async function renameBunnyStorageFile(
+  settings: StorageSettings,
+  input: {
+    type: StorageType;
+    replacements: Array<{ oldId: string; newId: string; required?: boolean }>;
+  },
+) {
+  const config = requireBunnyConfig(settings);
+  const copied: Array<{ oldId: string; newId: string; oldObjectPath: string; newObjectPath: string }> = [];
+  const skipped: Array<{ oldId: string; newId: string; reason: string }> = [];
+  try {
+    for (const { oldId, newId, required } of input.replacements) {
+      if (!oldId || !newId || oldId === newId) continue;
+      const oldObjectPath = objectPathFor(input.type, oldId);
+      const newObjectPath = objectPathFor(input.type, newId);
+      const source = await bunnyDownloadObject(config, oldObjectPath);
+      if (!source.ok || !source.body) {
+        if (required) {
+          throw Object.assign(new Error(`${config.provider} source object not found: ${oldObjectPath}`), { status: 404 });
+        }
+        skipped.push({ oldId, newId, reason: 'source-not-found' });
+        continue;
+      }
+      await bunnyUploadObject(config, newObjectPath, source.body, source.contentType);
+      const verified = await bunnyObjectExists(config, newObjectPath);
+      if (!verified) {
+        throw Object.assign(new Error(`${config.provider} copied object verification failed: ${newObjectPath}`), { status: 502 });
+      }
+      copied.push({ oldId, newId, oldObjectPath, newObjectPath });
+    }
+  } catch (error) {
+    for (const { newObjectPath } of copied) {
+      await bunnyDeleteObject(config, newObjectPath).catch((cleanupError) => {
+        console.warn('Bunny rename rollback skipped:', cleanupError instanceof Error ? cleanupError.message : cleanupError);
+      });
+    }
+    throw error;
+  }
+  return { success: true, renamed: copied.length, verified: copied.length, copied, skipped };
+}
+
+async function renameGoogleDriveStorageFile(
+  settings: StorageSettings,
+  input: {
+    type: StorageType;
+    replacements: Array<{ oldId: string; newId: string; required?: boolean }>;
+  },
+) {
+  const config = requireGoogleDriveConfig(settings);
+  const copied: Array<{ oldId: string; newId: string; oldObjectPath: string; newObjectPath: string }> = [];
+  const skipped: Array<{ oldId: string; newId: string; reason: string }> = [];
+  for (const { oldId, newId, required } of input.replacements.slice(0, 1)) {
+    if (!oldId || !newId) continue;
+    const metadata = await googleDriveFileMetadata(config, oldId);
+    if (!metadata?.id) {
+      if (required) {
+        throw Object.assign(new Error(`Google Drive file not found: ${oldId}`), { status: 404 });
+      }
+      skipped.push({ oldId, newId, reason: 'source-not-found' });
+      continue;
+    }
+    await googleDriveRenameFile(config, oldId, path.posix.basename(newId));
+    copied.push({ oldId, newId: oldId, oldObjectPath: oldId, newObjectPath: oldId });
+  }
+  return { success: true, renamed: copied.length, verified: copied.length, copied, skipped, metadataOnly: true };
+}
+
 function decodeXml(value: string) {
   return value
     .replace(/&lt;/g, '<')
@@ -537,6 +825,27 @@ export async function getRemoteStorageFile(
   request: Request,
   options: { timeoutMs?: number } = {},
 ) {
+  if (settings.activeStorage === 'bunnyNet') {
+    const config = requireBunnyConfig(settings);
+    return bunnyFetch(config, objectPath, {
+      method: 'GET',
+      headers: {
+        ...(request.headers.get('range') ? { range: request.headers.get('range') || '' } : {}),
+      },
+    });
+  }
+  if (settings.activeStorage === 'googleDrive') {
+    const config = requireGoogleDriveConfig(settings);
+    const parsed = objectPathParts(objectPath);
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(parsed.id)}`);
+    url.searchParams.set('alt', 'media');
+    url.searchParams.set('supportsAllDrives', 'true');
+    return googleDriveFetch(config, url.toString(), {
+      headers: {
+        ...(request.headers.get('range') ? { range: request.headers.get('range') || '' } : {}),
+      },
+    });
+  }
   const config = requireS3CompatibleConfig(settings);
   const target = bucketUrl(config, providerObjectPath(config, objectPath));
   const range = request.headers.get('range') || '';
@@ -566,6 +875,47 @@ export async function deleteRemoteStorageFile(
     type?: StorageType | null;
   },
 ) {
+  if (settings.activeStorage === 'googleDrive') {
+    const config = requireGoogleDriveConfig(settings);
+    const rawId = normalizeStoragePath(input.id);
+    const parsed = input.type ? relativeStorageId(input.type, objectPathFor(input.type, rawId)) : objectPathParts(rawId).id;
+    await googleDriveDeleteFile(config, parsed);
+    return { success: true, deleted: [{ type: input.type || objectPathParts(rawId).type, ids: [parsed] }], paths: [{ type: input.type || objectPathParts(rawId).type, ids: [parsed] }] };
+  }
+  if (settings.activeStorage === 'bunnyNet') {
+    const config = requireBunnyConfig(settings);
+    const rawId = normalizeStoragePath(input.id);
+    const candidates = new Map<StorageType, string[]>();
+    if (input.type) {
+      const objectPath = objectPathFor(input.type, rawId);
+      candidates.set(input.type, [relativeStorageId(input.type, objectPath)]);
+    } else {
+      const first = rawId.split('/')[0];
+      if (STORAGE_TYPES.includes(first as (typeof STORAGE_TYPES)[number])) {
+        const type = first as StorageType;
+        candidates.set(type, [relativeStorageId(type, rawId)]);
+      } else {
+        for (const type of STORAGE_TYPES) candidates.set(type, [rawId]);
+      }
+    }
+    const deleted: Array<{ type: StorageType; ids: string[] }> = [];
+    for (const [type, ids] of candidates.entries()) {
+      const expandedIds = new Set(ids);
+      for (const id of ids) {
+        if (type !== 'video') continue;
+        for (const thumb of videoThumbObjectPaths(`${type}/${id}`)) {
+          expandedIds.add(relativeStorageId(type, thumb));
+        }
+      }
+      const removed: string[] = [];
+      for (const id of expandedIds) {
+        await bunnyDeleteObject(config, objectPathFor(type, id));
+        removed.push(relativeStorageId(type, objectPathFor(type, id)));
+      }
+      if (removed.length) deleted.push({ type, ids: removed });
+    }
+    return { success: true, deleted, paths: deleted };
+  }
   const config = requireS3CompatibleConfig(settings);
   const rawId = normalizeStoragePath(input.id);
   const candidates = new Map<StorageType, string[]>();
@@ -615,21 +965,51 @@ export async function deleteRemoteStorageFile(
   return { success: true, deleted, paths: deleted };
 }
 
+async function headRemoteObject(
+  config: S3CompatibleConfig,
+  objectPath: string,
+): Promise<RemoteObjectMetadata> {
+  const target = bucketUrl(config, providerObjectPath(config, objectPath));
+  const response = await signedFetch(config, {
+    method: 'HEAD',
+    url: target.url,
+    canonicalPath: target.canonicalPath,
+  });
+  await response.arrayBuffer().catch(() => undefined);
+  if (response.status === 404) {
+    return { exists: false, etag: '', size: null, contentType: '' };
+  }
+  if (!response.ok) {
+    throw Object.assign(new Error(`${config.provider} head failed`), { status: response.status });
+  }
+  const sizeHeader = response.headers.get('content-length') || '';
+  const size = sizeHeader ? Number(sizeHeader) : null;
+  return {
+    exists: true,
+    etag: response.headers.get('etag') || '',
+    size: Number.isFinite(size) ? size : null,
+    contentType: response.headers.get('content-type') || '',
+  };
+}
+
 async function copyRemoteObject(
   config: S3CompatibleConfig,
   sourceObjectPath: string,
   destObjectPath: string,
+  sourceEtag = '',
 ) {
   const remoteSource = providerObjectPath(config, sourceObjectPath);
   const remoteDest = providerObjectPath(config, destObjectPath);
   const encodedBucket = encodeRfc3986(config.bucketName);
   const copySource = `/${encodedBucket}/${encodeObjectPath(remoteSource)}`;
   const target = bucketUrl(config, remoteDest);
+  const headers: Record<string, string> = { 'x-amz-copy-source': copySource };
+  if (sourceEtag) headers['x-amz-copy-source-if-match'] = sourceEtag;
   const response = await signedFetch(config, {
     method: 'PUT',
     url: target.url,
     canonicalPath: target.canonicalPath,
-    headers: { 'x-amz-copy-source': copySource },
+    headers,
   });
   const text = await response.text();
   // S3 CopyObject can return HTTP 200 with an <Error> body, so check both.
@@ -650,38 +1030,55 @@ async function deleteRemoteObject(config: S3CompatibleConfig, objectPath: string
   }
 }
 
-// Renames remote objects by copying each source key to its new key and then
-// deleting the originals. Copies are performed first; if any copy fails the
+// Renames remote objects by copying each source key to its new key. The caller
+// deletes originals only after DB/local commit succeeds. Copies are performed first; if any copy fails the
 // already-created copies are rolled back so the original keys stay authoritative
-// (never a half-renamed state). The final deletes are best-effort cleanup: once
-// every copy has succeeded the new keys are already serving the file, so a
-// failed delete only leaves an orphaned old object rather than breaking the file.
+// (never a half-renamed state).
 export async function renameRemoteStorageFile(
   settings: StorageSettings,
   input: {
     type: StorageType;
-    replacements: Array<{ oldId: string; newId: string }>;
+    replacements: Array<{ oldId: string; newId: string; required?: boolean }>;
   },
 ) {
+  if (settings.activeStorage === 'bunnyNet') {
+    return renameBunnyStorageFile(settings, input);
+  }
+  if (settings.activeStorage === 'googleDrive') {
+    return renameGoogleDriveStorageFile(settings, input);
+  }
   const config = requireS3CompatibleConfig(settings);
-  const copied: Array<{ oldObjectPath: string; newObjectPath: string }> = [];
+  const copied: Array<{ oldId: string; newId: string; oldObjectPath: string; newObjectPath: string }> = [];
+  const skipped: Array<{ oldId: string; newId: string; reason: string }> = [];
 
   try {
-    for (const { oldId, newId } of input.replacements) {
+    for (const { oldId, newId, required } of input.replacements) {
       if (!oldId || !newId || oldId === newId) continue;
       const oldObjectPath = objectPathFor(input.type, oldId);
       const newObjectPath = objectPathFor(input.type, newId);
-      const result = await copyRemoteObject(config, oldObjectPath, newObjectPath);
+      const sourceHead = await headRemoteObject(config, oldObjectPath);
+      if (!sourceHead.exists) {
+        if (required) {
+          throw Object.assign(new Error(`${config.provider} source object not found: ${oldObjectPath}`), { status: 404 });
+        }
+        skipped.push({ oldId, newId, reason: 'source-not-found' });
+        continue;
+      }
+      const result = await copyRemoteObject(config, oldObjectPath, newObjectPath, sourceHead.etag);
       if (!result.ok) {
-        // The source is frequently a local-only image variant that was never
-        // pushed to the remote bucket; treat "missing source" as a skip.
-        if (result.status === 404 || /NoSuchKey|does not exist/i.test(result.text)) continue;
         throw Object.assign(
           new Error(result.text || `${config.provider} copy failed`),
           { status: result.status || 500 },
         );
       }
-      copied.push({ oldObjectPath, newObjectPath });
+      const destHead = await headRemoteObject(config, newObjectPath);
+      if (!destHead.exists) {
+        throw Object.assign(new Error(`${config.provider} copied object verification failed: ${newObjectPath}`), { status: 502 });
+      }
+      if (sourceHead.size !== null && destHead.size !== null && sourceHead.size !== destHead.size) {
+        throw Object.assign(new Error(`${config.provider} copied object size mismatch: ${newObjectPath}`), { status: 502 });
+      }
+      copied.push({ oldId, newId, oldObjectPath, newObjectPath });
     }
   } catch (error) {
     for (const { newObjectPath } of copied) {
@@ -696,17 +1093,48 @@ export async function renameRemoteStorageFile(
     throw error;
   }
 
-  for (const { oldObjectPath } of copied) {
-    await deleteRemoteObject(config, oldObjectPath).catch((error) => {
-      console.warn(
-        'Remote rename old object cleanup skipped:',
-        oldObjectPath,
-        error instanceof Error ? error.message : error,
-      );
-    });
-  }
+  return { success: true, renamed: copied.length, verified: copied.length, copied, skipped };
+}
 
-  return { success: true, renamed: copied.length };
+export async function deleteRemoteStorageRenameSources(
+  settings: StorageSettings,
+  input: {
+    type: StorageType;
+    replacements: Array<{ oldId: string }>;
+  },
+) {
+  if (settings.activeStorage === 'googleDrive') {
+    return { deleted: [] as string[], errors: [] as string[] };
+  }
+  if (settings.activeStorage === 'bunnyNet') {
+    const config = requireBunnyConfig(settings);
+    const deleted: string[] = [];
+    const errors: string[] = [];
+    for (const { oldId } of input.replacements) {
+      if (!oldId) continue;
+      try {
+        await bunnyDeleteObject(config, objectPathFor(input.type, oldId));
+        deleted.push(oldId);
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    return { deleted, errors };
+  }
+  const config = requireS3CompatibleConfig(settings);
+  const deleted: string[] = [];
+  const errors: string[] = [];
+  for (const { oldId } of input.replacements) {
+    if (!oldId) continue;
+    const oldObjectPath = objectPathFor(input.type, oldId);
+    try {
+      await deleteRemoteObject(config, oldObjectPath);
+      deleted.push(oldId);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  return { deleted, errors };
 }
 
 // Lightweight existence check (HEAD) used to pick a collision-free key before a
@@ -716,14 +1144,17 @@ export async function remoteObjectExists(
   type: StorageType,
   id: string,
 ) {
+  if (settings.activeStorage === 'bunnyNet') {
+    const config = requireBunnyConfig(settings);
+    return bunnyObjectExists(config, objectPathFor(type, id));
+  }
+  if (settings.activeStorage === 'googleDrive') {
+    const config = requireGoogleDriveConfig(settings);
+    const metadata = await googleDriveFileMetadata(config, id);
+    return Boolean(metadata?.id);
+  }
   const config = requireS3CompatibleConfig(settings);
   const objectPath = objectPathFor(type, id);
-  const target = bucketUrl(config, providerObjectPath(config, objectPath));
-  const response = await signedFetch(config, {
-    method: 'HEAD',
-    url: target.url,
-    canonicalPath: target.canonicalPath,
-  });
-  await response.arrayBuffer().catch(() => undefined);
-  return response.status >= 200 && response.status < 300;
+  const metadata = await headRemoteObject(config, objectPath);
+  return metadata.exists;
 }

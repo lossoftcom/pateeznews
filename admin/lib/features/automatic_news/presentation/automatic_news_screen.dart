@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 import 'package:pateeznews_admin/features/automatic_news/data/admin_automatic_news_repository.dart';
+import 'package:pateeznews_admin/features/news/presentation/widgets/news_link_opener.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:quill_native_bridge/quill_native_bridge.dart';
 import 'package:share_plus/share_plus.dart' hide XFile;
@@ -465,6 +467,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
       barrierColor: const Color(0xB20D1B24),
       builder: (context) => _AutomaticNewsPreviewDialog(
         draft: draft,
+        repository: widget.repository,
         imageRequestHeaders: _imageRequestHeaders,
       ),
     );
@@ -2717,6 +2720,35 @@ String _automaticNewsImageDisplayUrl(
   return adminImageUrl(imageUrl, width: width);
 }
 
+bool _automaticNewsPreviewImageUsesProxy(
+  _AutomaticNewsDraft draft,
+  Map<String, String> imageRequestHeaders,
+) {
+  return kIsWeb &&
+      imageRequestHeaders.isNotEmpty &&
+      draft.recordId.trim().isNotEmpty;
+}
+
+String _automaticNewsPreviewImageDisplayUrl(
+  _AutomaticNewsDraft draft,
+  String imageUrl, {
+  required int imageIndex,
+  required int width,
+  required bool mediaLoaded,
+  required Map<String, String> imageRequestHeaders,
+}) {
+  if (_automaticNewsPreviewImageUsesProxy(draft, imageRequestHeaders)) {
+    final path = mediaLoaded
+        ? '/api/admin/automatic-news/media'
+        : '/api/admin/automatic-news/image';
+    final query = mediaLoaded
+        ? {'id': draft.recordId, 'image': '$imageIndex', 'w': '$width'}
+        : {'id': draft.recordId, 'disposition': 'inline', 'w': '$width'};
+    return Uri.base.resolve(path).replace(queryParameters: query).toString();
+  }
+  return adminImageUrl(imageUrl, width: width);
+}
+
 Map<String, String>? _automaticNewsImageHttpHeaders(
   Map<String, String> imageRequestHeaders,
 ) {
@@ -2755,6 +2787,62 @@ String _compactUrl(String value) {
 String _readableText(String value, {String fallback = '-'}) {
   final trimmed = value.trim();
   return trimmed.isEmpty ? fallback : trimmed;
+}
+
+String _previewSourceName(_AutomaticNewsDraft draft) {
+  final raw = draft.sourceName.trim().isNotEmpty
+      ? draft.sourceName.trim()
+      : draft.sourceUrl.trim();
+  if (raw.isEmpty) return '-';
+  if (raw.startsWith('@')) return raw;
+
+  final parsed = Uri.tryParse(raw.contains('://') ? raw : 'https://$raw');
+  var name = parsed?.host.isNotEmpty == true ? parsed!.host : raw;
+  name = name
+      .replaceFirst(RegExp(r'^www\.', caseSensitive: false), '')
+      .replaceFirst(
+        RegExp(r'\.(com|net|org|info|haber|tv)(\.tr)?$', caseSensitive: false),
+        '',
+      )
+      .replaceAll(RegExp(r'[-_.]+'), ' ')
+      .trim();
+  name = name.replaceAll(RegExp('nigde', caseSensitive: false), 'niğde');
+  name = name.replaceAllMapped(
+    RegExp(r'([A-Za-zÇĞİÖŞÜçğıöşü])haber\b', caseSensitive: false),
+    (match) => '${match.group(1)} haber',
+  );
+
+  return name
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .map(_sourceNameWord)
+      .join(' ');
+}
+
+String _sourceNameWord(String value) {
+  final lower = value.toLowerCase();
+  if (lower == 'niğde') return 'Niğde';
+  if (lower == 'dmc') return 'Dmc';
+  return '${value.characters.first.toUpperCase()}'
+      '${value.characters.skip(1).toString().toLowerCase()}';
+}
+
+void _openPreviewLink(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) return;
+  unawaited(openNewsLink(trimmed));
+}
+
+Future<void> _copyPreviewText(BuildContext context, String value) async {
+  final text = _readableText(value, fallback: '').trim();
+  if (text.isEmpty) return;
+  await Clipboard.setData(ClipboardData(text: text));
+  if (!context.mounted) return;
+  AdminToast.show(
+    context,
+    message: 'Metin kopyalandı',
+    tone: AdminToastTone.success,
+  );
 }
 
 String _fileExtension(String fileName) {
@@ -3337,17 +3425,35 @@ class _AutomaticNewsEmpty extends StatelessWidget {
   }
 }
 
-class _AutomaticNewsPreviewDialog extends StatelessWidget {
+class _AutomaticNewsPreviewDialog extends StatefulWidget {
   const _AutomaticNewsPreviewDialog({
     required this.draft,
+    required this.repository,
     required this.imageRequestHeaders,
   });
 
   final _AutomaticNewsDraft draft;
+  final AdminAutomaticNewsRepository repository;
   final Map<String, String> imageRequestHeaders;
 
   @override
+  State<_AutomaticNewsPreviewDialog> createState() =>
+      _AutomaticNewsPreviewDialogState();
+}
+
+class _AutomaticNewsPreviewDialogState
+    extends State<_AutomaticNewsPreviewDialog> {
+  late final Future<AutomaticNewsMediaResult> _mediaFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _mediaFuture = widget.repository.fetchMedia(widget.draft.recordId);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final draft = widget.draft;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
@@ -3387,41 +3493,66 @@ class _AutomaticNewsPreviewDialog extends StatelessWidget {
                       onClose: () => Navigator.of(context).pop(),
                     ),
                     Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: compact
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _AutomaticNewsPreviewMedia(
-                                    draft: draft,
-                                    imageRequestHeaders: imageRequestHeaders,
-                                    compact: true,
+                      child: FutureBuilder<AutomaticNewsMediaResult>(
+                        future: _mediaFuture,
+                        builder: (context, snapshot) {
+                          final mediaImages = _previewMediaImages(
+                            draft,
+                            snapshot.data,
+                          );
+                          final mediaLoading =
+                              snapshot.connectionState != ConnectionState.done;
+                          final mediaLoaded = snapshot.hasData;
+
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: compact
+                                ? Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      _AutomaticNewsPreviewMedia(
+                                        draft: draft,
+                                        mediaImages: mediaImages,
+                                        mediaLoading: mediaLoading,
+                                        mediaLoaded: mediaLoaded,
+                                        imageRequestHeaders:
+                                            widget.imageRequestHeaders,
+                                        compact: true,
+                                      ),
+                                      const SizedBox(height: 20),
+                                      _AutomaticNewsPreviewDetails(
+                                        draft: draft,
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        flex: 5,
+                                        child: _AutomaticNewsPreviewMedia(
+                                          draft: draft,
+                                          mediaImages: mediaImages,
+                                          mediaLoading: mediaLoading,
+                                          mediaLoaded: mediaLoaded,
+                                          imageRequestHeaders:
+                                              widget.imageRequestHeaders,
+                                          compact: false,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 24),
+                                      Expanded(
+                                        flex: 4,
+                                        child: _AutomaticNewsPreviewDetails(
+                                          draft: draft,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 20),
-                                  _AutomaticNewsPreviewDetails(draft: draft),
-                                ],
-                              )
-                            : Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 5,
-                                    child: _AutomaticNewsPreviewMedia(
-                                      draft: draft,
-                                      imageRequestHeaders: imageRequestHeaders,
-                                      compact: false,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 24),
-                                  Expanded(
-                                    flex: 4,
-                                    child: _AutomaticNewsPreviewDetails(
-                                      draft: draft,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -3433,6 +3564,28 @@ class _AutomaticNewsPreviewDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+List<String> _previewMediaImages(
+  _AutomaticNewsDraft draft,
+  AutomaticNewsMediaResult? media,
+) {
+  final images = <String>[];
+  void add(String value) {
+    final url = value.trim();
+    if (url.isEmpty) return;
+    final key = url.replaceFirst(RegExp(r'[?#].*$'), '');
+    final exists = images.any(
+      (item) => item.replaceFirst(RegExp(r'[?#].*$'), '') == key,
+    );
+    if (!exists) images.add(url);
+  }
+
+  for (final image in media?.images ?? const <String>[]) {
+    add(image);
+  }
+  add(draft.imageUrl);
+  return images;
 }
 
 class _AutomaticNewsPreviewHeader extends StatelessWidget {
@@ -3512,28 +3665,87 @@ class _AutomaticNewsPreviewHeader extends StatelessWidget {
   }
 }
 
-class _AutomaticNewsPreviewMedia extends StatelessWidget {
+class _AutomaticNewsPreviewMedia extends StatefulWidget {
   const _AutomaticNewsPreviewMedia({
     required this.draft,
+    required this.mediaImages,
+    required this.mediaLoading,
+    required this.mediaLoaded,
     required this.imageRequestHeaders,
     required this.compact,
   });
 
   final _AutomaticNewsDraft draft;
+  final List<String> mediaImages;
+  final bool mediaLoading;
+  final bool mediaLoaded;
   final Map<String, String> imageRequestHeaders;
   final bool compact;
 
   @override
+  State<_AutomaticNewsPreviewMedia> createState() =>
+      _AutomaticNewsPreviewMediaState();
+}
+
+class _AutomaticNewsPreviewMediaState
+    extends State<_AutomaticNewsPreviewMedia> {
+  late final PageController _controller;
+  var _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AutomaticNewsPreviewMedia oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final lastIndex = widget.mediaImages.isEmpty
+        ? 0
+        : widget.mediaImages.length - 1;
+    if (_index > lastIndex) {
+      _index = lastIndex;
+      if (_controller.hasClients) {
+        _controller.jumpToPage(_index);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int delta) {
+    final count = widget.mediaImages.length;
+    if (count < 2) return;
+    final next = (_index + delta).clamp(0, count - 1).toInt();
+    if (next == _index) return;
+    _controller.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final mediaUrl = draft.mediaUrl;
-    final hasImage = draft.imageUrl.isNotEmpty;
-    final hasVideo = draft.videoUrl.isNotEmpty;
+    final images = widget.mediaImages;
+    final hasImage = images.isNotEmpty;
+    final hasVideo = widget.draft.videoUrl.isNotEmpty;
+    final selectedUrl = hasImage ? images[_index] : '';
+    final mediaUrl = selectedUrl.isNotEmpty
+        ? selectedUrl
+        : widget.draft.mediaUrl;
+    final hasMultipleImages = images.length > 1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          height: compact ? 280 : 420,
+          height: widget.compact ? 280 : 420,
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadius.value),
@@ -3544,21 +3756,76 @@ class _AutomaticNewsPreviewMedia extends StatelessWidget {
               ? Stack(
                   fit: StackFit.expand,
                   children: [
-                    AdminCachedImage(
-                      url: _automaticNewsImageDisplayUrl(
-                        draft,
-                        width: compact ? 720 : 920,
-                        imageRequestHeaders: imageRequestHeaders,
-                      ),
-                      httpHeaders: _automaticNewsImageHttpHeaders(
-                        imageRequestHeaders,
-                      ),
-                      fit: BoxFit.cover,
-                      memCacheWidth: compact ? 720 : 920,
-                      errorWidget: _AutomaticNewsMediaFallback(
-                        hasVideo: hasVideo,
-                      ),
+                    PageView.builder(
+                      controller: _controller,
+                      itemCount: images.length,
+                      onPageChanged: (value) => setState(() => _index = value),
+                      itemBuilder: (context, index) {
+                        final imageUrl = images[index];
+                        final useProxy = _automaticNewsPreviewImageUsesProxy(
+                          widget.draft,
+                          widget.imageRequestHeaders,
+                        );
+                        return AdminCachedImage(
+                          url: _automaticNewsPreviewImageDisplayUrl(
+                            widget.draft,
+                            imageUrl,
+                            imageIndex: index,
+                            width: widget.compact ? 720 : 920,
+                            mediaLoaded: widget.mediaLoaded,
+                            imageRequestHeaders: widget.imageRequestHeaders,
+                          ),
+                          httpHeaders: useProxy
+                              ? _automaticNewsImageHttpHeaders(
+                                  widget.imageRequestHeaders,
+                                )
+                              : null,
+                          fit: BoxFit.cover,
+                          memCacheWidth: widget.compact ? 720 : 920,
+                          errorWidget: _AutomaticNewsMediaFallback(
+                            hasVideo: hasVideo,
+                          ),
+                        );
+                      },
                     ),
+                    if (widget.mediaLoading)
+                      const Align(
+                        alignment: Alignment.bottomCenter,
+                        child: LinearProgressIndicator(
+                          minHeight: 2,
+                          backgroundColor: Colors.transparent,
+                          color: AppColors.actionRed,
+                        ),
+                      ),
+                    if (hasMultipleImages)
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: _PreviewImageCounter(
+                          current: _index + 1,
+                          total: images.length,
+                        ),
+                      ),
+                    if (hasMultipleImages)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _PreviewSliderArrow(
+                          icon: Symbols.chevron_left_rounded,
+                          tooltip: 'Önceki görsel',
+                          onPressed: _index == 0 ? null : () => _goTo(-1),
+                        ),
+                      ),
+                    if (hasMultipleImages)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _PreviewSliderArrow(
+                          icon: Symbols.chevron_right,
+                          tooltip: 'Sonraki görsel',
+                          onPressed: _index == images.length - 1
+                              ? null
+                              : () => _goTo(1),
+                        ),
+                      ),
                     if (hasVideo)
                       const Align(
                         alignment: Alignment.center,
@@ -3568,15 +3835,270 @@ class _AutomaticNewsPreviewMedia extends StatelessWidget {
                 )
               : _AutomaticNewsMediaFallback(hasVideo: hasVideo),
         ),
+        if (hasMultipleImages) ...[
+          const SizedBox(height: 10),
+          _PreviewImageThumbStrip(
+            images: images,
+            selectedIndex: _index,
+            draft: widget.draft,
+            mediaLoaded: widget.mediaLoaded,
+            imageRequestHeaders: widget.imageRequestHeaders,
+            onSelected: (index) {
+              _controller.animateToPage(
+                index,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+              );
+            },
+          ),
+        ],
+        if (widget.draft.sourceName.trim().isNotEmpty ||
+            widget.draft.sourceUrl.trim().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _PreviewSourceBlock(draft: widget.draft),
+        ],
         if (mediaUrl.isNotEmpty) ...[
           const SizedBox(height: 10),
           _PreviewInfoBlock(
-            label: hasVideo ? 'Medya / Video Linki' : 'Medya Linki',
+            label: hasMultipleImages
+                ? 'Seçili Görsel Linki'
+                : hasVideo
+                ? 'Medya / Video Linki'
+                : 'Medya Linki',
             value: mediaUrl,
             compactValue: _compactUrl(mediaUrl),
+            linkUrl: mediaUrl,
           ),
         ],
+        const SizedBox(height: 10),
+        _AutomaticNewsPreviewTiming(draft: widget.draft),
       ],
+    );
+  }
+}
+
+class _PreviewImageCounter extends StatelessWidget {
+  const _PreviewImageCounter({required this.current, required this.total});
+
+  final int current;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.deepOcean.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.46)),
+      ),
+      child: Text(
+        '$current / $total',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewSliderArrow extends StatelessWidget {
+  const _PreviewSliderArrow({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Tooltip(
+        message: tooltip,
+        child: IconButton(
+          onPressed: onPressed,
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.deepOcean.withValues(alpha: 0.82),
+            disabledBackgroundColor: AppColors.deepOcean.withValues(
+              alpha: 0.34,
+            ),
+            foregroundColor: Colors.white,
+            disabledForegroundColor: Colors.white.withValues(alpha: 0.58),
+            fixedSize: const Size(38, 38),
+          ),
+          icon: SymbolIcon(icon, size: 20),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewImageThumbStrip extends StatelessWidget {
+  const _PreviewImageThumbStrip({
+    required this.images,
+    required this.selectedIndex,
+    required this.draft,
+    required this.mediaLoaded,
+    required this.imageRequestHeaders,
+    required this.onSelected,
+  });
+
+  final List<String> images;
+  final int selectedIndex;
+  final _AutomaticNewsDraft draft;
+  final bool mediaLoaded;
+  final Map<String, String> imageRequestHeaders;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final useProxy = _automaticNewsPreviewImageUsesProxy(
+      draft,
+      imageRequestHeaders,
+    );
+    return SizedBox(
+      height: 58,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: images.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final selected = index == selectedIndex;
+          return Tooltip(
+            message: 'Görsel ${index + 1}',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              onTap: () => onSelected(index),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 76,
+                height: 58,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.deepOcean : AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  border: Border.all(
+                    color: selected
+                        ? AppColors.deepOcean
+                        : AppColors.line.withValues(alpha: 0.76),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.value - 2),
+                  child: AdminCachedImage(
+                    url: _automaticNewsPreviewImageDisplayUrl(
+                      draft,
+                      images[index],
+                      imageIndex: index,
+                      width: 180,
+                      mediaLoaded: mediaLoaded,
+                      imageRequestHeaders: imageRequestHeaders,
+                    ),
+                    httpHeaders: useProxy
+                        ? _automaticNewsImageHttpHeaders(imageRequestHeaders)
+                        : null,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 180,
+                    fadeIn: false,
+                    errorWidget: const ColoredBox(
+                      color: AppColors.surface,
+                      child: Center(
+                        child: SymbolIcon(
+                          Symbols.image_outlined,
+                          color: AppColors.iconMuted,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PreviewSourceBlock extends StatelessWidget {
+  const _PreviewSourceBlock({required this.draft});
+
+  final _AutomaticNewsDraft draft;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceUrl = draft.sourceUrl.trim();
+    final sourceName = _previewSourceName(draft);
+    final color = _platformColor(draft.platform);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Alındığı Yer',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.inkSoft,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: SymbolIcon(
+                  _platformIcon(draft.platform),
+                  color: color,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  sourceName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (sourceUrl.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _PreviewLinkValue(
+              value: _compactUrl(sourceUrl),
+              url: sourceUrl,
+              weight: FontWeight.w700,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -3645,17 +4167,29 @@ class _AutomaticNewsPreviewDetails extends StatelessWidget {
     final content = draft.contentText.trim().isNotEmpty
         ? draft.contentText
         : draft.summary;
+    final copyText = _automaticNewsPreviewCopyText(draft, content);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          draft.title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: AppColors.deepOcean,
-            fontWeight: FontWeight.w800,
-            height: 1.18,
-            letterSpacing: 0,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                draft.title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w800,
+                  height: 1.18,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            _PreviewCopyButton(
+              onPressed: () => unawaited(_copyPreviewText(context, copyText)),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -3669,32 +4203,105 @@ class _AutomaticNewsPreviewDetails extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 18),
-        _PreviewSection(title: 'Kısa Özet', body: draft.summary),
+        _PreviewSection(
+          title: 'Kısa Özet',
+          body: draft.summary,
+          copyValue: copyText,
+        ),
         const SizedBox(height: 16),
-        _PreviewSection(title: 'Tam Metin', body: content),
-        const SizedBox(height: 18),
-        _PreviewInfoBlock(label: 'Kaynak', value: draft.sourceName),
-        const SizedBox(height: 10),
-        _PreviewInfoBlock(label: 'Alındığı Yer', value: draft.origin),
-        const SizedBox(height: 10),
-        _PreviewInfoBlock(
-          label: 'Haber Linki',
-          value: draft.sourceUrl,
-          compactValue: _compactUrl(draft.sourceUrl),
-        ),
-        const SizedBox(height: 10),
-        _PreviewInfoBlock(
-          label: 'Gönderi Tarihi',
-          value: draft.publishedAt == null
-              ? 'Kaynakta tarih yok'
-              : _formatDateTime(draft.publishedAt!),
-        ),
-        const SizedBox(height: 10),
-        _PreviewInfoBlock(
-          label: 'Çekim Tarihi',
-          value: _formatDateTime(draft.capturedAt),
-        ),
+        _PreviewSection(title: 'Tam Metin', body: content, copyValue: copyText),
       ],
+    );
+  }
+}
+
+String _automaticNewsPreviewCopyText(
+  _AutomaticNewsDraft draft,
+  String content,
+) {
+  final lines = <String>[
+    'Başlık',
+    _readableText(draft.title, fallback: ''),
+    '',
+    'Kaynak',
+    _previewSourceName(draft),
+    '',
+    'Haber Linki',
+    _readableText(draft.sourceUrl, fallback: ''),
+    '',
+    'Medya Linki',
+    _readableText(draft.mediaUrl, fallback: ''),
+    '',
+    'Kategori',
+    _readableText(draft.category, fallback: ''),
+    '',
+    'Durum',
+    _readableText(draft.status, fallback: ''),
+    '',
+    'Dil',
+    _readableText(draft.language, fallback: ''),
+    '',
+    'Güven',
+    '%${draft.quality}',
+    '',
+    'Gönderi Tarihi',
+    draft.publishedAt == null
+        ? 'Kaynakta tarih yok'
+        : _formatDateTime(draft.publishedAt!),
+    '',
+    'Çekim Tarihi',
+    _formatDateTime(draft.capturedAt),
+    '',
+    'Kısa Özet',
+    _readableText(draft.summary, fallback: ''),
+    '',
+    'Tam Metin',
+    _readableText(content, fallback: ''),
+  ];
+  return lines
+      .map((line) => line.trimRight())
+      .join('\n')
+      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+      .trim();
+}
+
+class _AutomaticNewsPreviewTiming extends StatelessWidget {
+  const _AutomaticNewsPreviewTiming({required this.draft});
+
+  final _AutomaticNewsDraft draft;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 360;
+        final itemWidth = narrow
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 10) / 2;
+
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            SizedBox(
+              width: itemWidth,
+              child: _PreviewInfoBlock(
+                label: 'Gönderi Tarihi',
+                value: draft.publishedAt == null
+                    ? 'Kaynakta tarih yok'
+                    : _formatDateTime(draft.publishedAt!),
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _PreviewInfoBlock(
+                label: 'Çekim Tarihi',
+                value: _formatDateTime(draft.capturedAt),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -3729,27 +4336,40 @@ class _PreviewBadge extends StatelessWidget {
 }
 
 class _PreviewSection extends StatelessWidget {
-  const _PreviewSection({required this.title, required this.body});
+  const _PreviewSection({
+    required this.title,
+    required this.body,
+    required this.copyValue,
+  });
 
   final String title;
   final String body;
+  final String copyValue;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 7),
         SelectableText(
           _readableText(body),
+          onTap: () => unawaited(_copyPreviewText(context, copyValue)),
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.deepOcean,
             fontWeight: FontWeight.w600,
@@ -3762,19 +4382,119 @@ class _PreviewSection extends StatelessWidget {
   }
 }
 
+class _PreviewCopyButton extends StatelessWidget {
+  const _PreviewCopyButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Metni kopyala',
+      child: TextButton.icon(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 30),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          foregroundColor: AppColors.deepOcean,
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            side: BorderSide(color: AppColors.line.withValues(alpha: 0.72)),
+          ),
+        ),
+        icon: const Icon(Icons.content_copy_rounded, size: 14),
+        label: const Text(
+          'Kopyala',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewLinkValue extends StatelessWidget {
+  const _PreviewLinkValue({
+    required this.value,
+    required this.url,
+    this.weight = FontWeight.w800,
+  });
+
+  final String value;
+  final String url;
+  final FontWeight weight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: url,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.value / 2),
+          onTap: () => _openPreviewLink(url),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    _readableText(value),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.actionRed,
+                      fontWeight: weight,
+                      height: 1.28,
+                      decoration: TextDecoration.underline,
+                      decorationColor: AppColors.actionRed.withValues(
+                        alpha: 0.72,
+                      ),
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: SymbolIcon(
+                    Symbols.open_in_new,
+                    color: AppColors.actionRed,
+                    size: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PreviewInfoBlock extends StatelessWidget {
   const _PreviewInfoBlock({
     required this.label,
     required this.value,
     this.compactValue,
+    this.linkUrl,
   });
 
   final String label;
   final String value;
   final String? compactValue;
+  final String? linkUrl;
 
   @override
   Widget build(BuildContext context) {
+    final displayValue = _readableText(compactValue ?? value);
+    final targetUrl = linkUrl?.trim() ?? '';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -3795,14 +4515,17 @@ class _PreviewInfoBlock extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 5),
-          SelectableText(
-            _readableText(compactValue ?? value),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.deepOcean,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
-            ),
-          ),
+          if (targetUrl.isEmpty)
+            SelectableText(
+              displayValue,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            )
+          else
+            _PreviewLinkValue(value: displayValue, url: targetUrl),
         ],
       ),
     );

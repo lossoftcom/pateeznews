@@ -3099,6 +3099,7 @@ const Map<String, String> adminArTranslations = <String, String>{
   "newsAdd.aiMediaSeoModal.coverMissingHint":
       "يتفعل هذا الخيار بعد اختيار صورة الغلاف.",
   "newsAdd.aiMediaSeoModal.run": "تحديث SEO الوسائط",
+  "newsAdd.aiMediaSeoModal.approve": "اعتماد وتحديث",
   "newsAdd.aiMediaSeoModal.running": "جار تحديث SEO الوسائط...",
   "newsAdd.aiMediaSeoModal.runningHint":
       "تتم إعادة تسمية الملفات وربط روابط الوسائط داخل النموذج.",
@@ -3112,7 +3113,11 @@ const Map<String, String> adminArTranslations = <String, String>{
       "لم يتم العثور على وسائط مستخدمة في الخبر.",
   "newsAdd.aiMediaSeoModal.noOption": "اختر عملية واحدة على الأقل.",
   "newsAdd.aiMediaSeoModal.localOnly": "ليس ملفا محليا",
+  "newsAdd.aiMediaSeoModal.externalMedia": "وسائط خارجية",
+  "newsAdd.aiMediaSeoModal.externalMediaHint":
+      "لا يمكن تغيير اسم الملف؛ يتم التعامل مع العنوان والوصف والصورة المصغرة والبيانات المنظمة كبيانات وصفية فقط.",
   "newsAdd.aiMediaSeoModal.unchanged": "مناسب بالفعل",
+  "newsAdd.aiMediaSeoModal.preview": "معاينة",
   "newsAdd.aiMediaSeoModal.failed": "تعذر التحديث",
   "newsAdd.aiMediaSeoModal.renamed": "تمت إعادة التسمية",
   "newsAdd.articleTitle": "عنوان الخبر",

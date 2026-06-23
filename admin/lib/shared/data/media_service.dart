@@ -106,6 +106,16 @@ class MediaSeoRenameResult {
     required this.src,
     required this.replacements,
     this.error = '',
+    this.generationMode = '',
+    this.modelUsed = '',
+    this.usedVision = false,
+    this.fallbackReason = '',
+    this.dbUpdatedPosts = 0,
+    this.remoteRenamed = 0,
+    this.remoteVerified = 0,
+    this.localBackupRenamed = 0,
+    this.remoteError = '',
+    this.storage = const <String, String>{},
   });
 
   factory MediaSeoRenameResult.failure(String error) {
@@ -115,10 +125,12 @@ class MediaSeoRenameResult {
       src: '',
       replacements: const [],
       error: error,
+      storage: const <String, String>{},
     );
   }
 
   factory MediaSeoRenameResult.fromJson(Map<String, dynamic> json) {
+    final storageJson = json['storage'];
     return MediaSeoRenameResult(
       success: json['success'] == true,
       filename: (json['filename'] ?? '').toString(),
@@ -128,6 +140,20 @@ class MediaSeoRenameResult {
           if (row is Map<String, dynamic>) MediaSeoReplacement.fromJson(row),
       ],
       error: (json['error'] ?? '').toString(),
+      generationMode: (json['generationMode'] ?? '').toString(),
+      modelUsed: (json['modelUsed'] ?? '').toString(),
+      usedVision: json['usedVision'] == true,
+      fallbackReason: (json['fallbackReason'] ?? '').toString(),
+      dbUpdatedPosts: (json['dbUpdatedPosts'] as num?)?.toInt() ?? 0,
+      remoteRenamed: (json['remoteRenamed'] as num?)?.toInt() ?? 0,
+      remoteVerified: (json['remoteVerified'] as num?)?.toInt() ?? 0,
+      localBackupRenamed: (json['localBackupRenamed'] as num?)?.toInt() ?? 0,
+      remoteError: (json['remoteError'] ?? '').toString(),
+      storage: {
+        if (storageJson is Map)
+          for (final entry in storageJson.entries)
+            entry.key.toString(): entry.value.toString(),
+      },
     );
   }
 
@@ -136,6 +162,16 @@ class MediaSeoRenameResult {
   final String src;
   final List<MediaSeoReplacement> replacements;
   final String error;
+  final String generationMode;
+  final String modelUsed;
+  final bool usedVision;
+  final String fallbackReason;
+  final int dbUpdatedPosts;
+  final int remoteRenamed;
+  final int remoteVerified;
+  final int localBackupRenamed;
+  final String remoteError;
+  final Map<String, String> storage;
 }
 
 class MediaSeoAltTextResult {
@@ -754,23 +790,28 @@ class MediaService {
     required String languageCode,
     required String mediaKind,
     required String context,
+    Map<String, Object?>? contextJson,
     String? filename,
     bool suggestOnly = false,
   }) async {
     final manualName = filename?.trim() ?? '';
+    final requestBody = <String, Object?>{
+      'src': src,
+      'type': type,
+      'languageCode': languageCode,
+      'mediaKind': mediaKind,
+      'context': context,
+      if (manualName.isNotEmpty) 'filename': manualName,
+      if (suggestOnly) 'suggestOnly': true,
+    };
+    if (contextJson != null) {
+      requestBody['contextJson'] = contextJson;
+    }
     final response = await _request(
       'POST',
       _resolve('/api/storage/seo-rename'),
       headers: await adminJsonHeaders(),
-      body: jsonEncode({
-        'src': src,
-        'type': type,
-        'languageCode': languageCode,
-        'mediaKind': mediaKind,
-        'context': context,
-        if (manualName.isNotEmpty) 'filename': manualName,
-        if (suggestOnly) 'suggestOnly': true,
-      }),
+      body: jsonEncode(requestBody),
       timeout: _aiTimeout,
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
