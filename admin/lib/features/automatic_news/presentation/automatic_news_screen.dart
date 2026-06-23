@@ -1864,6 +1864,11 @@ class _AutomaticNewsMobileCard extends StatelessWidget {
                 icon: Symbols.verified,
                 label: '%${draft.quality} kalite',
               ),
+              if (draft.hasDuplicateWarning)
+                _AutomaticNewsMobileMetricChip(
+                  icon: Symbols.warning,
+                  label: 'Olası tekrar',
+                ),
             ],
           ),
         ],
@@ -2780,6 +2785,10 @@ class _DraftIdentity extends StatelessWidget {
                   letterSpacing: 0,
                 ),
               ),
+              if (draft.hasDuplicateWarning) ...[
+                const SizedBox(height: 6),
+                _DuplicateWarningChip(draft: draft, compact: true),
+              ],
               const SizedBox(height: 7),
               Row(
                 children: [
@@ -3406,6 +3415,61 @@ class _StatusBadge extends StatelessWidget {
           fontWeight: FontWeight.w800,
           letterSpacing: 0,
         ),
+      ),
+    );
+  }
+}
+
+class _DuplicateWarningChip extends StatelessWidget {
+  const _DuplicateWarningChip({required this.draft, this.compact = false});
+
+  final _AutomaticNewsDraft draft;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = _readableText(
+      draft.duplicateMatchSource,
+      fallback: draft.duplicateMatchTable == 'post'
+          ? 'Pateez haberleri'
+          : 'Otomatik haberler',
+    );
+    final label = compact
+        ? 'Olası tekrar: $source'
+        : 'Olası tekrar %${draft.duplicateScore}: $source';
+    return Container(
+      constraints: compact ? const BoxConstraints(maxWidth: 260) : null,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF6E7),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(
+          color: AppColors.warmHorizon.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SymbolIcon(
+            Symbols.warning,
+            color: AppColors.warmHorizon,
+            size: 14,
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.warmHorizon,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4498,10 +4562,23 @@ class _AutomaticNewsPreviewDetails extends StatelessWidget {
             _PreviewBadge(draft.status, success: draft.status == 'Hazır'),
             _PreviewBadge('${draft.language} dil'),
             _PreviewBadge('%${draft.quality} içerik kalitesi'),
+            if (draft.hasDuplicateWarning)
+              _PreviewBadge(
+                'Olası tekrar %${draft.duplicateScore}',
+                success: false,
+              ),
           ],
         ),
         const SizedBox(height: 12),
         _AutomaticNewsPromptMenu(promptText: promptText),
+        if (draft.hasDuplicateWarning) ...[
+          const SizedBox(height: 18),
+          _PreviewSection(
+            title: 'Olası Tekrar Uyarısı',
+            body: _duplicateWarningDetails(draft),
+            copyValue: copyText,
+          ),
+        ],
         const SizedBox(height: 18),
         _PreviewSection(
           title: 'Kısa Özet',
@@ -4513,6 +4590,21 @@ class _AutomaticNewsPreviewDetails extends StatelessWidget {
       ],
     );
   }
+}
+
+String _duplicateWarningDetails(_AutomaticNewsDraft draft) {
+  final lines = <String>[
+    'Eşleşme skoru: %${draft.duplicateScore}',
+    'Kaynak: ${_readableText(draft.duplicateMatchSource, fallback: draft.duplicateMatchTable == 'post' ? 'Pateez haberleri' : 'Otomatik haberler')}',
+    'Sebep: ${_readableText(draft.duplicateReason, fallback: 'Başlık/metin/olay benzerliği')}',
+  ];
+  if (draft.duplicateMatchTitle.trim().isNotEmpty) {
+    lines.add('Eşleşen başlık: ${draft.duplicateMatchTitle.trim()}');
+  }
+  if (draft.duplicateMatchUrl.trim().isNotEmpty) {
+    lines.add('Eşleşen link: ${draft.duplicateMatchUrl.trim()}');
+  }
+  return lines.join('\n');
 }
 
 String _automaticNewsPreviewCopyText(
@@ -4544,6 +4636,11 @@ String _automaticNewsPreviewCopyText(
     'İçerik Kalitesi',
     '%${draft.quality}',
     '',
+    if (draft.hasDuplicateWarning) ...[
+      'Olası Tekrar Uyarısı',
+      _duplicateWarningDetails(draft),
+      '',
+    ],
     'Gönderi Tarihi',
     draft.publishedAt == null
         ? 'Kaynakta tarih yok'
@@ -5968,6 +6065,14 @@ class _AutomaticNewsDraft {
     required this.videoUrl,
     required this.mediaUrls,
     required this.dateConfidence,
+    required this.duplicateState,
+    required this.duplicateScore,
+    required this.duplicateMatchTable,
+    required this.duplicateMatchId,
+    required this.duplicateMatchSource,
+    required this.duplicateMatchTitle,
+    required this.duplicateMatchUrl,
+    required this.duplicateReason,
     required this.origin,
     required this.category,
     required this.status,
@@ -6000,6 +6105,14 @@ class _AutomaticNewsDraft {
       videoUrl: item.videoUrl.trim(),
       mediaUrls: item.mediaUrls,
       dateConfidence: item.dateConfidence,
+      duplicateState: item.duplicateState,
+      duplicateScore: item.duplicateScore,
+      duplicateMatchTable: item.duplicateMatchTable,
+      duplicateMatchId: item.duplicateMatchId,
+      duplicateMatchSource: item.duplicateMatchSource,
+      duplicateMatchTitle: item.duplicateMatchTitle,
+      duplicateMatchUrl: item.duplicateMatchUrl,
+      duplicateReason: item.duplicateReason,
       origin: item.originLabel.isEmpty ? 'Kaynak adresi' : item.originLabel,
       category: item.category,
       status: item.status,
@@ -6024,6 +6137,14 @@ class _AutomaticNewsDraft {
   final String videoUrl;
   final List<String> mediaUrls;
   final String dateConfidence;
+  final String duplicateState;
+  final int duplicateScore;
+  final String duplicateMatchTable;
+  final String duplicateMatchId;
+  final String duplicateMatchSource;
+  final String duplicateMatchTitle;
+  final String duplicateMatchUrl;
+  final String duplicateReason;
   final String origin;
   final String category;
   final String status;
@@ -6031,6 +6152,8 @@ class _AutomaticNewsDraft {
   final int quality;
   final DateTime? publishedAt;
   final DateTime capturedAt;
+
+  bool get hasDuplicateWarning => duplicateState == 'possible';
 
   List<String> get allMediaUrls {
     final urls = <String>[];

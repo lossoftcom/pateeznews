@@ -65,6 +65,14 @@ class AutomaticNewsItem {
     required this.videoUrl,
     required this.mediaUrls,
     required this.dateConfidence,
+    required this.duplicateState,
+    required this.duplicateScore,
+    required this.duplicateMatchTable,
+    required this.duplicateMatchId,
+    required this.duplicateMatchSource,
+    required this.duplicateMatchTitle,
+    required this.duplicateMatchUrl,
+    required this.duplicateReason,
     required this.publishedAt,
     required this.capturedAt,
   });
@@ -90,6 +98,14 @@ class AutomaticNewsItem {
       videoUrl: json['videoUrl']?.toString() ?? '',
       mediaUrls: _stringList(json['mediaUrls']),
       dateConfidence: json['dateConfidence']?.toString() ?? 'source',
+      duplicateState: json['duplicateState']?.toString() ?? 'none',
+      duplicateScore: _asInt(json['duplicateScore']),
+      duplicateMatchTable: json['duplicateMatchTable']?.toString() ?? '',
+      duplicateMatchId: json['duplicateMatchId']?.toString() ?? '',
+      duplicateMatchSource: json['duplicateMatchSource']?.toString() ?? '',
+      duplicateMatchTitle: json['duplicateMatchTitle']?.toString() ?? '',
+      duplicateMatchUrl: json['duplicateMatchUrl']?.toString() ?? '',
+      duplicateReason: json['duplicateReason']?.toString() ?? '',
       publishedAt: _parseDate(json['publishedAt']),
       capturedAt: _parseDate(json['capturedAt']) ?? DateTime.now(),
     );
@@ -114,6 +130,14 @@ class AutomaticNewsItem {
   final String videoUrl;
   final List<String> mediaUrls;
   final String dateConfidence;
+  final String duplicateState;
+  final int duplicateScore;
+  final String duplicateMatchTable;
+  final String duplicateMatchId;
+  final String duplicateMatchSource;
+  final String duplicateMatchTitle;
+  final String duplicateMatchUrl;
+  final String duplicateReason;
   final DateTime? publishedAt;
   final DateTime capturedAt;
 }

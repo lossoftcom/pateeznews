@@ -52,6 +52,7 @@ interface AutomaticNewsSourceRow {
 }
 
 type DateConfidence = 'source' | 'fallback' | 'unknown';
+type DuplicateState = 'none' | 'exact' | 'possible';
 
 interface AutomaticNewsItemInput {
   source: AutomaticNewsSourceRow;
@@ -72,6 +73,33 @@ interface AutomaticNewsItemInput {
   dateConfidence: DateConfidence;
   discoveredAt: string;
   rawPayload: Record<string, unknown>;
+}
+
+interface DuplicateCandidateRow {
+  record_type: 'automatic' | 'post';
+  id: string;
+  source_label: string;
+  title: string;
+  summary: string;
+  content_text: string;
+  published_at: string | null;
+  captured_at: string | null;
+  canonical_url: string;
+  source_url: string;
+  image_url: string;
+  video_url: string;
+  media_urls: unknown;
+}
+
+interface DuplicateMatch {
+  state: DuplicateState;
+  score: number;
+  matchTable: string;
+  matchId: string;
+  matchSource: string;
+  matchTitle: string;
+  matchUrl: string;
+  reason: string;
 }
 
 interface WebsiteCandidate {
@@ -1342,9 +1370,321 @@ const collectSourceLatestItem = async (source: AutomaticNewsSourceRow) => {
   return collectWebsiteLatestItem(source);
 };
 
+const normalizeComparableUrl = (value: string) => {
+  const url = normalizeText(value);
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/^(utm_|fbclid|igshid|mc_)/i.test(key)) parsed.searchParams.delete(key);
+    }
+    let output = parsed.toString();
+    output = output.replace(/\/+(\?|$)/, '$1');
+    return output;
+  } catch {
+    return url.replace(/[?#].*$/, '').replace(/\/+$/, '').toLocaleLowerCase('tr-TR');
+  }
+};
+
+const mediaComparisonUrls = (item: Pick<AutomaticNewsItemInput, 'imageUrl' | 'videoUrl' | 'mediaUrls'>) => {
+  const urls = new Set<string>();
+  for (const url of [item.imageUrl, item.videoUrl, ...(item.mediaUrls || [])]) {
+    const normalized = normalizeComparableUrl(url);
+    if (normalized) urls.add(normalized);
+  }
+  return [...urls];
+};
+
+const duplicateStopWords = new Set([
+  'bir',
+  'ile',
+  'icin',
+  'için',
+  'olan',
+  'olarak',
+  'son',
+  'dakika',
+  'haber',
+  'haberi',
+  'iste',
+  'işte',
+  've',
+  'veya',
+  'da',
+  'de',
+  'mi',
+  'mu',
+  'mı',
+  'mü',
+  'bu',
+  'su',
+  'şu',
+]);
+
+const duplicateTokens = (value: string) => {
+  const normalized = trLower(value)
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 3 && !duplicateStopWords.has(item));
+  return [...new Set(normalized)].slice(0, 160);
+};
+
+const tokenSimilarity = (left: string[], right: string[]) => {
+  if (!left.length || !right.length) return 0;
+  const rightSet = new Set(right);
+  const intersection = left.filter((item) => rightSet.has(item)).length;
+  const union = new Set([...left, ...right]).size;
+  return union ? intersection / union : 0;
+};
+
+const importantDuplicateTokens = (value: string) =>
+  duplicateTokens(value).filter((token) =>
+    /\d/.test(token) ||
+    /(niğde|nigde|bor|çamardı|camardi|çiftlik|ciftlik|ulukışla|ulukisla|altunhisar|emniyet|jandarma|belediye|valilik|kaza|yangın|yangin|operasyon|gözaltı|gozalti|vefat|ihale|okul|hastane)/i.test(token)
+  );
+
+const dateDistanceHours = (a: string | null, b: string | null) => {
+  if (!a || !b) return null;
+  const left = Date.parse(a);
+  const right = Date.parse(b);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+  return Math.abs(left - right) / 36e5;
+};
+
+const emptyDuplicateMatch = (): DuplicateMatch => ({
+  state: 'none',
+  score: 0,
+  matchTable: '',
+  matchId: '',
+  matchSource: '',
+  matchTitle: '',
+  matchUrl: '',
+  reason: '',
+});
+
+const rowMediaUrls = (row: DuplicateCandidateRow) => {
+  const values: string[] = [];
+  for (const value of [row.image_url, row.video_url]) {
+    const normalized = normalizeComparableUrl(value);
+    if (normalized) values.push(normalized);
+  }
+  if (Array.isArray(row.media_urls)) {
+    for (const value of row.media_urls) {
+      const normalized = normalizeComparableUrl(String(value || ''));
+      if (normalized) values.push(normalized);
+    }
+  }
+  return [...new Set(values)];
+};
+
+const duplicateMatchFromRow = (
+  state: DuplicateState,
+  score: number,
+  row: DuplicateCandidateRow,
+  reason: string,
+): DuplicateMatch => ({
+  state,
+  score,
+  matchTable: row.record_type,
+  matchId: row.id,
+  matchSource: row.source_label,
+  matchTitle: row.title,
+  matchUrl: row.canonical_url || row.source_url,
+  reason,
+});
+
+const compareDuplicateCandidate = (
+  item: AutomaticNewsItemInput,
+  row: DuplicateCandidateRow,
+  itemUrlSet: Set<string>,
+  itemMediaSet: Set<string>,
+): DuplicateMatch => {
+  const rowUrls = [row.canonical_url, row.source_url]
+    .map(normalizeComparableUrl)
+    .filter(Boolean);
+  if (rowUrls.some((url) => itemUrlSet.has(url))) {
+    return duplicateMatchFromRow('exact', 100, row, 'Aynı haber URL adresi');
+  }
+
+  const rowMedia = rowMediaUrls(row);
+  if (itemMediaSet.size > 0 && rowMedia.some((url) => itemMediaSet.has(url))) {
+    return duplicateMatchFromRow('exact', 100, row, 'Aynı görsel/video medya adresi');
+  }
+
+  const itemTitleFingerprint = titleFingerprint(item.title);
+  const rowTitleFingerprint = titleFingerprint(row.title);
+  const itemBody = `${item.title} ${item.summary} ${item.contentText}`;
+  const rowBody = `${row.title} ${row.summary} ${row.content_text}`;
+  const titleScore = tokenSimilarity(duplicateTokens(item.title), duplicateTokens(row.title));
+  const bodyScore = tokenSimilarity(duplicateTokens(itemBody), duplicateTokens(rowBody));
+  const importantScore = tokenSimilarity(importantDuplicateTokens(itemBody), importantDuplicateTokens(rowBody));
+  const distance = dateDistanceHours(item.publishedAt || item.discoveredAt, row.published_at || row.captured_at);
+  const closeDate = distance == null || distance <= 72;
+
+  if (
+    itemTitleFingerprint === rowTitleFingerprint &&
+    closeDate &&
+    (bodyScore >= 0.58 || item.summary.length < 30 || row.summary.length < 30)
+  ) {
+    return duplicateMatchFromRow('exact', 98, row, 'Aynı başlık parmak izi ve uyumlu içerik');
+  }
+
+  const score = Math.round(
+    Math.min(100, (titleScore * 52) + (bodyScore * 34) + (importantScore * 14) + (closeDate ? 6 : 0)),
+  );
+  if (score >= 82 && titleScore >= 0.54 && bodyScore >= 0.38) {
+    return duplicateMatchFromRow('possible', score, row, 'Başlık/metin/olay benzerliği');
+  }
+
+  return emptyDuplicateMatch();
+};
+
+const selectBestDuplicateMatch = (matches: DuplicateMatch[]) => {
+  const exact = matches
+    .filter((match) => match.state === 'exact')
+    .sort((a, b) => b.score - a.score)[0];
+  if (exact) return exact;
+  return matches
+    .filter((match) => match.state === 'possible')
+    .sort((a, b) => b.score - a.score)[0] || emptyDuplicateMatch();
+};
+
+const duplicateCandidateRows = async (
+  item: AutomaticNewsItemInput,
+  canonicalUrlHash: string,
+  sourceUrlHash: string,
+) => {
+  const urls = [item.canonicalUrl, item.sourceUrl]
+    .map(normalizeComparableUrl)
+    .filter(Boolean);
+  const mediaUrls = mediaComparisonUrls(item);
+  const publishedAt = item.publishedAt || item.discoveredAt;
+  const titleLike = `%${normalizeText(item.title).slice(0, 80)}%`;
+
+  const automaticExact = await dbQuery<DuplicateCandidateRow>(
+    `SELECT
+       'automatic'::text AS record_type,
+       id::text,
+       source_name AS source_label,
+       title,
+       summary,
+       content_text,
+       published_at,
+       captured_at,
+       canonical_url,
+       source_url,
+       image_url,
+       video_url,
+       media_urls
+     FROM public.automatic_news_items
+     WHERE canonical_url_hash = ANY($1::text[])
+        OR source_url_hash = ANY($1::text[])
+        OR canonical_url = ANY($2::text[])
+        OR source_url = ANY($2::text[])
+        OR image_url = ANY($3::text[])
+        OR video_url = ANY($3::text[])
+        OR media_urls ?| $3::text[]
+     ORDER BY captured_at DESC
+     LIMIT 20`,
+    [[canonicalUrlHash, sourceUrlHash].filter(Boolean), urls, mediaUrls],
+  );
+
+  const automaticRecent = await dbQuery<DuplicateCandidateRow>(
+    `SELECT
+       'automatic'::text AS record_type,
+       id::text,
+       source_name AS source_label,
+       title,
+       summary,
+       content_text,
+       published_at,
+       captured_at,
+       canonical_url,
+       source_url,
+       image_url,
+       video_url,
+       media_urls
+     FROM public.automatic_news_items
+     WHERE captured_at >= COALESCE($1::timestamptz, now()) - interval '10 days'
+       AND captured_at <= COALESCE($1::timestamptz, now()) + interval '1 day'
+     ORDER BY captured_at DESC
+     LIMIT 160`,
+    [publishedAt],
+  );
+
+  const posts = await dbQuery<DuplicateCandidateRow>(
+    `SELECT
+       'post'::text AS record_type,
+       id::text,
+       'Pateez haberleri'::text AS source_label,
+       title,
+       summary,
+       regexp_replace(COALESCE(content, ''), '<[^>]+>', ' ', 'g') AS content_text,
+       published_at,
+       created_at AS captured_at,
+       CASE WHEN COALESCE(slug, '') <> '' THEN '/' || slug ELSE '' END AS canonical_url,
+       ''::text AS source_url,
+       thumbnail_url AS image_url,
+       media_url AS video_url,
+       jsonb_build_array(thumbnail_url, media_url) AS media_urls
+     FROM public.posts
+     WHERE deleted_at IS NULL
+       AND created_at >= COALESCE($1::timestamptz, now()) - interval '30 days'
+       AND created_at <= COALESCE($1::timestamptz, now()) + interval '1 day'
+       AND (
+         title ILIKE $2
+         OR thumbnail_url = ANY($3::text[])
+         OR media_url = ANY($3::text[])
+         OR published_at >= COALESCE($1::timestamptz, now()) - interval '10 days'
+       )
+     ORDER BY created_at DESC
+     LIMIT 180`,
+    [publishedAt, titleLike, mediaUrls],
+  );
+
+  const rows = new Map<string, DuplicateCandidateRow>();
+  for (const row of [...automaticExact.rows, ...automaticRecent.rows, ...posts.rows]) {
+    rows.set(`${row.record_type}:${row.id}`, row);
+  }
+  return [...rows.values()];
+};
+
+const checkAutomaticNewsDuplicate = async (
+  item: AutomaticNewsItemInput,
+  canonicalUrlHash: string,
+  sourceUrlHash: string,
+) => {
+  const rows = await duplicateCandidateRows(item, canonicalUrlHash, sourceUrlHash);
+  if (!rows.length) return emptyDuplicateMatch();
+  const itemUrls = new Set(
+    [item.canonicalUrl, item.sourceUrl]
+      .map(normalizeComparableUrl)
+      .filter(Boolean),
+  );
+  const itemMedia = new Set(mediaComparisonUrls(item));
+  return selectBestDuplicateMatch(
+    rows.map((row) => compareDuplicateCandidate(item, row, itemUrls, itemMedia)),
+  );
+};
+
 const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
   const canonicalUrlHash = item.canonicalUrl ? hash(item.canonicalUrl) : '';
   const sourceUrlHash = item.sourceUrl ? hash(item.sourceUrl) : '';
+  const duplicateMatch = await checkAutomaticNewsDuplicate(item, canonicalUrlHash, sourceUrlHash);
+  if (duplicateMatch.state === 'exact') return false;
+  const finalItem = duplicateMatch.state === 'possible'
+    ? {
+        ...item,
+        status: 'İncele',
+        rawPayload: {
+          ...(item.rawPayload || {}),
+          duplicateCheck: duplicateMatch,
+        },
+      }
+    : item;
   const detectedAt = Date.parse(item.discoveredAt);
   const publishedAt = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
   const detectionLatencySeconds = Number.isFinite(detectedAt) && Number.isFinite(publishedAt)
@@ -1356,43 +1696,55 @@ const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
         title, title_fingerprint, summary, content_text, category, status, language_code,
         origin_label, quality_score, image_url, video_url, published_at, discovered_at,
         date_confidence, media_urls, canonical_url_hash, source_url_hash,
-        detection_latency_seconds, raw_payload)
+        detection_latency_seconds, duplicate_state, duplicate_score, duplicate_match_table,
+        duplicate_match_id, duplicate_match_source, duplicate_match_title, duplicate_match_url,
+        duplicate_reason, duplicate_checked_at, raw_payload)
      VALUES
        ($1, $2, $3, $4, $5, $6,
         $7, $8, $9, $10, $11, $12, 'tr',
         $13, $14, $15, $16, $17, $18,
         $19, $20::jsonb, $21, $22,
-        $23, $24::jsonb)
+        $23, $24, $25, $26,
+        $27, $28, $29, $30,
+        $31, now(), $32::jsonb)
      ON CONFLICT DO NOTHING
      RETURNING id`,
     [
-      item.source.id,
-      item.source.display_name,
-      item.source.source_type,
-      item.sourceUrl,
-      item.canonicalUrl,
-      item.externalId,
-      item.title,
-      titleFingerprint(item.title),
-      item.summary,
-      item.contentText,
-      item.category,
-      item.status,
-      item.originLabel,
-      item.qualityScore,
-      item.imageUrl,
-      item.videoUrl,
-      item.publishedAt,
-      item.discoveredAt,
-      item.dateConfidence,
-      JSON.stringify(item.mediaUrls || []),
+      finalItem.source.id,
+      finalItem.source.display_name,
+      finalItem.source.source_type,
+      finalItem.sourceUrl,
+      finalItem.canonicalUrl,
+      finalItem.externalId,
+      finalItem.title,
+      titleFingerprint(finalItem.title),
+      finalItem.summary,
+      finalItem.contentText,
+      finalItem.category,
+      finalItem.status,
+      finalItem.originLabel,
+      finalItem.qualityScore,
+      finalItem.imageUrl,
+      finalItem.videoUrl,
+      finalItem.publishedAt,
+      finalItem.discoveredAt,
+      finalItem.dateConfidence,
+      JSON.stringify(finalItem.mediaUrls || []),
       canonicalUrlHash,
       sourceUrlHash,
       detectionLatencySeconds,
+      duplicateMatch.state === 'possible' ? 'possible' : 'none',
+      duplicateMatch.state === 'possible' ? duplicateMatch.score : 0,
+      duplicateMatch.state === 'possible' ? duplicateMatch.matchTable : '',
+      duplicateMatch.state === 'possible' ? duplicateMatch.matchId : '',
+      duplicateMatch.state === 'possible' ? duplicateMatch.matchSource : '',
+      duplicateMatch.state === 'possible' ? duplicateMatch.matchTitle : '',
+      duplicateMatch.state === 'possible' ? duplicateMatch.matchUrl : '',
+      duplicateMatch.state === 'possible' ? duplicateMatch.reason : '',
       JSON.stringify({
-        ...(item.rawPayload || {}),
-        mediaUrls: item.mediaUrls || [],
-        dateConfidence: item.dateConfidence,
+        ...(finalItem.rawPayload || {}),
+        mediaUrls: finalItem.mediaUrls || [],
+        dateConfidence: finalItem.dateConfidence,
       }),
     ],
   );
@@ -2191,6 +2543,14 @@ const rowToItem = (row: any) => ({
     ? row.media_urls.map((item: unknown) => String(item || '').trim()).filter(Boolean)
     : [],
   dateConfidence: String(row.date_confidence || 'source'),
+  duplicateState: String(row.duplicate_state || 'none'),
+  duplicateScore: Number(row.duplicate_score || 0),
+  duplicateMatchTable: String(row.duplicate_match_table || ''),
+  duplicateMatchId: String(row.duplicate_match_id || ''),
+  duplicateMatchSource: String(row.duplicate_match_source || ''),
+  duplicateMatchTitle: String(row.duplicate_match_title || ''),
+  duplicateMatchUrl: String(row.duplicate_match_url || ''),
+  duplicateReason: String(row.duplicate_reason || ''),
   publishedAt: row.published_at || null,
   capturedAt: row.captured_at || null,
 });
